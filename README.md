@@ -1,36 +1,81 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# MRU Hacks 2026
 
-## Getting Started
+A comprehensive hackathon management platform built with Next.js, featuring participant registration, authentication, and dashboard functionality.
 
-First, run the development server:
+## 🚀 Quick Start
+
+### Prerequisites
+
+- Node.js 20+
+- Docker (for local database)
+
+### Setup
+
+1. **Clone and install:**
+   ```bash
+   git clone https://github.com/Kapocsi/mruhacks2026.git
+   cd mruhacks2026
+   npm install
+   ```
+
+2. **Start local database:**
+   ```bash
+   ./localdb.sh
+   ```
+   Copy the output `DATABASE_URL` into your `.env` file.
+
+3. **Run migrations:**
+   ```bash
+   npx drizzle-kit push
+   ```
+
+4. **Start development server:**
+   ```bash
+   npm run dev
+   ```
+
+Visit [http://localhost:3000](http://localhost:3000) to see the app.
+
+## 📚 Documentation
+
+- **[Setup Guide](./docs/SETUP.md)** - Detailed setup instructions, database configuration, and Drizzle usage
+- **[Architecture](./docs/ARCHITECTURE.md)** - Project structure, tech stack, and design patterns
+- **[Database Guide](./docs/DATABASE.md)** - Database configuration, migrations, and Drizzle commands
+- **[Contributing](./CONTRIBUTING.md)** - Development guidelines and best practices
+
+## 🛠️ Common Commands
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm run dev          # Start development server
+npm run build        # Build for production
+npm run lint         # Run ESLint
+npx drizzle-kit push # Sync database schema (dev)
+npx drizzle-kit studio # Open database browser
+npx vitest           # Run tests
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 🔑 Key Features
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- User authentication (email/password)
+- Participant registration system
+- Dashboard with event management
+- Responsive UI with Tailwind CSS
+- Type-safe database with Drizzle ORM
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 🏗️ Tech Stack
 
-## Learn More
+- **Framework**: Next.js 15 (React 19, App Router)
+- **Database**: PostgreSQL + Drizzle ORM
+- **Auth**: Better Auth
+- **Styling**: Tailwind CSS + Radix UI
+- **Language**: TypeScript
 
-To learn more about Next.js, take a look at the following resources:
+## 📄 License
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+This project is private and proprietary.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## 🔗 Resources
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- [Next.js Docs](https://nextjs.org/docs)
+- [Drizzle ORM Docs](https://orm.drizzle.team)
+- [Better Auth Docs](https://www.better-auth.com/docs)
