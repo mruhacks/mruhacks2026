@@ -1,8 +1,14 @@
-export default function RegistrationPage() {
+import { getUser } from "@/utils/auth";
+import RegistrationForm from "./form";
+
+export default async function RegistrationPage() {
+  const user = await getUser();
+
+  if (!user) throw new Error("User must be logged in");
+
   return (
     <div className="p-6">
-      <h1 className="text-2xl font-semibold mb-4">Registration</h1>
-      <p>This is the registration page.</p>
+      <RegistrationForm initial={{}} />{" "}
     </div>
   );
 }
