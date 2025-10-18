@@ -15,6 +15,7 @@ import {
   CardDescription,
   CardContent,
 } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Field,
   FieldGroup,
@@ -24,11 +25,11 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Multiselect } from "@/components/multiselect";
+import { Select } from "@/components/select";
 import { OPTIONS } from "./options";
 
 // ───────────────────────────────────────────────
-// Types & Schema
+// Schema + Types
 // ───────────────────────────────────────────────
 
 type OptionType = { value: string; label: string };
@@ -41,11 +42,14 @@ const formSchema = z.object({
   university: z.string().min(1, "Required"),
   major: z.string().min(1, "Required"),
   yearOfStudy: z.number().int().min(1, "Required").max(5),
+
   interests: z.array(z.string()).nonempty("Select at least one interest."),
   dietaryRestrictions: z.array(z.string()),
   accommodations: z.string().max(500).optional(),
+
   needsParking: z.boolean(),
   heardFrom: z.string().min(1, "Required"),
+
   consentInfoUse: z
     .boolean()
     .refine((v) => v === true, { message: "Required" }),
@@ -60,13 +64,12 @@ const formSchema = z.object({
 export type FormData = z.infer<typeof formSchema>;
 
 // ───────────────────────────────────────────────
-// Helper Select functions
+// Utility
 // ───────────────────────────────────────────────
 
 function getSingleValue(opt: SingleValue<OptionType>): string {
   return opt?.value ?? "";
 }
-
 function getMultiValues(opts: MultiValue<OptionType>): string[] {
   return opts.map((o) => o.value);
 }
@@ -84,7 +87,6 @@ export default function RegistrationForm({
     control,
     register,
     handleSubmit,
-    setValue,
     formState: { errors, isSubmitting },
   } = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -107,10 +109,9 @@ export default function RegistrationForm({
     },
   });
 
-  // compiler-safe value tracking
-  const attendedBefore = useWatch({ control, name: "attendedBefore" });
-  const interests = useWatch({ control, name: "interests" }) ?? [];
   const accommodations = useWatch({ control, name: "accommodations" }) ?? "";
+  const interests = useWatch({ control, name: "interests" }) ?? [];
+  const [tab, setTab] = React.useState("personal");
 
   const onSubmit = async (data: FormData) => {
     toast.success("Registration information saved.");
@@ -126,339 +127,338 @@ export default function RegistrationForm({
 
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)}>
-          {/* PERSONAL INFORMATION */}
-          <h2 className="mt-4 mb-2 text-lg font-semibold">
-            Personal Information
-          </h2>
+          <Tabs value={tab} onValueChange={setTab} className="w-full">
+            <TabsList className="grid grid-cols-3 mb-6">
+              <TabsTrigger value="personal">Personal Details</TabsTrigger>
+              <TabsTrigger value="interests">
+                Interests & Preferences
+              </TabsTrigger>
+              <TabsTrigger value="consents">
+                Consents & Finalization
+              </TabsTrigger>
+            </TabsList>
 
-          <FieldGroup>
-            <div className="grid grid-cols-2 gap-3">
-              <Field>
-                <FieldLabel>First Name*</FieldLabel>
-                <Input {...register("firstName")} />
-                {errors.firstName && <FieldError errors={[errors.firstName]} />}
-              </Field>
-
-              <Field>
-                <FieldLabel>Last Name*</FieldLabel>
-                <Input {...register("lastName")} />
-                {errors.lastName && <FieldError errors={[errors.lastName]} />}
-              </Field>
-            </div>
-
-            {/* Attended Before */}
-            <Field>
-              <FieldLabel>Have you attended MRUHacks before?*</FieldLabel>
-              <div className="flex gap-4 mt-1">
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={attendedBefore}
-                    onChange={() => setValue("attendedBefore", !attendedBefore)}
-                  />
-                  Yes
-                </label>
-              </div>
-            </Field>
-
-            {/* Gender */}
-            <Controller
-              name="gender"
-              control={control}
-              render={({ field, fieldState }) => (
-                <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel>Gender*</FieldLabel>
-                  <Multiselect
-                    isMulti={false}
-                    options={OPTIONS.genders}
-                    value={
-                      OPTIONS.genders.find((o) => o.value === field.value) ??
-                      null
-                    }
-                    onChange={(opt) =>
-                      field.onChange(
-                        getSingleValue(opt as SingleValue<OptionType>),
-                      )
-                    }
-                  />
-                  {fieldState.error && (
-                    <FieldError errors={[fieldState.error]} />
-                  )}
-                </Field>
-              )}
-            />
-
-            {/* University */}
-            <Controller
-              name="university"
-              control={control}
-              render={({ field, fieldState }) => (
-                <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel>University / Institution*</FieldLabel>
-                  <Multiselect
-                    isMulti={false}
-                    options={OPTIONS.universities}
-                    value={
-                      OPTIONS.universities.find(
-                        (o) => o.value === field.value,
-                      ) ?? null
-                    }
-                    onChange={(opt) =>
-                      field.onChange(
-                        getSingleValue(opt as SingleValue<OptionType>),
-                      )
-                    }
-                  />
-                  {fieldState.error && (
-                    <FieldError errors={[fieldState.error]} />
-                  )}
-                </Field>
-              )}
-            />
-
-            {/* Major */}
-            <Controller
-              name="major"
-              control={control}
-              render={({ field, fieldState }) => (
-                <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel>Major / Program*</FieldLabel>
-                  <Multiselect
-                    isMulti={false}
-                    options={OPTIONS.majors}
-                    value={
-                      OPTIONS.majors.find((o) => o.value === field.value) ??
-                      null
-                    }
-                    onChange={(opt) =>
-                      field.onChange(
-                        getSingleValue(opt as SingleValue<OptionType>),
-                      )
-                    }
-                  />
-                  {fieldState.error && (
-                    <FieldError errors={[fieldState.error]} />
-                  )}
-                </Field>
-              )}
-            />
-
-            {/* Year of Study */}
-            <Controller
-              name="yearOfStudy"
-              control={control}
-              render={({ field, fieldState }) => (
-                <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel>What year will you be in as of Fall?*</FieldLabel>
-                  <Multiselect
-                    isMulti={false}
-                    options={OPTIONS.years}
-                    value={
-                      OPTIONS.years.find((o) => o.value === field.value) ?? null
-                    }
-                    onChange={(opt) =>
-                      field.onChange(
-                        Number(getSingleValue(opt as SingleValue<OptionType>)),
-                      )
-                    }
-                  />
-                  {fieldState.error && (
-                    <FieldError errors={[fieldState.error]} />
-                  )}
-                </Field>
-              )}
-            />
-          </FieldGroup>
-
-          {/* INTERESTS & PREFERENCES */}
-          <h2 className="mt-6 mb-2 text-lg font-semibold">
-            Interests & Preferences
-          </h2>
-
-          <FieldGroup>
-            <Controller
-              name="interests"
-              control={control}
-              render={({ field, fieldState }) => (
-                <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel>Interests*</FieldLabel>
-                  <Multiselect
-                    isMulti
-                    options={OPTIONS.interests}
-                    value={OPTIONS.interests.filter((o) =>
-                      field.value.includes(o.value),
+            <TabsContent value="personal">
+              <FieldGroup>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field>
+                    <FieldLabel>First Name*</FieldLabel>
+                    <Input {...register("firstName")} />
+                    {errors.firstName && (
+                      <FieldError errors={[errors.firstName]} />
                     )}
-                    onChange={(opts) =>
-                      field.onChange(
-                        getMultiValues(opts as MultiValue<OptionType>),
-                      )
-                    }
-                  />
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {interests.length} selected
-                  </p>
-                  {fieldState.error && (
-                    <FieldError errors={[fieldState.error]} />
-                  )}
-                </Field>
-              )}
-            />
+                  </Field>
 
-            <Controller
-              name="dietaryRestrictions"
-              control={control}
-              render={({ field }) => (
+                  <Field>
+                    <FieldLabel>Last Name*</FieldLabel>
+                    <Input {...register("lastName")} />
+                    {errors.lastName && (
+                      <FieldError errors={[errors.lastName]} />
+                    )}
+                  </Field>
+                </div>
+
                 <Field>
-                  <FieldLabel>Dietary Restrictions</FieldLabel>
-                  <Multiselect
-                    isMulti
-                    options={OPTIONS.dietary}
-                    value={OPTIONS.dietary.filter((o) =>
-                      field.value.includes(o.value),
-                    )}
-                    onChange={(opts) =>
-                      field.onChange(
-                        getMultiValues(opts as MultiValue<OptionType>),
-                      )
-                    }
-                  />
-                </Field>
-              )}
-            />
-
-            <Field>
-              <FieldLabel>Special Accommodations</FieldLabel>
-              <Textarea
-                {...register("accommodations")}
-                placeholder="Please let us know if you have any special accommodation needs for the event."
-                maxLength={500}
-              />
-              <p className="text-sm text-muted-foreground text-right mt-1">
-                {accommodations.length}/500 characters
-              </p>
-            </Field>
-          </FieldGroup>
-
-          {/* EVENT DETAILS */}
-          <h2 className="mt-6 mb-2 text-lg font-semibold">Event Details</h2>
-
-          <FieldGroup>
-            {/* Needs Parking */}
-            <Controller
-              name="needsParking"
-              control={control}
-              render={({ field, fieldState }) => (
-                <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel>Will you require parking?*</FieldLabel>
-                  <label className="flex items-center gap-2 mt-1">
+                  <FieldLabel>Have you attended MRUHacks before?*</FieldLabel>
+                  <label className="flex items-center gap-2">
                     <input
                       type="checkbox"
-                      checked={field.value}
-                      onChange={() => field.onChange(!field.value)}
+                      {...register("attendedBefore")}
+                      className="accent-primary"
                     />
                     Yes
                   </label>
-                  {fieldState.error && (
-                    <FieldError errors={[fieldState.error]} />
-                  )}
                 </Field>
-              )}
-            />
 
-            {/* Heard From */}
-            <Controller
-              name="heardFrom"
-              control={control}
-              render={({ field, fieldState }) => (
-                <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel>How did you hear about us?*</FieldLabel>
-                  <Multiselect
-                    isMulti={false}
-                    options={OPTIONS.heardFrom}
-                    value={
-                      OPTIONS.heardFrom.find((o) => o.value === field.value) ??
-                      null
-                    }
-                    onChange={(opt) =>
-                      field.onChange(
-                        getSingleValue(opt as SingleValue<OptionType>),
-                      )
-                    }
-                  />
-                  {fieldState.error && (
-                    <FieldError errors={[fieldState.error]} />
-                  )}
-                </Field>
-              )}
-            />
-          </FieldGroup>
-
-          {/* CONSENT */}
-          <h2 className="mt-6 mb-2 text-lg font-semibold">
-            Final Acknowledgments
-          </h2>
-
-          <FieldGroup>
-            {[
-              {
-                name: "consentInfoUse" as const,
-                label:
-                  "I give permission to MRUHacks to use my information for the purpose of the event*",
-                desc: "This includes event logistics, communication, and administration purposes.",
-              },
-              {
-                name: "consentSponsorShare" as const,
-                label:
-                  "I give my permission to MRUHacks to share my information with our sponsors*",
-                desc: "Your information may be shared with event sponsors for recruitment and networking opportunities.",
-              },
-              {
-                name: "consentMediaUse" as const,
-                label:
-                  "I consent to the use of my likeness in photographs, videos, and other media for promotional purposes*",
-                desc: "Media may be used for social media, marketing materials, and event documentation.",
-              },
-            ].map(({ name, label, desc }) => (
-              <Controller
-                key={name}
-                name={name}
-                control={control}
-                render={({ field, fieldState }) => (
-                  <Field data-invalid={fieldState.invalid}>
-                    <label className="flex items-start gap-2">
-                      <input
-                        type="checkbox"
-                        checked={field.value}
-                        onChange={() => field.onChange(!field.value)}
+                <Controller
+                  name="gender"
+                  control={control}
+                  render={({ field, fieldState }) => (
+                    <Field data-invalid={fieldState.invalid}>
+                      <FieldLabel>Gender*</FieldLabel>
+                      <Select
+                        instanceId="gender"
+                        options={OPTIONS.genders}
+                        value={
+                          OPTIONS.genders.find(
+                            (o) => o.value === field.value,
+                          ) ?? null
+                        }
+                        onChange={(opt) =>
+                          field.onChange(
+                            getSingleValue(opt as SingleValue<OptionType>),
+                          )
+                        }
                       />
-                      <span>
-                        <strong>{label}</strong>
-                        <br />
-                        <span className="text-sm text-muted-foreground">
-                          {desc}
-                        </span>
-                      </span>
-                    </label>
-                    {fieldState.error && (
-                      <FieldError errors={[fieldState.error]} />
-                    )}
-                  </Field>
-                )}
-              />
-            ))}
-          </FieldGroup>
+                      {fieldState.error && (
+                        <FieldError errors={[fieldState.error]} />
+                      )}
+                    </Field>
+                  )}
+                />
 
-          <div className="mt-6 flex justify-end">
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving…
-                </>
-              ) : (
-                "Save Changes"
-              )}
-            </Button>
-          </div>
+                <Controller
+                  name="university"
+                  control={control}
+                  render={({ field, fieldState }) => (
+                    <Field data-invalid={fieldState.invalid}>
+                      <FieldLabel>University / Institution*</FieldLabel>
+                      <Select
+                        options={OPTIONS.universities}
+                        value={
+                          OPTIONS.universities.find(
+                            (o) => o.value === field.value,
+                          ) ?? null
+                        }
+                        onChange={(opt) =>
+                          field.onChange(
+                            getSingleValue(opt as SingleValue<OptionType>),
+                          )
+                        }
+                      />
+                      {fieldState.error && (
+                        <FieldError errors={[fieldState.error]} />
+                      )}
+                    </Field>
+                  )}
+                />
+
+                <Controller
+                  name="major"
+                  control={control}
+                  render={({ field, fieldState }) => (
+                    <Field data-invalid={fieldState.invalid}>
+                      <FieldLabel>Major / Program*</FieldLabel>
+                      <Select
+                        options={OPTIONS.majors}
+                        value={
+                          OPTIONS.majors.find((o) => o.value === field.value) ??
+                          null
+                        }
+                        onChange={(opt) =>
+                          field.onChange(
+                            getSingleValue(opt as SingleValue<OptionType>),
+                          )
+                        }
+                      />
+                      {fieldState.error && (
+                        <FieldError errors={[fieldState.error]} />
+                      )}
+                    </Field>
+                  )}
+                />
+
+                <Controller
+                  name="yearOfStudy"
+                  control={control}
+                  render={({ field, fieldState }) => (
+                    <Field data-invalid={fieldState.invalid}>
+                      <FieldLabel>
+                        What year will you be in as of Fall?*
+                      </FieldLabel>
+                      <Select
+                        options={OPTIONS.years}
+                        value={
+                          OPTIONS.years.find((o) => o.value === field.value) ??
+                          null
+                        }
+                        onChange={(opt) =>
+                          field.onChange(
+                            Number(
+                              getSingleValue(opt as SingleValue<OptionType>),
+                            ),
+                          )
+                        }
+                      />
+                      {fieldState.error && (
+                        <FieldError errors={[fieldState.error]} />
+                      )}
+                    </Field>
+                  )}
+                />
+              </FieldGroup>
+            </TabsContent>
+
+            {/* ──────── INTERESTS & PREFERENCES ──────── */}
+            <TabsContent value="interests">
+              <FieldGroup>
+                <Controller
+                  name="interests"
+                  control={control}
+                  render={({ field, fieldState }) => (
+                    <Field data-invalid={fieldState.invalid}>
+                      <FieldLabel>Interests*</FieldLabel>
+                      <Select
+                        isMulti
+                        options={OPTIONS.interests}
+                        value={OPTIONS.interests.filter((o) =>
+                          field.value.includes(o.value),
+                        )}
+                        onChange={(opts) =>
+                          field.onChange(
+                            getMultiValues(opts as MultiValue<OptionType>),
+                          )
+                        }
+                      />
+                      <p className="text-sm text-muted-foreground mt-1">
+                        {interests.length} selected
+                      </p>
+                      {fieldState.error && (
+                        <FieldError errors={[fieldState.error]} />
+                      )}
+                    </Field>
+                  )}
+                />
+
+                <Controller
+                  name="dietaryRestrictions"
+                  control={control}
+                  render={({ field }) => (
+                    <Field>
+                      <FieldLabel>Dietary Restrictions</FieldLabel>
+                      <Select
+                        isMulti
+                        options={OPTIONS.dietary}
+                        value={OPTIONS.dietary.filter((o) =>
+                          field.value.includes(o.value),
+                        )}
+                        onChange={(opts) =>
+                          field.onChange(
+                            getMultiValues(opts as MultiValue<OptionType>),
+                          )
+                        }
+                      />
+                    </Field>
+                  )}
+                />
+
+                <Field>
+                  <FieldLabel>Special Accommodations</FieldLabel>
+                  <Textarea
+                    {...register("accommodations")}
+                    placeholder="Please let us know if you have any special accommodation needs for the event."
+                    maxLength={500}
+                  />
+                  <p className="text-sm text-muted-foreground text-right mt-1">
+                    {accommodations.length}/500 characters
+                  </p>
+                </Field>
+              </FieldGroup>
+            </TabsContent>
+
+            {/* ──────── CONSENTS & FINALIZATION ──────── */}
+            <TabsContent value="consents">
+              <FieldGroup>
+                <Controller
+                  name="needsParking"
+                  control={control}
+                  render={({ field }) => (
+                    <Field>
+                      <FieldLabel>Will you require parking?*</FieldLabel>
+                      <label className="flex items-center gap-2 mt-1">
+                        <input
+                          type="checkbox"
+                          checked={field.value}
+                          onChange={() => field.onChange(!field.value)}
+                        />
+                        Yes
+                      </label>
+                    </Field>
+                  )}
+                />
+
+                <Controller
+                  name="heardFrom"
+                  control={control}
+                  render={({ field, fieldState }) => (
+                    <Field data-invalid={fieldState.invalid}>
+                      <FieldLabel>How did you hear about us?*</FieldLabel>
+                      <Select
+                        options={OPTIONS.heardFrom}
+                        value={
+                          OPTIONS.heardFrom.find(
+                            (o) => o.value === field.value,
+                          ) ?? null
+                        }
+                        onChange={(opt) =>
+                          field.onChange(
+                            getSingleValue(opt as SingleValue<OptionType>),
+                          )
+                        }
+                      />
+                      {fieldState.error && (
+                        <FieldError errors={[fieldState.error]} />
+                      )}
+                    </Field>
+                  )}
+                />
+
+                <h3 className="text-lg font-medium mt-4 mb-2">
+                  Final Acknowledgments
+                </h3>
+
+                {[
+                  {
+                    name: "consentInfoUse" as const,
+                    label:
+                      "I give permission to MRUHacks to use my information for the purpose of the event*",
+                    desc: "This includes event logistics, communication, and administration purposes.",
+                  },
+                  {
+                    name: "consentSponsorShare" as const,
+                    label:
+                      "I give my permission to MRUHacks to share my information with our sponsors*",
+                    desc: "Your information may be shared with event sponsors for recruitment and networking opportunities.",
+                  },
+                  {
+                    name: "consentMediaUse" as const,
+                    label:
+                      "I consent to the use of my likeness in photographs, videos, and other media for promotional purposes*",
+                    desc: "Media may be used for social media, marketing materials, and event documentation.",
+                  },
+                ].map(({ name, label, desc }) => (
+                  <Controller
+                    key={name}
+                    name={name}
+                    control={control}
+                    render={({ field, fieldState }) => (
+                      <Field data-invalid={fieldState.invalid}>
+                        <label className="flex items-start gap-2">
+                          <input
+                            type="checkbox"
+                            checked={field.value}
+                            onChange={() => field.onChange(!field.value)}
+                          />
+                          <span>
+                            <strong>{label}</strong>
+                            <br />
+                            <span className="text-sm text-muted-foreground">
+                              {desc}
+                            </span>
+                          </span>
+                        </label>
+                        {fieldState.error && (
+                          <FieldError errors={[fieldState.error]} />
+                        )}
+                      </Field>
+                    )}
+                  />
+                ))}
+              </FieldGroup>
+
+              <div className="mt-6 flex justify-end">
+                <Button type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving…
+                    </>
+                  ) : (
+                    "Save Changes"
+                  )}
+                </Button>
+              </div>
+            </TabsContent>
+          </Tabs>
         </form>
       </CardContent>
     </Card>

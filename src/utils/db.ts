@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { drizzle } from "drizzle-orm/node-postgres";
 
-const isProduction = process.env.NODE_ENV === "production";
+const isProduction = false && process.env.NODE_ENV === "production";
 
 export const db = drizzle({
   connection: {

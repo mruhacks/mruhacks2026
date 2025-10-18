@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import type { GroupBase, StylesConfig, ThemeConfig } from "react-select";
-import Select, { Props as SelectProps } from "react-select";
+import SelectInner, { Props as SelectProps } from "react-select";
 
 // ───────────────────────────────────────────────
 // shadcn-style theming for OKLCH variable system
@@ -115,13 +115,13 @@ const shadcnSelectTheme: ThemeConfig = (theme) => ({
 // Exported Multiselect (typed + OKLCH safe)
 // ───────────────────────────────────────────────
 
-export function Multiselect<
+export function Select<
   Option,
   IsMulti extends boolean = false,
   Group extends GroupBase<Option> = GroupBase<Option>,
 >(props: SelectProps<Option, IsMulti, Group>) {
   return (
-    <Select
+    <SelectInner
       {...props}
       classNamePrefix="shadcn"
       theme={shadcnSelectTheme}
