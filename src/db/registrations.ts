@@ -8,6 +8,7 @@ import {
   timestamp,
   pgView,
   index,
+  PgArray,
 } from "drizzle-orm/pg-core";
 import { eq, relations, sql } from "drizzle-orm";
 
@@ -210,22 +211,22 @@ ORDER BY
 );
 
 export const participantFormView = pgView("participant_form_view", {
-  userId: uuid("user_id"),
-  fullName: varchar("full_name", { length: 255 }),
-  attendedBefore: boolean("attended_before"),
-  genderId: integer("gender_id"),
-  universityId: integer("university_id"),
-  majorId: integer("major_id"),
-  yearOfStudyId: integer("year_of_study_id"),
-  heardFromId: integer("heard_from_id"),
-  needsParking: boolean("needs_parking"),
-  accommodations: text(),
-  consentInfoUse: boolean("consent_info_use"),
-  consentSponsorShare: boolean("consent_sponsor_share"),
-  consentMediaUse: boolean("consent_media_use"),
-  interests: integer(),
-  dietaryRestrictions: integer("dietary_restrictions"),
-  createdAt: timestamp("created_at", { mode: "string" }),
+  userId: uuid("user_id").notNull(),
+  fullName: varchar("full_name", { length: 255 }).notNull(),
+  attendedBefore: boolean("attended_before").notNull(),
+  genderId: integer("gender_id").notNull(),
+  universityId: integer("university_id").notNull(),
+  majorId: integer("major_id").notNull(),
+  yearOfStudyId: integer("year_of_study_id").notNull(),
+  heardFromId: integer("heard_from_id").notNull(),
+  needsParking: boolean("needs_parking").notNull(),
+  accommodations: text().notNull(),
+  consentInfoUse: boolean("consent_info_use").notNull(),
+  consentSponsorShare: boolean("consent_sponsor_share").notNull(),
+  consentMediaUse: boolean("consent_media_use").notNull(),
+  interests: integer("interests").array().notNull(),
+  dietaryRestrictions: integer("dietary_restrictions").array().notNull(),
+  createdAt: timestamp("created_at", { mode: "string" }).notNull(),
 }).as(
   sql`
 WITH

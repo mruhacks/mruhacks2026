@@ -25,6 +25,7 @@ import { Input } from "@/components/ui/input";
 import { Loader2 } from "lucide-react";
 import { authClient } from "@/utils/auth-client";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 // only validate email format
 const formSchema = z.object({
@@ -123,7 +124,7 @@ export default function SignInForm() {
         </form>
       </CardContent>
 
-      <CardFooter>
+      <CardFooter className="flex-col items-start">
         <Field orientation="horizontal">
           <Button
             type="button"
@@ -144,6 +145,13 @@ export default function SignInForm() {
             )}
           </Button>
         </Field>
+
+        <div className="text-sm mt-4">
+          <span>Don’t have an account?</span>
+          <Link className="ml-1 font-medium hover:underline" href="/signup">
+            Signup
+          </Link>
+        </div>
       </CardFooter>
     </Card>
   );

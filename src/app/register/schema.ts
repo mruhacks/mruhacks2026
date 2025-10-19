@@ -12,13 +12,13 @@ export const personalSchema = z.object({
 
 export const interestsSchema = z.object({
   interests: z.array(z.number()).nonempty("Select at least one interest."),
-  dietaryRestrictions: z.array(z.coerce.number().int().positive()),
+  dietaryRestrictions: z.array(z.number("Required")),
   accommodations: z.string().max(500).optional(),
 });
 
 export const consentsSchema = z.object({
   needsParking: z.boolean(),
-  heardFromId: z.coerce.number().int().positive("Required"),
+  heardFromId: z.number("Required"),
   consentInfoUse: z
     .boolean()
     .refine((v) => v === true, { message: "Required" }),

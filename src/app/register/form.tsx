@@ -123,10 +123,12 @@ export default function RegistrationForm({
     if (i === -1 || i === tabs.length - 1) return;
 
     const schema = tabSchemas[tab];
-    const fields = Object.keys(schema.shape) as (keyof FormData)[];
+    const fields = Object.keys(schema.shape) as Array<keyof FormData>;
 
     // validate only current tab fields
-    const isValid = await trigger(fields, { shouldFocus: true });
+    const isValid = await trigger(fields as (keyof FormData)[], {
+      shouldFocus: true,
+    });
     if (!isValid) return;
 
     setTab(tabs[i + 1]);

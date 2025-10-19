@@ -26,6 +26,7 @@ import { Input } from "@/components/ui/input";
 import { authClient } from "@/utils/auth-client";
 import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 const formSchema = z.object({
   name: z.string().min(1, "Name is required."),
@@ -56,7 +57,7 @@ export default function SignUpForm() {
         toast.success("Account created successfully", {
           description: "Check your inbox to verify your email.",
         });
-        router.push("/dashboard");
+        router.push("/register");
       },
       onError: (ctx) => {
         setLoading(false);
@@ -162,7 +163,7 @@ export default function SignUpForm() {
         </form>
       </CardContent>
 
-      <CardFooter>
+      <CardFooter className="flex-col items-start">
         <Field orientation="horizontal">
           <Button
             type="button"
@@ -183,6 +184,13 @@ export default function SignUpForm() {
             )}
           </Button>
         </Field>
+
+        <div className="text-sm mt-4">
+          <span>Already have an account?</span>
+          <Link className="ml-1 font-medium hover:underline" href="/signin">
+            Signin
+          </Link>
+        </div>
       </CardFooter>
     </Card>
   );

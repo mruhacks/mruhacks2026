@@ -9,7 +9,7 @@ import {
   participantInterests,
   participantDietaryRestrictions,
 } from "@/db/schema";
-import { participantView } from "@/db/registrations";
+import { participantFormView, participantView } from "@/db/registrations";
 import z from "zod";
 
 export async function registerParticipant(
@@ -135,8 +135,8 @@ export async function getOwnRegistration(): Promise<
 
   const [participants] = await db
     .select()
-    .from(participantView)
-    .where(eq(participantView.userId, user.id))
+    .from(participantFormView)
+    .where(eq(participantFormView.userId, user.id))
     .limit(1);
 
   return ok(participants ?? null);
