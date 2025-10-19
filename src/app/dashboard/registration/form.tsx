@@ -28,7 +28,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { OPTIONS } from "./options";
 
 import {
   formSchema,
@@ -36,15 +35,15 @@ import {
   personalSchema,
   consentsSchema,
 } from "./schema";
-import { Register } from "./actions";
+import { registerParticipant, RegistrationOptions } from "./actions";
 
 function RequiredAsterisk(): React.JSX.Element {
   return <span className="text-destructive ml-0.5">*</span>;
 }
 
-const getSingleValue = (opt: SingleValue<{ value: string; label: string }>) =>
+const getSingleValue = (opt: SingleValue<{ value: number; label: string }>) =>
   opt?.value ?? "";
-const getMultiValues = (opts: MultiValue<{ value: string; label: string }>) =>
+const getMultiValues = (opts: MultiValue<{ value: number; label: string }>) =>
   opts.map((o) => o.value);
 
 type FormData = z.infer<typeof formSchema>;
@@ -58,8 +57,10 @@ type Tab = keyof typeof tabLabels;
 
 export default function RegistrationForm({
   initial,
+  options,
 }: {
   initial?: Partial<FormData>;
+  options: RegistrationOptions;
 }) {
   const {
     control,
@@ -75,15 +76,15 @@ export default function RegistrationForm({
     defaultValues: {
       fullName: initial?.fullName ?? "",
       attendedBefore: initial?.attendedBefore ?? false,
-      gender: initial?.gender ?? "",
-      university: initial?.university ?? "",
-      major: initial?.major ?? "",
-      yearOfStudy: initial?.yearOfStudy ?? "0",
+      genderId: initial?.genderId,
+      universityId: initial?.universityId,
+      majorId: initial?.majorId,
+      yearOfStudyId: initial?.yearOfStudyId,
       interests: initial?.interests ?? [],
       dietaryRestrictions: initial?.dietaryRestrictions ?? [],
       accommodations: initial?.accommodations ?? "",
       needsParking: initial?.needsParking ?? false,
-      heardFrom: initial?.heardFrom ?? "",
+      heardFromId: initial?.heardFromId,
       consentInfoUse: initial?.consentInfoUse ?? false,
       consentSponsorShare: initial?.consentSponsorShare ?? false,
       consentMediaUse: initial?.consentMediaUse ?? false,
@@ -112,7 +113,7 @@ export default function RegistrationForm({
   };
 
   const onSubmit = async (data: FormData) => {
-    await Register(data);
+    await registerParticipant(data);
     toast.success("Registration information saved.");
     console.log(data);
   };
@@ -212,7 +213,7 @@ export default function RegistrationForm({
                 />
 
                 <Controller
-                  name="gender"
+                  name="genderId"
                   control={control}
                   render={({ field, fieldState }) => (
                     <Field data-invalid={fieldState.invalid}>
@@ -221,17 +222,17 @@ export default function RegistrationForm({
                         <RequiredAsterisk />
                       </FieldLabel>
                       <Select
-                        id="gender"
-                        instanceId="gender"
-                        options={OPTIONS.genders}
+                        id="genderId"
+                        instanceId="genderId"
+                        options={options.genders}
                         value={
-                          OPTIONS.genders.find(
+                          options.genders.find(
                             (o) => o.value === field.value,
                           ) ?? null
                         }
                         onChange={(opt) => field.onChange(getSingleValue(opt))}
                       />
-                      {touchedFields.gender && fieldState.error && (
+                      {touchedFields.genderId && fieldState.error && (
                         <FieldError errors={[fieldState.error]} />
                       )}
                     </Field>
@@ -239,7 +240,7 @@ export default function RegistrationForm({
                 />
 
                 <Controller
-                  name="university"
+                  name="universityId"
                   control={control}
                   render={({ field, fieldState }) => (
                     <Field data-invalid={fieldState.invalid}>
@@ -248,17 +249,17 @@ export default function RegistrationForm({
                         <RequiredAsterisk />
                       </FieldLabel>
                       <Select
-                        id="university"
-                        instanceId="university"
-                        options={OPTIONS.universities}
+                        id="universityId"
+                        instanceId="universityId"
+                        options={options.universities}
                         value={
-                          OPTIONS.universities.find(
+                          options.universities.find(
                             (o) => o.value === field.value,
                           ) ?? null
                         }
                         onChange={(opt) => field.onChange(getSingleValue(opt))}
                       />
-                      {touchedFields.university && fieldState.error && (
+                      {touchedFields.universityId && fieldState.error && (
                         <FieldError errors={[fieldState.error]} />
                       )}
                     </Field>
@@ -266,7 +267,7 @@ export default function RegistrationForm({
                 />
 
                 <Controller
-                  name="major"
+                  name="majorId"
                   control={control}
                   render={({ field, fieldState }) => (
                     <Field data-invalid={fieldState.invalid}>
@@ -275,16 +276,16 @@ export default function RegistrationForm({
                         <RequiredAsterisk />
                       </FieldLabel>
                       <Select
-                        id="major"
-                        instanceId="major"
-                        options={OPTIONS.majors}
+                        id="majorId"
+                        instanceId="majorId"
+                        options={options.majors}
                         value={
-                          OPTIONS.majors.find((o) => o.value === field.value) ??
+                          options.majors.find((o) => o.value === field.value) ??
                           null
                         }
                         onChange={(opt) => field.onChange(getSingleValue(opt))}
                       />
-                      {touchedFields.major && fieldState.error && (
+                      {touchedFields.majorId && fieldState.error && (
                         <FieldError errors={[fieldState.error]} />
                       )}
                     </Field>
@@ -292,7 +293,7 @@ export default function RegistrationForm({
                 />
 
                 <Controller
-                  name="yearOfStudy"
+                  name="yearOfStudyId"
                   control={control}
                   render={({ field, fieldState }) => (
                     <Field data-invalid={fieldState.invalid}>
@@ -301,16 +302,16 @@ export default function RegistrationForm({
                         <RequiredAsterisk />
                       </FieldLabel>
                       <Select
-                        id="yearOfStudy"
-                        instanceId="yearOfStudy"
-                        options={OPTIONS.years}
+                        id="yearOfStudyId"
+                        instanceId="yearOfStudyId"
+                        options={options.years}
                         value={
-                          OPTIONS.years.find((o) => o.value === field.value) ??
+                          options.years.find((o) => o.value === field.value) ??
                           null
                         }
                         onChange={(opt) => field.onChange(getSingleValue(opt))}
                       />
-                      {touchedFields.yearOfStudy && fieldState.error && (
+                      {touchedFields.yearOfStudyId && fieldState.error && (
                         <FieldError errors={[fieldState.error]} />
                       )}
                     </Field>
@@ -341,8 +342,8 @@ export default function RegistrationForm({
                         id="interests"
                         instanceId="interests"
                         isMulti
-                        options={OPTIONS.interests}
-                        value={OPTIONS.interests.filter((o) =>
+                        options={options.interests}
+                        value={options.interests.filter((o) =>
                           field.value.includes(o.value),
                         )}
                         onChange={(opts) =>
@@ -366,8 +367,8 @@ export default function RegistrationForm({
                         id="dietaryRestrictions"
                         instanceId="dietaryRestrictions"
                         isMulti
-                        options={OPTIONS.dietary}
-                        value={OPTIONS.dietary.filter((o) =>
+                        options={options.dietary}
+                        value={options.dietary.filter((o) =>
                           field.value.includes(o.value),
                         )}
                         onChange={(opts) =>
@@ -420,7 +421,7 @@ export default function RegistrationForm({
                 />
 
                 <Controller
-                  name="heardFrom"
+                  name="heardFromId"
                   control={control}
                   render={({ field, fieldState }) => (
                     <Field data-invalid={fieldState.invalid}>
@@ -429,17 +430,17 @@ export default function RegistrationForm({
                         <RequiredAsterisk />
                       </FieldLabel>
                       <Select
-                        id="heardFrom"
-                        instanceId="heardFrom"
-                        options={OPTIONS.heardFrom}
+                        id="heardFromId"
+                        instanceId="heardFromId"
+                        options={options.heardFrom}
                         value={
-                          OPTIONS.heardFrom.find(
+                          options.heardFrom.find(
                             (o) => o.value === field.value,
                           ) ?? null
                         }
                         onChange={(opt) => field.onChange(getSingleValue(opt))}
                       />
-                      {touchedFields.heardFrom && fieldState.error && (
+                      {touchedFields.heardFromId && fieldState.error && (
                         <FieldError errors={[fieldState.error]} />
                       )}
                     </Field>
