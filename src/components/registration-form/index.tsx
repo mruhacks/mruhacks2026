@@ -3,10 +3,9 @@
 import * as React from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
-import { SingleValue, MultiValue } from "react-select";
+import type { SingleValue, MultiValue } from "react-select";
 
 import {
   Card,
@@ -28,25 +27,19 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { type ActionResult } from "@/utils/action-result";
 
 import {
+  consentsSchema,
   formSchema,
   interestsSchema,
   personalSchema,
-  consentsSchema,
+  type RegistrationFormOptions,
+  type RegistrationFormValues,
 } from "./schema";
-import { registerParticipant, RegistrationOptions } from "./actions";
+import { redirect } from "next/dist/server/api-utils";
 
-function RequiredAsterisk(): React.JSX.Element {
-  return <span className="text-destructive ml-0.5">*</span>;
-}
-
-const getSingleValue = (opt: SingleValue<{ value: number; label: string }>) =>
-  opt?.value ?? "";
-const getMultiValues = (opts: MultiValue<{ value: number; label: string }>) =>
-  opts.map((o) => o.value);
-
-type FormData = z.infer<typeof formSchema>;
+type FormData = RegistrationFormValues;
 
 const tabLabels = {
   personal: "Personal Details",
@@ -55,20 +48,51 @@ const tabLabels = {
 } as const;
 type Tab = keyof typeof tabLabels;
 
+const getSingleValue = (opt: SingleValue<{ value: number; label: string }>) =>
+  opt?.value ?? "";
+const getMultiValues = (opts: MultiValue<{ value: number; label: string }>) =>
+  opts.map((o) => o.value);
+
+function RequiredAsterisk(): React.JSX.Element {
+  return <span className="text-destructive ml-0.5">*</span>;
+}
+
+type RegistrationFormProps = {
+  initial?: Partial<FormData>;
+  options: RegistrationFormOptions;
+  onSubmitAction: (data: FormData) => Promise<ActionResult | void>;
+  submitLabel?: string;
+  successMessage?: string;
+  errorMessage?: string;
+};
+
+const DEFAULT_SUBMIT_LABEL = "Save Changes";
+const DEFAULT_SUCCESS_MESSAGE = "Registration information saved.";
+const DEFAULT_ERROR_MESSAGE = "Failed to save registration information.";
+
+function isActionResult(result: ActionResult | void): result is ActionResult {
+  return typeof result === "object" && result !== null && "success" in result;
+}
+
 export default function RegistrationForm({
   initial,
   options,
-}: {
-  initial?: Partial<FormData>;
-  options: RegistrationOptions;
-}) {
+  onSubmitAction: onSubmit,
+  submitLabel = DEFAULT_SUBMIT_LABEL,
+  successMessage = DEFAULT_SUCCESS_MESSAGE,
+  errorMessage = DEFAULT_ERROR_MESSAGE,
+}: RegistrationFormProps) {
   const {
     control,
     register,
     handleSubmit,
     trigger,
     formState: { errors, isSubmitting, touchedFields, isDirty },
+    reset,
+    getValues,
   } = useForm<FormData>({
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore: resolver type mismatch due to pnpm deduping
     resolver: zodResolver(formSchema),
     mode: "onChange",
     reValidateMode: "onChange",
@@ -93,13 +117,20 @@ export default function RegistrationForm({
 
   React.useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (!isDirty) return; // no changes → no warning
+      if (!isDirty) return;
       e.preventDefault();
     };
 
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [isDirty]);
+
+  React.useEffect(() => {
+    reset((currentValues) => ({
+      ...currentValues,
+      ...initial,
+    }));
+  }, [initial, reset]);
 
   const [tab, setTab] = React.useState<Tab>("personal");
   const tabs = ["personal", "interests", "consents"] as const;
@@ -112,11 +143,27 @@ export default function RegistrationForm({
     consents: consentsSchema,
   };
 
-  const onSubmit = async (data: FormData) => {
-    await registerParticipant(data);
-    toast.success("Registration information saved.");
-    console.log(data);
-  };
+  const submitHandler = React.useCallback(
+    async (data: FormData) => {
+      try {
+        const result = await onSubmit(data);
+
+        if (!result || (isActionResult(result) && result.success)) {
+          toast.success(successMessage);
+        }
+
+        if (!isActionResult(result) || !result.success) {
+          toast.error(
+            result && "error" in result ? result.error : errorMessage,
+          );
+        }
+      } catch (err) {
+        console.error("Registration submission error:", err);
+        toast.error(errorMessage);
+      }
+    },
+    [onSubmit, successMessage, errorMessage],
+  );
 
   const handleNext = async () => {
     const i = tabs.indexOf(tab);
@@ -125,15 +172,21 @@ export default function RegistrationForm({
     const schema = tabSchemas[tab];
     const fields = Object.keys(schema.shape) as Array<keyof FormData>;
 
-    // validate only current tab fields
-    const isValid = await trigger(fields as (keyof FormData)[], {
-      shouldFocus: true,
-    });
-    if (!isValid) return;
+    console.log(fields);
+
+    console.log(getValues());
+
+    try {
+      const isValid = await trigger(fields as (keyof FormData)[], {
+        shouldFocus: true,
+      });
+      if (!isValid) return;
+    } catch (e) {
+      console.error(e);
+    }
 
     setTab(tabs[i + 1]);
 
-    /** Move focus into the next input */
     requestAnimationFrame(() => {
       const nextPanel = document.querySelector(
         `[role="tabpanel"][data-state="active"]`,
@@ -141,7 +194,7 @@ export default function RegistrationForm({
 
       if (!nextPanel) return;
       const focusable = nextPanel.querySelector<HTMLElement>(
-        'input, select, textarea, [tabindex]:not([tabindex="-1"])',
+        'input, select, textarea, button, [tabindex]:not([tabindex="-1"])',
       );
       if (focusable) focusable.focus();
     });
@@ -160,7 +213,9 @@ export default function RegistrationForm({
       </CardHeader>
 
       <CardContent>
-        <form onSubmit={handleSubmit(onSubmit)}>
+        {/*eslint-disable-next-line @typescript-eslint/ban-ts-comment */}
+        {/* @ts-ignore: resolver type mismatch due to pnpm deduping */}
+        <form onSubmit={handleSubmit(submitHandler)}>
           <Tabs
             value={tab}
             onValueChange={(v) => setTab(v as Tab)}
@@ -185,7 +240,7 @@ export default function RegistrationForm({
             <TabsContent value="personal">
               <FieldGroup>
                 <Field>
-                  <FieldLabel>
+                  <FieldLabel htmlFor="fullName">
                     Full Name
                     <RequiredAsterisk />
                   </FieldLabel>
@@ -505,7 +560,7 @@ export default function RegistrationForm({
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving…
                     </>
                   ) : (
-                    "Save Changes"
+                    submitLabel
                   )}
                 </Button>
               </div>
@@ -516,3 +571,15 @@ export default function RegistrationForm({
     </Card>
   );
 }
+
+export {
+  consentsSchema,
+  formSchema,
+  interestsSchema,
+  personalSchema,
+} from "./schema";
+export type {
+  RegistrationFormOptions,
+  RegistrationFormValues,
+  RegistrationSelectOption,
+} from "./schema";

@@ -19,7 +19,9 @@
       }
     ],
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+            /** fix a stupid version mismatch error */
+      "react-hook-form": ["./node_modules/react-hook-form"]
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],

@@ -3,7 +3,6 @@ import { z } from "zod";
 export const personalSchema = z.object({
   fullName: z.string().trim().min(1, "Required"),
   attendedBefore: z.boolean(),
-
   genderId: z.coerce.number().int().positive("Required"),
   universityId: z.coerce.number().int().positive("Required"),
   majorId: z.coerce.number().int().positive("Required"),
@@ -35,3 +34,17 @@ export const formSchema = z.object({
   ...interestsSchema.shape,
   ...consentsSchema.shape,
 });
+
+export type RegistrationFormValues = z.infer<typeof formSchema>;
+
+export type RegistrationSelectOption = { value: number; label: string };
+
+export type RegistrationFormOptions = {
+  genders: RegistrationSelectOption[];
+  universities: RegistrationSelectOption[];
+  majors: RegistrationSelectOption[];
+  years: RegistrationSelectOption[];
+  interests: RegistrationSelectOption[];
+  dietary: RegistrationSelectOption[];
+  heardFrom: RegistrationSelectOption[];
+};

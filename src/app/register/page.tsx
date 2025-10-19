@@ -1,21 +1,29 @@
-import { getUser } from "@/utils/auth";
-import RegistrationForm from "./form";
-import { getOptions, getOwnRegistration } from "./actions";
 import { redirect } from "next/navigation";
+
+import RegistrationForm from "@/components/registration-form";
+import { getUser } from "@/utils/auth";
+import { getOptions, registerParticipant } from "./actions";
 import db from "@/utils/db";
-import { participantView } from "@/db/registrations";
+import { participants } from "@/db/registrations";
 import { eq } from "drizzle-orm";
 
 export default async function RegistrationPage() {
   const user = await getUser();
-  if (!user) redirect("/auth");
+  if (!user) redirect("/login");
 
-  const [options, maybeInitial] = await Promise.all([
-    getOptions(),
-    getOwnRegistration(),
-  ]);
+  const isregistered =
+    (
+      await db
+        .select({ id: participants.userId })
+        .from(participants)
+        .where(eq(participants.userId, user.id))
+    ).length > 0;
 
-  const initial = maybeInitial.success ? maybeInitial.data : {};
+  if (isregistered) redirect("/dashboard");
 
-  return <RegistrationForm initial={initial} options={options} />;
+  const options = await getOptions();
+
+  return (
+    <RegistrationForm options={options} onSubmitAction={registerParticipant} />
+  );
 }

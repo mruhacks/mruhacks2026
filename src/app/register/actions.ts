@@ -1,19 +1,31 @@
 "use server";
 
+import { eq } from "drizzle-orm";
+
+import {
+  participantDietaryRestrictions,
+  participantInterests,
+  participants,
+  genders,
+  universities,
+  majors,
+  yearsOfStudy,
+  interests,
+  dietaryRestrictions,
+  heardFromSources,
+} from "@/db/schema";
+import { participantFormView } from "@/db/registrations";
+import { getUser } from "@/utils/auth";
 import { ActionResult, fail, ok } from "@/utils/action-result";
 import { db } from "@/utils/db";
-import { eq } from "drizzle-orm";
-import { formSchema } from "./schema";
 import {
-  participants,
-  participantInterests,
-  participantDietaryRestrictions,
-} from "@/db/schema";
-import { participantFormView, participantView } from "@/db/registrations";
-import z from "zod";
+  formSchema,
+  type RegistrationFormValues,
+} from "@/components/registration-form/schema";
+import { unstable_cache } from "next/cache";
 
 export async function registerParticipant(
-  formData: z.infer<typeof FormData>,
+  formData: RegistrationFormValues,
 ): Promise<ActionResult> {
   const user = await getUser();
 
@@ -29,7 +41,6 @@ export async function registerParticipant(
   const data = parsed.data;
 
   try {
-    // 2️⃣ Transactional insert
     await db.transaction(async (tx) => {
       await tx.insert(participants).values({
         userId: user.id,
@@ -73,18 +84,7 @@ export async function registerParticipant(
   }
 }
 
-import {
-  genders,
-  universities,
-  majors,
-  yearsOfStudy,
-  interests,
-  dietaryRestrictions,
-  heardFromSources,
-} from "@/db/schema";
-import { getUser } from "@/utils/auth";
-
-export async function getOptions() {
+async function _getOptions() {
   const [
     genderRows,
     universityRows,
@@ -103,7 +103,6 @@ export async function getOptions() {
     db.select().from(heardFromSources),
   ]);
 
-  // map to { value, label } pairs for frontend use
   return {
     genders: genderRows.map((g) => ({ value: g.id, label: g.label })),
     universities: universityRows.map((u) => ({ value: u.id, label: u.label })),
@@ -115,29 +114,10 @@ export async function getOptions() {
   };
 }
 
-type Option = { value: number; label: string };
-
-export type RegistrationOptions = {
-  genders: Option[];
-  universities: Option[];
-  majors: Option[];
-  years: Option[];
-  interests: Option[];
-  dietary: Option[];
-  heardFrom: Option[];
-};
-
-export async function getOwnRegistration(): Promise<
-  ActionResult<z.infer<typeof formSchema>>
-> {
-  const user = await getUser();
-  if (!user) return fail("User not logged in");
-
-  const [participants] = await db
-    .select()
-    .from(participantFormView)
-    .where(eq(participantFormView.userId, user.id))
-    .limit(1);
-
-  return ok(participants ?? null);
-}
+export const getOptions = unstable_cache(
+  _getOptions,
+  ["registration-options"],
+  {
+    revalidate: 86400, // seconds
+  },
+);
