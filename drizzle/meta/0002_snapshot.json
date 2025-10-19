@@ -1,6 +1,6 @@
 {
-  "id": "57f49be0-435f-4b80-9eef-683a36886449",
-  "prevId": "1c1425bc-bf89-4a69-b49a-9e387eecaff1",
+  "id": "439f173f-93ef-41de-8563-3f011de4ac63",
+  "prevId": "57f49be0-435f-4b80-9eef-683a36886449",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -102,24 +102,24 @@
             }
           ],
           "isUnique": true,
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "concurrently": false
         }
       },
       "foreignKeys": {
         "account_user_id_user_id_fk": {
           "name": "account_user_id_user_id_fk",
           "tableFrom": "account",
-          "tableTo": "user",
           "columnsFrom": [
             "user_id"
           ],
+          "tableTo": "user",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -189,25 +189,25 @@
         "session_user_id_user_id_fk": {
           "name": "session_user_id_user_id_fk",
           "tableFrom": "session",
-          "tableTo": "user",
           "columnsFrom": [
             "user_id"
           ],
+          "tableTo": "user",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
         "session_token_unique": {
           "name": "session_token_unique",
-          "nullsNotDistinct": false,
           "columns": [
             "token"
-          ]
+          ],
+          "nullsNotDistinct": false
         }
       },
       "policies": {},
@@ -271,10 +271,10 @@
       "uniqueConstraints": {
         "user_email_unique": {
           "name": "user_email_unique",
-          "nullsNotDistinct": false,
           "columns": [
             "email"
-          ]
+          ],
+          "nullsNotDistinct": false
         }
       },
       "policies": {},
@@ -355,28 +355,28 @@
         "participant_dietary_restrictions_user_id_participants_user_id_fk": {
           "name": "participant_dietary_restrictions_user_id_participants_user_id_fk",
           "tableFrom": "participant_dietary_restrictions",
-          "tableTo": "participants",
           "columnsFrom": [
             "user_id"
           ],
+          "tableTo": "participants",
           "columnsTo": [
             "user_id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         },
         "participant_dietary_restrictions_restriction_id_dietary_restrictions_id_fk": {
           "name": "participant_dietary_restrictions_restriction_id_dietary_restrictions_id_fk",
           "tableFrom": "participant_dietary_restrictions",
-          "tableTo": "dietary_restrictions",
           "columnsFrom": [
             "restriction_id"
           ],
+          "tableTo": "dietary_restrictions",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -407,28 +407,28 @@
         "participant_interests_user_id_participants_user_id_fk": {
           "name": "participant_interests_user_id_participants_user_id_fk",
           "tableFrom": "participant_interests",
-          "tableTo": "participants",
           "columnsFrom": [
             "user_id"
           ],
+          "tableTo": "participants",
           "columnsTo": [
             "user_id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         },
         "participant_interests_interest_id_interests_id_fk": {
           "name": "participant_interests_interest_id_interests_id_fk",
           "tableFrom": "participant_interests",
-          "tableTo": "interests",
           "columnsFrom": [
             "interest_id"
           ],
+          "tableTo": "interests",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -534,80 +534,80 @@
         "participants_user_id_user_id_fk": {
           "name": "participants_user_id_user_id_fk",
           "tableFrom": "participants",
-          "tableTo": "user",
           "columnsFrom": [
             "user_id"
           ],
+          "tableTo": "user",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         },
         "participants_gender_id_genders_id_fk": {
           "name": "participants_gender_id_genders_id_fk",
           "tableFrom": "participants",
-          "tableTo": "genders",
           "columnsFrom": [
             "gender_id"
           ],
+          "tableTo": "genders",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         },
         "participants_university_id_universities_id_fk": {
           "name": "participants_university_id_universities_id_fk",
           "tableFrom": "participants",
-          "tableTo": "universities",
           "columnsFrom": [
             "university_id"
           ],
+          "tableTo": "universities",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         },
         "participants_major_id_majors_id_fk": {
           "name": "participants_major_id_majors_id_fk",
           "tableFrom": "participants",
-          "tableTo": "majors",
           "columnsFrom": [
             "major_id"
           ],
+          "tableTo": "majors",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         },
         "participants_year_of_study_id_years_of_study_id_fk": {
           "name": "participants_year_of_study_id_years_of_study_id_fk",
           "tableFrom": "participants",
-          "tableTo": "years_of_study",
           "columnsFrom": [
             "year_of_study_id"
           ],
+          "tableTo": "years_of_study",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         },
         "participants_heard_from_id_heard_from_sources_id_fk": {
           "name": "participants_heard_from_id_heard_from_sources_id_fk",
           "tableFrom": "participants",
-          "tableTo": "heard_from_sources",
           "columnsFrom": [
             "heard_from_id"
           ],
+          "tableTo": "heard_from_sources",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -639,10 +639,10 @@
       "uniqueConstraints": {
         "dietary_restrictions_label_unique": {
           "name": "dietary_restrictions_label_unique",
-          "nullsNotDistinct": false,
           "columns": [
             "label"
-          ]
+          ],
+          "nullsNotDistinct": false
         }
       },
       "policies": {},
@@ -672,10 +672,10 @@
       "uniqueConstraints": {
         "genders_label_unique": {
           "name": "genders_label_unique",
-          "nullsNotDistinct": false,
           "columns": [
             "label"
-          ]
+          ],
+          "nullsNotDistinct": false
         }
       },
       "policies": {},
@@ -705,10 +705,10 @@
       "uniqueConstraints": {
         "heard_from_sources_label_unique": {
           "name": "heard_from_sources_label_unique",
-          "nullsNotDistinct": false,
           "columns": [
             "label"
-          ]
+          ],
+          "nullsNotDistinct": false
         }
       },
       "policies": {},
@@ -738,10 +738,10 @@
       "uniqueConstraints": {
         "interests_label_unique": {
           "name": "interests_label_unique",
-          "nullsNotDistinct": false,
           "columns": [
             "label"
-          ]
+          ],
+          "nullsNotDistinct": false
         }
       },
       "policies": {},
@@ -771,10 +771,10 @@
       "uniqueConstraints": {
         "majors_label_unique": {
           "name": "majors_label_unique",
-          "nullsNotDistinct": false,
           "columns": [
             "label"
-          ]
+          ],
+          "nullsNotDistinct": false
         }
       },
       "policies": {},
@@ -804,10 +804,10 @@
       "uniqueConstraints": {
         "universities_label_unique": {
           "name": "universities_label_unique",
-          "nullsNotDistinct": false,
           "columns": [
             "label"
-          ]
+          ],
+          "nullsNotDistinct": false
         }
       },
       "policies": {},
@@ -837,10 +837,10 @@
       "uniqueConstraints": {
         "years_of_study_label_unique": {
           "name": "years_of_study_label_unique",
-          "nullsNotDistinct": false,
           "columns": [
             "label"
-          ]
+          ],
+          "nullsNotDistinct": false
         }
       },
       "policies": {},
@@ -850,10 +850,10 @@
   },
   "enums": {},
   "schemas": {},
+  "views": {},
   "sequences": {},
   "roles": {},
   "policies": {},
-  "views": {},
   "_meta": {
     "columns": {},
     "schemas": {},

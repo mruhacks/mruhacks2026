@@ -30,11 +30,15 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { OPTIONS } from "./options";
 
-// ───────────────────────────────────────────────
-// Helpers
-// ───────────────────────────────────────────────
+import {
+  formSchema,
+  interestsSchema,
+  personalSchema,
+  consentsSchema,
+} from "./schema";
+import { Register } from "./actions";
 
-function RequiredAsterisk() {
+function RequiredAsterisk(): React.JSX.Element {
   return <span className="text-destructive ml-0.5">*</span>;
 }
 
@@ -43,45 +47,7 @@ const getSingleValue = (opt: SingleValue<{ value: string; label: string }>) =>
 const getMultiValues = (opts: MultiValue<{ value: string; label: string }>) =>
   opts.map((o) => o.value);
 
-// ───────────────────────────────────────────────
-// Schema setup
-// ───────────────────────────────────────────────
-
-const personalSchema = z.object({
-  fullName: z.string().trim().min(1, "Required"),
-  attendedBefore: z.boolean(),
-  gender: z.string().min(1, "Required"),
-  university: z.string().min(1, "Required"),
-  major: z.string().min(1, "Required"),
-  yearOfStudy: z.number().int().min(1, "Required").max(5),
-});
-
-const interestsSchema = z.object({
-  interests: z.array(z.string()).nonempty("Select at least one interest."),
-  dietaryRestrictions: z.array(z.string()),
-  accommodations: z.string().max(500).optional(),
-});
-
-const consentsSchema = z.object({
-  needsParking: z.boolean(),
-  heardFrom: z.string().min(1, "Required"),
-  consentInfoUse: z
-    .boolean()
-    .refine((v) => v === true, { message: "Required" }),
-  consentSponsorShare: z
-    .boolean()
-    .refine((v) => v === true, { message: "Required" }),
-  consentMediaUse: z
-    .boolean()
-    .refine((v) => v === true, { message: "Required" }),
-});
-
-const formSchema = personalSchema.merge(interestsSchema).merge(consentsSchema);
 type FormData = z.infer<typeof formSchema>;
-
-// ───────────────────────────────────────────────
-// Tabs setup
-// ───────────────────────────────────────────────
 
 const tabLabels = {
   personal: "Personal Details",
@@ -100,7 +66,7 @@ export default function RegistrationForm({
     register,
     handleSubmit,
     trigger,
-    formState: { errors, isSubmitting, touchedFields },
+    formState: { errors, isSubmitting, touchedFields, isDirty },
   } = useForm<FormData>({
     resolver: zodResolver(formSchema),
     mode: "onChange",
@@ -112,7 +78,7 @@ export default function RegistrationForm({
       gender: initial?.gender ?? "",
       university: initial?.university ?? "",
       major: initial?.major ?? "",
-      yearOfStudy: initial?.yearOfStudy ?? 0,
+      yearOfStudy: initial?.yearOfStudy ?? "0",
       interests: initial?.interests ?? [],
       dietaryRestrictions: initial?.dietaryRestrictions ?? [],
       accommodations: initial?.accommodations ?? "",
@@ -123,6 +89,16 @@ export default function RegistrationForm({
       consentMediaUse: initial?.consentMediaUse ?? false,
     },
   });
+
+  React.useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (!isDirty) return; // no changes → no warning
+      e.preventDefault();
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [isDirty]);
 
   const [tab, setTab] = React.useState<Tab>("personal");
   const tabs = ["personal", "interests", "consents"] as const;
@@ -136,6 +112,7 @@ export default function RegistrationForm({
   };
 
   const onSubmit = async (data: FormData) => {
+    await Register(data);
     toast.success("Registration information saved.");
     console.log(data);
   };
@@ -191,12 +168,10 @@ export default function RegistrationForm({
                 <TabsTrigger
                   key={t}
                   value={t}
-                  className={
-                    tabHasError(t) && tab !== t ? " text-destructive" : ""
-                  }
+                  className={tabHasError(t) ? " text-destructive" : ""}
                 >
                   {tabLabels[t]}
-                  {tabHasError(t) && tab !== t && (
+                  {tabHasError(t) && (
                     <span className="ml-0.5 text-destructive">*</span>
                   )}
                 </TabsTrigger>
@@ -254,11 +229,7 @@ export default function RegistrationForm({
                             (o) => o.value === field.value,
                           ) ?? null
                         }
-                        onChange={(opt) =>
-                          field.onChange(
-                            getSingleValue(opt as SingleValue<any>),
-                          )
-                        }
+                        onChange={(opt) => field.onChange(getSingleValue(opt))}
                       />
                       {touchedFields.gender && fieldState.error && (
                         <FieldError errors={[fieldState.error]} />
@@ -285,11 +256,7 @@ export default function RegistrationForm({
                             (o) => o.value === field.value,
                           ) ?? null
                         }
-                        onChange={(opt) =>
-                          field.onChange(
-                            getSingleValue(opt as SingleValue<any>),
-                          )
-                        }
+                        onChange={(opt) => field.onChange(getSingleValue(opt))}
                       />
                       {touchedFields.university && fieldState.error && (
                         <FieldError errors={[fieldState.error]} />
@@ -315,11 +282,7 @@ export default function RegistrationForm({
                           OPTIONS.majors.find((o) => o.value === field.value) ??
                           null
                         }
-                        onChange={(opt) =>
-                          field.onChange(
-                            getSingleValue(opt as SingleValue<any>),
-                          )
-                        }
+                        onChange={(opt) => field.onChange(getSingleValue(opt))}
                       />
                       {touchedFields.major && fieldState.error && (
                         <FieldError errors={[fieldState.error]} />
@@ -345,11 +308,7 @@ export default function RegistrationForm({
                           OPTIONS.years.find((o) => o.value === field.value) ??
                           null
                         }
-                        onChange={(opt) =>
-                          field.onChange(
-                            Number(getSingleValue(opt as SingleValue<any>)),
-                          )
-                        }
+                        onChange={(opt) => field.onChange(getSingleValue(opt))}
                       />
                       {touchedFields.yearOfStudy && fieldState.error && (
                         <FieldError errors={[fieldState.error]} />
@@ -387,9 +346,7 @@ export default function RegistrationForm({
                           field.value.includes(o.value),
                         )}
                         onChange={(opts) =>
-                          field.onChange(
-                            getMultiValues(opts as MultiValue<any>),
-                          )
+                          field.onChange(getMultiValues(opts))
                         }
                       />
                       {touchedFields.interests && fieldState.error && (
@@ -414,9 +371,7 @@ export default function RegistrationForm({
                           field.value.includes(o.value),
                         )}
                         onChange={(opts) =>
-                          field.onChange(
-                            getMultiValues(opts as MultiValue<any>),
-                          )
+                          field.onChange(getMultiValues(opts))
                         }
                       />
                     </Field>
@@ -482,11 +437,7 @@ export default function RegistrationForm({
                             (o) => o.value === field.value,
                           ) ?? null
                         }
-                        onChange={(opt) =>
-                          field.onChange(
-                            getSingleValue(opt as SingleValue<any>),
-                          )
-                        }
+                        onChange={(opt) => field.onChange(getSingleValue(opt))}
                       />
                       {touchedFields.heardFrom && fieldState.error && (
                         <FieldError errors={[fieldState.error]} />
@@ -522,7 +473,7 @@ export default function RegistrationForm({
                       <div className="flex items-start gap-3">
                         <Checkbox
                           id={name}
-                          checked={field.value}
+                          checked={field.value as boolean}
                           onCheckedChange={field.onChange}
                         />
                         <div className="grid gap-2">

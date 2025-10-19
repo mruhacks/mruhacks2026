@@ -10,6 +10,11 @@ export const auth = betterAuth({
     schema,
   }),
   emailAndPassword: { enabled: true },
+  advanced: {
+    database: {
+      generateId: false,
+    },
+  },
 });
 
 export async function getSession() {

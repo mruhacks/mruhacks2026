@@ -28,11 +28,11 @@ export const OPTIONS = {
     { value: "other", label: "Other / Custom" },
   ],
   years: [
-    { value: 1, label: "1st" },
-    { value: 2, label: "2nd" },
-    { value: 3, label: "3rd" },
-    { value: 4, label: "4th" },
-    { value: 5, label: "4+" },
+    { value: "1", label: "1st" },
+    { value: "2", label: "2nd" },
+    { value: "3", label: "3rd" },
+    { value: "4", label: "4th" },
+    { value: "4+", label: "4th+" },
   ],
   interests: [
     { value: "mobile", label: "Mobile App Development" },

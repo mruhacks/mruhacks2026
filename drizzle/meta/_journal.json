@@ -5,15 +5,22 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1760727433333,
-      "tag": "0000_aberrant_luminals",
+      "when": 1760844804503,
+      "tag": "0000_init-basics",
       "breakpoints": true
     },
     {
       "idx": 1,
       "version": "7",
-      "when": 1760728428498,
-      "tag": "0001_brave_garia",
+      "when": 1760844820352,
+      "tag": "0001_curly_red_skull",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1760844825849,
+      "tag": "0002_seed-registration-lookups",
       "breakpoints": true
     }
   ]
