@@ -26,30 +26,45 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { OPTIONS } from "./options";
 
 // ───────────────────────────────────────────────
-// Schema + Types
+// Helpers
 // ───────────────────────────────────────────────
 
-type OptionType = { value: string; label: string };
+function RequiredAsterisk() {
+  return <span className="text-destructive ml-0.5">*</span>;
+}
 
-const formSchema = z.object({
-  firstName: z.string().trim().min(1, "Required"),
-  lastName: z.string().trim().min(1, "Required"),
+const getSingleValue = (opt: SingleValue<{ value: string; label: string }>) =>
+  opt?.value ?? "";
+const getMultiValues = (opts: MultiValue<{ value: string; label: string }>) =>
+  opts.map((o) => o.value);
+
+// ───────────────────────────────────────────────
+// Schema setup
+// ───────────────────────────────────────────────
+
+const personalSchema = z.object({
+  fullName: z.string().trim().min(1, "Required"),
   attendedBefore: z.boolean(),
   gender: z.string().min(1, "Required"),
   university: z.string().min(1, "Required"),
   major: z.string().min(1, "Required"),
   yearOfStudy: z.number().int().min(1, "Required").max(5),
+});
 
+const interestsSchema = z.object({
   interests: z.array(z.string()).nonempty("Select at least one interest."),
   dietaryRestrictions: z.array(z.string()),
   accommodations: z.string().max(500).optional(),
+});
 
+const consentsSchema = z.object({
   needsParking: z.boolean(),
   heardFrom: z.string().min(1, "Required"),
-
   consentInfoUse: z
     .boolean()
     .refine((v) => v === true, { message: "Required" }),
@@ -61,22 +76,19 @@ const formSchema = z.object({
     .refine((v) => v === true, { message: "Required" }),
 });
 
-export type FormData = z.infer<typeof formSchema>;
+const formSchema = personalSchema.merge(interestsSchema).merge(consentsSchema);
+type FormData = z.infer<typeof formSchema>;
 
 // ───────────────────────────────────────────────
-// Utility
+// Tabs setup
 // ───────────────────────────────────────────────
 
-function getSingleValue(opt: SingleValue<OptionType>): string {
-  return opt?.value ?? "";
-}
-function getMultiValues(opts: MultiValue<OptionType>): string[] {
-  return opts.map((o) => o.value);
-}
-
-// ───────────────────────────────────────────────
-// Component
-// ───────────────────────────────────────────────
+const tabLabels = {
+  personal: "Personal Details",
+  interests: "Interests & Preferences",
+  consents: "Consents & Finalization",
+} as const;
+type Tab = keyof typeof tabLabels;
 
 export default function RegistrationForm({
   initial,
@@ -87,12 +99,15 @@ export default function RegistrationForm({
     control,
     register,
     handleSubmit,
-    formState: { errors, isSubmitting },
+    trigger,
+    formState: { errors, isSubmitting, touchedFields },
   } = useForm<FormData>({
     resolver: zodResolver(formSchema),
+    mode: "onChange",
+    reValidateMode: "onChange",
+    criteriaMode: "firstError",
     defaultValues: {
-      firstName: initial?.firstName ?? "",
-      lastName: initial?.lastName ?? "",
+      fullName: initial?.fullName ?? "",
       attendedBefore: initial?.attendedBefore ?? false,
       gender: initial?.gender ?? "",
       university: initial?.university ?? "",
@@ -109,14 +124,53 @@ export default function RegistrationForm({
     },
   });
 
+  const [tab, setTab] = React.useState<Tab>("personal");
+  const tabs = ["personal", "interests", "consents"] as const;
+
   const accommodations = useWatch({ control, name: "accommodations" }) ?? "";
-  const interests = useWatch({ control, name: "interests" }) ?? [];
-  const [tab, setTab] = React.useState("personal");
+
+  const tabSchemas = {
+    personal: personalSchema,
+    interests: interestsSchema,
+    consents: consentsSchema,
+  };
 
   const onSubmit = async (data: FormData) => {
     toast.success("Registration information saved.");
     console.log(data);
   };
+
+  const handleNext = async () => {
+    const i = tabs.indexOf(tab);
+    if (i === -1 || i === tabs.length - 1) return;
+
+    const schema = tabSchemas[tab];
+    const fields = Object.keys(schema.shape) as (keyof FormData)[];
+
+    // validate only current tab fields
+    const isValid = await trigger(fields, { shouldFocus: true });
+    if (!isValid) return;
+
+    setTab(tabs[i + 1]);
+
+    /** Move focus into the next input */
+    requestAnimationFrame(() => {
+      const nextPanel = document.querySelector(
+        `[role="tabpanel"][data-state="active"]`,
+      ) as HTMLElement | null;
+
+      if (!nextPanel) return;
+      const focusable = nextPanel.querySelector<HTMLElement>(
+        'input, select, textarea, [tabindex]:not([tabindex="-1"])',
+      );
+      if (focusable) focusable.focus();
+    });
+  };
+
+  const tabHasError = (t: Tab) =>
+    Object.keys(tabSchemas[t].shape).some(
+      (key) => errors[key as keyof FormData],
+    );
 
   return (
     <Card className="w-full sm:max-w-2xl">
@@ -127,56 +181,72 @@ export default function RegistrationForm({
 
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)}>
-          <Tabs value={tab} onValueChange={setTab} className="w-full">
-            <TabsList className="grid grid-cols-3 mb-6">
-              <TabsTrigger value="personal">Personal Details</TabsTrigger>
-              <TabsTrigger value="interests">
-                Interests & Preferences
-              </TabsTrigger>
-              <TabsTrigger value="consents">
-                Consents & Finalization
-              </TabsTrigger>
+          <Tabs
+            value={tab}
+            onValueChange={(v) => setTab(v as Tab)}
+            className="w-full"
+          >
+            <TabsList className="grid grid-cols-3 mb-6 w-full">
+              {(Object.keys(tabLabels) as Tab[]).map((t) => (
+                <TabsTrigger
+                  key={t}
+                  value={t}
+                  className={
+                    tabHasError(t) && tab !== t ? " text-destructive" : ""
+                  }
+                >
+                  {tabLabels[t]}
+                  {tabHasError(t) && tab !== t && (
+                    <span className="ml-0.5 text-destructive">*</span>
+                  )}
+                </TabsTrigger>
+              ))}
             </TabsList>
 
+            {/* ───── PERSONAL ───── */}
             <TabsContent value="personal">
               <FieldGroup>
-                <div className="grid grid-cols-2 gap-3">
-                  <Field>
-                    <FieldLabel>First Name*</FieldLabel>
-                    <Input {...register("firstName")} />
-                    {errors.firstName && (
-                      <FieldError errors={[errors.firstName]} />
-                    )}
-                  </Field>
-
-                  <Field>
-                    <FieldLabel>Last Name*</FieldLabel>
-                    <Input {...register("lastName")} />
-                    {errors.lastName && (
-                      <FieldError errors={[errors.lastName]} />
-                    )}
-                  </Field>
-                </div>
-
                 <Field>
-                  <FieldLabel>Have you attended MRUHacks before?*</FieldLabel>
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      {...register("attendedBefore")}
-                      className="accent-primary"
-                    />
-                    Yes
-                  </label>
+                  <FieldLabel>
+                    Full Name
+                    <RequiredAsterisk />
+                  </FieldLabel>
+                  <Input {...register("fullName")} id="fullName" />
+                  {touchedFields.fullName && errors.fullName && (
+                    <FieldError errors={[errors.fullName]} />
+                  )}
                 </Field>
+
+                <Controller
+                  name="attendedBefore"
+                  control={control}
+                  render={({ field }) => (
+                    <div className="flex items-start gap-3">
+                      <Checkbox
+                        id="attendedBefore"
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                      <div className="grid gap-2">
+                        <Label htmlFor="attendedBefore">
+                          I have attended MRUHacks before
+                        </Label>
+                      </div>
+                    </div>
+                  )}
+                />
 
                 <Controller
                   name="gender"
                   control={control}
                   render={({ field, fieldState }) => (
                     <Field data-invalid={fieldState.invalid}>
-                      <FieldLabel>Gender*</FieldLabel>
+                      <FieldLabel>
+                        Gender
+                        <RequiredAsterisk />
+                      </FieldLabel>
                       <Select
+                        id="gender"
                         instanceId="gender"
                         options={OPTIONS.genders}
                         value={
@@ -186,11 +256,11 @@ export default function RegistrationForm({
                         }
                         onChange={(opt) =>
                           field.onChange(
-                            getSingleValue(opt as SingleValue<OptionType>),
+                            getSingleValue(opt as SingleValue<any>),
                           )
                         }
                       />
-                      {fieldState.error && (
+                      {touchedFields.gender && fieldState.error && (
                         <FieldError errors={[fieldState.error]} />
                       )}
                     </Field>
@@ -202,8 +272,13 @@ export default function RegistrationForm({
                   control={control}
                   render={({ field, fieldState }) => (
                     <Field data-invalid={fieldState.invalid}>
-                      <FieldLabel>University / Institution*</FieldLabel>
+                      <FieldLabel>
+                        University / Institution
+                        <RequiredAsterisk />
+                      </FieldLabel>
                       <Select
+                        id="university"
+                        instanceId="university"
                         options={OPTIONS.universities}
                         value={
                           OPTIONS.universities.find(
@@ -212,11 +287,11 @@ export default function RegistrationForm({
                         }
                         onChange={(opt) =>
                           field.onChange(
-                            getSingleValue(opt as SingleValue<OptionType>),
+                            getSingleValue(opt as SingleValue<any>),
                           )
                         }
                       />
-                      {fieldState.error && (
+                      {touchedFields.university && fieldState.error && (
                         <FieldError errors={[fieldState.error]} />
                       )}
                     </Field>
@@ -228,8 +303,13 @@ export default function RegistrationForm({
                   control={control}
                   render={({ field, fieldState }) => (
                     <Field data-invalid={fieldState.invalid}>
-                      <FieldLabel>Major / Program*</FieldLabel>
+                      <FieldLabel>
+                        Major / Program
+                        <RequiredAsterisk />
+                      </FieldLabel>
                       <Select
+                        id="major"
+                        instanceId="major"
                         options={OPTIONS.majors}
                         value={
                           OPTIONS.majors.find((o) => o.value === field.value) ??
@@ -237,11 +317,11 @@ export default function RegistrationForm({
                         }
                         onChange={(opt) =>
                           field.onChange(
-                            getSingleValue(opt as SingleValue<OptionType>),
+                            getSingleValue(opt as SingleValue<any>),
                           )
                         }
                       />
-                      {fieldState.error && (
+                      {touchedFields.major && fieldState.error && (
                         <FieldError errors={[fieldState.error]} />
                       )}
                     </Field>
@@ -254,9 +334,12 @@ export default function RegistrationForm({
                   render={({ field, fieldState }) => (
                     <Field data-invalid={fieldState.invalid}>
                       <FieldLabel>
-                        What year will you be in as of Fall?*
+                        Year of Study
+                        <RequiredAsterisk />
                       </FieldLabel>
                       <Select
+                        id="yearOfStudy"
+                        instanceId="yearOfStudy"
                         options={OPTIONS.years}
                         value={
                           OPTIONS.years.find((o) => o.value === field.value) ??
@@ -264,22 +347,26 @@ export default function RegistrationForm({
                         }
                         onChange={(opt) =>
                           field.onChange(
-                            Number(
-                              getSingleValue(opt as SingleValue<OptionType>),
-                            ),
+                            Number(getSingleValue(opt as SingleValue<any>)),
                           )
                         }
                       />
-                      {fieldState.error && (
+                      {touchedFields.yearOfStudy && fieldState.error && (
                         <FieldError errors={[fieldState.error]} />
                       )}
                     </Field>
                   )}
                 />
               </FieldGroup>
+
+              <div className="mt-6 flex justify-end">
+                <Button type="button" onClick={handleNext}>
+                  Next
+                </Button>
+              </div>
             </TabsContent>
 
-            {/* ──────── INTERESTS & PREFERENCES ──────── */}
+            {/* ───── INTERESTS ───── */}
             <TabsContent value="interests">
               <FieldGroup>
                 <Controller
@@ -287,8 +374,13 @@ export default function RegistrationForm({
                   control={control}
                   render={({ field, fieldState }) => (
                     <Field data-invalid={fieldState.invalid}>
-                      <FieldLabel>Interests*</FieldLabel>
+                      <FieldLabel>
+                        Interests
+                        <RequiredAsterisk />
+                      </FieldLabel>
                       <Select
+                        id="interests"
+                        instanceId="interests"
                         isMulti
                         options={OPTIONS.interests}
                         value={OPTIONS.interests.filter((o) =>
@@ -296,14 +388,11 @@ export default function RegistrationForm({
                         )}
                         onChange={(opts) =>
                           field.onChange(
-                            getMultiValues(opts as MultiValue<OptionType>),
+                            getMultiValues(opts as MultiValue<any>),
                           )
                         }
                       />
-                      <p className="text-sm text-muted-foreground mt-1">
-                        {interests.length} selected
-                      </p>
-                      {fieldState.error && (
+                      {touchedFields.interests && fieldState.error && (
                         <FieldError errors={[fieldState.error]} />
                       )}
                     </Field>
@@ -317,6 +406,8 @@ export default function RegistrationForm({
                     <Field>
                       <FieldLabel>Dietary Restrictions</FieldLabel>
                       <Select
+                        id="dietaryRestrictions"
+                        instanceId="dietaryRestrictions"
                         isMulti
                         options={OPTIONS.dietary}
                         value={OPTIONS.dietary.filter((o) =>
@@ -324,7 +415,7 @@ export default function RegistrationForm({
                         )}
                         onChange={(opts) =>
                           field.onChange(
-                            getMultiValues(opts as MultiValue<OptionType>),
+                            getMultiValues(opts as MultiValue<any>),
                           )
                         }
                       />
@@ -335,8 +426,9 @@ export default function RegistrationForm({
                 <Field>
                   <FieldLabel>Special Accommodations</FieldLabel>
                   <Textarea
+                    id="accommodations"
                     {...register("accommodations")}
-                    placeholder="Please let us know if you have any special accommodation needs for the event."
+                    placeholder="Please let us know if you have any special needs."
                     maxLength={500}
                   />
                   <p className="text-sm text-muted-foreground text-right mt-1">
@@ -344,26 +436,31 @@ export default function RegistrationForm({
                   </p>
                 </Field>
               </FieldGroup>
+
+              <div className="mt-6 flex justify-end">
+                <Button type="button" onClick={handleNext}>
+                  Next
+                </Button>
+              </div>
             </TabsContent>
 
-            {/* ──────── CONSENTS & FINALIZATION ──────── */}
+            {/* ───── CONSENTS ───── */}
             <TabsContent value="consents">
-              <FieldGroup>
+              <FieldGroup className="space-y-4">
                 <Controller
                   name="needsParking"
                   control={control}
                   render={({ field }) => (
-                    <Field>
-                      <FieldLabel>Will you require parking?*</FieldLabel>
-                      <label className="flex items-center gap-2 mt-1">
-                        <input
-                          type="checkbox"
-                          checked={field.value}
-                          onChange={() => field.onChange(!field.value)}
-                        />
-                        Yes
-                      </label>
-                    </Field>
+                    <div className="flex items-start gap-3">
+                      <Checkbox
+                        id="needsParking"
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                      <Label htmlFor="needsParking">
+                        I will require parking for the event
+                      </Label>
+                    </div>
                   )}
                 />
 
@@ -372,8 +469,13 @@ export default function RegistrationForm({
                   control={control}
                   render={({ field, fieldState }) => (
                     <Field data-invalid={fieldState.invalid}>
-                      <FieldLabel>How did you hear about us?*</FieldLabel>
+                      <FieldLabel>
+                        How did you hear about us?
+                        <RequiredAsterisk />
+                      </FieldLabel>
                       <Select
+                        id="heardFrom"
+                        instanceId="heardFrom"
                         options={OPTIONS.heardFrom}
                         value={
                           OPTIONS.heardFrom.find(
@@ -382,65 +484,57 @@ export default function RegistrationForm({
                         }
                         onChange={(opt) =>
                           field.onChange(
-                            getSingleValue(opt as SingleValue<OptionType>),
+                            getSingleValue(opt as SingleValue<any>),
                           )
                         }
                       />
-                      {fieldState.error && (
+                      {touchedFields.heardFrom && fieldState.error && (
                         <FieldError errors={[fieldState.error]} />
                       )}
                     </Field>
                   )}
                 />
 
-                <h3 className="text-lg font-medium mt-4 mb-2">
-                  Final Acknowledgments
-                </h3>
-
                 {[
                   {
-                    name: "consentInfoUse" as const,
+                    name: "consentInfoUse",
                     label:
-                      "I give permission to MRUHacks to use my information for the purpose of the event*",
-                    desc: "This includes event logistics, communication, and administration purposes.",
+                      "I agree that MRUHacks may use my information for event organization",
+                    desc: "This includes communication, scheduling, and logistics.",
                   },
                   {
-                    name: "consentSponsorShare" as const,
+                    name: "consentSponsorShare",
                     label:
-                      "I give my permission to MRUHacks to share my information with our sponsors*",
-                    desc: "Your information may be shared with event sponsors for recruitment and networking opportunities.",
+                      "I agree to share my information with event sponsors",
+                    desc: "Sponsors may contact you for networking or recruitment.",
                   },
                   {
-                    name: "consentMediaUse" as const,
-                    label:
-                      "I consent to the use of my likeness in photographs, videos, and other media for promotional purposes*",
-                    desc: "Media may be used for social media, marketing materials, and event documentation.",
+                    name: "consentMediaUse",
+                    label: "I agree to appear in event photos or videos",
+                    desc: "These may be used for MRUHacks promotion and documentation.",
                   },
                 ].map(({ name, label, desc }) => (
                   <Controller
                     key={name}
-                    name={name}
+                    name={name as keyof FormData}
                     control={control}
-                    render={({ field, fieldState }) => (
-                      <Field data-invalid={fieldState.invalid}>
-                        <label className="flex items-start gap-2">
-                          <input
-                            type="checkbox"
-                            checked={field.value}
-                            onChange={() => field.onChange(!field.value)}
-                          />
-                          <span>
-                            <strong>{label}</strong>
-                            <br />
-                            <span className="text-sm text-muted-foreground">
-                              {desc}
-                            </span>
-                          </span>
-                        </label>
-                        {fieldState.error && (
-                          <FieldError errors={[fieldState.error]} />
-                        )}
-                      </Field>
+                    render={({ field }) => (
+                      <div className="flex items-start gap-3">
+                        <Checkbox
+                          id={name}
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                        <div className="grid gap-2">
+                          <Label htmlFor={name}>
+                            {label}
+                            <RequiredAsterisk />
+                          </Label>
+                          <p className="text-muted-foreground text-sm">
+                            {desc}
+                          </p>
+                        </div>
+                      </div>
                     )}
                   />
                 ))}
