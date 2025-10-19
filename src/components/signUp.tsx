@@ -52,7 +52,7 @@ export default function SignUpForm() {
       onRequest: () => {
         setLoading(true);
       },
-      onSuccess: (ctx) => {
+      onSuccess: () => {
         setLoading(false);
         toast.success("Account created successfully", {
           description: "Check your inbox to verify your email.",

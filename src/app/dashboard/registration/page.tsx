@@ -1,4 +1,3 @@
-import { getUser } from "@/utils/auth";
 import { redirect } from "next/navigation";
 import { getOwnRegistration } from "./getOwnRegistration";
 

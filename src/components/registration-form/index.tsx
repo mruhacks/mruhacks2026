@@ -37,7 +37,6 @@ import {
   type RegistrationFormOptions,
   type RegistrationFormValues,
 } from "./schema";
-import { redirect } from "next/dist/server/api-utils";
 
 type FormData = RegistrationFormValues;
 

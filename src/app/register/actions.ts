@@ -1,7 +1,5 @@
 "use server";
 
-import { eq } from "drizzle-orm";
-
 import {
   participantDietaryRestrictions,
   participantInterests,
@@ -14,7 +12,6 @@ import {
   dietaryRestrictions,
   heardFromSources,
 } from "@/db/schema";
-import { participantFormView } from "@/db/registrations";
 import { getUser } from "@/utils/auth";
 import { ActionResult, fail, ok } from "@/utils/action-result";
 import { db } from "@/utils/db";
