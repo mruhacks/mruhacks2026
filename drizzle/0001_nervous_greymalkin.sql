@@ -1,12 +1,13 @@
 CREATE TABLE "account" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"account_id" uuid DEFAULT gen_random_uuid() NOT NULL,
 	"provider_id" text NOT NULL,
-	"provider_account_id" text NOT NULL,
 	"user_id" uuid NOT NULL,
 	"access_token" text,
 	"refresh_token" text,
 	"id_token" text,
 	"scope" text,
+	"password" text,
 	"access_token_expires_at" timestamp,
 	"refresh_token_expires_at" timestamp,
 	"created_at" timestamp DEFAULT now() NOT NULL,
@@ -15,19 +16,19 @@ CREATE TABLE "account" (
 --> statement-breakpoint
 CREATE TABLE "session" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"user_id" uuid NOT NULL,
 	"token" text NOT NULL,
 	"expires_at" timestamp NOT NULL,
 	"ip_address" text,
 	"user_agent" text,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL,
+	"user_id" uuid NOT NULL,
 	CONSTRAINT "session_token_unique" UNIQUE("token")
 );
 --> statement-breakpoint
 CREATE TABLE "user" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"name" text,
+	"name" text NOT NULL,
 	"email" text NOT NULL,
 	"email_verified" boolean DEFAULT false NOT NULL,
 	"image" text,
@@ -125,5 +126,4 @@ ALTER TABLE "participants" ADD CONSTRAINT "participants_gender_id_genders_id_fk"
 ALTER TABLE "participants" ADD CONSTRAINT "participants_university_id_universities_id_fk" FOREIGN KEY ("university_id") REFERENCES "public"."universities"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "participants" ADD CONSTRAINT "participants_major_id_majors_id_fk" FOREIGN KEY ("major_id") REFERENCES "public"."majors"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "participants" ADD CONSTRAINT "participants_year_of_study_id_years_of_study_id_fk" FOREIGN KEY ("year_of_study_id") REFERENCES "public"."years_of_study"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "participants" ADD CONSTRAINT "participants_heard_from_id_heard_from_sources_id_fk" FOREIGN KEY ("heard_from_id") REFERENCES "public"."heard_from_sources"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-CREATE UNIQUE INDEX "account_provider_user_idx" ON "account" USING btree ("provider_id","provider_account_id");
+ALTER TABLE "participants" ADD CONSTRAINT "participants_heard_from_id_heard_from_sources_id_fk" FOREIGN KEY ("heard_from_id") REFERENCES "public"."heard_from_sources"("id") ON DELETE no action ON UPDATE no action;
