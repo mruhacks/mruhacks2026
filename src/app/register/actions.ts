@@ -1,13 +1,15 @@
 "use server";
 
-import { db } from "@/utils/db";
 import { ActionResult, fail, ok } from "@/utils/action-result";
+import { db } from "@/utils/db";
+import { eq } from "drizzle-orm";
 import { formSchema } from "./schema";
 import {
   participants,
   participantInterests,
   participantDietaryRestrictions,
 } from "@/db/schema";
+import { participantView } from "@/db/registrations";
 import z from "zod";
 
 export async function registerParticipant(
@@ -124,3 +126,18 @@ export type RegistrationOptions = {
   dietary: Option[];
   heardFrom: Option[];
 };
+
+export async function getOwnRegistration(): Promise<
+  ActionResult<z.infer<typeof formSchema>>
+> {
+  const user = await getUser();
+  if (!user) return fail("User not logged in");
+
+  const [participants] = await db
+    .select()
+    .from(participantView)
+    .where(eq(participantView.userId, user.id))
+    .limit(1);
+
+  return ok(participants ?? null);
+}

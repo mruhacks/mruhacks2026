@@ -1,5 +1,7 @@
 import "dotenv/config";
 import { drizzle } from "drizzle-orm/node-postgres";
+import * as schema from "@/db/schema";
+import { Pool } from "pg";
 
 const isProduction = false && process.env.NODE_ENV === "production";
 
@@ -53,13 +55,11 @@ export function getDatabaseURL(): string {
   throw new Error("No database configuration found.");
 }
 
-export const db = drizzle({
-  connection: {
-    connectionString: getDatabaseURL(),
-    ssl: isProduction
-      ? { rejectUnauthorized: false } // allow Heroku, Supabase, etc.
-      : false,
-  },
+const pool = new Pool({
+  connectionString: getDatabaseURL(),
+  ssl: isProduction ? { rejectUnauthorized: false } : false,
 });
+
+export const db = drizzle(pool, { schema });
 
 export default db;
