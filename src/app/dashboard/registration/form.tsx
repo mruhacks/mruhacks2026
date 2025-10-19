@@ -187,7 +187,11 @@ export default function RegistrationForm({
                     Full Name
                     <RequiredAsterisk />
                   </FieldLabel>
-                  <Input {...register("fullName")} id="fullName" />
+                  <Input
+                    {...register("fullName")}
+                    id="fullName"
+                    placeholder="John Doe"
+                  />
                   {touchedFields.fullName && errors.fullName && (
                     <FieldError errors={[errors.fullName]} />
                   )}

@@ -6,8 +6,9 @@ import {
   varchar,
   text,
   timestamp,
+  pgView,
 } from "drizzle-orm/pg-core";
-import { relations } from "drizzle-orm";
+import { eq, relations, sql } from "drizzle-orm";
 
 import { user } from "./auth-schema";
 import {
@@ -107,4 +108,22 @@ export const participantsRelations = relations(
     interests: many(participantInterests),
     dietary: many(participantDietaryRestrictions),
   }),
+);
+
+export const participantView = pgView("participant_view", {
+  userId: uuid("user_id"),
+  email: text(),
+  fullName: varchar("full_name", { length: 255 }),
+  gender: varchar({ length: 100 }),
+  university: varchar({ length: 200 }),
+  major: varchar({ length: 150 }),
+  yearOfStudy: varchar("year_of_study", { length: 10 }),
+  heardFrom: varchar("heard_from", { length: 150 }),
+  needsParking: boolean("needs_parking"),
+  attendedBefore: boolean("attended_before"),
+  createdAt: timestamp("created_at", { mode: "string" }),
+  interests: varchar(),
+  dietaryRestrictions: varchar("dietary_restrictions"),
+}).as(
+  sql`SELECT p.user_id, u.email, p.full_name, g.label AS gender, un.label AS university, m.label AS major, y.label AS year_of_study, h.label AS heard_from, p.needs_parking, p.attended_before, p.created_at, COALESCE(array_agg(DISTINCT i.label) FILTER (WHERE i.label IS NOT NULL), ARRAY[]::text[]::character varying[]) AS interests, COALESCE(array_agg(DISTINCT d.label) FILTER (WHERE d.label IS NOT NULL), ARRAY[]::text[]::character varying[]) AS dietary_restrictions FROM participants p JOIN "user" u ON u.id = p.user_id LEFT JOIN genders g ON g.id = p.gender_id LEFT JOIN universities un ON un.id = p.university_id LEFT JOIN majors m ON m.id = p.major_id LEFT JOIN years_of_study y ON y.id = p.year_of_study_id LEFT JOIN heard_from_sources h ON h.id = p.heard_from_id LEFT JOIN participant_interests pi ON pi.user_id = p.user_id LEFT JOIN interests i ON i.id = pi.interest_id LEFT JOIN participant_dietary_restrictions pd ON pd.user_id = p.user_id LEFT JOIN dietary_restrictions d ON d.id = pd.restriction_id GROUP BY p.user_id, u.email, p.full_name, g.label, un.label, m.label, y.label, h.label, p.needs_parking, p.attended_before, p.created_at ORDER BY p.created_at DESC`,
 );

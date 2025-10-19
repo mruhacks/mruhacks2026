@@ -1,5 +1,6 @@
 import { getUser } from "@/utils/auth";
 import RegistrationForm from "./form";
+import { getOptions } from "./actions";
 
 export default async function RegistrationPage() {
   const user = await getUser();
@@ -8,7 +9,7 @@ export default async function RegistrationPage() {
 
   return (
     <div className="p-6">
-      <RegistrationForm initial={{}} />{" "}
+      <RegistrationForm initial={{}} options={await getOptions()} />{" "}
     </div>
   );
 }
