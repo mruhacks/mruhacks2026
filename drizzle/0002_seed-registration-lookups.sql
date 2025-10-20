@@ -66,6 +66,7 @@ INSERT INTO heard_from_sources (label)
 VALUES
   ('Poster'),
   ('Friend / Classmate'),
+  ('Classroom Visit'),
   ('Social Media'),
   ('Professor / Course Announcement'),
   ('Other');
