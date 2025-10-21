@@ -37,6 +37,7 @@ import {
   type RegistrationFormOptions,
   type RegistrationFormValues,
 } from "./schema";
+import { useRouter } from "next/navigation";
 
 type FormData = RegistrationFormValues;
 
@@ -81,6 +82,7 @@ export default function RegistrationForm({
   successMessage = DEFAULT_SUCCESS_MESSAGE,
   errorMessage = DEFAULT_ERROR_MESSAGE,
 }: RegistrationFormProps) {
+  const router = useRouter();
   const {
     control,
     register,
@@ -149,6 +151,7 @@ export default function RegistrationForm({
 
         if (!result || (isActionResult(result) && result.success)) {
           toast.success(successMessage);
+          router.push("/dashboard");
         }
 
         if (!isActionResult(result) || !result.success) {
@@ -161,7 +164,7 @@ export default function RegistrationForm({
         toast.error(errorMessage);
       }
     },
-    [onSubmit, successMessage, errorMessage],
+    [onSubmit, successMessage, errorMessage, router],
   );
 
   const handleNext = async () => {
