@@ -19,7 +19,7 @@ import { auth } from "./utils/auth";
  * @param request - The incoming Next.js request
  * @returns NextResponse allowing the request to proceed or redirecting to /forbidden
  */
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const session = await auth.api.getSession({
     headers: await headers(),
   });
@@ -39,6 +39,6 @@ export async function middleware(request: NextRequest) {
  * - matcher: Routes that should be protected by this middleware
  */
 export const config = {
-  runtime: "nodejs",
-  matcher: ["/dashboard"], // Apply middleware to dashboard routes
+  // Apply middleware to dashboard routes
+  matcher: ["/dashboard"]
 };
