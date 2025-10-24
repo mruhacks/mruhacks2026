@@ -1,12 +1,12 @@
 /**
  * Participant registration database schema
- * 
+ *
  * This module defines the database tables and views for the hackathon
  * participant registration system. It includes:
  * - Main participant table (1:1 with auth users)
  * - Junction tables for many-to-many relationships
  * - Database views for efficient querying and display
- * 
+ *
  * The schema is designed to normalize data and support efficient queries
  * with appropriate indexes on commonly queried columns.
  */
@@ -37,10 +37,10 @@ import {
 
 /**
  * Participants table - stores hackathon participant information
- * 
+ *
  * This table has a 1:1 relationship with the Better Auth user table.
  * Each authenticated user can have at most one participant record.
- * 
+ *
  * Indexes:
  * - idx_participants_user_id_created_at: For querying participants by user and sorting by creation date
  * - idx_participants_created_at_desc: For displaying recent registrations
@@ -55,7 +55,7 @@ export const participants = pgTable(
 
     /** Participant's full legal name */
     fullName: varchar("full_name", { length: 255 }).notNull(),
-    
+
     /** Whether participant has attended this hackathon before */
     attendedBefore: boolean("attended_before").notNull().default(false),
 
@@ -63,17 +63,17 @@ export const participants = pgTable(
     genderId: integer("gender_id")
       .notNull()
       .references(() => genders.id),
-    
+
     /** Foreign key to university lookup table */
     universityId: integer("university_id")
       .notNull()
       .references(() => universities.id),
-    
+
     /** Foreign key to major/field of study lookup table */
     majorId: integer("major_id")
       .notNull()
       .references(() => majors.id),
-    
+
     /** Foreign key to year of study lookup table */
     yearOfStudyId: integer("year_of_study_id")
       .notNull()
@@ -84,7 +84,7 @@ export const participants = pgTable(
 
     /** Whether participant needs parking at the venue */
     needsParking: boolean("needs_parking").notNull().default(false),
-    
+
     /** Foreign key to heard-from source lookup table (for marketing attribution) */
     heardFromId: integer("heard_from_id")
       .notNull()
@@ -92,10 +92,10 @@ export const participants = pgTable(
 
     /** Consent to use participant information for event purposes */
     consentInfoUse: boolean("consent_info_use").notNull(),
-    
+
     /** Consent to share information with event sponsors */
     consentSponsorShare: boolean("consent_sponsor_share").notNull(),
-    
+
     /** Consent to use photos/videos featuring the participant */
     consentMediaUse: boolean("consent_media_use").notNull(),
 
@@ -115,10 +115,10 @@ export const participants = pgTable(
 
 /**
  * Participant interests junction table
- * 
+ *
  * Many-to-many relationship between participants and interests.
  * Allows participants to select multiple interest areas (e.g., "Web Development", "AI").
- * 
+ *
  * Index: idx_participant_interests_user_interest for efficient lookups
  */
 export const participantInterests = pgTable(
@@ -128,7 +128,7 @@ export const participantInterests = pgTable(
     userId: uuid("user_id")
       .notNull()
       .references(() => participants.userId, { onDelete: "cascade" }),
-    
+
     /** Foreign key to interests lookup table */
     interestId: integer("interest_id")
       .notNull()
@@ -144,10 +144,10 @@ export const participantInterests = pgTable(
 
 /**
  * Participant dietary restrictions junction table
- * 
+ *
  * Many-to-many relationship between participants and dietary restrictions.
  * Allows participants to select multiple dietary needs (e.g., "Vegetarian", "Halal").
- * 
+ *
  * Index: idx_participant_dietary_user_restriction for efficient lookups
  */
 export const participantDietaryRestrictions = pgTable(
@@ -157,7 +157,7 @@ export const participantDietaryRestrictions = pgTable(
     userId: uuid("user_id")
       .notNull()
       .references(() => participants.userId, { onDelete: "cascade" }),
-    
+
     /** Foreign key to dietary restrictions lookup table */
     restrictionId: integer("restriction_id")
       .notNull()
@@ -173,11 +173,11 @@ export const participantDietaryRestrictions = pgTable(
 
 /**
  * Drizzle ORM relations definition for participants table
- * 
+ *
  * Defines:
  * - one-to-one relations to lookup tables (gender, university, etc.)
  * - one-to-many relations to junction tables (interests, dietary restrictions)
- * 
+ *
  * These relations enable type-safe querying with automatic joins.
  */
 export const participantsRelations = relations(
@@ -211,11 +211,11 @@ export const participantsRelations = relations(
 
 /**
  * Participant view - denormalized view for display purposes
- * 
+ *
  * This database view joins participant data with lookup tables and aggregates
  * interests and dietary restrictions into arrays. Useful for displaying
  * participant information in tables and reports.
- * 
+ *
  * Returns human-readable labels instead of IDs, and aggregates related data.
  */
 export const participantView = pgView("participant_view", {
@@ -235,67 +235,57 @@ export const participantView = pgView("participant_view", {
 }).as(
   sql`
 SELECT
+WITH
+  dr AS (
+    SELECT
+      p.user_id,
+      ARRAY_AGG(l.label ORDER BY l.label) AS dietary_restrictions
+    FROM participant_dietary_restrictions p
+    JOIN dietary_restrictions l ON l.id = p.restriction_id
+    GROUP BY p.user_id
+  ),
+  ints AS (
+    SELECT
+      p.user_id,
+      ARRAY_AGG(l.label ORDER BY l.label) AS interests
+    FROM participant_interests p
+    JOIN interests l ON l.id = p.interest_id
+    GROUP BY p.user_id
+  )
+SELECT
   p.user_id,
-  u.email,
   p.full_name,
+  p.attended_before,
   g.label AS gender,
-  un.label AS university,
+  u.label AS university,
   m.label AS major,
   y.label AS year_of_study,
+  p.accommodations,
+  p.needs_parking,
   h.label AS heard_from,
-  p.needs_parking,
-  p.attended_before,
-  p.created_at,
-  COALESCE(
-    array_agg(DISTINCT i.label) FILTER (
-      WHERE
-        i.label IS NOT NULL
-    ),
-    ARRAY[]::text[]::character varying[]
-  ) AS interests,
-  COALESCE(
-    array_agg(DISTINCT d.label) FILTER (
-      WHERE
-        d.label IS NOT NULL
-    ),
-    ARRAY[]::text[]::character varying[]
-  ) AS dietary_restrictions
-FROM
-  participants p
-  JOIN "user" u ON u.id = p.user_id
-  LEFT JOIN genders g ON g.id = p.gender_id
-  LEFT JOIN universities un ON un.id = p.university_id
-  LEFT JOIN majors m ON m.id = p.major_id
-  LEFT JOIN years_of_study y ON y.id = p.year_of_study_id
-  LEFT JOIN heard_from_sources h ON h.id = p.heard_from_id
-  LEFT JOIN participant_interests pi ON pi.user_id = p.user_id
-  LEFT JOIN interests i ON i.id = pi.interest_id
-  LEFT JOIN participant_dietary_restrictions pd ON pd.user_id = p.user_id
-  LEFT JOIN dietary_restrictions d ON d.id = pd.restriction_id
-GROUP BY
-  p.user_id,
-  u.email,
-  p.full_name,
-  g.label,
-  un.label,
-  m.label,
-  y.label,
-  h.label,
-  p.needs_parking,
-  p.attended_before,
-  p.created_at
-ORDER BY
-  p.created_at DESC
+  p.consent_info_use,
+  p.consent_sponsor_share,
+  p.consent_media_use,
+  ints.interests,
+  dr.dietary_restrictions
+FROM participants p
+LEFT JOIN ints ON ints.user_id = p.user_id
+LEFT JOIN dr   ON dr.user_id   = p.user_id
+LEFT JOIN genders g ON g.id = p.gender_id
+LEFT JOIN universities u ON u.id = p.university_id
+LEFT JOIN majors m ON m.id = p.major_id
+LEFT JOIN years_of_study y ON y.id = p.year_of_study_id
+LEFT JOIN heard_from_sources h ON h.id = p.heard_from_id
 `,
 );
 
 /**
  * Participant form view - structured for form population
- * 
+ *
  * This database view returns participant data in a format that matches
  * the registration form schema. It aggregates interests and dietary
  * restrictions as arrays of IDs (not labels) for easy form population.
- * 
+ *
  * Used by getOwnRegistration() to pre-fill the registration form when
  * a participant edits their information.
  */

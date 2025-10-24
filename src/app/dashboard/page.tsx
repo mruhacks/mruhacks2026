@@ -1,3 +1,9 @@
+import Link from "next/link";
+
 export default function Dashboard() {
-  return <>TODO!</>;
+  return (
+    <div>
+      <Link href="/register">Edit Registration</Link>
+    </div>
+  );
 }
