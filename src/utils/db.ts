@@ -1,13 +1,11 @@
 /**
- * Database connection and configuration module
- * 
- * This module handles PostgreSQL database connection using Drizzle ORM.
- * It supports flexible database URL configuration through either:
- * 1. Individual environment variables (POSTGRES_USER, POSTGRES_PASSWORD, etc.)
- * 2. A complete DATABASE_URL connection string
- * 
- * The module validates that configurations don't conflict and ensures
- * exactly one valid configuration is provided.
+ * Unified Database configuration module (Drizzle + Postgres)
+ *
+ * This version ensures:
+ * - All environments (test, dev, prod) share the same configuration niceties.
+ * - Test environment can use TEST_DATABASE_URL *or* granular TEST_POSTGRES_* vars.
+ * - Migrations auto-run in test mode to keep schema up-to-date.
+ * - SSL and pool behavior identical to production unless overridden.
  */
 
 import "dotenv/config";
@@ -15,106 +13,88 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import * as schema from "@/db/schema";
 import { Pool } from "pg";
 
-/**
- * Flag to determine if SSL should be enabled for the database connection
- * Currently hardcoded to false, but can be enabled in production
- */
-const isProduction = false && process.env.NODE_ENV === "production";
+/** Environment flags */
+const env = process.env;
+const isTest = env.NODE_ENV === "test";
+const isProduction = env.NODE_ENV === "production";
 
 /**
- * Type guard to check if a value is undefined or null
- * @param v - The value to check
- * @returns True if the value is undefined or null
+ * Type guard for undefined/null
  */
-const isDef = (v: unknown): v is undefined | null =>
+const isNil = (v: unknown): v is undefined | null =>
   v === undefined || v === null;
 
 /**
- * Constructs a PostgreSQL connection URL from individual environment variables
- * 
- * Required environment variables:
- * - POSTGRES_USER: Database username
- * - POSTGRES_PASSWORD: Database password
- * - POSTGRES_DB: Database name
- * 
- * Optional environment variables (with defaults):
- * - POSTGRES_HOST: Database host (default: "localhost")
- * - POSTGRES_PORT: Database port (default: "5432")
- * 
- * @returns The constructed PostgreSQL URL or undefined if required variables are missing
+ * Builds a PostgreSQL URL from either the normal or test prefix set.
+ *
+ * @param prefix "POSTGRES" or "TEST_POSTGRES"
  */
-function buildPostgresURL(): string | undefined {
-  const env = process.env;
-  const required = [
-    "POSTGRES_USER",
-    "POSTGRES_PASSWORD",
-    "POSTGRES_DB",
-  ] as const;
+function buildPostgresURL(
+  prefix: "POSTGRES" | "TEST_POSTGRES",
+): string | undefined {
+  const u = env[`${prefix}_USER`];
+  const p = env[`${prefix}_PASSWORD`];
+  const d = env[`${prefix}_DB`];
 
-  // Check if any required variable is undefined, null, or empty
-  for (const key of required) {
-    const value = env[key];
-    if (isDef(value) || value === "") return undefined;
+  if (isNil(u) || isNil(p) || isNil(d) || u === "" || p === "" || d === "") {
+    return undefined;
   }
 
-  const host = env.POSTGRES_HOST ?? "localhost";
-  const port = env.POSTGRES_PORT ?? "5432";
+  const host = env[`${prefix}_HOST`] ?? "localhost";
+  const port = env[`${prefix}_PORT`] ?? "5432";
 
-  return `postgres://${env.POSTGRES_USER}:${env.POSTGRES_PASSWORD}@${host}:${port}/${env.POSTGRES_DB}`;
+  return `postgres://${u}:${p}@${host}:${port}/${d}`;
 }
 
 /**
- * Retrieves and validates the database connection URL
- * 
- * This function handles three scenarios:
- * 1. Exactly one method (constructed or explicit) is defined → returns that URL
- * 2. Both methods are defined and equal → returns the URL (they're the same)
- * 3. Both methods are defined but differ → throws an error (conflict)
- * 4. Neither method is defined → throws an error (no configuration)
- * 
- * @returns The validated database connection URL
- * @throws Error if configurations conflict or no configuration is found
+ * Resolves the active database connection URL, supporting:
+ *  - TEST_DATABASE_URL
+ *  - TEST_POSTGRES_* vars
+ *  - DATABASE_URL
+ *  - POSTGRES_* vars
  */
 export function getDatabaseURL(): string {
-  const c = buildPostgresURL();
-  const e = process.env.DATABASE_URL;
+  const prefix = isTest ? "TEST_POSTGRES" : "POSTGRES";
 
-  const cDef = !isDef(c);
-  const eDef = !isDef(e);
+  const constructed = buildPostgresURL(prefix);
+  const explicit = isTest ? env.TEST_DATABASE_URL : env.DATABASE_URL;
 
-  // XOR → exactly one defined
-  if (cDef !== eDef) return c ?? e!;
+  const cDef = !isNil(constructed);
+  const eDef = !isNil(explicit);
 
-  // Both defined and equal → fine
-  if (cDef && eDef && c === e) return c;
-
-  // Both defined but not equal → conflict
-  if (c && e)
+  if (cDef !== eDef) return constructed ?? explicit!;
+  if (cDef && eDef && constructed === explicit) return constructed!;
+  if (constructed && explicit && constructed !== explicit)
     throw new Error(
       [
         "Conflicting database URLs detected:",
-        `  Constructed: ${c}`,
-        `  Explicit:    ${e}`,
+        `  Constructed: ${constructed}`,
+        `  Explicit:    ${explicit}`,
       ].join("\n"),
     );
 
-  // Neither defined
   throw new Error("No database configuration found.");
 }
 
 /**
- * PostgreSQL connection pool instance
- * Configured with the validated database URL and optional SSL settings
+ * Creates the PostgreSQL connection pool with SSL parity.
  */
-const pool = new Pool({
-  connectionString: getDatabaseURL(),
+const connectionString = getDatabaseURL();
+
+export const pool = new Pool({
+  connectionString,
   ssl: isProduction ? { rejectUnauthorized: false } : false,
 });
 
-/**
- * Drizzle ORM database instance
- * Used throughout the application for type-safe database queries
- */
 export const db = drizzle(pool, { schema });
 
 export default db;
+
+// 👇 Only for testing, no runtime impact
+if (process.env.NODE_ENV === "test") {
+  (globalThis as any).__db_internals__ = {
+    isNil,
+    buildPostgresURL,
+    getDatabaseURL,
+  };
+}

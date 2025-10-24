@@ -219,22 +219,22 @@ export const participantsRelations = relations(
  * Returns human-readable labels instead of IDs, and aggregates related data.
  */
 export const participantView = pgView("participant_view", {
-  userId: uuid("user_id"),
-  email: text(),
-  fullName: varchar("full_name", { length: 255 }),
-  gender: varchar({ length: 100 }),
-  university: varchar({ length: 200 }),
-  major: varchar({ length: 150 }),
-  yearOfStudy: varchar("year_of_study", { length: 10 }),
-  heardFrom: varchar("heard_from", { length: 150 }),
-  needsParking: boolean("needs_parking"),
-  attendedBefore: boolean("attended_before"),
-  createdAt: timestamp("created_at", { mode: "string" }),
+  userId: uuid("user_id").notNull(),
+  email: text().notNull(),
+  fullName: varchar("full_name", { length: 255 }).notNull(),
+  accommodations: text(),
+  gender: varchar({ length: 100 }).notNull(),
+  university: varchar({ length: 200 }).notNull(),
+  major: varchar({ length: 150 }).notNull(),
+  yearOfStudy: varchar("year_of_study", { length: 10 }).notNull(),
+  heardFrom: varchar("heard_from", { length: 150 }).notNull(),
+  needsParking: boolean("needs_parking").notNull(),
+  attendedBefore: boolean("attended_before").notNull(),
+  createdAt: timestamp("created_at", { mode: "string" }).notNull(),
   interests: varchar(),
   dietaryRestrictions: varchar("dietary_restrictions"),
 }).as(
   sql`
-SELECT
 WITH
   dr AS (
     SELECT

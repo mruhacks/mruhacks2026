@@ -1,0 +1,41 @@
+services:
+  db-dev:
+    image: postgres:17
+    container_name: mruhacks-db-dev
+    restart: unless-stopped
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+    volumes:
+      - dev_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 3s
+      timeout: 5s
+      retries: 5
+
+  db-test:
+    image: postgres:17
+    container_name: mruhacks-db-test
+    restart: unless-stopped
+    # map to a different host port to avoid overlap with dev DB
+    ports:
+      - "${TEST_POSTGRES_PORT:-5433}:5432"
+    environment:
+      POSTGRES_USER: ${TEST_POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${TEST_POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${TEST_POSTGRES_DB:-postgres}
+    volumes:
+      - test_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${TEST_POSTGRES_USER:-postgres}"]
+      interval: 3s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  dev_pgdata:
+  test_pgdata:

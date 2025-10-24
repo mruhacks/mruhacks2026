@@ -43,6 +43,13 @@
       "when": 1760905741450,
       "tag": "0005_smooth_ken_ellis",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1761283322844,
+      "tag": "0006_chunky_sabra",
+      "breakpoints": true
     }
   ]
 }
