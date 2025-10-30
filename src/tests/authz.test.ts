@@ -60,6 +60,8 @@ describe("Authorization system", () => {
       .returning({ id: user.id });
     userId = u.id;
 
+    console.log(userId);
+
     // Clear any pre-existing roles / perms
     await db.delete(userRoles);
     await db.delete(userPermissions);
@@ -96,6 +98,8 @@ describe("Authorization system", () => {
   test("should assign a role to user", async () => {
     const result = await assignRoleToUser(userId, roleId);
     expect(result.success).toBe(true);
+
+    console.log(userId);
 
     const assigned = await db
       .select()

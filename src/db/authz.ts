@@ -17,15 +17,12 @@ import { user } from "@/db/schema";
 export const permissions = pgTable(
   "permission",
   {
-    id: serial("id").primaryKey(),
-    entity: text("entity").notNull(), // e.g. "participant"
-    action: text("action").notNull(), // e.g. "view"
-    scope: text("scope").notNull().$type<"self" | "all">(), // only these 2 values
+    id: serial().primaryKey(),
+    key: text().notNull().unique(),
+    description: text(),
   },
   (t) => ({
-    uniq: unique().on(t.entity, t.action, t.scope),
-    idx_entity: index("idx_perm_entity").on(t.entity),
-    idx_action: index("idx_perm_action").on(t.action),
+    uniq: unique().on(t.id, t.key),
   }),
 );
 

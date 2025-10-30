@@ -59,6 +59,8 @@ export async function registerParticipant(
   const user = await getUser();
   if (!user) return fail("User not authenticated");
 
+  ensure("entity:actions:scope");
+
   const parsed = formSchema.safeParse(formData);
   if (!parsed.success) {
     return fail(`Validation failed: ${parsed.error.message}`);

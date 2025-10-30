@@ -1,9 +1,9 @@
 CREATE TABLE "permission" (
 	"id" serial PRIMARY KEY NOT NULL,
-	"entity" text NOT NULL,
-	"action" text NOT NULL,
-	"scope" text NOT NULL,
-	CONSTRAINT "permission_entity_action_scope_unique" UNIQUE("entity","action","scope")
+	"key" text NOT NULL,
+	"description" text,
+	CONSTRAINT "permission_key_unique" UNIQUE("key"),
+	CONSTRAINT "permission_id_key_unique" UNIQUE("id","key")
 );
 --> statement-breakpoint
 CREATE TABLE "role_permission" (
@@ -38,8 +38,6 @@ ALTER TABLE "user_permission" ADD CONSTRAINT "user_permission_user_id_user_id_fk
 ALTER TABLE "user_permission" ADD CONSTRAINT "user_permission_permission_id_permission_id_fk" FOREIGN KEY ("permission_id") REFERENCES "public"."permission"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "user_role" ADD CONSTRAINT "user_role_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "user_role" ADD CONSTRAINT "user_role_role_id_role_id_fk" FOREIGN KEY ("role_id") REFERENCES "public"."role"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-CREATE INDEX "idx_perm_entity" ON "permission" USING btree ("entity");--> statement-breakpoint
-CREATE INDEX "idx_perm_action" ON "permission" USING btree ("action");--> statement-breakpoint
 CREATE VIEW "public"."participant_view" AS (
 WITH
   dr AS (

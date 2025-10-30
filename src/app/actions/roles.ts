@@ -70,6 +70,7 @@ export async function assignRoleToUser(
     await db.insert(userRoles).values({ userId, roleId }).onConflictDoNothing();
     return ok();
   } catch (e) {
+    console.error(e);
     return fail(`Failed to assign role: ${(e as Error).message}`);
   }
 }

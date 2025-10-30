@@ -1,5 +1,5 @@
 {
-  "id": "a91d2ffe-9725-4d4a-954e-0faadf350680",
+  "id": "f0ccf704-9161-4f1b-9f03-52a0081e7696",
   "prevId": "a45fe9c5-8767-4961-a25d-790f6f0a68a8",
   "version": "7",
   "dialect": "postgresql",
@@ -923,67 +923,36 @@
           "primaryKey": true,
           "notNull": true
         },
-        "entity": {
-          "name": "entity",
+        "key": {
+          "name": "key",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         },
-        "action": {
-          "name": "action",
+        "description": {
+          "name": "description",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
-        },
-        "scope": {
-          "name": "scope",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
+          "notNull": false
         }
       },
-      "indexes": {
-        "idx_perm_entity": {
-          "name": "idx_perm_entity",
-          "columns": [
-            {
-              "expression": "entity",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "idx_perm_action": {
-          "name": "idx_perm_action",
-          "columns": [
-            {
-              "expression": "action",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
+      "indexes": {},
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "permission_entity_action_scope_unique": {
-          "name": "permission_entity_action_scope_unique",
+        "permission_key_unique": {
+          "name": "permission_key_unique",
           "nullsNotDistinct": false,
           "columns": [
-            "entity",
-            "action",
-            "scope"
+            "key"
+          ]
+        },
+        "permission_id_key_unique": {
+          "name": "permission_id_key_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "key"
           ]
         }
       },
