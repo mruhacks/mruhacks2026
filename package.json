@@ -77,6 +77,15 @@
     "overrides": {
       "react-hook-form": "^7.65.0",
       "@hookform/resolvers": "^5.2.2"
-    }
+    },
+    "onlyBuiltDependencies": [
+      "@tailwindcss/oxide",
+      "cpu-features",
+      "esbuild",
+      "protobufjs",
+      "sharp",
+      "ssh2",
+      "unrs-resolver"
+    ]
   }
 }
