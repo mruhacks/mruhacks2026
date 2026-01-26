@@ -1,7 +1,6 @@
 import { getUser } from "@/utils/auth";
 import QRCode from "./qrcode";
 import { headers } from "next/headers";
-import { Suspense } from "react";
 
 export default async function UserQrCode() {
   const host = (await headers()).get("host")!;

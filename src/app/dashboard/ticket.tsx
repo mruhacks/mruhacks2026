@@ -3,10 +3,9 @@ import { getUser } from "@/utils/auth";
 import db from "@/utils/db";
 import { eq } from "drizzle-orm";
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function getUserDetails() {
   const user = (await getUser())!;
-
-  user.id;
 
   const [userDetails] = await db
     .select()

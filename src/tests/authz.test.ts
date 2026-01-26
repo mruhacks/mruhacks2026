@@ -25,11 +25,11 @@ import {
 } from "@/app/actions/authz";
 import {
   user,
-  roles,
-  permissions,
-  userRoles,
+  role,
+  permission,
+  userRole,
   rolePermissions,
-  userPermissions,
+  userPermission,
 } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
@@ -180,6 +180,7 @@ describe("Authorization system", () => {
     try {
       await requirePermission(userId, "submission:delete:all");
       passed = true;
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (e) {
       passed = false;
     }
