@@ -54,29 +54,32 @@ The `getDatabaseURL()` function in `src/utils/db.ts` handles the configuration l
 
 ## Local Development Database
 
-For local development, use the `localdb.sh` script:
+Run the Docker Compose stack via the npm helper script:
 
 ```bash
-./localdb.sh
+npm run db:start
 ```
 
-This script:
-1. Removes any existing `mruhacks-postgres` Docker container
-2. Starts a fresh PostgreSQL 17 container
-3. Uses a hardcoded password (safe for local dev only)
-4. Outputs the `DATABASE_URL` to copy into your `.env` file
+This boots the `db-dev` (`mruhacks-db-dev`) and `db-test` (`mruhacks-db-test`) PostgreSQL 17 containers defined in `docker-compose.yml`. By default they bind to:
 
-**Output:**
-```
-DATABASE_URL=postgres://postgres:g61Veraq1DssIKfsEk5zEzuwJTdozJHwHrQiOBCd@localhost:5432/postgres
-```
+- `db-dev` → `localhost:5432`
+- `db-test` → `localhost:5433`
+
+The defaults in `.env.example` (`POSTGRES_*` and `TEST_POSTGRES_*`) already match these containers. Override any value in `.env` if you need a different port, password, or database name.
+
+Additional scripts:
+
+- `npm run db:stop` — stop the containers
+- `npm run db:reset` — drop volumes, recreate the containers, wait for readiness, run migrations, and seed baseline data
+
+Prefer the npm scripts, but you can also call Docker Compose directly (e.g., `docker compose up -d db-dev`) when you only require one of the databases.
 
 ## Production Configuration
 
 For production:
 
-1. **Never use `localdb.sh`** (it has a hardcoded password)
-2. Use environment variables provided by your hosting platform
+1. **Never reuse the example/local credentials** — generate unique secrets and passwords
+2. Provide connection info via `DATABASE_URL` or the individual `POSTGRES_*` variables offered by your hosting provider
 3. Enable SSL in production (currently disabled, see `src/utils/db.ts`)
 4. Consider using connection pooling for better performance
 
@@ -171,10 +174,10 @@ Error: connect ECONNREFUSED 127.0.0.1:5432
 
 **Solution:** Ensure PostgreSQL is running:
 ```bash
-docker ps | grep postgres
+docker ps | grep mruhacks-db-dev
 ```
 
-If not running, start it with `./localdb.sh`.
+If not running, start it with `npm run db:start`.
 
 ### Invalid Connection String
 

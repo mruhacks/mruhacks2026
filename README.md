@@ -18,18 +18,24 @@ A comprehensive hackathon management platform built with Next.js, featuring part
    npm install
    ```
 
-2. **Start local database:**
+2. **Configure environment:**
    ```bash
-   ./localdb.sh
+   cp .env.example .env
    ```
-   Copy the output `DATABASE_URL` into your `.env` file.
+   Update secrets as needed. The default `POSTGRES_*` values already match the Docker containers used for local development.
 
-3. **Run migrations:**
+3. **Start local database:**
+   ```bash
+   npm run db:start
+   ```
+   This spins up the PostgreSQL containers defined in `docker-compose.yml` (dev + test).
+
+4. **Run migrations:**
    ```bash
    npx drizzle-kit push
    ```
 
-4. **Start development server:**
+5. **Start development server:**
    ```bash
    npm run dev
    ```

@@ -20,18 +20,20 @@ npm install
 
 ### 2. Set Up Local Database
 
-For local development, use the provided `localdb.sh` script to spin up a PostgreSQL database in Docker:
+Run the Docker Compose stack via the provided npm script:
 
 ```bash
-./localdb.sh
+npm run db:start
 ```
 
-This script will:
-- Stop and remove any existing `mruhacks-postgres` container
-- Start a new PostgreSQL 17 container on port 5432
-- Output the `DATABASE_URL` for your `.env` file
+This command:
+- Starts the `db-dev` and `db-test` PostgreSQL 17 containers defined in `docker-compose.yml`
+- Maps dev to port `5432` and test to `5433` (override via `POSTGRES_PORT` / `TEST_POSTGRES_PORT`)
+- Waits for the dev database to be healthy before returning
 
-Copy the `DATABASE_URL` output by the script into your `.env` file (or `.env.local`).
+> Prefer `npm run db:start`, but you can also run `docker compose up -d db-dev` (or `db-test`) directly when you only need one of the services.
+
+When you are done developing, stop the containers with `npm run db:stop`. Use `npm run db:reset` to drop volumes, recreate the containers, run migrations, and seed baseline data.
 
 ### 3. Configure Environment Variables
 
@@ -41,30 +43,25 @@ Create a `.env` file based on `.env.example`:
 cp .env.example .env
 ```
 
-Edit `.env` and configure:
+Edit `.env` and configure the secrets + database credentials (example values shown):
 
 ```env
-# Database connection (use output from localdb.sh)
-DATABASE_URL=postgres://postgres:g61Veraq1DssIKfsEk5zEzuwJTdozJHwHrQiOBCd@localhost:5432/postgres
-
 # Better Auth
 BETTER_AUTH_SECRET=your_secret_key_here
 BETTER_AUTH_URL=http://localhost:3000
-```
 
-**Alternative Database Configuration:**
-
-Instead of `DATABASE_URL`, you can use individual variables:
-
-```env
+# Local dev database (matches docker-compose defaults)
 POSTGRES_USER=postgres
 POSTGRES_PASSWORD=your_password
-POSTGRES_DB=your_database
-POSTGRES_HOST=localhost
+POSTGRES_DB=mruhacks_dev
 POSTGRES_PORT=5432
+
+# Optional: local test database config
+TEST_POSTGRES_DB=mruhacks_test
+TEST_POSTGRES_PORT=5433
 ```
 
-The application will construct the connection URL automatically. See [Database Configuration](./DATABASE.md) for details.
+The app builds the `DATABASE_URL` automatically from the `POSTGRES_*` values. If you prefer a single variable, you can still define `DATABASE_URL=postgres://...` and omit the individual parts—just avoid setting both to conflicting values. See [Database Configuration](./DATABASE.md) for full details.
 
 ### 4. Run Database Migrations
 
@@ -134,8 +131,9 @@ This opens a web interface at `https://local.drizzle.studio` to browse and edit 
 If you get connection errors:
 
 1. Verify Docker is running: `docker ps`
-2. Check if the PostgreSQL container is running: `docker ps | grep mruhacks-postgres`
-3. Verify the `DATABASE_URL` in your `.env` file matches the output from `localdb.sh`
+2. Check if the dev container is running: `docker ps | grep mruhacks-db-dev`
+3. Ensure your `.env` `POSTGRES_*` values match the ports and credentials configured in `docker-compose.yml`
+4. Restart the stack: `npm run db:stop && npm run db:start`
 
 ### Migration Errors
 
@@ -143,14 +141,14 @@ If migrations fail:
 
 1. Check your database schema in `src/db/schema.ts`
 2. Ensure the database is running
-3. Try resetting the database: `./localdb.sh` (warning: this deletes all data)
+3. Run `npm run db:reset` to drop volumes, recreate the database, re-run migrations, and seed baseline data (warning: this deletes all data)
 
 ### Port Already in Use
 
 If port 5432 is already in use:
 
 1. Stop the existing PostgreSQL service
-2. Or modify `localdb.sh` to use a different port (e.g., `-p 5433:5432`)
+2. Override `POSTGRES_PORT` (and/or `TEST_POSTGRES_PORT`) in your `.env` or adjust `docker-compose.yml` to use a different host port (e.g., `5433:5432`)
 
 ## Next Steps
 
