@@ -13,7 +13,7 @@ A comprehensive hackathon management platform built with Next.js, featuring part
 
 1. **Clone and install:**
    ```bash
-   git clone https://github.com/Kapocsi/mruhacks2026.git
+   git clone https://github.com/mruhacks/mruhacks2026.git
    cd mruhacks2026
    npm install
    ```
