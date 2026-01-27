@@ -1,6 +1,6 @@
 // src/db/seed-static.ts
 import { db } from "@/utils/db";
-import { InferInsertModel, Table, eq, getTableName } from "drizzle-orm";
+import { InferInsertModel, Table, getTableName } from "drizzle-orm";
 import {
   genders,
   universities,

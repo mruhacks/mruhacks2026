@@ -101,7 +101,6 @@ export async function registerParticipant(
             consentInfoUse: data.consentInfoUse,
             consentSponsorShare: data.consentSponsorShare,
             consentMediaUse: data.consentMediaUse,
-            updatedAt: new Date(),
           },
         });
 

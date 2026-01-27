@@ -1,6 +1,8 @@
+type Scope = "all" | "any" | "self" | { id: string };
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 type Entity = "user" | "registration" | "team" | "submission";
 
-type Scope = "all" | "any" | "self" | { id: string };
 
 // valid actions per entity
 interface EntityActions {
@@ -25,16 +27,5 @@ type DynamicPermission = {
 }[keyof EntityActions];
 
 // combined union of all allowed permission strings
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 type PermissionString = StaticPermission | DynamicPermission;
-
-// ✅ valid examples
-const a: PermissionString = "team:manage:all";
-const b: PermissionString = "user:update:self";
-const c: PermissionString =
-  "submission:review:da5f4749-46ab-4770-8d22-b7395d08f8c7";
-
-// ❌ invalid (wrong action for entity)
-const d: PermissionString = "team:approve:any";
-
-// ❌ invalid (malformed UUID)
-const e: PermissionString = "user:update:not-a-uuid";

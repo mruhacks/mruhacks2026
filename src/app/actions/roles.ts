@@ -3,11 +3,11 @@
 import { db } from "@/utils/db";
 import { eq, and } from "drizzle-orm";
 import {
-  roles,
-  permissions,
+  role,
+  permission,
   rolePermissions,
-  userRoles,
-  userPermissions,
+  userRole,
+  userPermission,
 } from "@/db/schema";
 import { ok, fail, type ActionResult } from "@/utils/action-result";
 
@@ -23,22 +23,22 @@ export type PermissionId = number;
 
 /**
  * Creates a new role entry in the database.
- *
- * @param name - Unique role name (e.g., "admin", "judge")
+ * TODO: Why is the column called slug in the db? why not just call it name? 
+ * @param slug - Unique role name (e.g., "admin", "judge")
  * @param description - Optional role description
  * @returns The new role ID, or undefined if it already existed
  */
 export async function createRole(
-  name: string,
+  slug: string,
   description?: string,
 ): Promise<ActionResult<RoleId>> {
   try {
-    const [role] = await db
-      .insert(roles)
-      .values({ name, description })
+    const [result] = await db
+      .insert(role)
+      .values({ slug, description })
       .onConflictDoNothing()
-      .returning({ id: roles.id });
-    return ok(role?.id);
+      .returning({ id: role.id });
+    return ok(result?.id);
   } catch (e) {
     return fail(`Failed to create role: ${(e as Error).message}`);
   }
@@ -49,7 +49,7 @@ export async function createRole(
  */
 export async function deleteRole(roleId: RoleId): Promise<ActionResult> {
   try {
-    await db.delete(roles).where(eq(roles.id, roleId));
+    await db.delete(role).where(eq(role.id, roleId));
     return ok();
   } catch (e) {
     return fail(`Failed to delete role: ${(e as Error).message}`);
@@ -67,7 +67,7 @@ export async function assignRoleToUser(
   roleId: RoleId,
 ): Promise<ActionResult> {
   try {
-    await db.insert(userRoles).values({ userId, roleId }).onConflictDoNothing();
+    await db.insert(userRole).values({ userId, roleId }).onConflictDoNothing();
     return ok();
   } catch (e) {
     return fail(`Failed to assign role: ${(e as Error).message}`);
@@ -83,8 +83,8 @@ export async function revokeRoleFromUser(
 ): Promise<ActionResult> {
   try {
     await db
-      .delete(userRoles)
-      .where(and(eq(userRoles.userId, userId), eq(userRoles.roleId, roleId)));
+      .delete(userRole)
+      .where(and(eq(userRole.userId, userId), eq(userRole.roleId, roleId)));
     return ok();
   } catch (e) {
     return fail(`Failed to revoke role: ${(e as Error).message}`);
@@ -106,10 +106,10 @@ export async function addPermission(
 ): Promise<ActionResult<PermissionId>> {
   try {
     const [perm] = await db
-      .insert(permissions)
-      .values({ key, description })
+      .insert(permission)
+      .values({ slug: key, description })
       .onConflictDoNothing()
-      .returning({ id: permissions.id });
+      .returning({ id: permission.id });
     return ok(perm?.id);
   } catch (e) {
     return fail(`Failed to add permission: ${(e as Error).message}`);
@@ -123,7 +123,7 @@ export async function deletePermission(
   permissionId: PermissionId,
 ): Promise<ActionResult> {
   try {
-    await db.delete(permissions).where(eq(permissions.id, permissionId));
+    await db.delete(permission).where(eq(permission.id, permissionId));
     return ok();
   } catch (e) {
     return fail(`Failed to delete permission: ${(e as Error).message}`);
@@ -180,7 +180,7 @@ export async function grantPermissionToUser(
 ): Promise<ActionResult> {
   try {
     await db
-      .insert(userPermissions)
+      .insert(userPermission)
       .values({ userId, permissionId })
       .onConflictDoNothing();
     return ok();
@@ -198,11 +198,11 @@ export async function revokePermissionFromUser(
 ): Promise<ActionResult> {
   try {
     await db
-      .delete(userPermissions)
+      .delete(userPermission)
       .where(
         and(
-          eq(userPermissions.userId, userId),
-          eq(userPermissions.permissionId, permissionId),
+          eq(userPermission.userId, userId),
+          eq(userPermission.permissionId, permissionId),
         ),
       );
     return ok();
