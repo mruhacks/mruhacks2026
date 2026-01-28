@@ -70,7 +70,7 @@ export function SidebarNavigation() {
               <SidebarMenuItem key={url}>
                 <SidebarMenuButton asChild>
                   <Link href={url}>
-                    <Icon className="mr-2 h-4 w-4" />
+                    <Icon className="mr-2 size-4" />
                     {title}
                   </Link>
                 </SidebarMenuButton>
@@ -85,7 +85,10 @@ export function SidebarNavigation() {
           <SidebarGroupLabel asChild>
             <CollapsibleTrigger className="flex items-center">
               <span>Admin</span>
-              <ChevronDown className="ml-auto h-4 w-4 transition-transform group-data-[state=open]/collapsible:rotate-180" />
+              <ChevronDown className="
+                ml-auto size-4 transition-transform
+                group-data-[state=open]/collapsible:rotate-180
+              " />
             </CollapsibleTrigger>
           </SidebarGroupLabel>
 
@@ -96,7 +99,7 @@ export function SidebarNavigation() {
                   <SidebarMenuItem key={url}>
                     <SidebarMenuButton asChild>
                       <Link href={url}>
-                        <Icon className="mr-2 h-4 w-4" />
+                        <Icon className="mr-2 size-4" />
                         {title}
                       </Link>
                     </SidebarMenuButton>

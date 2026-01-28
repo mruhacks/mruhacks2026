@@ -20,14 +20,12 @@ export default function AuthLayout({
             <TabsTrigger
               value="signin"
               asChild
-              className={activeTab === "signin" ? "data-[state=active]" : ""}
             >
               <Link href="/signin">Sign In</Link>
             </TabsTrigger>
             <TabsTrigger
               value="signup"
               asChild
-              className={activeTab === "signup" ? "data-[state=active]" : ""}
             >
               <Link href="/signup">Sign Up</Link>
             </TabsTrigger>

@@ -47,7 +47,7 @@ const getMultiValues = (opts: MultiValue<{ value: number; label: string }>) =>
   opts.map((o) => o.value);
 
 function RequiredAsterisk(): React.JSX.Element {
-  return <span className="text-destructive ml-0.5">*</span>;
+  return <span className="ml-0.5 text-destructive">*</span>;
 }
 
 type RegistrationFormProps = {
@@ -209,12 +209,12 @@ export default function RegistrationForm({
         onValueChange={(v) => setTab(v as Tab)}
         className="w-full"
       >
-        <TabsList className="grid grid-cols-3 mb-6 w-full">
+        <TabsList className="mb-6 grid w-full grid-cols-3">
           {(Object.keys(tabLabels) as Tab[]).map((t) => (
             <TabsTrigger
               key={t}
               value={t}
-              className={tabHasError(t) ? " text-destructive underline" : ""}
+              className={tabHasError(t) ? "text-destructive underline" : ""}
             >
               {tabLabels[t]}
             </TabsTrigger>
@@ -427,7 +427,7 @@ export default function RegistrationForm({
                 placeholder="Please let us know if you have any special needs."
                 maxLength={500}
               />
-              <p className="text-sm text-muted-foreground text-right mt-1">
+              <p className="mt-1 text-right text-sm text-muted-foreground">
                 {accommodations.length}/500 characters
               </p>
             </Field>
@@ -520,7 +520,7 @@ export default function RegistrationForm({
                         <span
                           className={
                             fieldState.invalid
-                              ? "underline text-destructive"
+                              ? "text-destructive underline"
                               : ""
                           }
                         >
@@ -528,7 +528,7 @@ export default function RegistrationForm({
                         </span>
                         <RequiredAsterisk />
                       </Label>
-                      <p className="text-muted-foreground text-sm">
+                      <p className="text-sm text-muted-foreground">
                         {desc}
                         <FieldError errors={[fieldState.error]} />
                       </p>
@@ -543,7 +543,7 @@ export default function RegistrationForm({
             <Button type="submit" disabled={isSubmitting}>
               {isSubmitting ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving…
+                  <Loader2 className="mr-2 size-4 animate-spin" /> Saving…
                 </>
               ) : (
                 submitLabel

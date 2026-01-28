@@ -4,7 +4,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function NotFound() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted/40 p-6">
+    <div className="
+      flex min-h-screen items-center justify-center bg-muted/40 p-6
+    ">
       <Card className="max-w-md text-center">
         <CardHeader>
           <CardTitle className="text-3xl font-semibold">

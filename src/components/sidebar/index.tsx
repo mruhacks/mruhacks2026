@@ -43,8 +43,8 @@ export async function AppSidebar() {
   return (
     <Sidebar>
       <SidebarHeader>
-        <div className="flex flex-row items-center h-[60px]">
-          <Chevron className="w-auto h-full p-0.5" />
+        <div className="flex h-[60px] flex-row items-center">
+          <Chevron className="h-full w-auto p-0.5" />
           <div>
             <h1 className="font-medium">MRUHacks</h1>
             <h2>2026</h2>
@@ -52,7 +52,7 @@ export async function AppSidebar() {
         </div>
       </SidebarHeader>
 
-      <div className=" border-t mx-4" />
+      <div className="mx-4 border-t" />
 
       <SidebarNavigation />
 

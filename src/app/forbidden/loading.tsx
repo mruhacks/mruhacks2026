@@ -4,11 +4,13 @@ import { ShieldAlert } from "lucide-react";
 
 export default function ForbiddenPageLoading() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted/40 p-6">
+    <div className="
+      flex min-h-screen items-center justify-center bg-muted/40 p-6
+    ">
       <Card className="w-md text-center shadow-md">
         <CardHeader className="flex flex-col items-center gap-2">
-          <ShieldAlert className="h-10 w-10 text-warning" />
-          <CardTitle className="text-3xl font-semibold text-warning">
+          <ShieldAlert className="size-10 text-yellow-500" />
+          <CardTitle className="text-3xl font-semibold text-yellow-500">
             403 – Forbidden
           </CardTitle>
         </CardHeader>

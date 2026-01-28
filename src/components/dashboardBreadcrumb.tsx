@@ -32,7 +32,10 @@ export function DashboardBreadcrumb() {
         ) : (
           <>
             <BreadcrumbLink href={href}>{title}</BreadcrumbLink>
-            <BreadcrumbSeparator className="hidden md:block" />
+            <BreadcrumbSeparator className="
+              hidden
+              md:block
+            " />
           </>
         )}
       </BreadcrumbItem>
@@ -42,11 +45,17 @@ export function DashboardBreadcrumb() {
   return (
     <Breadcrumb>
       <BreadcrumbList>
-        <BreadcrumbItem className="hidden md:block">
+        <BreadcrumbItem className="
+          hidden
+          md:block
+        ">
           <BreadcrumbLink href="/dashboard">Dashboard</BreadcrumbLink>
         </BreadcrumbItem>
         {segments.length > 0 && (
-          <BreadcrumbSeparator className="hidden md:block" />
+          <BreadcrumbSeparator className="
+            hidden
+            md:block
+          " />
         )}
         {breadcrumbItems}
       </BreadcrumbList>

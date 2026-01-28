@@ -15,7 +15,7 @@ export default async function UserQrCode() {
     "https://" + host,
   );
 
-  const loading = <Skeleton className="w-[300px] h-[300px]" />;
+  const loading = <Skeleton className="size-[300px]" />;
 
   return (
     <Suspense fallback={loading}>

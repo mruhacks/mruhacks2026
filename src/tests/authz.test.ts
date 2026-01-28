@@ -31,6 +31,7 @@ import {
   rolePermissions,
   userPermission,
 } from "@/db/schema";
+// Note: rolePermissions is used, others are imported but not directly used in this file
 import { eq } from "drizzle-orm";
 
 import { describe, vi, beforeAll, test, expect } from "vitest";
@@ -61,19 +62,19 @@ describe("Authorization system", () => {
     userId = u.id;
 
     // Clear any pre-existing roles / perms
-    await db.delete(userRoles);
-    await db.delete(userPermissions);
+    await db.delete(userRole);
+    await db.delete(userPermission);
     await db.delete(rolePermissions);
-    await db.delete(roles);
-    await db.delete(permissions);
+    await db.delete(role);
+    await db.delete(permission);
   });
 
   afterAll(async () => {
-    await db.delete(userRoles);
-    await db.delete(userPermissions);
+    await db.delete(userRole);
+    await db.delete(userPermission);
     await db.delete(rolePermissions);
-    await db.delete(roles);
-    await db.delete(permissions);
+    await db.delete(role);
+    await db.delete(permission);
   });
 
   // ─────────────────────────────────────────────
@@ -99,8 +100,8 @@ describe("Authorization system", () => {
 
     const assigned = await db
       .select()
-      .from(userRoles)
-      .where(eq(userRoles.userId, userId));
+      .from(userRole)
+      .where(eq(userRole.userId, userId));
     expect(assigned.length).toBe(1);
   });
 
@@ -121,8 +122,8 @@ describe("Authorization system", () => {
 
     let perms = await db
       .select()
-      .from(userPermissions)
-      .where(eq(userPermissions.userId, userId));
+      .from(userPermission)
+      .where(eq(userPermission.userId, userId));
     expect(perms.length).toBe(1);
 
     const revoke = await revokePermissionFromUser(userId, permIdAllAll);
@@ -130,8 +131,8 @@ describe("Authorization system", () => {
 
     perms = await db
       .select()
-      .from(userPermissions)
-      .where(eq(userPermissions.userId, userId));
+      .from(userPermission)
+      .where(eq(userPermission.userId, userId));
     expect(perms.length).toBe(0);
   });
 
@@ -160,7 +161,7 @@ describe("Authorization system", () => {
 
   test("requirePermission should redirect when unauthorized", async () => {
     // Remove all permissions
-    await db.delete(userPermissions);
+    await db.delete(userPermission);
     await db.delete(rolePermissions);
 
     let thrown: string | null = null;

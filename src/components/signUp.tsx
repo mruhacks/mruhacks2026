@@ -70,7 +70,10 @@ export default function SignUpForm() {
   }
 
   return (
-    <Card className="w-full sm:max-w-md">
+    <Card className="
+      w-full
+      sm:max-w-md
+    ">
       <CardHeader>
         <CardTitle>Create Account</CardTitle>
         <CardDescription>
@@ -176,7 +179,7 @@ export default function SignUpForm() {
           <Button type="submit" form="form-signup" disabled={loading}>
             {loading ? (
               <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <Loader2 className="mr-2 size-4 animate-spin" />
                 Creating Account...
               </>
             ) : (
@@ -185,9 +188,12 @@ export default function SignUpForm() {
           </Button>
         </Field>
 
-        <div className="text-sm mt-4">
+        <div className="mt-4 text-sm">
           <span>Already have an account?</span>
-          <Link className="ml-1 font-medium hover:underline" href="/signin">
+          <Link className="
+            ml-1 font-medium
+            hover:underline
+          " href="/signin">
             Signin
           </Link>
         </div>

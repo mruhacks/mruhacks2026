@@ -32,14 +32,18 @@ export function NavUser({
   return (
     <SidebarMenu>
       <SidebarMenuItem>
-        <div className="flex items-center justify-between w-full px-2 py-1.5 rounded-md hover:bg-sidebar-accent/40 transition">
+        <div className="
+          flex w-full items-center justify-between rounded-md px-2 py-1.5
+          transition
+          hover:bg-sidebar-accent/40
+        ">
           <div className="flex items-center gap-2">
-            <Avatar className="h-8 w-8 rounded-lg">
+            <Avatar className="size-8 rounded-lg">
               <AvatarImage src={user.avatar} alt={user.name} />
               <AvatarFallback className="rounded-lg">{initials}</AvatarFallback>
             </Avatar>
             <div className="flex flex-col text-left">
-              <span className="text-sm font-medium leading-tight">
+              <span className="text-sm/tight font-medium">
                 {user.name}
               </span>
               <span className="text-xs text-muted-foreground">
@@ -53,7 +57,10 @@ export function NavUser({
               <TooltipTrigger asChild>
                 <button
                   onClick={onLogout}
-                  className="ml-2 rounded-md p-1 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition"
+                  className="
+                    ml-2 rounded-md p-1 text-muted-foreground transition
+                    hover:bg-destructive/10 hover:text-destructive
+                  "
                   aria-label="Log out"
                 >
                   <LogOut className="size-4" />

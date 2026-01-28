@@ -37,7 +37,10 @@ export default async function RegistrationPage() {
     : { fullName: user.name };
 
   return (
-    <Card className="w-full sm:max-w-2xl">
+    <Card className="
+      w-full
+      sm:max-w-2xl
+    ">
       <CardHeader>
         <CardTitle>Registration Information</CardTitle>
         <CardDescription>Update your registration information.</CardDescription>
