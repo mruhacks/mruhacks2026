@@ -9,7 +9,7 @@
  * Import from this file to access all schema definitions in one place.
  */
 
-export * from "./auth-schema";
-export * from "./registrations";
-export * from "./lookups";
-export * from "./authz";
+export * from './auth-schema';
+export * from './registrations';
+export * from './lookups';
+export * from './authz';

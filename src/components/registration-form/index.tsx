@@ -1,26 +1,26 @@
-"use client";
+'use client';
 
-import * as React from "react";
-import { Controller, useForm, useWatch } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
-import type { SingleValue, MultiValue } from "react-select";
+import * as React from 'react';
+import { Controller, useForm, useWatch } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { toast } from 'sonner';
+import { Loader2 } from 'lucide-react';
+import type { SingleValue, MultiValue } from 'react-select';
 
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Field,
   FieldGroup,
   FieldLabel,
   FieldError,
-} from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { Select } from "@/components/select";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
-import { type ActionResult } from "@/utils/action-result";
+} from '@/components/ui/field';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import { Select } from '@/components/select';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
+import { type ActionResult } from '@/utils/action-result';
 
 import {
   consentsSchema,
@@ -29,25 +29,25 @@ import {
   personalSchema,
   type RegistrationFormOptions,
   type RegistrationFormValues,
-} from "./schema";
-import { useRouter } from "next/navigation";
+} from './schema';
+import { useRouter } from 'next/navigation';
 
 type FormData = RegistrationFormValues;
 
 const tabLabels = {
-  personal: "Personal Details",
-  interests: "Interests & Preferences",
-  consents: "Consents & Finalization",
+  personal: 'Personal Details',
+  interests: 'Interests & Preferences',
+  consents: 'Consents & Finalization',
 } as const;
 type Tab = keyof typeof tabLabels;
 
 const getSingleValue = (opt: SingleValue<{ value: number; label: string }>) =>
-  opt?.value ?? "";
+  opt?.value ?? '';
 const getMultiValues = (opts: MultiValue<{ value: number; label: string }>) =>
   opts.map((o) => o.value);
 
 function RequiredAsterisk(): React.JSX.Element {
-  return <span className="ml-0.5 text-destructive">*</span>;
+  return <span className='text-destructive ml-0.5'>*</span>;
 }
 
 type RegistrationFormProps = {
@@ -59,12 +59,12 @@ type RegistrationFormProps = {
   errorMessage?: string;
 };
 
-const DEFAULT_SUBMIT_LABEL = "Save Changes";
-const DEFAULT_SUCCESS_MESSAGE = "Registration information saved.";
-const DEFAULT_ERROR_MESSAGE = "Failed to save registration information.";
+const DEFAULT_SUBMIT_LABEL = 'Save Changes';
+const DEFAULT_SUCCESS_MESSAGE = 'Registration information saved.';
+const DEFAULT_ERROR_MESSAGE = 'Failed to save registration information.';
 
 function isActionResult(result: ActionResult | void): result is ActionResult {
-  return typeof result === "object" && result !== null && "success" in result;
+  return typeof result === 'object' && result !== null && 'success' in result;
 }
 
 export default function RegistrationForm({
@@ -88,11 +88,11 @@ export default function RegistrationForm({
     // eslint-disable-next-line @typescript-eslint/ban-ts-comment
     // @ts-ignore: resolver type mismatch due to pnpm deduping
     resolver: zodResolver(formSchema),
-    mode: "onChange",
-    reValidateMode: "onChange",
-    criteriaMode: "firstError",
+    mode: 'onChange',
+    reValidateMode: 'onChange',
+    criteriaMode: 'firstError',
     defaultValues: {
-      fullName: initial?.fullName ?? "",
+      fullName: initial?.fullName ?? '',
       attendedBefore: initial?.attendedBefore ?? false,
       genderId: initial?.genderId,
       universityId: initial?.universityId,
@@ -100,7 +100,7 @@ export default function RegistrationForm({
       yearOfStudyId: initial?.yearOfStudyId,
       interests: initial?.interests ?? [],
       dietaryRestrictions: initial?.dietaryRestrictions ?? [],
-      accommodations: initial?.accommodations ?? "",
+      accommodations: initial?.accommodations ?? '',
       needsParking: initial?.needsParking ?? false,
       heardFromId: initial?.heardFromId,
       consentInfoUse: initial?.consentInfoUse ?? false,
@@ -115,8 +115,8 @@ export default function RegistrationForm({
       e.preventDefault();
     };
 
-    window.addEventListener("beforeunload", handleBeforeUnload);
-    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [isDirty]);
 
   React.useEffect(() => {
@@ -126,10 +126,10 @@ export default function RegistrationForm({
     }));
   }, [initial, reset]);
 
-  const [tab, setTab] = React.useState<Tab>("personal");
-  const tabs = ["personal", "interests", "consents"] as const;
+  const [tab, setTab] = React.useState<Tab>('personal');
+  const tabs = ['personal', 'interests', 'consents'] as const;
 
-  const accommodations = useWatch({ control, name: "accommodations" }) ?? "";
+  const accommodations = useWatch({ control, name: 'accommodations' }) ?? '';
 
   const tabSchemas = {
     personal: personalSchema,
@@ -144,16 +144,16 @@ export default function RegistrationForm({
 
         if (!result || (isActionResult(result) && result.success)) {
           toast.success(successMessage);
-          router.push("/dashboard");
+          router.push('/dashboard');
         }
 
         if (!isActionResult(result) || !result.success) {
           toast.error(
-            result && "error" in result ? result.error : errorMessage,
+            result && 'error' in result ? result.error : errorMessage,
           );
         }
       } catch (err) {
-        console.error("Registration submission error:", err);
+        console.error('Registration submission error:', err);
         toast.error(errorMessage);
       }
     },
@@ -207,14 +207,14 @@ export default function RegistrationForm({
       <Tabs
         value={tab}
         onValueChange={(v) => setTab(v as Tab)}
-        className="w-full"
+        className='w-full'
       >
-        <TabsList className="mb-6 grid w-full grid-cols-3">
+        <TabsList className='mb-6 grid w-full grid-cols-3'>
           {(Object.keys(tabLabels) as Tab[]).map((t) => (
             <TabsTrigger
               key={t}
               value={t}
-              className={tabHasError(t) ? "text-destructive underline" : ""}
+              className={tabHasError(t) ? 'text-destructive underline' : ''}
             >
               {tabLabels[t]}
             </TabsTrigger>
@@ -222,17 +222,17 @@ export default function RegistrationForm({
         </TabsList>
 
         {/* ───── PERSONAL ───── */}
-        <TabsContent value="personal">
+        <TabsContent value='personal'>
           <FieldGroup>
             <Field>
-              <FieldLabel htmlFor="fullName">
+              <FieldLabel htmlFor='fullName'>
                 Full Name
                 <RequiredAsterisk />
               </FieldLabel>
               <Input
-                {...register("fullName")}
-                id="fullName"
-                placeholder="John Doe"
+                {...register('fullName')}
+                id='fullName'
+                placeholder='John Doe'
               />
               {touchedFields.fullName && errors.fullName && (
                 <FieldError errors={[errors.fullName]} />
@@ -240,17 +240,17 @@ export default function RegistrationForm({
             </Field>
 
             <Controller
-              name="attendedBefore"
+              name='attendedBefore'
               control={control}
               render={({ field }) => (
-                <div className="flex items-start gap-3">
+                <div className='flex items-start gap-3'>
                   <Checkbox
-                    id="attendedBefore"
+                    id='attendedBefore'
                     checked={field.value}
                     onCheckedChange={field.onChange}
                   />
-                  <div className="grid gap-2">
-                    <Label htmlFor="attendedBefore">
+                  <div className='grid gap-2'>
+                    <Label htmlFor='attendedBefore'>
                       I have attended MRUHacks before
                     </Label>
                   </div>
@@ -259,7 +259,7 @@ export default function RegistrationForm({
             />
 
             <Controller
-              name="genderId"
+              name='genderId'
               control={control}
               render={({ field, fieldState }) => (
                 <Field data-invalid={fieldState.invalid}>
@@ -268,8 +268,8 @@ export default function RegistrationForm({
                     <RequiredAsterisk />
                   </FieldLabel>
                   <Select
-                    id="genderId"
-                    instanceId="genderId"
+                    id='genderId'
+                    instanceId='genderId'
                     options={options.genders}
                     value={
                       options.genders.find((o) => o.value === field.value) ??
@@ -285,7 +285,7 @@ export default function RegistrationForm({
             />
 
             <Controller
-              name="universityId"
+              name='universityId'
               control={control}
               render={({ field, fieldState }) => (
                 <Field data-invalid={fieldState.invalid}>
@@ -294,8 +294,8 @@ export default function RegistrationForm({
                     <RequiredAsterisk />
                   </FieldLabel>
                   <Select
-                    id="universityId"
-                    instanceId="universityId"
+                    id='universityId'
+                    instanceId='universityId'
                     options={options.universities}
                     value={
                       options.universities.find(
@@ -312,7 +312,7 @@ export default function RegistrationForm({
             />
 
             <Controller
-              name="majorId"
+              name='majorId'
               control={control}
               render={({ field, fieldState }) => (
                 <Field data-invalid={fieldState.invalid}>
@@ -321,8 +321,8 @@ export default function RegistrationForm({
                     <RequiredAsterisk />
                   </FieldLabel>
                   <Select
-                    id="majorId"
-                    instanceId="majorId"
+                    id='majorId'
+                    instanceId='majorId'
                     options={options.majors}
                     value={
                       options.majors.find((o) => o.value === field.value) ??
@@ -338,7 +338,7 @@ export default function RegistrationForm({
             />
 
             <Controller
-              name="yearOfStudyId"
+              name='yearOfStudyId'
               control={control}
               render={({ field, fieldState }) => (
                 <Field data-invalid={fieldState.invalid}>
@@ -347,8 +347,8 @@ export default function RegistrationForm({
                     <RequiredAsterisk />
                   </FieldLabel>
                   <Select
-                    id="yearOfStudyId"
-                    instanceId="yearOfStudyId"
+                    id='yearOfStudyId'
+                    instanceId='yearOfStudyId'
                     options={options.years}
                     value={
                       options.years.find((o) => o.value === field.value) ?? null
@@ -363,18 +363,18 @@ export default function RegistrationForm({
             />
           </FieldGroup>
 
-          <div className="mt-6 flex justify-end">
-            <Button type="button" onClick={handleNext}>
+          <div className='mt-6 flex justify-end'>
+            <Button type='button' onClick={handleNext}>
               Next
             </Button>
           </div>
         </TabsContent>
 
         {/* ───── INTERESTS ───── */}
-        <TabsContent value="interests">
+        <TabsContent value='interests'>
           <FieldGroup>
             <Controller
-              name="interests"
+              name='interests'
               control={control}
               render={({ field, fieldState }) => (
                 <Field data-invalid={fieldState.invalid}>
@@ -383,8 +383,8 @@ export default function RegistrationForm({
                     <RequiredAsterisk />
                   </FieldLabel>
                   <Select
-                    id="interests"
-                    instanceId="interests"
+                    id='interests'
+                    instanceId='interests'
                     isMulti
                     options={options.interests}
                     value={options.interests.filter((o) =>
@@ -400,14 +400,14 @@ export default function RegistrationForm({
             />
 
             <Controller
-              name="dietaryRestrictions"
+              name='dietaryRestrictions'
               control={control}
               render={({ field }) => (
                 <Field>
                   <FieldLabel>Dietary Restrictions</FieldLabel>
                   <Select
-                    id="dietaryRestrictions"
-                    instanceId="dietaryRestrictions"
+                    id='dietaryRestrictions'
+                    instanceId='dietaryRestrictions'
                     isMulti
                     options={options.dietary}
                     value={options.dietary.filter((o) =>
@@ -422,38 +422,38 @@ export default function RegistrationForm({
             <Field>
               <FieldLabel>Special Accommodations</FieldLabel>
               <Textarea
-                id="accommodations"
-                {...register("accommodations")}
-                placeholder="Please let us know if you have any special needs."
+                id='accommodations'
+                {...register('accommodations')}
+                placeholder='Please let us know if you have any special needs.'
                 maxLength={500}
               />
-              <p className="mt-1 text-right text-sm text-muted-foreground">
+              <p className='text-muted-foreground mt-1 text-right text-sm'>
                 {accommodations.length}/500 characters
               </p>
             </Field>
           </FieldGroup>
 
-          <div className="mt-6 flex justify-end">
-            <Button type="button" onClick={handleNext}>
+          <div className='mt-6 flex justify-end'>
+            <Button type='button' onClick={handleNext}>
               Next
             </Button>
           </div>
         </TabsContent>
 
         {/* ───── CONSENTS ───── */}
-        <TabsContent value="consents">
-          <FieldGroup className="space-y-4">
+        <TabsContent value='consents'>
+          <FieldGroup className='space-y-4'>
             <Controller
-              name="needsParking"
+              name='needsParking'
               control={control}
               render={({ field }) => (
-                <div className="flex items-start gap-3">
+                <div className='flex items-start gap-3'>
                   <Checkbox
-                    id="needsParking"
+                    id='needsParking'
                     checked={field.value}
                     onCheckedChange={field.onChange}
                   />
-                  <Label htmlFor="needsParking">
+                  <Label htmlFor='needsParking'>
                     I will require parking for the event
                   </Label>
                 </div>
@@ -461,7 +461,7 @@ export default function RegistrationForm({
             />
 
             <Controller
-              name="heardFromId"
+              name='heardFromId'
               control={control}
               render={({ field, fieldState }) => (
                 <Field data-invalid={fieldState.invalid}>
@@ -470,8 +470,8 @@ export default function RegistrationForm({
                     <RequiredAsterisk />
                   </FieldLabel>
                   <Select
-                    id="heardFromId"
-                    instanceId="heardFromId"
+                    id='heardFromId'
+                    instanceId='heardFromId'
                     options={options.heardFrom}
                     value={
                       options.heardFrom.find((o) => o.value === field.value) ??
@@ -488,20 +488,20 @@ export default function RegistrationForm({
 
             {[
               {
-                name: "consentInfoUse",
+                name: 'consentInfoUse',
                 label:
-                  "I agree that MRUHacks may use my information for event organization",
-                desc: "This includes communication, scheduling, and logistics.",
+                  'I agree that MRUHacks may use my information for event organization',
+                desc: 'This includes communication, scheduling, and logistics.',
               },
               {
-                name: "consentSponsorShare",
-                label: "I agree to share my information with event sponsors",
-                desc: "Sponsors may contact you for networking or recruitment.",
+                name: 'consentSponsorShare',
+                label: 'I agree to share my information with event sponsors',
+                desc: 'Sponsors may contact you for networking or recruitment.',
               },
               {
-                name: "consentMediaUse",
-                label: "I agree to appear in event photos or videos",
-                desc: "These may be used for MRUHacks promotion and documentation.",
+                name: 'consentMediaUse',
+                label: 'I agree to appear in event photos or videos',
+                desc: 'These may be used for MRUHacks promotion and documentation.',
               },
             ].map(({ name, label, desc }) => (
               <Controller
@@ -509,26 +509,26 @@ export default function RegistrationForm({
                 name={name as keyof FormData}
                 control={control}
                 render={({ field, fieldState }) => (
-                  <div className="flex items-start gap-3">
+                  <div className='flex items-start gap-3'>
                     <Checkbox
                       id={name}
                       checked={field.value as boolean}
                       onCheckedChange={field.onChange}
                     />
-                    <div className="grid gap-2">
+                    <div className='grid gap-2'>
                       <Label htmlFor={name}>
                         <span
                           className={
                             fieldState.invalid
-                              ? "text-destructive underline"
-                              : ""
+                              ? 'text-destructive underline'
+                              : ''
                           }
                         >
                           {label}
                         </span>
                         <RequiredAsterisk />
                       </Label>
-                      <p className="text-sm text-muted-foreground">
+                      <p className='text-muted-foreground text-sm'>
                         {desc}
                         <FieldError errors={[fieldState.error]} />
                       </p>
@@ -539,11 +539,11 @@ export default function RegistrationForm({
             ))}
           </FieldGroup>
 
-          <div className="mt-6 flex justify-end">
-            <Button type="submit" disabled={isSubmitting}>
+          <div className='mt-6 flex justify-end'>
+            <Button type='submit' disabled={isSubmitting}>
               {isSubmitting ? (
                 <>
-                  <Loader2 className="mr-2 size-4 animate-spin" /> Saving…
+                  <Loader2 className='mr-2 size-4 animate-spin' /> Saving…
                 </>
               ) : (
                 submitLabel
@@ -561,9 +561,9 @@ export {
   formSchema,
   interestsSchema,
   personalSchema,
-} from "./schema";
+} from './schema';
 export type {
   RegistrationFormOptions,
   RegistrationFormValues,
   RegistrationSelectOption,
-} from "./schema";
+} from './schema';

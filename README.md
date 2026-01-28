@@ -12,6 +12,7 @@ A comprehensive hackathon management platform built with Next.js, featuring part
 ### Setup
 
 1. **Clone and install:**
+
    ```bash
    git clone https://github.com/mruhacks/mruhacks2026.git
    cd mruhacks2026
@@ -19,18 +20,23 @@ A comprehensive hackathon management platform built with Next.js, featuring part
    ```
 
 2. **Configure environment:**
+
    ```bash
    cp .env.example .env
    ```
+
    Update secrets as needed. The default `POSTGRES_*` values already match the Docker containers used for local development.
 
 3. **Start local database:**
+
    ```bash
    npm run db:start
    ```
+
    This spins up the PostgreSQL containers defined in `docker-compose.yml` (dev + test).
 
 4. **Run migrations:**
+
    ```bash
    npx drizzle-kit push
    ```

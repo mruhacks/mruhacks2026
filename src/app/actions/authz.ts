@@ -1,15 +1,14 @@
-type Scope = "all" | "any" | "self" | { id: string };
+type Scope = 'all' | 'any' | 'self' | { id: string };
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-type Entity = "user" | "registration" | "team" | "submission";
-
+type Entity = 'user' | 'registration' | 'team' | 'submission';
 
 // valid actions per entity
 interface EntityActions {
-  user: "create" | "read" | "update" | "delete";
-  registration: "approve" | "reject" | "read";
-  team: "create" | "join" | "manage";
-  submission: "submit" | "review" | "read";
+  user: 'create' | 'read' | 'update' | 'delete';
+  registration: 'approve' | 'reject' | 'read';
+  team: 'create' | 'join' | 'manage';
+  submission: 'submit' | 'review' | 'read';
 }
 
 // optional: more specific UUID type for readability

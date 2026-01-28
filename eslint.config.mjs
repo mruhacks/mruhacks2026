@@ -31,6 +31,11 @@ const eslintConfig = [
       ...eslintPluginBetterTailwindcss.configs["recommended-warn"].rules,
       // Disable Prettier-conflicting ESLint rules
       ...eslintConfigPrettier.rules,
+      // Disable formatting rules that conflict with prettier-plugin-tailwindcss
+      // Prettier handles class ordering and line wrapping
+      "better-tailwindcss/enforce-consistent-class-order": "off",
+      "better-tailwindcss/enforce-consistent-line-wrapping": "off",
+      "better-tailwindcss/no-unnecessary-whitespace": "off",
     },
     settings: {
       "better-tailwindcss": {

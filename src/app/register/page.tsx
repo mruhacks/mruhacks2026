@@ -1,19 +1,19 @@
-import { redirect } from "next/navigation";
+import { redirect } from 'next/navigation';
 
-import { getUser } from "@/utils/auth";
+import { getUser } from '@/utils/auth';
 import {
   getOptions,
   getPreviousFormSubmission,
   registerParticipant,
-} from "./actions";
+} from './actions';
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
-import RegistrationForm from "@/components/registration-form";
+} from '@/components/ui/card';
+import RegistrationForm from '@/components/registration-form';
 
 const measure = async <T,>(label: string, fn: () => Promise<T>) => {
   const t0 = performance.now();
@@ -24,12 +24,12 @@ const measure = async <T,>(label: string, fn: () => Promise<T>) => {
 };
 
 export default async function RegistrationPage() {
-  const user = await measure("getUser", getUser);
-  if (!user) redirect("/login");
+  const user = await measure('getUser', getUser);
+  if (!user) redirect('/login');
 
   const [previousRegistration, options] = await Promise.all([
-    measure("getPreviousFormSubmission", getPreviousFormSubmission),
-    measure("getOptions", getOptions),
+    measure('getPreviousFormSubmission', getPreviousFormSubmission),
+    measure('getOptions', getOptions),
   ]);
 
   const initial = previousRegistration.success
@@ -37,10 +37,7 @@ export default async function RegistrationPage() {
     : { fullName: user.name };
 
   return (
-    <Card className="
-      w-full
-      sm:max-w-2xl
-    ">
+    <Card className='w-full sm:max-w-2xl'>
       <CardHeader>
         <CardTitle>Registration Information</CardTitle>
         <CardDescription>Update your registration information.</CardDescription>
