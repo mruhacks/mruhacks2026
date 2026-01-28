@@ -1,14 +1,9 @@
-import Link from "next/link";
+import { HeroSection } from "@/components/hero";
 
 export default function Home() {
   return (
-    <div>
-      <h1>MRUHacks2026</h1>
-      <p> A super awesome home page </p>
-
-      <Link href="/login" className="text-5xl underline">
-        Login
-      </Link>
-    </div>
+    <main className="min-h-screen bg-white">
+      <HeroSection />
+    </main>
   );
 }

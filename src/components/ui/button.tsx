@@ -19,6 +19,11 @@ const buttonVariants = cva(
         ghost:
           "hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50",
         link: "text-primary underline-offset-4 hover:underline",
+        // MRUHacks custom variants
+        gradient:
+          "text-white font-bold border-none shadow-sm hover:opacity-90 [background:linear-gradient(96.67deg,#88EFFF_-16.88%,#7C96FF_20.94%,#E978FF_58.09%,#FF9182_82.44%,#FFD16E_102.06%)]",
+        discord:
+          "bg-[#cbd0ff] text-[#4a5699] font-bold shadow-sm hover:bg-[#bbc2fa]",
       },
       size: {
         default: "h-9 px-4 py-2 has-[>svg]:px-3",
@@ -27,6 +32,8 @@ const buttonVariants = cva(
         icon: "size-9",
         "icon-sm": "size-8",
         "icon-lg": "size-10",
+        // MRUHacks custom sizes
+        pill: "h-auto rounded-full px-6 py-3 text-base sm:px-8 sm:text-lg",
       },
     },
     defaultVariants: {
