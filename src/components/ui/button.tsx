@@ -21,7 +21,7 @@ const buttonVariants = cva(
         link: "text-primary underline-offset-4 hover:underline",
         // MRUHacks custom variants
         gradient:
-          "text-white font-bold border-none shadow-sm hover:opacity-90 [background:linear-gradient(96.67deg,#88EFFF_-16.88%,#7C96FF_20.94%,#E978FF_58.09%,#FF9182_82.44%,#FFD16E_102.06%)]",
+          "text-white font-bold border-none shadow-sm hover:opacity-90 [background:var(--gradient-primary)]",
         discord:
           "bg-[#cbd0ff] text-[#4a5699] font-bold shadow-sm hover:bg-[#bbc2fa]",
       },
