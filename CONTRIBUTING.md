@@ -1,16 +1,6 @@
 # Contributing to MRU Hacks 2026
 
-Thank you for your interest in contributing to the MRU Hacks 2026 platform! This document provides guidelines and best practices for development.
-
-## 🚀 Getting Started
-
-1. Fork the repository
-2. Clone your fork locally
-3. Install dependencies: `npm install`
-4. Create a feature branch: `git checkout -b feature/your-feature-name`
-5. Make your changes
-6. Test your changes
-7. Submit a pull request
+Thank you for your interest in contributing to the MRUHacks 2026 registration platform! This document provides guidelines and best practices for development.
 
 ## 📝 Development Guidelines
 
@@ -104,13 +94,13 @@ export async function registerParticipant(
 
 ```bash
 # Run all tests
-npx vitest
+pnpm vitest
 
 # Run tests in watch mode
-npx vitest --watch
+pnpm vitest --watch
 
 # Run specific test file
-npx vitest src/tests/getDatabaseURL.test.ts
+pnpm vitest src/tests/getDatabaseURL.test.ts
 ```
 
 ### Writing Tests
@@ -145,7 +135,7 @@ Before submitting a PR, ensure:
 - [ ] Environment variables are documented
 - [ ] Database migrations are included if schema changed
 - [ ] README updated if new features added
-- [ ] Linting passes: `npm run lint`
+- [ ] Linting passes: `pnpm run lint`
 
 ## 🐛 Bug Reports
 
@@ -190,4 +180,4 @@ If you need help:
 - Ask questions in pull request comments
 - Contact maintainers directly for sensitive issues
 
-Thank you for contributing to MRU Hacks 2026!
+Thank you for contributing to MRUHacks 2026!

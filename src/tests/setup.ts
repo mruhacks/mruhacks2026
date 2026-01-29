@@ -1,4 +1,4 @@
-import { beforeAll, afterAll, afterEach, vi } from 'vitest';
+import { beforeAll, afterAll, vi } from 'vitest';
 import { db, pool } from '@/utils/db';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import path from 'path';
@@ -30,27 +30,11 @@ beforeAll(async () => {
   // Ensure tables start clean
   await db.execute(sql`
     TRUNCATE TABLE
-      user_role,
-      user_permission,
-      role_permission,
-      role,
-      permission,
-      "user"
-    RESTART IDENTITY CASCADE;
-  `);
-});
-
-// ─────────────────────────────────────────────
-// Optional: Clean tables between tests
-// ─────────────────────────────────────────────
-afterEach(async () => {
-  await db.execute(sql`
-    TRUNCATE TABLE
-      user_role,
-      user_permission,
-      role_permission,
-      role,
-      permission,
+      authz.user_role,
+      authz.user_permission,
+      authz.role_permission,
+      authz.role,
+      authz.permission,
       "user"
     RESTART IDENTITY CASCADE;
   `);

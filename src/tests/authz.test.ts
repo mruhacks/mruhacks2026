@@ -64,7 +64,11 @@ describe('Authorization system', () => {
     // Clear any pre-existing roles / perms
     await db.delete(userRole);
     await db.delete(userPermission);
+    await db.delete(userRole);
+    await db.delete(userPermission);
     await db.delete(rolePermissions);
+    await db.delete(role);
+    await db.delete(permission);
     await db.delete(role);
     await db.delete(permission);
   });
@@ -72,7 +76,11 @@ describe('Authorization system', () => {
   afterAll(async () => {
     await db.delete(userRole);
     await db.delete(userPermission);
+    await db.delete(userRole);
+    await db.delete(userPermission);
     await db.delete(rolePermissions);
+    await db.delete(role);
+    await db.delete(permission);
     await db.delete(role);
     await db.delete(permission);
   });
@@ -161,6 +169,7 @@ describe('Authorization system', () => {
 
   test('requirePermission should redirect when unauthorized', async () => {
     // Remove all permissions
+    await db.delete(userPermission);
     await db.delete(userPermission);
     await db.delete(rolePermissions);
 

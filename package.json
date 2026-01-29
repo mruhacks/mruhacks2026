@@ -9,6 +9,7 @@
     "lint": "eslint",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,css,md,mdx,yaml,yml}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,css,md,mdx,yaml,yml}\"",
+    "test": "vitest run",
     "db:start": "echo 'Starting database…' && docker compose up -d && echo 'Database started.'",
     "db:stop": "echo 'Stopping database…' && docker compose down && echo 'Database stopped.'",
     "db:reset": "echo 'Resetting database (dropping volumes)…' &&        docker compose down -v &&        echo 'Starting fresh database…' &&        docker compose up -d &&        pnpm db:wait &&        echo 'Running migrations…' &&        drizzle-kit migrate && tsx scripts/seed.ts &&        echo 'Database reset complete.'",
@@ -83,6 +84,15 @@
     "overrides": {
       "react-hook-form": "^7.65.0",
       "@hookform/resolvers": "^5.2.2"
-    }
+    },
+    "onlyBuiltDependencies": [
+      "@tailwindcss/oxide",
+      "cpu-features",
+      "esbuild",
+      "protobufjs",
+      "sharp",
+      "ssh2",
+      "unrs-resolver"
+    ]
   }
 }
