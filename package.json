@@ -11,7 +11,7 @@
     "db:start": "echo 'Starting database…' && docker compose up -d && echo 'Database started.'",
     "db:stop": "echo 'Stopping database…' && docker compose down && echo 'Database stopped.'",
     "db:reset": "echo 'Resetting database (dropping volumes)…' &&        docker compose down -v &&        echo 'Starting fresh database…' &&        docker compose up -d &&        pnpm db:wait &&        echo 'Running migrations…' &&        drizzle-kit migrate && tsx scripts/seed.ts &&        echo 'Database reset complete.'",
-    "db:seed": "echo 'Seeding Database' && tsx scripts/seeds.ts",
+    "db:seed": "echo 'Running migrations…' && drizzle-kit migrate && echo 'Seeding Database' && tsx scripts/seed.ts",
     "db:wait": "echo 'Waiting for Postgres to be ready…' &&        until docker exec mruhacks-db-dev pg_isready >/dev/null 2>&1; do          printf '.';          sleep 1;        done &&        echo ' Postgres is ready.'"
   },
   "dependencies": {

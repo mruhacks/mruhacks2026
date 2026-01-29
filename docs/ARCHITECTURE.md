@@ -21,13 +21,13 @@ mruhacks2026/
 │   ├── app/              # Next.js App Router pages and layouts
 │   │   ├── (auth)/       # Authentication pages (signin, signup)
 │   │   ├── dashboard/    # Dashboard pages and features
-│   │   └── register/     # Registration flow
+│   │   └── register/     # Event application flow (per-event registration)
 │   ├── components/       # Reusable React components
 │   │   ├── ui/           # Base UI components (shadcn/ui)
 │   ├── db/               # Database schema and configurations
 │   │   ├── schema.ts     # Main schema exports
 │   │   ├── lookups.ts    # Lookup tables (genders, universities, etc.)
-│   │   ├── registrations.ts  # Participant registration tables
+│   │   ├── registrations.ts  # Events, user profiles, event applications, attendees
 │   │   └── auth-schema.ts    # Better Auth schema
 │   ├── utils/            # Utility functions
 │   │   ├── auth.ts       # Authentication utilities
@@ -44,7 +44,7 @@ mruhacks2026/
 ## Key Features
 
 - **User Authentication**: Sign up and sign in using email/password
-- **Participant Registration**: Comprehensive registration form with validation
+- **Event Applications**: Event-scoped application flow; events can have applications (full form) or simple signup; application questions are stored on the event
 - **Dashboard**: 
   - Settings management
   - Group/team management
@@ -63,19 +63,21 @@ The database schema is organized into three main modules:
 
 1. **auth-schema.ts**: Better Auth tables (users, sessions, accounts)
 2. **lookups.ts**: Reference tables for form options (genders, universities, majors, etc.)
-3. **registrations.ts**: Participant registration data and relationships
+3. **registrations.ts**: Events, user profiles, event applications, and attendees
 
 ### Key Tables
 
 - `user`: Authenticated users (Better Auth)
-- `participants`: Hackathon participant information (1:1 with users)
-- `participant_interests`: Many-to-many relationship for interests
-- `participant_dietary_restrictions`: Many-to-many relationship for dietary needs
+- `events`: Events (e.g. hackathon, workshops); `has_application` and `application_questions` (JSONB) define whether and how users apply
+- `user_profiles`: Profile fields shared across applications (full name, gender, university, major, year of study)
+- `user_interests` / `user_dietary_restrictions`: User-level many-to-many with lookups
+- `event_applications`: One per user per event (when event has application); `responses` (JSONB) stores application answers
+- `event_attendees`: Simple signup for events without applications
 
 ### Database Views
 
-- `participant_view`: Denormalized view for displaying participant data
-- `participant_form_view`: Structured view for populating registration forms
+- `application_view`: Denormalized view for displaying application data (profile + event + responses)
+- `application_form_view`: Structured view for pre-filling the application form (profile + responses)
 
 See [Database Configuration](./DATABASE.md) for more details.
 
@@ -104,7 +106,7 @@ This provides:
 
 Example:
 ```typescript
-const result = await registerParticipant(formData);
+const result = await registerParticipant(formData, eventId);
 if (result.success) {
   // Handle success
 } else {

@@ -6,9 +6,12 @@ import {
   user,
   account,
   session,
-  participants,
-  participantInterests,
-  participantDietaryRestrictions,
+  events,
+  userProfiles,
+  userInterests,
+  userDietaryRestrictions,
+  eventApplications,
+  eventAttendees,
   genders,
   universities,
   majors,
@@ -32,16 +35,51 @@ const CHUNK_SIZE = Number(process.env.SEED_CHUNK_SIZE ?? 2000);
 type UserInsert = InferInsertModel<typeof user>;
 type AccountInsert = InferInsertModel<typeof account>;
 type SessionInsert = InferInsertModel<typeof session>;
-type ParticipantInsert = InferInsertModel<typeof participants>;
-type ParticipantInterestInsert = InferInsertModel<typeof participantInterests>;
-type ParticipantDietaryInsert = InferInsertModel<
-  typeof participantDietaryRestrictions
->;
+type EventInsert = InferInsertModel<typeof events>;
+type UserProfileInsert = InferInsertModel<typeof userProfiles>;
+type UserInterestInsert = InferInsertModel<typeof userInterests>;
+type UserDietaryInsert = InferInsertModel<typeof userDietaryRestrictions>;
+type EventApplicationInsert = InferInsertModel<typeof eventApplications>;
+type EventAttendeeInsert = InferInsertModel<typeof eventAttendees>;
 type RoleInsert = InferInsertModel<typeof role>;
 type PermissionInsert = InferInsertModel<typeof permission>;
 type UserRoleInsert = InferInsertModel<typeof userRole>;
 type UserPermissionInsert = InferInsertModel<typeof userPermission>;
 type RolePermissionInsert = InferInsertModel<typeof rolePermissions>;
+
+// ── Seed events ───────────────────────────────────────────────────────────
+async function seedEvents() {
+  const existing = await db.select().from(events).limit(2);
+  if (existing.length > 0) {
+    const appEvent = existing.find((e) => e.hasApplication) ?? existing[0]!;
+    const noAppEvent = existing.find((e) => !e.hasApplication) ?? existing[0]!;
+    return { applicationEvent: appEvent, noAppEvent };
+  }
+  const eventInserts: EventInsert[] = [
+    {
+      name: "MRUHacks 2026",
+      hasApplication: true,
+      applicationQuestions: [
+        { key: "attended_before", label: "Have you attended before?", type: "boolean", required: true },
+        { key: "accommodations", label: "Accessibility or accommodations", type: "text" },
+        { key: "needs_parking", label: "Need parking?", type: "boolean" },
+        { key: "heard_from_id", label: "How did you hear about us?", type: "select", required: true },
+        { key: "consent_info_use", label: "Consent to use info", type: "boolean", required: true },
+        { key: "consent_sponsor_share", label: "Consent to share with sponsors", type: "boolean", required: true },
+        { key: "consent_media_use", label: "Consent to photos/videos", type: "boolean", required: true },
+      ],
+    },
+    {
+      name: "Intro to React Workshop",
+      hasApplication: false,
+    },
+  ];
+  const inserted = await db.insert(events).values(eventInserts).returning();
+  const applicationEvent = inserted[0]!;
+  const noAppEvent = inserted[1]!;
+  console.log(`✅ Seeded ${inserted.length} events.`);
+  return { applicationEvent, noAppEvent };
+}
 
 // ── Helper: seed base roles/permissions ─────────────────────────────────
 async function seedRolesAndPermissions() {
@@ -84,12 +122,10 @@ async function seedRolesAndPermissions() {
       insertedRoles.find((r) => r.slug === slug)!;
 
     const rolePerms: RolePermissionInsert[] = [
-      // Admin gets all
       ...insertedPerms.map((p) => ({
         roleId: findRole("admin").id,
         permissionId: p.id,
       })),
-      // Organizer
       {
         roleId: findRole("organizer").id,
         permissionId: findPerm("event:manage").id,
@@ -102,17 +138,14 @@ async function seedRolesAndPermissions() {
         roleId: findRole("organizer").id,
         permissionId: findPerm("participant:write").id,
       },
-      // Judge
       {
         roleId: findRole("judge").id,
         permissionId: findPerm("submission:read").id,
       },
-      // Volunteer
       {
         roleId: findRole("volunteer").id,
         permissionId: findPerm("participant:read").id,
       },
-      // Participant
       {
         roleId: findRole("participant").id,
         permissionId: findPerm("submission:read").id,
@@ -134,10 +167,10 @@ async function seedRolesAndPermissions() {
 // ── Main user seeding ───────────────────────────────────────────────────
 async function main() {
   const { insertedRoles, insertedPerms } = await seedRolesAndPermissions();
+  const { applicationEvent, noAppEvent } = await seedEvents();
 
   console.log(`🌱 Seeding ${COUNT} fake users in chunks of ${CHUNK_SIZE}...`);
 
-  // Seed static Tables
   await seedStaticTables();
 
   const [
@@ -169,9 +202,11 @@ async function main() {
     const users: UserInsert[] = [];
     const accounts: AccountInsert[] = [];
     const sessions: SessionInsert[] = [];
-    const participantData: ParticipantInsert[] = [];
-    const interestLinks: ParticipantInterestInsert[] = [];
-    const dietaryLinks: ParticipantDietaryInsert[] = [];
+    const profiles: UserProfileInsert[] = [];
+    const interestLinks: UserInterestInsert[] = [];
+    const dietaryLinks: UserDietaryInsert[] = [];
+    const applicationData: EventApplicationInsert[] = [];
+    const attendeeData: EventAttendeeInsert[] = [];
     const userRoles: UserRoleInsert[] = [];
     const userPerms: UserPermissionInsert[] = [];
 
@@ -220,23 +255,31 @@ async function main() {
       const year = faker.helpers.arrayElement(yearRows);
       const heardFrom = faker.helpers.arrayElement(heardRows);
 
-      participantData.push({
+      profiles.push({
         userId: id,
         fullName: name,
-        attendedBefore: faker.datatype.boolean(),
         genderId: gender.id,
         universityId: university.id,
         majorId: major.id,
         yearOfStudyId: year.id,
-        accommodations: faker.helpers.maybe(() => faker.lorem.sentence(), {
-          probability: 0.25,
-        }),
-        needsParking: faker.datatype.boolean(),
-        heardFromId: heardFrom.id,
-        consentInfoUse: true,
-        consentSponsorShare: faker.datatype.boolean({ probability: 0.9 }),
-        consentMediaUse: faker.datatype.boolean({ probability: 0.9 }),
         createdAt: now,
+        updatedAt: now,
+      });
+
+      applicationData.push({
+        eventId: applicationEvent.id,
+        userId: id,
+        createdAt: now,
+        updatedAt: now,
+        responses: {
+          attended_before: faker.datatype.boolean(),
+          accommodations: faker.helpers.maybe(() => faker.lorem.sentence(), { probability: 0.25 }),
+          needs_parking: faker.datatype.boolean(),
+          heard_from_id: heardFrom.id,
+          consent_info_use: true,
+          consent_sponsor_share: faker.datatype.boolean({ probability: 0.9 }),
+          consent_media_use: faker.datatype.boolean({ probability: 0.9 }),
+        },
       });
 
       const chosenInterests = faker.helpers.arrayElements(
@@ -253,20 +296,29 @@ async function main() {
       for (const d of chosenDietary)
         dietaryLinks.push({ userId: id, restrictionId: d.id });
 
-      // ── Assign roles realistically ───────────────────────────────────────
+      if (
+        noAppEvent.id !== applicationEvent.id &&
+        faker.datatype.boolean({ probability: 0.3 })
+      ) {
+        attendeeData.push({
+          eventId: noAppEvent.id,
+          userId: id,
+          registeredAt: now,
+        });
+      }
+
       const roleSlug = (() => {
         const rnd = Math.random();
-        if (rnd < 0.001) return "admin"; // 0.1%
-        if (rnd < 0.002) return "judge"; // 0.1%
-        if (rnd < 0.03) return "organizer"; // 3%
-        if (rnd < 0.07) return "volunteer"; // 4%
-        return "participant"; // ~92%
+        if (rnd < 0.001) return "admin";
+        if (rnd < 0.002) return "judge";
+        if (rnd < 0.03) return "organizer";
+        if (rnd < 0.07) return "volunteer";
+        return "participant";
       })();
 
       const roleObj = insertedRoles.find((r) => r.slug === roleSlug);
       if (roleObj) userRoles.push({ userId: id, roleId: roleObj.id });
 
-      // 1% chance to have an extra role (e.g. overlap)
       if (Math.random() < 0.01) {
         const extraRole = faker.helpers.arrayElement(
           insertedRoles.filter((r) => r.slug !== roleSlug),
@@ -274,7 +326,6 @@ async function main() {
         userRoles.push({ userId: id, roleId: extraRole.id });
       }
 
-      // ── Explicit user-permission overrides ──────────────────────────────
       if (["admin", "organizer"].includes(roleSlug) && Math.random() < 0.2) {
         const chosenPerms = faker.helpers.arrayElements(insertedPerms, {
           min: 1,
@@ -292,9 +343,16 @@ async function main() {
       await tx.insert(user).values(users);
       await tx.insert(account).values(accounts);
       await tx.insert(session).values(sessions);
-      await tx.insert(participants).values(participantData);
-      await tx.insert(participantInterests).values(interestLinks);
-      await tx.insert(participantDietaryRestrictions).values(dietaryLinks);
+      await tx.insert(userProfiles).values(profiles);
+      await tx.insert(userInterests).values(interestLinks);
+      await tx.insert(userDietaryRestrictions).values(dietaryLinks);
+      await tx.insert(eventApplications).values(applicationData);
+      await tx
+        .insert(eventAttendees)
+        .values(attendeeData)
+        .onConflictDoNothing({
+          target: [eventAttendees.eventId, eventAttendees.userId],
+        });
       await tx.insert(userRole).values(userRoles);
       await tx.insert(userPermission).values(userPerms);
     });
@@ -306,7 +364,7 @@ async function main() {
   }
 
   console.log(
-    `🎉 Done! Inserted ${COUNT} fake users with realistic roles & permissions.`,
+    `🎉 Done! Inserted ${COUNT} fake users with profiles, applications, and roles.`,
   );
 }
 

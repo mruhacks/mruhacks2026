@@ -1,14 +1,13 @@
 /**
- * Participant registration database schema
+ * Events and event applications database schema
  *
- * This module defines the database tables and views for the hackathon
- * participant registration system. It includes:
- * - Main participant table (1:1 with auth users)
- * - Junction tables for many-to-many relationships
- * - Database views for efficient querying and display
- *
- * The schema is designed to normalize data and support efficient queries
- * with appropriate indexes on commonly queried columns.
+ * This module defines:
+ * - events: Events (hackathon, workshops); some have applications, some don't
+ * - user_profiles: Profile fields shared across applications (full name, gender, university, major, year of study)
+ * - user_interests / user_dietary_restrictions: User-level many-to-many with lookups
+ * - event_applications: One per user per event (has_application); minimal + responses JSONB
+ * - event_attendees: Simple signup for events without applications
+ * - application_view / application_form_view: Denormalized views for display and form pre-fill
  */
 
 import {
@@ -21,6 +20,9 @@ import {
   timestamp,
   pgView,
   index,
+  jsonb,
+  uniqueIndex,
+  primaryKey,
 } from "drizzle-orm/pg-core";
 import { relations, sql } from "drizzle-orm";
 
@@ -30,329 +32,357 @@ import {
   universities,
   majors,
   yearsOfStudy,
-  heardFromSources,
   interests,
   dietaryRestrictions,
 } from "./lookups";
 
-/**
- * Participants table - stores hackathon participant information
- *
- * This table has a 1:1 relationship with the Better Auth user table.
- * Each authenticated user can have at most one participant record.
- *
- * Indexes:
- * - idx_participants_user_id_created_at: For querying participants by user and sorting by creation date
- * - idx_participants_created_at_desc: For displaying recent registrations
- */
-export const participants = pgTable(
-  "participants",
+// ---------------------------------------------------------------------------
+// Events
+// ---------------------------------------------------------------------------
+
+export const events = pgTable(
+  "events",
   {
-    /** Foreign key to auth user table, serves as primary key */
-    userId: uuid("user_id")
-      .primaryKey()
-      .references(() => user.id, { onDelete: "cascade" }),
-
-    /** Participant's full legal name */
-    fullName: varchar("full_name", { length: 255 }).notNull(),
-
-    /** Whether participant has attended this hackathon before */
-    attendedBefore: boolean("attended_before").notNull().default(false),
-
-    /** Foreign key to gender lookup table */
-    genderId: integer("gender_id")
-      .notNull()
-      .references(() => genders.id),
-
-    /** Foreign key to university lookup table */
-    universityId: integer("university_id")
-      .notNull()
-      .references(() => universities.id),
-
-    /** Foreign key to major/field of study lookup table */
-    majorId: integer("major_id")
-      .notNull()
-      .references(() => majors.id),
-
-    /** Foreign key to year of study lookup table */
-    yearOfStudyId: integer("year_of_study_id")
-      .notNull()
-      .references(() => yearsOfStudy.id),
-
-    /** Accessibility or special accommodation requests (free text) */
-    accommodations: text("accommodations"),
-
-    /** Whether participant needs parking at the venue */
-    needsParking: boolean("needs_parking").notNull().default(false),
-
-    /** Foreign key to heard-from source lookup table (for marketing attribution) */
-    heardFromId: integer("heard_from_id")
-      .notNull()
-      .references(() => heardFromSources.id),
-
-    /** Consent to use participant information for event purposes */
-    consentInfoUse: boolean("consent_info_use").notNull(),
-
-    /** Consent to share information with event sponsors */
-    consentSponsorShare: boolean("consent_sponsor_share").notNull(),
-
-    /** Consent to use photos/videos featuring the participant */
-    consentMediaUse: boolean("consent_media_use").notNull(),
-
-    /** Timestamp when registration was created */
+    id: uuid("id").defaultRandom().primaryKey(),
+    name: text("name").notNull(),
+    hasApplication: boolean("has_application").notNull().default(false),
+    applicationQuestions: jsonb("application_questions").$type<
+      Array<{
+        key: string;
+        label?: string;
+        type?: string;
+        required?: boolean;
+        options?: unknown;
+      }>
+    >(),
+    startsAt: timestamp("starts_at"),
+    endsAt: timestamp("ends_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
   },
   (table) => ({
-    idxUserCreatedAt: index("idx_participants_user_id_created_at").on(
-      table.userId,
-      table.createdAt.desc(),
-    ),
-    idxCreatedAtDesc: index("idx_participants_created_at_desc").on(
-      table.createdAt.desc(),
+    idxHasApplication: index("idx_events_has_application").on(
+      table.hasApplication,
     ),
   }),
 );
 
-/**
- * Participant interests junction table
- *
- * Many-to-many relationship between participants and interests.
- * Allows participants to select multiple interest areas (e.g., "Web Development", "AI").
- *
- * Index: idx_participant_interests_user_interest for efficient lookups
- */
-export const participantInterests = pgTable(
-  "participant_interests",
+// ---------------------------------------------------------------------------
+// User profiles (1:1 with user)
+// ---------------------------------------------------------------------------
+
+export const userProfiles = pgTable("user_profiles", {
+  userId: uuid("user_id")
+    .primaryKey()
+    .references(() => user.id, { onDelete: "cascade" }),
+  fullName: varchar("full_name", { length: 255 }).notNull(),
+  genderId: integer("gender_id")
+    .notNull()
+    .references(() => genders.id),
+  universityId: integer("university_id")
+    .notNull()
+    .references(() => universities.id),
+  majorId: integer("major_id")
+    .notNull()
+    .references(() => majors.id),
+  yearOfStudyId: integer("year_of_study_id")
+    .notNull()
+    .references(() => yearsOfStudy.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at")
+    .defaultNow()
+    .$onUpdate(() => new Date())
+    .notNull(),
+});
+
+// ---------------------------------------------------------------------------
+// Event applications (one per user per event; responses = JSONB)
+// ---------------------------------------------------------------------------
+
+export const eventApplications = pgTable(
+  "event_applications",
   {
-    /** Foreign key to participant (cascading delete) */
+    eventId: uuid("event_id")
+      .notNull()
+      .references(() => events.id, { onDelete: "cascade" }),
     userId: uuid("user_id")
       .notNull()
-      .references(() => participants.userId, { onDelete: "cascade" }),
+      .references(() => user.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+    responses: jsonb("responses").$type<Record<string, unknown>>(),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.eventId, table.userId] }),
+    idxEventCreatedAt: index("idx_event_applications_event_id_created_at").on(
+      table.eventId,
+      table.createdAt.desc(),
+    ),
+    idxUserId: index("idx_event_applications_user_id").on(table.userId),
+  }),
+);
 
-    /** Foreign key to interests lookup table */
+// ---------------------------------------------------------------------------
+// User interests (user-level)
+// ---------------------------------------------------------------------------
+
+export const userInterests = pgTable(
+  "user_interests",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
     interestId: integer("interest_id")
       .notNull()
       .references(() => interests.id),
   },
   (table) => ({
-    idxUserInterest: index("idx_participant_interests_user_interest").on(
+    idxUserInterest: uniqueIndex("user_interests_user_id_interest_id_unique").on(
       table.userId,
       table.interestId,
     ),
   }),
 );
 
-/**
- * Participant dietary restrictions junction table
- *
- * Many-to-many relationship between participants and dietary restrictions.
- * Allows participants to select multiple dietary needs (e.g., "Vegetarian", "Halal").
- *
- * Index: idx_participant_dietary_user_restriction for efficient lookups
- */
-export const participantDietaryRestrictions = pgTable(
-  "participant_dietary_restrictions",
+// ---------------------------------------------------------------------------
+// User dietary restrictions (user-level)
+// ---------------------------------------------------------------------------
+
+export const userDietaryRestrictions = pgTable(
+  "user_dietary_restrictions",
   {
-    /** Foreign key to participant (cascading delete) */
     userId: uuid("user_id")
       .notNull()
-      .references(() => participants.userId, { onDelete: "cascade" }),
-
-    /** Foreign key to dietary restrictions lookup table */
+      .references(() => user.id, { onDelete: "cascade" }),
     restrictionId: integer("restriction_id")
       .notNull()
       .references(() => dietaryRestrictions.id),
   },
   (table) => ({
-    idxUserRestriction: index("idx_participant_dietary_user_restriction").on(
-      table.userId,
-      table.restrictionId,
-    ),
+    idxUserRestriction: uniqueIndex(
+      "user_dietary_restrictions_user_id_restriction_id_unique",
+    ).on(table.userId, table.restrictionId),
   }),
 );
 
-/**
- * Drizzle ORM relations definition for participants table
- *
- * Defines:
- * - one-to-one relations to lookup tables (gender, university, etc.)
- * - one-to-many relations to junction tables (interests, dietary restrictions)
- *
- * These relations enable type-safe querying with automatic joins.
- */
-export const participantsRelations = relations(
-  participants,
-  ({ one, many }) => ({
-    user: one(user, { fields: [participants.userId], references: [user.id] }),
-    gender: one(genders, {
-      fields: [participants.genderId],
-      references: [genders.id],
-    }),
-    university: one(universities, {
-      fields: [participants.universityId],
-      references: [universities.id],
-    }),
-    major: one(majors, {
-      fields: [participants.majorId],
-      references: [majors.id],
-    }),
-    yearOfStudy: one(yearsOfStudy, {
-      fields: [participants.yearOfStudyId],
-      references: [yearsOfStudy.id],
-    }),
-    heardFrom: one(heardFromSources, {
-      fields: [participants.heardFromId],
-      references: [heardFromSources.id],
-    }),
-    interests: many(participantInterests),
-    dietary: many(participantDietaryRestrictions),
+// ---------------------------------------------------------------------------
+// Event attendees (simple signup for events without application)
+// ---------------------------------------------------------------------------
+
+export const eventAttendees = pgTable(
+  "event_attendees",
+  {
+    eventId: uuid("event_id")
+      .notNull()
+      .references(() => events.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    registeredAt: timestamp("registered_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.eventId, table.userId] }),
   }),
 );
 
+// ---------------------------------------------------------------------------
+// Relations
+// ---------------------------------------------------------------------------
+
+export const eventsRelations = relations(events, ({ many }) => ({
+  applications: many(eventApplications),
+  attendees: many(eventAttendees),
+}));
+
+export const userProfilesRelations = relations(userProfiles, ({ one }) => ({
+  user: one(user, { fields: [userProfiles.userId], references: [user.id] }),
+  gender: one(genders, {
+    fields: [userProfiles.genderId],
+    references: [genders.id],
+  }),
+  university: one(universities, {
+    fields: [userProfiles.universityId],
+    references: [universities.id],
+  }),
+  major: one(majors, {
+    fields: [userProfiles.majorId],
+    references: [majors.id],
+  }),
+  yearOfStudy: one(yearsOfStudy, {
+    fields: [userProfiles.yearOfStudyId],
+    references: [yearsOfStudy.id],
+  }),
+}));
+
+export const eventApplicationsRelations = relations(
+  eventApplications,
+  ({ one }) => ({
+    event: one(events, {
+      fields: [eventApplications.eventId],
+      references: [events.id],
+    }),
+    user: one(user, {
+      fields: [eventApplications.userId],
+      references: [user.id],
+    }),
+  }),
+);
+
+export const userInterestsRelations = relations(userInterests, ({ one }) => ({
+  user: one(user, { fields: [userInterests.userId], references: [user.id] }),
+  interest: one(interests, {
+    fields: [userInterests.interestId],
+    references: [interests.id],
+  }),
+}));
+
+export const userDietaryRestrictionsRelations = relations(
+  userDietaryRestrictions,
+  ({ one }) => ({
+    user: one(user, {
+      fields: [userDietaryRestrictions.userId],
+      references: [user.id],
+    }),
+    restriction: one(dietaryRestrictions, {
+      fields: [userDietaryRestrictions.restrictionId],
+      references: [dietaryRestrictions.id],
+    }),
+  }),
+);
+
+export const eventAttendeesRelations = relations(eventAttendees, ({ one }) => ({
+  event: one(events, {
+    fields: [eventAttendees.eventId],
+    references: [events.id],
+  }),
+  user: one(user, {
+    fields: [eventAttendees.userId],
+    references: [user.id],
+  }),
+}));
+
+// ---------------------------------------------------------------------------
+// Views
+// ---------------------------------------------------------------------------
+
 /**
- * Participant view - denormalized view for display purposes
- *
- * This database view joins participant data with lookup tables and aggregates
- * interests and dietary restrictions into arrays. Useful for displaying
- * participant information in tables and reports.
- *
- * Returns human-readable labels instead of IDs, and aggregates related data.
+ * Application view - denormalized for display (profile + event + user + responses)
  */
-export const participantView = pgView("participant_view", {
+export const applicationView = pgView("application_view", {
+  eventId: uuid("event_id").notNull(),
+  eventName: text("event_name").notNull(),
   userId: uuid("user_id").notNull(),
-  email: text().notNull(),
+  email: text("email").notNull(),
   fullName: varchar("full_name", { length: 255 }).notNull(),
-  accommodations: text(),
   gender: varchar({ length: 100 }).notNull(),
   university: varchar({ length: 200 }).notNull(),
   major: varchar({ length: 150 }).notNull(),
   yearOfStudy: varchar("year_of_study", { length: 10 }).notNull(),
-  heardFrom: varchar("heard_from", { length: 150 }).notNull(),
-  needsParking: boolean("needs_parking").notNull(),
-  attendedBefore: boolean("attended_before").notNull(),
+  interests: text(),
+  dietaryRestrictions: text("dietary_restrictions"),
+  responses: jsonb("responses").$type<Record<string, unknown>>(),
   createdAt: timestamp("created_at", { mode: "string" }).notNull(),
-  interests: varchar(),
-  dietaryRestrictions: varchar("dietary_restrictions"),
 }).as(
   sql`
 WITH
   dr AS (
     SELECT
-      p.user_id,
+      u.user_id,
       ARRAY_AGG(l.label ORDER BY l.label) AS dietary_restrictions
-    FROM participant_dietary_restrictions p
-    JOIN dietary_restrictions l ON l.id = p.restriction_id
-    GROUP BY p.user_id
+    FROM user_dietary_restrictions u
+    JOIN dietary_restrictions l ON l.id = u.restriction_id
+    GROUP BY u.user_id
   ),
   ints AS (
     SELECT
-      p.user_id,
+      u.user_id,
       ARRAY_AGG(l.label ORDER BY l.label) AS interests
-    FROM participant_interests p
-    JOIN interests l ON l.id = p.interest_id
-    GROUP BY p.user_id
+    FROM user_interests u
+    JOIN interests l ON l.id = u.interest_id
+    GROUP BY u.user_id
   )
 SELECT
-  p.user_id,
+  a.event_id,
+  e.name AS event_name,
+  a.user_id,
+  u.email,
   p.full_name,
-  p.attended_before,
   g.label AS gender,
-  u.label AS university,
+  un.label AS university,
   m.label AS major,
   y.label AS year_of_study,
-  p.accommodations,
-  p.needs_parking,
-  h.label AS heard_from,
-  p.consent_info_use,
-  p.consent_sponsor_share,
-  p.consent_media_use,
   ints.interests,
-  dr.dietary_restrictions
-FROM participants p
-LEFT JOIN ints ON ints.user_id = p.user_id
-LEFT JOIN dr   ON dr.user_id   = p.user_id
+  dr.dietary_restrictions,
+  a.responses,
+  a.created_at
+FROM event_applications a
+JOIN events e ON e.id = a.event_id
+JOIN "user" u ON u.id = a.user_id
+LEFT JOIN user_profiles p ON p.user_id = a.user_id
 LEFT JOIN genders g ON g.id = p.gender_id
-LEFT JOIN universities u ON u.id = p.university_id
+LEFT JOIN universities un ON un.id = p.university_id
 LEFT JOIN majors m ON m.id = p.major_id
 LEFT JOIN years_of_study y ON y.id = p.year_of_study_id
-LEFT JOIN heard_from_sources h ON h.id = p.heard_from_id
+LEFT JOIN ints ON ints.user_id = a.user_id
+LEFT JOIN dr ON dr.user_id = a.user_id
 `,
 );
 
 /**
- * Participant form view - structured for form population
- *
- * This database view returns participant data in a format that matches
- * the registration form schema. It aggregates interests and dietary
- * restrictions as arrays of IDs (not labels) for easy form population.
- *
- * Used by getOwnRegistration() to pre-fill the registration form when
- * a participant edits their information.
+ * Application form view - for form pre-fill (profile IDs + interests/dietary arrays + responses)
  */
-export const participantFormView = pgView("participant_form_view", {
+export const applicationFormView = pgView("application_form_view", {
+  eventId: uuid("event_id").notNull(),
   userId: uuid("user_id").notNull(),
   fullName: varchar("full_name", { length: 255 }).notNull(),
-  attendedBefore: boolean("attended_before").notNull(),
   genderId: integer("gender_id").notNull(),
   universityId: integer("university_id").notNull(),
   majorId: integer("major_id").notNull(),
   yearOfStudyId: integer("year_of_study_id").notNull(),
-  heardFromId: integer("heard_from_id").notNull(),
-  needsParking: boolean("needs_parking").notNull(),
-  accommodations: text().notNull(),
-  consentInfoUse: boolean("consent_info_use").notNull(),
-  consentSponsorShare: boolean("consent_sponsor_share").notNull(),
-  consentMediaUse: boolean("consent_media_use").notNull(),
   interests: integer("interests").array().notNull(),
   dietaryRestrictions: integer("dietary_restrictions").array().notNull(),
+  responses: jsonb("responses").$type<Record<string, unknown>>(),
   createdAt: timestamp("created_at", { mode: "string" }).notNull(),
 }).as(
   sql`
 WITH
-  interests AS (
+  interests_agg AS (
     SELECT
-      participant_interests.user_id,
-      array_agg(DISTINCT participant_interests.interest_id) AS interests
-    FROM
-      participant_interests
-    WHERE
-      participant_interests.interest_id IS NOT NULL
-    GROUP BY
-      participant_interests.user_id
+      user_id,
+      array_agg(DISTINCT interest_id) AS interests
+    FROM user_interests
+    WHERE interest_id IS NOT NULL
+    GROUP BY user_id
   ),
-  dietary AS (
+  dietary_agg AS (
     SELECT
-      participant_dietary_restrictions.user_id,
-      array_agg(
-        DISTINCT participant_dietary_restrictions.restriction_id
-      ) AS dietary_restrictions
-    FROM
-      participant_dietary_restrictions
-    WHERE
-      participant_dietary_restrictions.restriction_id IS NOT NULL
-    GROUP BY
-      participant_dietary_restrictions.user_id
+      user_id,
+      array_agg(DISTINCT restriction_id) AS dietary_restrictions
+    FROM user_dietary_restrictions
+    WHERE restriction_id IS NOT NULL
+    GROUP BY user_id
   )
 SELECT
-  p.user_id,
+  a.event_id,
+  a.user_id,
   p.full_name,
-  p.attended_before,
   p.gender_id,
   p.university_id,
   p.major_id,
   p.year_of_study_id,
-  p.heard_from_id,
-  p.needs_parking,
-  p.accommodations,
-  p.consent_info_use,
-  p.consent_sponsor_share,
-  p.consent_media_use,
   COALESCE(i.interests, '{}'::integer[]) AS interests,
   COALESCE(d.dietary_restrictions, '{}'::integer[]) AS dietary_restrictions,
-  p.created_at
-FROM
-  participants p
-  LEFT JOIN interests i USING (user_id)
-  LEFT JOIN dietary d USING (user_id)
+  a.responses,
+  a.created_at
+FROM event_applications a
+JOIN user_profiles p ON p.user_id = a.user_id
+LEFT JOIN interests_agg i ON i.user_id = a.user_id
+LEFT JOIN dietary_agg d ON d.user_id = a.user_id
 `,
 );

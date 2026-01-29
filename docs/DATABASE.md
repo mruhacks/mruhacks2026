@@ -114,7 +114,7 @@ Our database schema is split across multiple files to be more manageable.
 - `src/db/schema.ts`: Main export file
 - `src/db/auth-schema.ts`: Defines authentication (who you are) related tables. 
 - `src/db/lookups.ts`: Defines reference/lookup tables.
-- `src/db/registrations.ts`: Defines participant registration tables and views
+- `src/db/registrations.ts`: Defines events, user profiles, event applications, user interests/dietary (user-level), event attendees, and application views
 - `src/db/authz.ts`:  Defines authorization (what you can do) related tables.
 - `src/db/enums.ts`: Defines valid values for the tables defined in `lookups.ts`, it then seeds those values into the tables.
 

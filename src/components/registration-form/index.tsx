@@ -53,7 +53,9 @@ function RequiredAsterisk(): React.JSX.Element {
 type RegistrationFormProps = {
   initial?: Partial<FormData>;
   options: RegistrationFormOptions;
-  onSubmitAction: (data: FormData) => Promise<ActionResult | void>;
+  /** Server action (data, eventId) => Promise<ActionResult | void>. Pass by reference from a Server Component. */
+  submitAction: (data: FormData, eventId: string) => Promise<ActionResult | void>;
+  eventId: string;
   submitLabel?: string;
   successMessage?: string;
   errorMessage?: string;
@@ -70,7 +72,8 @@ function isActionResult(result: ActionResult | void): result is ActionResult {
 export default function RegistrationForm({
   initial,
   options,
-  onSubmitAction: onSubmit,
+  submitAction,
+  eventId,
   submitLabel = DEFAULT_SUBMIT_LABEL,
   successMessage = DEFAULT_SUCCESS_MESSAGE,
   errorMessage = DEFAULT_ERROR_MESSAGE,
@@ -140,7 +143,7 @@ export default function RegistrationForm({
   const submitHandler = React.useCallback(
     async (data: FormData) => {
       try {
-        const result = await onSubmit(data);
+        const result = await submitAction(data, eventId);
 
         if (!result || (isActionResult(result) && result.success)) {
           toast.success(successMessage);
@@ -157,7 +160,7 @@ export default function RegistrationForm({
         toast.error(errorMessage);
       }
     },
-    [onSubmit, successMessage, errorMessage, router],
+    [submitAction, eventId, successMessage, errorMessage, router],
   );
 
   const handleNext = async () => {
