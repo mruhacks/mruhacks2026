@@ -61,28 +61,28 @@ describe("Authorization system", () => {
     userId = u.id;
 
     // Clear any pre-existing roles / perms
-    await db.delete(userRoles);
-    await db.delete(userPermissions);
+    await db.delete(userRole);
+    await db.delete(userPermission);
     await db.delete(rolePermissions);
-    await db.delete(roles);
-    await db.delete(permissions);
+    await db.delete(role);
+    await db.delete(permission);
   });
 
   afterAll(async () => {
-    await db.delete(userRoles);
-    await db.delete(userPermissions);
+    await db.delete(userRole);
+    await db.delete(userPermission);
     await db.delete(rolePermissions);
-    await db.delete(roles);
-    await db.delete(permissions);
+    await db.delete(role);
+    await db.delete(permission);
   });
 
   // ─────────────────────────────────────────────
 
   test("should create roles and permissions", async () => {
-    const role = await createRole("admin", "Administrator");
-    expect(role.success).toBe(true);
-    expect(role.data).toBeDefined();
-    roleId = role.data!;
+    const roleResult = await createRole("admin", "Administrator");
+    expect(roleResult.success).toBe(true);
+    expect(roleResult.data).toBeDefined();
+    roleId = roleResult.data!;
 
     const permSelf = await addPermission("submission:edit:self");
     const permAllAll = await addPermission("submission:all:all");
@@ -99,8 +99,8 @@ describe("Authorization system", () => {
 
     const assigned = await db
       .select()
-      .from(userRoles)
-      .where(eq(userRoles.userId, userId));
+      .from(userRole)
+      .where(eq(userRole.userId, userId));
     expect(assigned.length).toBe(1);
   });
 
@@ -121,8 +121,8 @@ describe("Authorization system", () => {
 
     let perms = await db
       .select()
-      .from(userPermissions)
-      .where(eq(userPermissions.userId, userId));
+      .from(userPermission)
+      .where(eq(userPermission.userId, userId));
     expect(perms.length).toBe(1);
 
     const revoke = await revokePermissionFromUser(userId, permIdAllAll);
@@ -130,8 +130,8 @@ describe("Authorization system", () => {
 
     perms = await db
       .select()
-      .from(userPermissions)
-      .where(eq(userPermissions.userId, userId));
+      .from(userPermission)
+      .where(eq(userPermission.userId, userId));
     expect(perms.length).toBe(0);
   });
 
@@ -160,7 +160,7 @@ describe("Authorization system", () => {
 
   test("requirePermission should redirect when unauthorized", async () => {
     // Remove all permissions
-    await db.delete(userPermissions);
+    await db.delete(userPermission);
     await db.delete(rolePermissions);
 
     let thrown: string | null = null;

@@ -7,6 +7,7 @@
     "build": "next build --turbopack",
     "start": "next start",
     "lint": "eslint",
+    "test": "vitest run",
     "db:start": "echo 'Starting database…' && docker compose up -d && echo 'Database started.'",
     "db:stop": "echo 'Stopping database…' && docker compose down && echo 'Database stopped.'",
     "db:reset": "echo 'Resetting database (dropping volumes)…' &&        docker compose down -v &&        echo 'Starting fresh database…' &&        docker compose up -d &&        pnpm db:wait &&        echo 'Running migrations…' &&        drizzle-kit migrate && tsx scripts/seed.ts &&        echo 'Database reset complete.'",
