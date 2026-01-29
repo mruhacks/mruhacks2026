@@ -1,8 +1,8 @@
 /**
- * Database lookup tables for the registration system
- * 
+ * Database lookup tables for the application system
+ *
  * This module defines all the lookup/reference tables used in the
- * participant registration form. These tables contain predefined options
+ * participant profile and event application form. These tables contain predefined options
  * for dropdowns and multi-select inputs.
  * 
  * All lookup tables follow a consistent structure:
@@ -13,7 +13,7 @@
 import { pgTable, serial, varchar } from "drizzle-orm/pg-core";
 
 /**
- * Gender options for participant registration
+ * Gender options for participant profile and application form
  * 
  * Example values: "Male", "Female", "Non-binary", "Prefer not to say"
  */

@@ -1,6 +1,6 @@
 /**
  * Shared types and config for event application questions.
- * Used by events.applicationQuestions, registration form, and server actions.
+ * Used by events.applicationQuestions, application form, and server actions.
  */
 
 export type ApplicationQuestionType = "boolean" | "text" | "select";

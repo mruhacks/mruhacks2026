@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 
 import { getUser } from "@/utils/auth";
-import { getEventsWithUserStatus } from "@/app/register/actions";
+import { getEventsWithUserStatus } from "@/app/dashboard/events/actions";
 import {
   Card,
   CardContent,
@@ -70,7 +70,7 @@ export default async function DashboardEventsPage() {
                 <CardContent className="mt-auto pt-4">
                   {event.hasApplication ? (
                     <Button asChild size="sm" variant="default">
-                      <Link href={`/dashboard/register/${event.id}`}>
+                      <Link href={`/dashboard/events/${event.id}/apply`}>
                         {event.userStatus === "applied"
                           ? "Edit application"
                           : "Apply"}

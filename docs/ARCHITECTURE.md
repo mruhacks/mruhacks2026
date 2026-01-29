@@ -2,6 +2,20 @@
 
 This document provides an overview of the MRU Hacks 2026 platform architecture.
 
+## Terminology (Glossary)
+
+Use these terms consistently across UI, code, and docs:
+
+1. **Sign up** – Create a site account (email/password). Do not use "register" for account creation.
+2. **Sign in** – Log into the site.
+3. **Apply to an event** – For events with an application (`has_application`): user fills profile + event application form. Data in `event_applications`. UI: "Apply", "Edit application", "applied".
+4. **Register for an event** – For events without an application: one-click to attend. UI: "Register", "You are registered", "Unregister".
+5. **Event application** – The form and stored data for events that require an application. Use "application" (not "registration") for this flow.
+6. **Profile** – User profile (shared across events).
+7. **Attendee** – A user in `event_attendees`.
+
+In authz, the entity **"application"** means event application (permissions: approve, reject, read).
+
 ## Tech Stack
 
 - **Framework**: [Next.js 15](https://nextjs.org) with React 19 and App Router
@@ -21,13 +35,15 @@ mruhacks2026/
 │   ├── app/              # Next.js App Router pages and layouts
 │   │   ├── (auth)/       # Authentication pages (signin, signup)
 │   │   ├── dashboard/    # Dashboard pages and features
-│   │   └── register/     # Event application flow (per-event registration)
+│   │   │   └── events/
+│   │   │       └── [eventId]/apply/  # Event application flow (apply to event)
+│   │   └── register/     # Root redirect + simple event signup actions
 │   ├── components/       # Reusable React components
 │   │   ├── ui/           # Base UI components (shadcn/ui)
 │   ├── db/               # Database schema and configurations
 │   │   ├── schema.ts     # Main schema exports
 │   │   ├── lookups.ts    # Lookup tables (genders, universities, etc.)
-│   │   ├── registrations.ts  # Events, user profiles, event applications, attendees
+│   │   ├── events-and-participation.ts  # Events, user profiles, event applications, event attendees
 │   │   └── auth-schema.ts    # Better Auth schema
 │   ├── utils/            # Utility functions
 │   │   ├── auth.ts       # Authentication utilities
@@ -63,7 +79,7 @@ The database schema is organized into three main modules:
 
 1. **auth-schema.ts**: Better Auth tables (users, sessions, accounts)
 2. **lookups.ts**: Reference tables for form options (genders, universities, majors, etc.)
-3. **registrations.ts**: Events, user profiles, event applications, and attendees
+3. **events-and-participation.ts**: Events, user profiles, event applications, and event attendees
 
 ### Key Tables
 

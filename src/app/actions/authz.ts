@@ -15,12 +15,12 @@ import { redirect } from "next/navigation";
 type Scope = "all" | "any" | "self" | { id: string };
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-type Entity = "user" | "registration" | "team" | "submission";
+type Entity = "user" | "application" | "team" | "submission";
 
-// valid actions per entity
+// valid actions per entity (application = event application, approve/reject/read)
 interface EntityActions {
   user: "create" | "read" | "update" | "delete";
-  registration: "approve" | "reject" | "read";
+  application: "approve" | "reject" | "read";
   team: "create" | "join" | "manage";
   submission: "submit" | "review" | "read";
 }

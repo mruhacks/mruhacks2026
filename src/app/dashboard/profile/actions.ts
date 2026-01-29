@@ -1,7 +1,7 @@
 /**
  * Server actions for user profile (dashboard profile page).
  * Profile-only: user_profiles, user_interests, user_dietary_restrictions.
- * Decoupled from event registration (see register/actions.ts).
+ * Decoupled from event application/registration (see register/actions.ts and dashboard/events/actions.ts).
  */
 
 "use server";
@@ -18,7 +18,7 @@ import { ActionResult, fail, ok } from "@/utils/action-result";
 import {
   profileFormSchema,
   type ProfileFormValues,
-} from "@/components/registration-form/schema";
+} from "@/components/profile-form/schema";
 
 export type UserProfileData = {
   fullName: string;

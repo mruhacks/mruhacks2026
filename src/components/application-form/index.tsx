@@ -22,10 +22,8 @@ import { type ActionResult } from "@/utils/action-result";
 
 import {
   eventOnlySchema,
-  type RegistrationFormOptions,
-  type RegistrationFormValues,
+  type ApplicationFormOptions,
   type EventOnlyFormValues,
-  type ProfileFormValues,
 } from "./schema";
 import type { ApplicationQuestion } from "@/types/application";
 import { APPLICATION_QUESTION_OPTIONS_MAP } from "@/types/application";
@@ -35,15 +33,13 @@ function RequiredAsterisk(): React.JSX.Element {
   return <span className="text-destructive ml-0.5">*</span>;
 }
 
-type RegistrationFormProps = {
+type ApplicationFormProps = {
   initial?: Partial<EventOnlyFormValues>;
-  options: RegistrationFormOptions;
+  options: ApplicationFormOptions;
   applicationQuestions?: ApplicationQuestion[] | null;
-  /** Current profile; merged with event data on submit. Omit when using submitEventApplication (fetches profile server-side). */
-  profileData?: ProfileFormValues;
-  /** Server action (full data or event-only data, eventId). Use submitEventApplication when profileData is omitted. */
+  /** Server action (event data, eventId). Use submitEventApplication (fetches profile server-side). */
   submitAction: (
-    data: RegistrationFormValues | EventOnlyFormValues,
+    data: EventOnlyFormValues,
     eventId: string,
   ) => Promise<ActionResult | void>;
   eventId: string;
@@ -53,24 +49,23 @@ type RegistrationFormProps = {
 };
 
 const DEFAULT_SUBMIT_LABEL = "Save Changes";
-const DEFAULT_SUCCESS_MESSAGE = "Registration information saved.";
-const DEFAULT_ERROR_MESSAGE = "Failed to save registration information.";
+const DEFAULT_SUCCESS_MESSAGE = "Application information saved.";
+const DEFAULT_ERROR_MESSAGE = "Failed to save application information.";
 
 function isActionResult(result: ActionResult | void): result is ActionResult {
   return typeof result === "object" && result !== null && "success" in result;
 }
 
-export default function RegistrationForm({
+export default function ApplicationForm({
   initial,
   options,
   applicationQuestions = null,
-  profileData,
   submitAction,
   eventId,
   submitLabel = DEFAULT_SUBMIT_LABEL,
   successMessage = DEFAULT_SUCCESS_MESSAGE,
   errorMessage = DEFAULT_ERROR_MESSAGE,
-}: RegistrationFormProps) {
+}: ApplicationFormProps) {
   const hasEventQuestions =
     Array.isArray(applicationQuestions) && applicationQuestions.length > 0;
   const router = useRouter();
@@ -102,18 +97,8 @@ export default function RegistrationForm({
 
   const submitHandler = React.useCallback(
     async (eventData: EventOnlyFormValues) => {
-      const data: RegistrationFormValues | EventOnlyFormValues =
-        profileData != null
-          ? {
-              ...profileData,
-              attendedBefore: eventData.attendedBefore,
-              accommodations: eventData.accommodations,
-              applicationResponses: eventData.applicationResponses ?? {},
-            }
-          : eventData;
-
       try {
-        const result = await submitAction(data, eventId);
+        const result = await submitAction(eventData, eventId);
 
         if (!result || (isActionResult(result) && result.success)) {
           toast.success(successMessage);
@@ -124,11 +109,11 @@ export default function RegistrationForm({
           toast.error(result.error ?? errorMessage);
         }
       } catch (err) {
-        console.error("Registration submission error:", err);
+        console.error("Application submission error:", err);
         toast.error(errorMessage);
       }
     },
-    [profileData, submitAction, eventId, successMessage, errorMessage, router],
+    [submitAction, eventId, successMessage, errorMessage, router],
   );
 
   return (
@@ -308,13 +293,9 @@ export default function RegistrationForm({
 export {
   applicationResponsesSchema,
   eventOnlySchema,
-  formSchema,
-  interestsSchema,
-  personalSchema,
 } from "./schema";
 export type {
   EventOnlyFormValues,
-  RegistrationFormOptions,
-  RegistrationFormValues,
-  RegistrationSelectOption,
+  ApplicationFormOptions,
+  ApplicationSelectOption,
 } from "./schema";

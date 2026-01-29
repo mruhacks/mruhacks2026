@@ -1,6 +1,6 @@
-import { applicationView } from "@/db/registrations";
+import { applicationView } from "@/db/schema";
 import { getUser } from "@/utils/auth";
-import { getDefaultApplicationEvent } from "@/app/register/actions";
+import { getDefaultApplicationEvent } from "@/app/dashboard/events/actions";
 import db from "@/utils/db";
 import { and, eq } from "drizzle-orm";
 

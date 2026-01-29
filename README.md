@@ -13,7 +13,7 @@ Our very own participant management system.
 ## 🔑 Key Features
 
 - User authentication (email/password)
-- Participant registration system
+- Participant and event application system (sign up = account; apply = event application; register for event = simple event signup)
 - Dashboard with event management
 - Responsive UI with Tailwind CSS
 - Type-safe database with Drizzle ORM

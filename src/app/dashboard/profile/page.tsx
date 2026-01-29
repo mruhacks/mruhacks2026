@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 
 import { getUser } from "@/utils/auth";
 import { getUserProfile, saveUserProfile } from "./actions";
-import { getOptions } from "@/app/register/actions";
+import { getOptions } from "@/app/dashboard/events/actions";
 import {
   Card,
   CardContent,

@@ -1,6 +1,6 @@
 # Contributing to MRU Hacks 2026
 
-Thank you for your interest in contributing to the MRUHacks 2026 registration platform! This document provides guidelines and best practices for development.
+Thank you for your interest in contributing to the MRUHacks 2026 participant and event application platform! This document provides guidelines and best practices for development.
 
 ## 📝 Development Guidelines
 
@@ -45,7 +45,7 @@ Example:
 ```typescript
 /**
  * Registers a new participant for the hackathon
- * @param formData - Validated registration form data
+ * @param formData - Validated event application form data
  * @returns ActionResult indicating success or failure
  */
 export async function registerParticipant(
@@ -75,7 +75,7 @@ export async function registerParticipant(
    - Start with a verb in present tense
    - Keep the first line under 72 characters
    - Examples:
-     - `Add participant registration form`
+     - `Add participant application form`
      - `Fix authentication redirect loop`
      - `Update README with setup instructions`
 

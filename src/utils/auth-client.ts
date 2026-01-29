@@ -23,7 +23,7 @@ import { createAuthClient } from "better-auth/react";
  * 
  * This client provides methods for:
  * - signIn: Authenticate a user
- * - signUp: Register a new user
+ * - signUp: Sign up a new user (create account)
  * - signOut: End the user's session
  * - useSession: React hook to access the current session
  */
