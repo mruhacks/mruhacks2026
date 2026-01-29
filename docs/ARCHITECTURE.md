@@ -127,6 +127,50 @@ sequenceDiagram
 4. Unauthenticated requests to protected routes redirect to `/forbidden`
 5. Authenticated users can access dashboard features
 
+## Event Application Flow
+
+Apply-to-event flow (two sections: profile form and event application form, each with its own submit):
+
+```mermaid
+sequenceDiagram
+  participant User
+  participant ApplyPage
+  participant getPreviousFormSubmission
+  participant getUserProfile
+  participant getOptions
+  participant ProfileForm
+  participant ApplicationForm
+  participant submitEventApplication
+  participant registerParticipant
+
+  User->>ApplyPage: GET /dashboard/events/[eventId]/apply
+  ApplyPage->>ApplyPage: Load event, check hasApplication
+  ApplyPage->>getPreviousFormSubmission: eventId
+  ApplyPage->>getUserProfile: -
+  ApplyPage->>getOptions: -
+  getPreviousFormSubmission-->>ApplyPage: prev
+  getUserProfile-->>ApplyPage: profileData
+  getOptions-->>ApplyPage: options
+  ApplyPage->>ApplyPage: buildApplyInitials(prev, profileData, user)
+  ApplyPage->>User: ProfileForm and ApplicationForm (two sections)
+
+  User->>ProfileForm: Save Changes (optional)
+  ProfileForm->>User: saveUserProfile (profile only)
+
+  User->>ApplicationForm: Save (event questions)
+  ApplicationForm->>submitEventApplication: eventData, eventId
+  submitEventApplication->>getUserProfile: -
+  getUserProfile-->>submitEventApplication: profile
+  submitEventApplication->>registerParticipant: profile, eventData, eventId
+  registerParticipant->>registerParticipant: buildApplicationResponses, upsert profile, interests, dietary, event_applications
+  registerParticipant-->>User: ok or fail
+```
+
+1. User opens the apply page for an event that has an application (`has_application`).
+2. The page loads the event, previous submission (if any), profile, and form options in parallel; `buildApplyInitials` derives initial values for profile and event sections.
+3. The page renders two sections: **ProfileForm** (with "Save Changes" to save profile only) and **ApplicationForm** (event questions with "Save" to submit the application).
+4. Submitting the event section calls `submitEventApplication(eventData, eventId)`, which fetches the current profile server-side and then calls `registerParticipant(profile, eventData, eventId)` to upsert profile, interests, dietary restrictions, and `event_applications.responses` in one transaction.
+
 ## Server Actions Pattern
 
 All server actions follow a consistent pattern using the `ActionResult` type:

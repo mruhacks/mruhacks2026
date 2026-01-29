@@ -159,7 +159,7 @@ export default function ProfileForm({
 
   return (
     <form onSubmit={handleSubmit(submitHandler)}>
-      <Tabs
+    <Tabs
         value={tab}
         onValueChange={(v) => setTab(v as "personal" | "interests")}
         className="w-full"

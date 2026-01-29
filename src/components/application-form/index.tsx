@@ -28,9 +28,119 @@ import {
 import type { ApplicationQuestion } from "@/types/application";
 import { APPLICATION_QUESTION_OPTIONS_MAP } from "@/types/application";
 import { useRouter } from "next/navigation";
+import type { Control } from "react-hook-form";
 
 function RequiredAsterisk(): React.JSX.Element {
   return <span className="text-destructive ml-0.5">*</span>;
+}
+
+type ApplicationQuestionFieldProps = {
+  question: ApplicationQuestion;
+  control: Control<EventOnlyFormValues>;
+  options: ApplicationFormOptions;
+};
+
+function ApplicationQuestionField({
+  question: q,
+  control,
+  options,
+}: ApplicationQuestionFieldProps): React.JSX.Element {
+  const fieldName =
+    `applicationResponses.${q.key}` as keyof EventOnlyFormValues;
+  const optionsKey = APPLICATION_QUESTION_OPTIONS_MAP[q.key];
+  const selectOptions = q.options?.length
+    ? q.options.map((o) => ({ value: o.value as number, label: o.label }))
+    : optionsKey
+      ? (options[optionsKey as keyof typeof options] as {
+          value: number;
+          label: string;
+        }[])
+      : [];
+
+  if (q.type === "boolean") {
+    return (
+      <Controller
+        name={fieldName}
+        control={control}
+        defaultValue={undefined}
+        render={({ field }) => (
+          <div className="flex items-start gap-3">
+            <Checkbox
+              id={q.key}
+              checked={Boolean(field.value)}
+              onCheckedChange={field.onChange}
+            />
+            <Label htmlFor={q.key}>
+              {q.label ?? q.key}
+              {q.required && <RequiredAsterisk />}
+            </Label>
+          </div>
+        )}
+      />
+    );
+  }
+
+  if (q.type === "select") {
+    return (
+      <Controller
+        name={fieldName}
+        control={control}
+        render={({ field, fieldState }) => (
+          <Field data-invalid={fieldState.invalid}>
+            <FieldLabel>
+              {q.label ?? q.key}
+              {q.required && <RequiredAsterisk />}
+            </FieldLabel>
+            <Select
+              id={q.key}
+              instanceId={`app-q-${q.key}`}
+              options={selectOptions}
+              value={
+                selectOptions.find(
+                  (o) => o.value === (field.value as unknown as number),
+                ) ?? null
+              }
+              onChange={(opt) =>
+                field.onChange(
+                  (opt as SingleValue<{ value: number; label: string }>)?.value ??
+                    null,
+                )
+              }
+            />
+            {fieldState.error && (
+              <FieldError errors={[fieldState.error]} />
+            )}
+          </Field>
+        )}
+      />
+    );
+  }
+
+  return (
+    <Controller
+      name={fieldName}
+      control={control}
+      render={({ field, fieldState }) => (
+        <Field data-invalid={fieldState.invalid}>
+          <FieldLabel>
+            {q.label ?? q.key}
+            {q.required && <RequiredAsterisk />}
+          </FieldLabel>
+          <Textarea
+            id={q.key}
+            {...field}
+            value={(field.value as string) ?? ""}
+            onChange={(e) => field.onChange(e.target.value)}
+            placeholder={q.label ?? q.key}
+            maxLength={500}
+          />
+          {fieldState.error && (
+            <FieldError errors={[fieldState.error]} />
+          )}
+        </Field>
+      )}
+    />
+  );
 }
 
 type ApplicationFormProps = {
@@ -56,68 +166,27 @@ function isActionResult(result: ActionResult | void): result is ActionResult {
   return typeof result === "object" && result !== null && "success" in result;
 }
 
-export default function ApplicationForm({
-  initial,
+function ApplicationFormFields({
+  control,
   options,
-  applicationQuestions = null,
-  submitAction,
-  eventId,
+  applicationQuestions,
+  showSubmit = true,
+  isSubmitting = false,
   submitLabel = DEFAULT_SUBMIT_LABEL,
-  successMessage = DEFAULT_SUCCESS_MESSAGE,
-  errorMessage = DEFAULT_ERROR_MESSAGE,
-}: ApplicationFormProps) {
+}: {
+  control: Control<EventOnlyFormValues>;
+  options: ApplicationFormOptions;
+  applicationQuestions: ApplicationQuestion[] | null;
+  showSubmit?: boolean;
+  isSubmitting?: boolean;
+  submitLabel?: string;
+}) {
   const hasEventQuestions =
     Array.isArray(applicationQuestions) && applicationQuestions.length > 0;
-  const router = useRouter();
-  const {
-    control,
-    handleSubmit,
-    formState: { errors, isSubmitting },
-    reset,
-  } = useForm<EventOnlyFormValues>({
-    resolver: zodResolver(eventOnlySchema) as Resolver<EventOnlyFormValues>,
-    mode: "onChange",
-    reValidateMode: "onChange",
-    criteriaMode: "firstError",
-    defaultValues: {
-      attendedBefore: initial?.attendedBefore ?? false,
-      accommodations: initial?.accommodations ?? "",
-      applicationResponses: initial?.applicationResponses ?? {},
-    },
-  });
-
-  React.useEffect(() => {
-    reset((currentValues) => ({
-      ...currentValues,
-      ...initial,
-    }));
-  }, [initial, reset]);
-
   const accommodations = useWatch({ control, name: "accommodations" }) ?? "";
 
-  const submitHandler = React.useCallback(
-    async (eventData: EventOnlyFormValues) => {
-      try {
-        const result = await submitAction(eventData, eventId);
-
-        if (!result || (isActionResult(result) && result.success)) {
-          toast.success(successMessage);
-          router.push("/dashboard");
-        }
-
-        if (isActionResult(result) && !result.success) {
-          toast.error(result.error ?? errorMessage);
-        }
-      } catch (err) {
-        console.error("Application submission error:", err);
-        toast.error(errorMessage);
-      }
-    },
-    [submitAction, eventId, successMessage, errorMessage, router],
-  );
-
   return (
-    <form onSubmit={handleSubmit(submitHandler)}>
+    <>
       <FieldGroup className="space-y-4">
         <Controller
           name="attendedBefore"
@@ -160,132 +229,99 @@ export default function ApplicationForm({
         </Field>
 
         {hasEventQuestions &&
-          applicationQuestions!.map((q) => {
-            const fieldName =
-              `applicationResponses.${q.key}` as keyof EventOnlyFormValues;
-            const optionsKey = APPLICATION_QUESTION_OPTIONS_MAP[q.key];
-            const selectOptions = q.options?.length
-              ? q.options.map((o) => ({
-                  value: o.value as number,
-                  label: o.label,
-                }))
-              : optionsKey
-                ? (options[optionsKey as keyof typeof options] as {
-                    value: number;
-                    label: string;
-                  }[])
-                : [];
-
-            if (q.type === "boolean") {
-              return (
-                <Controller
-                  key={q.key}
-                  name={
-                    fieldName as `applicationResponses.${string}` as keyof EventOnlyFormValues
-                  }
-                  control={control}
-                  defaultValue={undefined}
-                  render={({ field }) => (
-                    <div className="flex items-start gap-3">
-                      <Checkbox
-                        id={q.key}
-                        checked={Boolean(field.value)}
-                        onCheckedChange={field.onChange}
-                      />
-                      <Label htmlFor={q.key}>
-                        {q.label ?? q.key}
-                        {q.required && <RequiredAsterisk />}
-                      </Label>
-                    </div>
-                  )}
-                />
-              );
-            }
-
-            if (q.type === "select") {
-              return (
-                <Controller
-                  key={q.key}
-                  name={
-                    fieldName as `applicationResponses.${string}` as keyof EventOnlyFormValues
-                  }
-                  control={control}
-                  render={({ field, fieldState }) => (
-                    <Field data-invalid={fieldState.invalid}>
-                      <FieldLabel>
-                        {q.label ?? q.key}
-                        {q.required && <RequiredAsterisk />}
-                      </FieldLabel>
-                      <Select
-                        id={q.key}
-                        instanceId={`app-q-${q.key}`}
-                        options={selectOptions}
-                        value={
-                          selectOptions.find(
-                            (o) =>
-                              o.value === (field.value as unknown as number),
-                          ) ?? null
-                        }
-                        onChange={(opt) =>
-                          field.onChange(
-                            (opt as SingleValue<{
-                              value: number;
-                              label: string;
-                            }>)?.value ?? null,
-                          )
-                        }
-                      />
-                      {fieldState.error && (
-                        <FieldError errors={[fieldState.error]} />
-                      )}
-                    </Field>
-                  )}
-                />
-              );
-            }
-
-            return (
-              <Controller
-                key={q.key}
-                name={
-                  fieldName as `applicationResponses.${string}` as keyof EventOnlyFormValues
-                }
-                control={control}
-                render={({ field, fieldState }) => (
-                  <Field data-invalid={fieldState.invalid}>
-                    <FieldLabel>
-                      {q.label ?? q.key}
-                      {q.required && <RequiredAsterisk />}
-                    </FieldLabel>
-                    <Textarea
-                      id={q.key}
-                      {...field}
-                      value={(field.value as string) ?? ""}
-                      onChange={(e) => field.onChange(e.target.value)}
-                      placeholder={q.label ?? q.key}
-                      maxLength={500}
-                    />
-                    {fieldState.error && (
-                      <FieldError errors={[fieldState.error]} />
-                    )}
-                  </Field>
-                )}
-              />
-            );
-          })}
+          applicationQuestions!.map((q) => (
+            <ApplicationQuestionField
+              key={q.key}
+              question={q}
+              control={control}
+              options={options}
+            />
+          ))}
       </FieldGroup>
 
-      <div className="mt-6 flex justify-end">
-        <Button type="submit" disabled={isSubmitting}>
-          {isSubmitting ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving…
-            </>
-          ) : (
-            submitLabel
-          )}
-        </Button>
-      </div>
+      {showSubmit && (
+        <div className="mt-6 flex justify-end">
+          <Button type="submit" disabled={isSubmitting}>
+            {isSubmitting ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving…
+              </>
+            ) : (
+              submitLabel
+            )}
+          </Button>
+        </div>
+      )}
+    </>
+  );
+}
+
+export default function ApplicationForm({
+  initial,
+  options,
+  applicationQuestions = null,
+  submitAction,
+  eventId,
+  submitLabel = DEFAULT_SUBMIT_LABEL,
+  successMessage = DEFAULT_SUCCESS_MESSAGE,
+  errorMessage = DEFAULT_ERROR_MESSAGE,
+}: ApplicationFormProps) {
+  const router = useRouter();
+  const {
+    control,
+    handleSubmit,
+    formState: { isSubmitting },
+    reset,
+  } = useForm<EventOnlyFormValues>({
+    resolver: zodResolver(eventOnlySchema) as Resolver<EventOnlyFormValues>,
+    mode: "onChange",
+    reValidateMode: "onChange",
+    criteriaMode: "firstError",
+    defaultValues: {
+      attendedBefore: initial?.attendedBefore ?? false,
+      accommodations: initial?.accommodations ?? "",
+      applicationResponses: initial?.applicationResponses ?? {},
+    },
+  });
+
+  React.useEffect(() => {
+    reset((currentValues) => ({
+      ...currentValues,
+      ...initial,
+    }));
+  }, [initial, reset]);
+
+  const submitHandler = React.useCallback(
+    async (eventData: EventOnlyFormValues) => {
+      try {
+        const result = await submitAction(eventData, eventId);
+
+        if (!result || (isActionResult(result) && result.success)) {
+          toast.success(successMessage);
+          router.push("/dashboard");
+        }
+
+        if (isActionResult(result) && !result.success) {
+          toast.error(result.error ?? errorMessage);
+        }
+      } catch (err) {
+        console.error("Application submission error:", err);
+        toast.error(errorMessage);
+      }
+    },
+    [submitAction, eventId, successMessage, errorMessage, router],
+  );
+
+  return (
+    <form onSubmit={handleSubmit(submitHandler)}>
+      <ApplicationFormFields
+        control={control}
+        options={options}
+        applicationQuestions={applicationQuestions}
+        showSubmit={true}
+        isSubmitting={isSubmitting}
+        submitLabel={submitLabel}
+      />
     </form>
   );
 }

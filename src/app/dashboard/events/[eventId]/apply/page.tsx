@@ -19,6 +19,56 @@ import {
 } from "@/components/ui/card";
 import ProfileForm from "@/components/profile-form";
 import ApplicationForm from "@/components/application-form";
+import type { ProfileFormValues } from "@/components/profile-form/schema";
+import type { EventOnlyFormValues } from "@/components/application-form/schema";
+
+type PreviousSubmission = {
+  fullName: string;
+  genderId: number;
+  universityId: number;
+  majorId: number;
+  yearOfStudyId: number;
+  interests: number[];
+  dietaryRestrictions: number[];
+  attendedBefore: boolean;
+  accommodations: string | undefined;
+  applicationResponses: Record<string, unknown>;
+};
+
+function buildApplyInitials(
+  prev: PreviousSubmission | null,
+  profileData: ProfileFormValues | null,
+  user: { name: string | null },
+): {
+  profileInitial: Partial<ProfileFormValues> & { fullName: string };
+  eventInitial: Partial<EventOnlyFormValues>;
+} {
+  const profileInitial = prev
+    ? {
+        fullName: prev.fullName,
+        genderId: prev.genderId,
+        universityId: prev.universityId,
+        majorId: prev.majorId,
+        yearOfStudyId: prev.yearOfStudyId,
+        interests: prev.interests ?? [],
+        dietaryRestrictions: prev.dietaryRestrictions ?? [],
+      }
+    : profileData ?? { fullName: user.name ?? "" };
+
+  const eventInitial = prev
+    ? {
+        attendedBefore: prev.attendedBefore,
+        accommodations: prev.accommodations,
+        applicationResponses: prev.applicationResponses ?? {},
+      }
+    : {
+        attendedBefore: false,
+        accommodations: "",
+        applicationResponses: {} as Record<string, unknown>,
+      };
+
+  return { profileInitial, eventInitial };
+}
 
 type Props = {
   params: Promise<{ eventId: string }>;
@@ -59,31 +109,13 @@ export default async function ApplyEventPage({ params }: Props) {
   const hasProfile =
     profileResult.success && profileResult.data != null;
   const profileData = hasProfile ? profileResult.data : null;
-
   const prev = previousApplication.success ? previousApplication.data : null;
-  const profileInitial = prev
-    ? {
-        fullName: prev.fullName,
-        genderId: prev.genderId,
-        universityId: prev.universityId,
-        majorId: prev.majorId,
-        yearOfStudyId: prev.yearOfStudyId,
-        interests: prev.interests ?? [],
-        dietaryRestrictions: prev.dietaryRestrictions ?? [],
-      }
-    : profileData ?? { fullName: user.name };
 
-  const eventInitial = prev
-    ? {
-        attendedBefore: prev.attendedBefore,
-        accommodations: prev.accommodations,
-        applicationResponses: prev.applicationResponses ?? {},
-      }
-    : {
-        attendedBefore: false,
-        accommodations: "",
-        applicationResponses: {} as Record<string, unknown>,
-      };
+  const { profileInitial, eventInitial } = buildApplyInitials(
+    prev ?? null,
+    profileData ?? null,
+    user,
+  );
 
   if (!hasProfile && !previousApplication.success) {
     redirect(`/dashboard/profile?next=/dashboard/events/${eventId}/apply`);

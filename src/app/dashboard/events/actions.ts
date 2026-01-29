@@ -36,6 +36,10 @@ import type { ApplicationQuestion } from "@/types/application";
 import { cacheLife } from "next/cache";
 import { and, desc, eq } from "drizzle-orm";
 import { getUserProfile } from "@/app/dashboard/profile/actions";
+import {
+  buildApplicationResponses,
+  fromResponseKeys,
+} from "./application-responses";
 
 /**
  * Returns the first event with has_application = true (e.g. default hackathon).
@@ -86,25 +90,9 @@ export async function registerParticipant(
   const applicationQuestions =
     (eventRow?.applicationQuestions as ApplicationQuestion[] | null) ?? [];
 
-  const responses: Record<string, unknown> = {};
-  for (const q of applicationQuestions) {
-    const key = q.key;
-    let value: unknown = event.applicationResponses?.[key];
-    if (key === "attended_before" && value === undefined) {
-      value = event.attendedBefore;
-    }
-    if (q.required) {
-      const empty =
-        value === undefined ||
-        value === null ||
-        (typeof value === "string" && value.trim() === "");
-      if (empty) {
-        return fail(`Required: ${q.label ?? q.key}`);
-      }
-    }
-    responses[key] = value ?? null;
-  }
-  responses.accommodations = event.accommodations ?? null;
+  const built = buildApplicationResponses(applicationQuestions, event);
+  if (!built.ok) return fail(built.error);
+  const responses = built.responses;
 
   try {
     await db.transaction(async (tx) => {
@@ -225,6 +213,7 @@ export async function getPreviousFormSubmission(eventId: string) {
 
   const row = data[0];
   const responses = (row.responses ?? {}) as Record<string, unknown>;
+  const eventPart = fromResponseKeys(responses);
   const initial = {
     fullName: row.fullName,
     genderId: row.genderId,
@@ -233,9 +222,7 @@ export async function getPreviousFormSubmission(eventId: string) {
     yearOfStudyId: row.yearOfStudyId,
     interests: row.interests ?? [],
     dietaryRestrictions: row.dietaryRestrictions ?? [],
-    attendedBefore: (responses.attended_before as boolean) ?? false,
-    accommodations: (responses.accommodations as string) ?? undefined,
-    applicationResponses: responses,
+    ...eventPart,
   };
 
   return ok(initial);
