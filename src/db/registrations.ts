@@ -26,6 +26,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { relations, sql } from "drizzle-orm";
 
+import type { ApplicationQuestion } from "@/types/application";
 import { user } from "./auth-schema";
 import {
   genders,
@@ -47,13 +48,7 @@ export const events = pgTable(
     name: text("name").notNull(),
     hasApplication: boolean("has_application").notNull().default(false),
     applicationQuestions: jsonb("application_questions").$type<
-      Array<{
-        key: string;
-        label?: string;
-        type?: string;
-        required?: boolean;
-        options?: unknown;
-      }>
+      ApplicationQuestion[] | null
     >(),
     startsAt: timestamp("starts_at"),
     endsAt: timestamp("ends_at"),

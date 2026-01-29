@@ -1,20 +1,18 @@
 "use client";
 
 import * as React from "react";
-import { Controller, useForm, useWatch } from "react-hook-form";
+import { Controller, useForm, useWatch, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
-import type { SingleValue, MultiValue } from "react-select";
+import type { SingleValue } from "react-select";
 
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Field,
   FieldGroup,
   FieldLabel,
   FieldError,
 } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/select";
@@ -23,38 +21,31 @@ import { Label } from "@/components/ui/label";
 import { type ActionResult } from "@/utils/action-result";
 
 import {
-  consentsSchema,
-  formSchema,
-  interestsSchema,
-  personalSchema,
+  eventOnlySchema,
   type RegistrationFormOptions,
   type RegistrationFormValues,
+  type EventOnlyFormValues,
+  type ProfileFormValues,
 } from "./schema";
+import type { ApplicationQuestion } from "@/types/application";
+import { APPLICATION_QUESTION_OPTIONS_MAP } from "@/types/application";
 import { useRouter } from "next/navigation";
-
-type FormData = RegistrationFormValues;
-
-const tabLabels = {
-  personal: "Personal Details",
-  interests: "Interests & Preferences",
-  consents: "Consents & Finalization",
-} as const;
-type Tab = keyof typeof tabLabels;
-
-const getSingleValue = (opt: SingleValue<{ value: number; label: string }>) =>
-  opt?.value ?? "";
-const getMultiValues = (opts: MultiValue<{ value: number; label: string }>) =>
-  opts.map((o) => o.value);
 
 function RequiredAsterisk(): React.JSX.Element {
   return <span className="text-destructive ml-0.5">*</span>;
 }
 
 type RegistrationFormProps = {
-  initial?: Partial<FormData>;
+  initial?: Partial<EventOnlyFormValues>;
   options: RegistrationFormOptions;
-  /** Server action (data, eventId) => Promise<ActionResult | void>. Pass by reference from a Server Component. */
-  submitAction: (data: FormData, eventId: string) => Promise<ActionResult | void>;
+  applicationQuestions?: ApplicationQuestion[] | null;
+  /** Current profile; merged with event data on submit. Omit when using submitEventApplication (fetches profile server-side). */
+  profileData?: ProfileFormValues;
+  /** Server action (full data or event-only data, eventId). Use submitEventApplication when profileData is omitted. */
+  submitAction: (
+    data: RegistrationFormValues | EventOnlyFormValues,
+    eventId: string,
+  ) => Promise<ActionResult | void>;
   eventId: string;
   submitLabel?: string;
   successMessage?: string;
@@ -72,55 +63,33 @@ function isActionResult(result: ActionResult | void): result is ActionResult {
 export default function RegistrationForm({
   initial,
   options,
+  applicationQuestions = null,
+  profileData,
   submitAction,
   eventId,
   submitLabel = DEFAULT_SUBMIT_LABEL,
   successMessage = DEFAULT_SUCCESS_MESSAGE,
   errorMessage = DEFAULT_ERROR_MESSAGE,
 }: RegistrationFormProps) {
+  const hasEventQuestions =
+    Array.isArray(applicationQuestions) && applicationQuestions.length > 0;
   const router = useRouter();
   const {
     control,
-    register,
     handleSubmit,
-    trigger,
-    formState: { errors, isSubmitting, touchedFields, isDirty },
+    formState: { errors, isSubmitting },
     reset,
-    getValues,
-  } = useForm<FormData>({
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-ignore: resolver type mismatch due to pnpm deduping
-    resolver: zodResolver(formSchema),
+  } = useForm<EventOnlyFormValues>({
+    resolver: zodResolver(eventOnlySchema) as Resolver<EventOnlyFormValues>,
     mode: "onChange",
     reValidateMode: "onChange",
     criteriaMode: "firstError",
     defaultValues: {
-      fullName: initial?.fullName ?? "",
       attendedBefore: initial?.attendedBefore ?? false,
-      genderId: initial?.genderId,
-      universityId: initial?.universityId,
-      majorId: initial?.majorId,
-      yearOfStudyId: initial?.yearOfStudyId,
-      interests: initial?.interests ?? [],
-      dietaryRestrictions: initial?.dietaryRestrictions ?? [],
       accommodations: initial?.accommodations ?? "",
-      needsParking: initial?.needsParking ?? false,
-      heardFromId: initial?.heardFromId,
-      consentInfoUse: initial?.consentInfoUse ?? false,
-      consentSponsorShare: initial?.consentSponsorShare ?? false,
-      consentMediaUse: initial?.consentMediaUse ?? false,
+      applicationResponses: initial?.applicationResponses ?? {},
     },
   });
-
-  React.useEffect(() => {
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (!isDirty) return;
-      e.preventDefault();
-    };
-
-    window.addEventListener("beforeunload", handleBeforeUnload);
-    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, [isDirty]);
 
   React.useEffect(() => {
     reset((currentValues) => ({
@@ -129,19 +98,20 @@ export default function RegistrationForm({
     }));
   }, [initial, reset]);
 
-  const [tab, setTab] = React.useState<Tab>("personal");
-  const tabs = ["personal", "interests", "consents"] as const;
-
   const accommodations = useWatch({ control, name: "accommodations" }) ?? "";
 
-  const tabSchemas = {
-    personal: personalSchema,
-    interests: interestsSchema,
-    consents: consentsSchema,
-  };
-
   const submitHandler = React.useCallback(
-    async (data: FormData) => {
+    async (eventData: EventOnlyFormValues) => {
+      const data: RegistrationFormValues | EventOnlyFormValues =
+        profileData != null
+          ? {
+              ...profileData,
+              attendedBefore: eventData.attendedBefore,
+              accommodations: eventData.accommodations,
+              applicationResponses: eventData.applicationResponses ?? {},
+            }
+          : eventData;
+
       try {
         const result = await submitAction(data, eventId);
 
@@ -150,422 +120,200 @@ export default function RegistrationForm({
           router.push("/dashboard");
         }
 
-        if (!isActionResult(result) || !result.success) {
-          toast.error(
-            result && "error" in result ? result.error : errorMessage,
-          );
+        if (isActionResult(result) && !result.success) {
+          toast.error(result.error ?? errorMessage);
         }
       } catch (err) {
         console.error("Registration submission error:", err);
         toast.error(errorMessage);
       }
     },
-    [submitAction, eventId, successMessage, errorMessage, router],
+    [profileData, submitAction, eventId, successMessage, errorMessage, router],
   );
 
-  const handleNext = async () => {
-    const i = tabs.indexOf(tab);
-    if (i === -1 || i === tabs.length - 1) return;
-
-    const schema = tabSchemas[tab];
-    const fields = Object.keys(schema.shape) as Array<keyof FormData>;
-
-    console.log(fields);
-
-    console.log(getValues());
-
-    try {
-      const isValid = await trigger(fields as (keyof FormData)[], {
-        shouldFocus: true,
-      });
-      if (!isValid) return;
-    } catch (e) {
-      console.error(e);
-    }
-
-    setTab(tabs[i + 1]);
-
-    requestAnimationFrame(() => {
-      const nextPanel = document.querySelector(
-        `[role="tabpanel"][data-state="active"]`,
-      ) as HTMLElement | null;
-
-      if (!nextPanel) return;
-      const focusable = nextPanel.querySelector<HTMLElement>(
-        'input, select, textarea, button, [tabindex]:not([tabindex="-1"])',
-      );
-      if (focusable) focusable.focus();
-    });
-  };
-
-  const tabHasError = (t: Tab) =>
-    Object.keys(tabSchemas[t].shape).some(
-      (key) => errors[key as keyof FormData],
-    );
-
   return (
-    /*eslint-disable-next-line @typescript-eslint/ban-ts-comment */
-    /* @ts-ignore: resolver type mismatch due to pnpm deduping */
     <form onSubmit={handleSubmit(submitHandler)}>
-      <Tabs
-        value={tab}
-        onValueChange={(v) => setTab(v as Tab)}
-        className="w-full"
-      >
-        <TabsList className="grid grid-cols-3 mb-6 w-full">
-          {(Object.keys(tabLabels) as Tab[]).map((t) => (
-            <TabsTrigger
-              key={t}
-              value={t}
-              className={tabHasError(t) ? " text-destructive underline" : ""}
-            >
-              {tabLabels[t]}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-
-        {/* ───── PERSONAL ───── */}
-        <TabsContent value="personal">
-          <FieldGroup>
-            <Field>
-              <FieldLabel htmlFor="fullName">
-                Full Name
-                <RequiredAsterisk />
-              </FieldLabel>
-              <Input
-                {...register("fullName")}
-                id="fullName"
-                placeholder="John Doe"
+      <FieldGroup className="space-y-4">
+        <Controller
+          name="attendedBefore"
+          control={control}
+          render={({ field }) => (
+            <div className="flex items-start gap-3">
+              <Checkbox
+                id="attendedBefore"
+                checked={field.value}
+                onCheckedChange={field.onChange}
               />
-              {touchedFields.fullName && errors.fullName && (
-                <FieldError errors={[errors.fullName]} />
-              )}
-            </Field>
+              <div className="grid gap-2">
+                <Label htmlFor="attendedBefore">
+                  I have attended MRUHacks before
+                </Label>
+              </div>
+            </div>
+          )}
+        />
 
-            <Controller
-              name="attendedBefore"
-              control={control}
-              render={({ field }) => (
-                <div className="flex items-start gap-3">
-                  <Checkbox
-                    id="attendedBefore"
-                    checked={field.value}
-                    onCheckedChange={field.onChange}
-                  />
-                  <div className="grid gap-2">
-                    <Label htmlFor="attendedBefore">
-                      I have attended MRUHacks before
-                    </Label>
-                  </div>
-                </div>
-              )}
-            />
-
-            <Controller
-              name="genderId"
-              control={control}
-              render={({ field, fieldState }) => (
-                <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel>
-                    Gender
-                    <RequiredAsterisk />
-                  </FieldLabel>
-                  <Select
-                    id="genderId"
-                    instanceId="genderId"
-                    options={options.genders}
-                    value={
-                      options.genders.find((o) => o.value === field.value) ??
-                      null
-                    }
-                    onChange={(opt) => field.onChange(getSingleValue(opt))}
-                  />
-                  {touchedFields.genderId && fieldState.error && (
-                    <FieldError errors={[fieldState.error]} />
-                  )}
-                </Field>
-              )}
-            />
-
-            <Controller
-              name="universityId"
-              control={control}
-              render={({ field, fieldState }) => (
-                <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel>
-                    University / Institution
-                    <RequiredAsterisk />
-                  </FieldLabel>
-                  <Select
-                    id="universityId"
-                    instanceId="universityId"
-                    options={options.universities}
-                    value={
-                      options.universities.find(
-                        (o) => o.value === field.value,
-                      ) ?? null
-                    }
-                    onChange={(opt) => field.onChange(getSingleValue(opt))}
-                  />
-                  {touchedFields.universityId && fieldState.error && (
-                    <FieldError errors={[fieldState.error]} />
-                  )}
-                </Field>
-              )}
-            />
-
-            <Controller
-              name="majorId"
-              control={control}
-              render={({ field, fieldState }) => (
-                <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel>
-                    Major / Program
-                    <RequiredAsterisk />
-                  </FieldLabel>
-                  <Select
-                    id="majorId"
-                    instanceId="majorId"
-                    options={options.majors}
-                    value={
-                      options.majors.find((o) => o.value === field.value) ??
-                      null
-                    }
-                    onChange={(opt) => field.onChange(getSingleValue(opt))}
-                  />
-                  {touchedFields.majorId && fieldState.error && (
-                    <FieldError errors={[fieldState.error]} />
-                  )}
-                </Field>
-              )}
-            />
-
-            <Controller
-              name="yearOfStudyId"
-              control={control}
-              render={({ field, fieldState }) => (
-                <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel>
-                    Year of Study
-                    <RequiredAsterisk />
-                  </FieldLabel>
-                  <Select
-                    id="yearOfStudyId"
-                    instanceId="yearOfStudyId"
-                    options={options.years}
-                    value={
-                      options.years.find((o) => o.value === field.value) ?? null
-                    }
-                    onChange={(opt) => field.onChange(getSingleValue(opt))}
-                  />
-                  {touchedFields.yearOfStudyId && fieldState.error && (
-                    <FieldError errors={[fieldState.error]} />
-                  )}
-                </Field>
-              )}
-            />
-          </FieldGroup>
-
-          <div className="mt-6 flex justify-end">
-            <Button type="button" onClick={handleNext}>
-              Next
-            </Button>
-          </div>
-        </TabsContent>
-
-        {/* ───── INTERESTS ───── */}
-        <TabsContent value="interests">
-          <FieldGroup>
-            <Controller
-              name="interests"
-              control={control}
-              render={({ field, fieldState }) => (
-                <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel>
-                    Interests
-                    <RequiredAsterisk />
-                  </FieldLabel>
-                  <Select
-                    id="interests"
-                    instanceId="interests"
-                    isMulti
-                    options={options.interests}
-                    value={options.interests.filter((o) =>
-                      field.value.includes(o.value),
-                    )}
-                    onChange={(opts) => field.onChange(getMultiValues(opts))}
-                  />
-                  {touchedFields.interests && fieldState.error && (
-                    <FieldError errors={[fieldState.error]} />
-                  )}
-                </Field>
-              )}
-            />
-
-            <Controller
-              name="dietaryRestrictions"
-              control={control}
-              render={({ field }) => (
-                <Field>
-                  <FieldLabel>Dietary Restrictions</FieldLabel>
-                  <Select
-                    id="dietaryRestrictions"
-                    instanceId="dietaryRestrictions"
-                    isMulti
-                    options={options.dietary}
-                    value={options.dietary.filter((o) =>
-                      field.value.includes(o.value),
-                    )}
-                    onChange={(opts) => field.onChange(getMultiValues(opts))}
-                  />
-                </Field>
-              )}
-            />
-
-            <Field>
-              <FieldLabel>Special Accommodations</FieldLabel>
+        <Field>
+          <FieldLabel>Special Accommodations</FieldLabel>
+          <Controller
+            name="accommodations"
+            control={control}
+            render={({ field }) => (
               <Textarea
                 id="accommodations"
-                {...register("accommodations")}
+                {...field}
+                value={field.value ?? ""}
+                onChange={(e) => field.onChange(e.target.value)}
                 placeholder="Please let us know if you have any special needs."
                 maxLength={500}
               />
-              <p className="text-sm text-muted-foreground text-right mt-1">
-                {accommodations.length}/500 characters
-              </p>
-            </Field>
-          </FieldGroup>
+            )}
+          />
+          <p className="text-sm text-muted-foreground text-right mt-1">
+            {String(accommodations).length}/500 characters
+          </p>
+        </Field>
 
-          <div className="mt-6 flex justify-end">
-            <Button type="button" onClick={handleNext}>
-              Next
-            </Button>
-          </div>
-        </TabsContent>
+        {hasEventQuestions &&
+          applicationQuestions!.map((q) => {
+            const fieldName =
+              `applicationResponses.${q.key}` as keyof EventOnlyFormValues;
+            const optionsKey = APPLICATION_QUESTION_OPTIONS_MAP[q.key];
+            const selectOptions = q.options?.length
+              ? q.options.map((o) => ({
+                  value: o.value as number,
+                  label: o.label,
+                }))
+              : optionsKey
+                ? (options[optionsKey as keyof typeof options] as {
+                    value: number;
+                    label: string;
+                  }[])
+                : [];
 
-        {/* ───── CONSENTS ───── */}
-        <TabsContent value="consents">
-          <FieldGroup className="space-y-4">
-            <Controller
-              name="needsParking"
-              control={control}
-              render={({ field }) => (
-                <div className="flex items-start gap-3">
-                  <Checkbox
-                    id="needsParking"
-                    checked={field.value}
-                    onCheckedChange={field.onChange}
-                  />
-                  <Label htmlFor="needsParking">
-                    I will require parking for the event
-                  </Label>
-                </div>
-              )}
-            />
-
-            <Controller
-              name="heardFromId"
-              control={control}
-              render={({ field, fieldState }) => (
-                <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel>
-                    How did you hear about us?
-                    <RequiredAsterisk />
-                  </FieldLabel>
-                  <Select
-                    id="heardFromId"
-                    instanceId="heardFromId"
-                    options={options.heardFrom}
-                    value={
-                      options.heardFrom.find((o) => o.value === field.value) ??
-                      null
-                    }
-                    onChange={(opt) => field.onChange(getSingleValue(opt))}
-                  />
-                  {touchedFields.heardFromId && fieldState.error && (
-                    <FieldError errors={[fieldState.error]} />
+            if (q.type === "boolean") {
+              return (
+                <Controller
+                  key={q.key}
+                  name={
+                    fieldName as `applicationResponses.${string}` as keyof EventOnlyFormValues
+                  }
+                  control={control}
+                  defaultValue={undefined}
+                  render={({ field }) => (
+                    <div className="flex items-start gap-3">
+                      <Checkbox
+                        id={q.key}
+                        checked={Boolean(field.value)}
+                        onCheckedChange={field.onChange}
+                      />
+                      <Label htmlFor={q.key}>
+                        {q.label ?? q.key}
+                        {q.required && <RequiredAsterisk />}
+                      </Label>
+                    </div>
                   )}
-                </Field>
-              )}
-            />
+                />
+              );
+            }
 
-            {[
-              {
-                name: "consentInfoUse",
-                label:
-                  "I agree that MRUHacks may use my information for event organization",
-                desc: "This includes communication, scheduling, and logistics.",
-              },
-              {
-                name: "consentSponsorShare",
-                label: "I agree to share my information with event sponsors",
-                desc: "Sponsors may contact you for networking or recruitment.",
-              },
-              {
-                name: "consentMediaUse",
-                label: "I agree to appear in event photos or videos",
-                desc: "These may be used for MRUHacks promotion and documentation.",
-              },
-            ].map(({ name, label, desc }) => (
+            if (q.type === "select") {
+              return (
+                <Controller
+                  key={q.key}
+                  name={
+                    fieldName as `applicationResponses.${string}` as keyof EventOnlyFormValues
+                  }
+                  control={control}
+                  render={({ field, fieldState }) => (
+                    <Field data-invalid={fieldState.invalid}>
+                      <FieldLabel>
+                        {q.label ?? q.key}
+                        {q.required && <RequiredAsterisk />}
+                      </FieldLabel>
+                      <Select
+                        id={q.key}
+                        instanceId={`app-q-${q.key}`}
+                        options={selectOptions}
+                        value={
+                          selectOptions.find(
+                            (o) =>
+                              o.value === (field.value as unknown as number),
+                          ) ?? null
+                        }
+                        onChange={(opt) =>
+                          field.onChange(
+                            (opt as SingleValue<{
+                              value: number;
+                              label: string;
+                            }>)?.value ?? null,
+                          )
+                        }
+                      />
+                      {fieldState.error && (
+                        <FieldError errors={[fieldState.error]} />
+                      )}
+                    </Field>
+                  )}
+                />
+              );
+            }
+
+            return (
               <Controller
-                key={name}
-                name={name as keyof FormData}
+                key={q.key}
+                name={
+                  fieldName as `applicationResponses.${string}` as keyof EventOnlyFormValues
+                }
                 control={control}
                 render={({ field, fieldState }) => (
-                  <div className="flex items-start gap-3">
-                    <Checkbox
-                      id={name}
-                      checked={field.value as boolean}
-                      onCheckedChange={field.onChange}
+                  <Field data-invalid={fieldState.invalid}>
+                    <FieldLabel>
+                      {q.label ?? q.key}
+                      {q.required && <RequiredAsterisk />}
+                    </FieldLabel>
+                    <Textarea
+                      id={q.key}
+                      {...field}
+                      value={(field.value as string) ?? ""}
+                      onChange={(e) => field.onChange(e.target.value)}
+                      placeholder={q.label ?? q.key}
+                      maxLength={500}
                     />
-                    <div className="grid gap-2">
-                      <Label htmlFor={name}>
-                        <span
-                          className={
-                            fieldState.invalid
-                              ? "underline text-destructive"
-                              : ""
-                          }
-                        >
-                          {label}
-                        </span>
-                        <RequiredAsterisk />
-                      </Label>
-                      <p className="text-muted-foreground text-sm">
-                        {desc}
-                        <FieldError errors={[fieldState.error]} />
-                      </p>
-                    </div>
-                  </div>
+                    {fieldState.error && (
+                      <FieldError errors={[fieldState.error]} />
+                    )}
+                  </Field>
                 )}
               />
-            ))}
-          </FieldGroup>
+            );
+          })}
+      </FieldGroup>
 
-          <div className="mt-6 flex justify-end">
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving…
-                </>
-              ) : (
-                submitLabel
-              )}
-            </Button>
-          </div>
-        </TabsContent>
-      </Tabs>
+      <div className="mt-6 flex justify-end">
+        <Button type="submit" disabled={isSubmitting}>
+          {isSubmitting ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving…
+            </>
+          ) : (
+            submitLabel
+          )}
+        </Button>
+      </div>
     </form>
   );
 }
 
 export {
-  consentsSchema,
+  applicationResponsesSchema,
+  eventOnlySchema,
   formSchema,
   interestsSchema,
   personalSchema,
 } from "./schema";
 export type {
+  EventOnlyFormValues,
   RegistrationFormOptions,
   RegistrationFormValues,
   RegistrationSelectOption,

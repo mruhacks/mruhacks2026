@@ -19,6 +19,7 @@ import {
   LifeBuoy,
   MessageSquare,
   Scale,
+  User,
   UserCheck,
   Users,
   Users2,
@@ -53,6 +54,8 @@ const adminItems = [
 
 const sections = [
   { title: "My Dashboard", url: "/dashboard", icon: LayoutDashboard },
+  { title: "Profile", url: "/dashboard/profile", icon: User },
+  { title: "Events", url: "/dashboard/events", icon: Calendar },
   { title: "Team", url: "/dashboard/team", icon: Users2 },
   { title: "Project", url: "/dashboard/project", icon: FileCheck },
   { title: "Volunteer", url: "/dashboard/volunteer", icon: UserCheck },

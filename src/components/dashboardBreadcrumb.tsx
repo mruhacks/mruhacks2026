@@ -20,23 +20,22 @@ export function DashboardBreadcrumb() {
 
   // Example: /dashboard/group/settings → ["group", "settings"]
 
-  const breadcrumbItems = segments.map((segment, i) => {
+  const breadcrumbItems = segments.flatMap((segment, i) => {
     const href = "/dashboard/" + segments.slice(0, i + 1).join("/");
     const isLast = i === segments.length - 1;
     const title = toTitle(segment);
 
-    return (
+    const item = (
       <BreadcrumbItem key={href}>
         {isLast ? (
           <BreadcrumbPage>{title}</BreadcrumbPage>
         ) : (
-          <>
-            <BreadcrumbLink href={href}>{title}</BreadcrumbLink>
-            <BreadcrumbSeparator className="hidden md:block" />
-          </>
+          <BreadcrumbLink href={href}>{title}</BreadcrumbLink>
         )}
       </BreadcrumbItem>
     );
+
+    return isLast ? [item] : [item, <BreadcrumbSeparator key={`sep-${href}`} className="hidden md:block" />];
   });
 
   return (

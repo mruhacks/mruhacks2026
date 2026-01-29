@@ -1,12 +1,8 @@
 import { z } from "zod";
 
-const requiredConsent = z
-  .boolean()
-  .refine((v) => v === true, { error: "You must consent to continue" });
-
+/** Profile-only (no attendedBefore; that is event-specific and stored in event_applications.responses). */
 export const personalSchema = z.object({
   fullName: z.string().trim().min(1, "Required"),
-  attendedBefore: z.boolean(),
   genderId: z.coerce.number().int().positive("Required"),
   universityId: z.coerce.number().int().positive("Required"),
   majorId: z.coerce.number().int().positive("Required"),
@@ -19,21 +15,37 @@ export const interestsSchema = z.object({
   accommodations: z.string().max(500).optional(),
 });
 
-export const consentsSchema = z.object({
-  needsParking: z.boolean(),
-  heardFromId: z.number("Required"),
-  consentInfoUse: requiredConsent,
-  consentSponsorShare: requiredConsent,
-  consentMediaUse: requiredConsent,
+/** Profile-only form (for ProfileForm / saveUserProfile): personal + interests + dietaryRestrictions; no accommodations, attendedBefore, or applicationResponses. */
+export const profileFormSchema = z.object({
+  ...personalSchema.shape,
+  interests: interestsSchema.shape.interests,
+  dietaryRestrictions: interestsSchema.shape.dietaryRestrictions,
 });
 
+/** Event-specific answers keyed by application question key. Validated in server action against event.applicationQuestions. */
+export const applicationResponsesSchema = z.record(
+  z.string(),
+  z.unknown(),
+);
+
+/** Event-only section (attendedBefore, accommodations, applicationResponses). Merged with profile for registerParticipant. */
+export const eventOnlySchema = z.object({
+  attendedBefore: z.boolean(),
+  accommodations: z.string().max(500).optional(),
+  applicationResponses: z.record(z.string(), z.unknown()).default({}),
+});
+
+/** Full event application form: profile + interests + event-specific (attendedBefore, applicationResponses). */
 export const formSchema = z.object({
   ...personalSchema.shape,
   ...interestsSchema.shape,
-  ...consentsSchema.shape,
+  attendedBefore: z.boolean(),
+  applicationResponses: applicationResponsesSchema.default({}),
 });
 
 export type RegistrationFormValues = z.infer<typeof formSchema>;
+export type ProfileFormValues = z.infer<typeof profileFormSchema>;
+export type EventOnlyFormValues = z.infer<typeof eventOnlySchema>;
 
 export type RegistrationSelectOption = { value: number; label: string };
 

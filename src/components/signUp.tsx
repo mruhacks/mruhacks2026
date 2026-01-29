@@ -57,7 +57,7 @@ export default function SignUpForm() {
         toast.success("Account created successfully", {
           description: "Check your inbox to verify your email.",
         });
-        router.push("/register");
+        router.push("/dashboard/profile");
       },
       onError: (ctx) => {
         setLoading(false);

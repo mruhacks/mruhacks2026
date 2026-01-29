@@ -30,13 +30,16 @@ import { db } from "@/utils/db";
 import {
   formSchema,
   type RegistrationFormValues,
+  type EventOnlyFormValues,
 } from "@/components/registration-form/schema";
+import type { ApplicationQuestion } from "@/types/application";
 import { cacheLife } from "next/cache";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
+import { getUserProfile } from "@/app/dashboard/profile/actions";
 
 /**
  * Returns the first event with has_application = true (e.g. default hackathon).
- * Used for redirecting /register to /register/[eventId].
+ * Used for redirecting /register to /dashboard/register/[eventId].
  */
 export async function getDefaultApplicationEvent() {
   "use cache";
@@ -53,7 +56,7 @@ export async function getDefaultApplicationEvent() {
  * Registers/updates user profile and application for an event.
  * 1. Upserts user_profiles (fullName, genderId, universityId, majorId, yearOfStudyId)
  * 2. Replaces user_interests and user_dietary_restrictions
- * 3. Upserts event_applications for (eventId, userId) with responses JSONB
+ * 3. Upserts event_applications for (eventId, userId) with responses from applicationResponses (and attendedBefore when applicable)
  */
 export async function registerParticipant(
   formData: RegistrationFormValues,
@@ -69,16 +72,33 @@ export async function registerParticipant(
 
   const data = parsed.data;
 
-  // Event-specific answers go into responses (keys match default application_questions)
-  const responses: Record<string, unknown> = {
-    attended_before: data.attendedBefore,
-    accommodations: data.accommodations ?? null,
-    needs_parking: data.needsParking,
-    heard_from_id: data.heardFromId,
-    consent_info_use: data.consentInfoUse,
-    consent_sponsor_share: data.consentSponsorShare,
-    consent_media_use: data.consentMediaUse,
-  };
+  const [eventRow] = await db
+    .select({ applicationQuestions: events.applicationQuestions })
+    .from(events)
+    .where(eq(events.id, eventId))
+    .limit(1);
+  const applicationQuestions =
+    (eventRow?.applicationQuestions as ApplicationQuestion[] | null) ?? [];
+
+  const responses: Record<string, unknown> = {};
+  for (const q of applicationQuestions) {
+    const key = q.key;
+    let value: unknown = data.applicationResponses?.[key];
+    if (key === "attended_before" && value === undefined) {
+      value = data.attendedBefore;
+    }
+    if (q.required) {
+      const empty =
+        value === undefined ||
+        value === null ||
+        (typeof value === "string" && value.trim() === "");
+      if (empty) {
+        return fail(`Required: ${q.label ?? q.key}`);
+      }
+    }
+    responses[key] = value ?? null;
+  }
+  responses.accommodations = data.accommodations ?? null;
 
   try {
     await db.transaction(async (tx) => {
@@ -202,7 +222,6 @@ export async function getPreviousFormSubmission(eventId: string) {
   if (data.length === 0) return fail("No existing record found");
 
   const row = data[0];
-  // Merge profile + responses into form shape (responses may have attended_before, accommodations, etc.)
   const responses = (row.responses ?? {}) as Record<string, unknown>;
   const initial = {
     fullName: row.fullName,
@@ -214,14 +233,93 @@ export async function getPreviousFormSubmission(eventId: string) {
     dietaryRestrictions: row.dietaryRestrictions ?? [],
     attendedBefore: (responses.attended_before as boolean) ?? false,
     accommodations: (responses.accommodations as string) ?? undefined,
-    needsParking: (responses.needs_parking as boolean) ?? false,
-    heardFromId: (responses.heard_from_id as number) ?? 0,
-    consentInfoUse: (responses.consent_info_use as boolean) ?? false,
-    consentSponsorShare: (responses.consent_sponsor_share as boolean) ?? false,
-    consentMediaUse: (responses.consent_media_use as boolean) ?? false,
+    applicationResponses: responses,
   };
 
   return ok(initial);
+}
+
+/**
+ * Submits event application by merging current profile with event-only form data.
+ * Use when the page composes ProfileForm and event section separately; profile is fetched server-side.
+ */
+export async function submitEventApplication(
+  eventData: EventOnlyFormValues,
+  eventId: string,
+): Promise<ActionResult> {
+  const user = await getUser();
+  if (!user) return fail("User not authenticated");
+
+  const profileResult = await getUserProfile();
+  if (!profileResult.success)
+    return fail(profileResult.error ?? "Could not load profile");
+  const profile = profileResult.data;
+  if (profile == null)
+    return fail("Complete your profile first before applying to events.");
+
+  const merged: RegistrationFormValues = {
+    ...profile,
+    attendedBefore: eventData.attendedBefore,
+    accommodations: eventData.accommodations,
+    applicationResponses: eventData.applicationResponses ?? {},
+  };
+  return registerParticipant(merged, eventId);
+}
+
+export type EventWithUserStatus = {
+  id: string;
+  name: string;
+  hasApplication: boolean;
+  startsAt: Date | null;
+  endsAt: Date | null;
+  userStatus: "applied" | "registered" | null;
+};
+
+/**
+ * Returns all events with the current user's application/attendee status.
+ * Used by dashboard/events page.
+ */
+export async function getEventsWithUserStatus(): Promise<
+  EventWithUserStatus[]
+> {
+  const user = await getUser();
+  if (!user) return [];
+
+  const allEvents = await db
+    .select()
+    .from(events)
+    .orderBy(desc(events.createdAt));
+
+  const [applicationEventIds, attendeeEventIds] = await Promise.all([
+    db
+      .select({ eventId: eventApplications.eventId })
+      .from(eventApplications)
+      .where(eq(eventApplications.userId, user.id)),
+    db
+      .select({ eventId: eventAttendees.eventId })
+      .from(eventAttendees)
+      .where(eq(eventAttendees.userId, user.id)),
+  ]);
+
+  const appliedSet = new Set(
+    applicationEventIds.map((r) => r.eventId),
+  );
+  const registeredSet = new Set(attendeeEventIds.map((r) => r.eventId));
+
+  return allEvents.map((e) => ({
+    id: e.id,
+    name: e.name,
+    hasApplication: e.hasApplication,
+    startsAt: e.startsAt,
+    endsAt: e.endsAt,
+    userStatus: e.hasApplication
+      ? appliedSet.has(e.id)
+        ? ("applied" as const)
+        : null
+      : registeredSet.has(e.id)
+        ? ("registered" as const)
+        : null,
+  }));
 }
 
 /**
@@ -245,5 +343,40 @@ export async function registerForEvent(eventId: string): Promise<ActionResult> {
   } catch (error) {
     console.error("Register for event error:", error);
     return fail("Failed to register for event.");
+  }
+}
+
+/**
+ * Form action wrapper for registerForEvent (used by dashboard/events page).
+ */
+export async function registerForEventFormAction(
+  formData: FormData,
+): Promise<ActionResult> {
+  const eventId = formData.get("eventId");
+  if (typeof eventId !== "string") return fail("Missing event ID");
+  return registerForEvent(eventId);
+}
+
+/**
+ * Unregisters the current user from an event that has no application (simple signup).
+ * Only applies to events without application questions (event_attendees).
+ */
+export async function unregisterFromEvent(eventId: string): Promise<ActionResult> {
+  const user = await getUser();
+  if (!user) return fail("User not authenticated");
+
+  try {
+    await db
+      .delete(eventAttendees)
+      .where(
+        and(
+          eq(eventAttendees.eventId, eventId),
+          eq(eventAttendees.userId, user.id),
+        ),
+      );
+    return ok("Unregistered from event.");
+  } catch (error) {
+    console.error("Unregister from event error:", error);
+    return fail("Failed to unregister from event.");
   }
 }

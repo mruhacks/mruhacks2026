@@ -39,7 +39,7 @@ export default async function TicketPage({ searchParams }: Props) {
     return (
       <div className="text-muted-foreground">
         You have not applied to this event yet. Complete your application from
-        the register page.
+        the Events page.
       </div>
     );
   }
