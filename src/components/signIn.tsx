@@ -149,7 +149,7 @@ export default function SignInForm() {
         <div className="text-sm mt-4">
           <span>Don’t have an account?</span>
           <Link className="ml-1 font-medium hover:underline" href="/signup">
-            Signup
+            Sign Up
           </Link>
         </div>
       </CardFooter>

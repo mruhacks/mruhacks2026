@@ -99,6 +99,28 @@ See [Database Configuration](./DATABASE.md) for more details.
 
 ## Authentication Flow
 
+Sign-up flow (client → API):
+
+```mermaid
+sequenceDiagram
+  participant User
+  participant SignupPage
+  participant AuthLayout
+  participant SignUpForm
+  participant AuthClient
+  participant API
+
+  User->>SignupPage: GET /signup
+  SignupPage->>AuthLayout: children (TabsContent)
+  AuthLayout->>User: Tabs + SignUpForm
+  User->>SignUpForm: submit (name, email, password)
+  SignUpForm->>AuthClient: signUp.email(details, callbacks)
+  AuthClient->>API: POST /api/auth/...
+  API-->>AuthClient: session / error
+  AuthClient-->>SignUpForm: onSuccess / onError
+  SignUpForm->>User: toast + redirect to /dashboard/profile (or error)
+```
+
 1. User signs up via `/signup` with email and password
 2. Better Auth creates a user account and session
 3. Middleware checks session for protected routes (`/dashboard/*`)

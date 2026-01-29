@@ -42,7 +42,6 @@ export const auth = betterAuth({
  * @returns Promise resolving to the current session or null if not authenticated
  */
 export const getSession = cache(async () => {
-  console.log("Get Session Call");
   const session = await auth.api.getSession({ headers: await headers() });
   return session;
 });

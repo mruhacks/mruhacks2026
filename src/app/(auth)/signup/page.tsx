@@ -1,5 +1,5 @@
 import { TabsContent } from "@/components/ui/tabs";
-import SignUpForm from "@/components/signUp";
+import SignUpForm from "@/components/signup";
 
 export default function SignupPage() {
   return (
