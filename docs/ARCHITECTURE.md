@@ -24,7 +24,6 @@ mruhacks2026/
 │   │   └── register/     # Registration flow
 │   ├── components/       # Reusable React components
 │   │   ├── ui/           # Base UI components (shadcn/ui)
-│   │   └── ...           # Feature-specific components
 │   ├── db/               # Database schema and configurations
 │   │   ├── schema.ts     # Main schema exports
 │   │   ├── lookups.ts    # Lookup tables (genders, universities, etc.)
@@ -130,26 +129,3 @@ Forms use:
 - **@hookform/resolvers** to integrate Zod with React Hook Form
 
 Validation occurs on both client and server sides for security.
-
-## Styling Approach
-
-- **Tailwind CSS** for utility-first styling
-- **shadcn/ui** components for consistent UI patterns
-- **Radix UI** primitives for accessible components
-- **CSS variables** for theming support
-
-## Development Workflow
-
-1. Make schema changes in `src/db/schema.ts`
-2. Run `npx drizzle-kit push` to sync database
-3. Update server actions as needed
-4. Create/update UI components
-5. Add tests for new functionality
-6. Run `npm run lint` before committing
-
-## Resources
-
-- [Next.js Documentation](https://nextjs.org/docs)
-- [Better Auth Documentation](https://www.better-auth.com/docs)
-- [Drizzle ORM Documentation](https://orm.drizzle.team/docs/overview)
-- [Tailwind CSS Documentation](https://tailwindcss.com/docs)
