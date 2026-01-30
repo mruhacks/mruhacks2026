@@ -4,6 +4,7 @@
 root = true
 
 # Match Prettier / ESLint: 2 spaces, LF, trim whitespace, final newline
+# Prettier reads this when prettier.useEditorConfig is true (see .vscode/settings.json)
 [*]
 indent_style = space
 indent_size = 2
