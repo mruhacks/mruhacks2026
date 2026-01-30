@@ -9,7 +9,6 @@ Our very own participant management system.
 - **[Database Guide](./docs/DATABASE.md)** - Database configuration, migrations, and Drizzle commands
 - **[Contributing](./CONTRIBUTING.md)** - Development guidelines and best practices
 
-
 ## 🔑 Key Features
 
 - User authentication (email/password)
@@ -25,4 +24,3 @@ Our very own participant management system.
 - **Auth**: Better Auth
 - **Styling**: Tailwind CSS + Radix UI
 - **Language**: TypeScript
-

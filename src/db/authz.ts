@@ -1,4 +1,4 @@
-import { ColumnBaseConfig, ColumnDataType, sql } from "drizzle-orm";
+import { ColumnBaseConfig, ColumnDataType, sql } from 'drizzle-orm';
 import {
   pgSchema,
   serial,
@@ -8,17 +8,17 @@ import {
   uuid,
   integer,
   primaryKey,
-} from "drizzle-orm/pg-core";
-import { user } from "./auth-schema";
+} from 'drizzle-orm/pg-core';
+import { user } from './auth-schema';
 
-export const authz = pgSchema("authz");
+export const authz = pgSchema('authz');
 
 const lowerSlug = (table: {
   slug: ExtraConfigColumn<ColumnBaseConfig<ColumnDataType, string>>;
-}) => check("lower_slug", sql`${table.slug} = lower(${table.slug})`);
+}) => check('lower_slug', sql`${table.slug} = lower(${table.slug})`);
 
 export const permission = authz.table(
-  "permission",
+  'permission',
   {
     id: serial().primaryKey(),
     slug: text().unique().notNull(),
@@ -28,7 +28,7 @@ export const permission = authz.table(
 );
 
 export const role = authz.table(
-  "role",
+  'role',
   {
     id: serial().primaryKey(),
     slug: text().unique(),
@@ -39,40 +39,40 @@ export const role = authz.table(
 );
 
 export const userRole = authz.table(
-  "user_role",
+  'user_role',
   {
     userId: uuid()
       .notNull()
-      .references(() => user.id, { onDelete: "cascade" }),
+      .references(() => user.id, { onDelete: 'cascade' }),
     roleId: integer()
       .notNull()
-      .references(() => role.id, { onDelete: "cascade" }),
+      .references(() => role.id, { onDelete: 'cascade' }),
   },
   (table) => [primaryKey({ columns: [table.userId, table.roleId] })],
 );
 
 export const userPermission = authz.table(
-  "user_permission",
+  'user_permission',
   {
     userId: uuid()
       .notNull()
-      .references(() => user.id, { onDelete: "cascade" }),
+      .references(() => user.id, { onDelete: 'cascade' }),
     permissionId: integer()
       .notNull()
-      .references(() => permission.id, { onDelete: "cascade" }),
+      .references(() => permission.id, { onDelete: 'cascade' }),
   },
   (table) => [primaryKey({ columns: [table.userId, table.permissionId] })],
 );
 
 export const rolePermissions = authz.table(
-  "role_permission",
+  'role_permission',
   {
     roleId: integer()
       .notNull()
-      .references(() => role.id, { onDelete: "cascade" }),
+      .references(() => role.id, { onDelete: 'cascade' }),
     permissionId: integer()
       .notNull()
-      .references(() => permission.id, { onDelete: "cascade" }),
+      .references(() => permission.id, { onDelete: 'cascade' }),
   },
   (table) => [primaryKey({ columns: [table.roleId, table.permissionId] })],
 );

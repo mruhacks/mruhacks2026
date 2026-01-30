@@ -1,15 +1,15 @@
-"use server";
+'use server';
 
-import { db } from "@/utils/db";
-import { eq, and } from "drizzle-orm";
+import { db } from '@/utils/db';
+import { eq, and } from 'drizzle-orm';
 import {
   role,
   permission,
   rolePermissions,
   userRole,
   userPermission,
-} from "@/db/schema";
-import { ok, fail, type ActionResult } from "@/utils/action-result";
+} from '@/db/schema';
+import { ok, fail, type ActionResult } from '@/utils/action-result';
 
 /**
  * Canonical database identifier types.
@@ -23,7 +23,7 @@ export type PermissionId = number;
 
 /**
  * Creates a new role entry in the database.
- * TODO: Why is the column called slug in the db? why not just call it name? 
+ * TODO: Why is the column called slug in the db? why not just call it name?
  * @param slug - Unique role name (e.g., "admin", "judge")
  * @param description - Optional role description
  * @returns The new role ID, or undefined if it already existed

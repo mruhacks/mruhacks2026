@@ -1,6 +1,6 @@
-import { cacheLife } from "next/cache";
-import Image from "next/image";
-import QR from "qrcode";
+import { cacheLife } from 'next/cache';
+import Image from 'next/image';
+import QR from 'qrcode';
 
 export type QRCodeProps = {
   data: string;
@@ -13,8 +13,8 @@ async function generateQr(text: string) {
 }
 
 export default async function QRCode({ data }: QRCodeProps) {
-  "use cache";
-  cacheLife("max");
+  'use cache';
+  cacheLife('max');
   const qr = await generateQr(data);
 
   return (
@@ -22,7 +22,7 @@ export default async function QRCode({ data }: QRCodeProps) {
       src={qr}
       width={WIDTH}
       height={WIDTH}
-      loading="lazy"
+      loading='lazy'
       alt={`QR code for ${data}`}
     />
   );

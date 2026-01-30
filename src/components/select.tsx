@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import * as React from "react";
-import type { GroupBase, StylesConfig, ThemeConfig } from "react-select";
-import SelectInner, { Props as SelectProps } from "react-select";
+import * as React from 'react';
+import type { GroupBase, StylesConfig, ThemeConfig } from 'react-select';
+import SelectInner, { Props as SelectProps } from 'react-select';
 
 // ───────────────────────────────────────────────
 // shadcn-style theming for OKLCH variable system
@@ -15,88 +15,88 @@ const shadcnSelectStyles = <
 >(): StylesConfig<Option, IsMulti, Group> => ({
   control: (base, state) => ({
     ...base,
-    backgroundColor: "var(--background)",
-    borderColor: state.isFocused ? "var(--ring)" : "var(--input)",
+    backgroundColor: 'var(--background)',
+    borderColor: state.isFocused ? 'var(--ring)' : 'var(--input)',
     boxShadow: state.isFocused
-      ? "0 0 0 2px color-mix(in srgb, var(--ring) 30%, transparent)"
-      : "none",
-    "&:hover": { borderColor: "var(--ring)" },
-    minHeight: "2.5rem",
-    borderRadius: "var(--radius)",
-    fontSize: "0.875rem",
-    cursor: "pointer",
-    transition: "border-color 0.15s, box-shadow 0.15s",
+      ? '0 0 0 2px color-mix(in srgb, var(--ring) 30%, transparent)'
+      : 'none',
+    '&:hover': { borderColor: 'var(--ring)' },
+    minHeight: '2.5rem',
+    borderRadius: 'var(--radius)',
+    fontSize: '0.875rem',
+    cursor: 'pointer',
+    transition: 'border-color 0.15s, box-shadow 0.15s',
   }),
 
   valueContainer: (base) => ({
     ...base,
-    padding: "0 0.5rem",
-    gap: "0.25rem",
+    padding: '0 0.5rem',
+    gap: '0.25rem',
   }),
 
   singleValue: (base) => ({
     ...base,
-    color: "var(--foreground)",
+    color: 'var(--foreground)',
   }),
 
   multiValue: (base) => ({
     ...base,
-    backgroundColor: "var(--muted)",
-    borderRadius: "9999px",
-    paddingRight: "0.25rem",
+    backgroundColor: 'var(--muted)',
+    borderRadius: '9999px',
+    paddingRight: '0.25rem',
   }),
 
   multiValueLabel: (base) => ({
     ...base,
-    color: "var(--foreground)",
-    fontSize: "0.875rem",
+    color: 'var(--foreground)',
+    fontSize: '0.875rem',
   }),
 
   multiValueRemove: (base) => ({
     ...base,
-    color: "var(--muted-foreground)",
-    borderRadius: "9999px",
-    "&:hover": {
+    color: 'var(--muted-foreground)',
+    borderRadius: '9999px',
+    '&:hover': {
       backgroundColor:
-        "color-mix(in srgb, var(--muted-foreground) 15%, transparent)",
-      color: "var(--foreground)",
+        'color-mix(in srgb, var(--muted-foreground) 15%, transparent)',
+      color: 'var(--foreground)',
     },
   }),
 
   placeholder: (base) => ({
     ...base,
-    color: "var(--muted-foreground)",
+    color: 'var(--muted-foreground)',
   }),
 
   dropdownIndicator: (base, state) => ({
     ...base,
-    color: state.isFocused ? "var(--foreground)" : "var(--muted-foreground)",
-    "&:hover": { color: "var(--foreground)" },
+    color: state.isFocused ? 'var(--foreground)' : 'var(--muted-foreground)',
+    '&:hover': { color: 'var(--foreground)' },
   }),
 
-  indicatorSeparator: () => ({ display: "none" }),
+  indicatorSeparator: () => ({ display: 'none' }),
 
   menu: (base) => ({
     ...base,
-    backgroundColor: "var(--popover)",
-    border: "1px solid var(--border)",
-    borderRadius: "var(--radius)",
+    backgroundColor: 'var(--popover)',
+    border: '1px solid var(--border)',
+    borderRadius: 'var(--radius)',
     boxShadow:
-      "0 4px 12px color-mix(in srgb, var(--foreground) 5%, transparent)",
-    marginTop: "4px",
+      '0 4px 12px color-mix(in srgb, var(--foreground) 5%, transparent)',
+    marginTop: '4px',
     zIndex: 50,
   }),
 
   option: (base, state) => ({
     ...base,
     backgroundColor: state.isSelected
-      ? "var(--accent)"
+      ? 'var(--accent)'
       : state.isFocused
-        ? "var(--muted)"
-        : "transparent",
-    color: state.isSelected ? "var(--accent-foreground)" : "var(--foreground)",
-    cursor: "pointer",
-    fontSize: "0.875rem",
+        ? 'var(--muted)'
+        : 'transparent',
+    color: state.isSelected ? 'var(--accent-foreground)' : 'var(--foreground)',
+    cursor: 'pointer',
+    fontSize: '0.875rem',
   }),
 });
 
@@ -105,9 +105,9 @@ const shadcnSelectTheme: ThemeConfig = (theme) => ({
   borderRadius: 6,
   colors: {
     ...theme.colors,
-    primary: "var(--primary)",
-    primary25: "var(--muted)",
-    primary50: "var(--muted)",
+    primary: 'var(--primary)',
+    primary25: 'var(--muted)',
+    primary50: 'var(--muted)',
   },
 });
 
@@ -123,7 +123,7 @@ export function Select<
   return (
     <SelectInner
       {...props}
-      classNamePrefix="shadcn"
+      classNamePrefix='shadcn'
       theme={shadcnSelectTheme}
       styles={shadcnSelectStyles<Option, IsMulti, Group>()}
     />

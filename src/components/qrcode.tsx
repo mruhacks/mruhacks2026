@@ -1,5 +1,5 @@
-import Image from "next/image";
-import QR from "qrcode";
+import Image from 'next/image';
+import QR from 'qrcode';
 
 export type QRCodeProps = {
   data: string;
@@ -19,7 +19,7 @@ export default async function QRCode({ data }: QRCodeProps) {
       src={qr}
       width={WIDTH}
       height={WIDTH}
-      loading="lazy"
+      loading='lazy'
       alt={`QR code for ${data}`}
     />
   );

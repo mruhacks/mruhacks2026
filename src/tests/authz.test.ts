@@ -8,7 +8,7 @@
  * a test container or a dedicated test schema.
  */
 
-import { db } from "@/utils/db";
+import { db } from '@/utils/db';
 import {
   createRole,
   assignRoleToUser,
@@ -17,12 +17,12 @@ import {
   grantPermissionToUser,
   revokePermissionFromUser,
   revokePermissionFromRole,
-} from "@/app/actions/roles";
+} from '@/app/actions/roles';
 import {
   getUserPermissions,
   hasPermission,
   requirePermission,
-} from "@/app/actions/authz";
+} from '@/app/actions/authz';
 import {
   user,
   role,
@@ -30,19 +30,20 @@ import {
   userRole,
   rolePermissions,
   userPermission,
-} from "@/db/schema";
-import { eq } from "drizzle-orm";
+} from '@/db/schema';
+// Note: rolePermissions is used, others are imported but not directly used in this file
+import { eq } from 'drizzle-orm';
 
-import { describe, vi, beforeAll, test, expect } from "vitest";
+import { describe, vi, beforeAll, test, expect } from 'vitest';
 
 // Mock redirect to capture redirects instead of terminating test
-vi.mock("next/navigation", () => ({
+vi.mock('next/navigation', () => ({
   redirect: vi.fn((path: string) => {
     throw new Error(`REDIRECT:${path}`);
   }),
 }));
 
-describe("Authorization system", () => {
+describe('Authorization system', () => {
   let userId: string;
   let roleId: number;
   let permIdEditSelf: number;
@@ -53,8 +54,8 @@ describe("Authorization system", () => {
     const [u] = await db
       .insert(user)
       .values({
-        name: "Test User",
-        email: "user@test.com",
+        name: 'Test User',
+        email: 'user@test.com',
         emailVerified: true,
       })
       .returning({ id: user.id });
@@ -63,7 +64,11 @@ describe("Authorization system", () => {
     // Clear any pre-existing roles / perms
     await db.delete(userRole);
     await db.delete(userPermission);
+    await db.delete(userRole);
+    await db.delete(userPermission);
     await db.delete(rolePermissions);
+    await db.delete(role);
+    await db.delete(permission);
     await db.delete(role);
     await db.delete(permission);
   });
@@ -71,21 +76,25 @@ describe("Authorization system", () => {
   afterAll(async () => {
     await db.delete(userRole);
     await db.delete(userPermission);
+    await db.delete(userRole);
+    await db.delete(userPermission);
     await db.delete(rolePermissions);
+    await db.delete(role);
+    await db.delete(permission);
     await db.delete(role);
     await db.delete(permission);
   });
 
   // ─────────────────────────────────────────────
 
-  test("should create roles and permissions", async () => {
-    const roleResult = await createRole("admin", "Administrator");
-    expect(roleResult.success).toBe(true);
-    expect(roleResult.data).toBeDefined();
-    roleId = roleResult.data!;
+  test('should create roles and permissions', async () => {
+    const role = await createRole('admin', 'Administrator');
+    expect(role.success).toBe(true);
+    expect(role.data).toBeDefined();
+    roleId = role.data!;
 
-    const permSelf = await addPermission("submission:edit:self");
-    const permAllAll = await addPermission("submission:all:all");
+    const permSelf = await addPermission('submission:edit:self');
+    const permAllAll = await addPermission('submission:all:all');
     expect(permSelf.success).toBe(true);
     expect(permAllAll.success).toBe(true);
 
@@ -93,7 +102,7 @@ describe("Authorization system", () => {
     permIdAllAll = permAllAll.data!;
   });
 
-  test("should assign a role to user", async () => {
+  test('should assign a role to user', async () => {
     const result = await assignRoleToUser(userId, roleId);
     expect(result.success).toBe(true);
 
@@ -104,7 +113,7 @@ describe("Authorization system", () => {
     expect(assigned.length).toBe(1);
   });
 
-  test("should grant permission to role", async () => {
+  test('should grant permission to role', async () => {
     const result = await grantPermissionToRole(roleId, permIdEditSelf);
     expect(result.success).toBe(true);
 
@@ -115,7 +124,7 @@ describe("Authorization system", () => {
     expect(assigned.length).toBe(1);
   });
 
-  test("should grant and revoke direct user permission", async () => {
+  test('should grant and revoke direct user permission', async () => {
     const grant = await grantPermissionToUser(userId, permIdAllAll);
     expect(grant.success).toBe(true);
 
@@ -139,55 +148,56 @@ describe("Authorization system", () => {
   // Runtime permission resolution
   // ─────────────────────────────────────────────
 
-  test("should resolve permissions through roles", async () => {
+  test('should resolve permissions through roles', async () => {
     const res = await getUserPermissions(userId);
     expect(res.success).toBe(true);
-    expect(res.data!.has("submission:edit:self")).toBe(true);
+    expect(res.data!.has('submission:edit:self')).toBe(true);
   });
 
-  test("hasPermission should match exact and hierarchical permissions", async () => {
+  test('hasPermission should match exact and hierarchical permissions', async () => {
     // Exact match
-    const exact = await hasPermission(userId, "submission:edit:self");
+    const exact = await hasPermission(userId, 'submission:edit:self');
     expect(exact).toBe(true);
 
     // Add a broader permission
     await grantPermissionToUser(userId, permIdAllAll);
 
     // hierarchical: entity:all:all covers everything
-    const broad = await hasPermission(userId, "submission:delete:self");
+    const broad = await hasPermission(userId, 'submission:delete:self');
     expect(broad).toBe(true);
   });
 
-  test("requirePermission should redirect when unauthorized", async () => {
+  test('requirePermission should redirect when unauthorized', async () => {
     // Remove all permissions
+    await db.delete(userPermission);
     await db.delete(userPermission);
     await db.delete(rolePermissions);
 
     let thrown: string | null = null;
     try {
-      await requirePermission(userId, "submission:edit:self");
+      await requirePermission(userId, 'submission:edit:self');
     } catch (e) {
       thrown = (e as Error).message;
     }
-    expect(thrown).toContain("/forbidden");
-    expect(thrown).toContain("reason=");
+    expect(thrown).toContain('/forbidden');
+    expect(thrown).toContain('reason=');
   });
 
-  test("requirePermission should allow authorized user", async () => {
+  test('requirePermission should allow authorized user', async () => {
     // Regrant broad permission
     await grantPermissionToUser(userId, permIdAllAll);
     let passed = false;
     try {
-      await requirePermission(userId, "submission:delete:all");
+      await requirePermission(userId, 'submission:delete:all');
       passed = true;
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (e) {
       passed = false;
     }
     expect(passed).toBe(true);
   });
 
-  test("revokePermissionFromRole removes role permission", async () => {
+  test('revokePermissionFromRole removes role permission', async () => {
     await revokePermissionFromRole(roleId, permIdEditSelf);
     const remaining = await db
       .select()
