@@ -21,10 +21,10 @@ import {
   timestamp,
   pgView,
   index,
-} from "drizzle-orm/pg-core";
-import { relations, sql } from "drizzle-orm";
+} from 'drizzle-orm/pg-core';
+import { relations, sql } from 'drizzle-orm';
 
-import { user } from "./auth-schema";
+import { user } from './auth-schema';
 import {
   genders,
   universities,
@@ -33,7 +33,7 @@ import {
   heardFromSources,
   interests,
   dietaryRestrictions,
-} from "./lookups";
+} from './lookups';
 
 /**
  * Participants table - stores hackathon participant information
@@ -46,68 +46,68 @@ import {
  * - idx_participants_created_at_desc: For displaying recent registrations
  */
 export const participants = pgTable(
-  "participants",
+  'participants',
   {
     /** Foreign key to auth user table, serves as primary key */
-    userId: uuid("user_id")
+    userId: uuid('user_id')
       .primaryKey()
-      .references(() => user.id, { onDelete: "cascade" }),
+      .references(() => user.id, { onDelete: 'cascade' }),
 
     /** Participant's full legal name */
-    fullName: varchar("full_name", { length: 255 }).notNull(),
+    fullName: varchar('full_name', { length: 255 }).notNull(),
 
     /** Whether participant has attended this hackathon before */
-    attendedBefore: boolean("attended_before").notNull().default(false),
+    attendedBefore: boolean('attended_before').notNull().default(false),
 
     /** Foreign key to gender lookup table */
-    genderId: integer("gender_id")
+    genderId: integer('gender_id')
       .notNull()
       .references(() => genders.id),
 
     /** Foreign key to university lookup table */
-    universityId: integer("university_id")
+    universityId: integer('university_id')
       .notNull()
       .references(() => universities.id),
 
     /** Foreign key to major/field of study lookup table */
-    majorId: integer("major_id")
+    majorId: integer('major_id')
       .notNull()
       .references(() => majors.id),
 
     /** Foreign key to year of study lookup table */
-    yearOfStudyId: integer("year_of_study_id")
+    yearOfStudyId: integer('year_of_study_id')
       .notNull()
       .references(() => yearsOfStudy.id),
 
     /** Accessibility or special accommodation requests (free text) */
-    accommodations: text("accommodations"),
+    accommodations: text('accommodations'),
 
     /** Whether participant needs parking at the venue */
-    needsParking: boolean("needs_parking").notNull().default(false),
+    needsParking: boolean('needs_parking').notNull().default(false),
 
     /** Foreign key to heard-from source lookup table (for marketing attribution) */
-    heardFromId: integer("heard_from_id")
+    heardFromId: integer('heard_from_id')
       .notNull()
       .references(() => heardFromSources.id),
 
     /** Consent to use participant information for event purposes */
-    consentInfoUse: boolean("consent_info_use").notNull(),
+    consentInfoUse: boolean('consent_info_use').notNull(),
 
     /** Consent to share information with event sponsors */
-    consentSponsorShare: boolean("consent_sponsor_share").notNull(),
+    consentSponsorShare: boolean('consent_sponsor_share').notNull(),
 
     /** Consent to use photos/videos featuring the participant */
-    consentMediaUse: boolean("consent_media_use").notNull(),
+    consentMediaUse: boolean('consent_media_use').notNull(),
 
     /** Timestamp when registration was created */
-    createdAt: timestamp("created_at").defaultNow().notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
   },
   (table) => ({
-    idxUserCreatedAt: index("idx_participants_user_id_created_at").on(
+    idxUserCreatedAt: index('idx_participants_user_id_created_at').on(
       table.userId,
       table.createdAt.desc(),
     ),
-    idxCreatedAtDesc: index("idx_participants_created_at_desc").on(
+    idxCreatedAtDesc: index('idx_participants_created_at_desc').on(
       table.createdAt.desc(),
     ),
   }),
@@ -122,20 +122,20 @@ export const participants = pgTable(
  * Index: idx_participant_interests_user_interest for efficient lookups
  */
 export const participantInterests = pgTable(
-  "participant_interests",
+  'participant_interests',
   {
     /** Foreign key to participant (cascading delete) */
-    userId: uuid("user_id")
+    userId: uuid('user_id')
       .notNull()
-      .references(() => participants.userId, { onDelete: "cascade" }),
+      .references(() => participants.userId, { onDelete: 'cascade' }),
 
     /** Foreign key to interests lookup table */
-    interestId: integer("interest_id")
+    interestId: integer('interest_id')
       .notNull()
       .references(() => interests.id),
   },
   (table) => ({
-    idxUserInterest: index("idx_participant_interests_user_interest").on(
+    idxUserInterest: index('idx_participant_interests_user_interest').on(
       table.userId,
       table.interestId,
     ),
@@ -151,20 +151,20 @@ export const participantInterests = pgTable(
  * Index: idx_participant_dietary_user_restriction for efficient lookups
  */
 export const participantDietaryRestrictions = pgTable(
-  "participant_dietary_restrictions",
+  'participant_dietary_restrictions',
   {
     /** Foreign key to participant (cascading delete) */
-    userId: uuid("user_id")
+    userId: uuid('user_id')
       .notNull()
-      .references(() => participants.userId, { onDelete: "cascade" }),
+      .references(() => participants.userId, { onDelete: 'cascade' }),
 
     /** Foreign key to dietary restrictions lookup table */
-    restrictionId: integer("restriction_id")
+    restrictionId: integer('restriction_id')
       .notNull()
       .references(() => dietaryRestrictions.id),
   },
   (table) => ({
-    idxUserRestriction: index("idx_participant_dietary_user_restriction").on(
+    idxUserRestriction: index('idx_participant_dietary_user_restriction').on(
       table.userId,
       table.restrictionId,
     ),
@@ -218,21 +218,21 @@ export const participantsRelations = relations(
  *
  * Returns human-readable labels instead of IDs, and aggregates related data.
  */
-export const participantView = pgView("participant_view", {
-  userId: uuid("user_id").notNull(),
+export const participantView = pgView('participant_view', {
+  userId: uuid('user_id').notNull(),
   email: text().notNull(),
-  fullName: varchar("full_name", { length: 255 }).notNull(),
+  fullName: varchar('full_name', { length: 255 }).notNull(),
   accommodations: text(),
   gender: varchar({ length: 100 }).notNull(),
   university: varchar({ length: 200 }).notNull(),
   major: varchar({ length: 150 }).notNull(),
-  yearOfStudy: varchar("year_of_study", { length: 10 }).notNull(),
-  heardFrom: varchar("heard_from", { length: 150 }).notNull(),
-  needsParking: boolean("needs_parking").notNull(),
-  attendedBefore: boolean("attended_before").notNull(),
-  createdAt: timestamp("created_at", { mode: "string" }).notNull(),
+  yearOfStudy: varchar('year_of_study', { length: 10 }).notNull(),
+  heardFrom: varchar('heard_from', { length: 150 }).notNull(),
+  needsParking: boolean('needs_parking').notNull(),
+  attendedBefore: boolean('attended_before').notNull(),
+  createdAt: timestamp('created_at', { mode: 'string' }).notNull(),
   interests: varchar(),
-  dietaryRestrictions: varchar("dietary_restrictions"),
+  dietaryRestrictions: varchar('dietary_restrictions'),
 }).as(
   sql`
 WITH
@@ -289,23 +289,23 @@ LEFT JOIN heard_from_sources h ON h.id = p.heard_from_id
  * Used by getOwnRegistration() to pre-fill the registration form when
  * a participant edits their information.
  */
-export const participantFormView = pgView("participant_form_view", {
-  userId: uuid("user_id").notNull(),
-  fullName: varchar("full_name", { length: 255 }).notNull(),
-  attendedBefore: boolean("attended_before").notNull(),
-  genderId: integer("gender_id").notNull(),
-  universityId: integer("university_id").notNull(),
-  majorId: integer("major_id").notNull(),
-  yearOfStudyId: integer("year_of_study_id").notNull(),
-  heardFromId: integer("heard_from_id").notNull(),
-  needsParking: boolean("needs_parking").notNull(),
+export const participantFormView = pgView('participant_form_view', {
+  userId: uuid('user_id').notNull(),
+  fullName: varchar('full_name', { length: 255 }).notNull(),
+  attendedBefore: boolean('attended_before').notNull(),
+  genderId: integer('gender_id').notNull(),
+  universityId: integer('university_id').notNull(),
+  majorId: integer('major_id').notNull(),
+  yearOfStudyId: integer('year_of_study_id').notNull(),
+  heardFromId: integer('heard_from_id').notNull(),
+  needsParking: boolean('needs_parking').notNull(),
   accommodations: text().notNull(),
-  consentInfoUse: boolean("consent_info_use").notNull(),
-  consentSponsorShare: boolean("consent_sponsor_share").notNull(),
-  consentMediaUse: boolean("consent_media_use").notNull(),
-  interests: integer("interests").array().notNull(),
-  dietaryRestrictions: integer("dietary_restrictions").array().notNull(),
-  createdAt: timestamp("created_at", { mode: "string" }).notNull(),
+  consentInfoUse: boolean('consent_info_use').notNull(),
+  consentSponsorShare: boolean('consent_sponsor_share').notNull(),
+  consentMediaUse: boolean('consent_media_use').notNull(),
+  interests: integer('interests').array().notNull(),
+  dietaryRestrictions: integer('dietary_restrictions').array().notNull(),
+  createdAt: timestamp('created_at', { mode: 'string' }).notNull(),
 }).as(
   sql`
 WITH

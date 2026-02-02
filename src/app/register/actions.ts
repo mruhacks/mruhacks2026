@@ -6,7 +6,7 @@
  * and enforce authentication requirements.
  */
 
-"use server";
+'use server';
 
 import {
   participantDietaryRestrictions,
@@ -20,16 +20,16 @@ import {
   dietaryRestrictions,
   heardFromSources,
   participantFormView,
-} from "@/db/schema";
-import { getUser } from "@/utils/auth";
-import { ActionResult, fail, ok } from "@/utils/action-result";
-import { db } from "@/utils/db";
+} from '@/db/schema';
+import { getUser } from '@/utils/auth';
+import { ActionResult, fail, ok } from '@/utils/action-result';
+import { db } from '@/utils/db';
 import {
   formSchema,
   type RegistrationFormValues,
-} from "@/components/registration-form/schema";
-import { cacheLife } from "next/cache";
-import { eq } from "drizzle-orm";
+} from '@/components/registration-form/schema';
+import { cacheLife } from 'next/cache';
+import { eq } from 'drizzle-orm';
 
 /**
  * Registers a new participant for the hackathon
@@ -57,7 +57,7 @@ export async function registerParticipant(
   formData: RegistrationFormValues,
 ): Promise<ActionResult> {
   const user = await getUser();
-  if (!user) return fail("User not authenticated");
+  if (!user) return fail('User not authenticated');
 
   const parsed = formSchema.safeParse(formData);
   if (!parsed.success) {
@@ -131,10 +131,10 @@ export async function registerParticipant(
       }
     });
 
-    return ok("Participant registration upserted successfully.");
+    return ok('Participant registration upserted successfully.');
   } catch (error) {
-    console.error("Registration upsert error:", error);
-    return fail("Failed to upsert participant registration.");
+    console.error('Registration upsert error:', error);
+    return fail('Failed to upsert participant registration.');
   }
 }
 
@@ -152,8 +152,8 @@ export async function registerParticipant(
  * ```
  */
 export async function getOptions() {
-  "use cache";
-  cacheLife("hours");
+  'use cache';
+  cacheLife('hours');
 
   const tables = {
     genders,
@@ -183,7 +183,7 @@ export async function getOptions() {
 export async function getPreviousFormSubmission() {
   const user = await getUser();
 
-  if (!user) return fail("Could not get user");
+  if (!user) return fail('Could not get user');
 
   const data = await db
     .select()
@@ -191,7 +191,7 @@ export async function getPreviousFormSubmission() {
     .where(eq(participantFormView.userId, user.id))
     .limit(1);
 
-  if (data.length == 0) return fail("No existing record found");
+  if (data.length == 0) return fail('No existing record found');
 
   return ok(data[0]);
 }

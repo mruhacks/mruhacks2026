@@ -1,28 +1,28 @@
-"use server";
+'use server';
 
-import { db } from "@/utils/db";
-import { eq } from "drizzle-orm";
+import { db } from '@/utils/db';
+import { eq } from 'drizzle-orm';
 import {
   role,
   permission,
   rolePermissions,
   userRole,
   userPermission,
-} from "@/db/schema";
-import { ok, fail, type ActionResult } from "@/utils/action-result";
-import { redirect } from "next/navigation";
+} from '@/db/schema';
+import { ok, fail, type ActionResult } from '@/utils/action-result';
+import { redirect } from 'next/navigation';
 
-type Scope = "all" | "any" | "self" | { id: string };
+type Scope = 'all' | 'any' | 'self' | { id: string };
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-type Entity = "user" | "registration" | "team" | "submission";
+type Entity = 'user' | 'registration' | 'team' | 'submission';
 
 // valid actions per entity
 interface EntityActions {
-  user: "create" | "read" | "update" | "delete";
-  registration: "approve" | "reject" | "read";
-  team: "create" | "join" | "manage";
-  submission: "submit" | "review" | "read";
+  user: 'create' | 'read' | 'update' | 'delete';
+  registration: 'approve' | 'reject' | 'read';
+  team: 'create' | 'join' | 'manage';
+  submission: 'submit' | 'review' | 'read';
 }
 
 // optional: more specific UUID type for readability
@@ -57,8 +57,8 @@ function permissionMatches(
   }
 
   // Parse permissions: "entity:action:scope"
-  const [userEntity, userAction, userScope] = userPermission.split(":");
-  const [reqEntity, reqAction, reqScope] = requiredPermission.split(":");
+  const [userEntity, userAction, userScope] = userPermission.split(':');
+  const [reqEntity] = requiredPermission.split(':');
 
   // Must be same entity
   if (userEntity !== reqEntity) {
@@ -66,7 +66,7 @@ function permissionMatches(
   }
 
   // If user has "entity:all:all", they have all permissions for that entity
-  if (userAction === "all" && userScope === "all") {
+  if (userAction === 'all' && userScope === 'all') {
     return true;
   }
 
@@ -156,6 +156,8 @@ export async function requirePermission(
 ): Promise<void> {
   const hasPerm = await hasPermission(userId, permissionString);
   if (!hasPerm) {
-    redirect(`/forbidden?reason=missing_permission&permission=${permissionString}`);
+    redirect(
+      `/forbidden?reason=missing_permission&permission=${permissionString}`,
+    );
   }
 }

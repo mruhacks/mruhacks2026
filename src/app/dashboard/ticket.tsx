@@ -1,7 +1,7 @@
-import { participantView } from "@/db/registrations";
-import { getUser } from "@/utils/auth";
-import db from "@/utils/db";
-import { eq } from "drizzle-orm";
+import { participantView } from '@/db/registrations';
+import { getUser } from '@/utils/auth';
+import db from '@/utils/db';
+import { eq } from 'drizzle-orm';
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function getUserDetails() {
