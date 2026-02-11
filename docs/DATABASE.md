@@ -116,6 +116,209 @@ Our database schema is split across multiple files to be more manageable.
 - `src/db/authz.ts`: Defines authorization (what you can do) related tables.
 - `src/db/enums.ts`: Defines valid values for the tables defined in `lookups.ts`, it then seeds those values into the tables.
 
+## Schema diagram
+
+The following diagram shows all tables and their relationships. Auth tables live in `public`; authorization tables live in the `authz` schema.
+
+```mermaid
+erDiagram
+    user ||--o{ session : "has"
+    user ||--o{ account : "has"
+    user ||--o| user_profiles : "has"
+    user ||--o{ event_applications : "submits"
+    user ||--o{ event_attendees : "registers"
+    user ||--o{ user_interests : "has"
+    user ||--o{ user_dietary_restrictions : "has"
+    user ||--o{ group_members : "in"
+    user ||--o{ authz_user_role : "has"
+    user ||--o{ authz_user_permission : "has"
+
+    events ||--o{ events : "parent_of"
+    events ||--o{ event_applications : "receives"
+    events ||--o{ event_attendees : "hosts"
+    events ||--o{ groups : "hosts"
+    events ||--o{ submissions : "receives"
+
+    groups ||--o{ group_members : "contains"
+    groups ||--o{ submissions : "makes"
+
+    genders ||--o{ user_profiles : "referenced_by"
+    universities ||--o{ user_profiles : "referenced_by"
+    majors ||--o{ user_profiles : "referenced_by"
+    years_of_study ||--o{ user_profiles : "referenced_by"
+    interests ||--o{ user_interests : "referenced_by"
+    dietary_restrictions ||--o{ user_dietary_restrictions : "referenced_by"
+
+    authz_role ||--o{ authz_user_role : "assigned_to"
+    authz_permission ||--o{ authz_user_permission : "assigned_to"
+    authz_role ||--o{ authz_role_permission : "has"
+    authz_permission ||--o{ authz_role_permission : "assigned_to"
+
+    user {
+        uuid id PK
+        text name
+        text email
+        boolean email_verified
+        text image
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    session {
+        uuid id PK
+        text token UK
+        timestamp expires_at
+        uuid user_id FK
+    }
+
+    account {
+        uuid id PK
+        uuid user_id FK
+        text provider_id
+    }
+
+    verification {
+        uuid id PK
+        text identifier
+        text value
+        timestamp expires_at
+    }
+
+    events {
+        uuid id PK
+        uuid parent_event_id FK "nullable"
+        text name
+        boolean has_application
+        jsonb application_questions
+        timestamp starts_at
+        timestamp ends_at
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    user_profiles {
+        uuid user_id PK_FK
+        varchar full_name
+        int gender_id FK
+        int university_id FK
+        int major_id FK
+        int year_of_study_id FK
+    }
+
+    event_applications {
+        uuid id PK
+        uuid event_id FK
+        uuid user_id FK
+        jsonb responses
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    user_interests {
+        uuid user_id FK
+        int interest_id FK
+    }
+
+    user_dietary_restrictions {
+        uuid user_id FK
+        int restriction_id FK
+    }
+
+    event_attendees {
+        uuid event_id PK_FK
+        uuid user_id PK_FK
+        timestamp registered_at
+    }
+
+    groups {
+        uuid id PK
+        uuid event_id FK
+        text name
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    group_members {
+        uuid group_id PK_FK
+        uuid user_id PK_FK
+    }
+
+    submissions {
+        uuid id PK
+        uuid group_id FK
+        uuid event_id FK
+        timestamp submitted_at
+    }
+
+    genders {
+        serial id PK
+        varchar label
+    }
+
+    universities {
+        serial id PK
+        varchar label
+    }
+
+    majors {
+        serial id PK
+        varchar label
+    }
+
+    years_of_study {
+        serial id PK
+        varchar label
+    }
+
+    interests {
+        serial id PK
+        varchar label
+    }
+
+    dietary_restrictions {
+        serial id PK
+        varchar label
+    }
+
+    heard_from_sources {
+        serial id PK
+        varchar label
+    }
+
+    authz_permission {
+        serial id PK
+        text slug
+        text description
+    }
+
+    authz_role {
+        serial id PK
+        text slug
+        text description
+    }
+
+    authz_user_role {
+        uuid user_id PK_FK
+        int role_id PK_FK
+    }
+
+    authz_user_permission {
+        uuid user_id PK_FK
+        int permission_id PK_FK
+    }
+
+    authz_role_permission {
+        int role_id PK_FK
+        int permission_id PK_FK
+    }
+```
+
+**Notes:**
+
+- The diagram shows **base tables** only. Entities prefixed with `authz_` (e.g. `authz_permission`, `authz_role`, `authz_user_role`) are in the `authz` schema; all others are in `public`.
+- The database also has two **views** (not shown): `application_view` and `application_form_view`. They are denormalized views over `event_applications`, `user_profiles`, and lookup tables. See [ARCHITECTURE.md](./ARCHITECTURE.md) under "Database Views" for details.
+- The `heard_from_sources` lookup table has no foreign keys from other tables in the current schema.
+
 ## Drizzle Studio
 
 Drizzle Studio gives a visual interface for:
