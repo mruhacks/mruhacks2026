@@ -8,10 +8,10 @@
  * Protected routes are defined in the config.matcher below.
  */
 
-import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
-import { headers } from "next/headers";
-import { auth } from "./utils/auth";
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+import { headers } from 'next/headers';
+import { auth } from './utils/auth';
 
 /**
  * Middleware function that protects routes from unauthenticated access
@@ -26,7 +26,7 @@ export async function proxy(request: NextRequest) {
 
   // Redirect to forbidden page if user is not authenticated
   if (!session) {
-    return NextResponse.redirect(new URL("/forbidden", request.url));
+    return NextResponse.redirect(new URL('/forbidden', request.url));
   }
 
   return NextResponse.next();
@@ -40,5 +40,5 @@ export async function proxy(request: NextRequest) {
  */
 export const config = {
   // Apply middleware to dashboard routes
-  matcher: ["/dashboard"],
+  matcher: ['/dashboard'],
 };

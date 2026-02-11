@@ -1,14 +1,14 @@
-"use client";
+'use client';
 
-import * as React from "react";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { Controller, useForm } from "react-hook-form";
-import { toast } from "sonner";
-import Link from "next/link";
-import { Loader2 } from "lucide-react";
-import { useRouter } from "next/navigation";
+import * as React from 'react';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { Controller, useForm } from 'react-hook-form';
+import { toast } from 'sonner';
+import Link from 'next/link';
+import { Loader2 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 
-import { Button } from "@/components/ui/button";
+import { Button } from '@/components/ui/button';
 import {
   Card,
   CardContent,
@@ -16,20 +16,20 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
+} from '@/components/ui/card';
 import {
   Field,
   FieldDescription,
   FieldError,
   FieldGroup,
   FieldLabel,
-} from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import { authClient } from "@/utils/auth-client";
+} from '@/components/ui/field';
+import { Input } from '@/components/ui/input';
+import { authClient } from '@/utils/auth-client';
 import {
   signUpFormSchema,
   type SignUpFormValues,
-} from "@/components/signup/schema";
+} from '@/components/signup/schema';
 
 export default function SignUpForm() {
   const [loading, setLoading] = React.useState(false);
@@ -38,9 +38,9 @@ export default function SignUpForm() {
   const form = useForm<SignUpFormValues>({
     resolver: zodResolver(signUpFormSchema),
     defaultValues: {
-      name: "",
-      email: "",
-      password: "",
+      name: '',
+      email: '',
+      password: '',
     },
   });
 
@@ -51,23 +51,23 @@ export default function SignUpForm() {
       },
       onSuccess: () => {
         setLoading(false);
-        toast.success("Account created successfully", {
-          description: "Check your inbox to verify your email.",
+        toast.success('Account created successfully', {
+          description: 'Check your inbox to verify your email.',
         });
-        router.push("/dashboard/profile");
+        router.push('/dashboard/profile');
       },
       onError: (ctx) => {
         setLoading(false);
-        toast.error("Sign-up failed", {
+        toast.error('Sign-up failed', {
           description:
-            ctx?.error?.message ?? "An unexpected error occurred. Try again.",
+            ctx?.error?.message ?? 'An unexpected error occurred. Try again.',
         });
       },
     });
   }
 
   return (
-    <Card className="w-full sm:max-w-md">
+    <Card className='w-full sm:max-w-md'>
       <CardHeader>
         <CardTitle>Create Account</CardTitle>
         <CardDescription>
@@ -76,20 +76,20 @@ export default function SignUpForm() {
       </CardHeader>
 
       <CardContent>
-        <form id="form-signup" onSubmit={form.handleSubmit(onSubmit)}>
+        <form id='form-signup' onSubmit={form.handleSubmit(onSubmit)}>
           <FieldGroup>
             {/* Name */}
             <Controller
-              name="name"
+              name='name'
               control={form.control}
               render={({ field, fieldState }) => (
                 <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel htmlFor="form-signup-name">Full Name</FieldLabel>
+                  <FieldLabel htmlFor='form-signup-name'>Full Name</FieldLabel>
                   <Input
                     {...field}
-                    id="form-signup-name"
-                    placeholder="John Doe"
-                    autoComplete="name"
+                    id='form-signup-name'
+                    placeholder='John Doe'
+                    autoComplete='name'
                     aria-invalid={fieldState.invalid}
                     disabled={loading}
                   />
@@ -105,17 +105,17 @@ export default function SignUpForm() {
 
             {/* Email */}
             <Controller
-              name="email"
+              name='email'
               control={form.control}
               render={({ field, fieldState }) => (
                 <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel htmlFor="form-signup-email">Email</FieldLabel>
+                  <FieldLabel htmlFor='form-signup-email'>Email</FieldLabel>
                   <Input
                     {...field}
-                    id="form-signup-email"
-                    type="email"
-                    placeholder="you@example.com"
-                    autoComplete="email"
+                    id='form-signup-email'
+                    type='email'
+                    placeholder='you@example.com'
+                    autoComplete='email'
                     aria-invalid={fieldState.invalid}
                     disabled={loading}
                   />
@@ -131,19 +131,19 @@ export default function SignUpForm() {
 
             {/* Password */}
             <Controller
-              name="password"
+              name='password'
               control={form.control}
               render={({ field, fieldState }) => (
                 <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel htmlFor="form-signup-password">
+                  <FieldLabel htmlFor='form-signup-password'>
                     Password
                   </FieldLabel>
                   <Input
                     {...field}
-                    id="form-signup-password"
-                    type="password"
-                    placeholder="••••••••"
-                    autoComplete="new-password"
+                    id='form-signup-password'
+                    type='password'
+                    placeholder='••••••••'
+                    autoComplete='new-password'
                     aria-invalid={fieldState.invalid}
                     disabled={loading}
                   />
@@ -160,31 +160,31 @@ export default function SignUpForm() {
         </form>
       </CardContent>
 
-      <CardFooter className="flex-col items-start">
-        <Field orientation="horizontal">
+      <CardFooter className='flex-col items-start'>
+        <Field orientation='horizontal'>
           <Button
-            type="button"
-            variant="outline"
+            type='button'
+            variant='outline'
             onClick={() => form.reset()}
             disabled={loading}
           >
             Reset
           </Button>
-          <Button type="submit" form="form-signup" disabled={loading}>
+          <Button type='submit' form='form-signup' disabled={loading}>
             {loading ? (
               <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <Loader2 className='mr-2 size-4 animate-spin' />
                 Creating Account...
               </>
             ) : (
-              "Sign Up"
+              'Sign Up'
             )}
           </Button>
         </Field>
 
-        <div className="text-sm mt-4">
+        <div className='mt-4 text-sm'>
           <span>Already have an account?</span>
-          <Link className="ml-1 font-medium hover:underline" href="/signin">
+          <Link className='ml-1 font-medium hover:underline' href='/signin'>
             Sign In
           </Link>
         </div>

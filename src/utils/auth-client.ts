@@ -16,7 +16,7 @@
  * ```
  */
 
-import { createAuthClient } from "better-auth/react";
+import { createAuthClient } from 'better-auth/react';
 
 /**
  * Better Auth client instance for client-side authentication

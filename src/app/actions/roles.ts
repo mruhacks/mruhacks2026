@@ -1,15 +1,15 @@
-"use server";
+'use server';
 
-import { db } from "@/utils/db";
-import { eq, and } from "drizzle-orm";
+import { db } from '@/utils/db';
+import { eq, and } from 'drizzle-orm';
 import {
   role,
   permission,
   rolePermissions,
   userRole,
   userPermission,
-} from "@/db/schema";
-import { ok, fail, type ActionResult } from "@/utils/action-result";
+} from '@/db/schema';
+import { ok, fail, type ActionResult } from '@/utils/action-result';
 
 /**
  * Canonical database identifier types.

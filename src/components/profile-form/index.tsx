@@ -1,45 +1,45 @@
-"use client";
+'use client';
 
-import * as React from "react";
-import { Controller, useForm, type Resolver } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
-import type { SingleValue, MultiValue } from "react-select";
+import * as React from 'react';
+import { Controller, useForm, type Resolver } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { toast } from 'sonner';
+import { Loader2 } from 'lucide-react';
+import type { SingleValue, MultiValue } from 'react-select';
 
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Field,
   FieldGroup,
   FieldLabel,
   FieldError,
-} from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Select } from "@/components/select";
-import { type ActionResult } from "@/utils/action-result";
+} from '@/components/ui/field';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Select } from '@/components/select';
+import { type ActionResult } from '@/utils/action-result';
 
 import {
   profileFormSchema,
   interestsSchema,
   personalSchema,
   type ProfileFormValues,
-} from "@/components/profile-form/schema";
-import { type ApplicationFormOptions } from "@/components/application-form/schema";
-import { useRouter } from "next/navigation";
+} from '@/components/profile-form/schema';
+import { type ApplicationFormOptions } from '@/components/application-form/schema';
+import { useRouter } from 'next/navigation';
 
 const tabLabels: Record<string, string> = {
-  personal: "Personal Details",
-  interests: "Interests & Preferences",
+  personal: 'Personal Details',
+  interests: 'Interests & Preferences',
 };
 
 const getSingleValue = (opt: SingleValue<{ value: number; label: string }>) =>
-  opt?.value ?? "";
+  opt?.value ?? '';
 const getMultiValues = (opts: MultiValue<{ value: number; label: string }>) =>
   opts.map((o) => o.value);
 
 function RequiredAsterisk(): React.JSX.Element {
-  return <span className="text-destructive ml-0.5">*</span>;
+  return <span className='text-destructive ml-0.5'>*</span>;
 }
 
 type ProfileFormProps = {
@@ -51,12 +51,12 @@ type ProfileFormProps = {
   errorMessage?: string;
 };
 
-const DEFAULT_SUBMIT_LABEL = "Save Changes";
-const DEFAULT_SUCCESS_MESSAGE = "Profile saved successfully.";
-const DEFAULT_ERROR_MESSAGE = "Failed to save profile.";
+const DEFAULT_SUBMIT_LABEL = 'Save Changes';
+const DEFAULT_SUCCESS_MESSAGE = 'Profile saved successfully.';
+const DEFAULT_ERROR_MESSAGE = 'Failed to save profile.';
 
 function isActionResult(result: ActionResult | void): result is ActionResult {
-  return typeof result === "object" && result !== null && "success" in result;
+  return typeof result === 'object' && result !== null && 'success' in result;
 }
 
 export default function ProfileForm({
@@ -77,11 +77,11 @@ export default function ProfileForm({
     reset,
   } = useForm<ProfileFormValues>({
     resolver: zodResolver(profileFormSchema) as Resolver<ProfileFormValues>,
-    mode: "onChange",
-    reValidateMode: "onChange",
-    criteriaMode: "firstError",
+    mode: 'onChange',
+    reValidateMode: 'onChange',
+    criteriaMode: 'firstError',
     defaultValues: {
-      fullName: initial?.fullName ?? "",
+      fullName: initial?.fullName ?? '',
       genderId: initial?.genderId,
       universityId: initial?.universityId,
       majorId: initial?.majorId,
@@ -98,7 +98,7 @@ export default function ProfileForm({
     }));
   }, [initial, reset]);
 
-  const [tab, setTab] = React.useState<"personal" | "interests">("personal");
+  const [tab, setTab] = React.useState<'personal' | 'interests'>('personal');
 
   const tabSchemas: Record<string, { shape: Record<string, unknown> }> = {
     personal: personalSchema,
@@ -112,14 +112,14 @@ export default function ProfileForm({
 
         if (!result || (isActionResult(result) && result.success)) {
           toast.success(successMessage);
-          router.push("/dashboard");
+          router.push('/dashboard');
         }
 
         if (isActionResult(result) && !result.success) {
           toast.error(result.error ?? errorMessage);
         }
       } catch (err) {
-        console.error("Profile submission error:", err);
+        console.error('Profile submission error:', err);
         toast.error(errorMessage);
       }
     },
@@ -137,7 +137,7 @@ export default function ProfileForm({
       console.error(e);
     }
 
-    setTab("interests");
+    setTab('interests');
 
     requestAnimationFrame(() => {
       const nextPanel = document.querySelector(
@@ -152,7 +152,7 @@ export default function ProfileForm({
     });
   };
 
-  const tabHasError = (t: "personal" | "interests") =>
+  const tabHasError = (t: 'personal' | 'interests') =>
     Object.keys(tabSchemas[t].shape).some(
       (key) => errors[key as keyof ProfileFormValues],
     );
@@ -161,39 +161,39 @@ export default function ProfileForm({
     <form onSubmit={handleSubmit(submitHandler)}>
       <Tabs
         value={tab}
-        onValueChange={(v) => setTab(v as "personal" | "interests")}
-        className="w-full"
+        onValueChange={(v) => setTab(v as 'personal' | 'interests')}
+        className='w-full'
       >
-        <TabsList className="grid mb-6 w-full grid-cols-2">
+        <TabsList className='mb-6 grid w-full grid-cols-2'>
           <TabsTrigger
-            value="personal"
+            value='personal'
             className={
-              tabHasError("personal") ? " text-destructive underline" : ""
+              tabHasError('personal') ? 'text-destructive underline' : ''
             }
           >
             {tabLabels.personal}
           </TabsTrigger>
           <TabsTrigger
-            value="interests"
+            value='interests'
             className={
-              tabHasError("interests") ? " text-destructive underline" : ""
+              tabHasError('interests') ? 'text-destructive underline' : ''
             }
           >
             {tabLabels.interests}
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="personal">
+        <TabsContent value='personal'>
           <FieldGroup>
             <Field>
-              <FieldLabel htmlFor="fullName">
+              <FieldLabel htmlFor='fullName'>
                 Full Name
                 <RequiredAsterisk />
               </FieldLabel>
               <Input
-                {...register("fullName")}
-                id="fullName"
-                placeholder="John Doe"
+                {...register('fullName')}
+                id='fullName'
+                placeholder='John Doe'
               />
               {touchedFields.fullName && errors.fullName && (
                 <FieldError errors={[errors.fullName]} />
@@ -201,7 +201,7 @@ export default function ProfileForm({
             </Field>
 
             <Controller
-              name="genderId"
+              name='genderId'
               control={control}
               render={({ field, fieldState }) => (
                 <Field data-invalid={fieldState.invalid}>
@@ -210,8 +210,8 @@ export default function ProfileForm({
                     <RequiredAsterisk />
                   </FieldLabel>
                   <Select
-                    id="genderId"
-                    instanceId="genderId"
+                    id='genderId'
+                    instanceId='genderId'
                     options={options.genders}
                     value={
                       options.genders.find((o) => o.value === field.value) ??
@@ -227,7 +227,7 @@ export default function ProfileForm({
             />
 
             <Controller
-              name="universityId"
+              name='universityId'
               control={control}
               render={({ field, fieldState }) => (
                 <Field data-invalid={fieldState.invalid}>
@@ -236,8 +236,8 @@ export default function ProfileForm({
                     <RequiredAsterisk />
                   </FieldLabel>
                   <Select
-                    id="universityId"
-                    instanceId="universityId"
+                    id='universityId'
+                    instanceId='universityId'
                     options={options.universities}
                     value={
                       options.universities.find(
@@ -254,7 +254,7 @@ export default function ProfileForm({
             />
 
             <Controller
-              name="majorId"
+              name='majorId'
               control={control}
               render={({ field, fieldState }) => (
                 <Field data-invalid={fieldState.invalid}>
@@ -263,8 +263,8 @@ export default function ProfileForm({
                     <RequiredAsterisk />
                   </FieldLabel>
                   <Select
-                    id="majorId"
-                    instanceId="majorId"
+                    id='majorId'
+                    instanceId='majorId'
                     options={options.majors}
                     value={
                       options.majors.find((o) => o.value === field.value) ??
@@ -280,7 +280,7 @@ export default function ProfileForm({
             />
 
             <Controller
-              name="yearOfStudyId"
+              name='yearOfStudyId'
               control={control}
               render={({ field, fieldState }) => (
                 <Field data-invalid={fieldState.invalid}>
@@ -289,8 +289,8 @@ export default function ProfileForm({
                     <RequiredAsterisk />
                   </FieldLabel>
                   <Select
-                    id="yearOfStudyId"
-                    instanceId="yearOfStudyId"
+                    id='yearOfStudyId'
+                    instanceId='yearOfStudyId'
                     options={options.years}
                     value={
                       options.years.find((o) => o.value === field.value) ?? null
@@ -305,17 +305,17 @@ export default function ProfileForm({
             />
           </FieldGroup>
 
-          <div className="mt-6 flex justify-end">
-            <Button type="button" onClick={handleNext}>
+          <div className='mt-6 flex justify-end'>
+            <Button type='button' onClick={handleNext}>
               Next
             </Button>
           </div>
         </TabsContent>
 
-        <TabsContent value="interests">
+        <TabsContent value='interests'>
           <FieldGroup>
             <Controller
-              name="interests"
+              name='interests'
               control={control}
               render={({ field, fieldState }) => (
                 <Field data-invalid={fieldState.invalid}>
@@ -324,8 +324,8 @@ export default function ProfileForm({
                     <RequiredAsterisk />
                   </FieldLabel>
                   <Select
-                    id="interests"
-                    instanceId="interests"
+                    id='interests'
+                    instanceId='interests'
                     isMulti
                     options={options.interests}
                     value={options.interests.filter((o) =>
@@ -341,14 +341,14 @@ export default function ProfileForm({
             />
 
             <Controller
-              name="dietaryRestrictions"
+              name='dietaryRestrictions'
               control={control}
               render={({ field }) => (
                 <Field>
                   <FieldLabel>Dietary Restrictions</FieldLabel>
                   <Select
-                    id="dietaryRestrictions"
-                    instanceId="dietaryRestrictions"
+                    id='dietaryRestrictions'
+                    instanceId='dietaryRestrictions'
                     isMulti
                     options={options.dietary}
                     value={options.dietary.filter((o) =>
@@ -361,11 +361,11 @@ export default function ProfileForm({
             />
           </FieldGroup>
 
-          <div className="mt-6 flex justify-end">
-            <Button type="submit" disabled={isSubmitting}>
+          <div className='mt-6 flex justify-end'>
+            <Button type='submit' disabled={isSubmitting}>
               {isSubmitting ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving…
+                  <Loader2 className='mr-2 size-4 animate-spin' /> Saving…
                 </>
               ) : (
                 submitLabel

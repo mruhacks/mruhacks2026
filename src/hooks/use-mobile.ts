@@ -1,14 +1,17 @@
 /**
  * Custom React hook for detecting mobile viewports
  *
+ *
  * This hook uses the matchMedia API to detect if the current viewport
  * is below the mobile breakpoint (768px). It updates reactively when
  * the viewport size changes.
+ *
  *
  * @example
  * ```tsx
  * function MyComponent() {
  *   const isMobile = useIsMobile();
+ *
  *
  *   return (
  *     <div>
@@ -26,9 +29,11 @@ import * as React from "react";
  * Matches common responsive design breakpoints (tablet/small desktop)
  */
 const MOBILE_BREAKPOINT = 768;
+const MOBILE_BREAKPOINT = 768;
 
 /**
  * React hook that returns whether the current viewport is mobile-sized
+ *
  *
  * The hook:
  * - Returns undefined on initial server-side render
@@ -36,9 +41,13 @@ const MOBILE_BREAKPOINT = 768;
  * - Listens to window resize events and updates accordingly
  * - Cleans up event listeners on unmount
  *
+ *
  * @returns boolean indicating if the viewport is mobile-sized (< 768px)
  */
 export function useIsMobile() {
+  const [isMobile, setIsMobile] = React.useState<boolean | undefined>(
+    undefined,
+  );
   const [isMobile, setIsMobile] = React.useState<boolean | undefined>(
     undefined,
   );
@@ -47,8 +56,13 @@ export function useIsMobile() {
     // Create a media query list for the mobile breakpoint
     const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`);
 
+    const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`);
+
     // Handler to update state when media query changes
     const onChange = () => {
+      setIsMobile(window.innerWidth < MOBILE_BREAKPOINT);
+    };
+
       setIsMobile(window.innerWidth < MOBILE_BREAKPOINT);
     };
 
@@ -58,10 +72,13 @@ export function useIsMobile() {
     // Set initial value
     setIsMobile(window.innerWidth < MOBILE_BREAKPOINT);
 
+    setIsMobile(window.innerWidth < MOBILE_BREAKPOINT);
+
     // Cleanup listener on unmount
     return () => mql.removeEventListener("change", onChange);
   }, []);
 
   // Convert undefined to false for convenience
+  return !!isMobile;
   return !!isMobile;
 }
