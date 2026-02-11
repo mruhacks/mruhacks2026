@@ -33,7 +33,9 @@ export default function DashboardLayout({
           </div>
         </header>
 
-        <Suspense fallback={<div className="flex flex-1 flex-col gap-4 p-4 pt-0" />}>
+        <Suspense
+          fallback={<div className="flex flex-1 flex-col gap-4 p-4 pt-0" />}
+        >
           <div className="flex flex-1 flex-col gap-4 p-4 pt-0">{children}</div>
         </Suspense>
       </SidebarInset>

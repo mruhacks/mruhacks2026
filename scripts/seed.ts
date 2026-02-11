@@ -60,13 +60,42 @@ async function seedEvents() {
       name: "MRUHacks 2026",
       hasApplication: true,
       applicationQuestions: [
-        { key: "attended_before", label: "Have you attended before?", type: "boolean", required: true },
-        { key: "accommodations", label: "Accessibility or accommodations", type: "text" },
+        {
+          key: "attended_before",
+          label: "Have you attended before?",
+          type: "boolean",
+          required: true,
+        },
+        {
+          key: "accommodations",
+          label: "Accessibility or accommodations",
+          type: "text",
+        },
         { key: "needs_parking", label: "Need parking?", type: "boolean" },
-        { key: "heard_from_id", label: "How did you hear about us?", type: "select", required: true },
-        { key: "consent_info_use", label: "Consent to use info", type: "boolean", required: true },
-        { key: "consent_sponsor_share", label: "Consent to share with sponsors", type: "boolean", required: true },
-        { key: "consent_media_use", label: "Consent to photos/videos", type: "boolean", required: true },
+        {
+          key: "heard_from_id",
+          label: "How did you hear about us?",
+          type: "select",
+          required: true,
+        },
+        {
+          key: "consent_info_use",
+          label: "Consent to use info",
+          type: "boolean",
+          required: true,
+        },
+        {
+          key: "consent_sponsor_share",
+          label: "Consent to share with sponsors",
+          type: "boolean",
+          required: true,
+        },
+        {
+          key: "consent_media_use",
+          label: "Consent to photos/videos",
+          type: "boolean",
+          required: true,
+        },
       ],
     },
     {
@@ -273,7 +302,9 @@ async function main() {
         updatedAt: now,
         responses: {
           attended_before: faker.datatype.boolean(),
-          accommodations: faker.helpers.maybe(() => faker.lorem.sentence(), { probability: 0.25 }),
+          accommodations: faker.helpers.maybe(() => faker.lorem.sentence(), {
+            probability: 0.25,
+          }),
           needs_parking: faker.datatype.boolean(),
           heard_from_id: heardFrom.id,
           consent_info_use: true,

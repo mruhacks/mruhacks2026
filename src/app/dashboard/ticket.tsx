@@ -46,7 +46,9 @@ export default async function TicketPage({ searchParams }: Props) {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-semibold">Your application: {application.eventName}</h2>
+      <h2 className="text-lg font-semibold">
+        Your application: {application.eventName}
+      </h2>
       <dl className="grid gap-2 text-sm">
         <div>
           <dt className="text-muted-foreground">Name</dt>

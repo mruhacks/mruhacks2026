@@ -159,7 +159,7 @@ export default function ProfileForm({
 
   return (
     <form onSubmit={handleSubmit(submitHandler)}>
-    <Tabs
+      <Tabs
         value={tab}
         onValueChange={(v) => setTab(v as "personal" | "interests")}
         className="w-full"
@@ -167,13 +167,17 @@ export default function ProfileForm({
         <TabsList className="grid mb-6 w-full grid-cols-2">
           <TabsTrigger
             value="personal"
-            className={tabHasError("personal") ? " text-destructive underline" : ""}
+            className={
+              tabHasError("personal") ? " text-destructive underline" : ""
+            }
           >
             {tabLabels.personal}
           </TabsTrigger>
           <TabsTrigger
             value="interests"
-            className={tabHasError("interests") ? " text-destructive underline" : ""}
+            className={
+              tabHasError("interests") ? " text-destructive underline" : ""
+            }
           >
             {tabLabels.interests}
           </TabsTrigger>
@@ -289,8 +293,7 @@ export default function ProfileForm({
                     instanceId="yearOfStudyId"
                     options={options.years}
                     value={
-                      options.years.find((o) => o.value === field.value) ??
-                      null
+                      options.years.find((o) => o.value === field.value) ?? null
                     }
                     onChange={(opt) => field.onChange(getSingleValue(opt))}
                   />

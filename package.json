@@ -7,6 +7,8 @@
     "build": "next build --turbopack",
     "start": "next start",
     "lint": "eslint",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,css,md,mdx,yaml,yml}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,css,md,mdx,yaml,yml}\"",
     "test": "vitest run",
     "db:start": "echo 'Starting database…' && docker compose up -d && echo 'Database started.'",
     "db:stop": "echo 'Stopping database…' && docker compose down && echo 'Database stopped.'",

@@ -47,6 +47,9 @@ export const events = pgTable(
   "events",
   {
     id: uuid("id").defaultRandom().primaryKey(),
+    parentEventId: uuid("parent_event_id").references(() => events.id, {
+      onDelete: "set null",
+    }),
     name: text("name").notNull(),
     hasApplication: boolean("has_application").notNull().default(false),
     applicationQuestions: jsonb("application_questions").$type<
@@ -102,6 +105,7 @@ export const userProfiles = pgTable("user_profiles", {
 export const eventApplications = pgTable(
   "event_applications",
   {
+    id: uuid("id").defaultRandom().primaryKey(),
     eventId: uuid("event_id")
       .notNull()
       .references(() => events.id, { onDelete: "cascade" }),
@@ -116,7 +120,9 @@ export const eventApplications = pgTable(
     responses: jsonb("responses").$type<Record<string, unknown>>(),
   },
   (table) => ({
-    pk: primaryKey({ columns: [table.eventId, table.userId] }),
+    eventUserUnique: uniqueIndex(
+      "event_applications_event_id_user_id_unique",
+    ).on(table.eventId, table.userId),
     idxEventCreatedAt: index("idx_event_applications_event_id_created_at").on(
       table.eventId,
       table.createdAt.desc(),
@@ -140,10 +146,9 @@ export const userInterests = pgTable(
       .references(() => interests.id),
   },
   (table) => ({
-    idxUserInterest: uniqueIndex("user_interests_user_id_interest_id_unique").on(
-      table.userId,
-      table.interestId,
-    ),
+    idxUserInterest: uniqueIndex(
+      "user_interests_user_id_interest_id_unique",
+    ).on(table.userId, table.interestId),
   }),
 );
 
@@ -189,12 +194,80 @@ export const eventAttendees = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// Groups (event hosts groups)
+// ---------------------------------------------------------------------------
+
+export const groups = pgTable("groups", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  eventId: uuid("event_id")
+    .notNull()
+    .references(() => events.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at")
+    .defaultNow()
+    .$onUpdate(() => new Date())
+    .notNull(),
+});
+
+// ---------------------------------------------------------------------------
+// Group membership (groups contain users)
+// ---------------------------------------------------------------------------
+
+export const groupMembers = pgTable(
+  "group_members",
+  {
+    groupId: uuid("group_id")
+      .notNull()
+      .references(() => groups.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.groupId, table.userId] }),
+  }),
+);
+
+// ---------------------------------------------------------------------------
+// Submissions (groups submit to events)
+// ---------------------------------------------------------------------------
+
+export const submissions = pgTable(
+  "submissions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    groupId: uuid("group_id")
+      .notNull()
+      .references(() => groups.id, { onDelete: "cascade" }),
+    eventId: uuid("event_id")
+      .notNull()
+      .references(() => events.id, { onDelete: "cascade" }),
+    submittedAt: timestamp("submitted_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    groupEventUnique: uniqueIndex("submissions_group_id_event_id_unique").on(
+      table.groupId,
+      table.eventId,
+    ),
+  }),
+);
+
+// ---------------------------------------------------------------------------
 // Relations
 // ---------------------------------------------------------------------------
 
-export const eventsRelations = relations(events, ({ many }) => ({
+export const eventsRelations = relations(events, ({ one, many }) => ({
+  parent: one(events, {
+    fields: [events.parentEventId],
+    references: [events.id],
+    relationName: "eventChildren",
+  }),
+  children: many(events, { relationName: "eventChildren" }),
   applications: many(eventApplications),
   attendees: many(eventAttendees),
+  groups: many(groups),
+  submissions: many(submissions),
 }));
 
 export const userProfilesRelations = relations(userProfiles, ({ one }) => ({
@@ -261,6 +334,37 @@ export const eventAttendeesRelations = relations(eventAttendees, ({ one }) => ({
   user: one(user, {
     fields: [eventAttendees.userId],
     references: [user.id],
+  }),
+}));
+
+export const groupsRelations = relations(groups, ({ one, many }) => ({
+  event: one(events, {
+    fields: [groups.eventId],
+    references: [events.id],
+  }),
+  members: many(groupMembers),
+  submissions: many(submissions),
+}));
+
+export const groupMembersRelations = relations(groupMembers, ({ one }) => ({
+  group: one(groups, {
+    fields: [groupMembers.groupId],
+    references: [groups.id],
+  }),
+  user: one(user, {
+    fields: [groupMembers.userId],
+    references: [user.id],
+  }),
+}));
+
+export const submissionsRelations = relations(submissions, ({ one }) => ({
+  group: one(groups, {
+    fields: [submissions.groupId],
+    references: [groups.id],
+  }),
+  event: one(events, {
+    fields: [submissions.eventId],
+    references: [events.id],
   }),
 }));
 

@@ -58,7 +58,7 @@ function permissionMatches(
 
   // Parse permissions: "entity:action:scope"
   const [userEntity, userAction, userScope] = userPermission.split(":");
-  const [reqEntity, reqAction, reqScope] = requiredPermission.split(":");
+  const [reqEntity] = requiredPermission.split(":");
 
   // Must be same entity
   if (userEntity !== reqEntity) {
@@ -156,6 +156,8 @@ export async function requirePermission(
 ): Promise<void> {
   const hasPerm = await hasPermission(userId, permissionString);
   if (!hasPerm) {
-    redirect(`/forbidden?reason=missing_permission&permission=${permissionString}`);
+    redirect(
+      `/forbidden?reason=missing_permission&permission=${permissionString}`,
+    );
   }
 }

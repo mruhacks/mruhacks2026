@@ -102,14 +102,12 @@ function ApplicationQuestionField({
               }
               onChange={(opt) =>
                 field.onChange(
-                  (opt as SingleValue<{ value: number; label: string }>)?.value ??
-                    null,
+                  (opt as SingleValue<{ value: number; label: string }>)
+                    ?.value ?? null,
                 )
               }
             />
-            {fieldState.error && (
-              <FieldError errors={[fieldState.error]} />
-            )}
+            {fieldState.error && <FieldError errors={[fieldState.error]} />}
           </Field>
         )}
       />
@@ -134,9 +132,7 @@ function ApplicationQuestionField({
             placeholder={q.label ?? q.key}
             maxLength={500}
           />
-          {fieldState.error && (
-            <FieldError errors={[fieldState.error]} />
-          )}
+          {fieldState.error && <FieldError errors={[fieldState.error]} />}
         </Field>
       )}
     />
@@ -326,10 +322,7 @@ export default function ApplicationForm({
   );
 }
 
-export {
-  applicationResponsesSchema,
-  eventOnlySchema,
-} from "./schema";
+export { applicationResponsesSchema, eventOnlySchema } from "./schema";
 export type {
   EventOnlyFormValues,
   ApplicationFormOptions,

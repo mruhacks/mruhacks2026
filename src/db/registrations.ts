@@ -140,10 +140,9 @@ export const userInterests = pgTable(
       .references(() => interests.id),
   },
   (table) => ({
-    idxUserInterest: uniqueIndex("user_interests_user_id_interest_id_unique").on(
-      table.userId,
-      table.interestId,
-    ),
+    idxUserInterest: uniqueIndex(
+      "user_interests_user_id_interest_id_unique",
+    ).on(table.userId, table.interestId),
   }),
 );
 

@@ -6,7 +6,10 @@ import {
   getPreviousFormSubmission,
   submitEventApplication,
 } from "@/app/dashboard/events/actions";
-import { getUserProfile, saveUserProfile } from "@/app/dashboard/profile/actions";
+import {
+  getUserProfile,
+  saveUserProfile,
+} from "@/app/dashboard/profile/actions";
 import { db } from "@/utils/db";
 import { events } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -53,7 +56,7 @@ function buildApplyInitials(
         interests: prev.interests ?? [],
         dietaryRestrictions: prev.dietaryRestrictions ?? [],
       }
-    : profileData ?? { fullName: user.name ?? "" };
+    : (profileData ?? { fullName: user.name ?? "" });
 
   const eventInitial = prev
     ? {
@@ -106,8 +109,7 @@ export default async function ApplyEventPage({ params }: Props) {
     getUserProfile(),
   ]);
 
-  const hasProfile =
-    profileResult.success && profileResult.data != null;
+  const hasProfile = profileResult.success && profileResult.data != null;
   const profileData = hasProfile ? profileResult.data : null;
   const prev = previousApplication.success ? previousApplication.data : null;
 

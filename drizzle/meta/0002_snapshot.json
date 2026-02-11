@@ -1,6 +1,6 @@
 {
-  "id": "087b0583-5944-46a1-8782-5b5be568984d",
-  "prevId": "00000000-0000-0000-0000-000000000000",
+  "id": "9b1f7270-4f8c-4482-9734-8ea775f454b4",
+  "prevId": "b29f4b90-712e-44e5-8aea-672aa07a9691",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -306,8 +306,488 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.participant_dietary_restrictions": {
-      "name": "participant_dietary_restrictions",
+    "public.event_applications": {
+      "name": "event_applications",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "event_id": {
+          "name": "event_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "responses": {
+          "name": "responses",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "event_applications_event_id_user_id_unique": {
+          "name": "event_applications_event_id_user_id_unique",
+          "columns": [
+            {
+              "expression": "event_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_event_applications_event_id_created_at": {
+          "name": "idx_event_applications_event_id_created_at",
+          "columns": [
+            {
+              "expression": "event_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_event_applications_user_id": {
+          "name": "idx_event_applications_user_id",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "event_applications_event_id_events_id_fk": {
+          "name": "event_applications_event_id_events_id_fk",
+          "tableFrom": "event_applications",
+          "tableTo": "events",
+          "columnsFrom": ["event_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "event_applications_user_id_user_id_fk": {
+          "name": "event_applications_user_id_user_id_fk",
+          "tableFrom": "event_applications",
+          "tableTo": "user",
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.event_attendees": {
+      "name": "event_attendees",
+      "schema": "",
+      "columns": {
+        "event_id": {
+          "name": "event_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "registered_at": {
+          "name": "registered_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "event_attendees_event_id_events_id_fk": {
+          "name": "event_attendees_event_id_events_id_fk",
+          "tableFrom": "event_attendees",
+          "tableTo": "events",
+          "columnsFrom": ["event_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "event_attendees_user_id_user_id_fk": {
+          "name": "event_attendees_user_id_user_id_fk",
+          "tableFrom": "event_attendees",
+          "tableTo": "user",
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "event_attendees_event_id_user_id_pk": {
+          "name": "event_attendees_event_id_user_id_pk",
+          "columns": ["event_id", "user_id"]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.events": {
+      "name": "events",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "parent_event_id": {
+          "name": "parent_event_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "has_application": {
+          "name": "has_application",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "application_questions": {
+          "name": "application_questions",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "starts_at": {
+          "name": "starts_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ends_at": {
+          "name": "ends_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "idx_events_has_application": {
+          "name": "idx_events_has_application",
+          "columns": [
+            {
+              "expression": "has_application",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "events_parent_event_id_events_id_fk": {
+          "name": "events_parent_event_id_events_id_fk",
+          "tableFrom": "events",
+          "tableTo": "events",
+          "columnsFrom": ["parent_event_id"],
+          "columnsTo": ["id"],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.group_members": {
+      "name": "group_members",
+      "schema": "",
+      "columns": {
+        "group_id": {
+          "name": "group_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "group_members_group_id_groups_id_fk": {
+          "name": "group_members_group_id_groups_id_fk",
+          "tableFrom": "group_members",
+          "tableTo": "groups",
+          "columnsFrom": ["group_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "group_members_user_id_user_id_fk": {
+          "name": "group_members_user_id_user_id_fk",
+          "tableFrom": "group_members",
+          "tableTo": "user",
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "group_members_group_id_user_id_pk": {
+          "name": "group_members_group_id_user_id_pk",
+          "columns": ["group_id", "user_id"]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.groups": {
+      "name": "groups",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "event_id": {
+          "name": "event_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "groups_event_id_events_id_fk": {
+          "name": "groups_event_id_events_id_fk",
+          "tableFrom": "groups",
+          "tableTo": "events",
+          "columnsFrom": ["event_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.submissions": {
+      "name": "submissions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "group_id": {
+          "name": "group_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "event_id": {
+          "name": "event_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "submitted_at": {
+          "name": "submitted_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "submissions_group_id_event_id_unique": {
+          "name": "submissions_group_id_event_id_unique",
+          "columns": [
+            {
+              "expression": "group_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "event_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "submissions_group_id_groups_id_fk": {
+          "name": "submissions_group_id_groups_id_fk",
+          "tableFrom": "submissions",
+          "tableTo": "groups",
+          "columnsFrom": ["group_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "submissions_event_id_events_id_fk": {
+          "name": "submissions_event_id_events_id_fk",
+          "tableFrom": "submissions",
+          "tableTo": "events",
+          "columnsFrom": ["event_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.user_dietary_restrictions": {
+      "name": "user_dietary_restrictions",
       "schema": "",
       "columns": {
         "user_id": {
@@ -324,8 +804,8 @@
         }
       },
       "indexes": {
-        "idx_participant_dietary_user_restriction": {
-          "name": "idx_participant_dietary_user_restriction",
+        "user_dietary_restrictions_user_id_restriction_id_unique": {
+          "name": "user_dietary_restrictions_user_id_restriction_id_unique",
           "columns": [
             {
               "expression": "user_id",
@@ -340,25 +820,25 @@
               "nulls": "last"
             }
           ],
-          "isUnique": false,
+          "isUnique": true,
           "concurrently": false,
           "method": "btree",
           "with": {}
         }
       },
       "foreignKeys": {
-        "participant_dietary_restrictions_user_id_participants_user_id_fk": {
-          "name": "participant_dietary_restrictions_user_id_participants_user_id_fk",
-          "tableFrom": "participant_dietary_restrictions",
-          "tableTo": "participants",
+        "user_dietary_restrictions_user_id_user_id_fk": {
+          "name": "user_dietary_restrictions_user_id_user_id_fk",
+          "tableFrom": "user_dietary_restrictions",
+          "tableTo": "user",
           "columnsFrom": ["user_id"],
-          "columnsTo": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "participant_dietary_restrictions_restriction_id_dietary_restrictions_id_fk": {
-          "name": "participant_dietary_restrictions_restriction_id_dietary_restrictions_id_fk",
-          "tableFrom": "participant_dietary_restrictions",
+        "user_dietary_restrictions_restriction_id_dietary_restrictions_id_fk": {
+          "name": "user_dietary_restrictions_restriction_id_dietary_restrictions_id_fk",
+          "tableFrom": "user_dietary_restrictions",
           "tableTo": "dietary_restrictions",
           "columnsFrom": ["restriction_id"],
           "columnsTo": ["id"],
@@ -372,8 +852,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.participant_interests": {
-      "name": "participant_interests",
+    "public.user_interests": {
+      "name": "user_interests",
       "schema": "",
       "columns": {
         "user_id": {
@@ -390,8 +870,8 @@
         }
       },
       "indexes": {
-        "idx_participant_interests_user_interest": {
-          "name": "idx_participant_interests_user_interest",
+        "user_interests_user_id_interest_id_unique": {
+          "name": "user_interests_user_id_interest_id_unique",
           "columns": [
             {
               "expression": "user_id",
@@ -406,25 +886,25 @@
               "nulls": "last"
             }
           ],
-          "isUnique": false,
+          "isUnique": true,
           "concurrently": false,
           "method": "btree",
           "with": {}
         }
       },
       "foreignKeys": {
-        "participant_interests_user_id_participants_user_id_fk": {
-          "name": "participant_interests_user_id_participants_user_id_fk",
-          "tableFrom": "participant_interests",
-          "tableTo": "participants",
+        "user_interests_user_id_user_id_fk": {
+          "name": "user_interests_user_id_user_id_fk",
+          "tableFrom": "user_interests",
+          "tableTo": "user",
           "columnsFrom": ["user_id"],
-          "columnsTo": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "participant_interests_interest_id_interests_id_fk": {
-          "name": "participant_interests_interest_id_interests_id_fk",
-          "tableFrom": "participant_interests",
+        "user_interests_interest_id_interests_id_fk": {
+          "name": "user_interests_interest_id_interests_id_fk",
+          "tableFrom": "user_interests",
           "tableTo": "interests",
           "columnsFrom": ["interest_id"],
           "columnsTo": ["id"],
@@ -438,8 +918,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.participants": {
-      "name": "participants",
+    "public.user_profiles": {
+      "name": "user_profiles",
       "schema": "",
       "columns": {
         "user_id": {
@@ -453,13 +933,6 @@
           "type": "varchar(255)",
           "primaryKey": false,
           "notNull": true
-        },
-        "attended_before": {
-          "name": "attended_before",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
         },
         "gender_id": {
           "name": "gender_id",
@@ -485,140 +958,64 @@
           "primaryKey": false,
           "notNull": true
         },
-        "accommodations": {
-          "name": "accommodations",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "needs_parking": {
-          "name": "needs_parking",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "heard_from_id": {
-          "name": "heard_from_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "consent_info_use": {
-          "name": "consent_info_use",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "consent_sponsor_share": {
-          "name": "consent_sponsor_share",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "consent_media_use": {
-          "name": "consent_media_use",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
-        }
-      },
-      "indexes": {
-        "idx_participants_user_id_created_at": {
-          "name": "idx_participants_user_id_created_at",
-          "columns": [
-            {
-              "expression": "user_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "created_at",
-              "isExpression": false,
-              "asc": false,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
         },
-        "idx_participants_created_at_desc": {
-          "name": "idx_participants_created_at_desc",
-          "columns": [
-            {
-              "expression": "created_at",
-              "isExpression": false,
-              "asc": false,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
         }
       },
+      "indexes": {},
       "foreignKeys": {
-        "participants_user_id_user_id_fk": {
-          "name": "participants_user_id_user_id_fk",
-          "tableFrom": "participants",
+        "user_profiles_user_id_user_id_fk": {
+          "name": "user_profiles_user_id_user_id_fk",
+          "tableFrom": "user_profiles",
           "tableTo": "user",
           "columnsFrom": ["user_id"],
           "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "participants_gender_id_genders_id_fk": {
-          "name": "participants_gender_id_genders_id_fk",
-          "tableFrom": "participants",
+        "user_profiles_gender_id_genders_id_fk": {
+          "name": "user_profiles_gender_id_genders_id_fk",
+          "tableFrom": "user_profiles",
           "tableTo": "genders",
           "columnsFrom": ["gender_id"],
           "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "participants_university_id_universities_id_fk": {
-          "name": "participants_university_id_universities_id_fk",
-          "tableFrom": "participants",
+        "user_profiles_university_id_universities_id_fk": {
+          "name": "user_profiles_university_id_universities_id_fk",
+          "tableFrom": "user_profiles",
           "tableTo": "universities",
           "columnsFrom": ["university_id"],
           "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "participants_major_id_majors_id_fk": {
-          "name": "participants_major_id_majors_id_fk",
-          "tableFrom": "participants",
+        "user_profiles_major_id_majors_id_fk": {
+          "name": "user_profiles_major_id_majors_id_fk",
+          "tableFrom": "user_profiles",
           "tableTo": "majors",
           "columnsFrom": ["major_id"],
           "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "participants_year_of_study_id_years_of_study_id_fk": {
-          "name": "participants_year_of_study_id_years_of_study_id_fk",
-          "tableFrom": "participants",
+        "user_profiles_year_of_study_id_years_of_study_id_fk": {
+          "name": "user_profiles_year_of_study_id_years_of_study_id_fk",
+          "tableFrom": "user_profiles",
           "tableTo": "years_of_study",
           "columnsFrom": ["year_of_study_id"],
-          "columnsTo": ["id"],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "participants_heard_from_id_heard_from_sources_id_fk": {
-          "name": "participants_heard_from_id_heard_from_sources_id_fk",
-          "tableFrom": "participants",
-          "tableTo": "heard_from_sources",
-          "columnsFrom": ["heard_from_id"],
           "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
@@ -1091,8 +1488,14 @@
   "roles": {},
   "policies": {},
   "views": {
-    "public.participant_form_view": {
+    "public.application_form_view": {
       "columns": {
+        "event_id": {
+          "name": "event_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
         "user_id": {
           "name": "user_id",
           "type": "uuid",
@@ -1102,12 +1505,6 @@
         "full_name": {
           "name": "full_name",
           "type": "varchar(255)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "attended_before": {
-          "name": "attended_before",
-          "type": "boolean",
           "primaryKey": false,
           "notNull": true
         },
@@ -1135,42 +1532,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "heard_from_id": {
-          "name": "heard_from_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "needs_parking": {
-          "name": "needs_parking",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "accommodations": {
-          "name": "accommodations",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "consent_info_use": {
-          "name": "consent_info_use",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "consent_sponsor_share": {
-          "name": "consent_sponsor_share",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "consent_media_use": {
-          "name": "consent_media_use",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true
-        },
         "interests": {
           "name": "interests",
           "type": "integer[]",
@@ -1183,6 +1544,18 @@
           "primaryKey": false,
           "notNull": true
         },
+        "responses": {
+          "name": "responses",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp",
@@ -1190,14 +1563,26 @@
           "notNull": true
         }
       },
-      "definition": "\nWITH\n  interests AS (\n    SELECT\n      participant_interests.user_id,\n      array_agg(DISTINCT participant_interests.interest_id) AS interests\n    FROM\n      participant_interests\n    WHERE\n      participant_interests.interest_id IS NOT NULL\n    GROUP BY\n      participant_interests.user_id\n  ),\n  dietary AS (\n    SELECT\n      participant_dietary_restrictions.user_id,\n      array_agg(\n        DISTINCT participant_dietary_restrictions.restriction_id\n      ) AS dietary_restrictions\n    FROM\n      participant_dietary_restrictions\n    WHERE\n      participant_dietary_restrictions.restriction_id IS NOT NULL\n    GROUP BY\n      participant_dietary_restrictions.user_id\n  )\nSELECT\n  p.user_id,\n  p.full_name,\n  p.attended_before,\n  p.gender_id,\n  p.university_id,\n  p.major_id,\n  p.year_of_study_id,\n  p.heard_from_id,\n  p.needs_parking,\n  p.accommodations,\n  p.consent_info_use,\n  p.consent_sponsor_share,\n  p.consent_media_use,\n  COALESCE(i.interests, '{}'::integer[]) AS interests,\n  COALESCE(d.dietary_restrictions, '{}'::integer[]) AS dietary_restrictions,\n  p.created_at\nFROM\n  participants p\n  LEFT JOIN interests i USING (user_id)\n  LEFT JOIN dietary d USING (user_id)\n",
-      "name": "participant_form_view",
+      "definition": "\nWITH\n  interests_agg AS (\n    SELECT\n      user_id,\n      array_agg(DISTINCT interest_id) AS interests\n    FROM user_interests\n    WHERE interest_id IS NOT NULL\n    GROUP BY user_id\n  ),\n  dietary_agg AS (\n    SELECT\n      user_id,\n      array_agg(DISTINCT restriction_id) AS dietary_restrictions\n    FROM user_dietary_restrictions\n    WHERE restriction_id IS NOT NULL\n    GROUP BY user_id\n  )\nSELECT\n  a.event_id,\n  a.user_id,\n  p.full_name,\n  p.gender_id,\n  p.university_id,\n  p.major_id,\n  p.year_of_study_id,\n  COALESCE(i.interests, '{}'::integer[]) AS interests,\n  COALESCE(d.dietary_restrictions, '{}'::integer[]) AS dietary_restrictions,\n  a.responses,\n  a.status,\n  a.created_at\nFROM event_applications a\nJOIN user_profiles p ON p.user_id = a.user_id\nLEFT JOIN interests_agg i ON i.user_id = a.user_id\nLEFT JOIN dietary_agg d ON d.user_id = a.user_id\n",
+      "name": "application_form_view",
       "schema": "public",
       "isExisting": false,
       "materialized": false
     },
-    "public.participant_view": {
+    "public.application_view": {
       "columns": {
+        "event_id": {
+          "name": "event_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "event_name": {
+          "name": "event_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
         "user_id": {
           "name": "user_id",
           "type": "uuid",
@@ -1215,12 +1600,6 @@
           "type": "varchar(255)",
           "primaryKey": false,
           "notNull": true
-        },
-        "accommodations": {
-          "name": "accommodations",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
         },
         "gender": {
           "name": "gender",
@@ -1246,21 +1625,27 @@
           "primaryKey": false,
           "notNull": true
         },
-        "heard_from": {
-          "name": "heard_from",
-          "type": "varchar(150)",
+        "interests": {
+          "name": "interests",
+          "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
-        "needs_parking": {
-          "name": "needs_parking",
-          "type": "boolean",
+        "dietary_restrictions": {
+          "name": "dietary_restrictions",
+          "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
-        "attended_before": {
-          "name": "attended_before",
-          "type": "boolean",
+        "responses": {
+          "name": "responses",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "varchar(50)",
           "primaryKey": false,
           "notNull": true
         },
@@ -1269,22 +1654,10 @@
           "type": "timestamp",
           "primaryKey": false,
           "notNull": true
-        },
-        "interests": {
-          "name": "interests",
-          "type": "varchar",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "dietary_restrictions": {
-          "name": "dietary_restrictions",
-          "type": "varchar",
-          "primaryKey": false,
-          "notNull": false
         }
       },
-      "definition": "\nWITH\n  dr AS (\n    SELECT\n      p.user_id,\n      ARRAY_AGG(l.label ORDER BY l.label) AS dietary_restrictions\n    FROM participant_dietary_restrictions p\n    JOIN dietary_restrictions l ON l.id = p.restriction_id\n    GROUP BY p.user_id\n  ),\n  ints AS (\n    SELECT\n      p.user_id,\n      ARRAY_AGG(l.label ORDER BY l.label) AS interests\n    FROM participant_interests p\n    JOIN interests l ON l.id = p.interest_id\n    GROUP BY p.user_id\n  )\nSELECT\n  p.user_id,\n  p.full_name,\n  p.attended_before,\n  g.label AS gender,\n  u.label AS university,\n  m.label AS major,\n  y.label AS year_of_study,\n  p.accommodations,\n  p.needs_parking,\n  h.label AS heard_from,\n  p.consent_info_use,\n  p.consent_sponsor_share,\n  p.consent_media_use,\n  ints.interests,\n  dr.dietary_restrictions\nFROM participants p\nLEFT JOIN ints ON ints.user_id = p.user_id\nLEFT JOIN dr   ON dr.user_id   = p.user_id\nLEFT JOIN genders g ON g.id = p.gender_id\nLEFT JOIN universities u ON u.id = p.university_id\nLEFT JOIN majors m ON m.id = p.major_id\nLEFT JOIN years_of_study y ON y.id = p.year_of_study_id\nLEFT JOIN heard_from_sources h ON h.id = p.heard_from_id\n",
-      "name": "participant_view",
+      "definition": "\nWITH\n  dr AS (\n    SELECT\n      u.user_id,\n      ARRAY_AGG(l.label ORDER BY l.label) AS dietary_restrictions\n    FROM user_dietary_restrictions u\n    JOIN dietary_restrictions l ON l.id = u.restriction_id\n    GROUP BY u.user_id\n  ),\n  ints AS (\n    SELECT\n      u.user_id,\n      ARRAY_AGG(l.label ORDER BY l.label) AS interests\n    FROM user_interests u\n    JOIN interests l ON l.id = u.interest_id\n    GROUP BY u.user_id\n  )\nSELECT\n  a.event_id,\n  e.name AS event_name,\n  a.user_id,\n  u.email,\n  p.full_name,\n  g.label AS gender,\n  un.label AS university,\n  m.label AS major,\n  y.label AS year_of_study,\n  ints.interests,\n  dr.dietary_restrictions,\n  a.responses,\n  a.status,\n  a.created_at\nFROM event_applications a\nJOIN events e ON e.id = a.event_id\nJOIN \"user\" u ON u.id = a.user_id\nLEFT JOIN user_profiles p ON p.user_id = a.user_id\nLEFT JOIN genders g ON g.id = p.gender_id\nLEFT JOIN universities un ON un.id = p.university_id\nLEFT JOIN majors m ON m.id = p.major_id\nLEFT JOIN years_of_study y ON y.id = p.year_of_study_id\nLEFT JOIN ints ON ints.user_id = a.user_id\nLEFT JOIN dr ON dr.user_id = a.user_id\n",
+      "name": "application_view",
       "schema": "public",
       "isExisting": false,
       "materialized": false

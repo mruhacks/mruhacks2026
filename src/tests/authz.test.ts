@@ -180,7 +180,7 @@ describe("Authorization system", () => {
     try {
       await requirePermission(userId, "submission:delete:all");
       passed = true;
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (e) {
       passed = false;
     }

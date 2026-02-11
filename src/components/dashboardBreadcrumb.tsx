@@ -35,7 +35,15 @@ export function DashboardBreadcrumb() {
       </BreadcrumbItem>
     );
 
-    return isLast ? [item] : [item, <BreadcrumbSeparator key={`sep-${href}`} className="hidden md:block" />];
+    return isLast
+      ? [item]
+      : [
+          item,
+          <BreadcrumbSeparator
+            key={`sep-${href}`}
+            className="hidden md:block"
+          />,
+        ];
   });
 
   return (

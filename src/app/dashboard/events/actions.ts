@@ -284,9 +284,7 @@ export async function getEventsWithUserStatus(): Promise<
       .where(eq(eventAttendees.userId, user.id)),
   ]);
 
-  const appliedSet = new Set(
-    applicationEventIds.map((r) => r.eventId),
-  );
+  const appliedSet = new Set(applicationEventIds.map((r) => r.eventId));
   const registeredSet = new Set(attendeeEventIds.map((r) => r.eventId));
 
   return allEvents.map((e) => ({

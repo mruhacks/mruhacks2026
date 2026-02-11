@@ -23,6 +23,7 @@ Thank you for your interest in contributing to the MRUHacks 2026 participant and
 - Add JSDoc comments for complex components
 
 Example:
+
 ```typescript
 /**
  * Displays user information in the sidebar footer
@@ -42,6 +43,7 @@ export function NavUser({ user }: { user: UserInfo }) {
 - Include JSDoc comments describing the action
 
 Example:
+
 ```typescript
 /**
  * Registers a new participant for the hackathon
@@ -109,6 +111,7 @@ pnpm vitest src/tests/getDatabaseURL.test.ts
 - Follow the existing test structure
 
 Example:
+
 ```typescript
 describe("myFunction", () => {
   it("returns expected value for valid input", () => {
@@ -171,6 +174,7 @@ When proposing features:
 ## 📞 Getting Help
 
 If you need help:
+
 - Check existing issues and discussions
 - Review the documentation
 - Ask questions in pull request comments

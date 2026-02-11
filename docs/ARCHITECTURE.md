@@ -13,6 +13,8 @@ Use these terms consistently across UI, code, and docs:
 5. **Event application** – The form and stored data for events that require an application. Use "application" (not "registration") for this flow.
 6. **Profile** – User profile (shared across events).
 7. **Attendee** – A user in `event_attendees`.
+8. **Group** – A team associated with an event; members are in `group_members`. Use for "group" or "team" in UI and docs.
+9. **Submission** – A group's submission to an event (e.g. project); stored in `submissions`. Distinct from "event application" (user applying to attend).
 
 In authz, the entity **"application"** means event application (permissions: approve, reject, read).
 
@@ -61,7 +63,7 @@ mruhacks2026/
 
 - **User Authentication**: Sign up and sign in using email/password
 - **Event Applications**: Event-scoped application flow; events can have applications (full form) or simple signup; application questions are stored on the event
-- **Dashboard**: 
+- **Dashboard**:
   - Settings management
   - Group/team management
   - Event schedule
@@ -79,16 +81,19 @@ The database schema is organized into three main modules:
 
 1. **auth-schema.ts**: Better Auth tables (users, sessions, accounts)
 2. **lookups.ts**: Reference tables for form options (genders, universities, majors, etc.)
-3. **events-and-participation.ts**: Events, user profiles, event applications, and event attendees
+3. **events-and-participation.ts**: Events, user profiles, event applications, event attendees, groups, group members, and submissions
 
 ### Key Tables
 
 - `user`: Authenticated users (Better Auth)
-- `events`: Events (e.g. hackathon, workshops); `has_application` and `application_questions` (JSONB) define whether and how users apply
+- `events`: Events (e.g. hackathon, workshops); optional `parent_event_id` (self-FK) for parent/child hierarchy; `has_application` and `application_questions` (JSONB) define whether and how users apply
 - `user_profiles`: Profile fields shared across applications (full name, gender, university, major, year of study)
 - `user_interests` / `user_dietary_restrictions`: User-level many-to-many with lookups
-- `event_applications`: One per user per event (when event has application); `responses` (JSONB) stores application answers
+- `event_applications`: One per user per event (when event has application); `id` (uuid PK), unique on `(event_id, user_id)`; `responses` (JSONB) stores application answers
 - `event_attendees`: Simple signup for events without applications
+- `groups`: Groups (teams) hosted by an event; `id`, `event_id` (FK to events), `name`
+- `group_members`: Junction `(group_id, user_id)`; groups contain users
+- `submissions`: Group submissions to events; `id`, `group_id`, `event_id`, `submitted_at`; groups submit to events
 
 ### Database Views
 
@@ -176,17 +181,19 @@ sequenceDiagram
 All server actions follow a consistent pattern using the `ActionResult` type:
 
 ```typescript
-export type ActionResult<T = unknown> = 
+export type ActionResult<T = unknown> =
   | { success: true; data?: T }
   | { success: false; error: string };
 ```
 
 This provides:
+
 - Type-safe responses
 - Consistent error handling
 - Easy client-side consumption
 
 Example:
+
 ```typescript
 const result = await registerParticipant(formData, eventId);
 if (result.success) {
@@ -208,6 +215,7 @@ Next.js middleware (`src/middleware.ts`) protects dashboard routes:
 ## Form Validation
 
 Forms use:
+
 - **React Hook Form** for form state management
 - **Zod** for schema validation
 - **@hookform/resolvers** to integrate Zod with React Hook Form

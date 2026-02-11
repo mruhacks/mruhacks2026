@@ -26,7 +26,10 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { authClient } from "@/utils/auth-client";
-import { signUpFormSchema, type SignUpFormValues } from "@/components/signup/schema";
+import {
+  signUpFormSchema,
+  type SignUpFormValues,
+} from "@/components/signup/schema";
 
 export default function SignUpForm() {
   const [loading, setLoading] = React.useState(false);
@@ -117,7 +120,7 @@ export default function SignUpForm() {
                     disabled={loading}
                   />
                   <FieldDescription>
-                    We'll send a confirmation link to this address.
+                    We&apos;ll send a confirmation link to this address.
                   </FieldDescription>
                   {fieldState.invalid && (
                     <FieldError errors={[fieldState.error]} />

@@ -50,7 +50,9 @@ export async function registerForEventFormAction(
  * Unregisters the current user from an event that has no application (simple signup).
  * Only applies to events without application questions (event_attendees).
  */
-export async function unregisterFromEvent(eventId: string): Promise<ActionResult> {
+export async function unregisterFromEvent(
+  eventId: string,
+): Promise<ActionResult> {
   const user = await getUser();
   if (!user) return fail("User not authenticated");
 

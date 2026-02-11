@@ -1,10 +1,7 @@
 import { z } from "zod";
 
 /** Event-specific answers keyed by application question key. Validated in server action against event.applicationQuestions. */
-export const applicationResponsesSchema = z.record(
-  z.string(),
-  z.unknown(),
-);
+export const applicationResponsesSchema = z.record(z.string(), z.unknown());
 
 /** Event-only form (for ApplicationForm): attendedBefore, accommodations, applicationResponses. */
 export const eventOnlySchema = z.object({
