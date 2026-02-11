@@ -3,7 +3,7 @@
  * Used by events.applicationQuestions, application form, and server actions.
  */
 
-export type ApplicationQuestionType = "boolean" | "text" | "select";
+export type ApplicationQuestionType = 'boolean' | 'text' | 'select';
 
 export type ApplicationQuestionOption = {
   value: number | string;
@@ -23,5 +23,5 @@ export type ApplicationQuestion = {
  * Used when rendering select questions that have no inline question.options.
  */
 export const APPLICATION_QUESTION_OPTIONS_MAP: Record<string, string> = {
-  heard_from_id: "heardFrom",
+  heard_from_id: 'heardFrom',
 };

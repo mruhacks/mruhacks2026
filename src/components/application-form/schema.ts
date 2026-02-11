@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from 'zod';
 
 /** Event-specific answers keyed by application question key. Validated in server action against event.applicationQuestions. */
 export const applicationResponsesSchema = z.record(z.string(), z.unknown());

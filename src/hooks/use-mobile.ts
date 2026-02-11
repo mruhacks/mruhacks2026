@@ -22,13 +22,12 @@
  * ```
  */
 
-import * as React from "react";
+import * as React from 'react';
 
 /**
  * Breakpoint width in pixels that separates mobile from desktop views
  * Matches common responsive design breakpoints (tablet/small desktop)
  */
-const MOBILE_BREAKPOINT = 768;
 const MOBILE_BREAKPOINT = 768;
 
 /**
@@ -48,14 +47,9 @@ export function useIsMobile() {
   const [isMobile, setIsMobile] = React.useState<boolean | undefined>(
     undefined,
   );
-  const [isMobile, setIsMobile] = React.useState<boolean | undefined>(
-    undefined,
-  );
 
   React.useEffect(() => {
     // Create a media query list for the mobile breakpoint
-    const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`);
-
     const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`);
 
     // Handler to update state when media query changes
@@ -63,22 +57,16 @@ export function useIsMobile() {
       setIsMobile(window.innerWidth < MOBILE_BREAKPOINT);
     };
 
-      setIsMobile(window.innerWidth < MOBILE_BREAKPOINT);
-    };
-
     // Listen for changes to the media query
-    mql.addEventListener("change", onChange);
+    mql.addEventListener('change', onChange);
 
     // Set initial value
     setIsMobile(window.innerWidth < MOBILE_BREAKPOINT);
 
-    setIsMobile(window.innerWidth < MOBILE_BREAKPOINT);
-
     // Cleanup listener on unmount
-    return () => mql.removeEventListener("change", onChange);
+    return () => mql.removeEventListener('change', onChange);
   }, []);
 
   // Convert undefined to false for convenience
-  return !!isMobile;
   return !!isMobile;
 }

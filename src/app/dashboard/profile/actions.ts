@@ -4,21 +4,21 @@
  * Decoupled from event application/registration (see register/actions.ts and dashboard/events/actions.ts).
  */
 
-"use server";
+'use server';
 
 import {
   userProfiles,
   userInterests,
   userDietaryRestrictions,
-} from "@/db/schema";
-import { getUser } from "@/utils/auth";
-import { db } from "@/utils/db";
-import { eq } from "drizzle-orm";
-import { ActionResult, fail, ok } from "@/utils/action-result";
+} from '@/db/schema';
+import { getUser } from '@/utils/auth';
+import { db } from '@/utils/db';
+import { eq } from 'drizzle-orm';
+import { ActionResult, fail, ok } from '@/utils/action-result';
 import {
   profileFormSchema,
   type ProfileFormValues,
-} from "@/components/profile-form/schema";
+} from '@/components/profile-form/schema';
 
 export type UserProfileData = {
   fullName: string;
@@ -39,7 +39,7 @@ export async function getUserProfile(): Promise<
   ActionResult<UserProfileData | null>
 > {
   const user = await getUser();
-  if (!user) return fail("User not authenticated");
+  if (!user) return fail('User not authenticated');
 
   const [profile] = await db
     .select()
@@ -79,7 +79,7 @@ export async function saveUserProfile(
   formData: ProfileFormValues,
 ): Promise<ActionResult> {
   const user = await getUser();
-  if (!user) return fail("User not authenticated");
+  if (!user) return fail('User not authenticated');
 
   const parsed = profileFormSchema.safeParse(formData);
   if (!parsed.success) {
@@ -135,9 +135,9 @@ export async function saveUserProfile(
       }
     });
 
-    return ok("Profile saved successfully.");
+    return ok('Profile saved successfully.');
   } catch (error) {
-    console.error("Profile save error:", error);
-    return fail("Failed to save profile.");
+    console.error('Profile save error:', error);
+    return fail('Failed to save profile.');
   }
 }

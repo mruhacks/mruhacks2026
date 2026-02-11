@@ -25,11 +25,11 @@ import {
   jsonb,
   uniqueIndex,
   primaryKey,
-} from "drizzle-orm/pg-core";
-import { relations, sql } from "drizzle-orm";
+} from 'drizzle-orm/pg-core';
+import { relations, sql } from 'drizzle-orm';
 
-import type { ApplicationQuestion } from "@/types/application";
-import { user } from "./auth-schema";
+import type { ApplicationQuestion } from '@/types/application';
+import { user } from './auth-schema';
 import {
   genders,
   universities,
@@ -37,34 +37,34 @@ import {
   yearsOfStudy,
   interests,
   dietaryRestrictions,
-} from "./lookups";
+} from './lookups';
 
 // ---------------------------------------------------------------------------
 // Events
 // ---------------------------------------------------------------------------
 
 export const events = pgTable(
-  "events",
+  'events',
   {
-    id: uuid("id").defaultRandom().primaryKey(),
-    parentEventId: uuid("parent_event_id").references(() => events.id, {
-      onDelete: "set null",
+    id: uuid('id').defaultRandom().primaryKey(),
+    parentEventId: uuid('parent_event_id').references(() => events.id, {
+      onDelete: 'set null',
     }),
-    name: text("name").notNull(),
-    hasApplication: boolean("has_application").notNull().default(false),
-    applicationQuestions: jsonb("application_questions").$type<
+    name: text('name').notNull(),
+    hasApplication: boolean('has_application').notNull().default(false),
+    applicationQuestions: jsonb('application_questions').$type<
       ApplicationQuestion[] | null
     >(),
-    startsAt: timestamp("starts_at"),
-    endsAt: timestamp("ends_at"),
-    createdAt: timestamp("created_at").defaultNow().notNull(),
-    updatedAt: timestamp("updated_at")
+    startsAt: timestamp('starts_at'),
+    endsAt: timestamp('ends_at'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at')
       .defaultNow()
       .$onUpdate(() => new Date())
       .notNull(),
   },
   (table) => ({
-    idxHasApplication: index("idx_events_has_application").on(
+    idxHasApplication: index('idx_events_has_application').on(
       table.hasApplication,
     ),
   }),
@@ -74,25 +74,25 @@ export const events = pgTable(
 // User profiles (1:1 with user)
 // ---------------------------------------------------------------------------
 
-export const userProfiles = pgTable("user_profiles", {
-  userId: uuid("user_id")
+export const userProfiles = pgTable('user_profiles', {
+  userId: uuid('user_id')
     .primaryKey()
-    .references(() => user.id, { onDelete: "cascade" }),
-  fullName: varchar("full_name", { length: 255 }).notNull(),
-  genderId: integer("gender_id")
+    .references(() => user.id, { onDelete: 'cascade' }),
+  fullName: varchar('full_name', { length: 255 }).notNull(),
+  genderId: integer('gender_id')
     .notNull()
     .references(() => genders.id),
-  universityId: integer("university_id")
+  universityId: integer('university_id')
     .notNull()
     .references(() => universities.id),
-  majorId: integer("major_id")
+  majorId: integer('major_id')
     .notNull()
     .references(() => majors.id),
-  yearOfStudyId: integer("year_of_study_id")
+  yearOfStudyId: integer('year_of_study_id')
     .notNull()
     .references(() => yearsOfStudy.id),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at")
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at')
     .defaultNow()
     .$onUpdate(() => new Date())
     .notNull(),
@@ -103,31 +103,31 @@ export const userProfiles = pgTable("user_profiles", {
 // ---------------------------------------------------------------------------
 
 export const eventApplications = pgTable(
-  "event_applications",
+  'event_applications',
   {
-    id: uuid("id").defaultRandom().primaryKey(),
-    eventId: uuid("event_id")
+    id: uuid('id').defaultRandom().primaryKey(),
+    eventId: uuid('event_id')
       .notNull()
-      .references(() => events.id, { onDelete: "cascade" }),
-    userId: uuid("user_id")
+      .references(() => events.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
       .notNull()
-      .references(() => user.id, { onDelete: "cascade" }),
-    createdAt: timestamp("created_at").defaultNow().notNull(),
-    updatedAt: timestamp("updated_at")
+      .references(() => user.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at')
       .defaultNow()
       .$onUpdate(() => new Date())
       .notNull(),
-    responses: jsonb("responses").$type<Record<string, unknown>>(),
+    responses: jsonb('responses').$type<Record<string, unknown>>(),
   },
   (table) => ({
     eventUserUnique: uniqueIndex(
-      "event_applications_event_id_user_id_unique",
+      'event_applications_event_id_user_id_unique',
     ).on(table.eventId, table.userId),
-    idxEventCreatedAt: index("idx_event_applications_event_id_created_at").on(
+    idxEventCreatedAt: index('idx_event_applications_event_id_created_at').on(
       table.eventId,
       table.createdAt.desc(),
     ),
-    idxUserId: index("idx_event_applications_user_id").on(table.userId),
+    idxUserId: index('idx_event_applications_user_id').on(table.userId),
   }),
 );
 
@@ -136,18 +136,18 @@ export const eventApplications = pgTable(
 // ---------------------------------------------------------------------------
 
 export const userInterests = pgTable(
-  "user_interests",
+  'user_interests',
   {
-    userId: uuid("user_id")
+    userId: uuid('user_id')
       .notNull()
-      .references(() => user.id, { onDelete: "cascade" }),
-    interestId: integer("interest_id")
+      .references(() => user.id, { onDelete: 'cascade' }),
+    interestId: integer('interest_id')
       .notNull()
       .references(() => interests.id),
   },
   (table) => ({
     idxUserInterest: uniqueIndex(
-      "user_interests_user_id_interest_id_unique",
+      'user_interests_user_id_interest_id_unique',
     ).on(table.userId, table.interestId),
   }),
 );
@@ -157,18 +157,18 @@ export const userInterests = pgTable(
 // ---------------------------------------------------------------------------
 
 export const userDietaryRestrictions = pgTable(
-  "user_dietary_restrictions",
+  'user_dietary_restrictions',
   {
-    userId: uuid("user_id")
+    userId: uuid('user_id')
       .notNull()
-      .references(() => user.id, { onDelete: "cascade" }),
-    restrictionId: integer("restriction_id")
+      .references(() => user.id, { onDelete: 'cascade' }),
+    restrictionId: integer('restriction_id')
       .notNull()
       .references(() => dietaryRestrictions.id),
   },
   (table) => ({
     idxUserRestriction: uniqueIndex(
-      "user_dietary_restrictions_user_id_restriction_id_unique",
+      'user_dietary_restrictions_user_id_restriction_id_unique',
     ).on(table.userId, table.restrictionId),
   }),
 );
@@ -178,15 +178,15 @@ export const userDietaryRestrictions = pgTable(
 // ---------------------------------------------------------------------------
 
 export const eventAttendees = pgTable(
-  "event_attendees",
+  'event_attendees',
   {
-    eventId: uuid("event_id")
+    eventId: uuid('event_id')
       .notNull()
-      .references(() => events.id, { onDelete: "cascade" }),
-    userId: uuid("user_id")
+      .references(() => events.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
       .notNull()
-      .references(() => user.id, { onDelete: "cascade" }),
-    registeredAt: timestamp("registered_at").defaultNow().notNull(),
+      .references(() => user.id, { onDelete: 'cascade' }),
+    registeredAt: timestamp('registered_at').defaultNow().notNull(),
   },
   (table) => ({
     pk: primaryKey({ columns: [table.eventId, table.userId] }),
@@ -197,14 +197,14 @@ export const eventAttendees = pgTable(
 // Groups (event hosts groups)
 // ---------------------------------------------------------------------------
 
-export const groups = pgTable("groups", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  eventId: uuid("event_id")
+export const groups = pgTable('groups', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  eventId: uuid('event_id')
     .notNull()
-    .references(() => events.id, { onDelete: "cascade" }),
-  name: text("name").notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at")
+    .references(() => events.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at')
     .defaultNow()
     .$onUpdate(() => new Date())
     .notNull(),
@@ -215,14 +215,14 @@ export const groups = pgTable("groups", {
 // ---------------------------------------------------------------------------
 
 export const groupMembers = pgTable(
-  "group_members",
+  'group_members',
   {
-    groupId: uuid("group_id")
+    groupId: uuid('group_id')
       .notNull()
-      .references(() => groups.id, { onDelete: "cascade" }),
-    userId: uuid("user_id")
+      .references(() => groups.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
       .notNull()
-      .references(() => user.id, { onDelete: "cascade" }),
+      .references(() => user.id, { onDelete: 'cascade' }),
   },
   (table) => ({
     pk: primaryKey({ columns: [table.groupId, table.userId] }),
@@ -234,19 +234,19 @@ export const groupMembers = pgTable(
 // ---------------------------------------------------------------------------
 
 export const submissions = pgTable(
-  "submissions",
+  'submissions',
   {
-    id: uuid("id").defaultRandom().primaryKey(),
-    groupId: uuid("group_id")
+    id: uuid('id').defaultRandom().primaryKey(),
+    groupId: uuid('group_id')
       .notNull()
-      .references(() => groups.id, { onDelete: "cascade" }),
-    eventId: uuid("event_id")
+      .references(() => groups.id, { onDelete: 'cascade' }),
+    eventId: uuid('event_id')
       .notNull()
-      .references(() => events.id, { onDelete: "cascade" }),
-    submittedAt: timestamp("submitted_at").defaultNow().notNull(),
+      .references(() => events.id, { onDelete: 'cascade' }),
+    submittedAt: timestamp('submitted_at').defaultNow().notNull(),
   },
   (table) => ({
-    groupEventUnique: uniqueIndex("submissions_group_id_event_id_unique").on(
+    groupEventUnique: uniqueIndex('submissions_group_id_event_id_unique').on(
       table.groupId,
       table.eventId,
     ),
@@ -261,9 +261,9 @@ export const eventsRelations = relations(events, ({ one, many }) => ({
   parent: one(events, {
     fields: [events.parentEventId],
     references: [events.id],
-    relationName: "eventChildren",
+    relationName: 'eventChildren',
   }),
-  children: many(events, { relationName: "eventChildren" }),
+  children: many(events, { relationName: 'eventChildren' }),
   applications: many(eventApplications),
   attendees: many(eventAttendees),
   groups: many(groups),
@@ -375,20 +375,20 @@ export const submissionsRelations = relations(submissions, ({ one }) => ({
 /**
  * Application view - denormalized for display (profile + event + user + responses)
  */
-export const applicationView = pgView("application_view", {
-  eventId: uuid("event_id").notNull(),
-  eventName: text("event_name").notNull(),
-  userId: uuid("user_id").notNull(),
-  email: text("email").notNull(),
-  fullName: varchar("full_name", { length: 255 }).notNull(),
+export const applicationView = pgView('application_view', {
+  eventId: uuid('event_id').notNull(),
+  eventName: text('event_name').notNull(),
+  userId: uuid('user_id').notNull(),
+  email: text('email').notNull(),
+  fullName: varchar('full_name', { length: 255 }).notNull(),
   gender: varchar({ length: 100 }).notNull(),
   university: varchar({ length: 200 }).notNull(),
   major: varchar({ length: 150 }).notNull(),
-  yearOfStudy: varchar("year_of_study", { length: 10 }).notNull(),
+  yearOfStudy: varchar('year_of_study', { length: 10 }).notNull(),
   interests: text(),
-  dietaryRestrictions: text("dietary_restrictions"),
-  responses: jsonb("responses").$type<Record<string, unknown>>(),
-  createdAt: timestamp("created_at", { mode: "string" }).notNull(),
+  dietaryRestrictions: text('dietary_restrictions'),
+  responses: jsonb('responses').$type<Record<string, unknown>>(),
+  createdAt: timestamp('created_at', { mode: 'string' }).notNull(),
 }).as(
   sql`
 WITH
@@ -438,18 +438,18 @@ LEFT JOIN dr ON dr.user_id = a.user_id
 /**
  * Application form view - for form pre-fill (profile IDs + interests/dietary arrays + responses)
  */
-export const applicationFormView = pgView("application_form_view", {
-  eventId: uuid("event_id").notNull(),
-  userId: uuid("user_id").notNull(),
-  fullName: varchar("full_name", { length: 255 }).notNull(),
-  genderId: integer("gender_id").notNull(),
-  universityId: integer("university_id").notNull(),
-  majorId: integer("major_id").notNull(),
-  yearOfStudyId: integer("year_of_study_id").notNull(),
-  interests: integer("interests").array().notNull(),
-  dietaryRestrictions: integer("dietary_restrictions").array().notNull(),
-  responses: jsonb("responses").$type<Record<string, unknown>>(),
-  createdAt: timestamp("created_at", { mode: "string" }).notNull(),
+export const applicationFormView = pgView('application_form_view', {
+  eventId: uuid('event_id').notNull(),
+  userId: uuid('user_id').notNull(),
+  fullName: varchar('full_name', { length: 255 }).notNull(),
+  genderId: integer('gender_id').notNull(),
+  universityId: integer('university_id').notNull(),
+  majorId: integer('major_id').notNull(),
+  yearOfStudyId: integer('year_of_study_id').notNull(),
+  interests: integer('interests').array().notNull(),
+  dietaryRestrictions: integer('dietary_restrictions').array().notNull(),
+  responses: jsonb('responses').$type<Record<string, unknown>>(),
+  createdAt: timestamp('created_at', { mode: 'string' }).notNull(),
 }).as(
   sql`
 WITH

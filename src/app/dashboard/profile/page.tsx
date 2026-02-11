@@ -1,20 +1,20 @@
-import { redirect } from "next/navigation";
+import { redirect } from 'next/navigation';
 
-import { getUser } from "@/utils/auth";
-import { getUserProfile, saveUserProfile } from "./actions";
-import { getOptions } from "@/app/dashboard/events/actions";
+import { getUser } from '@/utils/auth';
+import { getUserProfile, saveUserProfile } from './actions';
+import { getOptions } from '@/app/dashboard/events/actions';
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
-import ProfileForm from "@/components/profile-form";
+} from '@/components/ui/card';
+import ProfileForm from '@/components/profile-form';
 
 export default async function DashboardProfilePage() {
   const user = await getUser();
-  if (!user) redirect("/signin");
+  if (!user) redirect('/signin');
 
   const [profileResult, options] = await Promise.all([
     getUserProfile(),
@@ -27,7 +27,7 @@ export default async function DashboardProfilePage() {
       : { fullName: user.name };
 
   return (
-    <Card className="w-full sm:max-w-2xl">
+    <Card className='w-full sm:max-w-2xl'>
       <CardHeader>
         <CardTitle>Your profile</CardTitle>
         <CardDescription>

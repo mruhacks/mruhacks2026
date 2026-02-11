@@ -1,29 +1,29 @@
-import { redirect, notFound } from "next/navigation";
+import { redirect, notFound } from 'next/navigation';
 
-import { getUser } from "@/utils/auth";
+import { getUser } from '@/utils/auth';
 import {
   getOptions,
   getPreviousFormSubmission,
   submitEventApplication,
-} from "@/app/dashboard/events/actions";
+} from '@/app/dashboard/events/actions';
 import {
   getUserProfile,
   saveUserProfile,
-} from "@/app/dashboard/profile/actions";
-import { db } from "@/utils/db";
-import { events } from "@/db/schema";
-import { eq } from "drizzle-orm";
+} from '@/app/dashboard/profile/actions';
+import { db } from '@/utils/db';
+import { events } from '@/db/schema';
+import { eq } from 'drizzle-orm';
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
-import ProfileForm from "@/components/profile-form";
-import ApplicationForm from "@/components/application-form";
-import type { ProfileFormValues } from "@/components/profile-form/schema";
-import type { EventOnlyFormValues } from "@/components/application-form/schema";
+} from '@/components/ui/card';
+import ProfileForm from '@/components/profile-form';
+import ApplicationForm from '@/components/application-form';
+import type { ProfileFormValues } from '@/components/profile-form/schema';
+import type { EventOnlyFormValues } from '@/components/application-form/schema';
 
 type PreviousSubmission = {
   fullName: string;
@@ -56,7 +56,7 @@ function buildApplyInitials(
         interests: prev.interests ?? [],
         dietaryRestrictions: prev.dietaryRestrictions ?? [],
       }
-    : (profileData ?? { fullName: user.name ?? "" });
+    : (profileData ?? { fullName: user.name ?? '' });
 
   const eventInitial = prev
     ? {
@@ -66,7 +66,7 @@ function buildApplyInitials(
       }
     : {
         attendedBefore: false,
-        accommodations: "",
+        accommodations: '',
         applicationResponses: {} as Record<string, unknown>,
       };
 
@@ -80,7 +80,7 @@ type Props = {
 export default async function ApplyEventPage({ params }: Props) {
   const { eventId } = await params;
   const user = await getUser();
-  if (!user) redirect("/signin");
+  if (!user) redirect('/signin');
 
   const [event] = await db
     .select()
@@ -91,7 +91,7 @@ export default async function ApplyEventPage({ params }: Props) {
   if (!event) notFound();
   if (!event.hasApplication) {
     return (
-      <Card className="w-full sm:max-w-2xl">
+      <Card className='w-full sm:max-w-2xl'>
         <CardHeader>
           <CardTitle>No application required</CardTitle>
           <CardDescription>
@@ -124,16 +124,16 @@ export default async function ApplyEventPage({ params }: Props) {
   }
 
   return (
-    <Card className="w-full sm:max-w-2xl">
+    <Card className='w-full sm:max-w-2xl'>
       <CardHeader>
         <CardTitle>Application: {event.name}</CardTitle>
         <CardDescription>
           Update your profile and event application below.
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-8">
+      <CardContent className='space-y-8'>
         <section>
-          <h3 className="text-sm font-medium mb-4">Your profile</h3>
+          <h3 className='mb-4 text-sm font-medium'>Your profile</h3>
           <ProfileForm
             initial={profileInitial}
             options={options}
@@ -141,7 +141,7 @@ export default async function ApplyEventPage({ params }: Props) {
           />
         </section>
         <section>
-          <h3 className="text-sm font-medium mb-4">Event questions</h3>
+          <h3 className='mb-4 text-sm font-medium'>Event questions</h3>
           <ApplicationForm
             initial={eventInitial}
             options={options}

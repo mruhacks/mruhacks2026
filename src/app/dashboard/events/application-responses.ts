@@ -3,16 +3,16 @@
  * and building/validating the responses object. Used by server actions; no "use server".
  */
 
-import type { EventOnlyFormValues } from "@/components/application-form/schema";
-import type { ApplicationQuestion } from "@/types/application";
+import type { EventOnlyFormValues } from '@/components/application-form/schema';
+import type { ApplicationQuestion } from '@/types/application';
 
 /**
  * Maps form (camelCase) keys to event_applications.responses (snake_case) keys.
  * Add any new mapped fields here so form and DB stay in sync.
  */
 export const RESPONSE_KEY_MAP: Record<string, string> = {
-  attendedBefore: "attended_before",
-  accommodations: "accommodations",
+  attendedBefore: 'attended_before',
+  accommodations: 'accommodations',
 };
 
 /**
@@ -70,7 +70,7 @@ export function buildApplicationResponses(
       const empty =
         value === undefined ||
         value === null ||
-        (typeof value === "string" && value.trim() === "");
+        (typeof value === 'string' && value.trim() === '');
       if (empty) {
         return { ok: false, error: `Required: ${q.label ?? q.key}` };
       }

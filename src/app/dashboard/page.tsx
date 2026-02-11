@@ -12,7 +12,7 @@ export default function Dashboard() {
             href='/dashboard/profile'
             className='inline-flex items-center gap-2'
           >
-            <User className='h-4 w-4' />
+            <User className='size-4' />
             Complete your profile
           </Link>
         </Button>
@@ -21,7 +21,7 @@ export default function Dashboard() {
             href='/dashboard/events'
             className='inline-flex items-center gap-2'
           >
-            <Calendar className='h-4 w-4' />
+            <Calendar className='size-4' />
             Events
           </Link>
         </Button>

@@ -1,37 +1,37 @@
-"use client";
+'use client';
 
-import * as React from "react";
-import { Controller, useForm, useWatch, type Resolver } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
-import type { SingleValue } from "react-select";
+import * as React from 'react';
+import { Controller, useForm, useWatch, type Resolver } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { toast } from 'sonner';
+import { Loader2 } from 'lucide-react';
+import type { SingleValue } from 'react-select';
 
 import {
   Field,
   FieldGroup,
   FieldLabel,
   FieldError,
-} from "@/components/ui/field";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { Select } from "@/components/select";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
-import { type ActionResult } from "@/utils/action-result";
+} from '@/components/ui/field';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import { Select } from '@/components/select';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
+import { type ActionResult } from '@/utils/action-result';
 
 import {
   eventOnlySchema,
   type ApplicationFormOptions,
   type EventOnlyFormValues,
-} from "./schema";
-import type { ApplicationQuestion } from "@/types/application";
-import { APPLICATION_QUESTION_OPTIONS_MAP } from "@/types/application";
-import { useRouter } from "next/navigation";
-import type { Control } from "react-hook-form";
+} from './schema';
+import type { ApplicationQuestion } from '@/types/application';
+import { APPLICATION_QUESTION_OPTIONS_MAP } from '@/types/application';
+import { useRouter } from 'next/navigation';
+import type { Control } from 'react-hook-form';
 
 function RequiredAsterisk(): React.JSX.Element {
-  return <span className="text-destructive ml-0.5">*</span>;
+  return <span className='text-destructive ml-0.5'>*</span>;
 }
 
 type ApplicationQuestionFieldProps = {
@@ -57,14 +57,14 @@ function ApplicationQuestionField({
         }[])
       : [];
 
-  if (q.type === "boolean") {
+  if (q.type === 'boolean') {
     return (
       <Controller
         name={fieldName}
         control={control}
         defaultValue={undefined}
         render={({ field }) => (
-          <div className="flex items-start gap-3">
+          <div className='flex items-start gap-3'>
             <Checkbox
               id={q.key}
               checked={Boolean(field.value)}
@@ -80,7 +80,7 @@ function ApplicationQuestionField({
     );
   }
 
-  if (q.type === "select") {
+  if (q.type === 'select') {
     return (
       <Controller
         name={fieldName}
@@ -127,7 +127,7 @@ function ApplicationQuestionField({
           <Textarea
             id={q.key}
             {...field}
-            value={(field.value as string) ?? ""}
+            value={(field.value as string) ?? ''}
             onChange={(e) => field.onChange(e.target.value)}
             placeholder={q.label ?? q.key}
             maxLength={500}
@@ -154,12 +154,12 @@ type ApplicationFormProps = {
   errorMessage?: string;
 };
 
-const DEFAULT_SUBMIT_LABEL = "Save Changes";
-const DEFAULT_SUCCESS_MESSAGE = "Application information saved.";
-const DEFAULT_ERROR_MESSAGE = "Failed to save application information.";
+const DEFAULT_SUBMIT_LABEL = 'Save Changes';
+const DEFAULT_SUCCESS_MESSAGE = 'Application information saved.';
+const DEFAULT_ERROR_MESSAGE = 'Failed to save application information.';
 
 function isActionResult(result: ActionResult | void): result is ActionResult {
-  return typeof result === "object" && result !== null && "success" in result;
+  return typeof result === 'object' && result !== null && 'success' in result;
 }
 
 function ApplicationFormFields({
@@ -179,23 +179,23 @@ function ApplicationFormFields({
 }) {
   const hasEventQuestions =
     Array.isArray(applicationQuestions) && applicationQuestions.length > 0;
-  const accommodations = useWatch({ control, name: "accommodations" }) ?? "";
+  const accommodations = useWatch({ control, name: 'accommodations' }) ?? '';
 
   return (
     <>
-      <FieldGroup className="space-y-4">
+      <FieldGroup className='space-y-4'>
         <Controller
-          name="attendedBefore"
+          name='attendedBefore'
           control={control}
           render={({ field }) => (
-            <div className="flex items-start gap-3">
+            <div className='flex items-start gap-3'>
               <Checkbox
-                id="attendedBefore"
+                id='attendedBefore'
                 checked={field.value}
                 onCheckedChange={field.onChange}
               />
-              <div className="grid gap-2">
-                <Label htmlFor="attendedBefore">
+              <div className='grid gap-2'>
+                <Label htmlFor='attendedBefore'>
                   I have attended MRUHacks before
                 </Label>
               </div>
@@ -206,20 +206,20 @@ function ApplicationFormFields({
         <Field>
           <FieldLabel>Special Accommodations</FieldLabel>
           <Controller
-            name="accommodations"
+            name='accommodations'
             control={control}
             render={({ field }) => (
               <Textarea
-                id="accommodations"
+                id='accommodations'
                 {...field}
-                value={field.value ?? ""}
+                value={field.value ?? ''}
                 onChange={(e) => field.onChange(e.target.value)}
-                placeholder="Please let us know if you have any special needs."
+                placeholder='Please let us know if you have any special needs.'
                 maxLength={500}
               />
             )}
           />
-          <p className="text-sm text-muted-foreground text-right mt-1">
+          <p className='text-muted-foreground mt-1 text-right text-sm'>
             {String(accommodations).length}/500 characters
           </p>
         </Field>
@@ -236,11 +236,11 @@ function ApplicationFormFields({
       </FieldGroup>
 
       {showSubmit && (
-        <div className="mt-6 flex justify-end">
-          <Button type="submit" disabled={isSubmitting}>
+        <div className='mt-6 flex justify-end'>
+          <Button type='submit' disabled={isSubmitting}>
             {isSubmitting ? (
               <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving…
+                <Loader2 className='mr-2 size-4 animate-spin' /> Saving…
               </>
             ) : (
               submitLabel
@@ -270,12 +270,12 @@ export default function ApplicationForm({
     reset,
   } = useForm<EventOnlyFormValues>({
     resolver: zodResolver(eventOnlySchema) as Resolver<EventOnlyFormValues>,
-    mode: "onChange",
-    reValidateMode: "onChange",
-    criteriaMode: "firstError",
+    mode: 'onChange',
+    reValidateMode: 'onChange',
+    criteriaMode: 'firstError',
     defaultValues: {
       attendedBefore: initial?.attendedBefore ?? false,
-      accommodations: initial?.accommodations ?? "",
+      accommodations: initial?.accommodations ?? '',
       applicationResponses: initial?.applicationResponses ?? {},
     },
   });
@@ -294,14 +294,14 @@ export default function ApplicationForm({
 
         if (!result || (isActionResult(result) && result.success)) {
           toast.success(successMessage);
-          router.push("/dashboard");
+          router.push('/dashboard');
         }
 
         if (isActionResult(result) && !result.success) {
           toast.error(result.error ?? errorMessage);
         }
       } catch (err) {
-        console.error("Application submission error:", err);
+        console.error('Application submission error:', err);
         toast.error(errorMessage);
       }
     },
@@ -322,9 +322,9 @@ export default function ApplicationForm({
   );
 }
 
-export { applicationResponsesSchema, eventOnlySchema } from "./schema";
+export { applicationResponsesSchema, eventOnlySchema } from './schema';
 export type {
   EventOnlyFormValues,
   ApplicationFormOptions,
   ApplicationSelectOption,
-} from "./schema";
+} from './schema';

@@ -3,7 +3,7 @@
  * Application = form for events with has_application; no "registration" in success messages.
  */
 
-"use server";
+'use server';
 
 import {
   events,
@@ -20,34 +20,34 @@ import {
   interests,
   dietaryRestrictions,
   heardFromSources,
-} from "@/db/schema";
-import { getUser } from "@/utils/auth";
-import { ActionResult, fail, ok } from "@/utils/action-result";
-import { db } from "@/utils/db";
+} from '@/db/schema';
+import { getUser } from '@/utils/auth';
+import { ActionResult, fail, ok } from '@/utils/action-result';
+import { db } from '@/utils/db';
 import {
   profileFormSchema,
   type ProfileFormValues,
-} from "@/components/profile-form/schema";
+} from '@/components/profile-form/schema';
 import {
   eventOnlySchema,
   type EventOnlyFormValues,
-} from "@/components/application-form/schema";
-import type { ApplicationQuestion } from "@/types/application";
-import { cacheLife } from "next/cache";
-import { and, desc, eq } from "drizzle-orm";
-import { getUserProfile } from "@/app/dashboard/profile/actions";
+} from '@/components/application-form/schema';
+import type { ApplicationQuestion } from '@/types/application';
+import { cacheLife } from 'next/cache';
+import { and, desc, eq } from 'drizzle-orm';
+import { getUserProfile } from '@/app/dashboard/profile/actions';
 import {
   buildApplicationResponses,
   fromResponseKeys,
-} from "./application-responses";
+} from './application-responses';
 
 /**
  * Returns the first event with has_application = true (e.g. default hackathon).
  * Used for redirecting /register to /dashboard/events and for ticket default event.
  */
 export async function getDefaultApplicationEvent() {
-  "use cache";
-  cacheLife("minutes");
+  'use cache';
+  cacheLife('minutes');
   const rows = await db
     .select()
     .from(events)
@@ -68,7 +68,7 @@ export async function registerParticipant(
   eventId: string,
 ): Promise<ActionResult> {
   const user = await getUser();
-  if (!user) return fail("User not authenticated");
+  if (!user) return fail('User not authenticated');
 
   const profileParsed = profileFormSchema.safeParse(profileData);
   if (!profileParsed.success) {
@@ -156,10 +156,10 @@ export async function registerParticipant(
         });
     });
 
-    return ok("Application saved successfully.");
+    return ok('Application saved successfully.');
   } catch (error) {
-    console.error("Application save error:", error);
-    return fail("Failed to save event application.");
+    console.error('Application save error:', error);
+    return fail('Failed to save event application.');
   }
 }
 
@@ -167,8 +167,8 @@ export async function registerParticipant(
  * Fetches all application form options with caching
  */
 export async function getOptions() {
-  "use cache";
-  cacheLife("hours");
+  'use cache';
+  cacheLife('hours');
 
   const tables = {
     genders,
@@ -196,7 +196,7 @@ export async function getOptions() {
  */
 export async function getPreviousFormSubmission(eventId: string) {
   const user = await getUser();
-  if (!user) return fail("Could not get user");
+  if (!user) return fail('Could not get user');
 
   const data = await db
     .select()
@@ -209,7 +209,7 @@ export async function getPreviousFormSubmission(eventId: string) {
     )
     .limit(1);
 
-  if (data.length === 0) return fail("No existing record found");
+  if (data.length === 0) return fail('No existing record found');
 
   const row = data[0];
   const responses = (row.responses ?? {}) as Record<string, unknown>;
@@ -237,14 +237,14 @@ export async function submitEventApplication(
   eventId: string,
 ): Promise<ActionResult> {
   const user = await getUser();
-  if (!user) return fail("User not authenticated");
+  if (!user) return fail('User not authenticated');
 
   const profileResult = await getUserProfile();
   if (!profileResult.success)
-    return fail(profileResult.error ?? "Could not load profile");
+    return fail(profileResult.error ?? 'Could not load profile');
   const profile = profileResult.data;
   if (profile == null)
-    return fail("Complete your profile first before applying to events.");
+    return fail('Complete your profile first before applying to events.');
 
   return registerParticipant(profile, eventData, eventId);
 }
@@ -255,7 +255,7 @@ export type EventWithUserStatus = {
   hasApplication: boolean;
   startsAt: Date | null;
   endsAt: Date | null;
-  userStatus: "applied" | "registered" | null;
+  userStatus: 'applied' | 'registered' | null;
 };
 
 /**
@@ -295,10 +295,10 @@ export async function getEventsWithUserStatus(): Promise<
     endsAt: e.endsAt,
     userStatus: e.hasApplication
       ? appliedSet.has(e.id)
-        ? ("applied" as const)
+        ? ('applied' as const)
         : null
       : registeredSet.has(e.id)
-        ? ("registered" as const)
+        ? ('registered' as const)
         : null,
   }));
 }

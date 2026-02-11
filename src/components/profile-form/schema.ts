@@ -1,17 +1,17 @@
-import { z } from "zod";
+import { z } from 'zod';
 
 /** Profile-only (no attendedBefore; that is event-specific and stored in event_applications.responses). */
 export const personalSchema = z.object({
-  fullName: z.string().trim().min(1, "Required"),
-  genderId: z.coerce.number().int().positive("Required"),
-  universityId: z.coerce.number().int().positive("Required"),
-  majorId: z.coerce.number().int().positive("Required"),
-  yearOfStudyId: z.coerce.number().int().positive("Required"),
+  fullName: z.string().trim().min(1, 'Required'),
+  genderId: z.coerce.number().int().positive('Required'),
+  universityId: z.coerce.number().int().positive('Required'),
+  majorId: z.coerce.number().int().positive('Required'),
+  yearOfStudyId: z.coerce.number().int().positive('Required'),
 });
 
 export const interestsSchema = z.object({
-  interests: z.array(z.number()).nonempty("Select at least one interest."),
-  dietaryRestrictions: z.array(z.number("Required")),
+  interests: z.array(z.number()).nonempty('Select at least one interest.'),
+  dietaryRestrictions: z.array(z.number('Required')),
   accommodations: z.string().max(500).optional(),
 });
 
