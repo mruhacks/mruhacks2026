@@ -92,3 +92,23 @@ export const heardFromSources = pgTable('heard_from_sources', {
   id: serial('id').primaryKey(),
   label: varchar('label', { length: 150 }).unique().notNull(),
 });
+
+/**
+ * Application status (manual review outcome)
+ *
+ * Values: pending_review, approved, denied, waitlisted.
+ */
+export const applicationStatuses = pgTable('application_statuses', {
+  id: serial('id').primaryKey(),
+  label: varchar('label', { length: 50 }).unique().notNull(),
+});
+
+/**
+ * RSVP response status
+ *
+ * Values: pending, accepted, declined, timed_out.
+ */
+export const rsvpStatuses = pgTable('rsvp_statuses', {
+  id: serial('id').primaryKey(),
+  label: varchar('label', { length: 50 }).unique().notNull(),
+});

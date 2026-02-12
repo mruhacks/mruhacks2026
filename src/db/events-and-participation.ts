@@ -17,6 +17,7 @@ import {
   uuid,
   boolean,
   integer,
+  smallint,
   varchar,
   text,
   timestamp,
@@ -37,6 +38,8 @@ import {
   yearsOfStudy,
   interests,
   dietaryRestrictions,
+  applicationStatuses,
+  rsvpStatuses,
 } from './lookups';
 
 // ---------------------------------------------------------------------------
@@ -57,6 +60,7 @@ export const events = pgTable(
     >(),
     startsAt: timestamp('starts_at'),
     endsAt: timestamp('ends_at'),
+    capacity: integer('capacity'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at')
       .defaultNow()
@@ -112,6 +116,12 @@ export const eventApplications = pgTable(
     userId: uuid('user_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
+    statusId: integer('status_id').references(() => applicationStatuses.id),
+    reviewedAt: timestamp('reviewed_at'),
+    reviewedBy: uuid('reviewed_by').references(() => user.id, {
+      onDelete: 'set null',
+    }),
+    waitlistPosition: integer('waitlist_position'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at')
       .defaultNow()
@@ -194,6 +204,58 @@ export const eventAttendees = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// Event RSVP waves (one row per wave per event; deadline = respond_by)
+// ---------------------------------------------------------------------------
+
+export const eventRsvpWaves = pgTable(
+  'event_rsvp_waves',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    eventId: uuid('event_id')
+      .notNull()
+      .references(() => events.id, { onDelete: 'cascade' }),
+    wave: smallint('wave').notNull(),
+    respondBy: timestamp('respond_by'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    eventWaveUnique: uniqueIndex('event_rsvp_waves_event_id_wave_unique').on(
+      table.eventId,
+      table.wave,
+    ),
+  }),
+);
+
+// ---------------------------------------------------------------------------
+// Event RSVP responses (one row per user per wave)
+// ---------------------------------------------------------------------------
+
+export const eventRsvpResponses = pgTable(
+  'event_rsvp_responses',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    rsvpWaveId: uuid('rsvp_wave_id')
+      .notNull()
+      .references(() => eventRsvpWaves.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    statusId: integer('status_id').references(() => rsvpStatuses.id),
+    respondedAt: timestamp('responded_at'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at')
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => ({
+    waveUserUnique: uniqueIndex(
+      'event_rsvp_responses_rsvp_wave_id_user_id_unique',
+    ).on(table.rsvpWaveId, table.userId),
+  }),
+);
+
+// ---------------------------------------------------------------------------
 // Groups (event hosts groups)
 // ---------------------------------------------------------------------------
 
@@ -266,6 +328,7 @@ export const eventsRelations = relations(events, ({ one, many }) => ({
   children: many(events, { relationName: 'eventChildren' }),
   applications: many(eventApplications),
   attendees: many(eventAttendees),
+  rsvpWaves: many(eventRsvpWaves),
   groups: many(groups),
   submissions: many(submissions),
 }));
@@ -300,6 +363,10 @@ export const eventApplicationsRelations = relations(
     user: one(user, {
       fields: [eventApplications.userId],
       references: [user.id],
+    }),
+    status: one(applicationStatuses, {
+      fields: [eventApplications.statusId],
+      references: [applicationStatuses.id],
     }),
   }),
 );
@@ -336,6 +403,35 @@ export const eventAttendeesRelations = relations(eventAttendees, ({ one }) => ({
     references: [user.id],
   }),
 }));
+
+export const eventRsvpWavesRelations = relations(
+  eventRsvpWaves,
+  ({ one, many }) => ({
+    event: one(events, {
+      fields: [eventRsvpWaves.eventId],
+      references: [events.id],
+    }),
+    responses: many(eventRsvpResponses),
+  }),
+);
+
+export const eventRsvpResponsesRelations = relations(
+  eventRsvpResponses,
+  ({ one }) => ({
+    rsvpWave: one(eventRsvpWaves, {
+      fields: [eventRsvpResponses.rsvpWaveId],
+      references: [eventRsvpWaves.id],
+    }),
+    user: one(user, {
+      fields: [eventRsvpResponses.userId],
+      references: [user.id],
+    }),
+    status: one(rsvpStatuses, {
+      fields: [eventRsvpResponses.statusId],
+      references: [rsvpStatuses.id],
+    }),
+  }),
+);
 
 export const groupsRelations = relations(groups, ({ one, many }) => ({
   event: one(events, {

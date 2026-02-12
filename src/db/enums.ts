@@ -9,6 +9,8 @@ import {
   interests,
   dietaryRestrictions,
   heardFromSources,
+  applicationStatuses,
+  rsvpStatuses,
 } from '@/db/schema';
 
 // ---------- Domain constants & types ----------
@@ -79,6 +81,22 @@ export const heardFromSourcesList = [
 ] as const;
 export type HeardFromSource = (typeof heardFromSourcesList)[number];
 
+export const applicationStatusesList = [
+  'pending_review',
+  'approved',
+  'denied',
+  'waitlisted',
+] as const;
+export type ApplicationStatus = (typeof applicationStatusesList)[number];
+
+export const rsvpStatusesList = [
+  'pending',
+  'accepted',
+  'declined',
+  'timed_out',
+] as const;
+export type RsvpStatus = (typeof rsvpStatusesList)[number];
+
 // ---------- Generic table helper ----------
 interface SeedTable<TTable extends Table> {
   table: TTable;
@@ -108,6 +126,8 @@ const tables = [
   defineSeedTable(interests, interestsList),
   defineSeedTable(dietaryRestrictions, dietaryRestrictionsList),
   defineSeedTable(heardFromSources, heardFromSourcesList),
+  defineSeedTable(applicationStatuses, applicationStatusesList),
+  defineSeedTable(rsvpStatuses, rsvpStatusesList),
 ] satisfies SeedTable<Table>[];
 
 // ---------- Seeder ----------

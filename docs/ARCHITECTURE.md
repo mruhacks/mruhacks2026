@@ -8,7 +8,7 @@ Use these terms consistently across UI, code, and docs:
 
 1. **Sign up** – Create a site account (email/password). Do not use "register" for account creation.
 2. **Sign in** – Log into the site.
-3. **Apply to an event** – For events with an application (`has_application`): user fills profile + event application form. Data in `event_applications`. UI: "Apply", "Edit application", "applied".
+3. **Apply to an event** – For events with an application (`has_application`): user fills profile + event application form. Data in `event_applications` (with `status_id` for manual review: pending_review → approved / denied / waitlisted). UI: "Apply", "Edit application", "applied".
 4. **Register for an event** – For events without an application: one-click to attend. UI: "Register", "You are registered", "Unregister".
 5. **Event application** – The form and stored data for events that require an application. Use "application" (not "registration") for this flow.
 6. **Profile** – User profile (shared across events).
@@ -45,7 +45,7 @@ mruhacks2026/
 │   ├── db/               # Database schema and configurations
 │   │   ├── schema.ts     # Main schema exports
 │   │   ├── lookups.ts    # Lookup tables (genders, universities, etc.)
-│   │   ├── events-and-participation.ts  # Events, user profiles, event applications, event attendees
+│   │   ├── events-and-participation.ts  # Events, applications, RSVP waves/responses, attendees, groups
 │   │   └── auth-schema.ts    # Better Auth schema
 │   ├── utils/            # Utility functions
 │   │   ├── auth.ts       # Authentication utilities
@@ -81,16 +81,18 @@ The database schema is organized into three main modules:
 
 1. **auth-schema.ts**: Better Auth tables (users, sessions, accounts)
 2. **lookups.ts**: Reference tables for form options (genders, universities, majors, etc.)
-3. **events-and-participation.ts**: Events, user profiles, event applications, event attendees, groups, group members, and submissions
+3. **events-and-participation.ts**: Events (with `capacity`), user profiles, event applications (with application status, waitlist position), event RSVP waves and responses, event attendees, groups, group members, and submissions
 
 ### Key Tables
 
 - `user`: Authenticated users (Better Auth)
-- `events`: Events (e.g. hackathon, workshops); optional `parent_event_id` (self-FK) for parent/child hierarchy; `has_application` and `application_questions` (JSONB) define whether and how users apply
+- `events`: Events (e.g. hackathon, workshops); optional `parent_event_id` (self-FK) for parent/child hierarchy; `has_application` and `application_questions` (JSONB) define whether and how users apply; optional `capacity` for waitlist/event-full logic
 - `user_profiles`: Profile fields shared across applications (full name, gender, university, major, year of study)
 - `user_interests` / `user_dietary_restrictions`: User-level many-to-many with lookups
-- `event_applications`: One per user per event (when event has application); `id` (uuid PK), unique on `(event_id, user_id)`; `responses` (JSONB) stores application answers
-- `event_attendees`: Simple signup for events without applications
+- `event_applications`: One per user per event (when event has application); `id` (uuid PK), unique on `(event_id, user_id)`; `status_id` (FK to `application_statuses`: pending_review, approved, denied, waitlisted), optional `reviewed_at` / `reviewed_by` / `waitlist_position`; `responses` (JSONB) stores application answers
+- `event_rsvp_waves`: One row per invitation wave per event (wave number, `respond_by` deadline)
+- `event_rsvp_responses`: One row per user per wave; `status_id` (FK to `rsvp_statuses`: pending, accepted, declined, timed_out), `responded_at`
+- `event_attendees`: Simple signup for events without applications; also used for accepted RSVPs
 - `groups`: Groups (teams) hosted by an event; `id`, `event_id` (FK to events), `name`
 - `group_members`: Junction `(group_id, user_id)`; groups contain users
 - `submissions`: Group submissions to events; `id`, `group_id`, `event_id`, `submitted_at`; groups submit to events
@@ -101,6 +103,45 @@ The database schema is organized into three main modules:
 - `application_form_view`: Structured view for pre-filling the application form (profile + responses)
 
 See [Database Configuration](./DATABASE.md) for more details.
+
+### Registration flow (state diagram)
+
+The following state diagram describes the registration flow: event type check, application process with manual review, RSVP (including waitlist and time out), and attendance. For events without an application, participants who show up without having registered can be asked to register and then follow the normal flow.
+
+```mermaid
+stateDiagram-v2
+    [*] --> checkType
+
+    checkType --> ApplicationProcess : Requires Application
+    checkType --> Accepted : No Application
+
+    ApplicationProcess --> ManualReview
+
+    ManualReview --> Waitlist
+    ManualReview --> RSVP : Approved
+    ManualReview --> Denied
+
+    state "Check Event Type" as checkType
+    state "Application Process" as ApplicationProcess
+    state "Event Full" as EventFull
+    state "Manual Review Process" as ManualReview
+    state "Time Out" as TimeOut
+    state "Show up" as Showing
+    state "No Show" as NoShow
+    state "RSVP Process" as RSVPProcess {
+        RSVP --> Accepted
+        RSVP --> Decline
+        RSVP --> TimeOut : missed deadline
+        Waitlist --> RSVP : Spot Opens
+        Waitlist --> EventFull : No spot opens
+        Waitlist --> Decline
+    }
+    state Attendance {
+        Accepted --> Decline : Declined later
+        Accepted --> Showing
+        Accepted --> NoShow
+    }
+```
 
 ## Authentication Flow
 

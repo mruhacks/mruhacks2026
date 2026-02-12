@@ -36,6 +36,20 @@
       "when": 1770775121345,
       "tag": "0004_remove_event_applications_status",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1770922459887,
+      "tag": "0005_flat_major_mapleleaf",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1770923874186,
+      "tag": "0006_easy_phil_sheldon",
+      "breakpoints": true
     }
   ]
 }

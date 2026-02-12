@@ -19,6 +19,7 @@ import {
   interests,
   dietaryRestrictions,
   heardFromSources,
+  applicationStatuses,
   permission,
   role,
   userRole,
@@ -59,6 +60,7 @@ async function seedEvents() {
     {
       name: 'MRUHacks 2026',
       hasApplication: true,
+      capacity: null,
       applicationQuestions: [
         {
           key: 'attended_before',
@@ -101,6 +103,7 @@ async function seedEvents() {
     {
       name: 'Intro to React Workshop',
       hasApplication: false,
+      capacity: null,
     },
   ];
   const inserted = await db.insert(events).values(eventInserts).returning();
@@ -210,6 +213,7 @@ async function main() {
     interestRows,
     dietaryRows,
     heardRows,
+    applicationStatusRows,
   ] = await Promise.all([
     db.select().from(genders),
     db.select().from(universities),
@@ -218,7 +222,13 @@ async function main() {
     db.select().from(interests),
     db.select().from(dietaryRestrictions),
     db.select().from(heardFromSources),
+    db.select().from(applicationStatuses),
   ]);
+
+  const pendingReviewStatus = applicationStatusRows.find(
+    (s) => s.label === 'pending_review',
+  );
+  const pendingReviewStatusId = pendingReviewStatus?.id ?? null;
 
   const now = new Date();
   const chunkCount = Math.ceil(COUNT / CHUNK_SIZE);
@@ -298,6 +308,7 @@ async function main() {
       applicationData.push({
         eventId: applicationEvent.id,
         userId: id,
+        statusId: pendingReviewStatusId,
         createdAt: now,
         updatedAt: now,
         responses: {
@@ -376,17 +387,21 @@ async function main() {
       await tx.insert(account).values(accounts);
       await tx.insert(session).values(sessions);
       await tx.insert(userProfiles).values(profiles);
-      await tx.insert(userInterests).values(interestLinks);
-      await tx.insert(userDietaryRestrictions).values(dietaryLinks);
+      if (interestLinks.length > 0)
+        await tx.insert(userInterests).values(interestLinks);
+      if (dietaryLinks.length > 0)
+        await tx.insert(userDietaryRestrictions).values(dietaryLinks);
       await tx.insert(eventApplications).values(applicationData);
-      await tx
-        .insert(eventAttendees)
-        .values(attendeeData)
-        .onConflictDoNothing({
-          target: [eventAttendees.eventId, eventAttendees.userId],
-        });
-      await tx.insert(userRole).values(userRoles);
-      await tx.insert(userPermission).values(userPerms);
+      if (attendeeData.length > 0)
+        await tx
+          .insert(eventAttendees)
+          .values(attendeeData)
+          .onConflictDoNothing({
+            target: [eventAttendees.eventId, eventAttendees.userId],
+          });
+      if (userRoles.length > 0) await tx.insert(userRole).values(userRoles);
+      if (userPerms.length > 0)
+        await tx.insert(userPermission).values(userPerms);
     });
 
     const t1 = performance.now();
