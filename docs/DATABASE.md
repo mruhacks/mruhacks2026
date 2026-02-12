@@ -197,7 +197,7 @@ erDiagram
     }
 
     user_profiles {
-        uuid user_id PK_FK
+        uuid user_id PK, FK
         varchar full_name
         int gender_id FK
         int university_id FK
@@ -225,8 +225,8 @@ erDiagram
     }
 
     event_attendees {
-        uuid event_id PK_FK
-        uuid user_id PK_FK
+        uuid event_id PK, FK
+        uuid user_id PK, FK
         timestamp registered_at
     }
 
@@ -239,8 +239,8 @@ erDiagram
     }
 
     group_members {
-        uuid group_id PK_FK
-        uuid user_id PK_FK
+        uuid group_id PK, FK
+        uuid user_id PK, FK
     }
 
     submissions {
@@ -298,18 +298,18 @@ erDiagram
     }
 
     authz_user_role {
-        uuid user_id PK_FK
-        int role_id PK_FK
+        uuid user_id PK, FK
+        int role_id PK, FK
     }
 
     authz_user_permission {
-        uuid user_id PK_FK
-        int permission_id PK_FK
+        uuid user_id PK, FK
+        int permission_id PK, FK
     }
 
     authz_role_permission {
-        int role_id PK_FK
-        int permission_id PK_FK
+        int role_id PK, FK
+        int permission_id PK, FK
     }
 ```
 
