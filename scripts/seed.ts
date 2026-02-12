@@ -27,7 +27,7 @@ import {
   rolePermissions,
 } from '@/db/schema';
 import type { InferInsertModel } from 'drizzle-orm';
-import { seedStaticTables } from '@/db/enums';
+import { seedStaticTables } from './seed-static';
 
 const COUNT = Number(process.env.SEED_COUNT ?? 1e3);
 const CHUNK_SIZE = Number(process.env.SEED_CHUNK_SIZE ?? 2000);
