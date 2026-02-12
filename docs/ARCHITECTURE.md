@@ -15,6 +15,7 @@ Use these terms consistently across UI, code, and docs:
 7. **Attendee** – A user in `event_attendees`.
 8. **Group** – A team associated with an event; members are in `group_members`. Use for "group" or "team" in UI and docs.
 9. **Submission** – A group's submission to an event (e.g. project); stored in `submissions`. Distinct from "event application" (user applying to attend).
+10. **Check-in** – Physical verification that an attendee is present (e.g. at event start or at a meal). One row per user per event in `check_ins`; the event can be the main event or a sub-event (e.g. meal). UI: "Check in", "Checked in", etc.
 
 In authz, the entity **"application"** means event application (permissions: approve, reject, read).
 
@@ -81,12 +82,13 @@ The database schema is organized into three main modules:
 
 1. **auth-schema.ts**: Better Auth tables (users, sessions, accounts)
 2. **lookups.ts**: Reference tables for form options (genders, universities, majors, etc.)
-3. **events-and-participation.ts**: Events (with `capacity`), user profiles, event applications (with application status, waitlist position), event RSVP waves and responses, event attendees, groups, group members, and submissions
+3. **events-and-participation.ts**: Events (with `capacity`, optional `event_type_id`), user profiles, event applications (with application status, waitlist position), event RSVP waves and responses, event attendees, check-ins, groups, group members, and submissions
 
 ### Key Tables
 
 - `user`: Authenticated users (Better Auth)
-- `events`: Events (e.g. hackathon, workshops); optional `parent_event_id` (self-FK) for parent/child hierarchy; `has_application` and `application_questions` (JSONB) define whether and how users apply; optional `capacity` for waitlist/event-full logic
+- `events`: Events (e.g. hackathon, workshops); optional `parent_event_id` (self-FK) for parent/child hierarchy; optional `event_type_id` (FK to `event_types`: meal, workshop, hackathon); `has_application` and `application_questions` (JSONB) define whether and how users apply; optional `capacity` for waitlist/event-full logic
+- `check_ins`: One row per user per event (door check-in or meal check-in); unique on `(user_id, event_id)`; `checked_in_at` timestamp
 - `user_profiles`: Profile fields shared across applications (full name, gender, university, major, year of study)
 - `user_interests` / `user_dietary_restrictions`: User-level many-to-many with lookups
 - `event_applications`: One per user per event (when event has application); `id` (uuid PK), unique on `(event_id, user_id)`; `status_id` (FK to `application_statuses`: pending_review, approved, denied, waitlisted), optional `reviewed_at` / `reviewed_by` / `waitlist_position`; `responses` (JSONB) stores application answers
@@ -126,7 +128,7 @@ stateDiagram-v2
     state "Event Full" as EventFull
     state "Manual Review Process" as ManualReview
     state "Time Out" as TimeOut
-    state "Show up" as Showing
+    state "Checked-in" as Showing
     state "No Show" as NoShow
     state "RSVP Process" as RSVPProcess {
         RSVP --> Accepted

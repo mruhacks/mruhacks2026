@@ -111,8 +111,8 @@ Our database schema is split across multiple files to be more manageable.
 
 - `src/db/schema.ts`: Main export file
 - `src/db/auth-schema.ts`: Defines authentication (who you are) related tables.
-- `src/db/lookups.ts`: Defines reference/lookup tables.
-- `src/db/events-and-participation.ts`: Defines events (with `parent_event_id`, `capacity`), user profiles, event applications (with `id`, `status_id`, `reviewed_at`, `reviewed_by`, `waitlist_position`), event RSVP waves and responses, user interests/dietary (user-level), event attendees, groups, group members, submissions, and application views
+- `src/db/lookups.ts`: Defines reference/lookup tables (genders, universities, majors, event_types, etc.).
+- `src/db/events-and-participation.ts`: Defines events (with `parent_event_id`, `event_type_id` FK to `event_types`, `capacity`), user profiles, event applications (with `id`, `status_id`, `reviewed_at`, `reviewed_by`, `waitlist_position`), event RSVP waves and responses, user interests/dietary (user-level), event attendees, check-ins, groups, group members, submissions, and application views
 - `src/db/authz.ts`: Defines authorization (what you can do) related tables.
 - `src/db/enums.ts`: Defines valid values for the tables defined in `lookups.ts` (including `application_statuses`, `rsvp_statuses`), and seeds those values into the tables.
 
@@ -127,6 +127,7 @@ erDiagram
     user ||--o| user_profiles : "has"
     user ||--o{ event_applications : "submits"
     user ||--o{ event_attendees : "registers"
+    user ||--o{ check_ins : "checked_in_at"
     user ||--o{ event_rsvp_responses : "responds"
     user ||--o{ user_interests : "has"
     user ||--o{ user_dietary_restrictions : "has"
@@ -137,12 +138,14 @@ erDiagram
     events ||--o{ events : "parent_of"
     events ||--o{ event_applications : "receives"
     events ||--o{ event_attendees : "hosts"
+    events ||--o{ check_ins : "has"
     events ||--o{ event_rsvp_waves : "has"
     events ||--o{ groups : "hosts"
     events ||--o{ submissions : "receives"
 
     event_rsvp_waves ||--o{ event_rsvp_responses : "has"
 
+    event_types ||--o{ events : "referenced_by"
     application_statuses ||--o{ event_applications : "referenced_by"
     rsvp_statuses ||--o{ event_rsvp_responses : "referenced_by"
 
@@ -194,6 +197,7 @@ erDiagram
     events {
         uuid id PK
         uuid parent_event_id FK "nullable"
+        int event_type_id FK "nullable"
         text name
         boolean has_application
         jsonb application_questions
@@ -202,6 +206,17 @@ erDiagram
         int capacity "nullable"
         timestamp created_at
         timestamp updated_at
+    }
+
+    check_ins {
+        uuid user_id FK
+        uuid event_id FK
+        timestamp checked_in_at
+    }
+
+    event_types {
+        serial id PK
+        varchar label
     }
 
     user_profiles {
@@ -359,6 +374,7 @@ erDiagram
 - The database also has two **views** (not shown): `application_view` and `application_form_view`. They are denormalized views over `event_applications`, `user_profiles`, and lookup tables. See [ARCHITECTURE.md](./ARCHITECTURE.md) under "Database Views" for details.
 - The `heard_from_sources` lookup table has no foreign keys from other tables in the current schema.
 - `application_statuses` (labels: pending_review, approved, denied, waitlisted) is referenced by `event_applications.status_id`. `rsvp_statuses` (labels: pending, accepted, declined, timed_out) is referenced by `event_rsvp_responses.status_id`.
+- `event_types` (labels: meal, workshop, hackathon) is referenced by `events.event_type_id`. Meals and workshops are typically child events (`parent_event_id` set to the main event). `check_ins` records one row per user per event (main event = door check-in; child event = e.g. meal check-in).
 
 ## Drizzle Studio
 

@@ -112,3 +112,13 @@ export const rsvpStatuses = pgTable('rsvp_statuses', {
   id: serial('id').primaryKey(),
   label: varchar('label', { length: 50 }).unique().notNull(),
 });
+
+/**
+ * Event type classification
+ *
+ * Values: meal, workshop, hackathon. Used to filter and display events (e.g. main hackathon vs meals vs workshops).
+ */
+export const eventTypes = pgTable('event_types', {
+  id: serial('id').primaryKey(),
+  label: varchar('label', { length: 50 }).unique().notNull(),
+});

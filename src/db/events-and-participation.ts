@@ -40,17 +40,23 @@ import {
   dietaryRestrictions,
   applicationStatuses,
   rsvpStatuses,
+  eventTypes,
 } from './lookups';
 
 // ---------------------------------------------------------------------------
 // Events
 // ---------------------------------------------------------------------------
 
+// Self-reference (parentEventId) causes TS to infer 'any'; table is valid at runtime.
 export const events = pgTable(
   'events',
   {
     id: uuid('id').defaultRandom().primaryKey(),
-    parentEventId: uuid('parent_event_id').references(() => events.id, {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- self-ref
+    parentEventId: uuid('parent_event_id').references((): any => events.id, {
+      onDelete: 'set null',
+    }),
+    eventTypeId: integer('event_type_id').references(() => eventTypes.id, {
       onDelete: 'set null',
     }),
     name: text('name').notNull(),
@@ -204,6 +210,34 @@ export const eventAttendees = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// Check-ins (one row per user per event: door check-in or meal check-in)
+// ---------------------------------------------------------------------------
+
+export const checkIns = pgTable(
+  'check_ins',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    eventId: uuid('event_id')
+      .notNull()
+      .references(() => events.id, { onDelete: 'cascade' }),
+    checkedInAt: timestamp('checked_in_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    userEventUnique: uniqueIndex('check_ins_user_id_event_id_unique').on(
+      table.userId,
+      table.eventId,
+    ),
+    idxEventCheckedInAt: index('idx_check_ins_event_id_checked_in_at').on(
+      table.eventId,
+      table.checkedInAt,
+    ),
+    idxUserId: index('idx_check_ins_user_id').on(table.userId),
+  }),
+);
+
+// ---------------------------------------------------------------------------
 // Event RSVP waves (one row per wave per event; deadline = respond_by)
 // ---------------------------------------------------------------------------
 
@@ -326,8 +360,13 @@ export const eventsRelations = relations(events, ({ one, many }) => ({
     relationName: 'eventChildren',
   }),
   children: many(events, { relationName: 'eventChildren' }),
+  eventType: one(eventTypes, {
+    fields: [events.eventTypeId],
+    references: [eventTypes.id],
+  }),
   applications: many(eventApplications),
   attendees: many(eventAttendees),
+  checkIns: many(checkIns),
   rsvpWaves: many(eventRsvpWaves),
   groups: many(groups),
   submissions: many(submissions),
@@ -400,6 +439,17 @@ export const eventAttendeesRelations = relations(eventAttendees, ({ one }) => ({
   }),
   user: one(user, {
     fields: [eventAttendees.userId],
+    references: [user.id],
+  }),
+}));
+
+export const checkInsRelations = relations(checkIns, ({ one }) => ({
+  event: one(events, {
+    fields: [checkIns.eventId],
+    references: [events.id],
+  }),
+  user: one(user, {
+    fields: [checkIns.userId],
     references: [user.id],
   }),
 }));
