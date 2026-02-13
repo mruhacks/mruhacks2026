@@ -74,18 +74,18 @@ export default async function TicketPage({ searchParams }: Props) {
           <dt className='text-muted-foreground'>Year of study</dt>
           <dd>{application.yearOfStudy}</dd>
         </div>
-        {application.interests && (
+        {application.interests?.length ? (
           <div>
             <dt className='text-muted-foreground'>Interests</dt>
-            <dd>{String(application.interests)}</dd>
+            <dd>{application.interests.join(', ')}</dd>
           </div>
-        )}
-        {application.dietaryRestrictions && (
+        ) : null}
+        {application.dietaryRestrictions?.length ? (
           <div>
             <dt className='text-muted-foreground'>Dietary restrictions</dt>
-            <dd>{String(application.dietaryRestrictions)}</dd>
+            <dd>{application.dietaryRestrictions.join(', ')}</dd>
           </div>
-        )}
+        ) : null}
       </dl>
     </div>
   );

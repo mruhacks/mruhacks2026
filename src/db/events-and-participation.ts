@@ -531,8 +531,8 @@ export const applicationView = pgView('application_view', {
   university: varchar({ length: 200 }).notNull(),
   major: varchar({ length: 150 }).notNull(),
   yearOfStudy: varchar('year_of_study', { length: 10 }).notNull(),
-  interests: text(),
-  dietaryRestrictions: text('dietary_restrictions'),
+  interests: text().array(),
+  dietaryRestrictions: text('dietary_restrictions').array(),
   responses: jsonb('responses').$type<Record<string, unknown>>(),
   createdAt: timestamp('created_at', { mode: 'string' }).notNull(),
 }).as(
