@@ -1,14 +1,17 @@
 /**
  * Custom React hook for detecting mobile viewports
  *
+ *
  * This hook uses the matchMedia API to detect if the current viewport
  * is below the mobile breakpoint (768px). It updates reactively when
  * the viewport size changes.
+ *
  *
  * @example
  * ```tsx
  * function MyComponent() {
  *   const isMobile = useIsMobile();
+ *
  *
  *   return (
  *     <div>
@@ -30,11 +33,13 @@ const MOBILE_BREAKPOINT = 768;
 /**
  * React hook that returns whether the current viewport is mobile-sized
  *
+ *
  * The hook:
  * - Returns undefined on initial server-side render
  * - Updates to true/false after hydration based on window width
  * - Listens to window resize events and updates accordingly
  * - Cleans up event listeners on unmount
+ *
  *
  * @returns boolean indicating if the viewport is mobile-sized (< 768px)
  */

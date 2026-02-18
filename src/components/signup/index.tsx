@@ -4,7 +4,9 @@ import * as React from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Controller, useForm } from 'react-hook-form';
 import { toast } from 'sonner';
-import * as z from 'zod';
+import Link from 'next/link';
+import { Loader2 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -24,22 +26,17 @@ import {
 } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { authClient } from '@/utils/auth-client';
-import { Loader2 } from 'lucide-react';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-
-const formSchema = z.object({
-  name: z.string().min(1, 'Name is required.'),
-  email: z.email('Please enter a valid email address.'),
-  password: z.string().min(8, 'Password must be at least 8 characters.'),
-});
+import {
+  signUpFormSchema,
+  type SignUpFormValues,
+} from '@/components/signup/schema';
 
 export default function SignUpForm() {
   const [loading, setLoading] = React.useState(false);
   const router = useRouter();
 
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
+  const form = useForm<SignUpFormValues>({
+    resolver: zodResolver(signUpFormSchema),
     defaultValues: {
       name: '',
       email: '',
@@ -47,7 +44,7 @@ export default function SignUpForm() {
     },
   });
 
-  function onSubmit(userDetails: z.infer<typeof formSchema>) {
+  function onSubmit(userDetails: SignUpFormValues) {
     authClient.signUp.email(userDetails, {
       onRequest: () => {
         setLoading(true);
@@ -57,7 +54,7 @@ export default function SignUpForm() {
         toast.success('Account created successfully', {
           description: 'Check your inbox to verify your email.',
         });
-        router.push('/register');
+        router.push('/dashboard/profile');
       },
       onError: (ctx) => {
         setLoading(false);
@@ -123,7 +120,7 @@ export default function SignUpForm() {
                     disabled={loading}
                   />
                   <FieldDescription>
-                    We’ll send a confirmation link to this address.
+                    We&apos;ll send a confirmation link to this address.
                   </FieldDescription>
                   {fieldState.invalid && (
                     <FieldError errors={[fieldState.error]} />
@@ -188,7 +185,7 @@ export default function SignUpForm() {
         <div className='mt-4 text-sm'>
           <span>Already have an account?</span>
           <Link className='ml-1 font-medium hover:underline' href='/signin'>
-            Signin
+            Sign In
           </Link>
         </div>
       </CardFooter>

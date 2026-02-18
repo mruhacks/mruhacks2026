@@ -1,9 +1,10 @@
 /**
- * Database lookup tables for the registration system
+ * Database lookup tables for the application system
  *
  * This module defines all the lookup/reference tables used in the
- * participant registration form. These tables contain predefined options
+ * participant profile and event application form. These tables contain predefined options
  * for dropdowns and multi-select inputs.
+ *
  *
  * All lookup tables follow a consistent structure:
  * - id: Auto-incrementing primary key
@@ -13,7 +14,7 @@
 import { pgTable, serial, varchar } from 'drizzle-orm/pg-core';
 
 /**
- * Gender options for participant registration
+ * Gender options for participant profile and application form
  *
  * Example values: "Male", "Female", "Non-binary", "Prefer not to say"
  */
@@ -24,6 +25,7 @@ export const genders = pgTable('genders', {
 
 /**
  * University/institution options
+ *
  *
  * Contains list of universities and educational institutions
  * that participants may attend.
@@ -36,6 +38,7 @@ export const universities = pgTable('universities', {
 /**
  * Academic major/field of study options
  *
+ *
  * Example values: "Computer Science", "Engineering", "Business", etc.
  */
 export const majors = pgTable('majors', {
@@ -46,6 +49,7 @@ export const majors = pgTable('majors', {
 /**
  * Year of study options
  *
+ *
  * Example values: "1st Year", "2nd Year", "3rd Year", "4th Year", "Graduate"
  */
 export const yearsOfStudy = pgTable('years_of_study', {
@@ -55,6 +59,7 @@ export const yearsOfStudy = pgTable('years_of_study', {
 
 /**
  * Participant interest areas
+ *
  *
  * Technical and non-technical interests that participants can select.
  * Example values: "Web Development", "Machine Learning", "Design", etc.
@@ -67,6 +72,7 @@ export const interests = pgTable('interests', {
 /**
  * Dietary restriction options
  *
+ *
  * Used to accommodate participants' dietary needs for meals.
  * Example values: "Vegetarian", "Vegan", "Gluten-Free", "Halal", etc.
  */
@@ -78,10 +84,41 @@ export const dietaryRestrictions = pgTable('dietary_restrictions', {
 /**
  * Sources where participants heard about the hackathon
  *
+ *
  * Marketing attribution data to track how participants discovered the event.
  * Example values: "Social Media", "Friend", "Professor", "Website", etc.
  */
 export const heardFromSources = pgTable('heard_from_sources', {
   id: serial('id').primaryKey(),
   label: varchar('label', { length: 150 }).unique().notNull(),
+});
+
+/**
+ * Application status (manual review outcome)
+ *
+ * Values: pending_review, approved, denied, waitlisted.
+ */
+export const applicationStatuses = pgTable('application_statuses', {
+  id: serial('id').primaryKey(),
+  label: varchar('label', { length: 50 }).unique().notNull(),
+});
+
+/**
+ * RSVP response status
+ *
+ * Values: pending, accepted, declined, timed_out.
+ */
+export const rsvpStatuses = pgTable('rsvp_statuses', {
+  id: serial('id').primaryKey(),
+  label: varchar('label', { length: 50 }).unique().notNull(),
+});
+
+/**
+ * Event type classification
+ *
+ * Values: meal, workshop, hackathon. Used to filter and display events (e.g. main hackathon vs meals vs workshops).
+ */
+export const eventTypes = pgTable('event_types', {
+  id: serial('id').primaryKey(),
+  label: varchar('label', { length: 50 }).unique().notNull(),
 });
