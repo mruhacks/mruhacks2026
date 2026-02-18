@@ -1,6 +1,6 @@
 // src/db/seed-static.ts
-import { db } from "@/utils/db";
-import { InferInsertModel, Table, getTableName } from "drizzle-orm";
+import { db } from '@/utils/db';
+import { InferInsertModel, Table, getTableName } from 'drizzle-orm';
 import {
   genders,
   universities,
@@ -9,73 +9,73 @@ import {
   interests,
   dietaryRestrictions,
   heardFromSources,
-} from "@/db/schema";
+} from '@/db/schema';
 
 // ---------- Domain constants & types ----------
 export const gendersList = [
-  "Male",
-  "Female",
-  "Non-binary",
-  "Other",
-  "Prefer not to say",
+  'Male',
+  'Female',
+  'Non-binary',
+  'Other',
+  'Prefer not to say',
 ] as const;
 export type Gender = (typeof gendersList)[number];
 
 export const universitiesList = [
-  "Mount Royal University",
-  "University of Calgary",
-  "University of Alberta",
-  "University of Lethbridge",
-  "MacEwan University",
-  "SAIT",
-  "NAIT",
-  "Other / Not listed",
+  'Mount Royal University',
+  'University of Calgary',
+  'University of Alberta',
+  'University of Lethbridge',
+  'MacEwan University',
+  'SAIT',
+  'NAIT',
+  'Other / Not listed',
 ] as const;
 export type University = (typeof universitiesList)[number];
 
 export const majorsList = [
-  "Computer Science",
-  "Software Engineering",
-  "Information Systems",
-  "Data Science",
-  "Cybersecurity",
-  "Computer Engineering",
-  "UX / UI Design",
-  "Game Development",
-  "Other / Custom",
+  'Computer Science',
+  'Software Engineering',
+  'Information Systems',
+  'Data Science',
+  'Cybersecurity',
+  'Computer Engineering',
+  'UX / UI Design',
+  'Game Development',
+  'Other / Custom',
 ] as const;
 export type Major = (typeof majorsList)[number];
 
-export const yearsOfStudyList = ["1st", "2nd", "3rd", "4th", "4th+"] as const;
+export const yearsOfStudyList = ['1st', '2nd', '3rd', '4th', '4th+'] as const;
 export type YearOfStudy = (typeof yearsOfStudyList)[number];
 
 export const interestsList = [
-  "Mobile App Development",
-  "Web Development",
-  "Data Science and ML",
-  "UX / UI Design",
-  "Game Development",
+  'Mobile App Development',
+  'Web Development',
+  'Data Science and ML',
+  'UX / UI Design',
+  'Game Development',
 ] as const;
 export type Interest = (typeof interestsList)[number];
 
 export const dietaryRestrictionsList = [
-  "Vegetarian",
-  "Vegan",
-  "Halal",
-  "Kosher",
-  "Gluten-free",
-  "Peanuts / Tree-nuts Allergy",
-  "Other",
+  'Vegetarian',
+  'Vegan',
+  'Halal',
+  'Kosher',
+  'Gluten-free',
+  'Peanuts / Tree-nuts Allergy',
+  'Other',
 ] as const;
 export type DietaryRestriction = (typeof dietaryRestrictionsList)[number];
 
 export const heardFromSourcesList = [
-  "Poster",
-  "Friend / Classmate",
-  "Classroom Visit",
-  "Social Media",
-  "Professor / Course Announcement",
-  "Other",
+  'Poster',
+  'Friend / Classmate',
+  'Classroom Visit',
+  'Social Media',
+  'Professor / Course Announcement',
+  'Other',
 ] as const;
 export type HeardFromSource = (typeof heardFromSourcesList)[number];
 
@@ -128,13 +128,13 @@ export async function seedStaticTables() {
     }
   }
 
-  console.log("✅ Static tables seeded successfully");
+  console.log('✅ Static tables seeded successfully');
 }
 
 // ---------- Direct execution ----------
 if (require.main === module) {
   seedStaticTables().catch((err) => {
-    console.error("❌ Seed failed:", err);
+    console.error('❌ Seed failed:', err);
     process.exit(1);
   });
 }

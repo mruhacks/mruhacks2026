@@ -5,12 +5,12 @@
  * and provides helpers for retrieving session and user information.
  */
 
-import { betterAuth } from "better-auth";
-import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { db } from "@/utils/db";
-import * as schema from "@/db/schema";
-import { headers } from "next/headers";
-import { cache } from "react";
+import { betterAuth } from 'better-auth';
+import { drizzleAdapter } from 'better-auth/adapters/drizzle';
+import { db } from '@/utils/db';
+import * as schema from '@/db/schema';
+import { headers } from 'next/headers';
+import { cache } from 'react';
 
 /**
  * Better Auth instance configured with Drizzle ORM adapter
@@ -22,7 +22,7 @@ import { cache } from "react";
  */
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
-    provider: "pg",
+    provider: 'pg',
     schema,
   }),
   emailAndPassword: { enabled: true },
@@ -42,7 +42,7 @@ export const auth = betterAuth({
  * @returns Promise resolving to the current session or null if not authenticated
  */
 export const getSession = cache(async () => {
-  console.log("Get Session Call");
+  console.log('Get Session Call');
   const session = await auth.api.getSession({ headers: await headers() });
   return session;
 });

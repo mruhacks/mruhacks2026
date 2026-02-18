@@ -21,13 +21,13 @@ import {
   SidebarMenu,
   SidebarMenuBadge,
   SidebarMenuButton,
-} from "@/components/ui/sidebar";
-import { SidebarNavigation } from "./sidebarNavigation";
-import { getUser } from "@/utils/auth";
-import { NavUser } from "./sideBarUser";
-import Chevron from "@/assets/Chevron";
-import { LifeBuoy } from "lucide-react";
-import Link from "next/link";
+} from '@/components/ui/sidebar';
+import { SidebarNavigation } from './sidebarNavigation';
+import { getUser } from '@/utils/auth';
+import { NavUser } from './sideBarUser';
+import Chevron from '@/assets/Chevron';
+import { LifeBuoy } from 'lucide-react';
+import Link from 'next/link';
 
 /**
  * Server component that renders the application sidebar
@@ -38,21 +38,21 @@ export async function AppSidebar() {
   const user = await getUser();
 
   // This should never happen in practice due to middleware protection
-  if (!user) throw new Error("User must exist");
+  if (!user) throw new Error('User must exist');
 
   return (
     <Sidebar>
       <SidebarHeader>
-        <div className="flex flex-row items-center h-[60px]">
-          <Chevron className="w-auto h-full p-0.5" />
+        <div className='flex h-[60px] flex-row items-center'>
+          <Chevron className='h-full w-auto p-0.5' />
           <div>
-            <h1 className="font-medium">MRUHacks</h1>
+            <h1 className='font-medium'>MRUHacks</h1>
             <h2>2026</h2>
           </div>
         </div>
       </SidebarHeader>
 
-      <div className=" border-t mx-4" />
+      <div className='mx-4 border-t' />
 
       <SidebarNavigation />
 
@@ -62,7 +62,7 @@ export async function AppSidebar() {
             <SidebarMenu>
               <SidebarMenuButton>
                 <LifeBuoy />
-                <Link href="/support">Support</Link>
+                <Link href='/support'>Support</Link>
                 <SidebarMenuBadge>2</SidebarMenuBadge>
               </SidebarMenuButton>
             </SidebarMenu>

@@ -1,13 +1,13 @@
-import { beforeAll, afterAll, vi } from "vitest";
-import { db, pool } from "@/utils/db";
-import { migrate } from "drizzle-orm/node-postgres/migrator";
-import path from "path";
-import { sql } from "drizzle-orm";
+import { beforeAll, afterAll, vi } from 'vitest';
+import { db, pool } from '@/utils/db';
+import { migrate } from 'drizzle-orm/node-postgres/migrator';
+import path from 'path';
+import { sql } from 'drizzle-orm';
 
 // ─────────────────────────────────────────────
 // Mock next/navigation redirect
 // ─────────────────────────────────────────────
-vi.mock("next/navigation", () => ({
+vi.mock('next/navigation', () => ({
   redirect: vi.fn((path: string) => {
     throw new Error(`REDIRECT:${path}`);
   }),
@@ -17,13 +17,13 @@ vi.mock("next/navigation", () => ({
 // Run migrations once before all tests
 // ─────────────────────────────────────────────
 beforeAll(async () => {
-  const migrationsFolder = path.resolve(process.cwd(), "drizzle");
+  const migrationsFolder = path.resolve(process.cwd(), 'drizzle');
 
   try {
     await migrate(db, { migrationsFolder });
-    console.log("✅ Test database migrated successfully.");
+    console.log('✅ Test database migrated successfully.');
   } catch (e) {
-    console.error("❌ Migration failed in test setup:", e);
+    console.error('❌ Migration failed in test setup:', e);
     process.exit(1);
   }
 

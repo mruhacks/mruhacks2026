@@ -1,14 +1,14 @@
-import Image, { ImageProps } from "next/image";
+import Image, { ImageProps } from 'next/image';
 
-import blackLogo from "@/assets/black_logo.png";
-import whiteLogo from "@/assets/white_logo.png";
-import colorBlackLogo from "@/assets/color_black_logo.png";
-import colorWhiteLogo from "@/assets/color_white_logo.png";
+import blackLogo from '@/assets/black_logo.png';
+import whiteLogo from '@/assets/white_logo.png';
+import colorBlackLogo from '@/assets/color_black_logo.png';
+import colorWhiteLogo from '@/assets/color_white_logo.png';
 
-export type LogoVariant = "black" | "white" | "gradient";
-export type TextColor = "black" | "white";
+export type LogoVariant = 'black' | 'white' | 'gradient';
+export type TextColor = 'black' | 'white';
 
-export interface LogoProps extends Omit<ImageProps, "src" | "alt"> {
+export interface LogoProps extends Omit<ImageProps, 'src' | 'alt'> {
   /**
    * Logo variant: "black", "white", or "color"
    */
@@ -29,9 +29,9 @@ export interface LogoProps extends Omit<ImageProps, "src" | "alt"> {
  * Supports black/white/color variants and text color control.
  */
 export default function Logo({
-  variant = "gradient",
-  text = "black",
-  alt = "MRUHacks Logo",
+  variant = 'gradient',
+  text = 'black',
+  alt = 'MRUHacks Logo',
   ...props
 }: LogoProps) {
   const src = getLogoSource(variant, text);
@@ -40,11 +40,11 @@ export default function Logo({
 
 function getLogoSource(variant: LogoVariant, text: TextColor) {
   switch (variant) {
-    case "black":
+    case 'black':
       return blackLogo;
-    case "white":
+    case 'white':
       return whiteLogo;
-    case "gradient":
-      return text === "white" ? colorWhiteLogo : colorBlackLogo;
+    case 'gradient':
+      return text === 'white' ? colorWhiteLogo : colorBlackLogo;
   }
 }
