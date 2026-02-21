@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Button } from '@/components/ui/button'; 
+import { Button } from '@/components/ui/button';
 import { INTRO_BLURB } from './content';
 import { PreTitle, MainTitle, Description } from './ui/typography';
 
@@ -22,28 +22,22 @@ export function IntroBlurb() {
 
         {/* main title */}
         <MainTitle>Build, learn, and innovate at MRUHacks.</MainTitle>
-          
+
         {/* description text */}
         <Description>{INTRO_BLURB}</Description>
-          
+
         {/* buttons */}
         <div className='flex flex-row flex-wrap justify-start gap-3'>
           {/* register button */}
           <Link href='/login' passHref>
-            <Button
-              variant='gradient'
-              size='lg'
-            >
+            <Button variant='gradient' size='lg'>
               Register Now
             </Button>
           </Link>
 
           {/* sponsor button */}
           <Link href='sponsors@mruhacks.ca' passHref>
-            <Button
-              variant='whiteDefault'
-              size='lg'
-            >
+            <Button variant='whiteDefault' size='lg'>
               Become a Sponsor
             </Button>
           </Link>

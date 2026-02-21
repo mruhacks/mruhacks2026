@@ -6,7 +6,7 @@ export default {
     extend: {
       colors: {
         'pre-title-blue': 'var(--color-pre-title-blue)',
-        'description': 'var(--color-description)',
+        description: 'var(--color-description)',
       },
       backgroundImage: {
         'gradient-button': `
