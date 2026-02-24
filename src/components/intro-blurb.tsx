@@ -18,7 +18,7 @@ export function IntroBlurb() {
     <section className='flex w-full justify-start px-6 py-12 sm:px-8 sm:py-16 lg:px-16'>
       <div className='max-w-2xl'>
         {/* pre-title */}
-        <PreTitle>About MRUHacks</PreTitle>
+        <PreTitle className='text-pre-title-blue'>About MRUHacks</PreTitle>
 
         {/* main title */}
         <MainTitle>Build, learn, and innovate at MRUHacks.</MainTitle>
