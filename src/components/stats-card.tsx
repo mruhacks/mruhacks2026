@@ -30,17 +30,17 @@ export function StatCard({
 }: StatCardProps) {
   return (
     <div
-      className='relative flex h-[300px] w-[200px] flex-col overflow-hidden rounded-lg p-4 shadow-md sm:h-72 sm:w-48 md:h-80 md:w-56 lg:h-96 lg:w-64'
+      className='relative flex h-[18.75em] w-[12.5em] flex-col overflow-hidden rounded-lg p-4 shadow-md sm:h-72 sm:w-48 md:h-80 md:w-56 lg:h-96 lg:w-64'
       style={{ backgroundColor: color, color: '#00000099' }}
     >
       {title && (
-        <h2 className='mb-1 text-left text-[48px] leading-none font-extrabold tracking-[-0.04em]'>
+        <h2 className='mb-1 text-5xl leading-none font-extrabold tracking-[-0.04em]'>
           {title}
         </h2>
       )}
 
       {description && (
-        <p className='text-left text-sm leading-none font-medium'>
+        <p className='text-sm leading-none font-medium'>
           {description}
         </p>
       )}
@@ -49,7 +49,7 @@ export function StatCard({
         <img
           src={image}
           alt={title || 'stat image'}
-          className='/* Mobile (fixed size) */ /* Scale proportionally at breakpoints */ absolute top-[154px] h-[119px] w-[187px] rounded-lg border-2 object-cover sm:h-[114px] sm:w-[180px] md:h-[132px] md:w-[209px] lg:h-[151px] lg:w-[239px]'
+          className='absolute bottom-[1.5em] h-[7.4375em] w-[11.6875em] rounded-lg border-2 object-cover sm:h-[7.125em] sm:w-[11.25em] md:h-[8.25em] md:w-[13.0625em] lg:h-[9.4375em] lg:w-[14.9375em]'
           style={{
             left,
             borderColor: '#00000099',
