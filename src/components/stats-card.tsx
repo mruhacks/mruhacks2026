@@ -2,7 +2,7 @@
  * Props for the StatCard component.
  */
 export interface StatCardProps {
-  color?: string; // bg color of the card
+  color?: 'color1' | 'color2' | 'color3' | 'color4' | 'color5'; // bg color of the card
   title?: string; // heading for stat
   image?: string; // url of image displayed in card
   description?: string; // description about stat
@@ -21,18 +21,30 @@ export interface StatCardProps {
  * @returns a styled responsive statistics card component
  */
 export function StatCard({
-  color = '#FFE2A5',
+  color = 'color1',
   title = '',
   image = '',
   description = '',
   rotation = '0',
-  left = '24px',
+  left = '1.5em',
 }: StatCardProps) {
+  const colors = {
+    'color1': 'bg-card-color1',
+    'color2': 'bg-card-color2',
+    'color3': 'bg-card-color3',
+    'color4': 'bg-card-color4',
+    'color5': 'bg-card-color5',
+  };
+
   return (
     <div
-      className='relative flex h-[18.75em] w-[12.5em] flex-col overflow-hidden rounded-lg p-4 shadow-md sm:h-72 sm:w-48 md:h-80 md:w-56 lg:h-96 lg:w-64'
-      style={{ backgroundColor: color, color: '#00000099' }}
-    >
+    className={`
+      ${colors[color]}
+      relative flex h-[18.75em] w-[12.5em] flex-col overflow-hidden rounded-lg p-4 shadow-md
+      sm:h-72 sm:w-48 md:h-80 md:w-56 lg:h-96 lg:w-64
+      text-card-text
+    `}
+  >
       {title && (
         <h2 className='mb-1 text-5xl leading-none font-extrabold tracking-[-0.04em]'>
           {title}
