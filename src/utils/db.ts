@@ -8,15 +8,15 @@
  * - SSL and pool behavior identical to production unless overridden.
  */
 
-import "dotenv/config";
-import { drizzle } from "drizzle-orm/node-postgres";
-import * as schema from "@/db/schema";
-import { Pool } from "pg";
+import 'dotenv/config';
+import { drizzle } from 'drizzle-orm/node-postgres';
+import * as schema from '@/db/schema';
+import { Pool } from 'pg';
 
 /** Environment flags */
 const env = process.env;
-const isTest = env.NODE_ENV === "test";
-const isProduction = env.NODE_ENV === "production";
+const isTest = env.NODE_ENV === 'test';
+const isProduction = env.NODE_ENV === 'production';
 
 /**
  * Type guard for undefined/null
@@ -30,18 +30,18 @@ const isNil = (v: unknown): v is undefined | null =>
  * @param prefix "POSTGRES" or "TEST_POSTGRES"
  */
 function buildPostgresURL(
-  prefix: "POSTGRES" | "TEST_POSTGRES",
+  prefix: 'POSTGRES' | 'TEST_POSTGRES',
 ): string | undefined {
   const u = env[`${prefix}_USER`];
   const p = env[`${prefix}_PASSWORD`];
   const d = env[`${prefix}_DB`];
 
-  if (isNil(u) || isNil(p) || isNil(d) || u === "" || p === "" || d === "") {
+  if (isNil(u) || isNil(p) || isNil(d) || u === '' || p === '' || d === '') {
     return undefined;
   }
 
-  const host = env[`${prefix}_HOST`] ?? "localhost";
-  const port = env[`${prefix}_PORT`] ?? "5432";
+  const host = env[`${prefix}_HOST`] ?? 'localhost';
+  const port = env[`${prefix}_PORT`] ?? '5432';
 
   return `postgres://${u}:${p}@${host}:${port}/${d}`;
 }
@@ -54,7 +54,7 @@ function buildPostgresURL(
  *  - POSTGRES_* vars
  */
 export function getDatabaseURL(): string {
-  const prefix = isTest ? "TEST_POSTGRES" : "POSTGRES";
+  const prefix = isTest ? 'TEST_POSTGRES' : 'POSTGRES';
 
   const constructed = buildPostgresURL(prefix);
   const explicit = isTest ? env.TEST_DATABASE_URL : env.DATABASE_URL;
@@ -67,13 +67,13 @@ export function getDatabaseURL(): string {
   if (constructed && explicit && constructed !== explicit)
     throw new Error(
       [
-        "Conflicting database URLs detected:",
+        'Conflicting database URLs detected:',
         `  Constructed: ${constructed}`,
         `  Explicit:    ${explicit}`,
-      ].join("\n"),
+      ].join('\n'),
     );
 
-  throw new Error("No database configuration found.");
+  throw new Error('No database configuration found.');
 }
 
 /**
@@ -86,12 +86,12 @@ export const pool = new Pool({
   ssl: isProduction ? { rejectUnauthorized: false } : false,
 });
 
-export const db = drizzle(pool, { schema, casing: "snake_case" });
+export const db = drizzle(pool, { schema, casing: 'snake_case' });
 
 export default db;
 
 // 👇 Only for testing, no runtime impact
-if (process.env.NODE_ENV === "test") {
+if (process.env.NODE_ENV === 'test') {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (globalThis as any).__db_internals__ = {
     isNil,

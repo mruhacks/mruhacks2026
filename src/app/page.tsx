@@ -1,9 +1,14 @@
-import { HeroSection } from "@/components/hero";
+import { HeroSection } from '@/components/hero';
+import Link from 'next/link';
 
 export default function Home() {
   return (
-    <main className="min-h-screen bg-white">
+    <div>
       <HeroSection />
-    </main>
+
+      <Link href='/login' className='text-5xl underline'>
+        Login
+      </Link>
+    </div>
   );
 }
