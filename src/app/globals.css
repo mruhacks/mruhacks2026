@@ -42,6 +42,7 @@
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
   --color-pre-title-blue: var(--pre-title-blue);
+  --color-pre-title-orange: var(--pre-title-orange);
   --color-description: var(--description-color);
 }
 
@@ -84,6 +85,7 @@
   --gradient-color-4: #ff9182;
   --gradient-color-5: #ffd16e;
   --pre-title-blue: #25b0fb;
+  --pre-title-orange: #ff7735;
   --description-color: #777777;
 }
 
