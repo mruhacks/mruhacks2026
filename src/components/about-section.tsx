@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { INTRO_BLURB } from '../content';
-import { PreTitle, MainTitle, Description } from './ui/typography';
 
 /**
  *About
@@ -18,13 +17,19 @@ export function About() {
     <section className='flex w-full justify-start px-6 py-12 sm:px-8 sm:py-16 lg:px-16'>
       <div className='max-w-2xl'>
         {/* pre-title */}
-        <PreTitle className='text-pre-title-blue'>About MRUHacks</PreTitle>
+        <p className='text-pre-title-blue mb-2 text-sm font-semibold sm:text-base'>
+          About MRUHacks
+        </p>
 
         {/* main title */}
-        <MainTitle>Build, learn, and innovate at MRUHacks.</MainTitle>
+        <h1 className='mb-4 text-2xl font-semibold tracking-tight sm:mb-6 sm:text-3xl'>
+          Build, learn, and innovate at MRUHacks.
+        </h1>
 
         {/* description text */}
-        <Description>{INTRO_BLURB}</Description>
+        <p className='text-description mb-6 text-base sm:mb-10 sm:text-lg'>
+          {INTRO_BLURB}
+        </p>
 
         {/* buttons */}
         <div className='flex flex-row flex-wrap justify-start gap-3'>
