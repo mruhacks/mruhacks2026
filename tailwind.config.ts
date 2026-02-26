@@ -7,11 +7,11 @@ export default {
       colors: {
         'pre-title-blue': 'var(--color-pre-title-blue)',
         description: 'var(--color-description)',
-        'card-color1': 'var(--color-card-color1)',
-        'card-color2': 'var(--color-card-color2)',
-        'card-color3': 'var(--color-card-color3)',
-        'card-color4': 'var(--color-card-color4)',
-        'card-color5': 'var(--color-card-color5)',
+        'card-yellow': 'var(--color-card-yellow)',
+        'card-skyblue': 'var(--color-card-skyblue)',
+        'card-purple': 'var(--color-card-purple)',
+        'card-red': 'var(--color-card-red)',
+        'card-blue': 'var(--color-card-blue)',
         'card-text': 'var(--color-card-text)',
       },
       backgroundImage: {

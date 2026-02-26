@@ -2,7 +2,7 @@
  * Props for the StatCard component.
  */
 export interface StatCardProps {
-  color?: 'color1' | 'color2' | 'color3' | 'color4' | 'color5'; // bg color of the card
+  color?: 'yellow' | 'skyblue' | 'purple' | 'red' | 'blue'; // bg color of the card
   title?: string; // heading for stat
   image?: string; // url of image displayed in card
   description?: string; // description about stat
@@ -21,7 +21,7 @@ export interface StatCardProps {
  * @returns a styled responsive statistics card component
  */
 export function StatCard({
-  color = 'color1',
+  color = 'yellow',
   title = '',
   image = '',
   description = '',
@@ -29,11 +29,11 @@ export function StatCard({
   left = '1.5em',
 }: StatCardProps) {
   const colors = {
-    'color1': 'bg-card-color1',
-    'color2': 'bg-card-color2',
-    'color3': 'bg-card-color3',
-    'color4': 'bg-card-color4',
-    'color5': 'bg-card-color5',
+    'yellow': 'bg-card-yellow',
+    'skyblue': 'bg-card-skyblue',
+    'purple': 'bg-card-purple',
+    'red': 'bg-card-red',
+    'blue': 'bg-card-blue',
   };
 
   return (

@@ -41,11 +41,11 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
-  --color-card-color1: var(--card-color1);
-  --color-card-color2: var(--card-color2);
-  --color-card-color3: var(--card-color3);
-  --color-card-color4: var(--card-color4);
-  --color-card-color5: var(--card-color5);
+  --color-card-yellow: var(--card-yellow);
+  --color-card-skyblue: var(--card-skyblue);
+  --color-card-purple: var(--card-purple);
+  --color-card-red: var(--card-red);
+  --color-card-blue: var(--card-blue);
   --color-card-text: var(--card-text);
 }
 
@@ -82,11 +82,11 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
-  --card-color1: #FFE2A5;
-  --card-color2: #A5F1FF;
-  --card-color3: #FFA5F9;
-  --card-color4: #FFBAA5;
-  --card-color5: #A5B7FF;
+  --card-yellow: #FFE2A5;
+  --card-skyblue: #A5F1FF;
+  --card-purple: #FFA5F9;
+  --card-red: #FFBAA5;
+  --card-blue: #A5B7FF;
   --card-text: #00000099;
 }
 
