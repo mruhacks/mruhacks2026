@@ -41,7 +41,7 @@ export function About() {
           </Link>
 
           {/* sponsor button */}
-          <Link href='sponsors@mruhacks.ca' passHref>
+          <Link href='mailto:sponsors@mruhacks.ca' passHref>
             <Button variant='whiteDefault' size='lg'>
               Become a Sponsor
             </Button>
