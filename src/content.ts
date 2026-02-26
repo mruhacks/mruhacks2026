@@ -5,6 +5,7 @@ hands-on building, collaboration, and innovation. Hosted at the
 Riddell Library and Learning Centre, the event welcomes designers,
 developers, and tech enthusiasts of all skill levels.
 `;
+<<<<<<< HEAD
 
 /**
  * Temporary content (questions/answers) for faq-section
@@ -44,3 +45,5 @@ export const FAQs: FAQ[] = [
         answer: "Attending MRUHacks gives you a platform to collaborate with like-minded individuals, learn new skills, and build a sweet project. It is a great opportunity to solve real-world problems, join a community of hackers, and win prizes."
     }
 ];
+=======
+>>>>>>> main

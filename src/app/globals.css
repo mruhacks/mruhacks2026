@@ -43,11 +43,14 @@
   --radius-xl: calc(var(--radius) + 4px);
   --color-pre-title-blue: var(--pre-title-blue);
   --color-description: var(--description-color);
+<<<<<<< HEAD
   --color-gradient-color-1: var(--gradient-color-1);
   --color-gradient-color-2: var(--gradient-color-2);
   --color-gradient-color-3: var(--gradient-color-3);
   --color-gradient-color-4: var(--gradient-color-4);
   --color-gradient-color-5: var(--gradient-color-5);
+=======
+>>>>>>> main
 }
 
 :root {
