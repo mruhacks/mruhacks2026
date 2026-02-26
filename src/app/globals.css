@@ -121,13 +121,6 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
-  --gradient-color-1: #88efff;
-  --gradient-color-2: #7c96ff;
-  --gradient-color-3: #e978ff;
-  --gradient-color-4: #ff9182;
-  --gradient-color-5: #ffd16e;
-  --pre-title-blue: #25b0fb;
-  --description-color: #777777;
 }
 
 @layer base {

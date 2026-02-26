@@ -9,8 +9,8 @@ developers, and tech enthusiasts of all skill levels.
 /**
  * Temporary content (questions/answers) for faq-section
  */
-export type FAQ = { question: string; answer: string };
-export const FAQs: FAQ[] = [
+export type FAQItem = { question: string; answer: string };
+export const FAQs: FAQItem[] = [
   {
     question: 'What is a Hackathon?',
     answer:
@@ -19,7 +19,7 @@ export const FAQs: FAQ[] = [
   {
     question: 'When is MRUHacks?',
     answer:
-      'MRUHacks will be held from October 23rd - 25th 2025 in the Riddell Library and Learning Centre. More details will be released closer to the event..',
+      'MRUHacks will be held from October 23rd - 25th 2025 in the Riddell Library and Learning Centre. More details will be released closer to the event.',
   },
   {
     question: 'Who can participate?',
@@ -43,7 +43,7 @@ export const FAQs: FAQ[] = [
   },
   {
     question: 'When do applications open?',
-    answer: 'blah blah blah answer to question',
+    answer: 'TBD',
   },
   {
     question: 'Why should I participate?',

@@ -28,9 +28,9 @@ export function FAQ() {
         </h1>
 
         {/* faqs */}
-        {FAQs.map((f, i) => {
+        {FAQs.map((f) => {
           return (
-            <details key={i} className='group'>
+            <details key={f.question} className='group'>
               <summary
                 className='mb-2 flex w-full cursor-pointer list-none items-center justify-between text-sm font-semibold sm:text-base'
                 style={{
