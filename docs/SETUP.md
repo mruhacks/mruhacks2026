@@ -1,5 +1,6 @@
 # Setup Guide
-The intention of this guide is to help you through setup of your local development environment. If you would like greater context on the different aspects of the application we are setting up, refer to the relevent files in the `docs/` folder. 
+
+The intention of this guide is to help you through setup of your local development environment. If you would like greater context on the different aspects of the application we are setting up, refer to the relevent files in the `docs/` folder.
 
 ## Prerequisites
 
@@ -18,17 +19,18 @@ pnpm install
 ```
 
 ### 2. Set Up Local Database
-Ensure the docker desktop application is running, then start run the following script to start the docker container which our database runs inside.  
+
+Ensure the docker desktop application is running, then start run the following script to start the docker container which our database runs inside.
 
 ```bash
 pnpm run db:start
 ```
 
 This command:
+
 - Starts the `db-dev` and `db-test` database containers defined in `docker-compose.yml`
 - Maps `db-dev` to port `5432` and `db-test` to `5433` (override via `POSTGRES_PORT` / `TEST_POSTGRES_PORT`)
 - Waits for the dev database to be healthy before returning
-
 
 When you are done developing, stop the containers with `pnpm run db:stop`. Use `pnpm run db:reset` to drop volumes, recreate the containers, run migrations, and seed baseline data.
 
@@ -47,10 +49,10 @@ For local development, we do not need to change any of these values.
 Apply all database migrations using:
 
 ```bash
-pnpm drizzle-kit migrate 
+pnpm drizzle-kit migrate
 ```
 
-### 5. Seed the Database 
+### 5. Seed the Database
 
 Populate the database with sample data:
 
@@ -67,7 +69,6 @@ pnpm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) to see the application.
-
 
 ## Troubleshooting
 
