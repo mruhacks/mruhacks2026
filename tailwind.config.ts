@@ -7,6 +7,7 @@ export default {
       colors: {
         'pre-title-blue': 'var(--color-pre-title-blue)',
         description: 'var(--color-description)',
+        'pre-title-orange': 'var(--color-pre-title-orange)',
       },
       backgroundImage: {
         'gradient-button': `
