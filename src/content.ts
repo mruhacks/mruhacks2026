@@ -19,7 +19,7 @@ export const FAQs: FAQItem[] = [
   {
     question: 'When is MRUHacks?',
     answer:
-      'MRUHacks will be held from October 23rd - 25th 2025 in the Riddell Library and Learning Centre. More details will be released closer to the event.',
+      'MRUHacks will be held from October 23rd - 25th 2025 in the Riddell Library and Learning Centre.',
   },
   {
     question: 'Who can participate?',
@@ -37,13 +37,9 @@ export const FAQs: FAQItem[] = [
       'Absolutely nothing! We will provide food for the duration of the event as well as swag items for hackers along the way.',
   },
   {
-    question: "What if I've never hackathon'd before?",
+    question: "What if I've never done a hackathon before?",
     answer:
       "MRUHacks is open to everyone no matter their skill level. This is the place for you, whether you're new to coding or a seasoned veteran. Still worried? Stay tuned for a series of workshops to help you brush up on your skills.",
-  },
-  {
-    question: 'When do applications open?',
-    answer: 'TBD',
   },
   {
     question: 'Why should I participate?',
