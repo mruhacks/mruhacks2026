@@ -86,11 +86,11 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
-  --card-yellow: #FFE2A5;
-  --card-skyblue: #A5F1FF;
-  --card-purple: #FFA5F9;
-  --card-red: #FFBAA5;
-  --card-blue: #A5B7FF;
+  --card-yellow: #ffe2a5;
+  --card-skyblue: #a5f1ff;
+  --card-purple: #ffa5f9;
+  --card-red: #ffbaa5;
+  --card-blue: #a5b7ff;
   --card-text: #00000099;
   --gradient-color-1: #88efff;
   --gradient-color-2: #7c96ff;
@@ -99,7 +99,7 @@
   --gradient-color-5: #ffd16e;
   --pre-title-blue: #25b0fb;
   --pre-title-orange: #ff7735;
-  --pre-title-purple: #BE41DC;
+  --pre-title-purple: #be41dc;
   --description-color: #777777;
 }
 
@@ -155,4 +155,3 @@
     @apply bg-background text-foreground;
   }
 }
-

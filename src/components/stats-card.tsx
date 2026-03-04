@@ -8,7 +8,7 @@ export interface StatCardProps {
   title?: string; // heading for stat
   image?: string; // url of image displayed in card
   description?: string; // description about stat
-  left?: string;  // left horizontal offset for the image
+  left?: string; // left horizontal offset for the image
   right?: string; // right horizontal offset for the image
   imageWidth?: number; // default width of image
   imageHeight?: number; // default height of image
@@ -46,43 +46,36 @@ export function StatCard({
 
   return (
     <div
-      className={`
-        ${colors[color]}
-        relative flex flex-col justify-between rounded-lg p-4 shadow-md
-        h-[18.75em] w-[12.5em] sm:h-72 sm:w-48 md:h-80 md:w-56 lg:h-96 lg:w-64
-        text-card-text text-left
-      `}
+      className={` ${colors[color]} text-card-text relative flex h-[18.75em] w-[12.5em] flex-col justify-between rounded-lg p-4 text-left shadow-md sm:h-72 sm:w-48 md:h-80 md:w-56 lg:h-96 lg:w-64`}
     >
-      <div className="flex flex-col gap-1">
+      <div className='flex flex-col gap-1'>
         {title && (
-          <h2 className='text-5xl lg:text-6xl font-extrabold leading-none tracking-[-0.04em]'>
+          <h2 className='text-5xl leading-none font-extrabold tracking-[-0.04em] lg:text-6xl'>
             {title}
           </h2>
         )}
         {description && (
-          <p className='text-sm lg:text-base font-medium leading-snug'>
-            {description}
-          </p>
+          <p className='text-sm/snug font-medium lg:text-base'>{description}</p>
         )}
       </div>
 
       {image && imageWidth && imageHeight && (
         <div
-          className="absolute bottom-6 z-10 w-[75%] max-w-[15rem]"
+          className='absolute bottom-6 z-10 w-[75%] max-w-60'
           style={horizontalStyle}
         >
           <div
-            className="relative w-full"
+            className='relative w-full'
             style={{ aspectRatio: `${imageWidth} / ${imageHeight}` }}
           >
             <Image
               src={image}
-              alt={title || "stat image"}
+              alt={title || 'stat image'}
               fill
-              className="rounded-lg object-contain"
-              sizes="(max-width: 640px) 75vw,
+              className='rounded-lg object-contain'
+              sizes='(max-width: 640px) 75vw,
                      (max-width: 1024px) 40vw,
-                     300px"
+                     300px'
             />
           </div>
         </div>

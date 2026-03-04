@@ -52,20 +52,20 @@ export const FAQs: FAQItem[] = [
   },
 ];
 
-export type StatItem = { 
-  stats: string; 
-  info: string; 
-  image: string; 
-  imageWidth: number; 
+export type StatItem = {
+  stats: string;
+  info: string;
+  image: string;
+  imageWidth: number;
   imageHeight: number;
   left?: string;
   right?: string;
 };
 export const StatsText: StatItem[] = [
   {
-    stats: "280%",
+    stats: '280%',
     info: 'Increase in registrations for MRUHacks 2025, maxing out venue capacity at Riddell Library!',
-    image: "/stats-card-imageTest.svg",
+    image: '/stats-card-imageTest.svg',
     imageWidth: 956,
     imageHeight: 719,
     left: '1.58em',
@@ -73,7 +73,7 @@ export const StatsText: StatItem[] = [
   {
     stats: '175%',
     info: 'More projects finished across 90+ participants, all done during the duration of the hackathon!',
-    image: "/stats-card-imageTest2.svg",
+    image: '/stats-card-imageTest2.svg',
     imageWidth: 1066,
     imageHeight: 800,
     right: '0px',
@@ -81,7 +81,7 @@ export const StatsText: StatItem[] = [
   {
     stats: '150+',
     info: 'Total registrations across our workshops, with every workshop having full attendance.',
-    image: "/stats-card-imageTest3.svg",
+    image: '/stats-card-imageTest3.svg',
     imageWidth: 867,
     imageHeight: 797,
     left: '2.75em',
@@ -89,7 +89,7 @@ export const StatsText: StatItem[] = [
   {
     stats: '20+',
     info: 'Volunteer Judges from MRU, Arcurve, Suncor, Enbridge and more!',
-    image: "/stats-card-imageTest4.svg",
+    image: '/stats-card-imageTest4.svg',
     imageWidth: 1000,
     imageHeight: 800,
     left: '1.08em',
