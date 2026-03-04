@@ -13,6 +13,8 @@ export default {
         'card-red': 'var(--color-card-red)',
         'card-blue': 'var(--color-card-blue)',
         'card-text': 'var(--color-card-text)',
+        'pre-title-orange': 'var(--color-pre-title-orange)',
+        'pre-title-purple': 'var(--color-pre-title-purple)',
       },
       backgroundImage: {
         'gradient-button': `

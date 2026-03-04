@@ -17,7 +17,7 @@ type Scope = 'all' | 'any' | 'self' | { id: string };
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 type Entity = 'user' | 'registration' | 'team' | 'submission';
 
-// valid actions per entity
+// valid actions per entity (application = event application, approve/reject/read)
 interface EntityActions {
   user: 'create' | 'read' | 'update' | 'delete';
   registration: 'approve' | 'reject' | 'read';

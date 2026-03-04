@@ -13,7 +13,7 @@
     "db:start": "echo 'Starting database…' && docker compose up -d && echo 'Database started.'",
     "db:stop": "echo 'Stopping database…' && docker compose down && echo 'Database stopped.'",
     "db:reset": "echo 'Resetting database (dropping volumes)…' &&        docker compose down -v &&        echo 'Starting fresh database…' &&        docker compose up -d &&        pnpm db:wait &&        echo 'Running migrations…' &&        drizzle-kit migrate && tsx scripts/seed.ts &&        echo 'Database reset complete.'",
-    "db:seed": "echo 'Seeding Database' && tsx scripts/seeds.ts",
+    "db:seed": "echo 'Running migrations…' && drizzle-kit migrate && echo 'Seeding Database' && tsx scripts/seed.ts",
     "db:wait": "echo 'Waiting for Postgres to be ready…' &&        until docker exec mruhacks-db-dev pg_isready >/dev/null 2>&1; do          printf '.';          sleep 1;        done &&        echo ' Postgres is ready.'"
   },
   "dependencies": {
@@ -37,11 +37,13 @@
     "cmdk": "^1.1.1",
     "dotenv": "^17.2.3",
     "drizzle-orm": "^0.44.7",
+    "embla-carousel-react": "^8.6.0",
     "lucide-react": "^0.546.0",
     "next": "16.1.4",
     "next-themes": "^0.4.6",
     "pg": "^8.17.2",
     "qrcode": "^1.5.4",
+    "radix-ui": "^1.4.3",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-hook-form": "^7.71.1",

@@ -47,6 +47,10 @@
   --color-card-red: var(--card-red);
   --color-card-blue: var(--card-blue);
   --color-card-text: var(--card-text);
+  --color-pre-title-blue: var(--pre-title-blue);
+  --color-pre-title-orange: var(--pre-title-orange);
+  --color-pre-title-purple: var(--pre-title-purple);
+  --color-description: var(--description-color);
 }
 
 :root {
@@ -88,6 +92,15 @@
   --card-red: #FFBAA5;
   --card-blue: #A5B7FF;
   --card-text: #00000099;
+  --gradient-color-1: #88efff;
+  --gradient-color-2: #7c96ff;
+  --gradient-color-3: #e978ff;
+  --gradient-color-4: #ff9182;
+  --gradient-color-5: #ffd16e;
+  --pre-title-blue: #25b0fb;
+  --pre-title-orange: #ff7735;
+  --pre-title-purple: #BE41DC;
+  --description-color: #777777;
 }
 
 .dark {
@@ -125,6 +138,16 @@
 }
 
 @layer base {
+  .bg-gradient-button {
+    background: linear-gradient(
+      110deg,
+      var(--gradient-color-1) 0%,
+      var(--gradient-color-2) 15%,
+      var(--gradient-color-3) 55%,
+      var(--gradient-color-4) 80%,
+      var(--gradient-color-5) 100%
+    );
+  }
   * {
     @apply border-border outline-ring/50;
   }

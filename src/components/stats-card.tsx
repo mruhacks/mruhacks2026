@@ -1,3 +1,5 @@
+import Image from 'next/image';
+
 /**
  * Props for the StatCard component.
  */
@@ -6,8 +8,10 @@ export interface StatCardProps {
   title?: string; // heading for stat
   image?: string; // url of image displayed in card
   description?: string; // description about stat
-  rotation?: string; // rotation applied to image in degrees
-  left?: string; // horizontal offset for the image
+  left?: string;  // left horizontal offset for the image
+  right?: string; // right horizontal offset for the image
+  imageWidth?: number; // default width of image
+  imageHeight?: number; // default height of image
 }
 
 /**
@@ -25,50 +29,63 @@ export function StatCard({
   title = '',
   image = '',
   description = '',
-  rotation = '0',
   left = '1.5em',
+  right,
+  imageWidth = 10,
+  imageHeight = 7,
 }: StatCardProps) {
   const colors = {
-    'yellow': 'bg-card-yellow',
-    'skyblue': 'bg-card-skyblue',
-    'purple': 'bg-card-purple',
-    'red': 'bg-card-red',
-    'blue': 'bg-card-blue',
+    yellow: 'bg-card-yellow',
+    skyblue: 'bg-card-skyblue',
+    purple: 'bg-card-purple',
+    red: 'bg-card-red',
+    blue: 'bg-card-blue',
   };
+
+  const horizontalStyle = right ? { right } : { left };
 
   return (
     <div
-    className={`
-      ${colors[color]}
-      relative flex h-[18.75em] w-[12.5em] flex-col overflow-hidden rounded-lg p-4 shadow-md
-      sm:h-72 sm:w-48 md:h-80 md:w-56 lg:h-96 lg:w-64
-      text-card-text
-    `}
-  >
-      {title && (
-        <h2 className='mb-1 text-5xl leading-none font-extrabold tracking-[-0.04em]'>
-          {title}
-        </h2>
-      )}
+      className={`
+        ${colors[color]}
+        relative flex flex-col justify-between rounded-lg p-4 shadow-md
+        h-[18.75em] w-[12.5em] sm:h-72 sm:w-48 md:h-80 md:w-56 lg:h-96 lg:w-64
+        text-card-text text-left
+      `}
+    >
+      <div className="flex flex-col gap-1">
+        {title && (
+          <h2 className='text-5xl lg:text-6xl font-extrabold leading-none tracking-[-0.04em]'>
+            {title}
+          </h2>
+        )}
+        {description && (
+          <p className='text-sm lg:text-base font-medium leading-snug'>
+            {description}
+          </p>
+        )}
+      </div>
 
-      {description && (
-        <p className='text-sm leading-none font-medium'>
-          {description}
-        </p>
-      )}
-
-      {image && (
-        <img
-          src={image}
-          alt={title || 'stat image'}
-          className='absolute bottom-[1.5em] h-[7.4375em] w-[11.6875em] rounded-lg border-2 object-cover sm:h-[7.125em] sm:w-[11.25em] md:h-[8.25em] md:w-[13.0625em] lg:h-[9.4375em] lg:w-[14.9375em]'
-          style={{
-            left,
-            borderColor: '#00000099',
-            transform: `rotate(${rotation}deg)`,
-            transformOrigin: 'center',
-          }}
-        />
+      {image && imageWidth && imageHeight && (
+        <div
+          className="absolute bottom-6 z-10 w-[75%] max-w-[15rem]"
+          style={horizontalStyle}
+        >
+          <div
+            className="relative w-full"
+            style={{ aspectRatio: `${imageWidth} / ${imageHeight}` }}
+          >
+            <Image
+              src={image}
+              alt={title || "stat image"}
+              fill
+              className="rounded-lg object-contain"
+              sizes="(max-width: 640px) 75vw,
+                     (max-width: 1024px) 40vw,
+                     300px"
+            />
+          </div>
+        </div>
       )}
     </div>
   );

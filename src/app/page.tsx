@@ -1,4 +1,7 @@
 import Link from 'next/link';
+import { About } from '@/components/about-section';
+import { FAQ } from '@/components/faq-section';
+import { Stats } from '@/components/stats-section';
 
 export default function Home() {
   return (
@@ -9,6 +12,9 @@ export default function Home() {
       <Link href='/login' className='text-5xl underline'>
         Login
       </Link>
+      <About></About>
+      <Stats></Stats>
+      <FAQ></FAQ>
     </div>
   );
 }
