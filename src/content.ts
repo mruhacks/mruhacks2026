@@ -60,39 +60,43 @@ export type StatItem = {
   imageHeight: number;
   left?: string;
   right?: string;
+  rotation?: number;
 };
 export const StatsText: StatItem[] = [
   {
-    stats: '280%',
+    stats: '285%',
     info: 'Increase in registrations for MRUHacks 2025, maxing out venue capacity at Riddell Library!',
-    image: '/stats-card-imageTest.svg',
+    image: '/stats-card-image1.jpg',
     imageWidth: 956,
     imageHeight: 719,
-    left: '1.58em',
+    rotation: 2.16,
   },
   {
-    stats: '175%',
-    info: 'More projects finished across 90+ participants, all done during the duration of the hackathon!',
-    image: '/stats-card-imageTest2.svg',
+    stats: '40%',
+    info: 'More projects finished across 130+ participants, all done during the duration of the hackathon!',
+    image: '/stats-card-image2.jpg',
     imageWidth: 1066,
     imageHeight: 800,
     right: '0px',
+    rotation: -3.14,
   },
   {
     stats: '150+',
     info: 'Total registrations across our workshops, with every workshop having full attendance.',
-    image: '/stats-card-imageTest3.svg',
+    image: '/stats-card-image3.png',
     imageWidth: 867,
     imageHeight: 797,
     left: '2.75em',
+    rotation: -3.1,
   },
   {
-    stats: '20+',
+    stats: '30+',
     info: 'Volunteer Judges from MRU, Arcurve, Suncor, Enbridge and more!',
-    image: '/stats-card-imageTest4.svg',
+    image: '/stats-card-image4.jpg',
     imageWidth: 1000,
     imageHeight: 800,
     left: '1.08em',
+    rotation: 1.97,
   },
 ];
 

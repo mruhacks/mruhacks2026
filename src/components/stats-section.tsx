@@ -47,6 +47,7 @@ export function Stats() {
             imageHeight={stat.imageHeight}
             left={stat.left}
             right={stat.right}
+            rotation={stat.rotation}
           />
         ))}
       </div>
