@@ -1,0 +1,36 @@
+name: Migrate & Seed Static Data
+
+on:
+  push:
+    branches:
+      - test
+      - main
+
+env:
+  DATABASE_URL: ${{ github.ref_name == 'main' && secrets.PROD_DATABASE_URL || secrets.TEST_DATABASE_URL }}
+
+jobs:
+  migrate-and-seed:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run migrations
+        run: pnpm drizzle-kit migrate
+
+      - name: Seed static data
+        run: pnpm tsx scripts/seed-static.ts
