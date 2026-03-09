@@ -9,9 +9,9 @@
  */
 
 import 'dotenv/config';
-import { drizzle } from 'drizzle-orm/node-postgres';
+import { drizzle } from 'drizzle-orm/postgres-js';
 import * as schema from '@/db/schema';
-import { Pool } from 'pg';
+import postgres from 'postgres';
 
 /** Environment flags */
 const env = process.env;
@@ -81,12 +81,9 @@ export function getDatabaseURL(): string {
  */
 const connectionString = getDatabaseURL();
 
-export const pool = new Pool({
-  connectionString,
-  ssl: isProduction ? { rejectUnauthorized: false } : false,
-});
+export const client = postgres(connectionString, { prepare: false });
 
-export const db = drizzle(pool, { schema, casing: 'snake_case' });
+export const db = drizzle(client, { schema, casing: 'snake_case' });
 
 export default db;
 
