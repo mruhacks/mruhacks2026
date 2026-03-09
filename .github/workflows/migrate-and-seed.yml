@@ -6,12 +6,12 @@ on:
       - test
       - main
 
-env:
-  DATABASE_URL: ${{ github.ref_name == 'main' && secrets.PROD_DATABASE_URL || secrets.TEST_DATABASE_URL }}
-
 jobs:
   migrate-and-seed:
     runs-on: ubuntu-latest
+    environment: ${{ github.ref_name == 'main' && 'production' || 'test' }}
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
     steps:
       - name: Checkout repository
