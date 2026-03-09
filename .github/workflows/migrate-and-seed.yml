@@ -9,7 +9,7 @@ on:
 jobs:
   migrate-and-seed:
     runs-on: ubuntu-latest
-    environment: ${{ github.ref_name == 'main' && 'production' || 'test' }}
+    environment: ${{ github.ref_name == 'main' && 'production' || 'Test' }}
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
@@ -27,6 +27,9 @@ jobs:
         with:
           node-version: 20
           cache: pnpm
+
+      - name: Log environment
+        run: echo "Using environment:\ ${{ github.ref_name == 'main' && 'production' || 'Test' }}"
 
       - name: Verify DATABASE_URL is set
         run: |
