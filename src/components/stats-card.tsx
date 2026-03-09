@@ -48,7 +48,7 @@ export function StatCard({
 
   return (
     <div
-      className={` ${colors[color]} text-card-text relative flex h-[18.75em] w-[12.5em] flex-col justify-between rounded-lg p-4 text-left overflow-hidden sm:h-72 sm:w-48 md:h-80 md:w-56 lg:h-96 lg:w-64`}
+      className={` ${colors[color]} text-card-text relative flex h-[18.75em] w-[12.5em] flex-col justify-between overflow-hidden rounded-lg p-4 text-left sm:h-72 sm:w-48 md:h-80 md:w-56 lg:h-96 lg:w-64`}
     >
       <div className='flex flex-col gap-1'>
         {title && (
@@ -57,17 +57,16 @@ export function StatCard({
           </h2>
         )}
         {description && (
-          <p className='text-sm/snug font-medium pb-4 lg:text-base'>{description}</p>
+          <p className='pb-4 text-sm/snug font-medium lg:text-base'>
+            {description}
+          </p>
         )}
       </div>
 
       {image && imageWidth && imageHeight && (
-        <div
-          className='relative z-10 w-full max-w-50'
-          style={horizontalStyle}
-        >
-          <div 
-            className="relative w-full aspect-4/3 overflow-hidden rounded-lg border-2 border-black/60"
+        <div className='relative z-10 w-full max-w-50' style={horizontalStyle}>
+          <div
+            className='relative aspect-4/3 w-full overflow-hidden rounded-lg border-2 border-black/60'
             style={{ transform: `rotate(${rotation}deg)` }}
           >
             <Image
@@ -75,7 +74,7 @@ export function StatCard({
               alt={title || 'stat image'}
               fill
               className='rounded-lg object-cover'
-                            sizes='(max-width: 640px) 75vw,
+              sizes='(max-width: 640px) 75vw,
                      (max-width: 1024px) 40vw,
                      300px'
             />

@@ -1,6 +1,14 @@
 import { StatCard } from './stats-card';
 import { StatsText, StatsDescription } from '@/content';
 
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+} from '@/components/ui/carousel';
+
 /**
  * Stats
  *
@@ -19,7 +27,7 @@ export function Stats() {
 
   return (
     <section className='flex w-full justify-center px-6 py-12 sm:px-8 sm:py-16 lg:px-16'>
-      <div className='max-w-2xl text-center'>
+      <div className='w-full max-w-2xl text-center'>
         {/* pre-title */}
         <p className='text-pre-title-purple mb-2 text-sm font-semibold sm:text-base'>
           MRUHacks 2025 Recap
@@ -36,20 +44,35 @@ export function Stats() {
         </p>
 
         {/* stats carousel */}
-        {StatsText.map((stat, index) => (
-          <StatCard
-            key={index}
-            color={colors[index % colors.length]}
-            title={stat.stats}
-            description={stat.info}
-            image={stat.image}
-            imageWidth={stat.imageWidth}
-            imageHeight={stat.imageHeight}
-            left={stat.left}
-            right={stat.right}
-            rotation={stat.rotation}
-          />
-        ))}
+        <Carousel
+          opts={{
+            align: 'center',
+            loop: true,
+          }}
+          className='w-full'
+        >
+          <CarouselContent>
+            {StatsText.map((stat, index) => (
+              <CarouselItem key={index} className='flex justify-center'>
+                <StatCard
+                  color={colors[index % colors.length]}
+                  title={stat.stats}
+                  description={stat.info}
+                  image={stat.image}
+                  imageWidth={stat.imageWidth}
+                  imageHeight={stat.imageHeight}
+                  left={stat.left}
+                  right={stat.right}
+                  rotation={stat.rotation}
+                />
+              </CarouselItem>
+            ))}
+          </CarouselContent>
+
+          {/* optional navigation */}
+          <CarouselPrevious />
+          <CarouselNext />
+        </Carousel>
       </div>
     </section>
   );
