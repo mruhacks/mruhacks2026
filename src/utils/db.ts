@@ -16,7 +16,6 @@ import postgres from 'postgres';
 /** Environment flags */
 const env = process.env;
 const isTest = env.NODE_ENV === 'test';
-const isProduction = env.NODE_ENV === 'production';
 
 /**
  * Type guard for undefined/null
