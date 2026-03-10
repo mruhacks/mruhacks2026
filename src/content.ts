@@ -90,7 +90,7 @@ export const StatsText: StatItem[] = [
     rotation: -3.1,
   },
   {
-    stats: '30+',
+    stats: '20+',
     info: 'Volunteer Judges from MRU, Arcurve, Suncor, Enbridge and more!',
     image: '/stats-card-image4.jpg',
     imageWidth: 1000,
@@ -101,10 +101,6 @@ export const StatsText: StatItem[] = [
 ];
 
 export const StatsDescription: string = `
-Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor 
-incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud 
-exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure 
-dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. 
-Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit 
-anim id est laborum.
+MRUHacks 2025 was our biggest event yet, with an overwhelming registration 
+amount that ended up maxing out our event capacity at Riddell Library.
 `;

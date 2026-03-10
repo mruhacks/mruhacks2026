@@ -48,18 +48,16 @@ export function StatCard({
 
   return (
     <div
-      className={` ${colors[color]} text-card-text relative flex h-[18.75em] w-[12.5em] flex-col justify-between overflow-hidden rounded-lg p-4 text-left sm:h-72 sm:w-48 md:h-80 md:w-56 lg:h-96 lg:w-64`}
+      className={` ${colors[color]} text-card-text relative flex aspect-2/3 w-[90%] flex-col justify-between overflow-hidden rounded-lg p-6 text-left`}
     >
       <div className='flex flex-col gap-1'>
         {title && (
-          <h2 className='text-5xl leading-none font-extrabold tracking-[-0.04em] lg:text-6xl'>
+          <h2 className='text-6xl leading-none font-extrabold tracking-[-0.04em] lg:text-6xl'>
             {title}
           </h2>
         )}
         {description && (
-          <p className='pb-4 text-sm/snug font-medium lg:text-base'>
-            {description}
-          </p>
+          <p className='pb-4 text-xl font-medium lg:text-base'>{description}</p>
         )}
       </div>
 
