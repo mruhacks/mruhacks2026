@@ -79,6 +79,8 @@
 }
 
 :root {
+  --radius: 0.625rem;
+
   /* Base */
   --background: #ffffff;
   --foreground: #000000;

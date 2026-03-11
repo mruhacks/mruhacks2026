@@ -44,7 +44,7 @@ export function StatCard({
     blue: 'bg-card-blue',
   };
 
-  const horizontalStyle = right ? { right } : { left };
+  const horizontalStyle = right !== undefined ? { right } : { left };
 
   return (
     <div
@@ -62,7 +62,10 @@ export function StatCard({
       </div>
 
       {image && imageWidth && imageHeight && (
-        <div className='relative z-10 w-full max-w-50' style={horizontalStyle}>
+        <div
+          className='absolute bottom-[8%] z-10 w-[70%] max-w-[200px]'
+          style={horizontalStyle}
+        >
           <div
             className='relative aspect-4/3 w-full overflow-hidden rounded-lg border-2 border-black/60'
             style={{ transform: `rotate(${rotation}deg)` }}

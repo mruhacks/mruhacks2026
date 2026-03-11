@@ -62,9 +62,10 @@ export const StatsText: StatItem[] = [
   {
     stats: '285%',
     info: 'Increase in registrations for MRUHacks 2025, maxing out venue capacity at Riddell Library!',
-    image: '/stats-card-image1.jpg',
+    image: '/stats-card-image1.png',
     imageWidth: 956,
     imageHeight: 719,
+    left: '15%',
     rotation: 2.16,
   },
   {
@@ -73,16 +74,16 @@ export const StatsText: StatItem[] = [
     image: '/stats-card-image2.jpg',
     imageWidth: 1066,
     imageHeight: 800,
-    right: '0px',
+    right: '-5%',
     rotation: -3.14,
   },
   {
     stats: '150+',
     info: 'Total registrations across our workshops, with every workshop having full attendance.',
-    image: '/stats-card-image3.png',
+    image: '/stats-card-image3.jpg',
     imageWidth: 867,
     imageHeight: 797,
-    left: '2.75em',
+    right: '5%',
     rotation: -3.1,
   },
   {
@@ -91,7 +92,7 @@ export const StatsText: StatItem[] = [
     image: '/stats-card-image4.jpg',
     imageWidth: 1000,
     imageHeight: 800,
-    left: '1.08em',
+    left: '15%',
     rotation: 1.97,
   },
 ];
