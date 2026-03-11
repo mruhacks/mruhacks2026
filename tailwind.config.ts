@@ -53,7 +53,10 @@ export default {
         /* Homepage Colors */
         'pre-title-blue': 'var(--color-pre-title-blue)',
         'pre-title-orange': 'var(--color-pre-title-orange)',
+        'pre-title-purple': 'var(--color-pre-title-purple)',
         description: 'var(--color-description)',
+        'card-text': 'var(--color-card-text)',
+        'sponsor-button-blue': 'var(--color-sponsor-button-blue)',
       },
 
       borderRadius: {

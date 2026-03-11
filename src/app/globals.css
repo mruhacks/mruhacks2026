@@ -61,7 +61,10 @@
   /* Homepage Colors */
   --color-pre-title-blue: var(--pre-title-blue);
   --color-pre-title-orange: var(--pre-title-orange);
+  --color-pre-title-purple: var(--pre-title-purple);
   --color-description: var(--description-color);
+  --color-card-text: var(--card-text);
+  --color-sponsor-button-blue: var(--sponsor-button-blue);
 
   /* Gradient Colors */
   --color-gradient-1: var(--gradient-color-1);
@@ -135,7 +138,12 @@
   /* Homepage text*/
   --pre-title-blue: #25b0fb;
   --pre-title-orange: #ff7735;
+  --pre-title-purple: #be41dc;
   --description-color: #777777;
+  --card-text: #00000099;
+
+  /* Homepage Colors */
+  --sponsor-button-blue: #43d3ff;
 }
 
 @layer base {
