@@ -1,6 +1,6 @@
 import { beforeAll, afterAll, vi } from 'vitest';
-import { db, pool } from '@/utils/db';
-import { migrate } from 'drizzle-orm/node-postgres/migrator';
+import { db, client } from '@/utils/db';
+import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import path from 'path';
 import { sql } from 'drizzle-orm';
 
@@ -44,5 +44,5 @@ beforeAll(async () => {
 // Gracefully close the DB connection
 // ─────────────────────────────────────────────
 afterAll(async () => {
-  await pool.end();
+  await client.end();
 });
