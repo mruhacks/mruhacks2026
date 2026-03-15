@@ -21,6 +21,7 @@ export function Footer() {
             {' '}
             <a href='https://discord.com/invite/e7Fg6jsnrm'>Discord</a>
           </li>
+
           <li className='text-l font-semibold text-white'>
             {' '}
             <a href='https://www.linkedin.com/uas/login?session_redirect=https%3A%2F%2Fwww.linkedin.com%2Fcompany%2Fmruhacks%2Fposts%2F%3FfeedView%3Dall'>

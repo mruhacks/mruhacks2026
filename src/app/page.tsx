@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { About } from '@/components/about-section';
 import { FAQ } from '@/components/faq-section';
 import { Footer } from '@/components/footer';
+import { CTA } from '@/components/call-to-action';
 
 export default function Home() {
   return (
@@ -14,6 +15,7 @@ export default function Home() {
       </Link>
       <About></About>
       <FAQ></FAQ>
+      <CTA></CTA>
       <Footer></Footer>
     </div>
   );
