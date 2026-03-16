@@ -47,3 +47,7 @@ export const FAQs: FAQItem[] = [
       'Attending MRUHacks gives you a platform to collaborate with like-minded individuals, learn new skills, and build a sweet project. It is a great opportunity to solve real-world problems, join a community of hackers, and win prizes.',
   },
 ];
+
+export const SPONSOR_CTA: string = `
+MRUHacks would be impossible to run without our fantastic sponsors.
+`;
