@@ -27,10 +27,10 @@ export interface StatCardProps {
  */
 export function StatCard({
   color = 'yellow',
-  title = '',
-  image = '',
-  description = '',
-  left = '1.5em',
+  title,
+  image,
+  description,
+  left = '15%',
   right,
   imageWidth = 10,
   imageHeight = 7,
