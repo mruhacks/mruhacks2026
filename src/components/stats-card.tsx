@@ -50,16 +50,14 @@ export function StatCard({
           </h2>
         )}
         {description && (
-          <p className='text-xl font-medium lg:text-base pb-32'>
+          <p className='pb-32 text-xl font-medium lg:text-base'>
             {description}
           </p>
         )}
       </div>
 
       {image && imageWidth && imageHeight && (
-        <div
-          className='absolute bottom-6 left-1/2 z-10 w-[70%] max-w-[200px] -translate-x-1/2'
-        >
+        <div className='absolute bottom-6 left-1/2 z-10 w-[70%] max-w-[200px] -translate-x-1/2'>
           <div className='relative aspect-4/3 w-full overflow-hidden rounded-lg border-2 border-black/60'>
             <Image
               src={image}
