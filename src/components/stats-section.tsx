@@ -1,8 +1,7 @@
 'use client';
 
+import { StatsDescription, StatsText } from '@/content';
 import { StatCard } from './stats-card';
-import { StatsText, StatsDescription } from '@/content';
-import { useIsMobile } from '@/hooks/use-mobile';
 
 import {
   Carousel,
@@ -21,8 +20,6 @@ import {
  * @returns a styled, responsive stats section
  */
 export function Stats() {
-  const isMobile = useIsMobile();
-
   const colors: ('purple' | 'yellow' | 'red' | 'blue' | 'skyblue')[] = [
     'purple',
     'yellow',
@@ -52,54 +49,35 @@ export function Stats() {
       {/* card section*/}
       <div className='mx-auto w-full max-w-7xl'>
         {/* mobile carousel */}
-        {isMobile ? (
-          <Carousel
-            opts={{
-              align: 'center',
-              loop: true,
-            }}
-            className='w-full'
-          >
-            <CarouselContent>
-              {StatsText.map((stat, index) => (
-                <CarouselItem key={index} className='flex justify-center'>
-                  <StatCard
-                    color={colors[index % colors.length]}
-                    title={stat.stats}
-                    description={stat.info}
-                    image={stat.image}
-                    imageWidth={stat.imageWidth}
-                    imageHeight={stat.imageHeight}
-                    left={stat.left}
-                    right={stat.right}
-                    rotation={stat.rotation}
-                  />
-                </CarouselItem>
-              ))}
-            </CarouselContent>
 
-            <CarouselPrevious />
-            <CarouselNext />
-          </Carousel>
-        ) : (
-          /* non carousel */
-          <div className='grid grid-cols-2 justify-items-center gap-8 md:gap-10 lg:grid-cols-4 lg:justify-items-stretch'>
+        <Carousel
+          opts={{
+            align: 'center',
+            loop: true,
+          }}
+          className='w-full'
+        >
+          <CarouselContent>
             {StatsText.map((stat, index) => (
-              <StatCard
+              <CarouselItem
                 key={index}
-                color={colors[index % colors.length]}
-                title={stat.stats}
-                description={stat.info}
-                image={stat.image}
-                imageWidth={stat.imageWidth}
-                imageHeight={stat.imageHeight}
-                left={stat.left}
-                right={stat.right}
-                rotation={stat.rotation}
-              />
+                className='flex max-w-md justify-center md:basis-1/3 lg:basis-1/4'
+              >
+                <StatCard
+                  color={colors[index % colors.length]}
+                  title={stat.stats}
+                  description={stat.info}
+                  image={stat.image}
+                  imageWidth={stat.imageWidth}
+                  imageHeight={stat.imageHeight}
+                />
+              </CarouselItem>
             ))}
-          </div>
-        )}
+          </CarouselContent>
+
+          <CarouselPrevious />
+          <CarouselNext />
+        </Carousel>
       </div>
     </section>
   );

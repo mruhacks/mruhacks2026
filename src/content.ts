@@ -65,8 +65,6 @@ export const StatsText: StatItem[] = [
     image: '/stats-card-image1.png',
     imageWidth: 956,
     imageHeight: 719,
-    left: '15%',
-    rotation: 2.16,
   },
   {
     stats: '40%',
@@ -74,8 +72,6 @@ export const StatsText: StatItem[] = [
     image: '/stats-card-image2.jpg',
     imageWidth: 1066,
     imageHeight: 800,
-    right: '-5%',
-    rotation: -3.14,
   },
   {
     stats: '150+',
@@ -83,8 +79,6 @@ export const StatsText: StatItem[] = [
     image: '/stats-card-image3.jpg',
     imageWidth: 867,
     imageHeight: 797,
-    right: '5%',
-    rotation: -3.1,
   },
   {
     stats: '20+',
@@ -92,8 +86,6 @@ export const StatsText: StatItem[] = [
     image: '/stats-card-image4.jpg',
     imageWidth: 1000,
     imageHeight: 800,
-    left: '15%',
-    rotation: 1.97,
   },
 ];
 

@@ -8,11 +8,8 @@ export interface StatCardProps {
   title?: string; // heading for stat
   image?: string; // url of image displayed in card
   description?: string; // description about stat
-  left?: string; // left horizontal offset for the image
-  right?: string; // right horizontal offset for the image
   imageWidth?: number; // default width of image
   imageHeight?: number; // default height of image
-  rotation?: number;
 }
 
 /**
@@ -30,11 +27,8 @@ export function StatCard({
   title,
   image,
   description,
-  left = '15%',
-  right,
   imageWidth = 10,
   imageHeight = 7,
-  rotation,
 }: StatCardProps) {
   const colors = {
     yellow: 'bg-card-yellow',
@@ -44,32 +38,29 @@ export function StatCard({
     blue: 'bg-card-blue',
   };
 
-  const horizontalStyle = right !== undefined ? { right } : { left };
-
   return (
     <div
-      className={` ${colors[color]} text-card-text relative flex aspect-2/3 w-[90%] flex-col justify-between overflow-hidden rounded-lg p-6 text-left`}
+      className={`${colors[color]} text-card-text relative flex w-[90%] flex-col justify-between overflow-hidden rounded-lg p-6 text-left`}
+      style={{ minHeight: '420px' }}
     >
-      <div className='flex flex-col gap-1'>
+      <div className='flex flex-col gap-4'>
         {title && (
           <h2 className='text-6xl leading-none font-extrabold tracking-[-0.04em] lg:text-6xl'>
             {title}
           </h2>
         )}
         {description && (
-          <p className='pb-4 text-xl font-medium lg:text-base'>{description}</p>
+          <p className='text-xl font-medium lg:text-base pb-32'>
+            {description}
+          </p>
         )}
       </div>
 
       {image && imageWidth && imageHeight && (
         <div
-          className='absolute bottom-[8%] z-10 w-[70%] max-w-[200px]'
-          style={horizontalStyle}
+          className='absolute bottom-6 left-1/2 z-10 w-[70%] max-w-[200px] -translate-x-1/2'
         >
-          <div
-            className='relative aspect-4/3 w-full overflow-hidden rounded-lg border-2 border-black/60'
-            style={{ transform: `rotate(${rotation}deg)` }}
-          >
+          <div className='relative aspect-4/3 w-full overflow-hidden rounded-lg border-2 border-black/60'>
             <Image
               src={image}
               alt={title || 'stat image'}
