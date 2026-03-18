@@ -63,6 +63,11 @@
   --color-pre-title-orange: var(--pre-title-orange);
   --color-pre-title-purple: var(--pre-title-purple);
   --color-description: var(--description-color);
+  --color-card-yellow: var(--card-yellow);
+  --color-card-skyblue: var(--card-skyblue);
+  --color-card-purple: var(--card-purple);
+  --color-card-red: var(--card-red);
+  --color-card-blue: var(--card-blue);
   --color-card-text: var(--card-text);
   --color-sponsor-button-blue: var(--sponsor-button-blue);
 
@@ -142,7 +147,12 @@
   --description-color: #777777;
   --card-text: #00000099;
 
-  /* Homepage Colors */
+  /* Homepage colors */
+  --card-yellow: #ffe2a5;
+  --card-skyblue: #a5f1ff;
+  --card-purple: #ffa5f9;
+  --card-red: #ffbaa5;
+  --card-blue: #a5b7ff;
   --sponsor-button-blue: #43d3ff;
 }
 

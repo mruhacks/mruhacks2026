@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { About } from '@/components/about-section';
 import { FAQ } from '@/components/faq-section';
+import { Stats } from '@/components/stats-section';
 import { SponsorCTA } from '@/components/sponsor-cta';
 
 export default function Home() {
@@ -13,6 +14,7 @@ export default function Home() {
         Login
       </Link>
       <About></About>
+      <Stats></Stats>
       <SponsorCTA></SponsorCTA>
       <FAQ></FAQ>
     </div>

@@ -52,20 +52,23 @@ export default {
 
         /* Homepage Colors */
         'pre-title-blue': 'var(--color-pre-title-blue)',
+        description: 'var(--color-description)',
+        'card-yellow': 'var(--color-card-yellow)',
+        'card-skyblue': 'var(--color-card-skyblue)',
+        'card-purple': 'var(--color-card-purple)',
+        'card-red': 'var(--color-card-red)',
+        'card-blue': 'var(--color-card-blue)',
+        'card-text': 'var(--color-card-text)',
         'pre-title-orange': 'var(--color-pre-title-orange)',
         'pre-title-purple': 'var(--color-pre-title-purple)',
-        description: 'var(--color-description)',
-        'card-text': 'var(--color-card-text)',
         'sponsor-button-blue': 'var(--color-sponsor-button-blue)',
       },
-
       borderRadius: {
         sm: 'var(--radius-sm)',
         md: 'var(--radius-md)',
         lg: 'var(--radius-lg)',
         xl: 'var(--radius-xl)',
       },
-
       backgroundImage: {
         'gradient-button': `
           linear-gradient(

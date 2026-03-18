@@ -48,6 +48,52 @@ export const FAQs: FAQItem[] = [
   },
 ];
 
+export type StatItem = {
+  stats: string;
+  info: string;
+  image: string;
+  imageWidth: number;
+  imageHeight: number;
+  left?: string;
+  right?: string;
+  rotation?: number;
+};
+export const StatsText: StatItem[] = [
+  {
+    stats: '285%',
+    info: 'Increase in registrations for MRUHacks 2025, maxing out venue capacity at Riddell Library!',
+    image: '/stats-card-image1.png',
+    imageWidth: 956,
+    imageHeight: 719,
+  },
+  {
+    stats: '40%',
+    info: 'More projects finished across 130+ participants, all done during the duration of the hackathon!',
+    image: '/stats-card-image2.jpg',
+    imageWidth: 1066,
+    imageHeight: 800,
+  },
+  {
+    stats: '150+',
+    info: 'Total registrations across our workshops, with every workshop having full attendance.',
+    image: '/stats-card-image3.jpg',
+    imageWidth: 867,
+    imageHeight: 797,
+  },
+  {
+    stats: '20+',
+    info: 'Volunteer Judges from MRU, Arcurve, Suncor, Enbridge and more!',
+    image: '/stats-card-image4.jpg',
+    imageWidth: 1000,
+    imageHeight: 800,
+  },
+];
+
+export const StatsDescription: string = `
+MRUHacks 2025 was our biggest event yet, with an overwhelming registration 
+amount that ended up maxing out our event capacity at Riddell Library.
+`;
+
 export const SPONSOR_CTA: string = `
 MRUHacks would be impossible to run without our fantastic sponsors.
 `;
