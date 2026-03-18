@@ -61,15 +61,14 @@ export default {
         'card-text': 'var(--color-card-text)',
         'pre-title-orange': 'var(--color-pre-title-orange)',
         'pre-title-purple': 'var(--color-pre-title-purple)',
+        'sponsor-button-blue': 'var(--color-sponsor-button-blue)',
       },
-
       borderRadius: {
         sm: 'var(--radius-sm)',
         md: 'var(--radius-md)',
         lg: 'var(--radius-lg)',
         xl: 'var(--radius-xl)',
       },
-
       backgroundImage: {
         'gradient-button': `
           linear-gradient(

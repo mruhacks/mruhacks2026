@@ -82,8 +82,12 @@ export async function seedStaticTables() {
 
 // ---------- Direct execution ----------
 if (require.main === module) {
-  seedStaticTables().catch((err) => {
-    console.error('❌ Seed failed:', err);
-    process.exit(1);
-  });
+  seedStaticTables()
+    .then(() => {
+      process.exit(0);
+    })
+    .catch((err) => {
+      console.error('❌ Seed failed:', err);
+      process.exit(1);
+    });
 }
