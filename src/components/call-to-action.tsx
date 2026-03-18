@@ -13,10 +13,10 @@ export function CTA() {
         <h1 className='text-center text-2xl font-semibold'>
           Ready to participate in
         </h1>
-        <h1 className='text-center text-2xl font-semibold'>MRUHacks?</h1>
+        <h1 className='pb-4 text-center text-2xl font-semibold'>MRUHacks?</h1>
 
-        <h1 className='text-center text-2xl font-semibold text-gray-400'>
-          Let's do it together?
+        <h1 className='pb-6 text-center text-2xl font-semibold text-gray-400'>
+          {"Let's do it together?"}
         </h1>
       </div>
       <div className='flex flex-row flex-wrap justify-center gap-3'>
