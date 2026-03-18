@@ -69,6 +69,7 @@
   --color-card-red: var(--card-red);
   --color-card-blue: var(--card-blue);
   --color-card-text: var(--card-text);
+  --color-sponsor-button-blue: var(--sponsor-button-blue);
 
   /* Gradient Colors */
   --color-gradient-1: var(--gradient-color-1);
@@ -152,6 +153,7 @@
   --card-purple: #ffa5f9;
   --card-red: #ffbaa5;
   --card-blue: #a5b7ff;
+  --sponsor-button-blue: #43d3ff;
 }
 
 @layer base {

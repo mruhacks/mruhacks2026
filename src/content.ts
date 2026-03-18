@@ -93,3 +93,7 @@ export const StatsDescription: string = `
 MRUHacks 2025 was our biggest event yet, with an overwhelming registration 
 amount that ended up maxing out our event capacity at Riddell Library.
 `;
+
+export const SPONSOR_CTA: string = `
+MRUHacks would be impossible to run without our fantastic sponsors.
+`;
