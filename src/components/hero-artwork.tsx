@@ -567,36 +567,41 @@ export function HeroArtwork() {
           strokeLinecap="round"
         />
       </g>
+      {/*
+       * y values are alphabetic baselines (original top-edge y + 0.875em ascent).
+       * dominant-baseline="text-before-edge" is omitted — it's a deprecated SVG 1.1
+       * value that Safari ignores, which caused text to render too high.
+       * 64px text: +56px  |  20px text: +17.5px
+       */}
       <g
         id="countdown-text"
         fill="#000000"
         fontFamily="'DM Sans', 'DM_Sans', sans-serif"
         fontWeight="600"
-        dominantBaseline="text-before-edge"
         textAnchor="middle"
       >
-        <text x="77.69" y="71.32" fontSize="64" letterSpacing="-3.2" transform="rotate(-2.29 77.69 71.32)">
+        <text x="77.69" y="127.32" fontSize="64" letterSpacing="-3.2" transform="rotate(-2.29 77.69 127.32)">
           {pad(countdown.months)}
         </text>
-        <text x="129.15" y="70.68" fontSize="64" letterSpacing="-3.2" transform="rotate(-2.29 129.15 70.68)">
+        <text x="129.15" y="126.68" fontSize="64" letterSpacing="-3.2" transform="rotate(-2.29 129.15 126.68)">
           :
         </text>
-        <text x="180.61" y="67.22" fontSize="64" letterSpacing="-3.2" transform="rotate(-2.29 180.61 67.22)">
+        <text x="180.61" y="123.22" fontSize="64" letterSpacing="-3.2" transform="rotate(-2.29 180.61 123.22)">
           {pad(countdown.weeks)}
         </text>
-        <text x="232.07" y="66.58" fontSize="64" letterSpacing="-3.2" transform="rotate(-2.29 232.07 66.58)">
+        <text x="232.07" y="122.58" fontSize="64" letterSpacing="-3.2" transform="rotate(-2.29 232.07 122.58)">
           :
         </text>
-        <text x="283.53" y="63.11" fontSize="64" letterSpacing="-3.2" transform="rotate(-2.29 283.53 63.11)">
+        <text x="283.53" y="119.11" fontSize="64" letterSpacing="-3.2" transform="rotate(-2.29 283.53 119.11)">
           {pad(countdown.days)}
         </text>
-        <text x="79.35" y="141.65" fontSize="20" letterSpacing="-1" transform="rotate(-2.29 79.35 141.65)">
+        <text x="79.35" y="159.15" fontSize="20" letterSpacing="-1" transform="rotate(-2.29 79.35 159.15)">
           Months
         </text>
-        <text x="182.27" y="137.70" fontSize="20" letterSpacing="-1" transform="rotate(-2.29 182.27 137.70)">
+        <text x="182.27" y="155.20" fontSize="20" letterSpacing="-1" transform="rotate(-2.29 182.27 155.20)">
           Weeks
         </text>
-        <text x="285.18" y="133.91" fontSize="20" letterSpacing="-1" transform="rotate(-2.29 285.18 133.91)">
+        <text x="285.18" y="151.41" fontSize="20" letterSpacing="-1" transform="rotate(-2.29 285.18 151.41)">
           Days
         </text>
       </g>
