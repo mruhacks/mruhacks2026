@@ -3,7 +3,7 @@ import logoImage from '@/assets/logo_color_and_black.png';
 import { Button } from '@/components/ui/button';
 import gloveSticker from '@/assets/mruhacks-2026-stickers-glove.png';
 import logoSticker from '@/assets/mruhacks-2026-stickers-logo.png';
-import heroFigma from '@/assets/hero-figma.svg';
+import { HeroArtwork } from '@/components/hero-artwork';
 
 export function HeroSection() {
   return (
@@ -109,14 +109,9 @@ export function HeroSection() {
           </div>
 
           <div className='relative w-full max-w-xl lg:-mt-14 lg:shrink-0'>
-            <Image
-              src={heroFigma}
-              alt='MRUHacks countdown and mascot artwork'
-              width={525}
-              height={710}
-              className='mx-auto w-full max-w-lg rotate-2 pt-2 lg:rotate-0 lg:pt-0'
-              priority
-            />
+            <div className='mx-auto w-full max-w-lg rotate-2 pt-2 lg:rotate-0 lg:pt-0'>
+              <HeroArtwork />
+            </div>
           </div>
         </div>
       </div>

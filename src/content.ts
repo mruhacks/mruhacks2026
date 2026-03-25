@@ -1,3 +1,5 @@
+export const EVENT_START_DATE = new Date(2026, 9, 23); // October 23, 2026
+
 export const INTRO_BLURB: string = `
 MRUHacks is Mount Royal University’s largest hackathon, bringing
 students together for an immersive three-day experience focused on

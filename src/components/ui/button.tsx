@@ -32,8 +32,6 @@ const buttonVariants = cva(
         icon: "size-9",
         "icon-sm": "size-8",
         "icon-lg": "size-10",
-        // MRUHacks custom sizes
-        pill: "h-auto rounded-full px-6 py-3 text-base sm:px-8 sm:text-lg",
       },
     },
     defaultVariants: {
