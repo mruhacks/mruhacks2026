@@ -23,7 +23,14 @@ function getCountdown(target: Date): {
   }
 
   const afterMonths = new Date(now);
-  afterMonths.setMonth(afterMonths.getMonth() + months);
+  // Compute the target year/month to handle rawMonth >= 12 cross-year correctly.
+  // JavaScript's Date constructor normalizes overflow months, so this works even
+  // when rawMonth spans multiple years (e.g. rawMonth=13 → Feb of next year).
+  const rawMonth = afterMonths.getMonth() + months;
+  const clampRef = new Date(afterMonths.getFullYear(), rawMonth + 1, 0);
+  const maxDay = clampRef.getDate();
+  afterMonths.setDate(Math.min(afterMonths.getDate(), maxDay));
+  afterMonths.setMonth(rawMonth);
 
   const remainingDays = Math.floor(
     (target.getTime() - afterMonths.getTime()) / (1000 * 60 * 60 * 24),

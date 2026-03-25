@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import gloveSticker from '@/assets/mruhacks-2026-stickers-glove.png';
 import logoSticker from '@/assets/mruhacks-2026-stickers-logo.png';
 import { HeroArtwork } from '@/components/hero-artwork';
+import { EVENT_DATE_DISPLAY, EVENT_LOCATION_DISPLAY } from '@/content';
 
 export function HeroSection() {
   return (
@@ -24,17 +25,25 @@ export function HeroSection() {
             <Button
               variant='gradient'
               className='rounded-full border border-[#5e5e5e] py-5 text-xl font-semibold tracking-[-0.02em] text-white hover:opacity-90'
+              disabled
+              aria-disabled='true'
             >
               Register Now
             </Button>
             <Button
               shadow='md'
               className='rounded-full border border-[#5e5e5e] bg-black py-5 text-xl font-semibold tracking-[-0.02em] text-white hover:bg-neutral-800'
+              disabled
+              aria-disabled='true'
             >
               Log In
             </Button>
           </div>
-          <Button className='h-auto shrink-0 rounded-full bg-black px-4 py-2 text-xs font-semibold tracking-tight text-white hover:bg-neutral-800 lg:hidden'>
+          <Button
+            className='h-auto shrink-0 rounded-full bg-black px-4 py-2 text-xs font-semibold tracking-tight text-white hover:bg-neutral-800 lg:hidden'
+            disabled
+            aria-disabled='true'
+          >
             Register Now
           </Button>
         </div>
@@ -73,7 +82,6 @@ export function HeroSection() {
                 alt=''
                 width={80}
                 className='pointer-events-none absolute top-10 left-0 w-8 -rotate-10 lg:top-20 lg:-left-2 lg:w-12'
-                priority
                 aria-hidden
               />
               <Image
@@ -81,14 +89,13 @@ export function HeroSection() {
                 alt=''
                 width={120}
                 className='pointer-events-none absolute top-11 right-0 w-11 rotate-10 lg:top-24 lg:-right-2 lg:w-16'
-                priority
                 aria-hidden
               />
             </div>
 
             <div className='text-description mb-6 text-center text-xs/relaxed font-medium sm:text-base lg:mb-11 lg:text-2xl/tight lg:tracking-[-0.01em]'>
-              <p>October 23-25, 2026</p>
-              <p>In-Person Event @ Riddell Library</p>
+              <p>{EVENT_DATE_DISPLAY}</p>
+              <p>{EVENT_LOCATION_DISPLAY}</p>
             </div>
 
             <div className='mb-8 flex w-full flex-wrap items-center justify-center gap-2 lg:mb-10 lg:gap-4'>
