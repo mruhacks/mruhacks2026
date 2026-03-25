@@ -18,6 +18,12 @@
 
 import { createAuthClient } from 'better-auth/react';
 
+function getPublicAuthBaseURL(): string | undefined {
+  const v = process.env.NEXT_PUBLIC_BETTER_AUTH_URL?.trim();
+  if (!v) return undefined;
+  return v.replace(/\/$/, '');
+}
+
 /**
  * Better Auth client instance for client-side authentication
  *
@@ -26,5 +32,12 @@ import { createAuthClient } from 'better-auth/react';
  * - signUp: Sign up a new user (create account)
  * - signOut: End the user's session
  * - useSession: React hook to access the current session
+ *
+ * When `NEXT_PUBLIC_BETTER_AUTH_URL` is set (same value as `BETTER_AUTH_URL` in typical setups),
+ * requests target that origin explicitly. When omitted, the client uses the current page origin.
  */
-export const authClient = createAuthClient();
+const publicAuthBaseURL = getPublicAuthBaseURL();
+
+export const authClient = createAuthClient(
+  publicAuthBaseURL !== undefined ? { baseURL: publicAuthBaseURL } : {},
+);

@@ -11,6 +11,7 @@ import { db } from '@/utils/db';
 import * as schema from '@/db/schema';
 import { sendMail } from '@/utils/mail';
 import { headers } from 'next/headers';
+import { redirect } from 'next/navigation';
 import { cache } from 'react';
 
 /** Verification links expire after this many seconds (24 hours). */
@@ -104,4 +105,22 @@ export const getSession = cache(async () => {
  */
 export async function getUser() {
   return (await getSession())?.user || null;
+}
+
+/**
+ * Ensures the request has a session and a verified email. Redirects to sign-in or
+ * `/verify-email` when requirements are not met. Use from server layouts and actions
+ * that must not run for unauthenticated or unverified users.
+ */
+export async function requireVerifiedUser() {
+  const session = await getSession();
+  if (!session) {
+    redirect(
+      `/signin?callbackUrl=${encodeURIComponent('/dashboard')}`,
+    );
+  }
+  if (!session.user.emailVerified) {
+    redirect('/verify-email');
+  }
+  return session.user;
 }

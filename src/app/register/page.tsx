@@ -1,10 +1,11 @@
-import { redirect } from 'next/navigation';
+import { Suspense } from 'react';
 
-import { getUser } from '@/utils/auth';
+import RegisterRedirectContent from './register-content';
 
-export default async function RegisterPage() {
-  const user = await getUser();
-  if (!user) redirect('/signin');
-
-  redirect('/dashboard/events');
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={null}>
+      <RegisterRedirectContent />
+    </Suspense>
+  );
 }
