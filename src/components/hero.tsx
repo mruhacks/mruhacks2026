@@ -9,9 +9,9 @@ import { HeroArtwork } from '@/components/hero-artwork';
 export function HeroSection() {
   return (
     <section className='relative overflow-hidden'>
-      <div className='mx-auto w-full max-w-screen-2xl px-4 pt-6 pb-12 sm:px-8 lg:px-14 lg:pt-9 lg:pb-16'>
+      <div className='mx-auto w-full max-w-screen-2xl px-3 pt-5 pb-10 sm:px-6 lg:px-11 lg:pt-7 lg:pb-12'>
         <div className='flex w-full items-center justify-between'>
-          <div className='relative h-9 w-36 shrink-0 lg:h-16 lg:w-60'>
+          <div className='relative h-7 w-28 shrink-0 lg:h-12 lg:w-48'>
             <Image
               src={logoImage}
               alt='MRUHacks Logo'
@@ -20,26 +20,29 @@ export function HeroSection() {
               priority
             />
           </div>
-          <div className='hidden items-center gap-8 lg:flex'>
+          <div className='hidden items-center gap-6 lg:flex'>
             <Button
               variant='gradient'
-              className='h-16 w-56 rounded-full border border-[#5e5e5e] text-3xl font-semibold tracking-[-0.02em] text-white hover:opacity-90'
+              className='rounded-full border border-[#5e5e5e] py-5 text-xl font-semibold tracking-[-0.02em] text-white hover:opacity-90'
             >
               Register Now
             </Button>
-            <Button className='h-16 w-40 rounded-full border border-[#5e5e5e] bg-black text-3xl font-semibold tracking-[-0.02em] text-white hover:bg-neutral-800'>
+            <Button
+              shadow='md'
+              className='rounded-full border border-[#5e5e5e] bg-black py-5 text-xl font-semibold tracking-[-0.02em] text-white hover:bg-neutral-800'
+            >
               Log In
             </Button>
           </div>
-          <Button className='h-auto shrink-0 rounded-full bg-black px-5 py-2.5 text-sm font-semibold tracking-tight text-white hover:bg-neutral-800 lg:hidden'>
+          <Button className='h-auto shrink-0 rounded-full bg-black px-4 py-2 text-xs font-semibold tracking-tight text-white hover:bg-neutral-800 lg:hidden'>
             Register Now
           </Button>
         </div>
 
-        <div className='mx-auto mt-8 flex w-full max-w-md flex-col items-center lg:mt-36 lg:max-w-none lg:flex-row lg:items-start lg:justify-between lg:gap-8'>
-          <div className='w-full lg:max-w-2xl'>
-            <div className='relative mb-6 w-full'>
-              <h1 className='flex flex-col items-center px-4 text-center text-4xl/tight font-semibold tracking-[-0.03em] sm:px-14 sm:text-5xl lg:px-0 lg:text-6xl lg:tracking-[-0.04em]'>
+        <div className='mx-auto mt-16 flex w-full max-w-sm flex-col items-center lg:mt-28 lg:max-w-none lg:flex-row lg:items-start lg:justify-center lg:gap-16'>
+          <div className='w-full lg:max-w-xl'>
+            <div className='relative mb-5 w-full'>
+              <h1 className='flex flex-col items-center px-3 text-center text-3xl/tight font-semibold tracking-[-0.03em] sm:px-11 sm:text-4xl lg:px-0 lg:text-5xl lg:tracking-[-0.04em]'>
                 <span className='inline-flex items-center justify-center whitespace-nowrap'>
                   Mount Royal University&apos;s
                 </span>
@@ -49,7 +52,7 @@ export function HeroSection() {
                 <span className='relative inline-flex items-center justify-center'>
                   Now Three Days!
                   <svg
-                    className='absolute -bottom-0.5 left-0 z-0 h-2.5 w-full lg:-bottom-1 lg:h-3'
+                    className='absolute -bottom-0.5 left-0 z-0 h-2 w-full lg:-bottom-1 lg:h-2.5'
                     viewBox='0 0 104 9'
                     fill='none'
                     xmlns='http://www.w3.org/2000/svg'
@@ -69,7 +72,7 @@ export function HeroSection() {
                 src={logoSticker}
                 alt=''
                 width={80}
-                className='pointer-events-none absolute top-12 left-0 w-10 -rotate-10 lg:top-24 lg:-left-2 lg:w-16'
+                className='pointer-events-none absolute top-10 left-0 w-8 -rotate-10 lg:top-20 lg:-left-2 lg:w-12'
                 priority
                 aria-hidden
               />
@@ -77,42 +80,42 @@ export function HeroSection() {
                 src={gloveSticker}
                 alt=''
                 width={120}
-                className='pointer-events-none absolute top-14 right-0 w-14 rotate-10 lg:top-28 lg:-right-2 lg:w-20'
+                className='pointer-events-none absolute top-11 right-0 w-11 rotate-10 lg:top-24 lg:-right-2 lg:w-16'
                 priority
                 aria-hidden
               />
             </div>
 
-            <div className='text-description mb-8 text-center text-sm/relaxed font-medium sm:text-xl lg:mb-14 lg:text-3xl/tight lg:tracking-[-0.01em]'>
-              <p className='lg:text-3xl'>October 23-25, 2026</p>
-              <p className='lg:text-3xl'>In-Person Event @ Riddell Library</p>
+            <div className='text-description mb-6 text-center text-xs/relaxed font-medium sm:text-base lg:mb-11 lg:text-2xl/tight lg:tracking-[-0.01em]'>
+              <p>October 23-25, 2026</p>
+              <p>In-Person Event @ Riddell Library</p>
             </div>
 
-            <div className='mb-10 flex w-full flex-wrap items-center justify-center gap-3 lg:mb-12 lg:gap-5'>
+            <div className='mb-8 flex w-full flex-wrap items-center justify-center gap-2 lg:mb-10 lg:gap-4'>
               <Button
                 variant='gradient'
-                className='h-16 w-56 rounded-full px-5 py-2.5 text-2xl font-semibold tracking-[-0.02em]'
+                className='rounded-full p-5 text-xl font-semibold tracking-[-0.02em]'
               >
                 Register Now
               </Button>
               <Button
                 variant='discord'
-                className='h-16 w-64 rounded-full px-5 py-2.5 text-2xl font-semibold tracking-[-0.02em]'
+                className='rounded-full p-5 text-xl font-semibold tracking-[-0.02em]'
               >
                 Join our Discord
               </Button>
             </div>
 
-            <div className='text-description flex items-center justify-center gap-4 lg:justify-start lg:pl-20'>
-              <p className='text-2xl font-medium text-nowrap lg:text-3xl'>
+            <div className='text-description flex items-center justify-center gap-3 lg:justify-start lg:pl-16'>
+              <p className='text-xl font-medium text-nowrap lg:text-2xl'>
                 Powered by
               </p>
-              <Image className='h-6 w-auto' src={ArcurveLogo} alt='Arcurve' />
+              <Image className='h-5 w-auto' src={ArcurveLogo} alt='Arcurve' />
             </div>
           </div>
 
-          <div className='relative w-full max-w-xl lg:-mt-14 lg:shrink-0'>
-            <div className='mx-auto w-full max-w-lg rotate-2 pt-2 lg:rotate-0 lg:pt-0'>
+          <div className='relative mt-11 w-full max-w-md lg:-mt-11 lg:shrink-0'>
+            <div className='mx-auto w-full max-w-md rotate-2 pt-1.5 lg:rotate-0 lg:pt-0'>
               <HeroArtwork />
             </div>
           </div>
