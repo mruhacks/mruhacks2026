@@ -1,5 +1,6 @@
 import Image from 'next/image';
 import logoImage from '@/assets/logo_color_and_black.png';
+import ArcurveLogo from '@/assets/arcurve_logo_2024_color_large.png';
 import { Button } from '@/components/ui/button';
 import gloveSticker from '@/assets/mruhacks-2026-stickers-glove.png';
 import logoSticker from '@/assets/mruhacks-2026-stickers-logo.png';
@@ -82,7 +83,7 @@ export function HeroSection() {
               />
             </div>
 
-            <div className='mb-8 text-center text-sm/relaxed font-medium text-description sm:text-xl lg:mb-14 lg:text-3xl/tight lg:tracking-[-0.01em]'>
+            <div className='text-description mb-8 text-center text-sm/relaxed font-medium sm:text-xl lg:mb-14 lg:text-3xl/tight lg:tracking-[-0.01em]'>
               <p className='lg:text-3xl'>October 23-25, 2026</p>
               <p className='lg:text-3xl'>In-Person Event @ Riddell Library</p>
             </div>
@@ -102,9 +103,11 @@ export function HeroSection() {
               </Button>
             </div>
 
-            <div className='flex items-center justify-center gap-4 text-description lg:justify-start lg:pl-20'>
-              <p className='text-2xl font-medium lg:text-3xl'>Powered by</p>
-
+            <div className='text-description flex items-center justify-center gap-4 lg:justify-start lg:pl-20'>
+              <p className='text-2xl font-medium text-nowrap lg:text-3xl'>
+                Powered by
+              </p>
+              <Image className='h-6 w-auto' src={ArcurveLogo} alt='Arcurve' />
             </div>
           </div>
 
