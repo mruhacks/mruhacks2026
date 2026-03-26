@@ -25,7 +25,6 @@ export function HeroSection() {
             <Button
               variant='gradient'
               className='rounded-full border border-[#5e5e5e] py-5 text-xl font-semibold tracking-[-0.02em] text-white hover:opacity-90'
-              disabled
               aria-disabled='true'
             >
               Register Now
@@ -33,7 +32,6 @@ export function HeroSection() {
             <Button
               shadow='md'
               className='rounded-full border border-[#5e5e5e] bg-black py-5 text-xl font-semibold tracking-[-0.02em] text-white hover:bg-neutral-800'
-              disabled
               aria-disabled='true'
             >
               Log In
@@ -41,7 +39,6 @@ export function HeroSection() {
           </div>
           <Button
             className='h-auto shrink-0 rounded-full bg-black px-4 py-2 text-xs font-semibold tracking-tight text-white hover:bg-neutral-800 lg:hidden'
-            disabled
             aria-disabled='true'
           >
             Register Now

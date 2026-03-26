@@ -53,7 +53,15 @@ export default {
         /* Homepage Colors */
         'pre-title-blue': 'var(--color-pre-title-blue)',
         'pre-title-orange': 'var(--color-pre-title-orange)',
+        'pre-title-purple': 'var(--color-pre-title-purple)',
         description: 'var(--color-description)',
+        'card-yellow': 'var(--color-card-yellow)',
+        'card-skyblue': 'var(--color-card-skyblue)',
+        'card-purple': 'var(--color-card-purple)',
+        'card-red': 'var(--color-card-red)',
+        'card-blue': 'var(--color-card-blue)',
+        'card-text': 'var(--color-card-text)',
+        'sponsor-button-blue': 'var(--color-sponsor-button-blue)',
       },
 
       borderRadius: {
