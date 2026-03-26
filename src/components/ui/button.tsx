@@ -19,6 +19,9 @@ const buttonVariants = cva(
         ghost:
           "hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50",
         link: "text-primary underline-offset-4 hover:underline",
+        // MRUHacks custom variants
+        discord:
+          "bg-[#cbd0ff] text-[#4a5699] font-bold shadow-sm hover:bg-[#bbc2fa]",
         gradient: "bg-gradient-button rounded-button border border-black/30 text-white shadow-md hover:opacity-90 ",
         whiteDefault: "border border-black/30 bg-white text-black shadow-md hover:bg-gray-100",
       },
@@ -30,10 +33,15 @@ const buttonVariants = cva(
         "icon-sm": "size-8",
         "icon-lg": "size-10",
       },
+      shadow: {
+        none: "",
+        md: "shadow-md",
+      },
     },
     defaultVariants: {
       variant: "default",
       size: "default",
+      shadow: "none",
     },
   },
 );
@@ -42,6 +50,7 @@ function Button({
   className,
   variant,
   size,
+  shadow,
   asChild = false,
   ...props
 }: React.ComponentProps<"button"> &
@@ -53,7 +62,7 @@ function Button({
   return (
     <Comp
       data-slot="button"
-      className={cn(buttonVariants({ variant, size, className }))}
+      className={cn(buttonVariants({ variant, size, shadow, className }))}
       {...props}
     />
   );
