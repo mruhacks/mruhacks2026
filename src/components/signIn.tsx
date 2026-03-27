@@ -57,6 +57,13 @@ export default function SignInForm() {
       },
       onError: (ctx) => {
         setLoading(false);
+        if (ctx.error?.status === 403) {
+          toast.error('Verify your email', {
+            description:
+              'Check your inbox for the verification link, or visit the verify page to resend.',
+          });
+          return;
+        }
         toast.error('Sign-in failed', {
           description:
             ctx?.error?.message ?? 'Invalid credentials or network issue.',
@@ -106,9 +113,17 @@ export default function SignInForm() {
               control={form.control}
               render={({ field }) => (
                 <Field>
-                  <FieldLabel htmlFor='form-signin-password'>
-                    Password
-                  </FieldLabel>
+                  <div className='flex items-center justify-between gap-2'>
+                    <FieldLabel htmlFor='form-signin-password'>
+                      Password
+                    </FieldLabel>
+                    <Link
+                      className='text-muted-foreground text-sm font-medium hover:underline'
+                      href='/forgot-password'
+                    >
+                      Forgot password?
+                    </Link>
+                  </div>
                   <Input
                     {...field}
                     id='form-signin-password'

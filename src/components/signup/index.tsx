@@ -26,6 +26,7 @@ import {
 } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { authClient } from '@/utils/auth-client';
+import { publicAppAbsoluteUrl } from '@/utils/public-app-url';
 import {
   signUpFormSchema,
   type SignUpFormValues,
@@ -45,7 +46,12 @@ export default function SignUpForm() {
   });
 
   function onSubmit(userDetails: SignUpFormValues) {
-    authClient.signUp.email(userDetails, {
+    authClient.signUp.email(
+      {
+        ...userDetails,
+        callbackURL: publicAppAbsoluteUrl('/dashboard'),
+      },
+      {
       onRequest: () => {
         setLoading(true);
       },
@@ -54,7 +60,7 @@ export default function SignUpForm() {
         toast.success('Account created successfully', {
           description: 'Check your inbox to verify your email.',
         });
-        router.push('/dashboard/profile');
+        router.push('/verify-email');
       },
       onError: (ctx) => {
         setLoading(false);
@@ -63,7 +69,8 @@ export default function SignUpForm() {
             ctx?.error?.message ?? 'An unexpected error occurred. Try again.',
         });
       },
-    });
+    },
+    );
   }
 
   return (

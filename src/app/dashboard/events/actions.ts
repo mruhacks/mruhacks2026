@@ -35,6 +35,10 @@ import {
 import type { ApplicationQuestion } from '@/types/application';
 import { cacheLife } from 'next/cache';
 import { and, desc, eq } from 'drizzle-orm';
+import {
+  REGISTER_EMAIL_NOT_VERIFIED_MESSAGE,
+  REGISTER_NEEDS_PROFILE_MESSAGE,
+} from '@/app/register/messages';
 import { getUserProfile } from '@/app/dashboard/profile/actions';
 import {
   buildApplicationResponses,
@@ -69,6 +73,7 @@ export async function registerParticipant(
 ): Promise<ActionResult> {
   const user = await getUser();
   if (!user) return fail('User not authenticated');
+  if (!user.emailVerified) return fail(REGISTER_EMAIL_NOT_VERIFIED_MESSAGE);
 
   const profileParsed = profileFormSchema.safeParse(profileData);
   if (!profileParsed.success) {
@@ -238,13 +243,13 @@ export async function submitEventApplication(
 ): Promise<ActionResult> {
   const user = await getUser();
   if (!user) return fail('User not authenticated');
+  if (!user.emailVerified) return fail(REGISTER_EMAIL_NOT_VERIFIED_MESSAGE);
 
   const profileResult = await getUserProfile();
   if (!profileResult.success)
     return fail(profileResult.error ?? 'Could not load profile');
   const profile = profileResult.data;
-  if (profile == null)
-    return fail('Complete your profile first before applying to events.');
+  if (profile == null) return fail(REGISTER_NEEDS_PROFILE_MESSAGE);
 
   return registerParticipant(profile, eventData, eventId);
 }

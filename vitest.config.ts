@@ -19,10 +19,20 @@ export default defineConfig({
       },
       {
         test: {
+          name: 'proxy',
+          globals: true,
+          include: ['src/tests/proxy.test.ts'],
+          setupFiles: [],
+          environment: 'node',
+          alias,
+        },
+      },
+      {
+        test: {
           name: 'default',
           globals: true,
           include: ['src/**/*.test.ts'],
-          exclude: ['src/tests/mail.test.ts'],
+          exclude: ['src/tests/mail.test.ts', 'src/tests/proxy.test.ts'],
           setupFiles: ['./src/tests/setup.ts'],
           environment: 'node',
           alias,

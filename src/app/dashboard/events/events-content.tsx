@@ -1,7 +1,6 @@
-import { redirect } from 'next/navigation';
 import Link from 'next/link';
 
-import { getUser } from '@/utils/auth';
+import { requireVerifiedUser } from '@/utils/auth';
 import { getEventsWithUserStatus } from '@/app/dashboard/events/actions';
 import {
   Card,
@@ -24,8 +23,7 @@ function formatDate(d: Date | null) {
 }
 
 export default async function DashboardEventsContent() {
-  const user = await getUser();
-  if (!user) redirect('/signin');
+  await requireVerifiedUser();
 
   const eventsList = await getEventsWithUserStatus();
 

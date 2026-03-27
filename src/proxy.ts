@@ -1,44 +1,50 @@
 /**
- * Next.js middleware for route protection
+ * Next.js 16 proxy (network-boundary) — optimistic session cookie check only.
  *
- * This middleware intercepts requests to protected routes and ensures
- * the user is authenticated. Unauthenticated users are redirected to
- * the /forbidden page.
- *
- * Protected routes are defined in the config.matcher below.
+ * Uses `getSessionCookie` from Better Auth (no DB). Unauthenticated users are
+ * sent to `/signin` with a same-origin-safe `callbackUrl`. Email verification
+ * and full session validation stay in server components — see `requireVerifiedUser`
+ * in `@/utils/auth` (e.g. dashboard layout).
  */
 
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { headers } from 'next/headers';
-import { auth } from './utils/auth';
+import { getSessionCookie } from 'better-auth/cookies';
 
 /**
- * Middleware function that protects routes from unauthenticated access
- *
- * @param request - The incoming Next.js request
- * @returns NextResponse allowing the request to proceed or redirecting to /forbidden
+ * Same-origin path for `callbackUrl` (aligned with `sanitizeInternalNextPath` in
+ * `@/utils/post-auth-redirect`). Inlined here so this module does not import
+ * server-only graphs into the proxy bundle.
  */
-export async function proxy(request: NextRequest) {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
+function sanitizeCallbackPath(fullPath: string): string | undefined {
+  const trimmed = fullPath.trim();
+  if (!trimmed.startsWith('/')) return undefined;
+  if (trimmed.startsWith('//')) return undefined;
+  if (/[\r\n\\]/.test(trimmed)) return undefined;
+  if (trimmed.toLowerCase().startsWith('javascript:')) return undefined;
+  return trimmed;
+}
 
-  // Redirect to forbidden page if user is not authenticated
-  if (!session) {
-    return NextResponse.redirect(new URL('/forbidden', request.url));
+export async function proxy(request: NextRequest) {
+  // Default cookie name/prefix matches `betterAuth({ ... })` in `@/utils/auth` (no custom
+  // `cookiePrefix` / `cookieName` today). If those are added, pass the same `config` here.
+  const sessionCookie = getSessionCookie(request);
+
+  if (!sessionCookie) {
+    const url = new URL(request.url);
+    const raw = url.pathname + url.search;
+    const fallback = url.pathname.startsWith('/register')
+      ? '/register'
+      : '/dashboard';
+    const safe = sanitizeCallbackPath(raw) ?? fallback;
+    const signin = new URL('/signin', request.url);
+    signin.searchParams.set('callbackUrl', safe);
+    return NextResponse.redirect(signin);
   }
 
   return NextResponse.next();
 }
 
-/**
- * Middleware configuration
- *
- * - runtime: "nodejs" - Run middleware in Node.js runtime
- * - matcher: Routes that should be protected by this middleware
- */
 export const config = {
-  // Apply middleware to dashboard routes
-  matcher: ['/dashboard'],
+  matcher: ['/dashboard/:path*', '/register', '/register/:path*'],
 };

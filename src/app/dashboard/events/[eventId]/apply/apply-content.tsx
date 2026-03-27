@@ -1,6 +1,6 @@
 import { redirect, notFound } from 'next/navigation';
 
-import { getUser } from '@/utils/auth';
+import { requireVerifiedUser } from '@/utils/auth';
 import {
   getOptions,
   getPreviousFormSubmission,
@@ -79,8 +79,7 @@ type Props = {
 
 export default async function ApplyEventContent({ params }: Props) {
   const { eventId } = await params;
-  const user = await getUser();
-  if (!user) redirect('/signin');
+  const user = await requireVerifiedUser();
 
   const [event] = await db
     .select()
