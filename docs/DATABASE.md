@@ -117,6 +117,8 @@ Our database schema is split across multiple files to be more manageable.
 - `scripts/seed-static.ts`: Seeds static lookup/reference data (including `application_statuses`, `rsvp_statuses`) into the lookup tables defined in `src/db/lookups.ts`.
 - `src/types/lookups.ts`: Defines the TypeScript types and source lists of valid values for the reference/lookup tables used by `scripts/seed-static.ts`.
 
+Better Auth uses the `user` row’s **`email_verified`** flag as the canonical “verified” state and persists email verification flows via the **`verification`** table (tokens and expiry). The app enforces verified access in server code (`requireVerifiedUser`); see [ARCHITECTURE.md](./ARCHITECTURE.md).
+
 ## Schema diagram
 
 The following diagram shows all tables and their relationships. Auth tables live in `public`; authorization tables live in the `authz` schema.

@@ -21,8 +21,9 @@ In authz, the entity **"application"** means event application (permissions: app
 
 ## Tech Stack
 
-- **Framework**: [Next.js 15](https://nextjs.org) with React 19 and App Router
-- **Authentication**: [Better Auth](https://www.better-auth.com/)
+- **Framework**: [Next.js 16](https://nextjs.org) with React 19 and App Router
+- **Authentication**: [Better Auth](https://www.better-auth.com/) (email/password, required email verification, password reset)
+- **Transactional email (dev)**: SMTP via [MailHog](https://github.com/mailhog/MailHog) in Docker; production uses the same env-driven SMTP interface ([SETUP.md](./SETUP.md))
 - **Database**: PostgreSQL with [Drizzle ORM](https://orm.drizzle.team/)
 - **Styling**: [Tailwind CSS](https://tailwindcss.com/)
 - **UI Components**: [Radix UI](https://www.radix-ui.com/)
@@ -36,24 +37,28 @@ In authz, the entity **"application"** means event application (permissions: app
 mruhacks2026/
 ├── src/
 │   ├── app/              # Next.js App Router pages and layouts
-│   │   ├── (auth)/       # Authentication pages (signin, signup)
-│   │   ├── dashboard/    # Dashboard pages and features
+│   │   ├── (auth)/       # signin, signup, forgot-password, reset-password
+│   │   ├── verify-email/ # Resend verification (outside dashboard shell)
+│   │   ├── dashboard/    # Dashboard pages and features (verified users only)
 │   │   │   └── events/
 │   │   │       └── [eventId]/apply/  # Event application flow (apply to event)
-│   │   └── register/     # Root redirect + simple event signup actions
+│   │   └── register/     # Event registration (simple signup) — protected like dashboard
 │   ├── components/       # Reusable React components
-│   │   ├── ui/           # Base UI components (shadcn/ui)
+│   │   └── ui/           # Base UI components (shadcn/ui)
 │   ├── db/               # Database schema and configurations
 │   │   ├── schema.ts     # Main schema exports
 │   │   ├── lookups.ts    # Lookup tables (genders, universities, etc.)
 │   │   ├── events-and-participation.ts  # Events, applications, RSVP waves/responses, attendees, groups
 │   │   └── auth-schema.ts    # Better Auth schema
 │   ├── utils/            # Utility functions
-│   │   ├── auth.ts       # Authentication utilities
+│   │   ├── auth.ts       # Better Auth config, getSession, requireVerifiedUser
+│   │   ├── auth-client.ts
+│   │   ├── mail.ts       # nodemailer SMTP (verification + reset emails)
+│   │   ├── post-auth-redirect.ts  # resolvePostAuthRedirect (profile vs events)
 │   │   ├── db.ts         # Database connection
 │   │   └── action-result.ts  # Server action result types
+│   ├── proxy.ts          # Next.js 16 network-boundary: cookie-only gate for /dashboard, /register
 │   ├── hooks/            # Custom React hooks
-│   └── middleware.ts     # Next.js middleware for route protection
 ├── scripts/              # Utility scripts (e.g., database seeding)
 ├── public/               # Static assets
 ├── drizzle/              # Database migrations
@@ -62,7 +67,7 @@ mruhacks2026/
 
 ## Key Features
 
-- **User Authentication**: Sign up and sign in using email/password
+- **User Authentication**: Email/password with **required email verification** before app access; forgot/reset password; transactional mail via SMTP (MailHog locally — see [SETUP.md](./SETUP.md))
 - **Event Applications**: Event-scoped application flow; events can have applications (full form) or simple signup; application questions are stored on the event
 - **Dashboard**:
   - Settings management
@@ -72,7 +77,7 @@ mruhacks2026/
   - Workshop registration
   - Project submissions
 - **Responsive Design**: Mobile-first design with tablet and desktop support
-- **Route Protection**: Middleware-based authentication for protected routes
+- **Route Protection**: Next.js **proxy** (`src/proxy.ts`) performs an optimistic session **cookie** check for `/dashboard` and `/register`; **email verification and full session validation** run in server components via `requireVerifiedUser()` (see below)
 
 ## Database Architecture
 
@@ -147,7 +152,9 @@ stateDiagram-v2
 
 ## Authentication Flow
 
-Sign-up flow (client → API):
+Better Auth is configured in [`src/utils/auth.ts`](src/utils/auth.ts): `baseURL` from `BETTER_AUTH_URL`, `emailVerification` (send on sign-up; links expire after 24 hours), `emailAndPassword.requireEmailVerification`, and `sendResetPassword` for forgot-password flows. Outbound mail uses [`src/utils/mail.ts`](src/utils/mail.ts) (nodemailer + env from [SETUP.md](./SETUP.md)).
+
+### Sign-up (client → API)
 
 ```mermaid
 sequenceDiagram
@@ -157,6 +164,7 @@ sequenceDiagram
   participant SignUpForm
   participant AuthClient
   participant API
+  participant Mail
 
   User->>SignupPage: GET /signup
   SignupPage->>AuthLayout: children (TabsContent)
@@ -164,16 +172,55 @@ sequenceDiagram
   User->>SignUpForm: submit (name, email, password)
   SignUpForm->>AuthClient: signUp.email(details, callbacks)
   AuthClient->>API: POST /api/auth/...
+  API->>Mail: send verification email (async)
   API-->>AuthClient: session / error
   AuthClient-->>SignUpForm: onSuccess / onError
-  SignUpForm->>User: toast + redirect to /dashboard/profile (or error)
+  SignUpForm->>User: toast + redirect to /verify-email
 ```
 
-1. User signs up via `/signup` with email and password
-2. Better Auth creates a user account and session
-3. Middleware checks session for protected routes (`/dashboard/*`)
-4. Unauthenticated requests to protected routes redirect to `/forbidden`
-5. Authenticated users can access dashboard features
+1. User signs up via `/signup` with email and password.
+2. Better Auth creates the account and sends a verification email (when enabled).
+3. Until the user verifies, sign-in may fail with **403**; the sign-in form shows a toast directing them to check email or `/verify-email`.
+4. After verification (and `autoSignInAfterVerification` when applicable), the user can sign in.
+
+### Sign-in and post-auth routing
+
+1. Successful sign-in from [`src/components/signIn.tsx`](src/components/signIn.tsx) navigates to **`/dashboard`**.
+2. [`src/app/dashboard/page.tsx`](src/app/dashboard/page.tsx) calls **`resolvePostAuthRedirect()`** ([`src/utils/post-auth-redirect.ts`](src/utils/post-auth-redirect.ts)): requires a verified session, loads `getUserProfile()`, then redirects to **`/dashboard/profile?next=...`** if there is no profile row, or to **`/dashboard/events`** (or a safe same-origin `next` query param) when a profile exists.
+
+### Verified-user guard
+
+**`requireVerifiedUser()`** ([`src/utils/auth.ts`](src/utils/auth.ts)) is used in the dashboard shell and other server entry points (`register`, `events` content, etc.):
+
+- No session → redirect to `/signin` with `callbackUrl` (default `/dashboard`).
+- Session but `emailVerified` false → redirect to **`/verify-email`**.
+- Verified → returns the user object.
+
+There is **no** authenticated access to dashboard or `/register` content without a verified email.
+
+### Password reset
+
+- **`/forgot-password`**: requests a reset link via Better Auth (`requestPasswordReset` with absolute `redirectTo` to the reset page).
+- **`/reset-password`**: reads `token` from the query string and submits `resetPassword` with the new password.
+
+## Route protection (summary)
+
+```mermaid
+flowchart TD
+  subgraph proxyLayer [Proxy cookie check]
+    P[Session cookie present?]
+    P -->|no| SI[Redirect /signin with callbackUrl]
+    P -->|yes| RSC[Server components run]
+  end
+  subgraph server [Server guards]
+    RSC --> V[requireVerifiedUser]
+    V -->|no session| SI2[Redirect /signin]
+    V -->|unverified| VE[Redirect /verify-email]
+    V -->|verified| OK[Render or mutate]
+  end
+```
+
+Matchers for the proxy are defined in [`src/proxy.ts`](src/proxy.ts): `/dashboard/:path*`, `/register`, `/register/:path*`. **Email verification is not enforced in the proxy** — only `requireVerifiedUser` (and equivalent checks in server actions) enforces that policy.
 
 ## Event Application Flow
 
@@ -246,14 +293,15 @@ if (result.success) {
 }
 ```
 
-## Middleware
+## Network boundary (proxy)
 
-Next.js middleware (`src/middleware.ts`) protects dashboard routes:
+Next.js 16 uses a **proxy** module at [`src/proxy.ts`](src/proxy.ts) (not `middleware.ts`):
 
-- Intercepts requests to `/dashboard`
-- Checks for valid session
-- Redirects unauthenticated users to `/forbidden`
-- Allows authenticated requests to proceed
+- **Matchers**: `/dashboard/:path*`, `/register`, `/register/:path*`
+- **Behavior**: `getSessionCookie` from `better-auth/cookies` — **optimistic** check only (no database). If the cookie is missing, redirect to `/signin` with a same-origin-safe `callbackUrl`.
+- **Authoritative checks**: Session + `emailVerified` are enforced in **`requireVerifiedUser()`** in server components and server actions; the proxy does not verify email.
+
+For environment variables and MailHog, see [SETUP.md](./SETUP.md).
 
 ## Form Validation
 
