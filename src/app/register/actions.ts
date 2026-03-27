@@ -16,11 +16,6 @@ import { ActionResult, fail, ok } from '@/utils/action-result';
 import { db } from '@/utils/db';
 import { and, eq } from 'drizzle-orm';
 
-export {
-  REGISTER_EMAIL_NOT_VERIFIED_MESSAGE,
-  REGISTER_NEEDS_PROFILE_MESSAGE,
-} from '@/app/register/messages';
-
 type VerifiedWithProfileGate =
   | { ok: true; userId: string }
   | { ok: false; result: ActionResult };

@@ -52,24 +52,24 @@ export default function SignUpForm() {
         callbackURL: publicAppAbsoluteUrl('/dashboard'),
       },
       {
-      onRequest: () => {
-        setLoading(true);
+        onRequest: () => {
+          setLoading(true);
+        },
+        onSuccess: () => {
+          setLoading(false);
+          toast.success('Account created successfully', {
+            description: 'Check your inbox to verify your email.',
+          });
+          router.push('/verify-email');
+        },
+        onError: (ctx) => {
+          setLoading(false);
+          toast.error('Sign-up failed', {
+            description:
+              ctx?.error?.message ?? 'An unexpected error occurred. Try again.',
+          });
+        },
       },
-      onSuccess: () => {
-        setLoading(false);
-        toast.success('Account created successfully', {
-          description: 'Check your inbox to verify your email.',
-        });
-        router.push('/verify-email');
-      },
-      onError: (ctx) => {
-        setLoading(false);
-        toast.error('Sign-up failed', {
-          description:
-            ctx?.error?.message ?? 'An unexpected error occurred. Try again.',
-        });
-      },
-    },
     );
   }
 

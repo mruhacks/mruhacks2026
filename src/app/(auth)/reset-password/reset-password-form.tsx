@@ -123,7 +123,9 @@ export function ResetPasswordForm() {
     <Card className='w-full sm:max-w-md'>
       <CardHeader>
         <CardTitle>Set a new password</CardTitle>
-        <CardDescription>Choose a strong password for your account.</CardDescription>
+        <CardDescription>
+          Choose a strong password for your account.
+        </CardDescription>
       </CardHeader>
 
       <CardContent>
@@ -134,7 +136,9 @@ export function ResetPasswordForm() {
               control={form.control}
               render={({ field, fieldState }) => (
                 <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel htmlFor='form-reset-password'>New password</FieldLabel>
+                  <FieldLabel htmlFor='form-reset-password'>
+                    New password
+                  </FieldLabel>
                   <Input
                     {...field}
                     id='form-reset-password'

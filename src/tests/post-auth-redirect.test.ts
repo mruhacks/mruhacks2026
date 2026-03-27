@@ -103,9 +103,7 @@ describe('resolvePostAuthRedirect', () => {
   };
 
   it('redirects to signin when getUserProfile fails', async () => {
-    vi.mocked(getUserProfile).mockResolvedValue(
-      fail('Could not load profile'),
-    );
+    vi.mocked(getUserProfile).mockResolvedValue(fail('Could not load profile'));
 
     await expect(resolvePostAuthRedirect()).rejects.toThrow(
       /REDIRECT:\/signin/,

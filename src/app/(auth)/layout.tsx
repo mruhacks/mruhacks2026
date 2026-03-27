@@ -11,8 +11,7 @@ export default function AuthLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const showSignTabs =
-    pathname === '/signin' || pathname === '/signup';
+  const showSignTabs = pathname === '/signin' || pathname === '/signup';
   const activeTab = pathname.includes('signup') ? 'signup' : 'signin';
 
   return (
@@ -45,10 +44,20 @@ export default function AuthLayout({
                 </div>
               </div>
               <div className='grid grid-cols-2 gap-2'>
-                <Button type='button' variant='outline' disabled className='w-full'>
+                <Button
+                  type='button'
+                  variant='outline'
+                  disabled
+                  className='w-full'
+                >
                   Continue with Google
                 </Button>
-                <Button type='button' variant='outline' disabled className='w-full'>
+                <Button
+                  type='button'
+                  variant='outline'
+                  disabled
+                  className='w-full'
+                >
                   Continue with GitHub
                 </Button>
               </div>

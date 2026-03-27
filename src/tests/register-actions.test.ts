@@ -12,12 +12,11 @@ vi.mock('@/app/dashboard/profile/actions', () => ({
 
 import { getUser } from '@/utils/auth';
 import { getUserProfile } from '@/app/dashboard/profile/actions';
+import { registerForEvent, unregisterFromEvent } from '@/app/register/actions';
 import {
-  registerForEvent,
-  unregisterFromEvent,
   REGISTER_EMAIL_NOT_VERIFIED_MESSAGE,
   REGISTER_NEEDS_PROFILE_MESSAGE,
-} from '@/app/register/actions';
+} from '@/app/register/messages';
 import { ok, fail } from '@/utils/action-result';
 
 const now = new Date();
