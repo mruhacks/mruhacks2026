@@ -49,6 +49,8 @@ type ProfileFormProps = {
   submitLabel?: string;
   successMessage?: string;
   errorMessage?: string;
+  /** Sanitized internal path only; from `sanitizeInternalNextPath`. */
+  redirectAfterSave?: string;
 };
 
 const DEFAULT_SUBMIT_LABEL = 'Save Changes';
@@ -66,6 +68,7 @@ export default function ProfileForm({
   submitLabel = DEFAULT_SUBMIT_LABEL,
   successMessage = DEFAULT_SUCCESS_MESSAGE,
   errorMessage = DEFAULT_ERROR_MESSAGE,
+  redirectAfterSave,
 }: ProfileFormProps) {
   const router = useRouter();
   const {
@@ -112,7 +115,7 @@ export default function ProfileForm({
 
         if (!result || (isActionResult(result) && result.success)) {
           toast.success(successMessage);
-          router.push('/dashboard');
+          router.push(redirectAfterSave ?? '/dashboard');
         }
 
         if (isActionResult(result) && !result.success) {
@@ -123,7 +126,7 @@ export default function ProfileForm({
         toast.error(errorMessage);
       }
     },
-    [onSubmit, successMessage, errorMessage, router],
+    [onSubmit, successMessage, errorMessage, router, redirectAfterSave],
   );
 
   const handleNext = async () => {

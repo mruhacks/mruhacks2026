@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 
 import { getUser } from '@/utils/auth';
+import { sanitizeInternalNextPath } from '@/utils/post-auth-redirect';
 import { getUserProfile, saveUserProfile } from './actions';
 import { getOptions } from '@/app/dashboard/events/actions';
 import {
@@ -12,9 +13,16 @@ import {
 } from '@/components/ui/card';
 import ProfileForm from '@/components/profile-form';
 
-export default async function DashboardProfileContent() {
+type Props = {
+  searchParams: Promise<{ next?: string | string[] }>;
+};
+
+export default async function DashboardProfileContent({ searchParams }: Props) {
   const user = await getUser();
   if (!user) redirect('/signin');
+
+  const { next } = await searchParams;
+  const redirectAfterSave = sanitizeInternalNextPath(next);
 
   const [profileResult, options] = await Promise.all([
     getUserProfile(),
@@ -40,6 +48,7 @@ export default async function DashboardProfileContent() {
           initial={initial}
           options={options}
           onSubmit={saveUserProfile}
+          redirectAfterSave={redirectAfterSave}
         />
       </CardContent>
     </Card>

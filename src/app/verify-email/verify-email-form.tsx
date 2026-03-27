@@ -43,9 +43,8 @@ export function VerifyEmailForm({ email }: { email: string }) {
         <CardTitle>Verify your email</CardTitle>
         <CardDescription>
           We sent a verification link to{' '}
-          <span className='font-medium text-foreground'>{email}</span>. Open
-          the link in that message to continue. You can resend if it did not
-          arrive.
+          <span className='text-foreground font-medium'>{email}</span>. Open the
+          link in that message to continue. You can resend if it did not arrive.
         </CardDescription>
       </CardHeader>
       <CardContent>

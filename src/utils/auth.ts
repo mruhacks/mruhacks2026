@@ -28,7 +28,9 @@ function getAuthBaseUrl(): string {
 function getAuthSecret(): string {
   const v = (process.env.BETTER_AUTH_SECRET ?? process.env.AUTH_SECRET)?.trim();
   if (!v) {
-    throw new Error('BETTER_AUTH_SECRET or AUTH_SECRET is required for Better Auth');
+    throw new Error(
+      'BETTER_AUTH_SECRET or AUTH_SECRET is required for Better Auth',
+    );
   }
   return v;
 }
@@ -115,9 +117,7 @@ export async function getUser() {
 export async function requireVerifiedUser() {
   const session = await getSession();
   if (!session) {
-    redirect(
-      `/signin?callbackUrl=${encodeURIComponent('/dashboard')}`,
-    );
+    redirect(`/signin?callbackUrl=${encodeURIComponent('/dashboard')}`);
   }
   if (!session.user.emailVerified) {
     redirect('/verify-email');
