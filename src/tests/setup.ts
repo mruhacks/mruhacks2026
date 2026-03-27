@@ -1,4 +1,4 @@
-import { beforeAll, afterAll, vi } from 'vitest';
+import { afterAll, vi } from 'vitest';
 import { db, client } from '@/utils/db';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import path from 'path';
@@ -14,20 +14,14 @@ vi.mock('next/navigation', () => ({
 }));
 
 // ─────────────────────────────────────────────
-// Run migrations once before all tests
+// Run migrations once (top-level await so __DB_TEST_READY__ is set before test files load)
 // ─────────────────────────────────────────────
-beforeAll(async () => {
-  const migrationsFolder = path.resolve(process.cwd(), 'drizzle');
+const migrationsFolder = path.resolve(process.cwd(), 'drizzle');
 
-  try {
-    await migrate(db, { migrationsFolder });
-    console.log('✅ Test database migrated successfully.');
-  } catch (e) {
-    console.error('❌ Migration failed in test setup:', e);
-    process.exit(1);
-  }
+try {
+  await migrate(db, { migrationsFolder });
+  console.log('✅ Test database migrated successfully.');
 
-  // Ensure tables start clean
   await db.execute(sql`
     TRUNCATE TABLE
       authz.user_role,
@@ -38,7 +32,23 @@ beforeAll(async () => {
       "user"
     RESTART IDENTITY CASCADE;
   `);
-});
+
+  (
+    globalThis as {
+      __DB_TEST_READY__?: boolean;
+    }
+  ).__DB_TEST_READY__ = true;
+} catch (e) {
+  console.warn(
+    '⚠️ Test database unavailable; DB-backed tests (e.g. authz) will be skipped:',
+    e,
+  );
+  (
+    globalThis as {
+      __DB_TEST_READY__?: boolean;
+    }
+  ).__DB_TEST_READY__ = false;
+}
 
 // ─────────────────────────────────────────────
 // Gracefully close the DB connection

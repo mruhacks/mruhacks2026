@@ -2,25 +2,11 @@ import { redirect } from 'next/navigation';
 
 import { getUserProfile } from '@/app/dashboard/profile/actions';
 import { requireVerifiedUser } from '@/utils/auth';
+import { sanitizeInternalNextPath } from '@/utils/sanitize-internal-next';
 
 const DEFAULT_POST_PROFILE_DESTINATION = '/dashboard/events';
 
-/**
- * Normalizes `searchParams.next` and returns a safe same-origin path, or undefined.
- */
-export function sanitizeInternalNextPath(
-  raw: string | string[] | undefined | null,
-): string | undefined {
-  if (raw == null) return undefined;
-  const s = Array.isArray(raw) ? raw[0] : raw;
-  if (typeof s !== 'string' || !s) return undefined;
-  const trimmed = s.trim();
-  if (!trimmed.startsWith('/')) return undefined;
-  if (trimmed.startsWith('//')) return undefined;
-  if (/[\r\n\\]/.test(trimmed)) return undefined;
-  if (trimmed.toLowerCase().startsWith('javascript:')) return undefined;
-  return trimmed;
-}
+export { sanitizeInternalNextPath } from '@/utils/sanitize-internal-next';
 
 type ResolvePostAuthRedirectArgs = {
   next?: string | string[] | null;

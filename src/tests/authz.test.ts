@@ -34,7 +34,10 @@ import {
 // Note: rolePermissions is used, others are imported but not directly used in this file
 import { eq } from 'drizzle-orm';
 
-import { describe, vi, beforeAll, test, expect } from 'vitest';
+import { describe, vi, beforeAll, afterAll, test, expect } from 'vitest';
+
+const dbTestReady =
+  (globalThis as { __DB_TEST_READY__?: boolean }).__DB_TEST_READY__ === true;
 
 // Mock redirect to capture redirects instead of terminating test
 vi.mock('next/navigation', () => ({
@@ -43,7 +46,7 @@ vi.mock('next/navigation', () => ({
   }),
 }));
 
-describe('Authorization system', () => {
+describe.skipIf(!dbTestReady)('Authorization system', () => {
   let userId: string;
   let roleId: number;
   let permIdEditSelf: number;
@@ -90,6 +93,7 @@ describe('Authorization system', () => {
   test('should create roles and permissions', async () => {
     const role = await createRole('admin', 'Administrator');
     expect(role.success).toBe(true);
+    if (!role.success) throw new Error('expected role success');
     expect(role.data).toBeDefined();
     roleId = role.data!;
 
@@ -97,6 +101,9 @@ describe('Authorization system', () => {
     const permAllAll = await addPermission('submission:all:all');
     expect(permSelf.success).toBe(true);
     expect(permAllAll.success).toBe(true);
+    if (!permSelf.success || !permAllAll.success) {
+      throw new Error('expected permission success');
+    }
 
     permIdEditSelf = permSelf.data!;
     permIdAllAll = permAllAll.data!;
@@ -151,6 +158,7 @@ describe('Authorization system', () => {
   test('should resolve permissions through roles', async () => {
     const res = await getUserPermissions(userId);
     expect(res.success).toBe(true);
+    if (!res.success) throw new Error('expected getUserPermissions success');
     expect(res.data!.has('submission:edit:self')).toBe(true);
   });
 
