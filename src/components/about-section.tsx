@@ -14,8 +14,7 @@ import { INTRO_BLURB } from '../content';
  */
 export function About() {
   return (
-    <section className='flex w-full justify-start px-6 py-12 sm:px-8 sm:py-16 lg:px-16'>
-      <div className='max-w-2xl'>
+    <div className='max-w-2xl'>
         {/* pre-title */}
         <p className='text-pre-title-blue mb-2 text-sm font-semibold sm:text-base'>
           About MRUHacks
@@ -47,7 +46,6 @@ export function About() {
             </Button>
           </Link>
         </div>
-      </div>
-    </section>
+    </div>
   );
 }

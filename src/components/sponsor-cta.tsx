@@ -14,8 +14,7 @@ import Image from 'next/image';
  */
 export function SponsorCTA() {
   return (
-    <section className='flex w-full px-6 py-12 sm:px-8 sm:py-16 lg:px-16'>
-      <div className='mx-auto flex w-full max-w-2xl flex-col items-center text-center'>
+    <div className='mx-auto flex w-full max-w-2xl flex-col items-center text-center'>
         {/* pre-title */}
         <p className='text-pre-title-purple mb-2 text-sm font-semibold sm:text-base'>
           For Sponsors
@@ -71,7 +70,6 @@ export function SponsorCTA() {
             </Button>
           </Link>
         </div>
-      </div>
-    </section>
+    </div>
   );
 }

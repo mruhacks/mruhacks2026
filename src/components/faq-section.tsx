@@ -15,8 +15,7 @@ import { FAQs } from '../content';
  */
 export function FAQ() {
   return (
-    <section className='flex w-full justify-start px-6 py-12 sm:px-8 sm:py-16 lg:px-16'>
-      <div className='w-full max-w-2xl'>
+    <div className='w-full max-w-2xl'>
         {/* pre-title */}
         <p className='text-pre-title-orange mb-2 text-sm font-semibold sm:text-base'>
           FAQ
@@ -52,7 +51,6 @@ export function FAQ() {
             </details>
           );
         })}
-      </div>
-    </section>
+    </div>
   );
 }

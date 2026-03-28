@@ -3,6 +3,7 @@
 import { StatsDescription, StatsText } from '@/content';
 import { StatCard } from './stats-card';
 
+
 import {
   Carousel,
   CarouselContent,
@@ -28,7 +29,7 @@ export function Stats() {
   ];
 
   return (
-    <section className='w-full px-6 py-12 sm:px-8 sm:py-16 lg:px-16'>
+    <>
       {/* pre-title */}
       <div className='mx-auto w-full max-w-2xl text-center'>
         <p className='text-pre-title-purple mb-2 text-sm font-semibold sm:text-base'>
@@ -48,8 +49,6 @@ export function Stats() {
 
       {/* card section*/}
       <div className='mx-auto w-full max-w-7xl'>
-        {/* mobile carousel */}
-
         <Carousel
           opts={{
             align: 'center',
@@ -61,7 +60,7 @@ export function Stats() {
             {StatsText.map((stat, index) => (
               <CarouselItem
                 key={index}
-                className='flex max-w-md justify-center md:basis-1/3 lg:basis-1/4'
+                className='h-full basis-[85%] sm:basis-[45%] md:basis-[31%] lg:basis-1/4'
               >
                 <StatCard
                   color={colors[index % colors.length]}
@@ -75,10 +74,10 @@ export function Stats() {
             ))}
           </CarouselContent>
 
-          <CarouselPrevious />
-          <CarouselNext />
+          <CarouselPrevious className='left-3' />
+          <CarouselNext className='right-3' />
         </Carousel>
       </div>
-    </section>
+    </>
   );
 }
