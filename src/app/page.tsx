@@ -4,6 +4,7 @@ import { FAQ } from '@/components/faq-section';
 import { Stats } from '@/components/stats-section';
 import { SponsorCTA } from '@/components/sponsor-cta';
 import MeetTheTeam from '@/components/meet-the-team';
+import Footer from '@/components/footer';
 
 export default function Home() {
   return (
@@ -16,6 +17,7 @@ export default function Home() {
         <FAQ />
       </main>
       <MeetTheTeam />
+      <Footer />
     </>
   );
 }

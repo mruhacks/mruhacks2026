@@ -94,10 +94,17 @@ export const StatsText: StatItem[] = [
 ];
 
 export const StatsDescription: string = `
-MRUHacks 2025 was our biggest event yet, with an overwhelming registration 
+MRUHacks 2025 was our biggest event yet, with an overwhelming registration
 amount that ended up maxing out our event capacity at Riddell Library.
 `;
 
 export const SPONSOR_CTA: string = `
 MRUHacks would be impossible to run without our fantastic sponsors.
 `;
+
+export type FooterLink = { label: string; href: string };
+export const FOOTER_LINKS: FooterLink[] = [
+  { label: 'Discord Server', href: 'https://discord.gg/e7Fg6jsnrm' },
+  { label: 'LinkedIn', href: 'https://www.linkedin.com/company/mruhacks' },
+  { label: 'Instagram', href: 'https://www.instagram.com/mruhacks' },
+];

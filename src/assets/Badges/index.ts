@@ -26,23 +26,23 @@ import Kiera from './Kiera.png';
 export type TeamMember = { name: string; image: StaticImageData };
 
 export const dev: TeamMember[] = [
+  { name: 'Noah', image: Noah },
   { name: 'Seila', image: Seila },
   { name: 'Sunny', image: Sunny },
   { name: 'Thomas', image: Thomas },
-  { name: 'Noah', image: Noah },
 ];
 
 export const mkt: TeamMember[] = [
-  { name: 'Soul', image: Soul },
-  { name: 'Nathan', image: Nathan },
-  { name: 'Meagan', image: Meagan },
   { name: 'Jashan', image: Jashan },
+  { name: 'Meagan', image: Meagan },
+  { name: 'Nathan', image: Nathan },
+  { name: 'Soul', image: Soul },
 ];
 
 export const exp: TeamMember[] = [
   { name: 'Justin', image: Justin },
-  { name: 'Rami M.', image: RamiM },
   { name: 'Manroop', image: Manroop },
+  { name: 'Rami M.', image: RamiM },
   { name: 'Robel', image: Robel },
 ];
 
@@ -56,7 +56,7 @@ export const dir: TeamMember[] = [{ name: 'Kiera', image: Kiera }];
 export const allMembers: TeamMember[] = [
   ...dir,
   ...dev,
-  ...mkt,
   ...exp,
+  ...mkt,
   ...out,
 ];
