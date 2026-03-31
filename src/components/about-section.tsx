@@ -15,37 +15,37 @@ import { INTRO_BLURB } from '../content';
 export function About() {
   return (
     <div className='max-w-2xl'>
-        {/* pre-title */}
-        <p className='text-pre-title-blue mb-2 text-sm font-semibold sm:text-base'>
-          About MRUHacks
-        </p>
+      {/* pre-title */}
+      <p className='text-pre-title-blue mb-2 text-sm font-semibold sm:text-base'>
+        About MRUHacks
+      </p>
 
-        {/* main title */}
-        <h1 className='mb-4 text-2xl font-semibold tracking-tight sm:mb-6 sm:text-3xl'>
-          Build, learn, and innovate at MRUHacks.
-        </h1>
+      {/* main title */}
+      <h1 className='mb-4 text-2xl font-semibold tracking-tight sm:mb-6 sm:text-3xl'>
+        Build, learn, and innovate at MRUHacks.
+      </h1>
 
-        {/* description text */}
-        <p className='text-description mb-6 text-base sm:mb-10 sm:text-lg'>
-          {INTRO_BLURB}
-        </p>
+      {/* description text */}
+      <p className='text-description mb-6 text-base sm:mb-10 sm:text-lg'>
+        {INTRO_BLURB}
+      </p>
 
-        {/* buttons */}
-        <div className='flex flex-row flex-wrap justify-start gap-3'>
-          {/* register button */}
-          <Link href='/signup' passHref>
-            <Button variant='gradient' size='lg'>
-              Register Now
-            </Button>
-          </Link>
+      {/* buttons */}
+      <div className='flex flex-row flex-wrap justify-start gap-3'>
+        {/* register button */}
+        <Link href='/signup' passHref>
+          <Button variant='gradient' size='lg'>
+            Register Now
+          </Button>
+        </Link>
 
-          {/* sponsor button */}
-          <Link href='mailto:sponsors@mruhacks.ca' passHref>
-            <Button variant='whiteDefault' size='lg'>
-              Become a Sponsor
-            </Button>
-          </Link>
-        </div>
+        {/* sponsor button */}
+        <Link href='mailto:sponsors@mruhacks.ca' passHref>
+          <Button variant='whiteDefault' size='lg'>
+            Become a Sponsor
+          </Button>
+        </Link>
+      </div>
     </div>
   );
 }

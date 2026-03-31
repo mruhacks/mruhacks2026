@@ -14,8 +14,8 @@ export default function Home() {
         <Stats />
         <SponsorCTA />
         <FAQ />
-        <MeetTheTeam />
       </main>
+      <MeetTheTeam />
     </>
   );
 }

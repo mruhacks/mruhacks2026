@@ -3,7 +3,6 @@
 import { StatsDescription, StatsText } from '@/content';
 import { StatCard } from './stats-card';
 
-
 import {
   Carousel,
   CarouselContent,

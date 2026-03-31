@@ -1,25 +1,25 @@
 import { StaticImageData } from 'next/image';
 
 // DEV
-import Seila from './dev/Seila.png';
-import Sunny from './dev/Sunny.png';
-import Thomas from './dev/Thomas.png';
-import Noah from './dev/Noah.png';
+import Seila from './development/Seila.png';
+import Sunny from './development/Sunny.png';
+import Thomas from './development/Thomas.png';
+import Noah from './development/Noah.png';
 
 // MKT
-import Soul from './mkt/Soul.png';
-import Nathan from './mkt/Nathan.png';
-import Meagan from './mkt/Meagan.png';
-import Jashan from './mkt/Jashan.png';
+import Soul from './marketing/Soul.png';
+import Nathan from './marketing/Nathan.png';
+import Meagan from './marketing/Meagan.png';
+import Jashan from './marketing/Jashan.png';
 
 // EXP
-import Justin from './exp/Justin.png';
-import RamiM from './exp/Rami_M.png';
-import Manroop from './exp/Manroop.png';
-import Robel from './exp/Robel.png';
+import Justin from './experience/Justin.png';
+import RamiM from './experience/Rami_M.png';
+import Manroop from './experience/Manroop.png';
+import Robel from './experience/Robel.png';
 
-import RamiR from './out/Rami_R.png';
-import Ransher from './out/Ransher.png';
+import RamiR from './outreach/Rami_R.png';
+import Ransher from './outreach/Ransher.png';
 
 import Kiera from './Kiera.png';
 
@@ -54,9 +54,9 @@ export const out: TeamMember[] = [
 export const dir: TeamMember[] = [{ name: 'Kiera', image: Kiera }];
 
 export const allMembers: TeamMember[] = [
+  ...dir,
   ...dev,
   ...mkt,
   ...exp,
   ...out,
-  ...dir,
 ];

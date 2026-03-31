@@ -49,9 +49,7 @@ export function StatCard({
           </h2>
         )}
         {description && (
-          <p className='text-xl font-medium lg:text-base'>
-            {description}
-          </p>
+          <p className='text-xl font-medium lg:text-base'>{description}</p>
         )}
       </div>
 

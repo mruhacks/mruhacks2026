@@ -16,41 +16,41 @@ import { FAQs } from '../content';
 export function FAQ() {
   return (
     <div className='w-full max-w-2xl'>
-        {/* pre-title */}
-        <p className='text-pre-title-orange mb-2 text-sm font-semibold sm:text-base'>
-          FAQ
-        </p>
+      {/* pre-title */}
+      <p className='text-pre-title-orange mb-2 text-sm font-semibold sm:text-base'>
+        FAQ
+      </p>
 
-        {/* main title */}
-        <h1 className='mb-4 text-2xl font-semibold tracking-tight sm:mb-6 sm:text-3xl'>
-          Frequently Asked Questions
-        </h1>
+      {/* main title */}
+      <h1 className='mb-4 text-2xl font-semibold tracking-tight sm:mb-6 sm:text-3xl'>
+        Frequently Asked Questions
+      </h1>
 
-        {/* faqs */}
-        {FAQs.map((f) => {
-          return (
-            <details key={f.question} className='group'>
-              <summary
-                className='mb-2 flex w-full cursor-pointer list-none items-center justify-between text-sm font-semibold sm:text-base'
-                style={{
-                  height: '2.31em',
-                  margin: '0.3125em 0',
-                }}
-              >
-                {f.question}
-                <ChevronDownIcon className='size-4 transition-transform duration-200 group-open:rotate-180' />
-              </summary>
-              <p
-                className='text-description mb-6 text-base sm:mb-10 sm:text-lg'
-                style={{
-                  margin: '0.3125em 0',
-                }}
-              >
-                {f.answer}
-              </p>
-            </details>
-          );
-        })}
+      {/* faqs */}
+      {FAQs.map((f) => {
+        return (
+          <details key={f.question} className='group'>
+            <summary
+              className='mb-2 flex w-full cursor-pointer list-none items-center justify-between text-sm font-semibold sm:text-base'
+              style={{
+                height: '2.31em',
+                margin: '0.3125em 0',
+              }}
+            >
+              {f.question}
+              <ChevronDownIcon className='size-4 transition-transform duration-200 group-open:rotate-180' />
+            </summary>
+            <p
+              className='text-description mb-6 text-base sm:mb-10 sm:text-lg'
+              style={{
+                margin: '0.3125em 0',
+              }}
+            >
+              {f.answer}
+            </p>
+          </details>
+        );
+      })}
     </div>
   );
 }
