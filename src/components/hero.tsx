@@ -114,7 +114,11 @@ export function HeroSection() {
               <p className='text-sm font-medium text-nowrap sm:text-base lg:text-xl'>
                 Powered by
               </p>
-              <Image className='h-3.5 w-auto sm:h-4 lg:h-5' src={ArcurveLogo} alt='Arcurve' />
+              <Image
+                className='h-3.5 w-auto sm:h-4 lg:h-5'
+                src={ArcurveLogo}
+                alt='Arcurve'
+              />
             </div>
           </div>
 

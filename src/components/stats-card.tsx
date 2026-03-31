@@ -7,7 +7,12 @@ export interface StatCardProps {
   description?: string;
 }
 
-export function StatCard({ color = 'yellow', title, image, description }: StatCardProps) {
+export function StatCard({
+  color = 'yellow',
+  title,
+  image,
+  description,
+}: StatCardProps) {
   const colors = {
     yellow: 'bg-card-yellow',
     skyblue: 'bg-card-skyblue',
@@ -17,10 +22,14 @@ export function StatCard({ color = 'yellow', title, image, description }: StatCa
   };
 
   return (
-    <div className={`${colors[color]} text-card-text flex h-full w-full flex-col justify-between overflow-hidden rounded-lg p-6 text-left`}>
+    <div
+      className={`${colors[color]} text-card-text flex h-full w-full flex-col justify-between overflow-hidden rounded-lg p-6 text-left`}
+    >
       <div className='flex flex-col gap-4'>
         {title && (
-          <h2 className='text-6xl leading-none font-extrabold tracking-[-0.04em]'>{title}</h2>
+          <h2 className='text-6xl leading-none font-extrabold tracking-[-0.04em]'>
+            {title}
+          </h2>
         )}
         {description && (
           <p className='text-xl font-medium lg:text-base'>{description}</p>

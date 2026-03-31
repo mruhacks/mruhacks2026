@@ -30,7 +30,10 @@ export function FAQ() {
       <div className='flex flex-col'>
         {FAQs.map((f) => {
           return (
-            <details key={f.question} className='group border-b border-border py-3 sm:py-4'>
+            <details
+              key={f.question}
+              className='group border-border border-b py-3 sm:py-4'
+            >
               <summary className='flex w-full cursor-pointer list-none items-center justify-between text-sm font-semibold sm:text-base'>
                 {f.question}
                 <ChevronDownIcon className='size-4 shrink-0 transition-transform duration-200 group-open:rotate-180' />

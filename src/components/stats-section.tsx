@@ -2,10 +2,21 @@
 
 import { StatsDescription, StatsText } from '@/content';
 import { StatCard } from './stats-card';
-import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel';
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+} from '@/components/ui/carousel';
 
 export function Stats() {
-  const colors: ('purple' | 'yellow' | 'red' | 'blue' | 'skyblue')[] = ['purple', 'yellow', 'red', 'blue'];
+  const colors: ('purple' | 'yellow' | 'red' | 'blue' | 'skyblue')[] = [
+    'purple',
+    'yellow',
+    'red',
+    'blue',
+  ];
 
   return (
     <>
@@ -16,13 +27,18 @@ export function Stats() {
         <h2 className='mb-4 text-2xl font-semibold tracking-tight sm:mb-6 sm:text-3xl'>
           Look Back at MRUHacks 2025
         </h2>
-        <p className='text-description mb-6 text-base sm:mb-10 sm:text-lg'>{StatsDescription}</p>
+        <p className='text-description mb-6 text-base sm:mb-10 sm:text-lg'>
+          {StatsDescription}
+        </p>
       </div>
 
       <Carousel opts={{ align: 'start', loop: true }} className='w-full'>
         <CarouselContent className='items-stretch'>
           {StatsText.map((stat, index) => (
-            <CarouselItem key={index} className='basis-[85%] sm:basis-[45%] lg:basis-1/4'>
+            <CarouselItem
+              key={index}
+              className='basis-[85%] sm:basis-[45%] lg:basis-1/4'
+            >
               <StatCard
                 color={colors[index % colors.length]}
                 title={stat.stats}
