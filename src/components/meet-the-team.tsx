@@ -12,10 +12,10 @@ import {
 
 export default function MeetTheTeam() {
   return (
-    <section className='w-full bg-zinc-950 px-2 pt-2'>
-      <div className='mx-auto max-w-7xl px-2 lg:px-16'>
-        <h2 className='text-7xl font-semibold text-white'>MRUHacks</h2>
-        <h3 className='text-3xl text-white'>Meet the Team</h3>
+    <section className='w-full bg-zinc-950 px-4 py-10 sm:py-14 lg:py-16'>
+      <div className='mx-auto max-w-7xl lg:px-16'>
+        <h2 className='text-4xl font-semibold text-white sm:text-5xl lg:text-7xl'>MRUHacks</h2>
+        <h3 className='mb-6 text-xl text-white sm:mb-8 sm:text-2xl lg:text-3xl'>Meet the Team</h3>
         <Carousel opts={{ align: 'start', loop: true }}>
           <CarouselContent>
             {allMembers.map((member) => (
@@ -32,8 +32,8 @@ export default function MeetTheTeam() {
               </CarouselItem>
             ))}
           </CarouselContent>
-          <CarouselPrevious className='border-zinc-700 bg-zinc-900 text-white hover:bg-zinc-800' />
-          <CarouselNext className='border-zinc-700 bg-zinc-900 text-white hover:bg-zinc-800' />
+          <CarouselPrevious className='left-1 border-zinc-700 bg-zinc-900 text-white hover:bg-zinc-800 sm:left-2' />
+          <CarouselNext className='right-1 border-zinc-700 bg-zinc-900 text-white hover:bg-zinc-800 sm:right-2' />
         </Carousel>
       </div>
     </section>

@@ -24,7 +24,6 @@ const ICONS: Record<string, React.ReactNode> = {
 export default function Footer() {
   return (
     <footer className='w-full bg-zinc-950 py-16'>
-
       <div className='mx-auto max-w-7xl px-4 lg:px-16'>
         <ul className='flex flex-col gap-3'>
           {FOOTER_LINKS.map((link) => (

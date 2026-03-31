@@ -21,9 +21,9 @@ export function SponsorCTA() {
       </p>
 
       {/* main title */}
-      <h1 className='mb-4 text-2xl font-semibold tracking-tight sm:mb-6 sm:text-3xl'>
+      <h2 className='mb-4 text-2xl font-semibold tracking-tight sm:mb-6 sm:text-3xl'>
         Become a sponsor for MRUHacks 2026
-      </h1>
+      </h2>
 
       {/* description text */}
       <p className='text-description mb-6 text-base sm:mb-10 sm:text-lg'>

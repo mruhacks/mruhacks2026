@@ -22,35 +22,26 @@ export function FAQ() {
       </p>
 
       {/* main title */}
-      <h1 className='mb-4 text-2xl font-semibold tracking-tight sm:mb-6 sm:text-3xl'>
+      <h2 className='mb-4 text-2xl font-semibold tracking-tight sm:mb-6 sm:text-3xl'>
         Frequently Asked Questions
-      </h1>
+      </h2>
 
       {/* faqs */}
-      {FAQs.map((f) => {
-        return (
-          <details key={f.question} className='group'>
-            <summary
-              className='mb-2 flex w-full cursor-pointer list-none items-center justify-between text-sm font-semibold sm:text-base'
-              style={{
-                height: '2.31em',
-                margin: '0.3125em 0',
-              }}
-            >
-              {f.question}
-              <ChevronDownIcon className='size-4 transition-transform duration-200 group-open:rotate-180' />
-            </summary>
-            <p
-              className='text-description mb-6 text-base sm:mb-10 sm:text-lg'
-              style={{
-                margin: '0.3125em 0',
-              }}
-            >
-              {f.answer}
-            </p>
-          </details>
-        );
-      })}
+      <div className='flex flex-col'>
+        {FAQs.map((f) => {
+          return (
+            <details key={f.question} className='group border-b border-border py-3 sm:py-4'>
+              <summary className='flex w-full cursor-pointer list-none items-center justify-between text-sm font-semibold sm:text-base'>
+                {f.question}
+                <ChevronDownIcon className='size-4 shrink-0 transition-transform duration-200 group-open:rotate-180' />
+              </summary>
+              <p className='text-description mt-2 text-sm sm:mt-3 sm:text-base'>
+                {f.answer}
+              </p>
+            </details>
+          );
+        })}
+      </div>
     </div>
   );
 }

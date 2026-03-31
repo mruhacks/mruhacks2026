@@ -13,10 +13,10 @@ export function Stats() {
         <p className='text-pre-title-purple mb-2 text-sm font-semibold sm:text-base'>
           MRUHacks 2025 Recap
         </p>
-        <h1 className='mb-4 text-2xl font-semibold tracking-tight sm:mb-6 sm:text-3xl'>
+        <h2 className='mb-4 text-2xl font-semibold tracking-tight sm:mb-6 sm:text-3xl'>
           Look Back at MRUHacks 2025
-        </h1>
-        <p className='text-description mb-10 text-base sm:text-lg'>{StatsDescription}</p>
+        </h2>
+        <p className='text-description mb-6 text-base sm:mb-10 sm:text-lg'>{StatsDescription}</p>
       </div>
 
       <Carousel opts={{ align: 'start', loop: true }} className='w-full'>
@@ -32,8 +32,8 @@ export function Stats() {
             </CarouselItem>
           ))}
         </CarouselContent>
-        <CarouselPrevious className='hidden lg:flex' />
-        <CarouselNext className='hidden lg:flex' />
+        <CarouselPrevious className='left-1 sm:left-2' />
+        <CarouselNext className='right-1 sm:right-2' />
       </Carousel>
     </>
   );
