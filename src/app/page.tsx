@@ -9,13 +9,15 @@ import Footer from '@/components/footer';
 export default function Home() {
   return (
     <>
-      <HeroSection />
-      <main className='mx-auto flex w-full max-w-7xl flex-col items-center gap-20 px-6 py-16 sm:px-8 lg:px-16'>
-        <About />
-        <Stats />
-        <SponsorCTA />
-        <FAQ />
-      </main>
+      <div className='bg-white'>
+        <HeroSection />
+        <main className='mx-auto flex w-full max-w-7xl flex-col items-center gap-20 px-4 py-16 lg:px-16'>
+          <About />
+          <Stats />
+          <SponsorCTA />
+          <FAQ />
+        </main>
+      </div>
       <MeetTheTeam />
       <Footer />
     </>

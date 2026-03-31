@@ -1,35 +1,13 @@
 import Image from 'next/image';
 
-/**
- * Props for the StatCard component.
- */
 export interface StatCardProps {
-  color?: 'yellow' | 'skyblue' | 'purple' | 'red' | 'blue'; // bg color of the card
-  title?: string; // heading for stat
-  image?: string; // url of image displayed in card
-  description?: string; // description about stat
-  imageWidth?: number; // default width of image
-  imageHeight?: number; // default height of image
+  color?: 'yellow' | 'skyblue' | 'purple' | 'red' | 'blue';
+  title?: string;
+  image?: string;
+  description?: string;
 }
 
-/**
- * StatCard
- *
- * A responsive statistics card component that displays a title, desciption, and image.
- *
- * This component is intended to be used for the homepage statistics section.
- *
- * @param props - configuration options for rendering the StatCard
- * @returns a styled responsive statistics card component
- */
-export function StatCard({
-  color = 'yellow',
-  title,
-  image,
-  description,
-  imageWidth = 10,
-  imageHeight = 7,
-}: StatCardProps) {
+export function StatCard({ color = 'yellow', title, image, description }: StatCardProps) {
   const colors = {
     yellow: 'bg-card-yellow',
     skyblue: 'bg-card-skyblue',
@@ -39,21 +17,17 @@ export function StatCard({
   };
 
   return (
-    <div
-      className={`${colors[color]} text-card-text flex h-full min-h-[420px] w-full flex-col justify-between overflow-hidden rounded-lg p-6 text-left`}
-    >
+    <div className={`${colors[color]} text-card-text flex h-full w-full flex-col justify-between overflow-hidden rounded-lg p-6 text-left`}>
       <div className='flex flex-col gap-4'>
         {title && (
-          <h2 className='text-6xl leading-none font-extrabold tracking-[-0.04em] lg:text-6xl'>
-            {title}
-          </h2>
+          <h2 className='text-6xl leading-none font-extrabold tracking-[-0.04em]'>{title}</h2>
         )}
         {description && (
           <p className='text-xl font-medium lg:text-base'>{description}</p>
         )}
       </div>
 
-      {image && imageWidth && imageHeight && (
+      {image && (
         <div className='mt-4 w-full'>
           <div className='relative aspect-4/3 w-full overflow-hidden rounded-lg border-2 border-black/60'>
             <Image
@@ -61,9 +35,7 @@ export function StatCard({
               alt={title || 'stat image'}
               fill
               className='rounded-lg object-cover'
-              sizes='(max-width: 640px) 75vw,
-                     (max-width: 1024px) 40vw,
-                     300px'
+              sizes='(max-width: 640px) 75vw, (max-width: 1024px) 40vw, 300px'
             />
           </div>
         </div>

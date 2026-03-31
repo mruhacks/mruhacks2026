@@ -12,9 +12,9 @@ import {
 
 export default function MeetTheTeam() {
   return (
-    <section className='w-full bg-zinc-950 py-20'>
-      <div className='mx-auto max-w-7xl px-16'>
-        <h2 className='text-7xl text-white'>MRUHacks</h2>
+    <section className='w-full bg-zinc-950 px-2 pt-2'>
+      <div className='mx-auto max-w-7xl px-2 lg:px-16'>
+        <h2 className='text-7xl font-semibold text-white'>MRUHacks</h2>
         <h3 className='text-3xl text-white'>Meet the Team</h3>
         <Carousel opts={{ align: 'start', loop: true }}>
           <CarouselContent>

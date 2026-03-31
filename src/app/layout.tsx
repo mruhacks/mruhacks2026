@@ -25,8 +25,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang='en' className={` ${dmSans.variable} ${geistMono.variable} `}>
-      <body className='antialiased'>
+    <html lang='en' className={`overflow-x-hidden ${dmSans.variable} ${geistMono.variable} `}>
+      <body className='overflow-x-hidden antialiased'>
         {children}
         <Toaster />
       </body>
