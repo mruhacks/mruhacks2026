@@ -32,6 +32,7 @@ export default function MeetTheTeam() {
                   alt={member.name}
                   className='w-full rounded-xl'
                   placeholder='blur'
+                  sizes="(min-width: 640px) 33vw, 100vw"
                 />
               </CarouselItem>
             ))}
