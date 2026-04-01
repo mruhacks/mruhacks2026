@@ -33,18 +33,16 @@ export function About() {
       {/* buttons */}
       <div className='flex flex-row flex-wrap justify-start gap-3'>
         {/* register button */}
-        <Link href='/signup' passHref>
-          <Button variant='gradient' size='lg'>
-            Register Now
-          </Button>
-        </Link>
+
+        <Button variant='gradient' size='lg' asChild>
+          <Link href='/signup'>Register Now</Link>
+        </Button>
 
         {/* sponsor button */}
-        <Link href='mailto:sponsors@mruhacks.ca' passHref>
-          <Button variant='whiteDefault' size='lg'>
-            Become a Sponsor
-          </Button>
-        </Link>
+
+        <Button variant='whiteDefault' size='lg' asChild>
+          <Link href='mailto:sponsors@mruhacks.ca'>Become a Sponsor</Link>
+        </Button>
       </div>
     </div>
   );
