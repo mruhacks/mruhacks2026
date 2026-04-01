@@ -64,11 +64,11 @@ export function SponsorCTA() {
 
       {/* sponsor button */}
       <div className='flex flex-row flex-wrap justify-start gap-3'>
-        <Link href='mailto:sponsors@mruhacks.ca' passHref>
-          <Button variant='blue' size='lg'>
+        <Button asChild variant='blue' size='lg'>
+          <Link href='mailto:sponsors@mruhacks.ca'>
             Become a Sponsor
-          </Button>
-        </Link>
+          </Link>
+        </Button>
       </div>
     </div>
   );
