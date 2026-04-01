@@ -103,7 +103,7 @@ importers:
         specifier: 19.1.0
         version: 19.1.0(react@19.1.0)
       react-hook-form:
-        specifier: ^7.72.0
+        specifier: ^7.65.0
         version: 7.72.0(react@19.1.0)
       react-select:
         specifier: 5.10.2
