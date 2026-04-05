@@ -11,7 +11,7 @@ export default function Home() {
     <>
       <div className='bg-white'>
         <HeroSection />
-        <main className='mx-auto flex w-full max-w-7xl flex-col items-center gap-12 px-4 py-10 sm:gap-16 sm:py-14 lg:gap-20 lg:p-16 '>
+        <main className='mx-auto flex w-full max-w-7xl flex-col items-center gap-12 px-4 py-10 sm:gap-16 sm:py-14 lg:gap-20 lg:p-16'>
           <About />
           <Stats />
           <SponsorCTA />

@@ -23,7 +23,7 @@ export function StatCard({
 
   return (
     <div
-      className={`${colors[color]} text-card-text flex size-full  flex-col justify-between overflow-hidden rounded-lg p-6 text-left`}
+      className={`${colors[color]} text-card-text flex size-full flex-col justify-between overflow-hidden rounded-lg p-6 text-left`}
     >
       <div className='flex flex-col gap-4'>
         {title && (
