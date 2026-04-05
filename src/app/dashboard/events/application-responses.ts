@@ -65,14 +65,20 @@ export function buildApplicationResponses(
   const responses = toResponseKeys(eventData);
 
   for (const q of applicationQuestions) {
-    const value = responses[q.key];
+    // Skip inactive questions (soft-deleted via form builder)
+    if ('active' in q && q.active === false) continue;
+    // Support both new schema (q.id) and legacy (q.key)
+    const questionId = (
+      'id' in q ? q.id : (q as Record<string, unknown>).key
+    ) as string;
+    const value = responses[questionId];
     if (q.required) {
       const empty =
         value === undefined ||
         value === null ||
         (typeof value === 'string' && value.trim() === '');
       if (empty) {
-        return { ok: false, error: `Required: ${q.label ?? q.key}` };
+        return { ok: false, error: `Required: ${q.label ?? questionId}` };
       }
     }
   }

@@ -14,6 +14,7 @@ import {
   FieldError,
 } from '@/components/ui/field';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select } from '@/components/select';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -45,11 +46,13 @@ function ApplicationQuestionField({
   control,
   options,
 }: ApplicationQuestionFieldProps): React.JSX.Element {
-  const fieldName =
-    `applicationResponses.${q.key}` as keyof EventOnlyFormValues;
-  const optionsKey = APPLICATION_QUESTION_OPTIONS_MAP[q.key];
+  const fieldName = `applicationResponses.${q.id}` as keyof EventOnlyFormValues;
+  const optionsKey = APPLICATION_QUESTION_OPTIONS_MAP[q.id];
   const selectOptions = q.options?.length
-    ? q.options.map((o) => ({ value: o.value as number, label: o.label }))
+    ? q.options.map((o) => ({
+        value: o.value as unknown as number,
+        label: o.label,
+      }))
     : optionsKey
       ? (options[optionsKey as keyof typeof options] as {
           value: number;
@@ -64,23 +67,30 @@ function ApplicationQuestionField({
         control={control}
         defaultValue={undefined}
         render={({ field }) => (
-          <div className='flex items-start gap-3'>
-            <Checkbox
-              id={q.key}
-              checked={Boolean(field.value)}
-              onCheckedChange={field.onChange}
-            />
-            <Label htmlFor={q.key}>
-              {q.label ?? q.key}
-              {q.required && <RequiredAsterisk />}
-            </Label>
+          <div className='space-y-1'>
+            <div className='flex items-start gap-3'>
+              <Checkbox
+                id={q.id}
+                checked={Boolean(field.value)}
+                onCheckedChange={field.onChange}
+              />
+              <Label htmlFor={q.id}>
+                {q.label}
+                {q.required && <RequiredAsterisk />}
+              </Label>
+            </div>
+            {q.description && (
+              <p className='text-muted-foreground ml-7 text-xs'>
+                {q.description}
+              </p>
+            )}
           </div>
         )}
       />
     );
   }
 
-  if (q.type === 'select') {
+  if (q.type === 'single_select' || (q.type as string) === 'select') {
     return (
       <Controller
         name={fieldName}
@@ -88,12 +98,15 @@ function ApplicationQuestionField({
         render={({ field, fieldState }) => (
           <Field data-invalid={fieldState.invalid}>
             <FieldLabel>
-              {q.label ?? q.key}
+              {q.label}
               {q.required && <RequiredAsterisk />}
             </FieldLabel>
+            {q.description && (
+              <p className='text-muted-foreground text-xs'>{q.description}</p>
+            )}
             <Select
-              id={q.key}
-              instanceId={`app-q-${q.key}`}
+              id={q.id}
+              instanceId={`app-q-${q.id}`}
               options={selectOptions}
               value={
                 selectOptions.find(
@@ -114,6 +127,83 @@ function ApplicationQuestionField({
     );
   }
 
+  if (q.type === 'multi_select') {
+    return (
+      <Controller
+        name={fieldName}
+        control={control}
+        render={({ field, fieldState }) => (
+          <Field data-invalid={fieldState.invalid}>
+            <FieldLabel>
+              {q.label}
+              {q.required && <RequiredAsterisk />}
+            </FieldLabel>
+            {q.description && (
+              <p className='text-muted-foreground text-xs'>{q.description}</p>
+            )}
+            <div className='space-y-2'>
+              {(q.options ?? []).map((opt) => {
+                const currentValue =
+                  (field.value as string[] | undefined) ?? [];
+                const isChecked = currentValue.includes(opt.value);
+                return (
+                  <div key={opt.value} className='flex items-center gap-2'>
+                    <Checkbox
+                      id={`${q.id}-${opt.value}`}
+                      checked={isChecked}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          field.onChange([...currentValue, opt.value]);
+                        } else {
+                          field.onChange(
+                            currentValue.filter((v: string) => v !== opt.value),
+                          );
+                        }
+                      }}
+                    />
+                    <Label htmlFor={`${q.id}-${opt.value}`}>{opt.label}</Label>
+                  </div>
+                );
+              })}
+            </div>
+            {fieldState.error && <FieldError errors={[fieldState.error]} />}
+          </Field>
+        )}
+      />
+    );
+  }
+
+  if (q.type === 'number') {
+    return (
+      <Controller
+        name={fieldName}
+        control={control}
+        render={({ field, fieldState }) => (
+          <Field data-invalid={fieldState.invalid}>
+            <FieldLabel>
+              {q.label}
+              {q.required && <RequiredAsterisk />}
+            </FieldLabel>
+            {q.description && (
+              <p className='text-muted-foreground text-xs'>{q.description}</p>
+            )}
+            <Input
+              id={q.id}
+              type='number'
+              value={(field.value as string) ?? ''}
+              onChange={(e) => field.onChange(e.target.value)}
+              placeholder={q.label}
+            />
+            {fieldState.error && <FieldError errors={[fieldState.error]} />}
+          </Field>
+        )}
+      />
+    );
+  }
+
+  // short_text, long_text, text (legacy)
+  const isLongText = q.type === 'long_text' || (q.type as string) === 'text';
+
   return (
     <Controller
       name={fieldName}
@@ -121,17 +211,29 @@ function ApplicationQuestionField({
       render={({ field, fieldState }) => (
         <Field data-invalid={fieldState.invalid}>
           <FieldLabel>
-            {q.label ?? q.key}
+            {q.label}
             {q.required && <RequiredAsterisk />}
           </FieldLabel>
-          <Textarea
-            id={q.key}
-            {...field}
-            value={(field.value as string) ?? ''}
-            onChange={(e) => field.onChange(e.target.value)}
-            placeholder={q.label ?? q.key}
-            maxLength={500}
-          />
+          {q.description && (
+            <p className='text-muted-foreground text-xs'>{q.description}</p>
+          )}
+          {isLongText ? (
+            <Textarea
+              id={q.id}
+              {...field}
+              value={(field.value as string) ?? ''}
+              onChange={(e) => field.onChange(e.target.value)}
+              placeholder={q.label}
+              maxLength={500}
+            />
+          ) : (
+            <Input
+              id={q.id}
+              value={(field.value as string) ?? ''}
+              onChange={(e) => field.onChange(e.target.value)}
+              placeholder={q.label}
+            />
+          )}
           {fieldState.error && <FieldError errors={[fieldState.error]} />}
         </Field>
       )}
@@ -177,8 +279,11 @@ function ApplicationFormFields({
   isSubmitting?: boolean;
   submitLabel?: string;
 }) {
-  const hasEventQuestions =
-    Array.isArray(applicationQuestions) && applicationQuestions.length > 0;
+  const visibleQuestions = Array.isArray(applicationQuestions)
+    ? applicationQuestions
+        .filter((q) => q.active !== false)
+        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+    : [];
   const accommodations = useWatch({ control, name: 'accommodations' }) ?? '';
 
   return (
@@ -224,15 +329,14 @@ function ApplicationFormFields({
           </p>
         </Field>
 
-        {hasEventQuestions &&
-          applicationQuestions!.map((q) => (
-            <ApplicationQuestionField
-              key={q.key}
-              question={q}
-              control={control}
-              options={options}
-            />
-          ))}
+        {visibleQuestions.map((q) => (
+          <ApplicationQuestionField
+            key={q.id}
+            question={q}
+            control={control}
+            options={options}
+          />
+        ))}
       </FieldGroup>
 
       {showSubmit && (
