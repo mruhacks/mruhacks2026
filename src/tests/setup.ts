@@ -24,7 +24,7 @@ beforeAll(async () => {
     console.log('✅ Test database migrated successfully.');
   } catch (e) {
     console.error('❌ Migration failed in test setup:', e);
-    process.exit(1);
+    throw e;
   }
 
   // Ensure tables start clean
