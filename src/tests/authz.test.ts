@@ -34,7 +34,7 @@ import {
 // Note: rolePermissions is used, others are imported but not directly used in this file
 import { eq } from 'drizzle-orm';
 
-import { describe, vi, beforeAll, test, expect } from 'vitest';
+import { describe, vi, beforeAll, afterAll, test, expect } from 'vitest';
 
 // Mock redirect to capture redirects instead of terminating test
 vi.mock('next/navigation', () => ({

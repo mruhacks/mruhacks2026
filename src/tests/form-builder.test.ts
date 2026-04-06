@@ -38,6 +38,12 @@ vi.mock('@/utils/auth', () => ({
   })),
 }));
 
+// Mock hasPermission to always allow — we're testing form builder logic, not authz
+vi.mock('@/app/actions/authz', () => ({
+  hasPermission: vi.fn(async () => true),
+  requirePermission: vi.fn(async () => {}),
+}));
+
 // ---------------------------------------------------------------------------
 // Test data
 // ---------------------------------------------------------------------------
