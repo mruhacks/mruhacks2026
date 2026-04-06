@@ -1,6 +1,7 @@
 import { redirect, notFound } from 'next/navigation';
 
 import { getUser } from '@/utils/auth';
+import { requirePermission } from '@/app/actions/authz';
 import FormBuilder from '@/components/form-builder';
 import { getFormBuilderData } from './actions';
 
@@ -12,6 +13,8 @@ export default async function FormBuilderPage({ params }: Props) {
   const { eventId } = await params;
   const user = await getUser();
   if (!user) redirect('/signin');
+
+  await requirePermission(user.id, 'form-builder:manage');
 
   const result = await getFormBuilderData(eventId);
   if (!result.success || !result.data) notFound();
@@ -25,6 +28,8 @@ export default async function FormBuilderPage({ params }: Props) {
         eventName={event.name}
         initialQuestions={questions}
         hasApplications={hasApplications}
+        allowResponseUpdate={event.allowResponseUpdate}
+        allowMultipleResponses={event.allowMultipleResponses}
       />
     </div>
   );

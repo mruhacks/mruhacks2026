@@ -64,6 +64,14 @@ export const events = pgTable(
     applicationQuestions: jsonb('application_questions').$type<
       ApplicationQuestion[] | null
     >(),
+    /** Whether applicants can update their submitted responses */
+    allowResponseUpdate: boolean('allow_response_update')
+      .notNull()
+      .default(false),
+    /** Whether applicants can submit multiple separate applications */
+    allowMultipleResponses: boolean('allow_multiple_responses')
+      .notNull()
+      .default(false),
     startsAt: timestamp('starts_at'),
     endsAt: timestamp('ends_at'),
     capacity: integer('capacity'),

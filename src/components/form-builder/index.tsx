@@ -19,6 +19,9 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { Separator } from '@/components/ui/separator';
 
 import type { ApplicationQuestion } from '@/types/application';
 import { APPLICATION_QUESTION_TYPES } from '@/types/application';
@@ -28,6 +31,7 @@ import {
   editQuestion,
   removeQuestion,
   reorderQuestions,
+  updateEventResponseSettings,
 } from '@/app/dashboard/events/[eventId]/form-builder/actions';
 
 type FormBuilderProps = {
@@ -35,6 +39,8 @@ type FormBuilderProps = {
   eventName: string;
   initialQuestions: ApplicationQuestion[];
   hasApplications: boolean;
+  allowResponseUpdate: boolean;
+  allowMultipleResponses: boolean;
 };
 
 function getTypeLabel(type: string): string {
@@ -48,6 +54,8 @@ export default function FormBuilder({
   eventName,
   initialQuestions,
   hasApplications,
+  allowResponseUpdate: initialAllowUpdate,
+  allowMultipleResponses: initialAllowMultiple,
 }: FormBuilderProps) {
   const [questions, setQuestions] =
     React.useState<ApplicationQuestion[]>(initialQuestions);
@@ -56,6 +64,31 @@ export default function FormBuilder({
     ApplicationQuestion | undefined
   >();
   const [loading, setLoading] = React.useState(false);
+  const [allowUpdate, setAllowUpdate] = React.useState(initialAllowUpdate);
+  const [allowMultiple, setAllowMultiple] =
+    React.useState(initialAllowMultiple);
+
+  async function handleToggleUpdate(checked: boolean) {
+    setAllowUpdate(checked);
+    const result = await updateEventResponseSettings(eventId, {
+      allowResponseUpdate: checked,
+    });
+    if (!result.success) {
+      toast.error('Failed to update setting');
+      setAllowUpdate(!checked);
+    }
+  }
+
+  async function handleToggleMultiple(checked: boolean) {
+    setAllowMultiple(checked);
+    const result = await updateEventResponseSettings(eventId, {
+      allowMultipleResponses: checked,
+    });
+    if (!result.success) {
+      toast.error('Failed to update setting');
+      setAllowMultiple(!checked);
+    }
+  }
 
   const activeQuestions = questions
     .filter((q) => q.active)
@@ -187,6 +220,38 @@ export default function FormBuilder({
           </div>
         </CardHeader>
         <CardContent>
+          {/* Response settings */}
+          <div className='mb-6 space-y-4'>
+            <h4 className='text-sm font-medium'>Response Settings</h4>
+            <div className='flex items-center justify-between'>
+              <div>
+                <Label htmlFor='allow-update'>Allow response updates</Label>
+                <p className='text-muted-foreground text-xs'>
+                  Applicants can edit their submitted responses.
+                </p>
+              </div>
+              <Switch
+                id='allow-update'
+                checked={allowUpdate}
+                onCheckedChange={handleToggleUpdate}
+              />
+            </div>
+            <div className='flex items-center justify-between'>
+              <div>
+                <Label htmlFor='allow-multiple'>Allow multiple responses</Label>
+                <p className='text-muted-foreground text-xs'>
+                  Applicants can submit more than one application.
+                </p>
+              </div>
+              <Switch
+                id='allow-multiple'
+                checked={allowMultiple}
+                onCheckedChange={handleToggleMultiple}
+              />
+            </div>
+            <Separator />
+          </div>
+
           {activeQuestions.length === 0 ? (
             <div className='text-muted-foreground flex flex-col items-center justify-center rounded-lg border border-dashed py-12'>
               <p className='text-sm'>No questions yet.</p>

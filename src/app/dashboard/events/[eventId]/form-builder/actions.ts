@@ -15,8 +15,22 @@ import { eq, sql } from 'drizzle-orm';
 import { db } from '@/utils/db';
 import { events, eventApplications } from '@/db/schema';
 import { getUser } from '@/utils/auth';
+import { hasPermission } from '@/app/actions/authz';
+
 import { type ActionResult, ok, fail } from '@/utils/action-result';
 import type { ApplicationQuestion } from '@/types/application';
+
+const FORM_BUILDER_PERMISSION = 'form-builder:manage';
+
+async function requireFormBuilderAccess(): Promise<
+  { id: string } | ActionResult
+> {
+  const user = await getUser();
+  if (!user) return fail('Not authenticated');
+  const allowed = await hasPermission(user.id, FORM_BUILDER_PERMISSION);
+  if (!allowed) return fail('Insufficient permissions');
+  return user;
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -102,19 +116,27 @@ async function optionValuesWithResponses(
 
 export async function getFormBuilderData(eventId: string): Promise<
   ActionResult<{
-    event: { id: string; name: string; hasApplication: boolean };
+    event: {
+      id: string;
+      name: string;
+      hasApplication: boolean;
+      allowResponseUpdate: boolean;
+      allowMultipleResponses: boolean;
+    };
     questions: ApplicationQuestion[];
     hasApplications: boolean;
   }>
 > {
-  const user = await getUser();
-  if (!user) return fail('Not authenticated');
+  const authResult = await requireFormBuilderAccess();
+  if ('success' in authResult) return authResult;
 
   const [event] = await db
     .select({
       id: events.id,
       name: events.name,
       hasApplication: events.hasApplication,
+      allowResponseUpdate: events.allowResponseUpdate,
+      allowMultipleResponses: events.allowMultipleResponses,
     })
     .from(events)
     .where(eq(events.id, eventId))
@@ -129,6 +151,35 @@ export async function getFormBuilderData(eventId: string): Promise<
 }
 
 // ---------------------------------------------------------------------------
+// Update event response settings
+// ---------------------------------------------------------------------------
+
+export async function updateEventResponseSettings(
+  eventId: string,
+  settings: {
+    allowResponseUpdate?: boolean;
+    allowMultipleResponses?: boolean;
+  },
+): Promise<ActionResult> {
+  const authResult = await requireFormBuilderAccess();
+  if ('success' in authResult) return authResult;
+
+  await db
+    .update(events)
+    .set({
+      ...(settings.allowResponseUpdate !== undefined && {
+        allowResponseUpdate: settings.allowResponseUpdate,
+      }),
+      ...(settings.allowMultipleResponses !== undefined && {
+        allowMultipleResponses: settings.allowMultipleResponses,
+      }),
+    })
+    .where(eq(events.id, eventId));
+
+  return ok();
+}
+
+// ---------------------------------------------------------------------------
 // Add question
 // ---------------------------------------------------------------------------
 
@@ -136,8 +187,8 @@ export async function addQuestion(
   eventId: string,
   question: Omit<ApplicationQuestion, 'order' | 'active'>,
 ): Promise<ActionResult<ApplicationQuestion[]>> {
-  const user = await getUser();
-  if (!user) return fail('Not authenticated');
+  const authResult = await requireFormBuilderAccess();
+  if ('success' in authResult) return authResult;
 
   if (!question.label.trim()) return fail('Label is required');
   if (!question.type) return fail('Type is required');
@@ -173,8 +224,8 @@ export async function editQuestion(
     >
   >,
 ): Promise<ActionResult<ApplicationQuestion[]>> {
-  const user = await getUser();
-  if (!user) return fail('Not authenticated');
+  const authResult = await requireFormBuilderAccess();
+  if ('success' in authResult) return authResult;
 
   const questions = await getEventQuestions(eventId);
   const idx = questions.findIndex((q) => q.id === questionId);
@@ -231,8 +282,8 @@ export async function removeQuestion(
   eventId: string,
   questionId: string,
 ): Promise<ActionResult<ApplicationQuestion[]>> {
-  const user = await getUser();
-  if (!user) return fail('Not authenticated');
+  const authResult = await requireFormBuilderAccess();
+  if ('success' in authResult) return authResult;
 
   const questions = await getEventQuestions(eventId);
   const idx = questions.findIndex((q) => q.id === questionId);
@@ -264,8 +315,8 @@ export async function reorderQuestions(
   eventId: string,
   orderedIds: string[],
 ): Promise<ActionResult<ApplicationQuestion[]>> {
-  const user = await getUser();
-  if (!user) return fail('Not authenticated');
+  const authResult = await requireFormBuilderAccess();
+  if ('success' in authResult) return authResult;
 
   const questions = await getEventQuestions(eventId);
   const map = new Map(questions.map((q) => [q.id, q]));

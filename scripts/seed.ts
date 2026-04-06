@@ -61,42 +61,76 @@ async function seedEvents() {
       name: 'MRUHacks 2026',
       hasApplication: true,
       capacity: null,
+      allowResponseUpdate: true,
       applicationQuestions: [
         {
-          key: 'attended_before',
+          id: randomUUID(),
           label: 'Have you attended before?',
           type: 'boolean',
           required: true,
+          order: 1,
+          active: true,
         },
         {
-          key: 'accommodations',
+          id: randomUUID(),
           label: 'Accessibility or accommodations',
-          type: 'text',
+          description: 'Let us know if you need any special accommodations.',
+          type: 'long_text',
+          required: false,
+          order: 2,
+          active: true,
         },
-        { key: 'needs_parking', label: 'Need parking?', type: 'boolean' },
         {
-          key: 'heard_from_id',
+          id: randomUUID(),
+          label: 'Need parking?',
+          type: 'boolean',
+          required: false,
+          order: 3,
+          active: true,
+        },
+        {
+          id: randomUUID(),
           label: 'How did you hear about us?',
-          type: 'select',
+          type: 'single_select',
           required: true,
+          options: [
+            { value: 'social_media', label: 'Social Media' },
+            { value: 'friend', label: 'Friend / Word of Mouth' },
+            { value: 'professor', label: 'Professor / Course' },
+            { value: 'club', label: 'Student Club' },
+            { value: 'other', label: 'Other' },
+          ],
+          order: 4,
+          active: true,
         },
         {
-          key: 'consent_info_use',
+          id: randomUUID(),
           label: 'Consent to use info',
+          description:
+            'I consent to my information being used for event logistics.',
           type: 'boolean',
           required: true,
+          order: 5,
+          active: true,
         },
         {
-          key: 'consent_sponsor_share',
+          id: randomUUID(),
           label: 'Consent to share with sponsors',
+          description: 'I consent to sharing my profile with event sponsors.',
           type: 'boolean',
           required: true,
+          order: 6,
+          active: true,
         },
         {
-          key: 'consent_media_use',
+          id: randomUUID(),
           label: 'Consent to photos/videos',
+          description:
+            'I consent to being photographed or recorded during the event.',
           type: 'boolean',
           required: true,
+          order: 7,
+          active: true,
         },
       ],
     },
@@ -131,6 +165,10 @@ async function seedRolesAndPermissions() {
     { slug: 'submission:read', description: 'View project submissions' },
     { slug: 'submission:write', description: 'Modify project submissions' },
     { slug: 'event:manage', description: 'Create and manage events' },
+    {
+      slug: 'form-builder:manage',
+      description: 'Manage application form questions',
+    },
   ];
 
   console.log('🧱 Seeding roles and permissions...');
@@ -169,6 +207,10 @@ async function seedRolesAndPermissions() {
       {
         roleId: findRole('organizer').id,
         permissionId: findPerm('participant:write').id,
+      },
+      {
+        roleId: findRole('organizer').id,
+        permissionId: findPerm('form-builder:manage').id,
       },
       {
         roleId: findRole('judge').id,
@@ -305,23 +347,44 @@ async function main() {
         updatedAt: now,
       });
 
+      // Build responses keyed by question ID from the event's applicationQuestions
+      const appQuestions =
+        (applicationEvent.applicationQuestions as
+          | {
+              id: string;
+              label: string;
+              type: string;
+              options?: { value: string }[];
+            }[]
+          | null) ?? [];
+      const responses: Record<string, unknown> = {};
+      for (const q of appQuestions) {
+        if (q.type === 'boolean') {
+          responses[q.id] = faker.datatype.boolean();
+        } else if (q.type === 'long_text' || q.type === 'short_text') {
+          responses[q.id] = faker.helpers.maybe(() => faker.lorem.sentence(), {
+            probability: 0.5,
+          });
+        } else if (q.type === 'single_select' && q.options?.length) {
+          responses[q.id] = faker.helpers.arrayElement(q.options).value;
+        } else if (q.type === 'number') {
+          responses[q.id] = faker.number.int({ min: 0, max: 10 });
+        }
+      }
+      // Also include legacy known fields for the application form's fixed fields
+      responses['attended_before'] = faker.datatype.boolean();
+      responses['accommodations'] = faker.helpers.maybe(
+        () => faker.lorem.sentence(),
+        { probability: 0.25 },
+      );
+
       applicationData.push({
         eventId: applicationEvent.id,
         userId: id,
         statusId: pendingReviewStatusId,
         createdAt: now,
         updatedAt: now,
-        responses: {
-          attended_before: faker.datatype.boolean(),
-          accommodations: faker.helpers.maybe(() => faker.lorem.sentence(), {
-            probability: 0.25,
-          }),
-          needs_parking: faker.datatype.boolean(),
-          heard_from_id: heardFrom.id,
-          consent_info_use: true,
-          consent_sponsor_share: faker.datatype.boolean({ probability: 0.9 }),
-          consent_media_use: faker.datatype.boolean({ probability: 0.9 }),
-        },
+        responses,
       });
 
       const chosenInterests = faker.helpers.arrayElements(

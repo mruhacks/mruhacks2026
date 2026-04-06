@@ -83,16 +83,43 @@ export async function registerParticipant(
   const event = eventParsed.data;
 
   const [eventRow] = await db
-    .select({ applicationQuestions: events.applicationQuestions })
+    .select({
+      applicationQuestions: events.applicationQuestions,
+      allowResponseUpdate: events.allowResponseUpdate,
+      allowMultipleResponses: events.allowMultipleResponses,
+    })
     .from(events)
     .where(eq(events.id, eventId))
     .limit(1);
+
+  if (!eventRow) return fail('Event not found');
+
   const applicationQuestions =
-    (eventRow?.applicationQuestions as ApplicationQuestion[] | null) ?? [];
+    (eventRow.applicationQuestions as ApplicationQuestion[] | null) ?? [];
 
   const built = buildApplicationResponses(applicationQuestions, event);
   if (!built.ok) return fail(built.error);
   const responses = built.responses;
+
+  // Check if user already has an application for this event
+  const [existingApp] = await db
+    .select({ id: eventApplications.id })
+    .from(eventApplications)
+    .where(
+      and(
+        eq(eventApplications.eventId, eventId),
+        eq(eventApplications.userId, user.id),
+      ),
+    )
+    .limit(1);
+
+  if (
+    existingApp &&
+    !eventRow.allowResponseUpdate &&
+    !eventRow.allowMultipleResponses
+  ) {
+    return fail('You have already submitted an application for this event.');
+  }
 
   try {
     await db.transaction(async (tx) => {
@@ -140,20 +167,30 @@ export async function registerParticipant(
         );
       }
 
-      await tx
-        .insert(eventApplications)
-        .values({
+      if (eventRow.allowMultipleResponses && existingApp) {
+        // Insert a new separate application row (drop unique constraint handling)
+        await tx.insert(eventApplications).values({
           eventId,
           userId: user.id,
           responses,
-        })
-        .onConflictDoUpdate({
-          target: [eventApplications.eventId, eventApplications.userId],
-          set: {
-            responses,
-            updatedAt: new Date(),
-          },
         });
+      } else {
+        // Upsert: insert or update existing application
+        await tx
+          .insert(eventApplications)
+          .values({
+            eventId,
+            userId: user.id,
+            responses,
+          })
+          .onConflictDoUpdate({
+            target: [eventApplications.eventId, eventApplications.userId],
+            set: {
+              responses,
+              updatedAt: new Date(),
+            },
+          });
+      }
     });
 
     return ok('Application saved successfully.');
