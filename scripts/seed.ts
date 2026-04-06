@@ -18,7 +18,6 @@ import {
   yearsOfStudy,
   interests,
   dietaryRestrictions,
-  heardFromSources,
   applicationStatuses,
   permission,
   role,
@@ -254,7 +253,6 @@ async function main() {
     yearRows,
     interestRows,
     dietaryRows,
-    heardRows,
     applicationStatusRows,
   ] = await Promise.all([
     db.select().from(genders),
@@ -263,7 +261,6 @@ async function main() {
     db.select().from(yearsOfStudy),
     db.select().from(interests),
     db.select().from(dietaryRestrictions),
-    db.select().from(heardFromSources),
     db.select().from(applicationStatuses),
   ]);
 
@@ -334,7 +331,6 @@ async function main() {
       const university = faker.helpers.arrayElement(universityRows);
       const major = faker.helpers.arrayElement(majorRows);
       const year = faker.helpers.arrayElement(yearRows);
-      const heardFrom = faker.helpers.arrayElement(heardRows);
 
       profiles.push({
         userId: id,

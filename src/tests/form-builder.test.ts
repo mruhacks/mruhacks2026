@@ -7,8 +7,6 @@ import { describe, test, expect, beforeAll, afterAll, vi } from 'vitest';
 import { db } from '@/utils/db';
 import { events, eventApplications, user } from '@/db/schema';
 import { eq } from 'drizzle-orm';
-import type { ApplicationQuestion } from '@/types/application';
-
 import {
   getFormBuilderData,
   addQuestion,
