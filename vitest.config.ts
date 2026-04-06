@@ -21,6 +21,8 @@ export default defineConfig({
           include: ['src/tests/*.test.ts'],
           setupFiles: ['./src/tests/setup.ts'],
           alias,
+          pool: 'forks',
+          poolOptions: { forks: { singleFork: true } },
         },
       },
     ],
