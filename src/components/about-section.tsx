@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { INTRO_BLURB } from '../content';
+import { INTRO_BLURB, REGISTRATION_OPEN } from '../content';
 
 /**
  *About
@@ -34,9 +34,11 @@ export function About() {
       <div className='flex flex-row flex-wrap justify-start gap-3'>
         {/* register button */}
 
-        <Button variant='gradient' size='lg' asChild>
-          <Link href='/signup'>Register Now</Link>
-        </Button>
+        {REGISTRATION_OPEN && (
+          <Button variant='gradient' size='lg' asChild>
+            <Link href='/signup'>Register Now</Link>
+          </Button>
+        )}
 
         {/* sponsor button */}
 

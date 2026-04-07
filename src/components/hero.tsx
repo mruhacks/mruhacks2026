@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import gloveSticker from '@/assets/mruhacks-2026-stickers-glove.png';
 import logoSticker from '@/assets/mruhacks-2026-stickers-logo.png';
 import { HeroArtwork } from '@/components/hero-artwork';
-import { EVENT_DATE_DISPLAY, EVENT_LOCATION_DISPLAY } from '@/content';
+import { EVENT_DATE_DISPLAY, EVENT_LOCATION_DISPLAY, REGISTRATION_OPEN, LOGIN_ENABLED } from '@/content';
 
 export function HeroSection() {
   return (
@@ -22,27 +22,33 @@ export function HeroSection() {
             />
           </div>
           <div className='hidden items-center gap-6 lg:flex'>
+            {REGISTRATION_OPEN && (
+              <Button
+                variant='gradient'
+                className='rounded-full border border-[#5e5e5e] py-5 text-xl font-semibold tracking-[-0.02em] text-white hover:opacity-90'
+                aria-disabled='true'
+              >
+                Register Now
+              </Button>
+            )}
+            {LOGIN_ENABLED && (
+              <Button
+                shadow='md'
+                className='rounded-full border border-[#5e5e5e] bg-black py-5 text-xl font-semibold tracking-[-0.02em] text-white hover:bg-neutral-800'
+                aria-disabled='true'
+              >
+                Log In
+              </Button>
+            )}
+          </div>
+          {REGISTRATION_OPEN && (
             <Button
-              variant='gradient'
-              className='rounded-full border border-[#5e5e5e] py-5 text-xl font-semibold tracking-[-0.02em] text-white hover:opacity-90'
+              className='h-auto shrink-0 rounded-full bg-black px-4 py-2 text-xs font-semibold tracking-tight text-white hover:bg-neutral-800 lg:hidden'
               aria-disabled='true'
             >
               Register Now
             </Button>
-            <Button
-              shadow='md'
-              className='rounded-full border border-[#5e5e5e] bg-black py-5 text-xl font-semibold tracking-[-0.02em] text-white hover:bg-neutral-800'
-              aria-disabled='true'
-            >
-              Log In
-            </Button>
-          </div>
-          <Button
-            className='h-auto shrink-0 rounded-full bg-black px-4 py-2 text-xs font-semibold tracking-tight text-white hover:bg-neutral-800 lg:hidden'
-            aria-disabled='true'
-          >
-            Register Now
-          </Button>
+          )}
         </div>
 
         <div className='mx-auto mt-16 flex w-full max-w-sm flex-col items-center lg:mt-20 lg:max-w-2xl xl:mt-28 xl:max-w-none xl:flex-row xl:items-start xl:justify-center xl:gap-16'>
@@ -96,12 +102,14 @@ export function HeroSection() {
             </div>
 
             <div className='mb-8 flex w-full flex-wrap items-center justify-center gap-2 lg:mb-10 lg:gap-4'>
-              <Button
-                variant='gradient'
-                className='rounded-full px-5 py-2.5 text-sm font-semibold tracking-[-0.02em] sm:px-6 sm:py-3 sm:text-base lg:p-5 lg:text-xl'
-              >
-                Register Now
-              </Button>
+              {REGISTRATION_OPEN && (
+                <Button
+                  variant='gradient'
+                  className='rounded-full px-5 py-2.5 text-sm font-semibold tracking-[-0.02em] sm:px-6 sm:py-3 sm:text-base lg:p-5 lg:text-xl'
+                >
+                  Register Now
+                </Button>
+              )}
               <Button
                 variant='discord'
                 className='rounded-full px-5 py-2.5 text-sm font-semibold tracking-[-0.02em] sm:px-6 sm:py-3 sm:text-base lg:p-5 lg:text-xl'
