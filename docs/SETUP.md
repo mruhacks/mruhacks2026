@@ -1,6 +1,6 @@
 # Setup Guide
 
-The intention of this guide is to help you through setup of your local development environment. If you would like greater context on the different aspects of the application we are setting up, refer to the relevent files in the `docs/` folder.
+The intention of this guide is to help you through setup of your local development environment. If you would like greater context on the different aspects of the application we are setting up, refer to the relevant files in the `docs/` folder.
 
 ## Prerequisites
 
