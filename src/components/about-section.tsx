@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { INTRO_BLURB } from '../content';
+import { INTRO_BLURB, REGISTRATION_ENABLED } from '../content';
 
 /**
  *About
@@ -33,12 +33,14 @@ export function About() {
 
         {/* buttons */}
         <div className='flex flex-row flex-wrap justify-start gap-3'>
-          {/* register button */}
-          <Link href='/signup' passHref>
-            <Button variant='gradient' size='lg'>
-              Register Now
-            </Button>
-          </Link>
+          {/* register button — hidden when REGISTRATION_ENABLED is false */}
+          {REGISTRATION_ENABLED && (
+            <Link href='/signup' passHref>
+              <Button variant='gradient' size='lg'>
+                Register Now
+              </Button>
+            </Link>
+          )}
 
           {/* sponsor button */}
           <Link href='mailto:sponsors@mruhacks.ca' passHref>

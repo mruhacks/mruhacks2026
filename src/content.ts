@@ -1,3 +1,9 @@
+/**
+ * Feature flag to enable or disable registration.
+ * Set to `true` to show registration buttons on the landing page.
+ */
+export const REGISTRATION_ENABLED: boolean = false;
+
 export const INTRO_BLURB: string = `
 MRUHacks is Mount Royal University’s largest hackathon, bringing
 students together for an immersive three-day experience focused on
