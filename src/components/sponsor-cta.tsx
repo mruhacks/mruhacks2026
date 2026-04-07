@@ -1,7 +1,10 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { SPONSOR_CTA } from '@/content';
-import Image from 'next/image';
+import ArcurveLogo from '@/assets/sponsor-logos/arcurve-logo-sponsor.jpg';
+import IIELogo from '@/assets/sponsor-logos/mru-iie-logo-sponsor.png';
+import LibraryLogo from '@/assets/sponsor-logos/mru-library-logo-sponsor.png';
 
 /**
  * SponsorCTA Component
@@ -33,29 +36,26 @@ export function SponsorCTA() {
       {/* sponsor logos */}
       <div className='mb-6 flex flex-col items-center gap-4 sm:mb-10'>
         <Image
-          src='/arcurve-logo-sponsor.jpg'
+          src={ArcurveLogo}
           alt='Arcurve logo'
-          width={286}
-          height={29}
+          priority
           sizes='(min-width: 1024px) 300px, (min-width: 640px) 220px, 160px'
           className='h-auto w-40 sm:w-56 lg:w-72'
         />
 
         <div className='flex items-center justify-center gap-6'>
           <Image
-            src='/mru-IIE-logo-sponsor.png'
+            src={IIELogo}
             alt='MRU Institute for Innovation and Entrepreneurship logo'
-            width={165}
-            height={48}
+            priority
             sizes='(min-width: 1024px) 180px, (min-width: 640px) 150px, 120px'
             className='h-auto w-28 sm:w-36 lg:w-44'
           />
 
           <Image
-            src='/mru-library-logo-sponsor.png'
+            src={LibraryLogo}
             alt='MRU library logo'
-            width={117}
-            height={21}
+            priority
             sizes='(min-width: 1024px) 150px, (min-width: 640px) 120px, 90px'
             className='h-auto w-24 sm:w-32 lg:w-36'
           />
