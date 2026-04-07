@@ -1,27 +1,27 @@
 import { StaticImageData } from 'next/image';
 
 // DEV
-import Seila from './development/Seila.png';
-import Sunny from './development/Sunny.png';
-import Thomas from './development/Thomas.png';
-import Noah from './development/Noah.png';
+import Seila from './development/seila.png';
+import Sunny from './development/sunny.png';
+import Thomas from './development/thomas.png';
+import Noah from './development/noah.png';
 
 // MKT
-import Soul from './marketing/Soul.png';
-import Nathan from './marketing/Nathan.png';
-import Meagan from './marketing/Meagan.png';
-import Jashan from './marketing/Jashan.png';
+import Soul from './marketing/soul.png';
+import Nathan from './marketing/nathan.png';
+import Meagan from './marketing/meagan.png';
+import Jashan from './marketing/jashan.png';
 
 // EXP
-import Justin from './experience/Justin.png';
-import RamiM from './experience/Rami_M.png';
-import Manroop from './experience/Manroop.png';
-import Robel from './experience/Robel.png';
+import Justin from './experience/justin.png';
+import RamiM from './experience/rami_m.png';
+import Manroop from './experience/manroop.png';
+import Robel from './experience/robel.png';
 
-import RamiR from './outreach/Rami_R.png';
-import Ransher from './outreach/Ransher.png';
+import RamiR from './outreach/rami_r.png';
+import Ransher from './outreach/ransher.png';
 
-import Kiera from './Kiera.png';
+import Kiera from './kiera.png';
 
 export type TeamMember = { name: string; image: StaticImageData };
 

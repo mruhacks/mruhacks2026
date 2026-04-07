@@ -1,7 +1,7 @@
 'use client';
 
 import Image from 'next/image';
-import { allMembers } from '@/assets/Badges';
+import { allMembers } from '@/assets/badges';
 import {
   Carousel,
   CarouselContent,
