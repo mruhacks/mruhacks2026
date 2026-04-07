@@ -5,7 +5,12 @@ import { Button } from '@/components/ui/button';
 import gloveSticker from '@/assets/mruhacks-2026-stickers-glove.png';
 import logoSticker from '@/assets/mruhacks-2026-stickers-logo.png';
 import { HeroArtwork } from '@/components/hero-artwork';
-import { EVENT_DATE_DISPLAY, EVENT_LOCATION_DISPLAY, REGISTRATION_OPEN, LOGIN_ENABLED } from '@/content';
+import {
+  EVENT_DATE_DISPLAY,
+  EVENT_LOCATION_DISPLAY,
+  REGISTRATION_OPEN,
+  LOGIN_ENABLED,
+} from '@/content';
 
 export function HeroSection() {
   return (
