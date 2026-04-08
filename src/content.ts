@@ -105,9 +105,11 @@ export const SPONSOR_CTA: string = `
 MRUHacks would be impossible to run without our fantastic sponsors.
 `;
 
+export const DISCORD_LINK = 'https://discord.com/invite/e7Fg6jsnrm';
+
 export type FooterLink = { label: string; href: string };
 export const FOOTER_LINKS: FooterLink[] = [
-  { label: 'Discord Server', href: 'https://discord.gg/e7Fg6jsnrm' },
+  { label: 'Discord Server', href: DISCORD_LINK },
   { label: 'LinkedIn', href: 'https://www.linkedin.com/company/mruhacks' },
   { label: 'Instagram', href: 'https://www.instagram.com/mruhacks' },
 ];
