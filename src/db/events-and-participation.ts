@@ -148,6 +148,28 @@ export const eventApplications = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// User event interest ()
+// ---------------------------------------------------------------------------
+
+export const eventInterestRegistrations = pgTable(
+  'event_interest_registrations',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    eventId: uuid('event_id')
+      .notNull()
+      .references(() => events.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    eventUserUnique: uniqueIndex(
+      'event_interest_registrations_user_id_event_id_unique',
+    ).on(table.userId, table.eventId),
+  }),
+);
+
+// ---------------------------------------------------------------------------
 // User interests (user-level)
 // ---------------------------------------------------------------------------
 

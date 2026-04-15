@@ -14,6 +14,8 @@ import { Button } from '@/components/ui/button';
 import { RegisterEventButton } from './RegisterEventButton';
 import { UnregisterEventButton } from './UnregisterEventButton';
 import { Calendar } from 'lucide-react';
+import { RegisterEventInterestButton } from './RegisterEventInterestButton';
+import { getUserProfile } from '../profile/actions';
 
 function formatDate(d: Date | null) {
   if (!d) return null;
@@ -28,6 +30,9 @@ export default async function DashboardEventsPage() {
   if (!user) redirect('/signin');
 
   const eventsList = await getEventsWithUserStatus();
+
+  const profileResult = await getUserProfile();
+  const hasProfile = profileResult.success && profileResult.data != null;
 
   return (
     <div className='space-y-6'>
@@ -67,7 +72,7 @@ export default async function DashboardEventsPage() {
                     {!event.startsAt && 'Date TBA'}
                   </CardDescription>
                 </CardHeader>
-                <CardContent className='mt-auto pt-4'>
+                <CardContent className='mt-2 flex flex-wrap items-center gap-2'>
                   {event.hasApplication ? (
                     <Button asChild size='sm' variant='default'>
                       <Link href={`/dashboard/events/${event.id}/apply`}>
@@ -89,6 +94,19 @@ export default async function DashboardEventsPage() {
                         <RegisterEventButton eventId={event.id} />
                       )}
                     </>
+                  )}
+
+                  {hasProfile ? (
+                    <RegisterEventInterestButton
+                      eventId={event.id}
+                      hasInterest={event.hasInterest}
+                    />
+                  ) : (
+                    <Button asChild size='sm' variant='default'>
+                      <Link href='/dashboard/profile?next=/dashboard/events'>
+                        Complete profile to notify me
+                      </Link>
+                    </Button>
                   )}
                 </CardContent>
               </Card>

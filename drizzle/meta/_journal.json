@@ -57,6 +57,13 @@
       "when": 1770925183678,
       "tag": "0007_dusty_odin",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1775883902186,
+      "tag": "0008_funny_human_robot",
+      "breakpoints": true
     }
   ]
 }
