@@ -11,5 +11,11 @@ export default async function WelcomePage() {
   const res = await currentUserHasPassword();
   const hasPassword = res.success && res.data ? res.data.hasPassword : true;
 
-  return <WelcomeClient hasPassword={hasPassword} userEmail={user.email} />;
+  return (
+    <WelcomeClient
+      hasPassword={hasPassword}
+      userEmail={user.email}
+      userName={user.name ?? ''}
+    />
+  );
 }

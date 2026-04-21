@@ -5,7 +5,11 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 
-import { consumeInvite, setInitialPassword } from '@/app/actions/users';
+import {
+  consumeInvite,
+  setInitialPassword,
+  setOwnName,
+} from '@/app/actions/users';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -22,11 +26,21 @@ import { Loader2 } from 'lucide-react';
 interface WelcomeClientProps {
   hasPassword: boolean;
   userEmail: string;
+  userName: string;
 }
 
-export function WelcomeClient({ hasPassword, userEmail }: WelcomeClientProps) {
+export function WelcomeClient({
+  hasPassword,
+  userEmail,
+  userName,
+}: WelcomeClientProps) {
   const router = useRouter();
+  const needsName = userName.trim().length === 0;
+  const needsPassword = !hasPassword;
+  const needsOnboarding = needsName || needsPassword;
+
   const [consumed, setConsumed] = React.useState(false);
+  const [name, setName] = React.useState(userName);
   const [password, setPassword] = React.useState('');
   const [confirm, setConfirm] = React.useState('');
   const [submitting, setSubmitting] = React.useState(false);
@@ -41,79 +55,120 @@ export function WelcomeClient({ hasPassword, userEmail }: WelcomeClientProps) {
     });
   }, []);
 
-  const skipToDashboard = () => router.push('/dashboard');
-
-  const handleSetPassword = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (password.length < 8) {
-      toast.error('Password must be at least 8 characters');
+    if (needsName && name.trim().length === 0) {
+      toast.error('Enter your full name');
       return;
     }
-    if (password !== confirm) {
-      toast.error('Passwords do not match');
-      return;
+    if (needsPassword) {
+      if (password.length < 8) {
+        toast.error('Password must be at least 8 characters');
+        return;
+      }
+      if (password !== confirm) {
+        toast.error('Passwords do not match');
+        return;
+      }
     }
     setSubmitting(true);
-    const res = await setInitialPassword(password);
-    setSubmitting(false);
-    if (!res.success) {
-      toast.error(res.error);
-      return;
+    if (needsName) {
+      const nameRes = await setOwnName(name);
+      if (!nameRes.success) {
+        setSubmitting(false);
+        toast.error(nameRes.error);
+        return;
+      }
     }
-    toast.success('Password set. Welcome aboard!');
+    if (needsPassword) {
+      const pwRes = await setInitialPassword(password);
+      if (!pwRes.success) {
+        setSubmitting(false);
+        toast.error(pwRes.error);
+        return;
+      }
+    }
+    setSubmitting(false);
+    toast.success('All set. Welcome aboard!');
     router.push('/dashboard');
   };
+
+  const description = needsOnboarding ? (
+    <>
+      Signed in as <span className='font-medium'>{userEmail}</span>. Finish your
+      account to continue.
+    </>
+  ) : (
+    <>
+      Signed in as <span className='font-medium'>{userEmail}</span>.
+    </>
+  );
 
   return (
     <div className='flex min-h-screen items-center justify-center px-4'>
       <Card className='w-full max-w-md'>
         <CardHeader>
           <CardTitle>Welcome{consumed ? '!' : ' back'}</CardTitle>
-          <CardDescription>
-            Signed in as <span className='font-medium'>{userEmail}</span>.
-            {!hasPassword &&
-              ' Set a password so you can sign in next time without a magic link.'}
-          </CardDescription>
+          <CardDescription>{description}</CardDescription>
         </CardHeader>
 
-        {!hasPassword ? (
+        {needsOnboarding ? (
           <>
             <CardContent>
               <form
-                id='form-welcome-set-password'
-                onSubmit={handleSetPassword}
+                id='form-welcome-onboarding'
+                onSubmit={handleSubmit}
                 className='space-y-4'
               >
-                <div className='space-y-2'>
-                  <Label htmlFor='welcome-password'>Password</Label>
-                  <Input
-                    id='welcome-password'
-                    type='password'
-                    autoComplete='new-password'
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder='Min. 8 characters'
-                    disabled={submitting}
-                  />
-                </div>
-                <div className='space-y-2'>
-                  <Label htmlFor='welcome-confirm'>Confirm password</Label>
-                  <Input
-                    id='welcome-confirm'
-                    type='password'
-                    autoComplete='new-password'
-                    value={confirm}
-                    onChange={(e) => setConfirm(e.target.value)}
-                    disabled={submitting}
-                  />
-                </div>
+                {needsName && (
+                  <div className='space-y-2'>
+                    <Label htmlFor='welcome-name'>Full name</Label>
+                    <Input
+                      id='welcome-name'
+                      autoComplete='name'
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder='Jane Doe'
+                      disabled={submitting}
+                      required
+                    />
+                  </div>
+                )}
+                {needsPassword && (
+                  <>
+                    <div className='space-y-2'>
+                      <Label htmlFor='welcome-password'>Password</Label>
+                      <Input
+                        id='welcome-password'
+                        type='password'
+                        autoComplete='new-password'
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder='Min. 8 characters'
+                        disabled={submitting}
+                      />
+                    </div>
+                    <div className='space-y-2'>
+                      <Label htmlFor='welcome-confirm'>Confirm password</Label>
+                      <Input
+                        id='welcome-confirm'
+                        type='password'
+                        autoComplete='new-password'
+                        value={confirm}
+                        onChange={(e) => setConfirm(e.target.value)}
+                        disabled={submitting}
+                      />
+                    </div>
+                  </>
+                )}
               </form>
             </CardContent>
-            <CardFooter className='flex-col items-stretch gap-2'>
+            <CardFooter>
               <Button
                 type='submit'
-                form='form-welcome-set-password'
+                form='form-welcome-onboarding'
                 disabled={submitting}
+                className='w-full'
               >
                 {submitting ? (
                   <>
@@ -121,16 +176,9 @@ export function WelcomeClient({ hasPassword, userEmail }: WelcomeClientProps) {
                     Saving…
                   </>
                 ) : (
-                  'Set password and continue'
+                  'Continue'
                 )}
               </Button>
-              <button
-                type='button'
-                onClick={skipToDashboard}
-                className='text-muted-foreground text-center text-xs hover:underline'
-              >
-                Skip for now
-              </button>
             </CardFooter>
           </>
         ) : (

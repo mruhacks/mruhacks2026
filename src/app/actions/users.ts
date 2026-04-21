@@ -456,6 +456,24 @@ export async function currentUserHasPassword(): Promise<
 }
 
 /**
+ * Sets the signed-in user's display name. Used during onboarding to capture
+ * the full name of a magic-link-invited user who signed up without one.
+ */
+export async function setOwnName(name: string): Promise<ActionResult> {
+  try {
+    const caller = await getUser();
+    if (!caller) return fail('Not authenticated');
+    const trimmed = name.trim();
+    if (trimmed.length === 0) return fail('Enter your name');
+    if (trimmed.length > 200) return fail('Name is too long');
+    await db.update(user).set({ name: trimmed }).where(eq(user.id, caller.id));
+    return ok();
+  } catch (e) {
+    return fail(`Failed to save name: ${(e as Error).message}`);
+  }
+}
+
+/**
  * Sets an initial password for the signed-in user when they don't yet have
  * a credential account (e.g. just signed in via magic link). Refuses to run
  * if they already have one — they should use change-password instead.
