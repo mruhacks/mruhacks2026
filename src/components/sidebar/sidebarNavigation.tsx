@@ -15,10 +15,12 @@ import {
   CheckSquare,
   ChevronDown,
   FileCheck,
+  KeyRound,
   LayoutDashboard,
   LifeBuoy,
   MessageSquare,
   Scale,
+  ShieldCheck,
   User,
   UserCheck,
   Users,
@@ -29,30 +31,85 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@radix-ui/react-collapsible';
+import { getAuthenticatedUserPermissions } from '@/lib/rbac/guards';
+import { anyPermissionMatches } from '@/lib/rbac/permissions';
 
-const adminItems = [
-  { title: 'Overview', url: '/dashboard/admin', icon: LayoutDashboard },
+interface NavItem {
+  title: string;
+  url: string;
+  icon: React.ComponentType<{ className?: string }>;
+  /** If set, user must have at least one of these permissions to see this item. */
+  requiresAnyPermission?: string[];
+}
+
+const adminItems: NavItem[] = [
+  {
+    title: 'Overview',
+    url: '/dashboard/admin',
+    icon: LayoutDashboard,
+    requiresAnyPermission: [
+      'user:read:all',
+      'user:all:all',
+      'event:manage:all',
+      'role:read:all',
+      'permission:read:all',
+    ],
+  },
+  {
+    title: 'User Management',
+    url: '/dashboard/admin/users',
+    icon: Users,
+    requiresAnyPermission: ['user:read:all', 'user:all:all'],
+  },
+  {
+    title: 'Roles',
+    url: '/dashboard/admin/roles',
+    icon: ShieldCheck,
+    requiresAnyPermission: ['role:read:all', 'role:write:all', 'user:all:all'],
+  },
+  {
+    title: 'Permissions',
+    url: '/dashboard/admin/permissions',
+    icon: KeyRound,
+    requiresAnyPermission: [
+      'permission:read:all',
+      'permission:write:all',
+      'user:all:all',
+    ],
+  },
   {
     title: 'Events & Meals',
     url: '/dashboard/admin/events-meals',
     icon: Calendar,
+    requiresAnyPermission: ['event:manage:all'],
   },
-  { title: 'Check-In', url: '/dashboard/admin/checkin', icon: CheckSquare },
-  { title: 'User Management', url: '/dashboard/admin/users', icon: Users },
+  {
+    title: 'Check-In',
+    url: '/dashboard/admin/checkin',
+    icon: CheckSquare,
+    requiresAnyPermission: ['checkin:write:all', 'event:manage:all'],
+  },
   {
     title: 'Communications',
     url: '/dashboard/admin/comms',
     icon: MessageSquare,
+    requiresAnyPermission: ['event:manage:all'],
   },
-  { title: 'Support Tickets', url: '/dashboard/admin/support', icon: LifeBuoy },
+  {
+    title: 'Support Tickets',
+    url: '/dashboard/admin/support',
+    icon: LifeBuoy,
+    requiresAnyPermission: ['event:manage:all'],
+  },
   {
     title: 'Classroom Visits',
     url: '/dashboard/admin/classrooms',
     icon: Building2,
+    requiresAnyPermission: ['event:manage:all'],
   },
 ];
 
-const sections = [
+const sections: NavItem[] = [
   { title: 'My Dashboard', url: '/dashboard', icon: LayoutDashboard },
   { title: 'Profile', url: '/dashboard/profile', icon: User },
   { title: 'Events', url: '/dashboard/events', icon: Calendar },
@@ -63,13 +120,27 @@ const sections = [
   { title: 'Sponsor', url: '/dashboard/sponsor', icon: Briefcase },
 ];
 
-export function SidebarNavigation() {
+function canSee(item: NavItem, permissions: Set<string>): boolean {
+  if (!item.requiresAnyPermission || item.requiresAnyPermission.length === 0) {
+    return true;
+  }
+  return item.requiresAnyPermission.some((p) =>
+    anyPermissionMatches(permissions, p),
+  );
+}
+
+export async function SidebarNavigation() {
+  const { permissions } = await getAuthenticatedUserPermissions();
+
+  const visibleAdminItems = adminItems.filter((i) => canSee(i, permissions));
+  const visibleSections = sections.filter((i) => canSee(i, permissions));
+
   return (
     <SidebarContent>
       <SidebarGroup>
         <SidebarGroupContent>
           <SidebarMenu>
-            {sections.map(({ title, url, icon: Icon }) => (
+            {visibleSections.map(({ title, url, icon: Icon }) => (
               <SidebarMenuItem key={url}>
                 <SidebarMenuButton asChild>
                   <Link href={url}>
@@ -83,33 +154,35 @@ export function SidebarNavigation() {
         </SidebarGroupContent>
       </SidebarGroup>
 
-      <Collapsible defaultOpen className='group/collapsible'>
-        <SidebarGroup>
-          <SidebarGroupLabel asChild>
-            <CollapsibleTrigger className='flex items-center'>
-              <span>Admin</span>
-              <ChevronDown className='ml-auto size-4 transition-transform group-data-[state=open]/collapsible:rotate-180' />
-            </CollapsibleTrigger>
-          </SidebarGroupLabel>
+      {visibleAdminItems.length > 0 && (
+        <Collapsible defaultOpen className='group/collapsible'>
+          <SidebarGroup>
+            <SidebarGroupLabel asChild>
+              <CollapsibleTrigger className='flex items-center'>
+                <span>Admin</span>
+                <ChevronDown className='ml-auto size-4 transition-transform group-data-[state=open]/collapsible:rotate-180' />
+              </CollapsibleTrigger>
+            </SidebarGroupLabel>
 
-          <CollapsibleContent>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {adminItems.map(({ title, url, icon: Icon }) => (
-                  <SidebarMenuItem key={url}>
-                    <SidebarMenuButton asChild>
-                      <Link href={url}>
-                        <Icon className='mr-2 size-4' />
-                        {title}
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </CollapsibleContent>
-        </SidebarGroup>
-      </Collapsible>
+            <CollapsibleContent>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {visibleAdminItems.map(({ title, url, icon: Icon }) => (
+                    <SidebarMenuItem key={url}>
+                      <SidebarMenuButton asChild>
+                        <Link href={url}>
+                          <Icon className='mr-2 size-4' />
+                          {title}
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </CollapsibleContent>
+          </SidebarGroup>
+        </Collapsible>
+      )}
     </SidebarContent>
   );
 }

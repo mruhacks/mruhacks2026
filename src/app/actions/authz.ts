@@ -1,7 +1,7 @@
 'use server';
 
 import { db } from '@/utils/db';
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import {
   role,
   permission,
@@ -11,75 +11,15 @@ import {
 } from '@/db/schema';
 import { ok, fail, type ActionResult } from '@/utils/action-result';
 import { redirect } from 'next/navigation';
-
-type Scope = 'all' | 'any' | 'self' | { id: string };
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-type Entity = 'user' | 'registration' | 'team' | 'submission';
-
-// valid actions per entity (application = event application, approve/reject/read)
-interface EntityActions {
-  user: 'create' | 'read' | 'update' | 'delete';
-  registration: 'approve' | 'reject' | 'read';
-  team: 'create' | 'join' | 'manage';
-  submission: 'submit' | 'review' | 'read';
-}
-
-// optional: more specific UUID type for readability
-type UUID = `${string}-${string}-${string}-${string}-${string}`;
-
-// flat permission strings for fixed scopes
-type StaticScope = Exclude<Scope, { id: string }>;
-type StaticPermission = {
-  [E in keyof EntityActions]: `${E}:${EntityActions[E]}:${StaticScope}`;
-}[keyof EntityActions];
-
-// dynamic (instance-specific) permissions
-type DynamicPermission = {
-  [E in keyof EntityActions]: `${E}:${EntityActions[E]}:${UUID}`;
-}[keyof EntityActions];
-
-// combined union of all allowed permission strings
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-type PermissionString = StaticPermission | DynamicPermission;
-
-/**
- * Checks if a permission string matches or is covered by another permission.
- * Supports hierarchical matching where "entity:all:all" covers all permissions for that entity.
- */
-function permissionMatches(
-  userPermission: string,
-  requiredPermission: string,
-): boolean {
-  // Exact match
-  if (userPermission === requiredPermission) {
-    return true;
-  }
-
-  // Parse permissions: "entity:action:scope"
-  const [userEntity, userAction, userScope] = userPermission.split(':');
-  const [reqEntity] = requiredPermission.split(':');
-
-  // Must be same entity
-  if (userEntity !== reqEntity) {
-    return false;
-  }
-
-  // If user has "entity:all:all", they have all permissions for that entity
-  if (userAction === 'all' && userScope === 'all') {
-    return true;
-  }
-
-  return false;
-}
+import {
+  permissionMatches,
+  anyPermissionMatches,
+} from '@/lib/rbac/permissions';
 
 /**
  * Retrieves all permissions for a user, including:
- * - Direct user permissions
- * - Permissions inherited through roles
- *
- * @param userId - The user ID
- * @returns Set of permission strings
+ *  - Direct user permissions
+ *  - Permissions inherited through roles
  */
 export async function getUserPermissions(
   userId: string,
@@ -87,18 +27,13 @@ export async function getUserPermissions(
   try {
     const permissions = new Set<string>();
 
-    // Get direct user permissions
     const directPerms = await db
       .select({ slug: permission.slug })
       .from(userPermission)
       .innerJoin(permission, eq(userPermission.permissionId, permission.id))
       .where(eq(userPermission.userId, userId));
+    for (const p of directPerms) permissions.add(p.slug);
 
-    for (const perm of directPerms) {
-      permissions.add(perm.slug);
-    }
-
-    // Get permissions through roles
     const rolePerms = await db
       .select({ slug: permission.slug })
       .from(userRole)
@@ -106,10 +41,7 @@ export async function getUserPermissions(
       .innerJoin(rolePermissions, eq(role.id, rolePermissions.roleId))
       .innerJoin(permission, eq(rolePermissions.permissionId, permission.id))
       .where(eq(userRole.userId, userId));
-
-    for (const perm of rolePerms) {
-      permissions.add(perm.slug);
-    }
+    for (const p of rolePerms) permissions.add(p.slug);
 
     return ok(permissions);
   } catch (e) {
@@ -118,37 +50,171 @@ export async function getUserPermissions(
 }
 
 /**
+ * Retrieves all roles assigned to a user.
+ */
+export async function getUserRoles(
+  userId: string,
+): Promise<
+  ActionResult<
+    { id: number; slug: string | null; description: string | null }[]
+  >
+> {
+  try {
+    const rows = await db
+      .select({
+        id: role.id,
+        slug: role.slug,
+        description: role.description,
+      })
+      .from(userRole)
+      .innerJoin(role, eq(userRole.roleId, role.id))
+      .where(eq(userRole.userId, userId));
+    return ok(rows);
+  } catch (e) {
+    return fail(`Failed to get user roles: ${(e as Error).message}`);
+  }
+}
+
+/**
+ * Returns only the direct (user-level) permissions, not those granted via roles.
+ */
+export async function getDirectUserPermissions(
+  userId: string,
+): Promise<
+  ActionResult<{ id: number; slug: string; description: string | null }[]>
+> {
+  try {
+    const rows = await db
+      .select({
+        id: permission.id,
+        slug: permission.slug,
+        description: permission.description,
+      })
+      .from(userPermission)
+      .innerJoin(permission, eq(userPermission.permissionId, permission.id))
+      .where(eq(userPermission.userId, userId));
+    return ok(rows);
+  } catch (e) {
+    return fail(`Failed to get direct permissions: ${(e as Error).message}`);
+  }
+}
+
+/**
+ * Returns all permissions assigned to a role.
+ */
+export async function getRolePermissions(
+  roleId: number,
+): Promise<
+  ActionResult<{ id: number; slug: string; description: string | null }[]>
+> {
+  try {
+    const rows = await db
+      .select({
+        id: permission.id,
+        slug: permission.slug,
+        description: permission.description,
+      })
+      .from(rolePermissions)
+      .innerJoin(permission, eq(rolePermissions.permissionId, permission.id))
+      .where(eq(rolePermissions.roleId, roleId));
+    return ok(rows);
+  } catch (e) {
+    return fail(`Failed to get role permissions: ${(e as Error).message}`);
+  }
+}
+
+/**
+ * Efficient batch lookup: given a set of user IDs, return each user's roles.
+ */
+export async function getRolesForUsers(
+  userIds: string[],
+): Promise<
+  ActionResult<Record<string, { id: number; slug: string | null }[]>>
+> {
+  try {
+    if (userIds.length === 0) return ok({});
+    const rows = await db
+      .select({
+        userId: userRole.userId,
+        roleId: role.id,
+        roleSlug: role.slug,
+      })
+      .from(userRole)
+      .innerJoin(role, eq(userRole.roleId, role.id))
+      .where(inArray(userRole.userId, userIds));
+
+    const map: Record<string, { id: number; slug: string | null }[]> = {};
+    for (const id of userIds) map[id] = [];
+    for (const r of rows) {
+      map[r.userId]!.push({ id: r.roleId, slug: r.roleSlug });
+    }
+    return ok(map);
+  } catch (e) {
+    return fail(`Failed to batch-load roles: ${(e as Error).message}`);
+  }
+}
+
+/**
  * Checks if a user has a specific permission (exact or hierarchical match).
- *
- * @param userId - The user ID
- * @param permissionString - The permission to check (e.g., "submission:edit:self")
- * @returns true if the user has the permission, false otherwise
  */
 export async function hasPermission(
   userId: string,
   permissionString: string,
 ): Promise<boolean> {
   const result = await getUserPermissions(userId);
-  if (!result.success || !result.data) {
-    return false;
-  }
+  if (!result.success || !result.data) return false;
+  return anyPermissionMatches(result.data, permissionString);
+}
 
-  // Check for exact or hierarchical match
-  for (const userPerm of result.data) {
-    if (permissionMatches(userPerm, permissionString)) {
-      return true;
-    }
+/**
+ * Returns true if the user has at least one of the supplied permissions.
+ */
+export async function hasAnyPermission(
+  userId: string,
+  permissionStrings: string[],
+): Promise<boolean> {
+  if (permissionStrings.length === 0) return true;
+  const result = await getUserPermissions(userId);
+  if (!result.success || !result.data) return false;
+  for (const required of permissionStrings) {
+    if (anyPermissionMatches(result.data, required)) return true;
   }
-
   return false;
 }
 
 /**
- * Requires a permission for a user. Redirects to /forbidden if the user doesn't have it.
- *
- * @param userId - The user ID
- * @param permissionString - The permission to check
- * @throws Redirects to /forbidden?reason=missing_permission if unauthorized
+ * Returns true only if the user has every one of the supplied permissions.
+ */
+export async function hasAllPermissions(
+  userId: string,
+  permissionStrings: string[],
+): Promise<boolean> {
+  if (permissionStrings.length === 0) return true;
+  const result = await getUserPermissions(userId);
+  if (!result.success || !result.data) return false;
+  for (const required of permissionStrings) {
+    if (!anyPermissionMatches(result.data, required)) return false;
+  }
+  return true;
+}
+
+/**
+ * Returns true if the user has the supplied role slug.
+ */
+export async function hasRole(
+  userId: string,
+  roleSlug: string,
+): Promise<boolean> {
+  const rows = await db
+    .select({ slug: role.slug })
+    .from(userRole)
+    .innerJoin(role, eq(userRole.roleId, role.id))
+    .where(eq(userRole.userId, userId));
+  return rows.some((r) => r.slug === roleSlug);
+}
+
+/**
+ * Redirects to /forbidden if the user lacks a permission.
  */
 export async function requirePermission(
   userId: string,
@@ -161,3 +227,34 @@ export async function requirePermission(
     );
   }
 }
+
+/**
+ * Redirects to /forbidden if the user lacks ALL of the supplied permissions.
+ */
+export async function requireAnyPermission(
+  userId: string,
+  permissionStrings: string[],
+): Promise<void> {
+  const ok = await hasAnyPermission(userId, permissionStrings);
+  if (!ok) {
+    redirect(
+      `/forbidden?reason=missing_permission&permission=${permissionStrings.join(',')}`,
+    );
+  }
+}
+
+/**
+ * Redirects to /forbidden if the user doesn't hold the given role.
+ */
+export async function requireRole(
+  userId: string,
+  roleSlug: string,
+): Promise<void> {
+  const ok = await hasRole(userId, roleSlug);
+  if (!ok) {
+    redirect(`/forbidden?reason=missing_role&role=${roleSlug}`);
+  }
+}
+
+// Re-export the pure matcher so existing tests and callers keep working.
+export { permissionMatches };

@@ -124,13 +124,30 @@ async function seedRolesAndPermissions() {
   ];
 
   const basePermissions: PermissionInsert[] = [
-    { slug: 'user:read', description: 'View user information' },
-    { slug: 'user:write', description: 'Modify user information' },
-    { slug: 'participant:read', description: 'View participant profiles' },
-    { slug: 'participant:write', description: 'Edit participant data' },
-    { slug: 'submission:read', description: 'View project submissions' },
-    { slug: 'submission:write', description: 'Modify project submissions' },
-    { slug: 'event:manage', description: 'Create and manage events' },
+    { slug: 'user:read:all', description: 'View any user information' },
+    { slug: 'user:write:all', description: 'Modify any user information' },
+    {
+      slug: 'user:all:all',
+      description: 'Full user management (create/update/delete)',
+    },
+    { slug: 'role:read:all', description: 'View roles and their permissions' },
+    { slug: 'role:write:all', description: 'Create, update and delete roles' },
+    { slug: 'permission:read:all', description: 'View permissions' },
+    {
+      slug: 'permission:write:all',
+      description: 'Create and delete permissions',
+    },
+    { slug: 'participant:read:all', description: 'View participant profiles' },
+    { slug: 'participant:write:all', description: 'Edit participant data' },
+    { slug: 'submission:read:all', description: 'View project submissions' },
+    { slug: 'submission:write:all', description: 'Modify project submissions' },
+    { slug: 'event:manage:all', description: 'Create and manage events' },
+    { slug: 'checkin:write:all', description: 'Check participants in or out' },
+    { slug: 'application:read:all', description: 'View event applications' },
+    {
+      slug: 'application:review:all',
+      description: 'Approve or reject applications',
+    },
   ];
 
   console.log('🧱 Seeding roles and permissions...');
@@ -160,27 +177,47 @@ async function seedRolesAndPermissions() {
       })),
       {
         roleId: findRole('organizer').id,
-        permissionId: findPerm('event:manage').id,
+        permissionId: findPerm('event:manage:all').id,
       },
       {
         roleId: findRole('organizer').id,
-        permissionId: findPerm('participant:read').id,
+        permissionId: findPerm('participant:read:all').id,
       },
       {
         roleId: findRole('organizer').id,
-        permissionId: findPerm('participant:write').id,
+        permissionId: findPerm('participant:write:all').id,
+      },
+      {
+        roleId: findRole('organizer').id,
+        permissionId: findPerm('user:read:all').id,
+      },
+      {
+        roleId: findRole('organizer').id,
+        permissionId: findPerm('application:read:all').id,
+      },
+      {
+        roleId: findRole('organizer').id,
+        permissionId: findPerm('application:review:all').id,
+      },
+      {
+        roleId: findRole('organizer').id,
+        permissionId: findPerm('checkin:write:all').id,
       },
       {
         roleId: findRole('judge').id,
-        permissionId: findPerm('submission:read').id,
+        permissionId: findPerm('submission:read:all').id,
       },
       {
         roleId: findRole('volunteer').id,
-        permissionId: findPerm('participant:read').id,
+        permissionId: findPerm('participant:read:all').id,
+      },
+      {
+        roleId: findRole('volunteer').id,
+        permissionId: findPerm('checkin:write:all').id,
       },
       {
         roleId: findRole('participant').id,
-        permissionId: findPerm('submission:read').id,
+        permissionId: findPerm('submission:read:all').id,
       },
     ];
 

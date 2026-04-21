@@ -1,7 +1,7 @@
 'use server';
 
 import { db } from '@/utils/db';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, asc, sql } from 'drizzle-orm';
 import {
   role,
   permission,
@@ -16,6 +16,74 @@ import { ok, fail, type ActionResult } from '@/utils/action-result';
  */
 export type RoleId = number;
 export type PermissionId = number;
+
+export interface RoleWithCounts {
+  id: RoleId;
+  slug: string | null;
+  description: string | null;
+  permissionCount: number;
+  userCount: number;
+}
+
+export interface PermissionRow {
+  id: PermissionId;
+  slug: string;
+  description: string | null;
+}
+
+// ─────────────────────────────────────────────
+// LIST QUERIES
+// ─────────────────────────────────────────────
+
+/**
+ * Returns every role along with counts of permissions and users attached to it.
+ */
+export async function listRoles(): Promise<ActionResult<RoleWithCounts[]>> {
+  try {
+    const roles = await db
+      .select({
+        id: role.id,
+        slug: role.slug,
+        description: role.description,
+        permissionCount:
+          sql<number>`COUNT(DISTINCT ${rolePermissions.permissionId})`.mapWith(
+            Number,
+          ),
+        userCount: sql<number>`COUNT(DISTINCT ${userRole.userId})`.mapWith(
+          Number,
+        ),
+      })
+      .from(role)
+      .leftJoin(rolePermissions, eq(rolePermissions.roleId, role.id))
+      .leftJoin(userRole, eq(userRole.roleId, role.id))
+      .groupBy(role.id)
+      .orderBy(asc(role.slug));
+    return ok(roles);
+  } catch (e) {
+    return fail(`Failed to list roles: ${(e as Error).message}`);
+  }
+}
+
+/**
+ * Returns every registered permission.
+ */
+export async function listPermissions(): Promise<
+  ActionResult<PermissionRow[]>
+> {
+  try {
+    const perms = await db
+      .select({
+        id: permission.id,
+        slug: permission.slug,
+        description: permission.description,
+      })
+      .from(permission)
+      .orderBy(asc(permission.slug));
+    return ok(perms);
+  } catch (e) {
+    return fail(`Failed to list permissions: ${(e as Error).message}`);
+  }
+}
 
 // ─────────────────────────────────────────────
 // ROLE MANAGEMENT
@@ -53,6 +121,25 @@ export async function deleteRole(roleId: RoleId): Promise<ActionResult> {
     return ok();
   } catch (e) {
     return fail(`Failed to delete role: ${(e as Error).message}`);
+  }
+}
+
+/**
+ * Updates the slug/description of an existing role.
+ */
+export async function updateRole(
+  roleId: RoleId,
+  patch: { slug?: string; description?: string | null },
+): Promise<ActionResult> {
+  try {
+    const changes: Record<string, unknown> = {};
+    if (typeof patch.slug === 'string') changes.slug = patch.slug.toLowerCase();
+    if ('description' in patch) changes.description = patch.description ?? null;
+    if (Object.keys(changes).length === 0) return ok();
+    await db.update(role).set(changes).where(eq(role.id, roleId));
+    return ok();
+  } catch (e) {
+    return fail(`Failed to update role: ${(e as Error).message}`);
   }
 }
 
@@ -127,6 +214,28 @@ export async function deletePermission(
     return ok();
   } catch (e) {
     return fail(`Failed to delete permission: ${(e as Error).message}`);
+  }
+}
+
+/**
+ * Updates the slug/description of an existing permission.
+ */
+export async function updatePermission(
+  permissionId: PermissionId,
+  patch: { slug?: string; description?: string | null },
+): Promise<ActionResult> {
+  try {
+    const changes: Record<string, unknown> = {};
+    if (typeof patch.slug === 'string') changes.slug = patch.slug.toLowerCase();
+    if ('description' in patch) changes.description = patch.description ?? null;
+    if (Object.keys(changes).length === 0) return ok();
+    await db
+      .update(permission)
+      .set(changes)
+      .where(eq(permission.id, permissionId));
+    return ok();
+  } catch (e) {
+    return fail(`Failed to update permission: ${(e as Error).message}`);
   }
 }
 
@@ -208,5 +317,84 @@ export async function revokePermissionFromUser(
     return ok();
   } catch (e) {
     return fail(`Failed to revoke permission: ${(e as Error).message}`);
+  }
+}
+
+// ─────────────────────────────────────────────
+// BULK SETTERS (replace-all semantics)
+// ─────────────────────────────────────────────
+
+/**
+ * Replaces the full set of role assignments for a user with the given IDs.
+ */
+export async function setUserRoles(
+  userId: string,
+  roleIds: RoleId[],
+): Promise<ActionResult> {
+  try {
+    await db.transaction(async (tx) => {
+      await tx.delete(userRole).where(eq(userRole.userId, userId));
+      if (roleIds.length > 0) {
+        await tx
+          .insert(userRole)
+          .values(roleIds.map((roleId) => ({ userId, roleId })))
+          .onConflictDoNothing();
+      }
+    });
+    return ok();
+  } catch (e) {
+    return fail(`Failed to set user roles: ${(e as Error).message}`);
+  }
+}
+
+/**
+ * Replaces the full set of direct user permissions with the given IDs.
+ */
+export async function setUserDirectPermissions(
+  userId: string,
+  permissionIds: PermissionId[],
+): Promise<ActionResult> {
+  try {
+    await db.transaction(async (tx) => {
+      await tx.delete(userPermission).where(eq(userPermission.userId, userId));
+      if (permissionIds.length > 0) {
+        await tx
+          .insert(userPermission)
+          .values(
+            permissionIds.map((permissionId) => ({ userId, permissionId })),
+          )
+          .onConflictDoNothing();
+      }
+    });
+    return ok();
+  } catch (e) {
+    return fail(`Failed to set user permissions: ${(e as Error).message}`);
+  }
+}
+
+/**
+ * Replaces the set of permissions attached to a role.
+ */
+export async function setRolePermissions(
+  roleId: RoleId,
+  permissionIds: PermissionId[],
+): Promise<ActionResult> {
+  try {
+    await db.transaction(async (tx) => {
+      await tx
+        .delete(rolePermissions)
+        .where(eq(rolePermissions.roleId, roleId));
+      if (permissionIds.length > 0) {
+        await tx
+          .insert(rolePermissions)
+          .values(
+            permissionIds.map((permissionId) => ({ roleId, permissionId })),
+          )
+          .onConflictDoNothing();
+      }
+    });
+    return ok();
+  } catch (e) {
+    return fail(`Failed to set role permissions: ${(e as Error).message}`);
   }
 }
