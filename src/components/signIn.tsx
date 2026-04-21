@@ -106,9 +106,17 @@ export default function SignInForm() {
               control={form.control}
               render={({ field }) => (
                 <Field>
-                  <FieldLabel htmlFor='form-signin-password'>
-                    Password
-                  </FieldLabel>
+                  <div className='flex items-center justify-between'>
+                    <FieldLabel htmlFor='form-signin-password'>
+                      Password
+                    </FieldLabel>
+                    <Link
+                      href='/forgot-password'
+                      className='text-xs font-medium hover:underline'
+                    >
+                      Forgot password?
+                    </Link>
+                  </div>
                   <Input
                     {...field}
                     id='form-signin-password'

@@ -2,7 +2,16 @@
 
 import * as React from 'react';
 import { ColumnDef, SortingState } from '@tanstack/react-table';
-import { MoreHorizontal, ShieldCheck, Trash2, KeyRound, Mail, UserCheck } from 'lucide-react';
+import {
+  MoreHorizontal,
+  ShieldCheck,
+  Trash2,
+  Mail,
+  UserCheck,
+  Ban,
+  ShieldOff,
+  LogOut,
+} from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Badge } from '@/components/ui/badge';
@@ -27,10 +36,13 @@ import {
   listUsers,
   deleteUser,
   adminSendPasswordReset,
+  adminUnbanUser,
+  adminRevokeUserSessions,
   type AdminUserRow,
 } from '@/app/actions/users';
 import { authClient } from '@/utils/auth-client';
 import { EditUserDialog } from './edit-user-dialog';
+import { BanUserDialog } from './ban-user-dialog';
 
 interface UsersTableProps {
   initialData: {
@@ -63,6 +75,9 @@ export function UsersTable({
     { id: 'createdAt', desc: true },
   ]);
   const [editingUser, setEditingUser] = React.useState<AdminUserRow | null>(
+    null,
+  );
+  const [banningUser, setBanningUser] = React.useState<AdminUserRow | null>(
     null,
   );
 
@@ -154,6 +169,29 @@ export function UsersTable({
     window.location.href = '/dashboard';
   };
 
+  const handleUnban = async (row: AdminUserRow) => {
+    const res = await adminUnbanUser(row.id);
+    if (res.success) {
+      toast.success(`Unbanned ${row.email}`);
+      refetch();
+    } else {
+      toast.error(res.error);
+    }
+  };
+
+  const handleRevokeSessions = async (row: AdminUserRow) => {
+    const ok = window.confirm(
+      `Revoke all active sessions for "${row.email}"? They will need to sign in again.`,
+    );
+    if (!ok) return;
+    const res = await adminRevokeUserSessions(row.id);
+    if (res.success) {
+      toast.success(`Revoked sessions for ${row.email}`);
+    } else {
+      toast.error(res.error);
+    }
+  };
+
   const handleDelete = async (row: AdminUserRow) => {
     if (row.id === currentUserId) {
       toast.error('You cannot delete your own account');
@@ -218,6 +256,11 @@ export function UsersTable({
               <Badge variant='success'>verified</Badge>
             ) : (
               <Badge variant='warning'>unverified</Badge>
+            )}
+            {row.original.banned && (
+              <Badge variant='destructive' title={row.original.banReason ?? undefined}>
+                banned
+              </Badge>
             )}
           </div>
         ),
@@ -285,7 +328,25 @@ export function UsersTable({
                   <UserCheck className='size-4' />
                   Impersonate
                 </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => handleRevokeSessions(u)}>
+                  <LogOut className='size-4' />
+                  Revoke all sessions
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
+                {u.banned ? (
+                  <DropdownMenuItem onSelect={() => handleUnban(u)}>
+                    <ShieldOff className='size-4' />
+                    Unban user
+                  </DropdownMenuItem>
+                ) : (
+                  <DropdownMenuItem
+                    disabled={u.id === currentUserId}
+                    onSelect={() => setBanningUser(u)}
+                  >
+                    <Ban className='size-4' />
+                    Ban user
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem
                   variant='destructive'
                   disabled={u.id === currentUserId}
@@ -363,6 +424,20 @@ export function UsersTable({
           }}
           onSaved={() => {
             setEditingUser(null);
+            refetch();
+          }}
+        />
+      )}
+
+      {banningUser && (
+        <BanUserDialog
+          user={banningUser}
+          open={!!banningUser}
+          onOpenChange={(open) => {
+            if (!open) setBanningUser(null);
+          }}
+          onBanned={() => {
+            setBanningUser(null);
             refetch();
           }}
         />

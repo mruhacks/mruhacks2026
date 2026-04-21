@@ -50,6 +50,9 @@ export interface AdminUserRow {
   emailVerified: boolean;
   image: string | null;
   createdAt: Date;
+  banned: boolean;
+  banReason: string | null;
+  banExpires: Date | null;
   roles: { id: number; slug: string | null }[];
 }
 
@@ -143,6 +146,9 @@ export async function listUsers(
         emailVerified: user.emailVerified,
         image: user.image,
         createdAt: user.createdAt,
+        banned: user.banned,
+        banReason: user.banReason,
+        banExpires: user.banExpires,
       })
       .from(user)
       .where(whereClause ?? sql`true`)
@@ -160,6 +166,9 @@ export async function listUsers(
       emailVerified: r.emailVerified,
       image: r.image,
       createdAt: r.createdAt,
+      banned: Boolean(r.banned),
+      banReason: r.banReason,
+      banExpires: r.banExpires,
       roles: rolesMap[r.id] ?? [],
     }));
 
@@ -371,6 +380,82 @@ export async function adminSendPasswordReset(
     return ok();
   } catch (e) {
     return fail(`Failed to send reset email: ${(e as Error).message}`);
+  }
+}
+
+/**
+ * Admin: ban a user. `banExpiresIn` is in seconds (omit for a permanent ban).
+ */
+export async function adminBanUser(
+  userId: string,
+  banReason?: string,
+  banExpiresIn?: number,
+): Promise<ActionResult> {
+  try {
+    const caller = await getUser();
+    if (!caller) return fail('Not authenticated');
+    if (caller.id === userId) return fail('You cannot ban your own account');
+    await requirePermission(caller.id, 'user:write:all');
+
+    const targetIsAdmin = await hasPermission(userId, 'user:all:all');
+    const callerIsAdmin = await hasPermission(caller.id, 'user:all:all');
+    if (targetIsAdmin && !callerIsAdmin) {
+      return fail('You cannot ban an administrator');
+    }
+
+    await auth.api.banUser({
+      body: {
+        userId,
+        banReason: banReason?.trim() || undefined,
+        banExpiresIn: banExpiresIn ?? undefined,
+      },
+      headers: await headers(),
+    });
+    revalidatePath('/dashboard/admin/users');
+    return ok();
+  } catch (e) {
+    return fail(`Failed to ban user: ${(e as Error).message}`);
+  }
+}
+
+/**
+ * Admin: lift a ban on a user.
+ */
+export async function adminUnbanUser(userId: string): Promise<ActionResult> {
+  try {
+    const caller = await getUser();
+    if (!caller) return fail('Not authenticated');
+    await requirePermission(caller.id, 'user:write:all');
+
+    await auth.api.unbanUser({
+      body: { userId },
+      headers: await headers(),
+    });
+    revalidatePath('/dashboard/admin/users');
+    return ok();
+  } catch (e) {
+    return fail(`Failed to unban user: ${(e as Error).message}`);
+  }
+}
+
+/**
+ * Admin: revoke every active session for a user, forcing them to sign in again.
+ */
+export async function adminRevokeUserSessions(
+  userId: string,
+): Promise<ActionResult> {
+  try {
+    const caller = await getUser();
+    if (!caller) return fail('Not authenticated');
+    await requirePermission(caller.id, 'user:write:all');
+
+    await auth.api.revokeUserSessions({
+      body: { userId },
+      headers: await headers(),
+    });
+    return ok();
+  } catch (e) {
+    return fail(`Failed to revoke sessions: ${(e as Error).message}`);
   }
 }
 
