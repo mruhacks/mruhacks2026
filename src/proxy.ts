@@ -1,8 +1,9 @@
 /**
  * Next.js proxy (formerly middleware) for session-based route protection.
  *
- * Runs in the Node.js runtime so it can use the Better Auth server API
- * directly. This is the first line of defense:
+ * Next.js 16 runs proxy on the Node.js runtime unconditionally, so we can
+ * use the Better Auth server API directly. This is the first line of
+ * defense:
  *
  *   1. Users with no session visiting `/dashboard/**` are redirected to
  *      `/signin`, preserving the original path in `?redirect=`.
@@ -34,6 +35,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  runtime: 'nodejs',
   matcher: ['/dashboard/:path*'],
 };

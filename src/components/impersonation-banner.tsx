@@ -1,12 +1,10 @@
 'use client';
 
 import { authClient } from '@/utils/auth-client';
-import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 
 export function ImpersonationBanner() {
   const { data: session } = authClient.useSession();
-  const router = useRouter();
 
   // The admin plugin adds impersonatedBy to the session object
   const impersonatedBy = (session?.session as Record<string, unknown> | undefined)
@@ -20,8 +18,8 @@ export function ImpersonationBanner() {
       toast.error(res.error.message ?? 'Failed to stop impersonation');
       return;
     }
-    router.push('/dashboard/admin/users');
-    router.refresh();
+    // Hard reload so the new (admin) session cookie takes effect everywhere.
+    window.location.href = '/dashboard/admin/users';
   };
 
   return (

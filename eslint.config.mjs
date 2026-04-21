@@ -4,6 +4,7 @@ import { FlatCompat } from '@eslint/eslintrc';
 import eslintConfigPrettier from 'eslint-config-prettier';
 import eslintPluginBetterTailwindcss from 'eslint-plugin-better-tailwindcss';
 import noNestedInteractive from './eslint-rules/no-nested-interactive.mjs';
+import noRouterRefresh from './eslint-rules/no-router-refresh.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -30,11 +31,13 @@ const eslintConfig = [
       custom: {
         rules: {
           'no-nested-interactive': noNestedInteractive,
+          'no-router-refresh': noRouterRefresh,
         },
       },
     },
     rules: {
       'custom/no-nested-interactive': 'error',
+      'custom/no-router-refresh': 'warn',
       // Enable recommended Tailwind CSS rules
       ...eslintPluginBetterTailwindcss.configs['recommended-warn'].rules,
       // Disable Prettier-conflicting ESLint rules

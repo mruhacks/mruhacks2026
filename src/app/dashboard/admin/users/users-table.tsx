@@ -6,6 +6,7 @@ import {
   ColumnFiltersState,
   SortingState,
 } from '@tanstack/react-table';
+import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import {
   MoreHorizontal,
   Pencil,
@@ -62,9 +63,9 @@ export function UsersTable({
   canWrite,
 }: UsersTableProps) {
   const router = useRouter();
-  const [data, setData] = React.useState(initialData);
-  const [loading, setLoading] = React.useState(false);
+  const queryClient = useQueryClient();
   const [search, setSearch] = React.useState('');
+  const [debouncedSearch, setDebouncedSearch] = React.useState('');
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
     [],
   );
@@ -72,6 +73,7 @@ export function UsersTable({
     const v = columnFilters.find((f) => f.id === 'roles')?.value;
     return Array.isArray(v) ? (v as string[]) : [];
   }, [columnFilters]);
+  const roleFilterKey = roleFilter.join(',');
   const [page, setPage] = React.useState(initialData.page);
   const [pageSize, setPageSize] = React.useState(initialData.pageSize);
   const [sorting, setSorting] = React.useState<SortingState>([
@@ -81,75 +83,75 @@ export function UsersTable({
     null,
   );
 
-  const refetch = React.useCallback(
-    async (
-      overrides: Partial<{
-        page: number;
-        pageSize: number;
-        search: string;
-        roleSlugs: string[];
-        sortField: 'name' | 'email' | 'createdAt';
-        sortDirection: 'asc' | 'desc';
-      }> = {},
-    ) => {
-      setLoading(true);
-      const sortState = sorting[0];
-      const sortField =
-        overrides.sortField ??
-        (sortState?.id as 'name' | 'email' | 'createdAt' | undefined) ??
-        'createdAt';
-      const sortDirection =
-        overrides.sortDirection ??
-        (sortState ? (sortState.desc ? 'desc' : 'asc') : 'desc');
+  // Debounce the search box input; only the debounced value feeds the query.
+  React.useEffect(() => {
+    const id = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(id);
+  }, [search]);
+
+  // Reset to page 1 whenever the filters/sort/pageSize change.
+  React.useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, roleFilterKey, pageSize, sorting]);
+
+  const sortState = sorting[0];
+  const sortField =
+    (sortState?.id as 'name' | 'email' | 'createdAt' | undefined) ??
+    'createdAt';
+  const sortDirection = sortState
+    ? sortState.desc
+      ? ('desc' as const)
+      : ('asc' as const)
+    : ('desc' as const);
+
+  const queryKey = [
+    'users',
+    {
+      page,
+      pageSize,
+      search: debouncedSearch,
+      roleSlugs: roleFilter,
+      sortField,
+      sortDirection,
+    },
+  ] as const;
+
+  const { data = initialData, isFetching: loading, error } = useQuery({
+    queryKey,
+    queryFn: async () => {
       const res = await listUsers({
-        page: overrides.page ?? page,
-        pageSize: overrides.pageSize ?? pageSize,
-        search: overrides.search ?? search,
-        roleSlugs: overrides.roleSlugs ?? roleFilter,
+        page,
+        pageSize,
+        search: debouncedSearch,
+        roleSlugs: roleFilter,
         sortField,
         sortDirection,
       });
-      setLoading(false);
-      if (res.success && res.data) {
-        setData(res.data);
-      } else if (!res.success) {
-        toast.error(res.error);
+      if (!res.success || !res.data) {
+        throw new Error(res.success ? 'No data' : res.error);
       }
+      return res.data;
     },
-    [page, pageSize, search, roleFilter, sorting],
+    placeholderData: keepPreviousData,
+    initialData:
+      page === initialData.page &&
+      pageSize === initialData.pageSize &&
+      debouncedSearch === '' &&
+      roleFilter.length === 0 &&
+      sortField === 'createdAt' &&
+      sortDirection === 'desc'
+        ? initialData
+        : undefined,
+  });
+
+  React.useEffect(() => {
+    if (error) toast.error(error.message);
+  }, [error]);
+
+  const invalidateUsers = React.useCallback(
+    () => queryClient.invalidateQueries({ queryKey: ['users'] }),
+    [queryClient],
   );
-
-  // Debounce search
-  React.useEffect(() => {
-    const id = setTimeout(() => {
-      setPage(1);
-      refetch({ page: 1, search });
-    }, 300);
-    return () => clearTimeout(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search]);
-
-  React.useEffect(() => {
-    setPage(1);
-    refetch({ page: 1, roleSlugs: roleFilter });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roleFilter.join(',')]);
-
-  React.useEffect(() => {
-    refetch({ page });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page]);
-
-  React.useEffect(() => {
-    refetch({ pageSize, page: 1 });
-    setPage(1);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pageSize]);
-
-  React.useEffect(() => {
-    refetch();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sorting]);
 
   const handleSendPasswordReset = async (row: AdminUserRow) => {
     const res = await adminSendPasswordReset(row.email);
@@ -173,7 +175,7 @@ export function UsersTable({
     const res = await adminUnbanUser(row.id);
     if (res.success) {
       toast.success(`Unbanned ${row.email}`);
-      refetch();
+      invalidateUsers();
     } else {
       toast.error(res.error);
     }
@@ -204,7 +206,7 @@ export function UsersTable({
     const res = await deleteUser(row.id);
     if (res.success) {
       toast.success('User deleted');
-      refetch();
+      invalidateUsers();
     } else {
       toast.error(res.error);
     }
@@ -419,7 +421,7 @@ export function UsersTable({
           }}
           onBanned={() => {
             setBanningUser(null);
-            refetch();
+            invalidateUsers();
           }}
         />
       )}

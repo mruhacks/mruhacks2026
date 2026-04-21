@@ -1,6 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 
 import {
   Dialog,
@@ -24,11 +25,12 @@ export function EditUserModalClient({
   allPermissions,
 }: EditUserModalClientProps) {
   const router = useRouter();
+  const queryClient = useQueryClient();
 
   const close = () => router.back();
 
   const handleSaved = () => {
-    router.refresh();
+    queryClient.invalidateQueries({ queryKey: ['users'] });
     router.back();
   };
 
