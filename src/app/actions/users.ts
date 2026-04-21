@@ -10,7 +10,14 @@
 
 import { db } from '@/utils/db';
 import { and, asc, desc, eq, ilike, or, sql, inArray } from 'drizzle-orm';
-import { user, userRole, role, userPermission } from '@/db/schema';
+import {
+  user,
+  userRole,
+  role,
+  userPermission,
+  invite,
+  account,
+} from '@/db/schema';
 import { ok, fail, type ActionResult } from '@/utils/action-result';
 import { auth, getUser } from '@/utils/auth';
 import { headers } from 'next/headers';
@@ -380,6 +387,144 @@ export async function adminSendPasswordReset(
     return ok();
   } catch (e) {
     return fail(`Failed to send reset email: ${(e as Error).message}`);
+  }
+}
+
+/**
+ * Admin: invite a user by email with a preselected set of roles. Stores a
+ * pending invite row keyed on the email, then triggers a magic-link sign-in
+ * so Better Auth emails them a link. When they click it and land on /welcome,
+ * the invite is consumed and the roles are applied.
+ */
+export async function inviteUser(
+  email: string,
+  roleIds: number[],
+): Promise<ActionResult> {
+  try {
+    const caller = await getUser();
+    if (!caller) return fail('Not authenticated');
+    await requirePermission(caller.id, 'user:write:all');
+
+    const normalized = email.trim().toLowerCase();
+    if (!normalized || !normalized.includes('@')) {
+      return fail('Enter a valid email');
+    }
+
+    await db
+      .insert(invite)
+      .values({ email: normalized, roleIds, invitedBy: caller.id })
+      .onConflictDoUpdate({
+        target: invite.email,
+        set: { roleIds, invitedBy: caller.id, createdAt: new Date() },
+      });
+
+    await auth.api.signInMagicLink({
+      body: {
+        email: normalized,
+        callbackURL: '/welcome?invited=1',
+      },
+      headers: await headers(),
+    });
+    return ok();
+  } catch (e) {
+    return fail(`Failed to send invite: ${(e as Error).message}`);
+  }
+}
+
+/**
+ * Checks whether the currently signed-in user has a password set on any
+ * credential account. Used on /welcome to decide whether to prompt for a
+ * password after a magic-link sign-in.
+ */
+export async function currentUserHasPassword(): Promise<
+  ActionResult<{ hasPassword: boolean }>
+> {
+  try {
+    const caller = await getUser();
+    if (!caller) return fail('Not authenticated');
+    const rows = await db
+      .select({ password: account.password })
+      .from(account)
+      .where(eq(account.userId, caller.id));
+    const hasPassword = rows.some(
+      (r) => typeof r.password === 'string' && r.password.length > 0,
+    );
+    return ok({ hasPassword });
+  } catch (e) {
+    return fail(`Failed to check password state: ${(e as Error).message}`);
+  }
+}
+
+/**
+ * Sets an initial password for the signed-in user when they don't yet have
+ * a credential account (e.g. just signed in via magic link). Refuses to run
+ * if they already have one — they should use change-password instead.
+ */
+export async function setInitialPassword(
+  newPassword: string,
+): Promise<ActionResult> {
+  try {
+    const caller = await getUser();
+    if (!caller) return fail('Not authenticated');
+    if (newPassword.length < 8) {
+      return fail('Password must be at least 8 characters');
+    }
+
+    const existing = await db
+      .select({ id: account.id })
+      .from(account)
+      .where(
+        and(eq(account.userId, caller.id), eq(account.providerId, 'credential')),
+      )
+      .limit(1);
+    if (existing.length > 0) {
+      return fail('A password is already set on this account');
+    }
+
+    const ctx = await auth.$context;
+    const hashedPassword = await ctx.password.hash(newPassword);
+    await ctx.internalAdapter.createAccount({
+      userId: caller.id,
+      providerId: 'credential',
+      accountId: caller.id,
+      password: hashedPassword,
+    });
+    return ok();
+  } catch (e) {
+    return fail(`Failed to set password: ${(e as Error).message}`);
+  }
+}
+
+/**
+ * Server-side: consume a pending invite for the signed-in user. Applies the
+ * role assignments the admin chose, then deletes the invite. Returns whether
+ * an invite was consumed so the /welcome page can branch on it.
+ */
+export async function consumeInvite(): Promise<
+  ActionResult<{ consumed: boolean }>
+> {
+  try {
+    const caller = await getUser();
+    if (!caller) return fail('Not authenticated');
+
+    const email = caller.email.toLowerCase();
+    const [row] = await db
+      .select({ roleIds: invite.roleIds })
+      .from(invite)
+      .where(eq(invite.email, email))
+      .limit(1);
+
+    if (!row) return ok({ consumed: false });
+
+    if (row.roleIds.length > 0) {
+      const res = await setUserRoles(caller.id, row.roleIds);
+      if (!res.success) return res;
+    }
+    await db.delete(invite).where(eq(invite.email, email));
+    revalidatePath('/dashboard/admin/users');
+    return ok({ consumed: true });
+  } catch (e) {
+    return fail(`Failed to consume invite: ${(e as Error).message}`);
   }
 }
 

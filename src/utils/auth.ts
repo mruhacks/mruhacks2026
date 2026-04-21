@@ -6,7 +6,7 @@
  */
 
 import { betterAuth } from 'better-auth';
-import { admin } from 'better-auth/plugins';
+import { admin, magicLink } from 'better-auth/plugins';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { db } from '@/utils/db';
 import * as schema from '@/db/schema';
@@ -34,7 +34,15 @@ export const auth = betterAuth({
       console.log(`[password-reset] email=${u.email}  url=${url}`);
     },
   },
-  plugins: [admin()],
+  plugins: [
+    admin(),
+    magicLink({
+      sendMagicLink: async ({ email, url }) => {
+        // TODO: replace with your email provider.
+        console.log(`[magic-link] email=${email}  url=${url}`);
+      },
+    }),
+  ],
   advanced: {
     database: {
       generateId: false,

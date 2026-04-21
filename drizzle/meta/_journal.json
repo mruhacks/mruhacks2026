@@ -71,6 +71,13 @@
       "when": 1776749827354,
       "tag": "0009_admin_plugin_fields",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1776751128910,
+      "tag": "0010_invite_table",
+      "breakpoints": true
     }
   ]
 }

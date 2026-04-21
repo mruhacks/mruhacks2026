@@ -1,4 +1,11 @@
-import { pgTable, uuid, text, timestamp, boolean } from 'drizzle-orm/pg-core';
+import {
+  pgTable,
+  uuid,
+  text,
+  timestamp,
+  boolean,
+  integer,
+} from 'drizzle-orm/pg-core';
 
 export const user = pgTable('user', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -73,4 +80,20 @@ export const verification = pgTable('verification', {
     .defaultNow()
     .$onUpdate(() => new Date())
     .notNull(),
+});
+
+/**
+ * Outstanding user invites. When an admin invites an email address, a row
+ * lands here with the roles that should be applied on first sign-in.
+ * Consumed and deleted by the /welcome page after the invitee clicks the
+ * magic link.
+ */
+export const invite = pgTable('invite', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  email: text('email').notNull().unique(),
+  roleIds: integer('role_ids').array().notNull().default([]),
+  invitedBy: uuid('invited_by').references(() => user.id, {
+    onDelete: 'set null',
+  }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
 });

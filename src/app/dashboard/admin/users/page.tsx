@@ -3,6 +3,7 @@ import { hasAnyPermission } from '@/app/actions/authz';
 import { listUsers } from '@/app/actions/users';
 import { listRoles, listPermissions } from '@/app/actions/roles';
 import { UsersTable } from './users-table';
+import { InviteUserDialog } from './invite-user-dialog';
 
 export default async function AdminUsersPage() {
   const caller = await requireAuthWithPermission([
@@ -37,13 +38,16 @@ export default async function AdminUsersPage() {
 
   return (
     <div className='space-y-4'>
-      <div>
-        <h1 className='text-2xl font-semibold tracking-tight'>
-          User management
-        </h1>
-        <p className='text-muted-foreground text-sm'>
-          Search, filter, and manage every user in the system.
-        </p>
+      <div className='flex items-start justify-between gap-4'>
+        <div>
+          <h1 className='text-2xl font-semibold tracking-tight'>
+            User management
+          </h1>
+          <p className='text-muted-foreground text-sm'>
+            Search, filter, and manage every user in the system.
+          </p>
+        </div>
+        {canWrite && <InviteUserDialog roles={roles} />}
       </div>
 
       <UsersTable
