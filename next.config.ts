@@ -10,6 +10,16 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  images: {
+    remotePatterns: [
+      // GitHub avatars (OAuth + faker seed data)
+      { protocol: 'https', hostname: 'avatars.githubusercontent.com' },
+      // Faker portrait CDN
+      { protocol: 'https', hostname: 'cdn.jsdelivr.net' },
+      // Google OAuth profile photos
+      { protocol: 'https', hostname: 'lh3.googleusercontent.com' },
+    ],
+  },
   cacheComponents: true,
 };
 
