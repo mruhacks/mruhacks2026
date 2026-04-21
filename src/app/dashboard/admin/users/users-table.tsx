@@ -1,7 +1,11 @@
 'use client';
 
 import * as React from 'react';
-import { ColumnDef, SortingState } from '@tanstack/react-table';
+import {
+  ColumnDef,
+  ColumnFiltersState,
+  SortingState,
+} from '@tanstack/react-table';
 import {
   MoreHorizontal,
   ShieldCheck,
@@ -24,14 +28,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { DataTable } from '@/components/data-table/data-table';
+import { DataTableFacetedFilter } from '@/components/data-table/data-table-faceted-filter';
 import {
   listUsers,
   deleteUser,
@@ -68,7 +66,13 @@ export function UsersTable({
   const [data, setData] = React.useState(initialData);
   const [loading, setLoading] = React.useState(false);
   const [search, setSearch] = React.useState('');
-  const [roleFilter, setRoleFilter] = React.useState<string>('');
+  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
+    [],
+  );
+  const roleFilter = React.useMemo<string[]>(() => {
+    const v = columnFilters.find((f) => f.id === 'roles')?.value;
+    return Array.isArray(v) ? (v as string[]) : [];
+  }, [columnFilters]);
   const [page, setPage] = React.useState(initialData.page);
   const [pageSize, setPageSize] = React.useState(initialData.pageSize);
   const [sorting, setSorting] = React.useState<SortingState>([
@@ -87,7 +91,7 @@ export function UsersTable({
         page: number;
         pageSize: number;
         search: string;
-        roleSlug: string;
+        roleSlugs: string[];
         sortField: 'name' | 'email' | 'createdAt';
         sortDirection: 'asc' | 'desc';
       }> = {},
@@ -105,7 +109,7 @@ export function UsersTable({
         page: overrides.page ?? page,
         pageSize: overrides.pageSize ?? pageSize,
         search: overrides.search ?? search,
-        roleSlug: overrides.roleSlug ?? roleFilter ?? undefined,
+        roleSlugs: overrides.roleSlugs ?? roleFilter,
         sortField,
         sortDirection,
       });
@@ -131,9 +135,9 @@ export function UsersTable({
 
   React.useEffect(() => {
     setPage(1);
-    refetch({ page: 1, roleSlug: roleFilter });
+    refetch({ page: 1, roleSlugs: roleFilter });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roleFilter]);
+  }, [roleFilter.join(',')]);
 
   React.useEffect(() => {
     refetch({ page });
@@ -269,6 +273,7 @@ export function UsersTable({
         id: 'roles',
         header: 'Roles',
         enableSorting: false,
+        filterFn: () => true, // filtering runs server-side via listUsers
         cell: ({ row }) =>
           row.original.roles.length === 0 ? (
             <span className='text-muted-foreground text-xs'>—</span>
@@ -381,36 +386,28 @@ export function UsersTable({
         onPageSizeChange={(s) => setPageSize(s)}
         onSortingChange={setSorting}
         initialSorting={sorting}
+        onColumnFiltersChange={setColumnFilters}
         emptyMessage={loading ? 'Loading…' : 'No users match these filters.'}
         toolbar={
-          <>
-            <input
-              type='search'
-              placeholder='Search name or email…'
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className='border-input focus-visible:border-ring focus-visible:ring-ring/50 h-9 w-64 rounded-md border bg-transparent px-3 text-sm outline-none focus-visible:ring-[3px]'
-            />
-            <Select
-              value={roleFilter || 'all'}
-              onValueChange={(v) => setRoleFilter(v === 'all' ? '' : v)}
-            >
-              <SelectTrigger className='h-9 w-44'>
-                <SelectValue placeholder='All roles' />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value='all'>All roles</SelectItem>
-                {roles
-                  .filter((r) => Boolean(r.slug))
-                  .map((r) => (
-                    <SelectItem key={r.id} value={r.slug!}>
-                      {r.slug}
-                    </SelectItem>
-                  ))}
-              </SelectContent>
-            </Select>
-          </>
+          <input
+            type='search'
+            placeholder='Search name or email…'
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className='border-input focus-visible:border-ring focus-visible:ring-ring/50 h-9 w-64 rounded-md border bg-transparent px-3 text-sm outline-none focus-visible:ring-[3px]'
+          />
         }
+        toolbarRight={(table) => (
+          <DataTableFacetedFilter
+            column={table.getColumn('roles')}
+            title='Roles'
+            options={roles
+              .filter((r): r is { id: number; slug: string } =>
+                Boolean(r.slug),
+              )
+              .map((r) => ({ label: r.slug, value: r.slug }))}
+          />
+        )}
       />
 
       {editingUser && (

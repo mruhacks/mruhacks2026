@@ -36,7 +36,7 @@ export type SortDirection = 'asc' | 'desc';
 
 export interface ListUsersParams {
   search?: string;
-  roleSlug?: string;
+  roleSlugs?: string[];
   page?: number;
   pageSize?: number;
   sortField?: UserSortField;
@@ -82,7 +82,7 @@ export async function listUsers(
 
     const {
       search = '',
-      roleSlug,
+      roleSlugs,
       page = 1,
       pageSize = 25,
       sortField = 'createdAt',
@@ -104,13 +104,13 @@ export async function listUsers(
     }
 
     let userIdsByRole: string[] | null = null;
-    if (roleSlug) {
+    if (roleSlugs && roleSlugs.length > 0) {
       const rows = await db
         .select({ userId: userRole.userId })
         .from(userRole)
         .innerJoin(role, eq(userRole.roleId, role.id))
-        .where(eq(role.slug, roleSlug));
-      userIdsByRole = rows.map((r) => r.userId);
+        .where(inArray(role.slug, roleSlugs));
+      userIdsByRole = Array.from(new Set(rows.map((r) => r.userId)));
       if (userIdsByRole.length === 0) {
         return ok({
           users: [],

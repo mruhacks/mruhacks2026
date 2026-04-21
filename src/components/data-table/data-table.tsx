@@ -76,6 +76,10 @@ export interface DataTableProps<TData, TValue> {
   initialSorting?: SortingState;
   /** Called whenever the user toggles a sort via column header click. */
   onSortingChange?: (sorting: SortingState) => void;
+  /** Optional initial column filters. */
+  initialColumnFilters?: ColumnFiltersState;
+  /** Called whenever column filters change. */
+  onColumnFiltersChange?: (filters: ColumnFiltersState) => void;
 }
 
 export function DataTable<TData, TValue>({
@@ -96,11 +100,12 @@ export function DataTable<TData, TValue>({
   compact = false,
   initialSorting = [],
   onSortingChange,
+  initialColumnFilters = [],
+  onColumnFiltersChange,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = React.useState<SortingState>(initialSorting);
-  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
-    [],
-  );
+  const [columnFilters, setColumnFilters] =
+    React.useState<ColumnFiltersState>(initialColumnFilters);
   const [columnVisibility, setColumnVisibility] =
     React.useState<VisibilityState>({});
   const [rowSelection, setRowSelection] = React.useState({});
@@ -133,7 +138,13 @@ export function DataTable<TData, TValue>({
         return next;
       });
     },
-    onColumnFiltersChange: setColumnFilters,
+    onColumnFiltersChange: (updater) => {
+      setColumnFilters((prev) => {
+        const next = typeof updater === 'function' ? updater(prev) : updater;
+        onColumnFiltersChange?.(next);
+        return next;
+      });
+    },
     onColumnVisibilityChange: setColumnVisibility,
     onRowSelectionChange: setRowSelection,
     onGlobalFilterChange: setGlobalFilter,
