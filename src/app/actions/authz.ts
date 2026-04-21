@@ -1,7 +1,7 @@
 'use server';
 
 import { db } from '@/utils/db';
-import { eq, inArray } from 'drizzle-orm';
+import { eq, inArray, sql } from 'drizzle-orm';
 import {
   role,
   permission,
@@ -25,24 +25,25 @@ export async function getUserPermissions(
   userId: string,
 ): Promise<ActionResult<Set<string>>> {
   try {
+    // Fetch direct + role-derived permission IDs in a single round-trip via
+    // UNION, then resolve slugs in one join. Halves the query count compared
+    // to running the two lookups independently.
+    const rows = await db.execute<{ slug: string }>(sql`
+      SELECT p.slug FROM authz.permission p
+      WHERE p.id IN (
+        SELECT up.permission_id
+          FROM authz.user_permission up
+         WHERE up.user_id = ${userId}
+        UNION
+        SELECT rp.permission_id
+          FROM authz.user_role ur
+          JOIN authz.role_permission rp ON rp.role_id = ur.role_id
+         WHERE ur.user_id = ${userId}
+      )
+    `);
+
     const permissions = new Set<string>();
-
-    const directPerms = await db
-      .select({ slug: permission.slug })
-      .from(userPermission)
-      .innerJoin(permission, eq(userPermission.permissionId, permission.id))
-      .where(eq(userPermission.userId, userId));
-    for (const p of directPerms) permissions.add(p.slug);
-
-    const rolePerms = await db
-      .select({ slug: permission.slug })
-      .from(userRole)
-      .innerJoin(role, eq(userRole.roleId, role.id))
-      .innerJoin(rolePermissions, eq(role.id, rolePermissions.roleId))
-      .innerJoin(permission, eq(rolePermissions.permissionId, permission.id))
-      .where(eq(userRole.userId, userId));
-    for (const p of rolePerms) permissions.add(p.slug);
-
+    for (const r of rows) permissions.add(r.slug);
     return ok(permissions);
   } catch (e) {
     return fail(`Failed to get user permissions: ${(e as Error).message}`);

@@ -78,6 +78,13 @@
       "when": 1776751128910,
       "tag": "0010_invite_table",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1776779368624,
+      "tag": "0011_perf_indexes",
+      "breakpoints": true
     }
   ]
 }

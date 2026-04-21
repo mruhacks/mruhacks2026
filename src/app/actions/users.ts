@@ -15,6 +15,7 @@ import {
   userRole,
   role,
   userPermission,
+  permission,
   invite,
   account,
 } from '@/db/schema';
@@ -110,24 +111,16 @@ export async function listUsers(
       );
     }
 
-    let userIdsByRole: string[] | null = null;
     if (roleSlugs && roleSlugs.length > 0) {
-      const rows = await db
-        .select({ userId: userRole.userId })
-        .from(userRole)
-        .innerJoin(role, eq(userRole.roleId, role.id))
-        .where(inArray(role.slug, roleSlugs));
-      userIdsByRole = Array.from(new Set(rows.map((r) => r.userId)));
-      if (userIdsByRole.length === 0) {
-        return ok({
-          users: [],
-          total: 0,
-          page: clampedPage,
-          pageSize: clampedPageSize,
-          totalPages: 0,
-        });
-      }
-      predicates.push(inArray(user.id, userIdsByRole) as ReturnType<typeof eq>);
+      // EXISTS subquery avoids materialising a huge user-id IN list when a
+      // role contains many members (e.g. 'user' on a million-row table).
+      predicates.push(
+        sql`EXISTS (
+          SELECT 1 FROM authz.user_role ur
+          JOIN authz.role r ON ur.role_id = r.id
+          WHERE ur.user_id = ${user.id} AND r.slug = ANY(${roleSlugs})
+        )` as ReturnType<typeof eq>,
+      );
     }
 
     const whereClause = predicates.length ? and(...predicates) : undefined;
@@ -140,28 +133,31 @@ export async function listUsers(
           : user.createdAt;
     const orderFn = sortDirection === 'asc' ? asc : desc;
 
-    const [{ total }] = await db
-      .select({ total: sql<number>`COUNT(*)`.mapWith(Number) })
-      .from(user)
-      .where(whereClause ?? sql`true`);
-
-    const rows = await db
-      .select({
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        emailVerified: user.emailVerified,
-        image: user.image,
-        createdAt: user.createdAt,
-        banned: user.banned,
-        banReason: user.banReason,
-        banExpires: user.banExpires,
-      })
-      .from(user)
-      .where(whereClause ?? sql`true`)
-      .orderBy(orderFn(sortColumn))
-      .limit(clampedPageSize)
-      .offset((clampedPage - 1) * clampedPageSize);
+    // Count + page fetch are independent — issue them in parallel.
+    const [countRow, rows] = await Promise.all([
+      db
+        .select({ total: sql<number>`COUNT(*)`.mapWith(Number) })
+        .from(user)
+        .where(whereClause ?? sql`true`),
+      db
+        .select({
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          emailVerified: user.emailVerified,
+          image: user.image,
+          createdAt: user.createdAt,
+          banned: user.banned,
+          banReason: user.banReason,
+          banExpires: user.banExpires,
+        })
+        .from(user)
+        .where(whereClause ?? sql`true`)
+        .orderBy(orderFn(sortColumn))
+        .limit(clampedPageSize)
+        .offset((clampedPage - 1) * clampedPageSize),
+    ]);
+    const total = countRow[0]?.total ?? 0;
 
     const rolesRes = await getRolesForUsers(rows.map((r) => r.id));
     const rolesMap = rolesRes.success && rolesRes.data ? rolesRes.data : {};
@@ -219,46 +215,43 @@ export async function getUserDetails(userId: string): Promise<
     if (!caller) return fail('Not authenticated');
     await requirePermission(caller.id, 'user:read:all');
 
-    const [row] = await db
-      .select({
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        emailVerified: user.emailVerified,
-        image: user.image,
-        createdAt: user.createdAt,
-        updatedAt: user.updatedAt,
-      })
-      .from(user)
-      .where(eq(user.id, userId))
-      .limit(1);
+    // All three fetches are independent — run them in parallel.
+    const [userRows, rolesRows, permRows] = await Promise.all([
+      db
+        .select({
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          emailVerified: user.emailVerified,
+          image: user.image,
+          createdAt: user.createdAt,
+          updatedAt: user.updatedAt,
+        })
+        .from(user)
+        .where(eq(user.id, userId))
+        .limit(1),
+      db
+        .select({
+          id: role.id,
+          slug: role.slug,
+          description: role.description,
+        })
+        .from(userRole)
+        .innerJoin(role, eq(userRole.roleId, role.id))
+        .where(eq(userRole.userId, userId)),
+      db
+        .select({
+          id: permission.id,
+          slug: permission.slug,
+          description: permission.description,
+        })
+        .from(userPermission)
+        .innerJoin(permission, eq(userPermission.permissionId, permission.id))
+        .where(eq(userPermission.userId, userId)),
+    ]);
 
+    const row = userRows[0];
     if (!row) return fail('User not found');
-
-    const rolesRows = await db
-      .select({
-        id: role.id,
-        slug: role.slug,
-        description: role.description,
-      })
-      .from(userRole)
-      .innerJoin(role, eq(userRole.roleId, role.id))
-      .where(eq(userRole.userId, userId));
-
-    const permRows = await db
-      .select({
-        id: userPermission.permissionId,
-        slug: sql<string>`permission.slug`.as('slug'),
-        description: sql<string | null>`permission.description`.as(
-          'description',
-        ),
-      })
-      .from(userPermission)
-      .innerJoin(
-        sql`authz.permission AS permission`,
-        sql`${userPermission.permissionId} = permission.id`,
-      )
-      .where(eq(userPermission.userId, userId));
 
     return ok({
       ...row,

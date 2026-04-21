@@ -41,23 +41,23 @@ export interface PermissionRow {
  */
 export async function listRoles(): Promise<ActionResult<RoleWithCounts[]>> {
   try {
+    // Correlated subqueries avoid the Cartesian product that a LEFT JOIN +
+    // COUNT(DISTINCT) produces across millions of user_role rows.
     const roles = await db
       .select({
         id: role.id,
         slug: role.slug,
         description: role.description,
-        permissionCount:
-          sql<number>`COUNT(DISTINCT ${rolePermissions.permissionId})`.mapWith(
-            Number,
-          ),
-        userCount: sql<number>`COUNT(DISTINCT ${userRole.userId})`.mapWith(
-          Number,
-        ),
+        permissionCount: sql<number>`(
+          SELECT COUNT(*)::int FROM authz.role_permission rp
+          WHERE rp.role_id = ${role.id}
+        )`.mapWith(Number),
+        userCount: sql<number>`(
+          SELECT COUNT(*)::int FROM authz.user_role ur
+          WHERE ur.role_id = ${role.id}
+        )`.mapWith(Number),
       })
       .from(role)
-      .leftJoin(rolePermissions, eq(rolePermissions.roleId, role.id))
-      .leftJoin(userRole, eq(userRole.roleId, role.id))
-      .groupBy(role.id)
       .orderBy(asc(role.slug));
     return ok(roles);
   } catch (e) {
