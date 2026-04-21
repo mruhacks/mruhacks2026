@@ -1,13 +1,14 @@
 'use server';
 
 import { db } from '@/utils/db';
-import { eq, and, asc, sql } from 'drizzle-orm';
+import { eq, and, asc, sql, inArray } from 'drizzle-orm';
 import {
   role,
   permission,
   rolePermissions,
   userRole,
   userPermission,
+  user,
 } from '@/db/schema';
 import { ok, fail, type ActionResult } from '@/utils/action-result';
 
@@ -340,6 +341,21 @@ export async function setUserRoles(
           .values(roleIds.map((roleId) => ({ userId, roleId })))
           .onConflictDoNothing();
       }
+
+      // Sync user.role for the Better Auth admin plugin.
+      // If the user has the 'admin' RBAC role, mark them as 'admin' in the
+      // user table so the plugin recognises them as admins.
+      const assignedRoles =
+        roleIds.length > 0
+          ? await tx
+              .select({ slug: role.slug })
+              .from(role)
+              .where(inArray(role.id, roleIds))
+          : [];
+      const baRole = assignedRoles.some((r) => r.slug === 'admin')
+        ? 'admin'
+        : 'user';
+      await tx.update(user).set({ role: baRole }).where(eq(user.id, userId));
     });
     return ok();
   } catch (e) {

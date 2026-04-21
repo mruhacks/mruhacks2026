@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { ColumnDef, SortingState } from '@tanstack/react-table';
-import { MoreHorizontal, ShieldCheck, Trash2 } from 'lucide-react';
+import { MoreHorizontal, ShieldCheck, Trash2, KeyRound, Mail, UserCheck } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Badge } from '@/components/ui/badge';
@@ -23,7 +23,13 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { DataTable } from '@/components/data-table/data-table';
-import { listUsers, deleteUser, type AdminUserRow } from '@/app/actions/users';
+import {
+  listUsers,
+  deleteUser,
+  adminSendPasswordReset,
+  type AdminUserRow,
+} from '@/app/actions/users';
+import { authClient } from '@/utils/auth-client';
 import { EditUserDialog } from './edit-user-dialog';
 
 interface UsersTableProps {
@@ -129,6 +135,24 @@ export function UsersTable({
     refetch();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sorting]);
+
+  const handleSendPasswordReset = async (row: AdminUserRow) => {
+    const res = await adminSendPasswordReset(row.email);
+    if (res.success) {
+      toast.success(`Password reset email sent to ${row.email}`);
+    } else {
+      toast.error(res.error);
+    }
+  };
+
+  const handleImpersonate = async (row: AdminUserRow) => {
+    const res = await authClient.admin.impersonateUser({ userId: row.id });
+    if (res.error) {
+      toast.error(res.error.message ?? 'Failed to impersonate user');
+      return;
+    }
+    window.location.href = '/dashboard';
+  };
 
   const handleDelete = async (row: AdminUserRow) => {
     if (row.id === currentUserId) {
@@ -249,6 +273,17 @@ export function UsersTable({
                 <DropdownMenuItem onSelect={() => setEditingUser(u)}>
                   <ShieldCheck className='size-4' />
                   Manage roles & permissions
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => handleSendPasswordReset(u)}>
+                  <Mail className='size-4' />
+                  Send password reset
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={u.id === currentUserId}
+                  onSelect={() => handleImpersonate(u)}
+                >
+                  <UserCheck className='size-4' />
+                  Impersonate
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem

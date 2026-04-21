@@ -272,6 +272,9 @@ async function seedEnvAdminUser(
     console.log(`✅ Created user ${email}`);
   }
 
+  // Sync Better Auth admin plugin role field
+  await ctx.internalAdapter.updateUser(userId, { role: 'admin' });
+
   if (adminRole) {
     await db
       .insert(userRole)

@@ -20,6 +20,7 @@ import {
   updateUserRoles,
   updateUserDirectPermissions,
   updateUserProfile,
+  adminSetUserPassword,
   getUserDetails,
   type AdminUserRow,
 } from '@/app/actions/users';
@@ -49,6 +50,8 @@ export function EditUserDialog({
   const [selectedPermIds, setSelectedPermIds] = React.useState<Set<number>>(
     new Set(),
   );
+  const [newPassword, setNewPassword] = React.useState('');
+  const [settingPassword, setSettingPassword] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
 
@@ -118,6 +121,22 @@ export function EditUserDialog({
     onSaved();
   };
 
+  const handleSetPassword = async () => {
+    if (newPassword.length < 8) {
+      toast.error('Password must be at least 8 characters');
+      return;
+    }
+    setSettingPassword(true);
+    const res = await adminSetUserPassword(user.id, newPassword);
+    setSettingPassword(false);
+    if (!res.success) {
+      toast.error(res.error);
+      return;
+    }
+    toast.success('Password updated');
+    setNewPassword('');
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className='sm:max-w-2xl'>
@@ -130,10 +149,11 @@ export function EditUserDialog({
         </DialogHeader>
 
         <Tabs defaultValue='profile' className='w-full'>
-          <TabsList className='grid w-full grid-cols-3'>
+          <TabsList className='grid w-full grid-cols-4'>
             <TabsTrigger value='profile'>Profile</TabsTrigger>
             <TabsTrigger value='roles'>Roles</TabsTrigger>
             <TabsTrigger value='permissions'>Direct perms</TabsTrigger>
+            <TabsTrigger value='password'>Password</TabsTrigger>
           </TabsList>
 
           <TabsContent value='profile' className='space-y-4 pt-4'>
@@ -224,6 +244,29 @@ export function EditUserDialog({
                 </div>
               )}
             </div>
+          </TabsContent>
+          <TabsContent value='password' className='space-y-4 pt-4'>
+            <p className='text-muted-foreground text-xs'>
+              Set a new password directly for this user. The change takes effect
+              immediately.
+            </p>
+            <div className='space-y-2'>
+              <Label htmlFor='edit-user-password'>New password</Label>
+              <Input
+                id='edit-user-password'
+                type='password'
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder='Min. 8 characters'
+              />
+            </div>
+            <Button
+              onClick={handleSetPassword}
+              disabled={settingPassword || newPassword.length === 0}
+              size='sm'
+            >
+              {settingPassword ? 'Saving…' : 'Set password'}
+            </Button>
           </TabsContent>
         </Tabs>
 

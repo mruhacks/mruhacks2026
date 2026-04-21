@@ -17,14 +17,8 @@
  */
 
 import { createAuthClient } from 'better-auth/react';
+import { adminClient } from 'better-auth/client/plugins';
 
-/**
- * Better Auth client instance for client-side authentication
- *
- * This client provides methods for:
- * - signIn: Authenticate a user
- * - signUp: Sign up a new user (create account)
- * - signOut: End the user's session
- * - useSession: React hook to access the current session
- */
-export const authClient = createAuthClient();
+export const authClient = createAuthClient({
+  plugins: [adminClient()],
+});

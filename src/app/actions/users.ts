@@ -12,7 +12,8 @@ import { db } from '@/utils/db';
 import { and, asc, desc, eq, ilike, or, sql, inArray } from 'drizzle-orm';
 import { user, userRole, role, userPermission } from '@/db/schema';
 import { ok, fail, type ActionResult } from '@/utils/action-result';
-import { getUser } from '@/utils/auth';
+import { auth, getUser } from '@/utils/auth';
+import { headers } from 'next/headers';
 import {
   hasPermission,
   requirePermission,
@@ -324,6 +325,52 @@ export async function deleteUser(userId: string): Promise<ActionResult> {
     return ok();
   } catch (e) {
     return fail(`Failed to delete user: ${(e as Error).message}`);
+  }
+}
+
+/**
+ * Admin: set a user's password directly via the Better Auth admin plugin.
+ * Requires the caller to have user:write:all and to be an admin in Better Auth
+ * (user.role = 'admin').
+ */
+export async function adminSetUserPassword(
+  userId: string,
+  newPassword: string,
+): Promise<ActionResult> {
+  try {
+    const caller = await getUser();
+    if (!caller) return fail('Not authenticated');
+    await requirePermission(caller.id, 'user:write:all');
+
+    const res = await auth.api.setUserPassword({
+      body: { userId, newPassword },
+      headers: await headers(),
+    });
+    if (!res.status) return fail('Failed to set password');
+    return ok();
+  } catch (e) {
+    return fail(`Failed to set password: ${(e as Error).message}`);
+  }
+}
+
+/**
+ * Admin: send a password reset email to a user.
+ * Requires sendResetPassword to be configured in auth.ts.
+ */
+export async function adminSendPasswordReset(
+  email: string,
+): Promise<ActionResult> {
+  try {
+    const caller = await getUser();
+    if (!caller) return fail('Not authenticated');
+    await requirePermission(caller.id, 'user:write:all');
+
+    await auth.api.requestPasswordReset({
+      body: { email, redirectTo: '/reset-password' },
+    });
+    return ok();
+  } catch (e) {
+    return fail(`Failed to send reset email: ${(e as Error).message}`);
   }
 }
 

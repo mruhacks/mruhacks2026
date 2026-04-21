@@ -6,6 +6,7 @@
  */
 
 import { betterAuth } from 'better-auth';
+import { admin } from 'better-auth/plugins';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { db } from '@/utils/db';
 import * as schema from '@/db/schema';
@@ -25,7 +26,15 @@ export const auth = betterAuth({
     provider: 'pg',
     schema,
   }),
-  emailAndPassword: { enabled: true },
+  emailAndPassword: {
+    enabled: true,
+    sendResetPassword: async ({ user: u, url }) => {
+      // TODO: replace with your email provider (Resend, Nodemailer, etc.)
+      // The reset link is valid for 1 hour.
+      console.log(`[password-reset] email=${u.email}  url=${url}`);
+    },
+  },
+  plugins: [admin()],
   advanced: {
     database: {
       generateId: false,
