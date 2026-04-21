@@ -8,7 +8,7 @@ import {
 } from '@tanstack/react-table';
 import {
   MoreHorizontal,
-  ShieldCheck,
+  Pencil,
   Trash2,
   Mail,
   UserCheck,
@@ -39,7 +39,7 @@ import {
   type AdminUserRow,
 } from '@/app/actions/users';
 import { authClient } from '@/utils/auth-client';
-import { EditUserDialog } from './edit-user-dialog';
+import { useRouter } from 'next/navigation';
 import { BanUserDialog } from './ban-user-dialog';
 
 interface UsersTableProps {
@@ -51,7 +51,6 @@ interface UsersTableProps {
     totalPages: number;
   };
   roles: { id: number; slug: string | null }[];
-  permissions: { id: number; slug: string; description: string | null }[];
   currentUserId: string;
   canWrite: boolean;
 }
@@ -59,10 +58,10 @@ interface UsersTableProps {
 export function UsersTable({
   initialData,
   roles,
-  permissions,
   currentUserId,
   canWrite,
 }: UsersTableProps) {
+  const router = useRouter();
   const [data, setData] = React.useState(initialData);
   const [loading, setLoading] = React.useState(false);
   const [search, setSearch] = React.useState('');
@@ -78,9 +77,6 @@ export function UsersTable({
   const [sorting, setSorting] = React.useState<SortingState>([
     { id: 'createdAt', desc: true },
   ]);
-  const [editingUser, setEditingUser] = React.useState<AdminUserRow | null>(
-    null,
-  );
   const [banningUser, setBanningUser] = React.useState<AdminUserRow | null>(
     null,
   );
@@ -318,9 +314,13 @@ export function UsersTable({
               </DropdownMenuTrigger>
               <DropdownMenuContent align='end' className='w-56'>
                 <DropdownMenuLabel>User actions</DropdownMenuLabel>
-                <DropdownMenuItem onSelect={() => setEditingUser(u)}>
-                  <ShieldCheck className='size-4' />
-                  Manage roles & permissions
+                <DropdownMenuItem
+                  onSelect={() =>
+                    router.push(`/dashboard/admin/users/${u.id}`)
+                  }
+                >
+                  <Pencil className='size-4' />
+                  Edit user
                 </DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => handleSendPasswordReset(u)}>
                   <Mail className='size-4' />
@@ -409,22 +409,6 @@ export function UsersTable({
           />
         )}
       />
-
-      {editingUser && (
-        <EditUserDialog
-          user={editingUser}
-          roles={roles}
-          permissions={permissions}
-          open={!!editingUser}
-          onOpenChange={(open) => {
-            if (!open) setEditingUser(null);
-          }}
-          onSaved={() => {
-            setEditingUser(null);
-            refetch();
-          }}
-        />
-      )}
 
       {banningUser && (
         <BanUserDialog

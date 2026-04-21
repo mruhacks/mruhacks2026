@@ -1,7 +1,7 @@
 import { requireAuthWithPermission } from '@/lib/rbac/guards';
 import { hasAnyPermission } from '@/app/actions/authz';
 import { listUsers } from '@/app/actions/users';
-import { listRoles, listPermissions } from '@/app/actions/roles';
+import { listRoles } from '@/app/actions/roles';
 import { UsersTable } from './users-table';
 import { InviteUserDialog } from './invite-user-dialog';
 
@@ -11,10 +11,9 @@ export default async function AdminUsersPage() {
     'user:all:all',
   ]);
 
-  const [usersRes, rolesRes, permsRes] = await Promise.all([
+  const [usersRes, rolesRes] = await Promise.all([
     listUsers({ page: 1, pageSize: 25 }),
     listRoles(),
-    listPermissions(),
   ]);
 
   if (!usersRes.success || !usersRes.data) {
@@ -29,7 +28,6 @@ export default async function AdminUsersPage() {
     rolesRes.success && rolesRes.data
       ? rolesRes.data.map((r) => ({ id: r.id, slug: r.slug }))
       : [];
-  const permissions = permsRes.success && permsRes.data ? permsRes.data : [];
 
   const canWrite = await hasAnyPermission(caller.id, [
     'user:write:all',
@@ -53,7 +51,6 @@ export default async function AdminUsersPage() {
       <UsersTable
         initialData={usersRes.data}
         roles={roles}
-        permissions={permissions}
         currentUserId={caller.id}
         canWrite={canWrite}
       />
