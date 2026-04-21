@@ -2,7 +2,6 @@
 
 import * as React from 'react';
 import { ColumnDef, SortingState } from '@tanstack/react-table';
-import Image from 'next/image';
 import { MoreHorizontal, ShieldCheck, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -160,7 +159,8 @@ export function UsersTable({
           return (
             <div className='flex items-center gap-3'>
               {u.image ? (
-                <Image
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
                   src={u.image}
                   alt=''
                   width={32}

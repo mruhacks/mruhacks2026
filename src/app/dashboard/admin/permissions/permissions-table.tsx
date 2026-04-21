@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { ColumnDef } from '@tanstack/react-table';
-import { MoreHorizontal, Plus, Pencil, Trash2 } from 'lucide-react';
+import { MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
@@ -24,7 +24,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { DataTable } from '@/components/data-table/data-table';
 import {
-  addPermission,
   updatePermission,
   deletePermission,
   listPermissions,
@@ -41,7 +40,6 @@ export function PermissionsTable({
   canWrite,
 }: PermissionsTableProps) {
   const [rows, setRows] = React.useState(initialPermissions);
-  const [creating, setCreating] = React.useState(false);
   const [editing, setEditing] = React.useState<PermissionRow | null>(null);
 
   const refetch = async () => {
@@ -119,28 +117,10 @@ export function PermissionsTable({
         data={rows}
         searchPlaceholder='Search permissions…'
         emptyMessage='No permissions defined.'
-        toolbarRight={() =>
-          canWrite ? (
-            <Button size='sm' onClick={() => setCreating(true)}>
-              <Plus className='size-4' /> New permission
-            </Button>
-          ) : null
-        }
       />
 
-      {creating && (
-        <PermissionEditorDialog
-          mode='create'
-          onClose={() => setCreating(false)}
-          onSaved={() => {
-            setCreating(false);
-            refetch();
-          }}
-        />
-      )}
       {editing && (
         <PermissionEditorDialog
-          mode='edit'
           permission={editing}
           onClose={() => setEditing(null)}
           onSaved={() => {
@@ -154,21 +134,19 @@ export function PermissionsTable({
 }
 
 interface PermissionEditorDialogProps {
-  mode: 'create' | 'edit';
-  permission?: PermissionRow;
+  permission: PermissionRow;
   onClose: () => void;
   onSaved: () => void;
 }
 
 function PermissionEditorDialog({
-  mode,
   permission,
   onClose,
   onSaved,
 }: PermissionEditorDialogProps) {
-  const [slug, setSlug] = React.useState(permission?.slug ?? '');
+  const [slug, setSlug] = React.useState(permission.slug);
   const [description, setDescription] = React.useState(
-    permission?.description ?? '',
+    permission.description ?? '',
   );
   const [saving, setSaving] = React.useState(false);
 
@@ -178,24 +156,13 @@ function PermissionEditorDialog({
       return;
     }
     setSaving(true);
-    if (mode === 'create') {
-      const res = await addPermission(
-        slug.trim().toLowerCase(),
-        description || undefined,
-      );
-      setSaving(false);
-      if (!res.success) return toast.error(res.error);
-    } else if (permission) {
-      const res = await updatePermission(permission.id, {
-        slug: slug.trim().toLowerCase(),
-        description: description || null,
-      });
-      setSaving(false);
-      if (!res.success) return toast.error(res.error);
-    }
-    toast.success(
-      mode === 'create' ? 'Permission created' : 'Permission updated',
-    );
+    const res = await updatePermission(permission.id, {
+      slug: slug.trim().toLowerCase(),
+      description: description || null,
+    });
+    setSaving(false);
+    if (!res.success) return toast.error(res.error);
+    toast.success('Permission updated');
     onSaved();
   };
 
@@ -203,11 +170,7 @@ function PermissionEditorDialog({
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>
-            {mode === 'create'
-              ? 'Create permission'
-              : `Edit permission "${permission?.slug}"`}
-          </DialogTitle>
+          <DialogTitle>Edit permission &ldquo;{permission.slug}&rdquo;</DialogTitle>
           <DialogDescription>
             Permissions follow the <code>entity:action:scope</code> pattern. Use{' '}
             <code>all</code> in any segment as a wildcard.
