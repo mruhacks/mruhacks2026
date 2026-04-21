@@ -201,12 +201,12 @@ export default function SignInForm() {
           {magicLinkLoading ? (
             <>
               <Loader2 className='mr-2 size-4 animate-spin' />
-              Sending link...
+              Sending magic link...
             </>
           ) : magicLinkSent ? (
-            'Link sent — check your email'
+            'Magic link sent — check your email'
           ) : (
-            'Email me a sign-in link'
+            'Sign in with magic link'
           )}
         </Button>
 
