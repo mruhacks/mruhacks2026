@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { randomBytes, randomUUID } from 'crypto';
 import { faker } from '@faker-js/faker';
+import { auth } from '@/utils/auth';
 import { db, client } from '@/utils/db';
 import {
   user,
@@ -233,6 +234,54 @@ async function seedRolesAndPermissions() {
   return result;
 }
 
+// ── Seed a fixed admin user from env vars ────────────────────────────────
+async function seedEnvAdminUser(
+  insertedRoles: { id: number; slug: string | null }[],
+) {
+  const email = process.env.SEED_ADMIN_EMAIL?.trim();
+  const password = process.env.SEED_ADMIN_PASSWORD?.trim();
+  const name = process.env.SEED_ADMIN_NAME?.trim() ?? 'Admin';
+
+  if (!email || !password) return;
+
+  console.log(`👤 Seeding admin user: ${email}`);
+
+  const adminRole = insertedRoles.find((r) => r.slug === 'admin');
+  const ctx = await auth.$context;
+
+  const existing = await ctx.internalAdapter.findUserByEmail(email);
+  let userId: string;
+
+  if (existing) {
+    await ctx.internalAdapter.updateUser(existing.user.id, {
+      name,
+      emailVerified: true,
+    });
+    const hashedPassword = await ctx.password.hash(password);
+    await ctx.internalAdapter.updatePassword(existing.user.id, hashedPassword);
+    userId = existing.user.id;
+    console.log(`♻️  Updated existing user ${email}`);
+  } else {
+    const result = await auth.api.signUpEmail({
+      body: { email, password, name },
+    });
+    await ctx.internalAdapter.updateUser(result.user.id, {
+      emailVerified: true,
+    });
+    userId = result.user.id;
+    console.log(`✅ Created user ${email}`);
+  }
+
+  if (adminRole) {
+    await db
+      .insert(userRole)
+      .values({ userId, roleId: adminRole.id })
+      .onConflictDoNothing();
+  }
+
+  console.log(`✅ Admin user ready (email: ${email})`);
+}
+
 // ── Main user seeding ───────────────────────────────────────────────────
 async function main() {
   const { insertedRoles, insertedPerms } = await seedRolesAndPermissions();
@@ -450,6 +499,8 @@ async function main() {
   console.log(
     `🎉 Done! Inserted ${COUNT} fake users with profiles, applications, and roles.`,
   );
+
+  await seedEnvAdminUser(insertedRoles);
 }
 
 main()
