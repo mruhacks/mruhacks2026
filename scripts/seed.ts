@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import { randomBytes, randomUUID } from 'crypto';
 import { faker } from '@faker-js/faker';
-import { db } from '@/utils/db';
+import { db, client } from '@/utils/db';
 import {
   user,
   account,
@@ -452,7 +452,9 @@ async function main() {
   );
 }
 
-main().catch((err) => {
-  console.error('❌ Seed failed:', err);
-  process.exit(1);
-});
+main()
+  .then(() => client.end())
+  .catch((err) => {
+    console.error('❌ Seed failed:', err);
+    client.end().finally(() => process.exit(1));
+  });
