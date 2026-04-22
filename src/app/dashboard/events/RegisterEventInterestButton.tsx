@@ -12,6 +12,7 @@ export function RegisterEventInterestButton({ eventId, hasInterest }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
+  // change so i can create new pr
   function handleClick() {
     startTransition(async () => {
       const result = await registerEventInterest(eventId);
