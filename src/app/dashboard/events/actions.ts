@@ -20,7 +20,6 @@ import {
   interests,
   dietaryRestrictions,
   heardFromSources,
-  eventInterestRegistrations,
 } from '@/db/schema';
 import { getUser } from '@/utils/auth';
 import { ActionResult, fail, ok } from '@/utils/action-result';
@@ -250,56 +249,10 @@ export async function submitEventApplication(
   return registerParticipant(profile, eventData, eventId);
 }
 
-/**
- * Records interest for an event for the current user.
- * Requires authentication and a completed profile.
- */
-export async function registerEventInterest(
-  eventId: string,
-): Promise<ActionResult> {
-  const user = await getUser();
-  if (!user) return fail('User not authenticated');
-
-  const profileResult = await getUserProfile();
-  if (!profileResult.success)
-    return fail(profileResult.error ?? 'Could not load profile');
-  const profile = profileResult.data;
-  if (profile == null)
-    return fail(
-      'Complete your profile first before getting reminders for events.',
-    );
-
-  const [event] = await db
-    .select({ id: events.id })
-    .from(events)
-    .where(eq(events.id, eventId))
-    .limit(1);
-
-  if (event == null) return fail('This event was not found.');
-
-  try {
-    await db
-      .insert(eventInterestRegistrations)
-      .values({ userId: user.id, eventId })
-      .onConflictDoNothing({
-        target: [
-          eventInterestRegistrations.userId,
-          eventInterestRegistrations.eventId,
-        ],
-      });
-
-    return ok('Event interest saved successfully.');
-  } catch (error) {
-    console.error('Event interest save error:', error);
-    return fail('Failed to save event interest.');
-  }
-}
-
 export type EventWithUserStatus = {
   id: string;
   name: string;
   hasApplication: boolean;
-  hasInterest: boolean;
   startsAt: Date | null;
   endsAt: Date | null;
   userStatus: 'applied' | 'registered' | null;
@@ -320,31 +273,24 @@ export async function getEventsWithUserStatus(): Promise<
     .from(events)
     .orderBy(desc(events.createdAt));
 
-  const [applicationEventIds, attendeeEventIds, interestEventIds] =
-    await Promise.all([
-      db
-        .select({ eventId: eventApplications.eventId })
-        .from(eventApplications)
-        .where(eq(eventApplications.userId, user.id)),
-      db
-        .select({ eventId: eventAttendees.eventId })
-        .from(eventAttendees)
-        .where(eq(eventAttendees.userId, user.id)),
-      db
-        .select({ eventId: eventInterestRegistrations.eventId })
-        .from(eventInterestRegistrations)
-        .where(eq(eventInterestRegistrations.userId, user.id)),
-    ]);
+  const [applicationEventIds, attendeeEventIds] = await Promise.all([
+    db
+      .select({ eventId: eventApplications.eventId })
+      .from(eventApplications)
+      .where(eq(eventApplications.userId, user.id)),
+    db
+      .select({ eventId: eventAttendees.eventId })
+      .from(eventAttendees)
+      .where(eq(eventAttendees.userId, user.id)),
+  ]);
 
   const appliedSet = new Set(applicationEventIds.map((r) => r.eventId));
   const registeredSet = new Set(attendeeEventIds.map((r) => r.eventId));
-  const interestSet = new Set(interestEventIds.map((r) => r.eventId));
 
   return allEvents.map((e) => ({
     id: e.id,
     name: e.name,
     hasApplication: e.hasApplication,
-    hasInterest: interestSet.has(e.id),
     startsAt: e.startsAt,
     endsAt: e.endsAt,
     userStatus: e.hasApplication
