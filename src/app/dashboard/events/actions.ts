@@ -263,19 +263,10 @@ export async function registerEventInterest(
   const profileResult = await getUserProfile();
   if (!profileResult.success)
     return fail(profileResult.error ?? 'Could not load profile');
-  const profile = profileResult.data;
-  if (profile == null)
+  if (profileResult.data == null)
     return fail(
       'Complete your profile first before getting reminders for events.',
     );
-
-  const [event] = await db
-    .select({ id: events.id })
-    .from(events)
-    .where(eq(events.id, eventId))
-    .limit(1);
-
-  if (event == null) return fail('This event was not found.');
 
   try {
     await db
@@ -299,7 +290,7 @@ export type EventWithUserStatus = {
   id: string;
   name: string;
   hasApplication: boolean;
-  hasInterest: boolean;
+  userHasRegisteredInterest: boolean;
   startsAt: Date | null;
   endsAt: Date | null;
   userStatus: 'applied' | 'registered' | null;
@@ -344,7 +335,7 @@ export async function getEventsWithUserStatus(): Promise<
     id: e.id,
     name: e.name,
     hasApplication: e.hasApplication,
-    hasInterest: interestSet.has(e.id),
+    userHasRegisteredInterest: interestSet.has(e.id),
     startsAt: e.startsAt,
     endsAt: e.endsAt,
     userStatus: e.hasApplication

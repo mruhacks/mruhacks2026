@@ -99,7 +99,7 @@ export default async function DashboardEventsPage() {
                   {hasProfile ? (
                     <RegisterEventInterestButton
                       eventId={event.id}
-                      hasInterest={event.hasInterest}
+                      userHasRegisteredInterest={event.userHasRegisteredInterest}
                     />
                   ) : (
                     <Button asChild size='sm' variant='default'>
