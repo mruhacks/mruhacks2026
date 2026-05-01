@@ -35,7 +35,7 @@ import {
 } from '@/components/application-form/schema';
 import type { ApplicationQuestion } from '@/types/application';
 import { cacheLife } from 'next/cache';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, isNotNull } from 'drizzle-orm';
 import { getUserProfile } from '@/app/dashboard/profile/actions';
 import {
   buildApplicationResponses,
@@ -307,11 +307,26 @@ export async function getEventsWithUserStatus(): Promise<
   if (!user) return [];
 
   const allEvents = await db
-    .select()
+    .select({
+      id: events.id,
+      name: events.name,
+      hasApplication: events.hasApplication,
+      startsAt: events.startsAt,
+      endsAt: events.endsAt,
+      userHasRegisteredInterest: isNotNull(
+        eventInterestRegistrations.userId,
+      ),
+    })
     .from(events)
+    .leftJoin(eventInterestRegistrations,
+      and(
+        eq(eventInterestRegistrations.eventId, events.id),
+        eq(eventInterestRegistrations.userId, user.id),
+      ),
+    )
     .orderBy(desc(events.createdAt));
 
-  const [applicationEventIds, attendeeEventIds, interestEventIds] =
+  const [applicationEventIds, attendeeEventIds] =
     await Promise.all([
       db
         .select({ eventId: eventApplications.eventId })
@@ -321,21 +336,16 @@ export async function getEventsWithUserStatus(): Promise<
         .select({ eventId: eventAttendees.eventId })
         .from(eventAttendees)
         .where(eq(eventAttendees.userId, user.id)),
-      db
-        .select({ eventId: eventInterestRegistrations.eventId })
-        .from(eventInterestRegistrations)
-        .where(eq(eventInterestRegistrations.userId, user.id)),
     ]);
 
   const appliedSet = new Set(applicationEventIds.map((r) => r.eventId));
   const registeredSet = new Set(attendeeEventIds.map((r) => r.eventId));
-  const interestSet = new Set(interestEventIds.map((r) => r.eventId));
 
   return allEvents.map((e) => ({
     id: e.id,
     name: e.name,
     hasApplication: e.hasApplication,
-    userHasRegisteredInterest: interestSet.has(e.id),
+    userHasRegisteredInterest: Boolean(e.userHasRegisteredInterest),
     startsAt: e.startsAt,
     endsAt: e.endsAt,
     userStatus: e.hasApplication
