@@ -23,7 +23,6 @@ export function RegisterEventInterestButton({
       const result = await registerEventInterest(eventId);
       if (result?.success) {
         toast.success('Interest saved.');
-        // removed refresh
         setSaved(true);
       } else {
         toast.error(result?.error ?? 'Failed to save interest.');
