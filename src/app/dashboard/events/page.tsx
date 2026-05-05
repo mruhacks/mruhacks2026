@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 
 import { getUser } from '@/utils/auth';
+import { getUserProfile } from '@/app/dashboard/profile/actions';
 import { getEventsWithUserStatus } from '@/app/dashboard/events/actions';
 import {
   Card,
@@ -13,9 +14,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { RegisterEventButton } from './RegisterEventButton';
 import { UnregisterEventButton } from './UnregisterEventButton';
-import { Calendar } from 'lucide-react';
 import { RegisterEventInterestButton } from './RegisterEventInterestButton';
-import { getUserProfile } from '../profile/actions';
+import { Calendar } from 'lucide-react';
 
 function formatDate(d: Date | null) {
   if (!d) return null;
@@ -32,7 +32,8 @@ export default async function DashboardEventsPage() {
   const eventsList = await getEventsWithUserStatus();
 
   const profileResult = await getUserProfile();
-  const hasProfile = profileResult.success && profileResult.data != null;
+  const hasProfile =
+    profileResult.success && profileResult.data != null;
 
   return (
     <div className='space-y-6'>
@@ -72,7 +73,7 @@ export default async function DashboardEventsPage() {
                     {!event.startsAt && 'Date TBA'}
                   </CardDescription>
                 </CardHeader>
-                <CardContent className='mt-2 flex flex-wrap items-center gap-2'>
+                <CardContent className='mt-auto pt-4'>
                   {event.hasApplication ? (
                     <Button asChild size='sm' variant='default'>
                       <Link href={`/dashboard/events/${event.id}/apply`}>
@@ -99,7 +100,9 @@ export default async function DashboardEventsPage() {
                   {hasProfile ? (
                     <RegisterEventInterestButton
                       eventId={event.id}
-                      userHasRegisteredInterest={event.userHasRegisteredInterest}
+                      userHasRegisteredInterest={
+                        event.userHasRegisteredInterest
+                      }
                     />
                   ) : (
                     <Button asChild size='sm' variant='default'>

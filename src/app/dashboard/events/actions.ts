@@ -12,6 +12,7 @@ import {
   userDietaryRestrictions,
   eventApplications,
   eventAttendees,
+  eventInterestRegistrations,
   applicationFormView,
   genders,
   universities,
@@ -20,7 +21,6 @@ import {
   interests,
   dietaryRestrictions,
   heardFromSources,
-  eventInterestRegistrations,
 } from '@/db/schema';
 import { getUser } from '@/utils/auth';
 import { ActionResult, fail, ok } from '@/utils/action-result';
@@ -326,17 +326,16 @@ export async function getEventsWithUserStatus(): Promise<
     )
     .orderBy(desc(events.createdAt));
 
-  const [applicationEventIds, attendeeEventIds] =
-    await Promise.all([
-      db
-        .select({ eventId: eventApplications.eventId })
-        .from(eventApplications)
-        .where(eq(eventApplications.userId, user.id)),
-      db
-        .select({ eventId: eventAttendees.eventId })
-        .from(eventAttendees)
-        .where(eq(eventAttendees.userId, user.id)),
-    ]);
+  const [applicationEventIds, attendeeEventIds] = await Promise.all([
+    db
+      .select({ eventId: eventApplications.eventId })
+      .from(eventApplications)
+      .where(eq(eventApplications.userId, user.id)),
+    db
+      .select({ eventId: eventAttendees.eventId })
+      .from(eventAttendees)
+      .where(eq(eventAttendees.userId, user.id)),
+  ]);
 
   const appliedSet = new Set(applicationEventIds.map((r) => r.eventId));
   const registeredSet = new Set(attendeeEventIds.map((r) => r.eventId));
