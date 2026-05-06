@@ -12,6 +12,7 @@ import {
   userDietaryRestrictions,
   eventApplications,
   eventAttendees,
+  eventInterestRegistrations,
   applicationFormView,
   genders,
   universities,
@@ -34,7 +35,7 @@ import {
 } from '@/components/application-form/schema';
 import type { ApplicationQuestion } from '@/types/application';
 import { cacheLife } from 'next/cache';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, isNotNull } from 'drizzle-orm';
 import { getUserProfile } from '@/app/dashboard/profile/actions';
 import {
   buildApplicationResponses,
@@ -249,10 +250,47 @@ export async function submitEventApplication(
   return registerParticipant(profile, eventData, eventId);
 }
 
+/**
+ * Records interest for an event for the current user.
+ * Requires authentication and a completed profile.
+ */
+export async function registerEventInterest(
+  eventId: string,
+): Promise<ActionResult> {
+  const user = await getUser();
+  if (!user) return fail('User not authenticated');
+
+  const profileResult = await getUserProfile();
+  if (!profileResult.success)
+    return fail(profileResult.error ?? 'Could not load profile');
+  if (profileResult.data == null)
+    return fail(
+      'Complete your profile first before getting reminders for events.',
+    );
+
+  try {
+    await db
+      .insert(eventInterestRegistrations)
+      .values({ userId: user.id, eventId })
+      .onConflictDoNothing({
+        target: [
+          eventInterestRegistrations.userId,
+          eventInterestRegistrations.eventId,
+        ],
+      });
+
+    return ok('Event interest saved successfully.');
+  } catch (error) {
+    console.error('Event interest save error:', error);
+    return fail('Failed to save event interest.');
+  }
+}
+
 export type EventWithUserStatus = {
   id: string;
   name: string;
   hasApplication: boolean;
+  userHasRegisteredInterest: boolean;
   startsAt: Date | null;
   endsAt: Date | null;
   userStatus: 'applied' | 'registered' | null;
@@ -269,8 +307,23 @@ export async function getEventsWithUserStatus(): Promise<
   if (!user) return [];
 
   const allEvents = await db
-    .select()
+    .select({
+      id: events.id,
+      name: events.name,
+      hasApplication: events.hasApplication,
+      startsAt: events.startsAt,
+      endsAt: events.endsAt,
+      userHasRegisteredInterest: isNotNull(
+        eventInterestRegistrations.userId,
+      ),
+    })
     .from(events)
+    .leftJoin(eventInterestRegistrations,
+      and(
+        eq(eventInterestRegistrations.eventId, events.id),
+        eq(eventInterestRegistrations.userId, user.id),
+      ),
+    )
     .orderBy(desc(events.createdAt));
 
   const [applicationEventIds, attendeeEventIds] = await Promise.all([
@@ -291,6 +344,7 @@ export async function getEventsWithUserStatus(): Promise<
     id: e.id,
     name: e.name,
     hasApplication: e.hasApplication,
+    userHasRegisteredInterest: Boolean(e.userHasRegisteredInterest),
     startsAt: e.startsAt,
     endsAt: e.endsAt,
     userStatus: e.hasApplication

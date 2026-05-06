@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 
 import { getUser } from '@/utils/auth';
+import { getUserProfile } from '@/app/dashboard/profile/actions';
 import { getEventsWithUserStatus } from '@/app/dashboard/events/actions';
 import {
   Card,
@@ -13,6 +14,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { RegisterEventButton } from './RegisterEventButton';
 import { UnregisterEventButton } from './UnregisterEventButton';
+import { RegisterEventInterestButton } from './RegisterEventInterestButton';
 import { Calendar } from 'lucide-react';
 
 function formatDate(d: Date | null) {
@@ -28,6 +30,10 @@ export default async function DashboardEventsPage() {
   if (!user) redirect('/signin');
 
   const eventsList = await getEventsWithUserStatus();
+
+  const profileResult = await getUserProfile();
+  const hasProfile =
+    profileResult.success && profileResult.data != null;
 
   return (
     <div className='space-y-6'>
@@ -89,6 +95,21 @@ export default async function DashboardEventsPage() {
                         <RegisterEventButton eventId={event.id} />
                       )}
                     </>
+                  )}
+
+                  {hasProfile ? (
+                    <RegisterEventInterestButton
+                      eventId={event.id}
+                      userHasRegisteredInterest={
+                        event.userHasRegisteredInterest
+                      }
+                    />
+                  ) : (
+                    <Button asChild size='sm' variant='default'>
+                      <Link href='/dashboard/profile?next=/dashboard/events'>
+                        Complete profile to notify me
+                      </Link>
+                    </Button>
                   )}
                 </CardContent>
               </Card>
