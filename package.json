@@ -2,6 +2,7 @@
   "name": "mruhacks",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "pnpm@11.1.1",
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
@@ -96,6 +97,7 @@
     "vitest": "3.2.4"
   },
   "pnpm": {
+    "resolutionMode": "highest",
     "overrides": {
       "react-hook-form": "^7.65.0",
       "@hookform/resolvers": "^5.2.2"
