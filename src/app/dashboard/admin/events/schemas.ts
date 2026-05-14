@@ -36,3 +36,43 @@ export const editQuestionSchema = z.object({
 });
 
 export type EditQuestionInput = z.infer<typeof editQuestionSchema>;
+
+// ── Event schemas ────────────────────────────────────────────────────────
+
+export const createEventSchema = z.object({
+  name: z.string().trim().min(1, 'Event name is required'),
+  hasApplication: z.boolean().default(false),
+  capacity: z.number().int().positive().nullish(),
+  startsAt: z.string().nullish(),
+  endsAt: z.string().nullish(),
+}).refine(
+  (data) => {
+    if (!data.startsAt || !data.endsAt) return true;
+    return new Date(data.startsAt) < new Date(data.endsAt);
+  },
+  {
+    message: 'Start date must be before end date',
+    path: ['startsAt'],
+  }
+);
+
+export type CreateEventInput = z.infer<typeof createEventSchema>;
+
+export const updateEventSettingsSchema = z.object({
+  name: z.string().trim().min(1, 'Event name is required').optional(),
+  hasApplication: z.boolean().optional(),
+  capacity: z.number().int().positive().nullish(),
+  startsAt: z.string().nullish(),
+  endsAt: z.string().nullish(),
+}).refine(
+  (data) => {
+    if (!data.startsAt || !data.endsAt) return true;
+    return new Date(data.startsAt) < new Date(data.endsAt);
+  },
+  {
+    message: 'Start date must be before end date',
+    path: ['startsAt'],
+  }
+);
+
+export type UpdateEventSettingsInput = z.infer<typeof updateEventSettingsSchema>;

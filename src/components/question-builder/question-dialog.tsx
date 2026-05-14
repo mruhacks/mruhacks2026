@@ -285,13 +285,26 @@ export function QuestionDialog({
   };
 
   const handleSortAlphabetically = () => {
-    const indexed = fields.map((f, idx) => ({ ...f, originalIndex: idx }));
-    indexed.sort((a, b) => options[a.originalIndex].label.localeCompare(options[b.originalIndex].label));
-    indexed.forEach((item, newIndex) => {
-      if (item.originalIndex !== newIndex) {
-        move(item.originalIndex, newIndex);
+    // Create indexed array of current options with their positions
+    const indexed = options.map((opt, idx) => ({ opt, currentIndex: idx }));
+
+    // Sort by label alphabetically
+    indexed.sort((a, b) => a.opt.label.localeCompare(b.opt.label));
+
+    // Build the correct sequence of moves
+    // For each target position, find where that item currently is and move it there
+    let currentFields = [...fields];
+    for (let targetIdx = 0; targetIdx < indexed.length; targetIdx++) {
+      const itemToMove = indexed[targetIdx];
+      const currentIdx = currentFields.findIndex(f => f.id === fields[itemToMove.currentIndex].id);
+
+      if (currentIdx !== targetIdx) {
+        move(currentIdx, targetIdx);
+        // Update our tracking array
+        const [moved] = currentFields.splice(currentIdx, 1);
+        currentFields.splice(targetIdx, 0, moved);
       }
-    });
+    }
   };
 
   // Reset form when dialog opens with new data

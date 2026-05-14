@@ -15,6 +15,10 @@ export type BuildApplicationResponsesResult =
  */
 function createQuestionSchema(question: ApplicationQuestion) {
   const baseSchema = getBaseSchema(question.type);
+  // For required boolean fields, must be true (consent checkboxes)
+  if (question.required && question.type === 'boolean') {
+    return z.boolean().refine((val) => val === true, 'Must be checked');
+  }
   const withRequired = question.required ? baseSchema : baseSchema.optional().nullable();
   return withRequired;
 }

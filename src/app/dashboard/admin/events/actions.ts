@@ -3,13 +3,13 @@
 import { randomUUID } from 'crypto';
 import { and, count, eq } from 'drizzle-orm';
 import { db } from '@/utils/db';
-import { events, eventApplications } from '@/db/schema';
+import { events, eventApplications, user, userProfiles } from '@/db/schema';
 import { getUser } from '@/utils/auth';
 import { ok, fail, type ActionResult } from '@/utils/action-result';
 import { requirePermission } from '@/app/actions/authz';
 import type { ApplicationQuestion } from '@/types/application';
-import { addQuestionSchema, editQuestionSchema } from './schemas';
-import type { AddQuestionInput, EditQuestionInput } from './schemas';
+import { addQuestionSchema, editQuestionSchema, createEventSchema, updateEventSettingsSchema } from './schemas';
+import type { AddQuestionInput, EditQuestionInput, CreateEventInput, UpdateEventSettingsInput } from './schemas';
 import { validateQuestionEdit } from '@/lib/question-diff';
 
 // ── Internal helpers ──────────────────────────────────────────────────────
@@ -268,4 +268,199 @@ export async function reactivateQuestion(
 
   // TODO: Log audit trail: { action: 'question.reactivated', eventId, questionId, userId, timestamp }
   return ok('Question reactivated.');
+}
+
+// ── Event management ──────────────────────────────────────────────────────
+
+/**
+ * Creates a new event.
+ * Requires event:manage permission.
+ */
+export async function createEvent(
+  data: CreateEventInput,
+): Promise<ActionResult<{ id: string }>> {
+  const user = await getAuthorizedUser();
+  if (!user) return fail('Not authenticated');
+
+  const parsed = createEventSchema.safeParse(data);
+  if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? 'Invalid input');
+
+  const input = parsed.data;
+
+  // Convert datetime-local string to Date (datetime-local gives us "2026-05-13T14:30" format)
+  const parseDateTime = (dateStr: string | null | undefined) => {
+    if (!dateStr) return null;
+    try {
+      return new Date(dateStr);
+    } catch {
+      return null;
+    }
+  };
+
+  const [newEvent] = await db
+    .insert(events)
+    .values({
+      id: randomUUID(),
+      name: input.name,
+      hasApplication: input.hasApplication,
+      capacity: input.capacity ?? null,
+      startsAt: parseDateTime(input.startsAt),
+      endsAt: parseDateTime(input.endsAt),
+      applicationQuestions: input.hasApplication ? [] : null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .returning({ id: events.id });
+
+  // TODO: Log audit trail: { action: 'event.created', eventId, userId, timestamp }
+  return ok({ id: newEvent.id });
+}
+
+export type EventDetails = {
+  id: string;
+  name: string;
+  hasApplication: boolean;
+  capacity: number | null;
+  startsAt: Date | null;
+  endsAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+  questionsCount: number;
+  applicationsCount: number;
+};
+
+/**
+ * Fetches full event details with stats.
+ * Requires event:manage permission.
+ */
+export async function getEventDetails(
+  eventId: string,
+): Promise<ActionResult<EventDetails>> {
+  const user = await getUser();
+  if (!user) return fail('Not authenticated');
+  await requirePermission(user.id, 'event:manage');
+
+  const [eventRow] = await db
+    .select()
+    .from(events)
+    .where(eq(events.id, eventId))
+    .limit(1);
+
+  if (!eventRow) return fail('Event not found');
+
+  const [{ total: applicationsCount }] = await db
+    .select({ total: count() })
+    .from(eventApplications)
+    .where(eq(eventApplications.eventId, eventId));
+
+  const questions = await fetchQuestions(eventId);
+  const questionsCount = (questions ?? []).filter((q) => q.active).length;
+
+  return ok({
+    id: eventRow.id,
+    name: eventRow.name,
+    hasApplication: eventRow.hasApplication,
+    capacity: eventRow.capacity ?? null,
+    startsAt: eventRow.startsAt ?? null,
+    endsAt: eventRow.endsAt ?? null,
+    createdAt: eventRow.createdAt,
+    updatedAt: eventRow.updatedAt,
+    questionsCount,
+    applicationsCount,
+  });
+}
+
+/**
+ * Updates event settings.
+ * Requires event:manage permission.
+ */
+export async function updateEventSettings(
+  eventId: string,
+  data: UpdateEventSettingsInput,
+): Promise<ActionResult> {
+  const user = await getAuthorizedUser();
+  if (!user) return fail('Not authenticated');
+
+  const parsed = updateEventSettingsSchema.safeParse(data);
+  if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? 'Invalid input');
+
+  const [eventRow] = await db
+    .select()
+    .from(events)
+    .where(eq(events.id, eventId))
+    .limit(1);
+
+  if (!eventRow) return fail('Event not found');
+
+  const input = parsed.data;
+
+  // Convert datetime-local string to Date (datetime-local gives us "2026-05-13T14:30" format)
+  const parseDateTime = (dateStr: string | null | undefined) => {
+    if (dateStr === undefined) return undefined;
+    if (!dateStr) return null;
+    try {
+      return new Date(dateStr);
+    } catch {
+      return null;
+    }
+  };
+
+  await db
+    .update(events)
+    .set({
+      name: input.name ?? eventRow.name,
+      hasApplication: input.hasApplication ?? eventRow.hasApplication,
+      capacity: input.capacity ?? eventRow.capacity,
+      startsAt: input.startsAt !== undefined ? parseDateTime(input.startsAt) : eventRow.startsAt,
+      endsAt: input.endsAt !== undefined ? parseDateTime(input.endsAt) : eventRow.endsAt,
+      updatedAt: new Date(),
+    })
+    .where(eq(events.id, eventId));
+
+  // TODO: Log audit trail: { action: 'event.updated', eventId, userId, changes: {...}, timestamp }
+  return ok('Event updated.');
+}
+
+export type ApplicationResponseRow = {
+  userId: string;
+  email: string;
+  fullName: string;
+  responses: Record<string, unknown>;
+  createdAt: Date;
+};
+
+/**
+ * Fetches all application responses for an event.
+ * Requires event:manage permission.
+ */
+export async function getApplicationResponses(
+  eventId: string,
+): Promise<ActionResult<ApplicationResponseRow[]>> {
+  const authUser = await getUser();
+  if (!authUser) return fail('Not authenticated');
+  await requirePermission(authUser.id, 'event:manage');
+
+  const rows = await db
+    .select({
+      userId: eventApplications.userId,
+      email: user.email,
+      fullName: userProfiles.fullName,
+      responses: eventApplications.responses,
+      createdAt: eventApplications.createdAt,
+    })
+    .from(eventApplications)
+    .innerJoin(user, eq(eventApplications.userId, user.id))
+    .leftJoin(userProfiles, eq(eventApplications.userId, userProfiles.userId))
+    .where(eq(eventApplications.eventId, eventId))
+    .orderBy(eventApplications.createdAt);
+
+  return ok(
+    rows.map((row) => ({
+      userId: row.userId,
+      email: row.email,
+      fullName: row.fullName || 'Unknown',
+      responses: (row.responses as Record<string, unknown>) ?? {},
+      createdAt: row.createdAt,
+    })),
+  );
 }

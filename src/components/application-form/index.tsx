@@ -54,23 +54,25 @@ function ApplicationQuestionField({
         name={fieldName}
         control={control}
         defaultValue={undefined}
-        render={({ field }) => (
-          <div className='flex items-start gap-3'>
-            <Checkbox
-              id={q.id}
-              checked={Boolean(field.value)}
-              onCheckedChange={field.onChange}
-            />
-            <div className='grid gap-1'>
-              <Label htmlFor={q.id}>
-                {q.label}
-                {q.required && <RequiredAsterisk />}
-              </Label>
-              {q.description && (
-                <p className='text-muted-foreground text-sm'>{q.description}</p>
-              )}
+        render={({ field, fieldState }) => (
+          <Field data-invalid={fieldState.invalid}>
+            <div className='flex items-start gap-3'>
+              <Checkbox
+                id={q.id}
+                checked={Boolean(field.value)}
+                onCheckedChange={field.onChange}
+              />
+              <div className='grid gap-1 flex-1'>
+                <Label htmlFor={q.id}>
+                  {q.label}
+                  {q.required && <RequiredAsterisk />}
+                </Label>
+                {q.description && (
+                  <p className='text-muted-foreground text-sm'>{q.description}</p>
+                )}
+              </div>
             </div>
-          </div>
+          </Field>
         )}
       />
     );
@@ -99,7 +101,6 @@ function ApplicationQuestionField({
                 )
               }
             />
-            {fieldState.error && <FieldError errors={[fieldState.error]} />}
           </Field>
         )}
       />
@@ -134,7 +135,6 @@ function ApplicationQuestionField({
                   )
                 }
               />
-              {fieldState.error && <FieldError errors={[fieldState.error]} />}
             </Field>
           );
         }}
@@ -162,7 +162,6 @@ function ApplicationQuestionField({
                 field.onChange(e.target.value === '' ? null : Number(e.target.value))
               }
             />
-            {fieldState.error && <FieldError errors={[fieldState.error]} />}
           </Field>
         )}
       />
@@ -189,7 +188,6 @@ function ApplicationQuestionField({
               placeholder={q.label}
               maxLength={255}
             />
-            {fieldState.error && <FieldError errors={[fieldState.error]} />}
           </Field>
         )}
       />
@@ -216,7 +214,6 @@ function ApplicationQuestionField({
             placeholder={q.label}
             maxLength={2000}
           />
-          {fieldState.error && <FieldError errors={[fieldState.error]} />}
         </Field>
       )}
     />
@@ -340,8 +337,23 @@ export default function ApplicationForm({
     [submitAction, eventId, successMessage, errorMessage, router],
   );
 
+  const handleInvalidSubmit = React.useCallback(
+    (errors: any) => {
+      // Get the first error message from any field
+      const firstError = Object.values(errors).find((error: any) => error?.message);
+      if (firstError && typeof firstError === 'object' && 'message' in firstError) {
+        toast.error('Validation Error', {
+          description: (firstError as any).message,
+        });
+      } else {
+        toast.error('Please fix the validation errors before submitting.');
+      }
+    },
+    [],
+  );
+
   return (
-    <form onSubmit={handleSubmit(submitHandler)}>
+    <form onSubmit={handleSubmit(submitHandler, handleInvalidSubmit)}>
       <ApplicationFormFields
         control={control}
         applicationQuestions={applicationQuestions}
