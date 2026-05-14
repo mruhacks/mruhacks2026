@@ -77,7 +77,7 @@ export function QuestionBuilder({
       setAddOpen(false);
       // Use the question returned from the backend with its UUIDs
       setQuestions([...questions, result.data]);
-    } else {
+    } else if (!result.success) {
       toast.error(result.error);
     }
   };

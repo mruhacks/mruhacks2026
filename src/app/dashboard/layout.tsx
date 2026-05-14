@@ -17,7 +17,7 @@ export default function DashboardLayout({
 }) {
   return (
     <SidebarProvider>
-      <Suspense fallback={<AppSidebarLoading />} suppressHydrationWarning>
+      <Suspense fallback={<AppSidebarLoading />}>
         <AppSidebar />
       </Suspense>
       <SidebarInset>

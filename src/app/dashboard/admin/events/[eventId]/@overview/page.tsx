@@ -56,7 +56,7 @@ export default function EventOverviewPage({ params }: EventOverviewPageProps) {
     if (!eventId) return;
 
     async function fetchEvent() {
-      const result = await getEventDetails(eventId);
+      const result = await getEventDetails(eventId as string);
       if (result.success && result.data) {
         setEvent(result.data);
         reset({

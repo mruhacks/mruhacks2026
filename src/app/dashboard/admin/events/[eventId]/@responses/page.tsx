@@ -34,8 +34,8 @@ export default function ResponsesPage({ params }: ResponsesPageProps) {
 
     async function fetchData() {
       const [responsesResult, eventResult] = await Promise.all([
-        getApplicationResponses(eventId),
-        getEventWithQuestions(eventId),
+        getApplicationResponses(eventId as string),
+        getEventWithQuestions(eventId as string),
       ]);
 
       if (responsesResult.success && responsesResult.data) {

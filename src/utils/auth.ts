@@ -78,7 +78,21 @@ export const auth = betterAuth({
       });
     },
   },
-  plugins: [admin()],
+  plugins: [
+    admin(),
+    magicLink({
+      sendMagicLink: async ({ email, url }) => {
+        void sendMail({
+          to: email,
+          subject: 'Sign in to MRU Hacks',
+          text: `Sign in by opening this link:\n\n${url}\n`,
+          html: `<p>Sign in by clicking <a href="${url}">this link</a>.</p>`,
+        }).catch((err) => {
+          console.error('[auth] sendMagicLink failed', err);
+        });
+      },
+    }),
+  ],
   advanced: {
     database: {
       generateId: false,
