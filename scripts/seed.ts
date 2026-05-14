@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import { randomBytes, randomUUID } from 'crypto';
 import { faker } from '@faker-js/faker';
-import { auth } from '@/utils/auth';
+import { auth } from './auth';
 import { db, client } from '@/utils/db';
 import {
   user,
