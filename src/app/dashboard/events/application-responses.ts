@@ -61,8 +61,9 @@ export function buildApplicationResponses(
   const responses: Record<string, unknown> = {};
 
   for (const question of applicationQuestions) {
-    // Skip inactive questions
+    // Skip inactive questions and section dividers (they hold no response data)
     if (!question.active) continue;
+    if (question.type === 'section_divider') continue;
 
     const value = formResponses[question.id];
     const schema = createQuestionSchema(question);
