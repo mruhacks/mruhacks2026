@@ -1,0 +1,271 @@
+'use server';
+
+import { randomUUID } from 'crypto';
+import { and, count, eq } from 'drizzle-orm';
+import { db } from '@/utils/db';
+import { events, eventApplications } from '@/db/schema';
+import { getUser } from '@/utils/auth';
+import { ok, fail, type ActionResult } from '@/utils/action-result';
+import { requirePermission } from '@/app/actions/authz';
+import type { ApplicationQuestion } from '@/types/application';
+import { addQuestionSchema, editQuestionSchema } from './schemas';
+import type { AddQuestionInput, EditQuestionInput } from './schemas';
+import { validateQuestionEdit } from '@/lib/question-diff';
+
+// ── Internal helpers ──────────────────────────────────────────────────────
+
+async function getAuthorizedUser() {
+  const user = await getUser();
+  if (!user) return null;
+  await requirePermission(user.id, 'event:manage');
+  // TODO: Extend to support event-scoped permissions:
+  //   - requirePermission(user.id, `event:manage:{eventId}`) for org-specific access
+  //   - or check if user has role 'organizer' for this specific event
+  return user;
+}
+
+/** Fetch all current questions for an event (null if not found). */
+async function fetchQuestions(
+  eventId: string,
+): Promise<ApplicationQuestion[] | null> {
+  const [row] = await db
+    .select({ applicationQuestions: events.applicationQuestions })
+    .from(events)
+    .where(eq(events.id, eventId))
+    .limit(1);
+
+  if (!row) return null;
+  return (row.applicationQuestions as ApplicationQuestion[] | null) ?? [];
+}
+
+/** Fetch all event_applications.responses for a given event. */
+async function fetchAllResponses(eventId: string): Promise<Record<string, unknown>[]> {
+  const rows = await db
+    .select({ responses: eventApplications.responses })
+    .from(eventApplications)
+    .where(eq(eventApplications.eventId, eventId));
+  return rows.map((r) => (r.responses as Record<string, unknown>) ?? {});
+}
+
+/** Write updated questions back. */
+async function writeQuestions(
+  eventId: string,
+  questions: ApplicationQuestion[],
+): Promise<void> {
+  await db
+    .update(events)
+    .set({ applicationQuestions: questions, updatedAt: new Date() })
+    .where(eq(events.id, eventId));
+}
+
+// ── Public actions ────────────────────────────────────────────────────────
+
+export type EventWithQuestions = {
+  id: string;
+  name: string;
+  hasApplication: boolean;
+  questions: ApplicationQuestion[];
+  hasApplications: boolean;
+};
+
+/**
+ * Fetches an event with its application questions and whether any applications exist.
+ * Requires event:manage permission.
+ */
+export async function getEventWithQuestions(
+  eventId: string,
+): Promise<ActionResult<EventWithQuestions>> {
+  const user = await getUser();
+  if (!user) return fail('Not authenticated');
+  await requirePermission(user.id, 'event:manage');
+
+  const [eventRow] = await db
+    .select()
+    .from(events)
+    .where(eq(events.id, eventId))
+    .limit(1);
+
+  if (!eventRow) return fail('Event not found');
+
+  const [{ total }] = await db
+    .select({ total: count() })
+    .from(eventApplications)
+    .where(eq(eventApplications.eventId, eventId));
+
+  const questions = await fetchQuestions(eventId);
+
+  return ok({
+    id: eventRow.id,
+    name: eventRow.name,
+    hasApplication: eventRow.hasApplication,
+    questions: questions ?? [],
+    hasApplications: total > 0,
+  });
+}
+
+/**
+ * Adds a new question to an event's application_questions.
+ * Requires event:manage permission.
+ */
+export async function addQuestion(
+  eventId: string,
+  data: AddQuestionInput,
+): Promise<ActionResult> {
+  const user = await getAuthorizedUser();
+  if (!user) return fail('Not authenticated');
+
+  const parsed = addQuestionSchema.safeParse(data);
+  if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? 'Invalid input');
+
+  const input = parsed.data;
+  const questions = await fetchQuestions(eventId);
+  if (!questions) return fail('Event not found');
+
+  const maxOrder = questions.reduce((m, q) => Math.max(m, q.order), 0);
+  const needsOptions = input.type === 'single_select' || input.type === 'multi_select';
+
+  const newQuestion: ApplicationQuestion = {
+    id: randomUUID(),
+    label: input.label,
+    description: input.description,
+    type: input.type,
+    required: input.required,
+    order: maxOrder + 1,
+    active: true,
+    options: needsOptions
+      ? (input.options ?? []).map((o) => ({ value: randomUUID(), label: o.label, active: true }))
+      : undefined,
+  };
+
+  await writeQuestions(eventId, [...questions, newQuestion]);
+
+  // TODO: Log audit trail: { action: 'question.added', eventId, questionId, userId, timestamp }
+  return ok('Question added.');
+}
+
+/**
+ * Edits an existing question. Enforces type immutability and option-removal rules
+ * when applications exist.
+ * Requires event:manage permission.
+ */
+export async function editQuestion(
+  eventId: string,
+  questionId: string,
+  data: EditQuestionInput,
+): Promise<ActionResult> {
+  const user = await getAuthorizedUser();
+  if (!user) return fail('Not authenticated');
+
+  const parsed = editQuestionSchema.safeParse(data);
+  if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? 'Invalid input');
+
+  const questions = await fetchQuestions(eventId);
+  if (!questions) return fail('Event not found');
+
+  const idx = questions.findIndex((q) => q.id === questionId);
+  if (idx === -1) return fail('Question not found');
+
+  const existing = questions[idx]!;
+  const allResponses = await fetchAllResponses(eventId);
+
+  const result = validateQuestionEdit(existing, parsed.data, allResponses);
+  if (!result.ok) return fail(result.error);
+
+  const updated = questions.map((q, i) => (i === idx ? result.question : q));
+  await writeQuestions(eventId, updated);
+
+  // TODO: Log audit trail: { action: 'question.edited', eventId, questionId, userId, changes: {...}, timestamp }
+  return ok('Question updated.');
+}
+
+/**
+ * Removes a question. Hard-deletes if no applications exist; soft-deletes (active=false) otherwise.
+ * Requires event:manage permission.
+ */
+export async function removeQuestion(
+  eventId: string,
+  questionId: string,
+): Promise<ActionResult> {
+  const user = await getAuthorizedUser();
+  if (!user) return fail('Not authenticated');
+
+  const questions = await fetchQuestions(eventId);
+  if (!questions) return fail('Event not found');
+
+  const allResponses = await fetchAllResponses(eventId);
+  const hasApplications = allResponses.length > 0;
+
+  let updated: ApplicationQuestion[];
+
+  if (hasApplications) {
+    updated = questions.map((q) =>
+      q.id === questionId ? { ...q, active: false } : q,
+    );
+    if (updated.length === questions.length && !questions.find((q) => q.id === questionId)) {
+      return fail('Question not found');
+    }
+  } else {
+    const before = questions.length;
+    updated = questions.filter((q) => q.id !== questionId);
+    if (updated.length === before) return fail('Question not found');
+  }
+
+  await writeQuestions(eventId, updated);
+
+  // TODO: Log audit trail: { action: hasApplications ? 'question.hidden' : 'question.deleted', eventId, questionId, userId, timestamp }
+  return ok(hasApplications ? 'Question hidden (applications exist).' : 'Question deleted.');
+}
+
+/**
+ * Reorders questions by providing the desired order of question IDs.
+ * All existing question IDs must be present.
+ * Requires event:manage permission.
+ */
+export async function reorderQuestions(
+  eventId: string,
+  orderedIds: string[],
+): Promise<ActionResult> {
+  const user = await getAuthorizedUser();
+  if (!user) return fail('Not authenticated');
+
+  const questions = await fetchQuestions(eventId);
+  if (!questions) return fail('Event not found');
+
+  const byId = new Map(questions.map((q) => [q.id, q]));
+
+  if (orderedIds.length !== byId.size || !orderedIds.every((id) => byId.has(id))) {
+    return fail('orderedIds must contain exactly all existing question IDs');
+  }
+
+  const reordered = orderedIds.map((id, i) => ({ ...byId.get(id)!, order: i + 1 }));
+  await writeQuestions(eventId, reordered);
+
+  // TODO: Log audit trail: { action: 'questions.reordered', eventId, userId, newOrder: orderedIds, timestamp }
+  return ok('Questions reordered.');
+}
+
+/**
+ * Reactivates a hidden question (sets active=true).
+ * Requires event:manage permission.
+ */
+export async function reactivateQuestion(
+  eventId: string,
+  questionId: string,
+): Promise<ActionResult> {
+  const user = await getAuthorizedUser();
+  if (!user) return fail('Not authenticated');
+
+  const questions = await fetchQuestions(eventId);
+  if (!questions) return fail('Event not found');
+
+  const idx = questions.findIndex((q) => q.id === questionId);
+  if (idx === -1) return fail('Question not found');
+
+  const updated = questions.map((q, i) =>
+    i === idx ? { ...q, active: true } : q,
+  );
+  await writeQuestions(eventId, updated);
+
+  // TODO: Log audit trail: { action: 'question.reactivated', eventId, questionId, userId, timestamp }
+  return ok('Question reactivated.');
+}

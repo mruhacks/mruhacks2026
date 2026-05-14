@@ -25,7 +25,7 @@ import {
   personalSchema,
   type ProfileFormValues,
 } from '@/components/profile-form/schema';
-import { type ApplicationFormOptions } from '@/components/application-form/schema';
+import { type ProfileFormOptions } from '@/components/profile-form/schema';
 import { useRouter } from 'next/navigation';
 
 const tabLabels: Record<string, string> = {
@@ -44,7 +44,7 @@ function RequiredAsterisk(): React.JSX.Element {
 
 type ProfileFormProps = {
   initial?: Partial<ProfileFormValues>;
-  options: ApplicationFormOptions;
+  options: ProfileFormOptions;
   onSubmit: (data: ProfileFormValues) => Promise<ActionResult | void>;
   submitLabel?: string;
   successMessage?: string;

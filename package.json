@@ -17,6 +17,9 @@
     "db:wait": "echo 'Waiting for Postgres to be ready…' &&        until docker exec mruhacks-db-dev pg_isready >/dev/null 2>&1; do          printf '.';          sleep 1;        done &&        echo ' Postgres is ready.'"
   },
   "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
     "@hookform/resolvers": "^5.2.2",
     "@radix-ui/react-avatar": "1.1.11",
     "@radix-ui/react-checkbox": "1.3.3",

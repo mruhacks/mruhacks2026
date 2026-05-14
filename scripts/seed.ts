@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import { randomBytes, randomUUID } from 'crypto';
 import { faker } from '@faker-js/faker';
-import { db } from '@/utils/db';
+import { db, client } from '@/utils/db';
 import {
   user,
   account,
@@ -19,7 +19,6 @@ import {
   yearsOfStudy,
   interests,
   dietaryRestrictions,
-  heardFromSources,
   applicationStatuses,
   permission,
   role,
@@ -30,8 +29,33 @@ import {
 import type { InferInsertModel } from 'drizzle-orm';
 import { seedStaticTables } from './seed-static';
 
-const COUNT = Number(process.env.SEED_COUNT ?? 1e3);
+const COUNT = Number(process.env.SEED_COUNT ?? 20);
 const CHUNK_SIZE = Number(process.env.SEED_CHUNK_SIZE ?? 2000);
+
+// ── Stable question UUIDs (deterministic for seed data consistency) ────────
+const Q_ATTENDED_BEFORE = '11111111-0000-0000-0000-000000000001';
+const Q_ACCOMMODATIONS = '11111111-0000-0000-0000-000000000002';
+const Q_NEEDS_PARKING = '11111111-0000-0000-0000-000000000003';
+const Q_HEARD_FROM = '11111111-0000-0000-0000-000000000004';
+const Q_CONSENT_INFO = '11111111-0000-0000-0000-000000000005';
+const Q_CONSENT_SPONSOR = '11111111-0000-0000-0000-000000000006';
+const Q_CONSENT_MEDIA = '11111111-0000-0000-0000-000000000007';
+
+// ── Stable option UUIDs for heard_from question ───────────────────────────
+const OPT_POSTER = '22222222-0000-0000-0000-000000000001';
+const OPT_FRIEND = '22222222-0000-0000-0000-000000000002';
+const OPT_CLASSROOM = '22222222-0000-0000-0000-000000000003';
+const OPT_SOCIAL = '22222222-0000-0000-0000-000000000004';
+const OPT_PROFESSOR = '22222222-0000-0000-0000-000000000005';
+const OPT_OTHER = '22222222-0000-0000-0000-000000000006';
+const HEARD_FROM_OPTIONS = [
+  OPT_POSTER,
+  OPT_FRIEND,
+  OPT_CLASSROOM,
+  OPT_SOCIAL,
+  OPT_PROFESSOR,
+  OPT_OTHER,
+];
 
 // ── Types ────────────────────────────────────────────────────────────────
 type UserInsert = InferInsertModel<typeof user>;
@@ -67,40 +91,73 @@ async function seedEvents() {
       capacity: null,
       applicationQuestions: [
         {
-          key: 'attended_before',
-          label: 'Have you attended before?',
-          type: 'boolean',
+          id: Q_ATTENDED_BEFORE,
+          label: 'Have you attended MRUHacks before?',
+          type: 'boolean' as const,
           required: true,
+          order: 1,
+          active: true,
         },
         {
-          key: 'accommodations',
+          id: Q_ACCOMMODATIONS,
           label: 'Accessibility or accommodations',
-          type: 'text',
+          description: 'Please let us know if you have any special needs.',
+          type: 'long_text' as const,
+          required: false,
+          order: 2,
+          active: true,
         },
-        { key: 'needs_parking', label: 'Need parking?', type: 'boolean' },
         {
-          key: 'heard_from_id',
+          id: Q_NEEDS_PARKING,
+          label: 'Do you need parking?',
+          type: 'boolean' as const,
+          required: false,
+          order: 3,
+          active: true,
+        },
+        {
+          id: Q_HEARD_FROM,
           label: 'How did you hear about us?',
-          type: 'select',
+          type: 'single_select' as const,
           required: true,
+          order: 4,
+          active: true,
+          options: [
+            { value: OPT_POSTER, label: 'Poster', active: true },
+            { value: OPT_FRIEND, label: 'Friend / Classmate', active: true },
+            { value: OPT_CLASSROOM, label: 'Classroom Visit', active: true },
+            { value: OPT_SOCIAL, label: 'Social Media', active: true },
+            {
+              value: OPT_PROFESSOR,
+              label: 'Professor / Course Announcement',
+              active: true,
+            },
+            { value: OPT_OTHER, label: 'Other', active: true },
+          ],
         },
         {
-          key: 'consent_info_use',
-          label: 'Consent to use info',
-          type: 'boolean',
+          id: Q_CONSENT_INFO,
+          label: 'I consent to MRUHacks collecting and using my information',
+          type: 'boolean' as const,
           required: true,
+          order: 5,
+          active: true,
         },
         {
-          key: 'consent_sponsor_share',
-          label: 'Consent to share with sponsors',
-          type: 'boolean',
+          id: Q_CONSENT_SPONSOR,
+          label: 'I consent to sharing my information with sponsors',
+          type: 'boolean' as const,
           required: true,
+          order: 6,
+          active: true,
         },
         {
-          key: 'consent_media_use',
-          label: 'Consent to photos/videos',
-          type: 'boolean',
+          id: Q_CONSENT_MEDIA,
+          label: 'I consent to photos and videos being taken at the event',
+          type: 'boolean' as const,
           required: true,
+          order: 7,
+          active: true,
         },
       ],
     },
@@ -216,7 +273,6 @@ async function main() {
     yearRows,
     interestRows,
     dietaryRows,
-    heardRows,
     applicationStatusRows,
   ] = await Promise.all([
     db.select().from(genders),
@@ -225,7 +281,6 @@ async function main() {
     db.select().from(yearsOfStudy),
     db.select().from(interests),
     db.select().from(dietaryRestrictions),
-    db.select().from(heardFromSources),
     db.select().from(applicationStatuses),
   ]);
 
@@ -250,8 +305,7 @@ async function main() {
     const dietaryLinks: UserDietaryInsert[] = [];
     const applicationData: EventApplicationInsert[] = [];
     const attendeeData: EventAttendeeInsert[] = [];
-    const eventInterestRegistrationData: EventInterestRegistrationInsert[] =
-      [];
+    const eventInterestRegistrationData: EventInterestRegistrationInsert[] = [];
     const userRoles: UserRoleInsert[] = [];
     const userPerms: UserPermissionInsert[] = [];
 
@@ -298,7 +352,6 @@ async function main() {
       const university = faker.helpers.arrayElement(universityRows);
       const major = faker.helpers.arrayElement(majorRows);
       const year = faker.helpers.arrayElement(yearRows);
-      const heardFrom = faker.helpers.arrayElement(heardRows);
 
       profiles.push({
         userId: id,
@@ -318,15 +371,18 @@ async function main() {
         createdAt: now,
         updatedAt: now,
         responses: {
-          attended_before: faker.datatype.boolean(),
-          accommodations: faker.helpers.maybe(() => faker.lorem.sentence(), {
-            probability: 0.25,
-          }),
-          needs_parking: faker.datatype.boolean(),
-          heard_from_id: heardFrom.id,
-          consent_info_use: true,
-          consent_sponsor_share: faker.datatype.boolean({ probability: 0.9 }),
-          consent_media_use: faker.datatype.boolean({ probability: 0.9 }),
+          [Q_ATTENDED_BEFORE]: faker.datatype.boolean(),
+          [Q_ACCOMMODATIONS]: faker.helpers.maybe(
+            () => faker.lorem.sentence(),
+            {
+              probability: 0.25,
+            },
+          ),
+          [Q_NEEDS_PARKING]: faker.datatype.boolean(),
+          [Q_HEARD_FROM]: faker.helpers.arrayElement(HEARD_FROM_OPTIONS),
+          [Q_CONSENT_INFO]: true,
+          [Q_CONSENT_SPONSOR]: faker.datatype.boolean({ probability: 0.9 }),
+          [Q_CONSENT_MEDIA]: faker.datatype.boolean({ probability: 0.9 }),
         },
       });
 
@@ -442,7 +498,9 @@ async function main() {
   );
 }
 
-main().catch((err) => {
-  console.error('❌ Seed failed:', err);
-  process.exit(1);
-});
+main()
+  .catch((err) => {
+    console.error('❌ Seed failed:', err);
+    process.exit(1);
+  })
+  .finally(() => client.end());

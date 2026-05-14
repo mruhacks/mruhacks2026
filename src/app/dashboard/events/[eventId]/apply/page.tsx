@@ -33,8 +33,6 @@ type PreviousSubmission = {
   yearOfStudyId: number;
   interests: number[];
   dietaryRestrictions: number[];
-  attendedBefore: boolean;
-  accommodations: string | undefined;
   applicationResponses: Record<string, unknown>;
 };
 
@@ -59,16 +57,8 @@ function buildApplyInitials(
     : (profileData ?? { fullName: user.name ?? '' });
 
   const eventInitial = prev
-    ? {
-        attendedBefore: prev.attendedBefore,
-        accommodations: prev.accommodations,
-        applicationResponses: prev.applicationResponses ?? {},
-      }
-    : {
-        attendedBefore: false,
-        accommodations: '',
-        applicationResponses: {} as Record<string, unknown>,
-      };
+    ? { applicationResponses: prev.applicationResponses ?? {} }
+    : { applicationResponses: {} as Record<string, unknown> };
 
   return { profileInitial, eventInitial };
 }
@@ -144,7 +134,6 @@ export default async function ApplyEventPage({ params }: Props) {
           <h3 className='mb-4 text-sm font-medium'>Event questions</h3>
           <ApplicationForm
             initial={eventInitial}
-            options={options}
             applicationQuestions={event.applicationQuestions ?? null}
             submitAction={submitEventApplication}
             eventId={eventId}

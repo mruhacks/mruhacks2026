@@ -133,6 +133,8 @@ export async function hasPermission(
     return false;
   }
 
+  console.debug(`Found permissions: ${JSON.stringify(result, null, '\n')}`);
+
   // Check for exact or hierarchical match
   for (const userPerm of result.data) {
     if (permissionMatches(userPerm, permissionString)) {

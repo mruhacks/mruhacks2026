@@ -34,7 +34,7 @@ const adminItems = [
   { title: 'Overview', url: '/dashboard/admin', icon: LayoutDashboard },
   {
     title: 'Events & Meals',
-    url: '/dashboard/admin/events-meals',
+    url: '/dashboard/admin/events',
     icon: Calendar,
   },
   { title: 'Check-In', url: '/dashboard/admin/checkin', icon: CheckSquare },
