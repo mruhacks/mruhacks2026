@@ -23,7 +23,7 @@ import { Label } from '@/components/ui/label';
 import { type ActionResult } from '@/utils/action-result';
 
 import {
-  eventOnlySchema,
+  createApplicationFormSchema,
   type EventOnlyFormValues,
 } from './schema';
 import type { ApplicationQuestion } from '@/types/application';
@@ -48,12 +48,23 @@ function ApplicationQuestionField({
     .filter((o) => o.active)
     .map((o) => ({ value: o.value, label: o.label }));
 
+  if (q.type === 'section_divider') {
+    return (
+      <div className='mt-6 mb-4 border-t pt-4'>
+        <h3 className='text-lg font-semibold'>{q.label}</h3>
+        {q.description && (
+          <p className='text-muted-foreground mt-1 text-sm'>{q.description}</p>
+        )}
+      </div>
+    );
+  }
+
   if (q.type === 'boolean') {
     return (
       <Controller
         name={fieldName}
         control={control}
-        defaultValue={undefined}
+        defaultValue={false}
         render={({ field, fieldState }) => (
           <Field data-invalid={fieldState.invalid}>
             <div className='flex items-start gap-3'>
@@ -62,14 +73,17 @@ function ApplicationQuestionField({
                 checked={Boolean(field.value)}
                 onCheckedChange={field.onChange}
               />
-              <div className='grid gap-1 flex-1'>
+              <div className='grid flex-1 gap-1'>
                 <Label htmlFor={q.id}>
                   {q.label}
                   {q.required && <RequiredAsterisk />}
                 </Label>
                 {q.description && (
-                  <p className='text-muted-foreground text-sm'>{q.description}</p>
+                  <p className='text-muted-foreground text-sm'>
+                    {q.description}
+                  </p>
                 )}
+                {fieldState.error && <FieldError errors={[fieldState.error]} />}
               </div>
             </div>
           </Field>
@@ -84,12 +98,14 @@ function ApplicationQuestionField({
         name={fieldName}
         control={control}
         render={({ field, fieldState }) => (
-          <Field data-invalid={fieldState.invalid}>
+          <Field>
             <FieldLabel>
               {q.label}
               {q.required && <RequiredAsterisk />}
             </FieldLabel>
-            {q.description && <FieldDescription>{q.description}</FieldDescription>}
+            {q.description && (
+              <FieldDescription>{q.description}</FieldDescription>
+            )}
             <Select
               id={q.id}
               instanceId={`app-q-${q.id}`}
@@ -97,10 +113,12 @@ function ApplicationQuestionField({
               value={activeOptions.find((o) => o.value === field.value) ?? null}
               onChange={(opt) =>
                 field.onChange(
-                  (opt as SingleValue<{ value: string; label: string }>)?.value ?? null,
+                  (opt as SingleValue<{ value: string; label: string }>)
+                    ?.value ?? null,
                 )
               }
             />
+            {fieldState.error && <FieldError errors={[fieldState.error]} />}
           </Field>
         )}
       />
@@ -113,14 +131,18 @@ function ApplicationQuestionField({
         name={fieldName}
         control={control}
         render={({ field, fieldState }) => {
-          const selected = Array.isArray(field.value) ? (field.value as string[]) : [];
+          const selected = Array.isArray(field.value)
+            ? (field.value as string[])
+            : [];
           return (
-            <Field data-invalid={fieldState.invalid}>
+            <Field>
               <FieldLabel>
                 {q.label}
                 {q.required && <RequiredAsterisk />}
               </FieldLabel>
-              {q.description && <FieldDescription>{q.description}</FieldDescription>}
+              {q.description && (
+                <FieldDescription>{q.description}</FieldDescription>
+              )}
               <Select
                 id={q.id}
                 instanceId={`app-q-${q.id}`}
@@ -135,6 +157,7 @@ function ApplicationQuestionField({
                   )
                 }
               />
+              {fieldState.error && <FieldError errors={[fieldState.error]} />}
             </Field>
           );
         }}
@@ -153,13 +176,17 @@ function ApplicationQuestionField({
               {q.label}
               {q.required && <RequiredAsterisk />}
             </FieldLabel>
-            {q.description && <FieldDescription>{q.description}</FieldDescription>}
+            {q.description && (
+              <FieldDescription>{q.description}</FieldDescription>
+            )}
             <Input
               id={q.id}
               type='number'
               value={(field.value as number | '') ?? ''}
               onChange={(e) =>
-                field.onChange(e.target.value === '' ? null : Number(e.target.value))
+                field.onChange(
+                  e.target.value === '' ? null : Number(e.target.value),
+                )
               }
             />
           </Field>
@@ -179,7 +206,9 @@ function ApplicationQuestionField({
               {q.label}
               {q.required && <RequiredAsterisk />}
             </FieldLabel>
-            {q.description && <FieldDescription>{q.description}</FieldDescription>}
+            {q.description && (
+              <FieldDescription>{q.description}</FieldDescription>
+            )}
             <Input
               id={q.id}
               {...field}
@@ -205,7 +234,9 @@ function ApplicationQuestionField({
             {q.label}
             {q.required && <RequiredAsterisk />}
           </FieldLabel>
-          {q.description && <FieldDescription>{q.description}</FieldDescription>}
+          {q.description && (
+            <FieldDescription>{q.description}</FieldDescription>
+          )}
           <Textarea
             id={q.id}
             {...field}
@@ -294,13 +325,18 @@ export default function ApplicationForm({
   errorMessage = DEFAULT_ERROR_MESSAGE,
 }: ApplicationFormProps) {
   const router = useRouter();
+  const formSchema = React.useMemo(
+    () => createApplicationFormSchema(applicationQuestions),
+    [applicationQuestions],
+  );
+
   const {
     control,
     handleSubmit,
     formState: { isSubmitting },
     reset,
   } = useForm<EventOnlyFormValues>({
-    resolver: zodResolver(eventOnlySchema) as Resolver<EventOnlyFormValues>,
+    resolver: zodResolver(formSchema) as Resolver<EventOnlyFormValues>,
     mode: 'onChange',
     reValidateMode: 'onChange',
     criteriaMode: 'firstError',
@@ -337,23 +373,8 @@ export default function ApplicationForm({
     [submitAction, eventId, successMessage, errorMessage, router],
   );
 
-  const handleInvalidSubmit = React.useCallback(
-    (errors: any) => {
-      // Get the first error message from any field
-      const firstError = Object.values(errors).find((error: any) => error?.message);
-      if (firstError && typeof firstError === 'object' && 'message' in firstError) {
-        toast.error('Validation Error', {
-          description: (firstError as any).message,
-        });
-      } else {
-        toast.error('Please fix the validation errors before submitting.');
-      }
-    },
-    [],
-  );
-
   return (
-    <form onSubmit={handleSubmit(submitHandler, handleInvalidSubmit)}>
+    <form onSubmit={handleSubmit(submitHandler)}>
       <ApplicationFormFields
         control={control}
         applicationQuestions={applicationQuestions}

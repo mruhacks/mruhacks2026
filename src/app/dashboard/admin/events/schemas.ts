@@ -7,6 +7,7 @@ export const questionTypeSchema = z.enum([
   'multi_select',
   'number',
   'boolean',
+  'section_divider',
 ]);
 
 export const addQuestionSchema = z.object({

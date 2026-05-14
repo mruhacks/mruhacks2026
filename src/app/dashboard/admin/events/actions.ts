@@ -87,10 +87,13 @@ export async function getEventWithQuestions(
 
   if (!eventRow) return fail('Event not found');
 
-  const [{ total }] = await db
+  // Fetch applications count - ensure we're getting a fresh count
+  const applicationsData = await db
     .select({ total: count() })
     .from(eventApplications)
     .where(eq(eventApplications.eventId, eventId));
+
+  const applicationCount = applicationsData[0]?.total ?? 0;
 
   const questions = await fetchQuestions(eventId);
 
@@ -99,18 +102,19 @@ export async function getEventWithQuestions(
     name: eventRow.name,
     hasApplication: eventRow.hasApplication,
     questions: questions ?? [],
-    hasApplications: total > 0,
+    hasApplications: applicationCount > 0,
   });
 }
 
 /**
  * Adds a new question to an event's application_questions.
  * Requires event:manage permission.
+ * Returns the created question with backend-generated UUIDs.
  */
 export async function addQuestion(
   eventId: string,
   data: AddQuestionInput,
-): Promise<ActionResult> {
+): Promise<ActionResult<ApplicationQuestion>> {
   const user = await getAuthorizedUser();
   if (!user) return fail('Not authenticated');
 
@@ -140,7 +144,7 @@ export async function addQuestion(
   await writeQuestions(eventId, [...questions, newQuestion]);
 
   // TODO: Log audit trail: { action: 'question.added', eventId, questionId, userId, timestamp }
-  return ok('Question added.');
+  return ok(newQuestion);
 }
 
 /**
@@ -180,6 +184,7 @@ export async function editQuestion(
 
 /**
  * Removes a question. Hard-deletes if no applications exist; soft-deletes (active=false) otherwise.
+ * Section dividers are always hard-deleted (they don't store any data).
  * Requires event:manage permission.
  */
 export async function removeQuestion(
@@ -192,28 +197,30 @@ export async function removeQuestion(
   const questions = await fetchQuestions(eventId);
   if (!questions) return fail('Event not found');
 
+  const questionToDelete = questions.find((q) => q.id === questionId);
+  if (!questionToDelete) return fail('Question not found');
+
   const allResponses = await fetchAllResponses(eventId);
   const hasApplications = allResponses.length > 0;
 
+  // Section dividers can always be hard-deleted (they don't store responses)
+  const isSectionDivider = questionToDelete.type === 'section_divider';
+  const shouldHardDelete = !hasApplications || isSectionDivider;
+
   let updated: ApplicationQuestion[];
 
-  if (hasApplications) {
+  if (shouldHardDelete) {
+    updated = questions.filter((q) => q.id !== questionId);
+  } else {
     updated = questions.map((q) =>
       q.id === questionId ? { ...q, active: false } : q,
     );
-    if (updated.length === questions.length && !questions.find((q) => q.id === questionId)) {
-      return fail('Question not found');
-    }
-  } else {
-    const before = questions.length;
-    updated = questions.filter((q) => q.id !== questionId);
-    if (updated.length === before) return fail('Question not found');
   }
 
   await writeQuestions(eventId, updated);
 
-  // TODO: Log audit trail: { action: hasApplications ? 'question.hidden' : 'question.deleted', eventId, questionId, userId, timestamp }
-  return ok(hasApplications ? 'Question hidden (applications exist).' : 'Question deleted.');
+  // TODO: Log audit trail: { action: shouldHardDelete ? 'question.deleted' : 'question.hidden', eventId, questionId, userId, timestamp }
+  return ok(shouldHardDelete ? 'Question deleted.' : 'Question hidden (applications exist).');
 }
 
 /**

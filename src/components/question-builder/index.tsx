@@ -72,27 +72,11 @@ export function QuestionBuilder({
       required: data.required,
       options: data.options?.filter((o) => o.label).map((o) => ({ label: o.label })),
     });
-    if (result.success) {
+    if (result.success && result.data) {
       toast.success('Question added.');
       setAddOpen(false);
-      // Optimistically add the new question to local state
-      const newQuestion: ApplicationQuestion = {
-        id: crypto.randomUUID(),
-        label: data.label,
-        description: data.description,
-        type: data.type,
-        required: data.required,
-        order: Math.max(...questions.map((q) => q.order), 0) + 1,
-        active: true,
-        options: data.options
-        ?.filter((o) => o.label)
-        .map((o: any) => ({
-          value: o.value ?? crypto.randomUUID(),
-          label: o.label,
-          active: true,
-        })),
-      };
-      setQuestions([...questions, newQuestion]);
+      // Use the question returned from the backend with its UUIDs
+      setQuestions([...questions, result.data]);
     } else {
       toast.error(result.error);
     }
@@ -144,13 +128,15 @@ export function QuestionBuilder({
     if (result.success) {
       toast.success(typeof result.data === 'string' ? result.data : 'Question removed.');
       setDeleteTarget(null);
-      // Update local state: hard delete if no applications, soft delete (mark inactive) if applications exist
+      // Update local state: section dividers are always hard-deleted; others are soft-deleted if applications exist
+      const isSectionDivider = deleteTarget.type === 'section_divider';
+      const shouldHardDelete = !hasApplications || isSectionDivider;
       setQuestions(
-        hasApplications
-          ? questions.map((q) =>
+        shouldHardDelete
+          ? questions.filter((q) => q.id !== deleteTarget.id)
+          : questions.map((q) =>
               q.id === deleteTarget.id ? { ...q, active: false } : q,
-            )
-          : questions.filter((q) => q.id !== deleteTarget.id),
+            ),
       );
     } else {
       toast.error(result.error);
@@ -273,6 +259,7 @@ export function QuestionBuilder({
           open={!!deleteTarget}
           onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
           questionLabel={deleteTarget.label}
+          questionType={deleteTarget.type}
           hasApplications={hasApplications}
           onConfirm={handleDelete}
           isLoading={deleteLoading}

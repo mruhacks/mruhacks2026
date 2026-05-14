@@ -6,10 +6,7 @@ import {
   getPreviousFormSubmission,
   submitEventApplication,
 } from '@/app/dashboard/events/actions';
-import {
-  getUserProfile,
-  saveUserProfile,
-} from '@/app/dashboard/profile/actions';
+import { getUserProfile } from '@/app/dashboard/profile/actions';
 import { db } from '@/utils/db';
 import { events } from '@/db/schema';
 import { eq } from 'drizzle-orm';
@@ -20,7 +17,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import ProfileForm from '@/components/profile-form';
+import { ProfileView } from '@/components/profile-view';
 import ApplicationForm from '@/components/application-form';
 import type { ProfileFormValues } from '@/components/profile-form/schema';
 import type { EventOnlyFormValues } from '@/components/application-form/schema';
@@ -118,20 +115,14 @@ export default async function ApplyEventPage({ params }: Props) {
       <CardHeader>
         <CardTitle>Application: {event.name}</CardTitle>
         <CardDescription>
-          Update your profile and event application below.
+          Review your profile and complete the event application below.
         </CardDescription>
       </CardHeader>
       <CardContent className='space-y-8'>
         <section>
-          <h3 className='mb-4 text-sm font-medium'>Your profile</h3>
-          <ProfileForm
-            initial={profileInitial}
-            options={options}
-            onSubmit={saveUserProfile}
-          />
+          <ProfileView profile={profileInitial} options={options} />
         </section>
         <section>
-          <h3 className='mb-4 text-sm font-medium'>Event questions</h3>
           <ApplicationForm
             initial={eventInitial}
             applicationQuestions={event.applicationQuestions ?? null}

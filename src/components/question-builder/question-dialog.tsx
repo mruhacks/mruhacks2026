@@ -55,12 +55,13 @@ const QUESTION_TYPES = [
   { value: 'boolean', label: 'Checkbox (Yes/No)' },
   { value: 'single_select', label: 'Single Select' },
   { value: 'multi_select', label: 'Multi Select' },
+  { value: 'section_divider', label: 'Section Divider' },
 ] as const;
 
 const formSchema = z.object({
   label: z.string().trim().min(1, 'Label is required'),
   description: z.string().trim().optional(),
-  type: z.enum(['short_text', 'long_text', 'single_select', 'multi_select', 'number', 'boolean']),
+  type: z.enum(['short_text', 'long_text', 'single_select', 'multi_select', 'number', 'boolean', 'section_divider']),
   required: z.boolean().default(false),
   options: z.array(
     z.object({
@@ -409,20 +410,22 @@ export function QuestionDialog({
             </Field>
 
             {/* Required */}
-            <div className='flex items-center gap-3'>
-              <Controller
-                name='required'
-                control={control}
-                render={({ field }) => (
-                  <Switch
-                    id='q-required'
-                    checked={field.value}
-                    onCheckedChange={field.onChange}
-                  />
-                )}
-              />
-              <Label htmlFor='q-required'>Required</Label>
-            </div>
+            {questionType !== 'section_divider' && (
+              <div className='flex items-center gap-3'>
+                <Controller
+                  name='required'
+                  control={control}
+                  render={({ field }) => (
+                    <Switch
+                      id='q-required'
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  )}
+                />
+                <Label htmlFor='q-required'>Required</Label>
+              </div>
+            )}
 
             {/* Options (for select types) */}
             {showOptions && (

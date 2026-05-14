@@ -136,7 +136,7 @@ export default function ResponsesPage({ params }: ResponsesPageProps) {
                 {eventData?.questions && eventData.questions.length > 0 ? (
                   <div className='space-y-3'>
                     {eventData.questions
-                      .filter((q: any) => q.active)
+                      .filter((q: any) => q.active && q.type !== 'section_divider')
                       .map((question: any) => {
                         const response = selectedResponse.responses[question.id];
 

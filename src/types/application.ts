@@ -9,7 +9,8 @@ export type ApplicationQuestionType =
   | 'single_select'
   | 'multi_select'
   | 'number'
-  | 'boolean';
+  | 'boolean'
+  | 'section_divider';
 
 export type ApplicationQuestionOption = {
   value: string;

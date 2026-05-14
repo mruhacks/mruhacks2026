@@ -16,6 +16,7 @@ const TYPE_LABELS: Record<string, string> = {
   multi_select: 'Multi Select',
   number: 'Number',
   boolean: 'Checkbox',
+  section_divider: 'Section Divider',
 };
 
 type QuestionCardProps = {

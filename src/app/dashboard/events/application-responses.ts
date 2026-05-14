@@ -40,6 +40,9 @@ function getBaseSchema(type: ApplicationQuestionType) {
       return z.string().min(1, 'Must select an option');
     case 'multi_select':
       return z.array(z.string()).min(1, 'Must select at least one option');
+    case 'section_divider':
+      // Section dividers don't have responses
+      return z.unknown().optional().nullable();
     default:
       return z.unknown();
   }
