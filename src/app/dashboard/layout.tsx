@@ -6,6 +6,7 @@ import {
   SidebarTrigger,
 } from '@/components/ui/sidebar';
 import { DashboardBreadcrumb } from '@/components/dashboardBreadcrumb';
+import { ImpersonationBanner } from '@/components/impersonation-banner';
 import { Suspense } from 'react';
 import AppSidebarLoading from '@/components/sidebar/loading';
 
@@ -20,6 +21,7 @@ export default function DashboardLayout({
         <AppSidebar />
       </Suspense>
       <SidebarInset>
+        <ImpersonationBanner />
         <header className='flex h-16 shrink-0 items-center gap-2'>
           <div className='flex items-center gap-2 px-4'>
             <SidebarTrigger className='-ml-1' />

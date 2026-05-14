@@ -33,7 +33,7 @@ import {
   type EventOnlyFormValues,
 } from '@/components/application-form/schema';
 import type { ApplicationQuestion } from '@/types/application';
-import { cacheLife } from 'next/cache';
+import { cacheLife, revalidatePath } from 'next/cache';
 import { and, desc, eq, isNotNull } from 'drizzle-orm';
 import { getUserProfile } from '@/app/dashboard/profile/actions';
 import { buildApplicationResponses } from './application-responses';
@@ -273,6 +273,7 @@ export async function registerEventInterest(
         ],
       });
 
+    revalidatePath('/dashboard/events');
     return ok('Event interest saved successfully.');
   } catch (error) {
     console.error('Event interest save error:', error);

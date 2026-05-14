@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { randomBytes, randomUUID } from 'crypto';
 import { faker } from '@faker-js/faker';
+import { auth } from '@/utils/auth';
 import { db, client } from '@/utils/db';
 import {
   user,
@@ -185,13 +186,30 @@ async function seedRolesAndPermissions() {
   ];
 
   const basePermissions: PermissionInsert[] = [
-    { slug: 'user:read', description: 'View user information' },
-    { slug: 'user:write', description: 'Modify user information' },
-    { slug: 'participant:read', description: 'View participant profiles' },
-    { slug: 'participant:write', description: 'Edit participant data' },
-    { slug: 'submission:read', description: 'View project submissions' },
-    { slug: 'submission:write', description: 'Modify project submissions' },
-    { slug: 'event:manage', description: 'Create and manage events' },
+    { slug: 'user:read:all', description: 'View any user information' },
+    { slug: 'user:write:all', description: 'Modify any user information' },
+    {
+      slug: 'user:all:all',
+      description: 'Full user management (create/update/delete)',
+    },
+    { slug: 'role:read:all', description: 'View roles and their permissions' },
+    { slug: 'role:write:all', description: 'Create, update and delete roles' },
+    { slug: 'permission:read:all', description: 'View permissions' },
+    {
+      slug: 'permission:write:all',
+      description: 'Create and delete permissions',
+    },
+    { slug: 'participant:read:all', description: 'View participant profiles' },
+    { slug: 'participant:write:all', description: 'Edit participant data' },
+    { slug: 'submission:read:all', description: 'View project submissions' },
+    { slug: 'submission:write:all', description: 'Modify project submissions' },
+    { slug: 'event:manage:all', description: 'Create and manage events' },
+    { slug: 'checkin:write:all', description: 'Check participants in or out' },
+    { slug: 'application:read:all', description: 'View event applications' },
+    {
+      slug: 'application:review:all',
+      description: 'Approve or reject applications',
+    },
   ];
 
   console.log('🧱 Seeding roles and permissions...');
@@ -221,27 +239,47 @@ async function seedRolesAndPermissions() {
       })),
       {
         roleId: findRole('organizer').id,
-        permissionId: findPerm('event:manage').id,
+        permissionId: findPerm('event:manage:all').id,
       },
       {
         roleId: findRole('organizer').id,
-        permissionId: findPerm('participant:read').id,
+        permissionId: findPerm('participant:read:all').id,
       },
       {
         roleId: findRole('organizer').id,
-        permissionId: findPerm('participant:write').id,
+        permissionId: findPerm('participant:write:all').id,
+      },
+      {
+        roleId: findRole('organizer').id,
+        permissionId: findPerm('user:read:all').id,
+      },
+      {
+        roleId: findRole('organizer').id,
+        permissionId: findPerm('application:read:all').id,
+      },
+      {
+        roleId: findRole('organizer').id,
+        permissionId: findPerm('application:review:all').id,
+      },
+      {
+        roleId: findRole('organizer').id,
+        permissionId: findPerm('checkin:write:all').id,
       },
       {
         roleId: findRole('judge').id,
-        permissionId: findPerm('submission:read').id,
+        permissionId: findPerm('submission:read:all').id,
       },
       {
         roleId: findRole('volunteer').id,
-        permissionId: findPerm('participant:read').id,
+        permissionId: findPerm('participant:read:all').id,
+      },
+      {
+        roleId: findRole('volunteer').id,
+        permissionId: findPerm('checkin:write:all').id,
       },
       {
         roleId: findRole('participant').id,
-        permissionId: findPerm('submission:read').id,
+        permissionId: findPerm('submission:read:all').id,
       },
     ];
 
@@ -255,6 +293,57 @@ async function seedRolesAndPermissions() {
   });
 
   return result;
+}
+
+// ── Seed a fixed admin user from env vars ────────────────────────────────
+async function seedEnvAdminUser(
+  insertedRoles: { id: number; slug: string | null }[],
+) {
+  const email = process.env.SEED_ADMIN_EMAIL?.trim();
+  const password = process.env.SEED_ADMIN_PASSWORD?.trim();
+  const name = process.env.SEED_ADMIN_NAME?.trim() ?? 'Admin';
+
+  if (!email || !password) return;
+
+  console.log(`👤 Seeding admin user: ${email}`);
+
+  const adminRole = insertedRoles.find((r) => r.slug === 'admin');
+  const ctx = await auth.$context;
+
+  const existing = await ctx.internalAdapter.findUserByEmail(email);
+  let userId: string;
+
+  if (existing) {
+    await ctx.internalAdapter.updateUser(existing.user.id, {
+      name,
+      emailVerified: true,
+    });
+    const hashedPassword = await ctx.password.hash(password);
+    await ctx.internalAdapter.updatePassword(existing.user.id, hashedPassword);
+    userId = existing.user.id;
+    console.log(`♻️  Updated existing user ${email}`);
+  } else {
+    const result = await auth.api.signUpEmail({
+      body: { email, password, name },
+    });
+    await ctx.internalAdapter.updateUser(result.user.id, {
+      emailVerified: true,
+    });
+    userId = result.user.id;
+    console.log(`✅ Created user ${email}`);
+  }
+
+  // Sync Better Auth admin plugin role field
+  await ctx.internalAdapter.updateUser(userId, { role: 'admin' });
+
+  if (adminRole) {
+    await db
+      .insert(userRole)
+      .values({ userId, roleId: adminRole.id })
+      .onConflictDoNothing();
+  }
+
+  console.log(`✅ Admin user ready (email: ${email})`);
 }
 
 // ── Main user seeding ───────────────────────────────────────────────────
@@ -496,11 +585,13 @@ async function main() {
   console.log(
     `🎉 Done! Inserted ${COUNT} fake users with profiles, applications, event interest rows, and roles.`,
   );
+
+  await seedEnvAdminUser(insertedRoles);
 }
 
 main()
+  .then(() => client.end())
   .catch((err) => {
     console.error('❌ Seed failed:', err);
-    process.exit(1);
-  })
-  .finally(() => client.end());
+    client.end().finally(() => process.exit(1));
+  });

@@ -10,6 +10,7 @@ import { getUser } from '@/utils/auth';
 import { ActionResult, fail, ok } from '@/utils/action-result';
 import { db } from '@/utils/db';
 import { and, eq } from 'drizzle-orm';
+import { revalidatePath } from 'next/cache';
 
 /**
  * Registers the current user for an event that has no application (simple signup).
@@ -28,6 +29,7 @@ export async function registerForEvent(eventId: string): Promise<ActionResult> {
       .onConflictDoNothing({
         target: [eventAttendees.eventId, eventAttendees.userId],
       });
+    revalidatePath('/dashboard/events');
     return ok('Registered for event.');
   } catch (error) {
     console.error('Register for event error:', error);
@@ -65,6 +67,7 @@ export async function unregisterFromEvent(
           eq(eventAttendees.userId, user.id),
         ),
       );
+    revalidatePath('/dashboard/events');
     return ok('Unregistered from event.');
   } catch (error) {
     console.error('Unregister from event error:', error);

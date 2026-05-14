@@ -8,6 +8,7 @@ import {
   uuid,
   integer,
   primaryKey,
+  index,
 } from 'drizzle-orm/pg-core';
 import { user } from './auth-schema';
 
@@ -48,7 +49,10 @@ export const userRole = authz.table(
       .notNull()
       .references(() => role.id, { onDelete: 'cascade' }),
   },
-  (table) => [primaryKey({ columns: [table.userId, table.roleId] })],
+  (table) => [
+    primaryKey({ columns: [table.userId, table.roleId] }),
+    index('user_role_role_id_idx').on(table.roleId),
+  ],
 );
 
 export const userPermission = authz.table(
@@ -61,7 +65,10 @@ export const userPermission = authz.table(
       .notNull()
       .references(() => permission.id, { onDelete: 'cascade' }),
   },
-  (table) => [primaryKey({ columns: [table.userId, table.permissionId] })],
+  (table) => [
+    primaryKey({ columns: [table.userId, table.permissionId] }),
+    index('user_permission_permission_id_idx').on(table.permissionId),
+  ],
 );
 
 export const rolePermissions = authz.table(
@@ -74,5 +81,8 @@ export const rolePermissions = authz.table(
       .notNull()
       .references(() => permission.id, { onDelete: 'cascade' }),
   },
-  (table) => [primaryKey({ columns: [table.roleId, table.permissionId] })],
+  (table) => [
+    primaryKey({ columns: [table.roleId, table.permissionId] }),
+    index('role_permission_permission_id_idx').on(table.permissionId),
+  ],
 );

@@ -1,11 +1,16 @@
 /**
- * Next.js middleware for route protection
+ * Next.js proxy (formerly middleware) for session-based route protection.
  *
- * This middleware intercepts requests to protected routes and ensures
- * the user is authenticated. Unauthenticated users are redirected to
- * the /forbidden page.
+ * Next.js 16 runs proxy on the Node.js runtime unconditionally, so we can
+ * use the Better Auth server API directly. This is the first line of
+ * defense:
  *
- * Protected routes are defined in the config.matcher below.
+ *   1. Users with no session visiting `/dashboard/**` are redirected to
+ *      `/signin`, preserving the original path in `?redirect=`.
+ *   2. Admin routes are additionally guarded by `src/lib/rbac/guards.ts`
+ *      inside the admin layout, which performs the DB-backed permission
+ *      check. Doing that here would duplicate work and require pulling
+ *      Drizzle into every request.
  */
 
 import { NextResponse } from 'next/server';
@@ -13,32 +18,22 @@ import type { NextRequest } from 'next/server';
 import { headers } from 'next/headers';
 import { auth } from './utils/auth';
 
-/**
- * Middleware function that protects routes from unauthenticated access
- *
- * @param request - The incoming Next.js request
- * @returns NextResponse allowing the request to proceed or redirecting to /forbidden
- */
 export async function proxy(request: NextRequest) {
   const session = await auth.api.getSession({
     headers: await headers(),
   });
 
-  // Redirect to forbidden page if user is not authenticated
   if (!session) {
-    return NextResponse.redirect(new URL('/forbidden', request.url));
+    const url = request.nextUrl.clone();
+    const original = request.nextUrl.pathname + request.nextUrl.search;
+    url.pathname = '/signin';
+    url.searchParams.set('redirect', original);
+    return NextResponse.redirect(url);
   }
 
   return NextResponse.next();
 }
 
-/**
- * Middleware configuration
- *
- * - runtime: "nodejs" - Run middleware in Node.js runtime
- * - matcher: Routes that should be protected by this middleware
- */
 export const config = {
-  // Apply middleware to dashboard routes
-  matcher: ['/dashboard'],
+  matcher: ['/dashboard/:path*'],
 };
