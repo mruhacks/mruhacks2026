@@ -6,3 +6,13 @@ onlyBuiltDependencies:
 
 # 72-hour cooldown: ignore package versions published less than 3 days ago
 minimumReleaseAge: 4320
+
+resolutionMode: highest
+
+allowBuilds:
+  cpu-features: true
+  esbuild: true
+  protobufjs: true
+  sharp: true
+  ssh2: true
+  unrs-resolver: true
