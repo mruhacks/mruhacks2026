@@ -12,6 +12,7 @@ import {
   userDietaryRestrictions,
   eventApplications,
   eventAttendees,
+  eventInterestRegistrations,
   genders,
   universities,
   majors,
@@ -42,6 +43,9 @@ type UserInterestInsert = InferInsertModel<typeof userInterests>;
 type UserDietaryInsert = InferInsertModel<typeof userDietaryRestrictions>;
 type EventApplicationInsert = InferInsertModel<typeof eventApplications>;
 type EventAttendeeInsert = InferInsertModel<typeof eventAttendees>;
+type EventInterestRegistrationInsert = InferInsertModel<
+  typeof eventInterestRegistrations
+>;
 type RoleInsert = InferInsertModel<typeof role>;
 type PermissionInsert = InferInsertModel<typeof permission>;
 type UserRoleInsert = InferInsertModel<typeof userRole>;
@@ -246,6 +250,8 @@ async function main() {
     const dietaryLinks: UserDietaryInsert[] = [];
     const applicationData: EventApplicationInsert[] = [];
     const attendeeData: EventAttendeeInsert[] = [];
+    const eventInterestRegistrationData: EventInterestRegistrationInsert[] =
+      [];
     const userRoles: UserRoleInsert[] = [];
     const userPerms: UserPermissionInsert[] = [];
 
@@ -349,6 +355,17 @@ async function main() {
         });
       }
 
+      if (
+        noAppEvent.id !== applicationEvent.id &&
+        faker.datatype.boolean({ probability: 0.3 })
+      ) {
+        eventInterestRegistrationData.push({
+          userId: id,
+          eventId: noAppEvent.id,
+          createdAt: now,
+        });
+      }
+
       const roleSlug = (() => {
         const rnd = Math.random();
         if (rnd < 0.001) return 'admin'; // 0.1%
@@ -399,6 +416,16 @@ async function main() {
           .onConflictDoNothing({
             target: [eventAttendees.eventId, eventAttendees.userId],
           });
+      if (eventInterestRegistrationData.length > 0)
+        await tx
+          .insert(eventInterestRegistrations)
+          .values(eventInterestRegistrationData)
+          .onConflictDoNothing({
+            target: [
+              eventInterestRegistrations.userId,
+              eventInterestRegistrations.eventId,
+            ],
+          });
       if (userRoles.length > 0) await tx.insert(userRole).values(userRoles);
       if (userPerms.length > 0)
         await tx.insert(userPermission).values(userPerms);
@@ -411,7 +438,7 @@ async function main() {
   }
 
   console.log(
-    `🎉 Done! Inserted ${COUNT} fake users with profiles, applications, and roles.`,
+    `🎉 Done! Inserted ${COUNT} fake users with profiles, applications, event interest rows, and roles.`,
   );
 }
 

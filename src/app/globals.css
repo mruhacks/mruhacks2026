@@ -155,7 +155,6 @@
   --card-blue: #a5b7ff;
   --sponsor-button-blue: #43d3ff;
 }
-
 @layer base {
   .bg-gradient-button {
     background: linear-gradient(

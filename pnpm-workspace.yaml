@@ -3,3 +3,6 @@ onlyBuiltDependencies:
   - esbuild
   - sharp
   - unrs-resolver
+
+# 72-hour cooldown: ignore package versions published less than 3 days ago
+minimumReleaseAge: 4320

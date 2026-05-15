@@ -1,22 +1,25 @@
-import Link from 'next/link';
+import { HeroSection } from '@/components/hero';
 import { About } from '@/components/about-section';
 import { FAQ } from '@/components/faq-section';
 import { Stats } from '@/components/stats-section';
 import { SponsorCTA } from '@/components/sponsor-cta';
+import MeetTheTeam from '@/components/meet-the-team';
+import Footer from '@/components/footer';
 
 export default function Home() {
   return (
-    <div>
-      <h1>MRUHacks2026</h1>
-      <p> A super awesome home page </p>
-
-      <Link href='/login' className='text-5xl underline'>
-        Login
-      </Link>
-      <About></About>
-      <Stats></Stats>
-      <SponsorCTA></SponsorCTA>
-      <FAQ></FAQ>
-    </div>
+    <>
+      <div className='bg-white'>
+        <HeroSection />
+        <main className='mx-auto flex w-full max-w-7xl flex-col items-center gap-12 px-4 py-10 sm:gap-16 sm:py-14 lg:gap-20 lg:p-16'>
+          <About />
+          <Stats />
+          <SponsorCTA />
+          <FAQ />
+        </main>
+      </div>
+      <MeetTheTeam />
+      <Footer />
+    </>
   );
 }

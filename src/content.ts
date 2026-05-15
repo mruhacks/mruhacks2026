@@ -1,3 +1,10 @@
+export const EVENT_START_DATE = new Date('2026-10-23T00:00:00-06:00'); // October 23, 2026 (MDT — DST ends Nov 1, 2026)
+export const EVENT_DATE_DISPLAY = 'October 23-25, 2026';
+export const EVENT_LOCATION_DISPLAY = 'In-Person Event @ Riddell Library';
+
+export const REGISTRATION_OPEN = true;
+export const LOGIN_ENABLED = true;
+
 export const INTRO_BLURB: string = `
 MRUHacks is Mount Royal University’s largest hackathon, bringing
 students together for an immersive three-day experience focused on
@@ -19,7 +26,7 @@ export const FAQs: FAQItem[] = [
   {
     question: 'When is MRUHacks?',
     answer:
-      'MRUHacks will be held from October 23rd - 25th 2025 in the Riddell Library and Learning Centre.',
+      'MRUHacks will be held from October 23rd - 25th 2026 in the Riddell Library and Learning Centre.',
   },
   {
     question: 'Who can participate?',
@@ -90,10 +97,19 @@ export const StatsText: StatItem[] = [
 ];
 
 export const StatsDescription: string = `
-MRUHacks 2025 was our biggest event yet, with an overwhelming registration 
+MRUHacks 2025 was our biggest event yet, with an overwhelming registration
 amount that ended up maxing out our event capacity at Riddell Library.
 `;
 
 export const SPONSOR_CTA: string = `
 MRUHacks would be impossible to run without our fantastic sponsors.
 `;
+
+export const DISCORD_LINK = 'https://discord.com/invite/e7Fg6jsnrm';
+
+export type FooterLink = { label: string; href: string };
+export const FOOTER_LINKS: FooterLink[] = [
+  { label: 'Discord Server', href: DISCORD_LINK },
+  { label: 'LinkedIn', href: 'https://www.linkedin.com/company/mruhacks' },
+  { label: 'Instagram', href: 'https://www.instagram.com/mruhacks' },
+];

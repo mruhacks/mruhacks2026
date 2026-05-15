@@ -63,8 +63,7 @@ function getTransporter(): nodemailer.Transporter {
  * @param options - Recipients, subject, and optional text and/or html body.
  * TODO: determine if we need to add cc or bcc
  * TODO: determine if we need to add attachments
- * TODO: determine if we need to add a custom email template
- * TODO: determine if we should use the SES SDK or the SMTP transport
+ * TODO: use the email template marketing provided
  */
 export async function sendMail(options: SendMailOptions): Promise<void> {
   const from = getFromAddress();
