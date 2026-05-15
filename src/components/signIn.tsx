@@ -146,11 +146,13 @@ export default function SignInForm() {
           </Button>
         </Field>
 
-        <div className='mt-4 text-sm'>
-          <span>Don’t have an account?</span>
-          <Link className='ml-1 font-medium hover:underline' href='/signup'>
-            Sign Up
-          </Link>
+        <div className='mt-4 w-full space-y-2'>
+          <p className='text-center text-sm text-muted-foreground'>
+            Don&apos;t have an account?
+          </p>
+          <Button variant='outline' className='w-full' asChild>
+            <Link href='/onboarding'>Sign up</Link>
+          </Button>
         </div>
       </CardFooter>
     </Card>

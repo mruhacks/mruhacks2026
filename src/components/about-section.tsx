@@ -34,7 +34,7 @@ export function About() {
         {/* buttons */}
         <div className='flex flex-row flex-wrap justify-start gap-3'>
           {/* register button */}
-          <Link href='/signup' passHref>
+          <Link href='/onboarding' passHref>
             <Button variant='gradient' size='lg'>
               Register Now
             </Button>

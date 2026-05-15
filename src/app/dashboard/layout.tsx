@@ -1,3 +1,5 @@
+import { Suspense } from 'react';
+
 import { AppSidebar } from '@/components/sidebar/index';
 import { Separator } from '@/components/ui/separator';
 import {
@@ -6,14 +8,20 @@ import {
   SidebarTrigger,
 } from '@/components/ui/sidebar';
 import { DashboardBreadcrumb } from '@/components/dashboardBreadcrumb';
-import { Suspense } from 'react';
 import AppSidebarLoading from '@/components/sidebar/loading';
+import {
+  getOnboardingState,
+  redirectToOnboardingStep,
+} from '@/utils/auth';
 
-export default function DashboardLayout({
+export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const state = await getOnboardingState();
+  if (state.step !== 'complete') redirectToOnboardingStep(state);
+
   return (
     <SidebarProvider>
       <Suspense fallback={<AppSidebarLoading />}>
@@ -32,12 +40,7 @@ export default function DashboardLayout({
             </Suspense>
           </div>
         </header>
-
-        <Suspense
-          fallback={<div className='flex flex-1 flex-col gap-4 p-4 pt-0' />}
-        >
-          <div className='flex flex-1 flex-col gap-4 p-4 pt-0'>{children}</div>
-        </Suspense>
+        <div className='flex flex-1 flex-col gap-4 p-4 pt-0'>{children}</div>
       </SidebarInset>
     </SidebarProvider>
   );

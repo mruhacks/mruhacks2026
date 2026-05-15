@@ -15,7 +15,8 @@ import { auth } from './utils/auth';
 
 /**
  * Middleware function that protects routes from unauthenticated access
- *
+ * TODO: This makes a network call, do we actually want/need that?
+ * 
  * @param request - The incoming Next.js request
  * @returns NextResponse allowing the request to proceed or redirecting to /forbidden
  */
@@ -24,21 +25,13 @@ export async function proxy(request: NextRequest) {
     headers: await headers(),
   });
 
-  // Redirect to forbidden page if user is not authenticated
   if (!session) {
-    return NextResponse.redirect(new URL('/forbidden', request.url));
+    return NextResponse.redirect(new URL('/signin', request.url));
   }
 
   return NextResponse.next();
 }
 
-/**
- * Middleware configuration
- *
- * - runtime: "nodejs" - Run middleware in Node.js runtime
- * - matcher: Routes that should be protected by this middleware
- */
 export const config = {
-  // Apply middleware to dashboard routes
-  matcher: ['/dashboard'],
+  matcher: ['/dashboard', '/dashboard/:path*'],
 };

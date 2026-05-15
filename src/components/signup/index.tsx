@@ -49,12 +49,15 @@ export default function SignUpForm() {
       onRequest: () => {
         setLoading(true);
       },
-      onSuccess: () => {
+      onSuccess: async () => {
         setLoading(false);
+        // Sign-up does not issue a session when email verification is required, but any
+        // previous session cookie would still be present — clear it so the next sign-in is clean.
+        await authClient.signOut();
         toast.success('Account created successfully', {
           description: 'Check your inbox to verify your email.',
         });
-        router.push('/dashboard/profile');
+        router.push('/onboarding');
       },
       onError: (ctx) => {
         setLoading(false);

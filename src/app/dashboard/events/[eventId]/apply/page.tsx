@@ -1,4 +1,4 @@
-import { redirect, notFound } from 'next/navigation';
+import { notFound } from 'next/navigation';
 
 import { getUser } from '@/utils/auth';
 import {
@@ -79,8 +79,7 @@ type Props = {
 
 export default async function ApplyEventPage({ params }: Props) {
   const { eventId } = await params;
-  const user = await getUser();
-  if (!user) redirect('/signin');
+  const user = (await getUser())!;
 
   const [event] = await db
     .select()
@@ -118,10 +117,6 @@ export default async function ApplyEventPage({ params }: Props) {
     profileData ?? null,
     user,
   );
-
-  if (!hasProfile && !previousApplication.success) {
-    redirect(`/dashboard/profile?next=/dashboard/events/${eventId}/apply`);
-  }
 
   return (
     <Card className='w-full sm:max-w-2xl'>

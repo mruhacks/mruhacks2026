@@ -1,5 +1,3 @@
-import { redirect } from 'next/navigation';
-
 import { getUser } from '@/utils/auth';
 import { getUserProfile, saveUserProfile } from './actions';
 import { getOptions } from '@/app/dashboard/events/actions';
@@ -13,8 +11,7 @@ import {
 import ProfileForm from '@/components/profile-form';
 
 export default async function DashboardProfilePage() {
-  const user = await getUser();
-  if (!user) redirect('/signin');
+  const user = (await getUser())!;
 
   const [profileResult, options] = await Promise.all([
     getUserProfile(),
