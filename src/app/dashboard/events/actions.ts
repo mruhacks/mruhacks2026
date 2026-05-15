@@ -11,6 +11,7 @@ import {
   userInterests,
   userDietaryRestrictions,
   eventApplications,
+  applicationStatuses,
   eventAttendees,
   eventInterestRegistrations,
   applicationFormView,
@@ -248,6 +249,74 @@ export async function submitEventApplication(
     return fail('Complete your profile first before applying to events.');
 
   return registerParticipant(profile, eventData, eventId);
+}
+
+type ApplicationStatusLabel =
+  | 'pending_review'
+  | 'approved'
+  | 'denied'
+  | 'waitlisted';
+
+const APPLICATION_STATUS_DISPLAY: Record<ApplicationStatusLabel, string> = {
+  pending_review: 'Under review',
+  approved: 'Accepted',
+  denied: 'Not accepted',
+  waitlisted: 'On the waitlist',
+};
+export type ApplicationStatusForUser = {
+  applicationId: string;
+  statusKey: ApplicationStatusLabel | null;
+  statusTitle: string;
+  reviewedAt: Date | null;
+  waitlistPosition: number | null;
+  createdAt: Date;
+};
+function toStatusTitle(statusKey: string | null): string {
+  if (statusKey == null) {
+    return 'Application submitted';
+  }
+  const key = statusKey as ApplicationStatusLabel;
+  return APPLICATION_STATUS_DISPLAY[key] ?? statusKey.replaceAll('_', ' ');
+}
+
+/**
+ * Current user's application row for an event + review status label.
+ * Returns null if there is no application row for (user, event).
+ */
+export async function getUserApplicationStatus(
+  eventId: string,
+): Promise<ApplicationStatusForUser | null> {
+  const user = await getUser();
+  if (!user) return null;
+  const [row] = await db
+    .select({
+      applicationId: eventApplications.id,
+      statusKey: applicationStatuses.label,
+      reviewedAt: eventApplications.reviewedAt,
+      waitlistPosition: eventApplications.waitlistPosition,
+      createdAt: eventApplications.createdAt,
+    })
+    .from(eventApplications)
+    .leftJoin(
+      applicationStatuses,
+      eq(eventApplications.statusId, applicationStatuses.id),
+    )
+    .where(
+      and(
+        eq(eventApplications.userId, user.id),
+        eq(eventApplications.eventId, eventId),
+      ),
+    )
+    .limit(1);
+  if (!row) return null;
+  return {
+    applicationId: row.applicationId,
+    statusKey: row.statusKey as ApplicationStatusLabel | null,
+    statusTitle: toStatusTitle(row.statusKey),
+    reviewedAt: row.reviewedAt,
+    waitlistPosition: row.waitlistPosition,
+    createdAt: row.createdAt,
+  };
 }
 
 /**
