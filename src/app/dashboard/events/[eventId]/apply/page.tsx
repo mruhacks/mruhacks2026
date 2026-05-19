@@ -1,9 +1,11 @@
+import Link from 'next/link';
 import { redirect, notFound } from 'next/navigation';
 
 import { getUser } from '@/utils/auth';
 import {
   getOptions,
   getPreviousFormSubmission,
+  getUserApplicationStatus,
   submitEventApplication,
 } from '@/app/dashboard/events/actions';
 import {
@@ -20,10 +22,13 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import ProfileForm from '@/components/profile-form';
 import ApplicationForm from '@/components/application-form';
 import type { ProfileFormValues } from '@/components/profile-form/schema';
 import type { EventOnlyFormValues } from '@/components/application-form/schema';
+import { getApplicationStatusDisplay } from '@/app/dashboard/events/application-status';
+import { ApplicationStatusBanner } from '@/app/dashboard/events/ApplicationStatusBanner';
 
 type PreviousSubmission = {
   fullName: string;
@@ -103,11 +108,13 @@ export default async function ApplyEventPage({ params }: Props) {
     );
   }
 
-  const [previousApplication, options, profileResult] = await Promise.all([
-    getPreviousFormSubmission(eventId),
-    getOptions(),
-    getUserProfile(),
-  ]);
+  const [previousApplication, options, profileResult, applicationStatus] =
+    await Promise.all([
+      getPreviousFormSubmission(eventId),
+      getOptions(),
+      getUserProfile(),
+      getUserApplicationStatus(eventId),
+    ]);
 
   const hasProfile = profileResult.success && profileResult.data != null;
   const profileData = hasProfile ? profileResult.data : null;
@@ -123,6 +130,29 @@ export default async function ApplyEventPage({ params }: Props) {
     redirect(`/dashboard/profile?next=/dashboard/events/${eventId}/apply`);
   }
 
+  const decisionIsFinal =
+    applicationStatus != null &&
+    getApplicationStatusDisplay(applicationStatus.statusKey).isFinal;
+
+  if (decisionIsFinal && applicationStatus) {
+    return (
+      <div className='space-y-4'>
+        <ApplicationStatusBanner
+          statusKey={applicationStatus.statusKey}
+          waitlistPosition={applicationStatus.waitlistPosition}
+          createdAt={applicationStatus.createdAt}
+          reviewedAt={applicationStatus.reviewedAt}
+          standalone
+        />
+        <div className='sm:max-w-2xl'>
+          <Button asChild variant='outline' size='sm'>
+            <Link href='/dashboard/events'>← Back to events</Link>
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <Card className='w-full sm:max-w-2xl'>
       <CardHeader>
@@ -132,6 +162,14 @@ export default async function ApplyEventPage({ params }: Props) {
         </CardDescription>
       </CardHeader>
       <CardContent className='space-y-8'>
+        {applicationStatus && (
+          <ApplicationStatusBanner
+            statusKey={applicationStatus.statusKey}
+            waitlistPosition={applicationStatus.waitlistPosition}
+            createdAt={applicationStatus.createdAt}
+            reviewedAt={applicationStatus.reviewedAt}
+          />
+        )}
         <section>
           <h3 className='mb-4 text-sm font-medium'>Your profile</h3>
           <ProfileForm
