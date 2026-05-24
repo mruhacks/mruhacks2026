@@ -45,6 +45,7 @@ import {
 import {
   type ApplicationStatusLabel,
   getApplicationStatusDisplay,
+  resolveApplicationStatusKey,
 } from './application-status';
 
 /**
@@ -100,6 +101,15 @@ export async function registerParticipant(
   if (!built.ok) return fail(built.error);
   const responses = built.responses;
 
+  const [pendingReview] = await db
+    .select({ id: applicationStatuses.id })
+    .from(applicationStatuses)
+    .where(eq(applicationStatuses.label, 'pending_review'))
+    .limit(1);
+  if (!pendingReview) {
+    return fail('Application statuses are not configured.');
+  }
+
   try {
     await db.transaction(async (tx) => {
       await tx
@@ -152,6 +162,7 @@ export async function registerParticipant(
           eventId,
           userId: user.id,
           responses,
+          statusId: pendingReview.id,
         })
         .onConflictDoUpdate({
           target: [eventApplications.eventId, eventApplications.userId],
@@ -257,7 +268,7 @@ export async function submitEventApplication(
 
 export type ApplicationStatusForUser = {
   applicationId: string;
-  statusKey: ApplicationStatusLabel | null;
+  statusKey: ApplicationStatusLabel;
   statusTitle: string;
   reviewedAt: Date | null;
   waitlistPosition: number | null;
@@ -294,7 +305,7 @@ export async function getUserApplicationStatus(
     )
     .limit(1);
   if (!row) return null;
-  const statusKey = row.statusKey as ApplicationStatusLabel | null;
+  const statusKey = resolveApplicationStatusKey(row.statusKey);
   return {
     applicationId: row.applicationId,
     statusKey,
@@ -370,12 +381,11 @@ export async function getEventsWithUserStatus(): Promise<
       hasApplication: events.hasApplication,
       startsAt: events.startsAt,
       endsAt: events.endsAt,
-      userHasRegisteredInterest: isNotNull(
-        eventInterestRegistrations.userId,
-      ),
+      userHasRegisteredInterest: isNotNull(eventInterestRegistrations.userId),
     })
     .from(events)
-    .leftJoin(eventInterestRegistrations,
+    .leftJoin(
+      eventInterestRegistrations,
       and(
         eq(eventInterestRegistrations.eventId, events.id),
         eq(eventInterestRegistrations.userId, user.id),
@@ -423,8 +433,9 @@ export async function getEventsWithUserStatus(): Promise<
         : registeredSet.has(e.id)
           ? ('registered' as const)
           : null,
-      statusKey:
-        (application?.statusKey ?? null) as ApplicationStatusLabel | null,
+      statusKey: application
+        ? resolveApplicationStatusKey(application.statusKey)
+        : null,
       waitlistPosition: application?.waitlistPosition ?? null,
     };
   });

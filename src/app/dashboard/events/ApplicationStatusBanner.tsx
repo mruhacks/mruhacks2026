@@ -8,6 +8,8 @@ import {
 } from '@/components/ui/card';
 import {
   type ApplicationStatusLabel,
+  APPLICATION_TIMELINE_FIELDS,
+  APPLICATION_TIMELINE_LABELS,
   getApplicationStatusDisplay,
   getApplicationStatusLabel,
 } from '@/app/dashboard/events/application-status';
@@ -21,13 +23,19 @@ function formatDate(d: Date | null) {
 }
 
 type Props = {
-  statusKey: ApplicationStatusLabel | null;
+  /** Application review status (e.g. pending_review, approved). */
+  statusKey: ApplicationStatusLabel;
+  /** Waitlist position, if waitlisted. */
   waitlistPosition: number | null;
+  /** When the application was submitted. */
   createdAt: Date;
+  /** When a decision was made. Null while pending. */
   reviewedAt: Date | null;
+  /** Full card layout vs compact banner above the form. */
   standalone?: boolean;
 };
 
+/** Application status badge and timeline for the current user. */
 export function ApplicationStatusBanner({
   statusKey,
   waitlistPosition,
@@ -37,8 +45,8 @@ export function ApplicationStatusBanner({
 }: Props) {
   const display = getApplicationStatusDisplay(statusKey);
   const label = getApplicationStatusLabel(statusKey, waitlistPosition);
+  const timelineSource = { createdAt, reviewedAt };
   const submitted = formatDate(createdAt);
-  const reviewed = formatDate(reviewedAt);
 
   if (standalone) {
     return (
@@ -52,17 +60,17 @@ export function ApplicationStatusBanner({
         </CardHeader>
         <CardContent>
           <dl className='grid gap-2 text-sm sm:grid-cols-2'>
-            {submitted && (
-              <div>
-                <dt className='text-muted-foreground'>Submitted</dt>
-                <dd>{submitted}</dd>
-              </div>
-            )}
-            {reviewed && (
-              <div>
-                <dt className='text-muted-foreground'>Decision made</dt>
-                <dd>{reviewed}</dd>
-              </div>
+            {APPLICATION_TIMELINE_FIELDS.map(
+              ({ key, label: fieldLabel, getDate }) => {
+                const formatted = formatDate(getDate(timelineSource));
+                if (!formatted) return null;
+                return (
+                  <div key={key}>
+                    <dt className='text-muted-foreground'>{fieldLabel}</dt>
+                    <dd>{formatted}</dd>
+                  </div>
+                );
+              },
             )}
           </dl>
         </CardContent>
@@ -78,7 +86,9 @@ export function ApplicationStatusBanner({
       <div className='space-y-0.5 text-sm'>
         <p>{display.description}</p>
         {submitted && (
-          <p className='text-muted-foreground text-xs'>Submitted {submitted}</p>
+          <p className='text-muted-foreground text-xs'>
+            {APPLICATION_TIMELINE_LABELS.submitted} {submitted}
+          </p>
         )}
       </div>
     </div>

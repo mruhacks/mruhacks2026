@@ -9,6 +9,9 @@ export type ApplicationStatusLabel =
   | 'denied'
   | 'waitlisted';
 
+export const DEFAULT_APPLICATION_STATUS: ApplicationStatusLabel =
+  'pending_review';
+
 export type ApplicationStatusBadgeVariant =
   | 'default'
   | 'secondary'
@@ -40,8 +43,7 @@ const DISPLAY: Record<ApplicationStatusLabel, ApplicationStatusDisplay> = {
   },
   waitlisted: {
     title: 'Waitlisted',
-    description:
-      "You're on the waitlist. We'll reach out if a spot opens up.",
+    description: "You're on the waitlist. We'll reach out if a spot opens up.",
     variant: 'secondary',
     isFinal: true,
   },
@@ -54,31 +56,56 @@ const DISPLAY: Record<ApplicationStatusLabel, ApplicationStatusDisplay> = {
   },
 };
 
-const SUBMITTED_FALLBACK: ApplicationStatusDisplay = {
-  title: 'Application submitted',
-  description:
-    "Your application has been received. We'll email you when a decision has been made.",
-  variant: 'outline',
-  isFinal: false,
-};
+/** Normalize DB label, null -> pending_review. */
+export function resolveApplicationStatusKey(
+  statusKey: string | null | undefined,
+): ApplicationStatusLabel {
+  if (statusKey && statusKey in DISPLAY) {
+    return statusKey as ApplicationStatusLabel;
+  }
+  return DEFAULT_APPLICATION_STATUS;
+}
 
-/** Display config for a status label; null/unknown → submitted, not yet triaged. */
+/** Display config for a status label, null -> pending_review. */
 export function getApplicationStatusDisplay(
   statusKey: ApplicationStatusLabel | null | undefined,
 ): ApplicationStatusDisplay {
-  if (statusKey && statusKey in DISPLAY) {
-    return DISPLAY[statusKey];
-  }
-  return SUBMITTED_FALLBACK;
+  return DISPLAY[resolveApplicationStatusKey(statusKey)];
 }
+
+/** Labels for application timeline fields shown in the status banner. */
+export const APPLICATION_TIMELINE_LABELS = {
+  submitted: 'Submitted',
+  decisionMade: 'Decision made',
+} as const;
+
+type ApplicationTimelineSource = {
+  createdAt: Date;
+  reviewedAt: Date | null;
+};
+
+/** Timeline fields rendered in the status card (label + date source). */
+export const APPLICATION_TIMELINE_FIELDS = [
+  {
+    key: 'submitted',
+    label: APPLICATION_TIMELINE_LABELS.submitted,
+    getDate: (source: ApplicationTimelineSource) => source.createdAt,
+  },
+  {
+    key: 'decisionMade',
+    label: APPLICATION_TIMELINE_LABELS.decisionMade,
+    getDate: (source: ApplicationTimelineSource) => source.reviewedAt,
+  },
+] as const;
 
 /** Status title for badges; appends waitlist position when waitlisted. */
 export function getApplicationStatusLabel(
   statusKey: ApplicationStatusLabel | null | undefined,
   waitlistPosition: number | null | undefined,
 ): string {
-  const display = getApplicationStatusDisplay(statusKey);
-  if (statusKey === 'waitlisted' && waitlistPosition != null) {
+  const resolved = resolveApplicationStatusKey(statusKey);
+  const display = getApplicationStatusDisplay(resolved);
+  if (resolved === 'waitlisted' && waitlistPosition != null) {
     return `${display.title} #${waitlistPosition}`;
   }
   return display.title;

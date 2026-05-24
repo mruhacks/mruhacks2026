@@ -48,8 +48,7 @@ export default async function DashboardEventsPage() {
   const eventsList = await getEventsWithUserStatus();
 
   const profileResult = await getUserProfile();
-  const hasProfile =
-    profileResult.success && profileResult.data != null;
+  const hasProfile = profileResult.success && profileResult.data != null;
 
   return (
     <div className='space-y-6'>
