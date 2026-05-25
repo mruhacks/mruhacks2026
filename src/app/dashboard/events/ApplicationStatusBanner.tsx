@@ -6,8 +6,8 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import type { ApplicationStatusForUser } from '@/app/dashboard/events/actions';
 import {
-  type ApplicationStatusLabel,
   APPLICATION_TIMELINE_FIELDS,
   APPLICATION_TIMELINE_LABELS,
   getApplicationStatusDisplay,
@@ -23,26 +23,17 @@ function formatDate(d: Date | null) {
 }
 
 type Props = {
-  /** Application review status (e.g. pending_review, approved). */
-  statusKey: ApplicationStatusLabel;
-  /** Waitlist position, if waitlisted. */
-  waitlistPosition: number | null;
-  /** When the application was submitted. */
-  createdAt: Date;
-  /** When a decision was made. Null while pending. */
-  reviewedAt: Date | null;
+  application: ApplicationStatusForUser;
   /** Full card layout vs compact banner above the form. */
   standalone?: boolean;
 };
 
 /** Application status badge and timeline for the current user. */
 export function ApplicationStatusBanner({
-  statusKey,
-  waitlistPosition,
-  createdAt,
-  reviewedAt,
+  application,
   standalone = false,
 }: Props) {
+  const { statusKey, waitlistPosition, createdAt, reviewedAt } = application;
   const display = getApplicationStatusDisplay(statusKey);
   const label = getApplicationStatusLabel(statusKey, waitlistPosition);
   const timelineSource = { createdAt, reviewedAt };

@@ -307,12 +307,9 @@ export async function getUserApplicationStatus(
   if (!row) return null;
   const statusKey = resolveApplicationStatusKey(row.statusKey);
   return {
-    applicationId: row.applicationId,
+    ...row,
     statusKey,
     statusTitle: getApplicationStatusDisplay(statusKey).title,
-    reviewedAt: row.reviewedAt,
-    waitlistPosition: row.waitlistPosition,
-    createdAt: row.createdAt,
   };
 }
 

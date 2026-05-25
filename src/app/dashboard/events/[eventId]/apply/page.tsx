@@ -137,13 +137,7 @@ export default async function ApplyEventPage({ params }: Props) {
   if (decisionIsFinal && applicationStatus) {
     return (
       <div className='space-y-4'>
-        <ApplicationStatusBanner
-          statusKey={applicationStatus.statusKey}
-          waitlistPosition={applicationStatus.waitlistPosition}
-          createdAt={applicationStatus.createdAt}
-          reviewedAt={applicationStatus.reviewedAt}
-          standalone
-        />
+        <ApplicationStatusBanner application={applicationStatus} standalone />
         <div className='sm:max-w-2xl'>
           <Button asChild variant='outline' size='sm'>
             <Link href='/dashboard/events'>← Back to events</Link>
@@ -163,12 +157,7 @@ export default async function ApplyEventPage({ params }: Props) {
       </CardHeader>
       <CardContent className='space-y-8'>
         {applicationStatus && (
-          <ApplicationStatusBanner
-            statusKey={applicationStatus.statusKey}
-            waitlistPosition={applicationStatus.waitlistPosition}
-            createdAt={applicationStatus.createdAt}
-            reviewedAt={applicationStatus.reviewedAt}
-          />
+          <ApplicationStatusBanner application={applicationStatus} />
         )}
         <section>
           <h3 className='mb-4 text-sm font-medium'>Your profile</h3>
