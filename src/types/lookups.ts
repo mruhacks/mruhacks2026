@@ -66,6 +66,7 @@ export const heardFromSourcesList = [
   'Friend / Classmate',
   'Classroom Visit',
   'Social Media',
+  'RedFM',
   'Professor / Course Announcement',
   'Other',
 ] as const;
