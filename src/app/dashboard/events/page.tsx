@@ -36,9 +36,16 @@ function applyCtaLabel(
   statusKey: ApplicationStatusLabel | null,
 ): string {
   if (!hasApplied) return 'Apply';
-  const display = getApplicationStatusDisplay(statusKey);
-  if (display.isFinal) return 'View status';
-  return 'Edit application';
+
+  switch (statusKey) {
+    case 'approved':
+    case 'denied':
+    case 'waitlisted':
+      return 'View status';
+    case 'pending_review':
+    default:
+      return 'Edit application';
+  }
 }
 
 export default async function DashboardEventsPage() {
@@ -85,10 +92,7 @@ export default async function DashboardEventsPage() {
                           getApplicationStatusDisplay(event.statusKey).variant
                         }
                       >
-                        {getApplicationStatusLabel(
-                          event.statusKey,
-                          event.waitlistPosition,
-                        )}
+                        {getApplicationStatusLabel(event.statusKey)}
                       </Badge>
                     )}
                   </div>

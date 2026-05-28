@@ -98,15 +98,11 @@ export const APPLICATION_TIMELINE_FIELDS = [
   },
 ] as const;
 
-/** Status title for badges; appends waitlist position when waitlisted. */
+/** Status title for badges. */
 export function getApplicationStatusLabel(
   statusKey: ApplicationStatusLabel | null | undefined,
-  waitlistPosition: number | null | undefined,
 ): string {
   const resolved = resolveApplicationStatusKey(statusKey);
   const display = getApplicationStatusDisplay(resolved);
-  if (resolved === 'waitlisted' && waitlistPosition != null) {
-    return `${display.title} #${waitlistPosition}`;
-  }
   return display.title;
 }

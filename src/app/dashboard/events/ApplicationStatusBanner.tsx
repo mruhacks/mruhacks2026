@@ -33,9 +33,9 @@ export function ApplicationStatusBanner({
   application,
   standalone = false,
 }: Props) {
-  const { statusKey, waitlistPosition, createdAt, reviewedAt } = application;
+  const { statusKey, createdAt, reviewedAt } = application;
   const display = getApplicationStatusDisplay(statusKey);
-  const label = getApplicationStatusLabel(statusKey, waitlistPosition);
+  const label = getApplicationStatusLabel(statusKey);
   const timelineSource = { createdAt, reviewedAt };
   const submitted = formatDate(createdAt);
 
