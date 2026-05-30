@@ -1,24 +1,25 @@
 /**
  * UI labels and badge variants for application_statuses (pending_review, approved,
- * denied, waitlisted). Used by events list and apply page.
+ * denied, waitlisted). The display config (title/description/variant/is_final)
+ * lives in the application_statuses table and is read on the server.
  */
 
-export type ApplicationStatusLabel =
-  | 'pending_review'
-  | 'approved'
-  | 'denied'
-  | 'waitlisted';
+import 'server-only';
+import { cache } from 'react';
+
+import { db } from '@/utils/db';
+import { applicationStatuses } from '@/db/schema';
+import {
+  applicationStatusesList,
+  type ApplicationStatus,
+  type ApplicationStatusBadgeVariant,
+} from '@/types/lookups';
+
+export type ApplicationStatusLabel = ApplicationStatus;
+export type { ApplicationStatusBadgeVariant };
 
 export const DEFAULT_APPLICATION_STATUS: ApplicationStatusLabel =
   'pending_review';
-
-export type ApplicationStatusBadgeVariant =
-  | 'default'
-  | 'secondary'
-  | 'success'
-  | 'warning'
-  | 'destructive'
-  | 'outline';
 
 export type ApplicationStatusDisplay = {
   title: string;
@@ -27,50 +28,53 @@ export type ApplicationStatusDisplay = {
   isFinal: boolean;
 };
 
-const DISPLAY: Record<ApplicationStatusLabel, ApplicationStatusDisplay> = {
-  pending_review: {
-    title: 'Under review',
-    description:
-      "We're reviewing your application and will email you when a decision has been made.",
-    variant: 'warning',
-    isFinal: false,
-  },
-  approved: {
-    title: 'Accepted',
-    description: "You're in! Check your email and ticket for next steps.",
-    variant: 'success',
-    isFinal: true,
-  },
-  waitlisted: {
-    title: 'Waitlisted',
-    description: "You're on the waitlist. We'll reach out if a spot opens up.",
-    variant: 'secondary',
-    isFinal: true,
-  },
-  denied: {
-    title: 'Not accepted',
-    description:
-      'Thanks for applying — unfortunately we were not able to offer you a spot.',
-    variant: 'destructive',
-    isFinal: true,
-  },
-};
+const VALID_STATUS_LABELS: readonly string[] = applicationStatusesList;
 
 /** Normalize DB label, null -> pending_review. */
 export function resolveApplicationStatusKey(
   statusKey: string | null | undefined,
 ): ApplicationStatusLabel {
-  if (statusKey && statusKey in DISPLAY) {
+  if (statusKey && VALID_STATUS_LABELS.includes(statusKey)) {
     return statusKey as ApplicationStatusLabel;
   }
   return DEFAULT_APPLICATION_STATUS;
 }
 
-/** Display config for a status label, null -> pending_review. */
-export function getApplicationStatusDisplay(
+/**
+ * Reads all application_statuses display rows and returns them keyed by label.
+ * Cached per request so callers can resolve many statuses with one query.
+ */
+export const getApplicationStatusDisplayMap = cache(
+  async (): Promise<Record<ApplicationStatusLabel, ApplicationStatusDisplay>> => {
+    const rows = await db
+      .select({
+        label: applicationStatuses.label,
+        title: applicationStatuses.title,
+        description: applicationStatuses.description,
+        variant: applicationStatuses.variant,
+        isFinal: applicationStatuses.isFinal,
+      })
+      .from(applicationStatuses);
+
+    const map = {} as Record<ApplicationStatusLabel, ApplicationStatusDisplay>;
+    for (const row of rows) {
+      map[resolveApplicationStatusKey(row.label)] = {
+        title: row.title,
+        description: row.description,
+        variant: row.variant as ApplicationStatusBadgeVariant,
+        isFinal: row.isFinal,
+      };
+    }
+    return map;
+  },
+);
+
+/** Display config for a single status label, null -> pending_review. */
+export async function getApplicationStatusDisplay(
   statusKey: ApplicationStatusLabel | null | undefined,
-): ApplicationStatusDisplay {
-  return DISPLAY[resolveApplicationStatusKey(statusKey)];
+): Promise<ApplicationStatusDisplay> {
+  const map = await getApplicationStatusDisplayMap();
+  return map[resolveApplicationStatusKey(statusKey)];
 }
 
 /** Labels for application timeline fields shown in the status banner. */
@@ -97,12 +101,3 @@ export const APPLICATION_TIMELINE_FIELDS = [
     getDate: (source: ApplicationTimelineSource) => source.reviewedAt,
   },
 ] as const;
-
-/** Status title for badges. */
-export function getApplicationStatusLabel(
-  statusKey: ApplicationStatusLabel | null | undefined,
-): string {
-  const resolved = resolveApplicationStatusKey(statusKey);
-  const display = getApplicationStatusDisplay(resolved);
-  return display.title;
-}

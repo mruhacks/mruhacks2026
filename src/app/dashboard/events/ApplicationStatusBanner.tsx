@@ -10,8 +10,6 @@ import type { ApplicationStatusForUser } from '@/app/dashboard/events/actions';
 import {
   APPLICATION_TIMELINE_FIELDS,
   APPLICATION_TIMELINE_LABELS,
-  getApplicationStatusDisplay,
-  getApplicationStatusLabel,
 } from '@/app/dashboard/events/application-status';
 
 function formatDate(d: Date | null) {
@@ -33,9 +31,8 @@ export function ApplicationStatusBanner({
   application,
   standalone = false,
 }: Props) {
-  const { statusKey, createdAt, reviewedAt } = application;
-  const display = getApplicationStatusDisplay(statusKey);
-  const label = getApplicationStatusLabel(statusKey);
+  const { statusDisplay: display, createdAt, reviewedAt } = application;
+  const label = display.title;
   const timelineSource = { createdAt, reviewedAt };
   const submitted = formatDate(createdAt);
 

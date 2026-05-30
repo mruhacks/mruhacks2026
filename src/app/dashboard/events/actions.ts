@@ -44,7 +44,9 @@ import {
 } from './application-responses';
 import {
   type ApplicationStatusLabel,
+  type ApplicationStatusDisplay,
   getApplicationStatusDisplay,
+  getApplicationStatusDisplayMap,
   resolveApplicationStatusKey,
 } from './application-status';
 
@@ -269,7 +271,7 @@ export async function submitEventApplication(
 export type ApplicationStatusForUser = {
   applicationId: string;
   statusKey: ApplicationStatusLabel;
-  statusTitle: string;
+  statusDisplay: ApplicationStatusDisplay;
   reviewedAt: Date | null;
   waitlistPosition: number | null;
   createdAt: Date;
@@ -309,7 +311,7 @@ export async function getUserApplicationStatus(
   return {
     ...row,
     statusKey,
-    statusTitle: getApplicationStatusDisplay(statusKey).title,
+    statusDisplay: await getApplicationStatusDisplay(statusKey),
   };
 }
 
@@ -358,6 +360,7 @@ export type EventWithUserStatus = {
   endsAt: Date | null;
   userStatus: 'applied' | 'registered' | null;
   statusKey: ApplicationStatusLabel | null;
+  statusDisplay: ApplicationStatusDisplay | null;
   waitlistPosition: number | null;
 };
 
@@ -413,9 +416,13 @@ export async function getEventsWithUserStatus(): Promise<
   const statusByEventId = new Map(
     applicationRows.map((r) => [r.eventId, r] as const),
   );
+  const displayMap = await getApplicationStatusDisplayMap();
 
   return allEvents.map((e) => {
     const application = statusByEventId.get(e.id);
+    const statusKey = application
+      ? resolveApplicationStatusKey(application.statusKey)
+      : null;
     return {
       id: e.id,
       name: e.name,
@@ -430,9 +437,8 @@ export async function getEventsWithUserStatus(): Promise<
         : registeredSet.has(e.id)
           ? ('registered' as const)
           : null,
-      statusKey: application
-        ? resolveApplicationStatusKey(application.statusKey)
-        : null,
+      statusKey,
+      statusDisplay: statusKey ? displayMap[statusKey] : null,
       waitlistPosition: application?.waitlistPosition ?? null,
     };
   });

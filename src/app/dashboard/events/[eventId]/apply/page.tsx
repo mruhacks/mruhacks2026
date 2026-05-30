@@ -27,7 +27,6 @@ import ProfileForm from '@/components/profile-form';
 import ApplicationForm from '@/components/application-form';
 import type { ProfileFormValues } from '@/components/profile-form/schema';
 import type { EventOnlyFormValues } from '@/components/application-form/schema';
-import { getApplicationStatusDisplay } from '@/app/dashboard/events/application-status';
 import { ApplicationStatusBanner } from '@/app/dashboard/events/ApplicationStatusBanner';
 
 type PreviousSubmission = {
@@ -131,8 +130,7 @@ export default async function ApplyEventPage({ params }: Props) {
   }
 
   const decisionIsFinal =
-    applicationStatus != null &&
-    getApplicationStatusDisplay(applicationStatus.statusKey).isFinal;
+    applicationStatus != null && applicationStatus.statusDisplay.isFinal;
 
   if (decisionIsFinal && applicationStatus) {
     return (

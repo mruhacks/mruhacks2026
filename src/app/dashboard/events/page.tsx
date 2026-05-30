@@ -17,11 +17,7 @@ import { RegisterEventButton } from './RegisterEventButton';
 import { UnregisterEventButton } from './UnregisterEventButton';
 import { RegisterEventInterestButton } from './RegisterEventInterestButton';
 import { Calendar } from 'lucide-react';
-import {
-  type ApplicationStatusLabel,
-  getApplicationStatusDisplay,
-  getApplicationStatusLabel,
-} from '@/app/dashboard/events/application-status';
+import type { ApplicationStatusLabel } from '@/app/dashboard/events/application-status';
 
 function formatDate(d: Date | null) {
   if (!d) return null;
@@ -86,15 +82,13 @@ export default async function DashboardEventsPage() {
                 <CardHeader className='pb-2'>
                   <div className='flex items-start justify-between gap-2'>
                     <CardTitle className='text-lg'>{event.name}</CardTitle>
-                    {event.hasApplication && event.userStatus === 'applied' && (
-                      <Badge
-                        variant={
-                          getApplicationStatusDisplay(event.statusKey).variant
-                        }
-                      >
-                        {getApplicationStatusLabel(event.statusKey)}
-                      </Badge>
-                    )}
+                    {event.hasApplication &&
+                      event.userStatus === 'applied' &&
+                      event.statusDisplay && (
+                        <Badge variant={event.statusDisplay.variant}>
+                          {event.statusDisplay.title}
+                        </Badge>
+                      )}
                   </div>
                   <CardDescription className='text-sm'>
                     {event.startsAt && (
