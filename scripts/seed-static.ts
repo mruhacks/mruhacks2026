@@ -21,6 +21,7 @@ import {
   dietaryRestrictionsList,
   heardFromSourcesList,
   applicationStatusesList,
+  applicationStatusDisplayList,
   rsvpStatusesList,
   eventTypesList,
 } from '@/types/lookups';
@@ -45,6 +46,22 @@ function defineSeedTable<TTable extends Table>(
   };
 }
 
+function defineApplicationStatusSeedTable(): SeedTable<
+  typeof applicationStatuses
+> {
+  return {
+    table: applicationStatuses,
+    validLabels: applicationStatusesList as readonly string[],
+    values: applicationStatusDisplayList.map((s) => ({
+      label: s.label,
+      title: s.title,
+      description: s.description,
+      variant: s.variant,
+      isFinal: s.isFinal,
+    })),
+  };
+}
+
 // ---------- Table registry ----------
 const tables = [
   defineSeedTable(genders, gendersList),
@@ -54,7 +71,7 @@ const tables = [
   defineSeedTable(interests, interestsList),
   defineSeedTable(dietaryRestrictions, dietaryRestrictionsList),
   defineSeedTable(heardFromSources, heardFromSourcesList),
-  defineSeedTable(applicationStatuses, applicationStatusesList),
+  defineApplicationStatusSeedTable(),
   defineSeedTable(rsvpStatuses, rsvpStatusesList),
   defineSeedTable(eventTypes, eventTypesList),
 ] satisfies SeedTable<Table>[];
