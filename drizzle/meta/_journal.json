@@ -64,6 +64,13 @@
       "when": 1775883902186,
       "tag": "0008_funny_human_robot",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1780154069038,
+      "tag": "0009_fine_silver_samurai",
+      "breakpoints": true
     }
   ]
 }

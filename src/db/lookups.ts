@@ -11,7 +11,7 @@
  * - label: Unique, human-readable string value
  */
 
-import { pgTable, serial, varchar } from 'drizzle-orm/pg-core';
+import { pgTable, serial, varchar, boolean } from 'drizzle-orm/pg-core';
 
 /**
  * Gender options for participant profile and application form
@@ -97,10 +97,17 @@ export const heardFromSources = pgTable('heard_from_sources', {
  * Application status (manual review outcome)
  *
  * Values: pending_review, approved, denied, waitlisted.
+ *
+ * Display columns (title, description, variant, is_final) drive the UI badge
+ * and status banner shown to applicants.
  */
 export const applicationStatuses = pgTable('application_statuses', {
   id: serial('id').primaryKey(),
   label: varchar('label', { length: 50 }).unique().notNull(),
+  title: varchar('title', { length: 100 }).notNull(),
+  description: varchar('description', { length: 500 }).notNull(),
+  variant: varchar('variant', { length: 20 }).notNull(),
+  isFinal: boolean('is_final').notNull(),
 });
 
 /**

@@ -79,6 +79,57 @@ export const applicationStatusesList = [
 ] as const;
 export type ApplicationStatus = (typeof applicationStatusesList)[number];
 
+export type ApplicationStatusBadgeVariant =
+  | 'default'
+  | 'secondary'
+  | 'success'
+  | 'warning'
+  | 'destructive'
+  | 'outline';
+
+/**
+ * Display config for each application status, seeded into the
+ * `application_statuses` table (title, description, badge variant, isFinal).
+ */
+export const applicationStatusDisplayList = [
+  {
+    label: 'pending_review',
+    title: 'Under review',
+    description:
+      "We're reviewing your application and will email you when a decision has been made.",
+    variant: 'warning',
+    isFinal: false,
+  },
+  {
+    label: 'approved',
+    title: 'Accepted',
+    description: "You're in! Check your email and ticket for next steps.",
+    variant: 'success',
+    isFinal: true,
+  },
+  {
+    label: 'waitlisted',
+    title: 'Waitlisted',
+    description: "You're on the waitlist. We'll reach out if a spot opens up.",
+    variant: 'secondary',
+    isFinal: true,
+  },
+  {
+    label: 'denied',
+    title: 'Not accepted',
+    description:
+      'Thanks for applying — unfortunately we were not able to offer you a spot.',
+    variant: 'destructive',
+    isFinal: true,
+  },
+] as const satisfies readonly {
+  label: ApplicationStatus;
+  title: string;
+  description: string;
+  variant: ApplicationStatusBadgeVariant;
+  isFinal: boolean;
+}[];
+
 export const rsvpStatusesList = [
   'pending',
   'accepted',

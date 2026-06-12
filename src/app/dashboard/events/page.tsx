@@ -12,10 +12,12 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { RegisterEventButton } from './RegisterEventButton';
 import { UnregisterEventButton } from './UnregisterEventButton';
 import { RegisterEventInterestButton } from './RegisterEventInterestButton';
 import { Calendar } from 'lucide-react';
+import type { ApplicationStatusLabel } from '@/app/dashboard/events/application-status';
 
 function formatDate(d: Date | null) {
   if (!d) return null;
@@ -25,6 +27,23 @@ function formatDate(d: Date | null) {
   }).format(d);
 }
 
+function applyCtaLabel(
+  hasApplied: boolean,
+  statusKey: ApplicationStatusLabel | null,
+): string {
+  if (!hasApplied) return 'Apply';
+
+  switch (statusKey) {
+    case 'approved':
+    case 'denied':
+    case 'waitlisted':
+      return 'View status';
+    case 'pending_review':
+    default:
+      return 'Edit application';
+  }
+}
+
 export default async function DashboardEventsPage() {
   const user = await getUser();
   if (!user) redirect('/signin');
@@ -32,8 +51,7 @@ export default async function DashboardEventsPage() {
   const eventsList = await getEventsWithUserStatus();
 
   const profileResult = await getUserProfile();
-  const hasProfile =
-    profileResult.success && profileResult.data != null;
+  const hasProfile = profileResult.success && profileResult.data != null;
 
   return (
     <div className='space-y-6'>
@@ -62,7 +80,16 @@ export default async function DashboardEventsPage() {
             <li key={event.id}>
               <Card className='flex h-full flex-col'>
                 <CardHeader className='pb-2'>
-                  <CardTitle className='text-lg'>{event.name}</CardTitle>
+                  <div className='flex items-start justify-between gap-2'>
+                    <CardTitle className='text-lg'>{event.name}</CardTitle>
+                    {event.hasApplication &&
+                      event.userStatus === 'applied' &&
+                      event.statusDisplay && (
+                        <Badge variant={event.statusDisplay.variant}>
+                          {event.statusDisplay.title}
+                        </Badge>
+                      )}
+                  </div>
                   <CardDescription className='text-sm'>
                     {event.startsAt && (
                       <span>
@@ -77,9 +104,10 @@ export default async function DashboardEventsPage() {
                   {event.hasApplication ? (
                     <Button asChild size='sm' variant='default'>
                       <Link href={`/dashboard/events/${event.id}/apply`}>
-                        {event.userStatus === 'applied'
-                          ? 'Edit application'
-                          : 'Apply'}
+                        {applyCtaLabel(
+                          event.userStatus === 'applied',
+                          event.statusKey,
+                        )}
                       </Link>
                     </Button>
                   ) : (
