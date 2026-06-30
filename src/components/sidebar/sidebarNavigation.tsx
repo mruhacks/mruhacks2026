@@ -79,7 +79,7 @@ const adminItems: NavItem[] = [
   },
   {
     title: 'Events & Meals',
-    url: '/dashboard/admin/events-meals',
+    url: '/dashboard/admin/events',
     icon: Calendar,
     requiresAnyPermission: ['event:manage:all'],
   },

@@ -76,15 +76,52 @@ export function getDatabaseURL(): string {
 }
 
 /**
- * Creates the PostgreSQL connection pool with SSL parity.
+ * Creates the PostgreSQL connection pool with proper pooling configuration.
+ * - max: Maximum number of connections in the pool (default 25)
+ * - idle_timeout: Close idle connections after this many seconds (default 30s)
+ * - connect_timeout: Connection timeout in seconds (default 30s)
+ * - prepare: Disable prepared statements for compatibility
  */
 const connectionString = getDatabaseURL();
 
-export const client = postgres(connectionString, { prepare: false });
+export const client = postgres(connectionString, {
+  prepare: false,
+  max: 25, // Maximum pool size
+  idle_timeout: 30, // Close idle connections after 30 seconds
+  connect_timeout: 10, // Connection timeout
+  onnotice: () => {}, // Suppress PostgreSQL notices
+});
 
 export const db = drizzle(client, { schema, casing: 'snake_case' });
 
 export default db;
+
+/**
+ * Gracefully close the database connection on process shutdown.
+ * Prevents hanging connections and properly cleans up the pool.
+ */
+async function closeDatabase(): Promise<void> {
+  try {
+    await client.end();
+  } catch (error) {
+    console.error('Error closing database connection:', error);
+  }
+}
+
+// Register shutdown handlers
+if (typeof process !== 'undefined') {
+  process.on('SIGINT', async () => {
+    console.log('SIGINT received, closing database...');
+    await closeDatabase();
+    process.exit(0);
+  });
+
+  process.on('SIGTERM', async () => {
+    console.log('SIGTERM received, closing database...');
+    await closeDatabase();
+    process.exit(0);
+  });
+}
 
 // 👇 Only for testing, no runtime impact
 if (process.env.NODE_ENV === 'test') {

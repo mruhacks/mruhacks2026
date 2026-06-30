@@ -23,3 +23,14 @@ export const profileFormSchema = z.object({
 });
 
 export type ProfileFormValues = z.infer<typeof profileFormSchema>;
+
+export type ProfileSelectOption = { value: number; label: string };
+
+export type ProfileFormOptions = {
+  genders: ProfileSelectOption[];
+  universities: ProfileSelectOption[];
+  majors: ProfileSelectOption[];
+  years: ProfileSelectOption[];
+  interests: ProfileSelectOption[];
+  dietary: ProfileSelectOption[];
+};

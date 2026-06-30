@@ -12,9 +12,17 @@ import {
 } from '@/components/ui/card';
 import ProfileForm from '@/components/profile-form';
 
-export default async function DashboardProfilePage() {
+type DashboardProfilePageProps = {
+  searchParams: Promise<{ next?: string }>;
+};
+
+export default async function DashboardProfilePage({
+  searchParams,
+}: DashboardProfilePageProps) {
   const user = await getUser();
   if (!user) redirect('/signin');
+
+  const { next } = await searchParams;
 
   const [profileResult, options] = await Promise.all([
     getUserProfile(),
@@ -40,6 +48,7 @@ export default async function DashboardProfilePage() {
           initial={initial}
           options={options}
           onSubmit={saveUserProfile}
+          nextUrl={next}
         />
       </CardContent>
     </Card>

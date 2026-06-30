@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useTransition } from 'react';
+import { useTransition } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { registerEventInterest } from './actions';
@@ -11,19 +11,13 @@ export function RegisterEventInterestButton({
   eventId,
   userHasRegisteredInterest,
 }: Props) {
-  const [saved, setSaved] = useState(userHasRegisteredInterest);
   const [isPending, startTransition] = useTransition();
-
-  useEffect(() => {
-    setSaved(userHasRegisteredInterest);
-  }, [userHasRegisteredInterest]);
 
   function handleClick() {
     startTransition(async () => {
       const result = await registerEventInterest(eventId);
       if (result?.success) {
         toast.success('Interest saved.');
-        setSaved(true);
       } else {
         toast.error(result?.error ?? 'Failed to save interest.');
       }
@@ -33,10 +27,10 @@ export function RegisterEventInterestButton({
   return (
     <Button
       onClick={handleClick}
-      disabled={isPending || saved}
+      disabled={isPending || userHasRegisteredInterest}
       size='sm'
     >
-      {saved
+      {userHasRegisteredInterest
         ? 'Interest saved'
         : isPending
           ? 'Saving...'

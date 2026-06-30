@@ -25,7 +25,7 @@ import {
   personalSchema,
   type ProfileFormValues,
 } from '@/components/profile-form/schema';
-import { type ApplicationFormOptions } from '@/components/application-form/schema';
+import { type ProfileFormOptions } from '@/components/profile-form/schema';
 import { useRouter } from 'next/navigation';
 
 const tabLabels: Record<string, string> = {
@@ -44,11 +44,12 @@ function RequiredAsterisk(): React.JSX.Element {
 
 type ProfileFormProps = {
   initial?: Partial<ProfileFormValues>;
-  options: ApplicationFormOptions;
+  options: ProfileFormOptions;
   onSubmit: (data: ProfileFormValues) => Promise<ActionResult | void>;
   submitLabel?: string;
   successMessage?: string;
   errorMessage?: string;
+  nextUrl?: string;
 };
 
 const DEFAULT_SUBMIT_LABEL = 'Save Changes';
@@ -66,6 +67,7 @@ export default function ProfileForm({
   submitLabel = DEFAULT_SUBMIT_LABEL,
   successMessage = DEFAULT_SUCCESS_MESSAGE,
   errorMessage = DEFAULT_ERROR_MESSAGE,
+  nextUrl,
 }: ProfileFormProps) {
   const router = useRouter();
   const {
@@ -112,7 +114,7 @@ export default function ProfileForm({
 
         if (!result || (isActionResult(result) && result.success)) {
           toast.success(successMessage);
-          router.push('/dashboard');
+          router.push(nextUrl ?? '/dashboard');
         }
 
         if (isActionResult(result) && !result.success) {
@@ -123,7 +125,7 @@ export default function ProfileForm({
         toast.error(errorMessage);
       }
     },
-    [onSubmit, successMessage, errorMessage, router],
+    [onSubmit, successMessage, errorMessage, router, nextUrl],
   );
 
   const handleNext = async () => {

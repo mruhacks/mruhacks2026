@@ -21,7 +21,6 @@ import {
   yearsOfStudy,
   interests,
   dietaryRestrictions,
-  heardFromSources,
 } from '@/db/schema';
 import { getUser } from '@/utils/auth';
 import { ActionResult, fail, ok } from '@/utils/action-result';
@@ -38,10 +37,7 @@ import type { ApplicationQuestion } from '@/types/application';
 import { cacheLife, revalidatePath } from 'next/cache';
 import { and, desc, eq, isNotNull } from 'drizzle-orm';
 import { getUserProfile } from '@/app/dashboard/profile/actions';
-import {
-  buildApplicationResponses,
-  fromResponseKeys,
-} from './application-responses';
+import { buildApplicationResponses } from './application-responses';
 import {
   type ApplicationStatusLabel,
   type ApplicationStatusDisplay,
@@ -99,7 +95,10 @@ export async function registerParticipant(
   const applicationQuestions =
     (eventRow?.applicationQuestions as ApplicationQuestion[] | null) ?? [];
 
-  const built = buildApplicationResponses(applicationQuestions, event);
+  const built = buildApplicationResponses(
+    applicationQuestions,
+    event.applicationResponses,
+  );
   if (!built.ok) return fail(built.error);
   const responses = built.responses;
 
@@ -196,7 +195,6 @@ export async function getOptions() {
     years: yearsOfStudy,
     interests,
     dietary: dietaryRestrictions,
-    heardFrom: heardFromSources,
   };
 
   const entries = await Promise.all(
@@ -232,7 +230,6 @@ export async function getPreviousFormSubmission(eventId: string) {
 
   const row = data[0];
   const responses = (row.responses ?? {}) as Record<string, unknown>;
-  const eventPart = fromResponseKeys(responses);
   const initial = {
     fullName: row.fullName,
     genderId: row.genderId,
@@ -241,7 +238,7 @@ export async function getPreviousFormSubmission(eventId: string) {
     yearOfStudyId: row.yearOfStudyId,
     interests: row.interests ?? [],
     dietaryRestrictions: row.dietaryRestrictions ?? [],
-    ...eventPart,
+    applicationResponses: responses,
   };
 
   return ok(initial);

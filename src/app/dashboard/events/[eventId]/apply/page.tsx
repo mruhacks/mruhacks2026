@@ -8,10 +8,7 @@ import {
   getUserApplicationStatus,
   submitEventApplication,
 } from '@/app/dashboard/events/actions';
-import {
-  getUserProfile,
-  saveUserProfile,
-} from '@/app/dashboard/profile/actions';
+import { getUserProfile } from '@/app/dashboard/profile/actions';
 import { db } from '@/utils/db';
 import { events } from '@/db/schema';
 import { eq } from 'drizzle-orm';
@@ -23,7 +20,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import ProfileForm from '@/components/profile-form';
+import { ProfileView } from '@/components/profile-view';
 import ApplicationForm from '@/components/application-form';
 import type { ProfileFormValues } from '@/components/profile-form/schema';
 import type { EventOnlyFormValues } from '@/components/application-form/schema';
@@ -37,8 +34,6 @@ type PreviousSubmission = {
   yearOfStudyId: number;
   interests: number[];
   dietaryRestrictions: number[];
-  attendedBefore: boolean;
-  accommodations: string | undefined;
   applicationResponses: Record<string, unknown>;
 };
 
@@ -63,16 +58,8 @@ function buildApplyInitials(
     : (profileData ?? { fullName: user.name ?? '' });
 
   const eventInitial = prev
-    ? {
-        attendedBefore: prev.attendedBefore,
-        accommodations: prev.accommodations,
-        applicationResponses: prev.applicationResponses ?? {},
-      }
-    : {
-        attendedBefore: false,
-        accommodations: '',
-        applicationResponses: {} as Record<string, unknown>,
-      };
+    ? { applicationResponses: prev.applicationResponses ?? {} }
+    : { applicationResponses: {} as Record<string, unknown> };
 
   return { profileInitial, eventInitial };
 }
@@ -150,7 +137,7 @@ export default async function ApplyEventPage({ params }: Props) {
       <CardHeader>
         <CardTitle>Application: {event.name}</CardTitle>
         <CardDescription>
-          Update your profile and event application below.
+          Review your profile and complete the event application below.
         </CardDescription>
       </CardHeader>
       <CardContent className='space-y-8'>
@@ -158,18 +145,11 @@ export default async function ApplyEventPage({ params }: Props) {
           <ApplicationStatusBanner application={applicationStatus} />
         )}
         <section>
-          <h3 className='mb-4 text-sm font-medium'>Your profile</h3>
-          <ProfileForm
-            initial={profileInitial}
-            options={options}
-            onSubmit={saveUserProfile}
-          />
+          <ProfileView profile={profileInitial} options={options} />
         </section>
         <section>
-          <h3 className='mb-4 text-sm font-medium'>Event questions</h3>
           <ApplicationForm
             initial={eventInitial}
-            options={options}
             applicationQuestions={event.applicationQuestions ?? null}
             submitAction={submitEventApplication}
             eventId={eventId}
