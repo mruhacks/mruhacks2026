@@ -1,4 +1,4 @@
-import { db } from '@/utils/db';
+import { client, db } from '@/utils/db';
 import { InferInsertModel, Table, getTableName } from 'drizzle-orm';
 import {
   genders,
@@ -99,12 +99,12 @@ export async function seedStaticTables() {
 
 // ---------- Direct execution ----------
 if (require.main === module) {
-  seedStaticTables()
-    .then(() => {
-      process.exit(0);
-    })
+  void seedStaticTables()
     .catch((err) => {
       console.error('❌ Seed failed:', err);
-      process.exit(1);
+      process.exitCode = 1;
+    })
+    .finally(async () => {
+      await client.end();
     });
 }
