@@ -6,6 +6,7 @@
  */
 
 import { betterAuth } from 'better-auth';
+import { admin, magicLink } from 'better-auth/plugins';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { db } from '@/utils/db';
 import * as schema from '@/db/schema';
@@ -77,6 +78,21 @@ export const auth = betterAuth({
       });
     },
   },
+  plugins: [
+    admin(),
+    magicLink({
+      sendMagicLink: async ({ email, url }) => {
+        void sendMail({
+          to: email,
+          subject: 'Sign in to MRU Hacks',
+          text: `Sign in by opening this link:\n\n${url}\n`,
+          html: `<p>Sign in by clicking <a href="${url}">this link</a>.</p>`,
+        }).catch((err) => {
+          console.error('[auth] sendMagicLink failed', err);
+        });
+      },
+    }),
+  ],
   advanced: {
     database: {
       generateId: false,

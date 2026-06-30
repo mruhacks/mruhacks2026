@@ -1,5 +1,5 @@
 {
-  "id": "6fa48f25-2646-4f68-aa02-1fe1fe9ca1d7",
+  "id": "4d8a3e9f-85c6-454a-89a1-d361679bce3d",
   "prevId": "18c792bc-2dfd-44c7-b7d1-0fb035cefefb",
   "version": "7",
   "dialect": "postgresql",
@@ -167,6 +167,12 @@
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
+        },
+        "impersonated_by": {
+          "name": "impersonated_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},
@@ -248,6 +254,31 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "role": {
+          "name": "role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "banned": {
+          "name": "banned",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": false
+        },
+        "ban_reason": {
+          "name": "ban_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ban_expires": {
+          "name": "ban_expires",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},
@@ -1595,30 +1626,6 @@
         "label": {
           "name": "label",
           "type": "varchar(50)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "title": {
-          "name": "title",
-          "type": "varchar(100)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "description": {
-          "name": "description",
-          "type": "varchar(500)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "variant": {
-          "name": "variant",
-          "type": "varchar(20)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "is_final": {
-          "name": "is_final",
-          "type": "boolean",
           "primaryKey": false,
           "notNull": true
         }

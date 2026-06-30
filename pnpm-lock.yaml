@@ -54,6 +54,15 @@ importers:
       '@radix-ui/react-tooltip':
         specifier: 1.2.8
         version: 1.2.8(@types/react-dom@19.2.3(@types/react@19.2.9))(@types/react@19.2.9)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      '@tanstack/react-query':
+        specifier: ^5.99.0
+        version: 5.99.0(react@19.1.0)
+      '@tanstack/react-query-devtools':
+        specifier: ^5.99.0
+        version: 5.99.0(@tanstack/react-query@5.99.0(react@19.1.0))(react@19.1.0)
+      '@tanstack/react-table':
+        specifier: ^8.21.3
+        version: 8.21.3(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
       better-auth:
         specifier: 1.4.17
         version: 1.4.17(better-sqlite3@12.4.1)(drizzle-kit@0.31.8)(drizzle-orm@0.44.7(@types/pg@8.16.0)(better-sqlite3@12.4.1)(kysely@0.28.14)(pg@8.17.2)(postgres@3.4.8))(next@16.1.7(@babel/core@7.29.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(pg@8.17.2)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)(vitest@3.2.4(@types/node@20.19.30)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.21.0)(yaml@2.8.3))
@@ -2224,6 +2233,34 @@ packages:
 
   '@tailwindcss/postcss@4.1.18':
     resolution: {integrity: sha512-Ce0GFnzAOuPyfV5SxjXGn0CubwGcuDB0zcdaPuCSzAa/2vII24JTkH+I6jcbXLb1ctjZMZZI6OjDaLPJQL1S0g==, tarball: https://registry.npmjs.org/@tailwindcss/postcss/-/postcss-4.1.18.tgz}
+
+  '@tanstack/query-core@5.99.0':
+    resolution: {integrity: sha512-3Jv3WQG0BCcH7G+7lf/bP8QyBfJOXeY+T08Rin3GZ1bshvwlbPt7NrDHMEzGdKIOmOzvIQmxjk28YEQX60k7pQ==, tarball: https://registry.npmjs.org/@tanstack/query-core/-/query-core-5.99.0.tgz}
+
+  '@tanstack/query-devtools@5.99.0':
+    resolution: {integrity: sha512-m4ufXaJ8FjWXw7xDtyzE/6fkZAyQFg9WrbMrUpt8ZecRJx58jiFOZ2lxZMphZdIpAnIeto/S8stbwLKLusyckQ==, tarball: https://registry.npmjs.org/@tanstack/query-devtools/-/query-devtools-5.99.0.tgz}
+
+  '@tanstack/react-query-devtools@5.99.0':
+    resolution: {integrity: sha512-CqqX7LCU9yOfCY/vBURSx2YSD83ryfX+QkfkaKionTfg1s2Hdm572Ro99gW3QPoJjzvsj1HM4pnN4nbDy3MXKA==, tarball: https://registry.npmjs.org/@tanstack/react-query-devtools/-/react-query-devtools-5.99.0.tgz}
+    peerDependencies:
+      '@tanstack/react-query': ^5.99.0
+      react: ^18 || ^19
+
+  '@tanstack/react-query@5.99.0':
+    resolution: {integrity: sha512-OY2bCqPemT1LlqJ8Y2CUau4KELnIhhG9Ol3ZndPbdnB095pRbPo1cHuXTndg8iIwtoHTgwZjyaDnQ0xD0mYwAw==, tarball: https://registry.npmjs.org/@tanstack/react-query/-/react-query-5.99.0.tgz}
+    peerDependencies:
+      react: ^18 || ^19
+
+  '@tanstack/react-table@8.21.3':
+    resolution: {integrity: sha512-5nNMTSETP4ykGegmVkhjcS8tTLW6Vl4axfEGQN3v0zdHYbK4UfoqfPChclTrJ4EoK9QynqAu9oUf8VEmrpZ5Ww==, tarball: https://registry.npmjs.org/@tanstack/react-table/-/react-table-8.21.3.tgz}
+    engines: {node: '>=12'}
+    peerDependencies:
+      react: '>=16.8'
+      react-dom: '>=16.8'
+
+  '@tanstack/table-core@8.21.3':
+    resolution: {integrity: sha512-ldZXEhOBb8Is7xLs01fR3YEc3DERiz5silj8tnGkFZytt1abEvl/GhUmCE0PMLaMPTa3Jk4HbKmRlHmu+gCftg==, tarball: https://registry.npmjs.org/@tanstack/table-core/-/table-core-8.21.3.tgz}
+    engines: {node: '>=12'}
 
   '@tybys/wasm-util@0.10.1':
     resolution: {integrity: sha512-9tTaPJLSiejZKx+Bmog4uSubteqTvFrVrURwkmHixBo0G4seD0zUxp98E1DzUBJxLQ3NPwXrGKDiVjwx/DpPsg==, tarball: https://registry.npmjs.org/@tybys/wasm-util/-/wasm-util-0.10.1.tgz}
@@ -6874,6 +6911,29 @@ snapshots:
       '@tailwindcss/oxide': 4.1.18
       postcss: 8.5.8
       tailwindcss: 4.1.18
+
+  '@tanstack/query-core@5.99.0': {}
+
+  '@tanstack/query-devtools@5.99.0': {}
+
+  '@tanstack/react-query-devtools@5.99.0(@tanstack/react-query@5.99.0(react@19.1.0))(react@19.1.0)':
+    dependencies:
+      '@tanstack/query-devtools': 5.99.0
+      '@tanstack/react-query': 5.99.0(react@19.1.0)
+      react: 19.1.0
+
+  '@tanstack/react-query@5.99.0(react@19.1.0)':
+    dependencies:
+      '@tanstack/query-core': 5.99.0
+      react: 19.1.0
+
+  '@tanstack/react-table@8.21.3(react-dom@19.1.0(react@19.1.0))(react@19.1.0)':
+    dependencies:
+      '@tanstack/table-core': 8.21.3
+      react: 19.1.0
+      react-dom: 19.1.0(react@19.1.0)
+
+  '@tanstack/table-core@8.21.3': {}
 
   '@tybys/wasm-util@0.10.1':
     dependencies:

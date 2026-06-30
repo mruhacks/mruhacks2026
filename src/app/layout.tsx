@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { DM_Sans, Geist_Mono } from 'next/font/google';
 import { Toaster } from '@/components/ui/sonner';
+import { QueryProvider } from '@/components/providers/query-provider';
 import './globals.css';
 
 const dmSans = DM_Sans({
@@ -26,8 +27,10 @@ export default function RootLayout({
   return (
     <html lang='en' className={`${dmSans.variable} ${geistMono.variable}`}>
       <body className='overflow-x-hidden antialiased'>
-        {children}
-        <Toaster />
+        <QueryProvider>
+          {children}
+          <Toaster />
+        </QueryProvider>
       </body>
     </html>
   );
