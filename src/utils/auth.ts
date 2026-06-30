@@ -10,8 +10,28 @@ import { admin, magicLink } from 'better-auth/plugins';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { db } from '@/utils/db';
 import * as schema from '@/db/schema';
+import { sendMail } from '@/utils/mail';
 import { headers } from 'next/headers';
 import { cache } from 'react';
+
+/** Verification links expire after this many seconds (24 hours). */
+const EMAIL_VERIFICATION_EXPIRES_IN = 86400;
+
+function getAuthBaseUrl(): string {
+  const v = process.env.BETTER_AUTH_URL?.trim();
+  if (!v) {
+    throw new Error('BETTER_AUTH_URL is required for Better Auth');
+  }
+  return v;
+}
+
+function getAuthSecret(): string {
+  const v = (process.env.BETTER_AUTH_SECRET ?? process.env.AUTH_SECRET)?.trim();
+  if (!v) {
+    throw new Error('BETTER_AUTH_SECRET or AUTH_SECRET is required for Better Auth');
+  }
+  return v;
+}
 
 /**
  * Better Auth instance configured with Drizzle ORM adapter
@@ -22,24 +42,54 @@ import { cache } from 'react';
  * - ID generation: Handled by database (auto-increment/UUID)
  */
 export const auth = betterAuth({
+  baseURL: getAuthBaseUrl(),
+  secret: getAuthSecret(),
   database: drizzleAdapter(db, {
     provider: 'pg',
     schema,
   }),
+  emailVerification: {
+    sendOnSignUp: true,
+    sendOnSignIn: false,
+    autoSignInAfterVerification: true,
+    expiresIn: EMAIL_VERIFICATION_EXPIRES_IN,
+    sendVerificationEmail: async ({ user, url }) => {
+      void sendMail({
+        to: user.email,
+        subject: 'Verify your email — MRU Hacks',
+        text: `Verify your email address by opening this link:\n\n${url}\n`,
+        html: `<p>Verify your email address by clicking <a href="${url}">this link</a>.</p>`,
+      }).catch((err) => {
+        console.error('[auth] sendVerificationEmail failed', err);
+      });
+    },
+  },
   emailAndPassword: {
     enabled: true,
-    sendResetPassword: async ({ user: u, url }) => {
-      // TODO: replace with your email provider (Resend, Nodemailer, etc.)
-      // The reset link is valid for 1 hour.
-      console.log(`[password-reset] email=${u.email}  url=${url}`);
+    requireEmailVerification: true,
+    sendResetPassword: async ({ user, url }) => {
+      void sendMail({
+        to: user.email,
+        subject: 'Reset your password — MRU Hacks',
+        text: `Reset your password by opening this link:\n\n${url}\n`,
+        html: `<p>Reset your password by clicking <a href="${url}">this link</a>.</p>`,
+      }).catch((err) => {
+        console.error('[auth] sendResetPassword failed', err);
+      });
     },
   },
   plugins: [
     admin(),
     magicLink({
       sendMagicLink: async ({ email, url }) => {
-        // TODO: replace with your email provider.
-        console.log(`[magic-link] email=${email}  url=${url}`);
+        void sendMail({
+          to: email,
+          subject: 'Sign in to MRU Hacks',
+          text: `Sign in by opening this link:\n\n${url}\n`,
+          html: `<p>Sign in by clicking <a href="${url}">this link</a>.</p>`,
+        }).catch((err) => {
+          console.error('[auth] sendMagicLink failed', err);
+        });
       },
     }),
   ],

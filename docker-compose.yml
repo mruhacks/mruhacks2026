@@ -36,6 +36,14 @@ services:
       timeout: 5s
       retries: 5
 
+  mailhog:
+    image: mailhog/mailhog
+    container_name: mruhacks-mailhog
+    restart: unless-stopped
+    ports:
+      - '1025:1025'
+      - '8025:8025'
+
 volumes:
   dev_pgdata:
   test_pgdata:

@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 
 import { getUser } from '@/utils/auth';
+import { getUserProfile } from '@/app/dashboard/profile/actions';
 import { getEventsWithUserStatus } from '@/app/dashboard/events/actions';
 import {
   Card,
@@ -11,11 +12,12 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { RegisterEventButton } from './RegisterEventButton';
 import { UnregisterEventButton } from './UnregisterEventButton';
-import { Calendar } from 'lucide-react';
 import { RegisterEventInterestButton } from './RegisterEventInterestButton';
-import { getUserProfile } from '../profile/actions';
+import { Calendar } from 'lucide-react';
+import type { ApplicationStatusLabel } from '@/app/dashboard/events/application-status';
 
 function formatDate(d: Date | null) {
   if (!d) return null;
@@ -23,6 +25,23 @@ function formatDate(d: Date | null) {
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(d);
+}
+
+function applyCtaLabel(
+  hasApplied: boolean,
+  statusKey: ApplicationStatusLabel | null,
+): string {
+  if (!hasApplied) return 'Apply';
+
+  switch (statusKey) {
+    case 'approved':
+    case 'denied':
+    case 'waitlisted':
+      return 'View status';
+    case 'pending_review':
+    default:
+      return 'Edit application';
+  }
 }
 
 export default async function DashboardEventsPage() {
@@ -61,7 +80,16 @@ export default async function DashboardEventsPage() {
             <li key={event.id}>
               <Card className='flex h-full flex-col'>
                 <CardHeader className='pb-2'>
-                  <CardTitle className='text-lg'>{event.name}</CardTitle>
+                  <div className='flex items-start justify-between gap-2'>
+                    <CardTitle className='text-lg'>{event.name}</CardTitle>
+                    {event.hasApplication &&
+                      event.userStatus === 'applied' &&
+                      event.statusDisplay && (
+                        <Badge variant={event.statusDisplay.variant}>
+                          {event.statusDisplay.title}
+                        </Badge>
+                      )}
+                  </div>
                   <CardDescription className='text-sm'>
                     {event.startsAt && (
                       <span>
@@ -72,13 +100,14 @@ export default async function DashboardEventsPage() {
                     {!event.startsAt && 'Date TBA'}
                   </CardDescription>
                 </CardHeader>
-                <CardContent className='mt-2 flex flex-wrap items-center gap-2'>
+                <CardContent className='mt-auto pt-4'>
                   {event.hasApplication ? (
                     <Button asChild size='sm' variant='default'>
                       <Link href={`/dashboard/events/${event.id}/apply`}>
-                        {event.userStatus === 'applied'
-                          ? 'Edit application'
-                          : 'Apply'}
+                        {applyCtaLabel(
+                          event.userStatus === 'applied',
+                          event.statusKey,
+                        )}
                       </Link>
                     </Button>
                   ) : (
@@ -99,7 +128,9 @@ export default async function DashboardEventsPage() {
                   {hasProfile ? (
                     <RegisterEventInterestButton
                       eventId={event.id}
-                      hasInterest={event.hasInterest}
+                      userHasRegisteredInterest={
+                        event.userHasRegisteredInterest
+                      }
                     />
                   ) : (
                     <Button asChild size='sm' variant='default'>

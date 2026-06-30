@@ -334,6 +334,10 @@ erDiagram
     application_statuses {
         serial id PK
         varchar label
+        varchar title
+        varchar description
+        varchar variant
+        boolean is_final
     }
 
     rsvp_statuses {
@@ -374,7 +378,7 @@ erDiagram
 - The diagram shows **base tables** only. Entities prefixed with `authz_` (e.g. `authz_permission`, `authz_role`, `authz_user_role`) are in the `authz` schema; all others are in `public`.
 - The database also has two **views** (not shown): `application_view` and `application_form_view`. They are denormalized views over `event_applications`, `user_profiles`, and lookup tables. See [ARCHITECTURE.md](./ARCHITECTURE.md) under "Database Views" for details.
 - The `heard_from_sources` lookup table has no foreign keys from other tables in the current schema.
-- `application_statuses` (labels: pending_review, approved, denied, waitlisted) is referenced by `event_applications.status_id`. `rsvp_statuses` (labels: pending, accepted, declined, timed_out) is referenced by `event_rsvp_responses.status_id`.
+- `application_statuses` (labels: pending_review, approved, denied, waitlisted) is referenced by `event_applications.status_id`. Unlike the other lookup tables, it also carries the UI display config for each status: `title`, `description`, `variant` (badge style), and `is_final` (whether the decision is final). These columns are read on the server via `getApplicationStatusDisplayMap()` in `src/app/dashboard/events/application-status.ts` and seeded from `applicationStatusDisplayList` in `src/types/lookups.ts`. `rsvp_statuses` (labels: pending, accepted, declined, timed_out) is referenced by `event_rsvp_responses.status_id`.
 - `event_types` (labels: meal, workshop, hackathon) is referenced by `events.event_type_id`. Meals and workshops are typically child events (`parent_event_id` set to the main event). `check_ins` records one row per user per event (main event = door check-in; child event = e.g. meal check-in).
 
 ## Drizzle Studio

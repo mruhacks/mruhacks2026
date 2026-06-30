@@ -1,4 +1,4 @@
-import { db, client } from '@/utils/db';
+import { client, db } from '@/utils/db';
 import { InferInsertModel, Table, getTableName } from 'drizzle-orm';
 import {
   genders,
@@ -21,6 +21,7 @@ import {
   dietaryRestrictionsList,
   heardFromSourcesList,
   applicationStatusesList,
+  applicationStatusDisplayList,
   rsvpStatusesList,
   eventTypesList,
 } from '@/types/lookups';
@@ -45,6 +46,22 @@ function defineSeedTable<TTable extends Table>(
   };
 }
 
+function defineApplicationStatusSeedTable(): SeedTable<
+  typeof applicationStatuses
+> {
+  return {
+    table: applicationStatuses,
+    validLabels: applicationStatusesList as readonly string[],
+    values: applicationStatusDisplayList.map((s) => ({
+      label: s.label,
+      title: s.title,
+      description: s.description,
+      variant: s.variant,
+      isFinal: s.isFinal,
+    })),
+  };
+}
+
 // ---------- Table registry ----------
 const tables = [
   defineSeedTable(genders, gendersList),
@@ -54,7 +71,7 @@ const tables = [
   defineSeedTable(interests, interestsList),
   defineSeedTable(dietaryRestrictions, dietaryRestrictionsList),
   defineSeedTable(heardFromSources, heardFromSourcesList),
-  defineSeedTable(applicationStatuses, applicationStatusesList),
+  defineApplicationStatusSeedTable(),
   defineSeedTable(rsvpStatuses, rsvpStatusesList),
   defineSeedTable(eventTypes, eventTypesList),
 ] satisfies SeedTable<Table>[];
@@ -82,10 +99,12 @@ export async function seedStaticTables() {
 
 // ---------- Direct execution ----------
 if (require.main === module) {
-  seedStaticTables()
-    .then(() => client.end())
+  void seedStaticTables()
     .catch((err) => {
       console.error('❌ Seed failed:', err);
-      client.end().finally(() => process.exit(1));
+      process.exitCode = 1;
+    })
+    .finally(async () => {
+      await client.end();
     });
 }

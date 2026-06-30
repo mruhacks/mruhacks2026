@@ -11,7 +11,9 @@ import {
   userInterests,
   userDietaryRestrictions,
   eventApplications,
+  applicationStatuses,
   eventAttendees,
+  eventInterestRegistrations,
   applicationFormView,
   genders,
   universities,
@@ -20,7 +22,6 @@ import {
   interests,
   dietaryRestrictions,
   heardFromSources,
-  eventInterestRegistrations,
 } from '@/db/schema';
 import { getUser } from '@/utils/auth';
 import { ActionResult, fail, ok } from '@/utils/action-result';
@@ -35,12 +36,19 @@ import {
 } from '@/components/application-form/schema';
 import type { ApplicationQuestion } from '@/types/application';
 import { cacheLife, revalidatePath } from 'next/cache';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, isNotNull } from 'drizzle-orm';
 import { getUserProfile } from '@/app/dashboard/profile/actions';
 import {
   buildApplicationResponses,
   fromResponseKeys,
 } from './application-responses';
+import {
+  type ApplicationStatusLabel,
+  type ApplicationStatusDisplay,
+  getApplicationStatusDisplay,
+  getApplicationStatusDisplayMap,
+  resolveApplicationStatusKey,
+} from './application-status';
 
 /**
  * Returns the first event with has_application = true (e.g. default hackathon).
@@ -95,6 +103,15 @@ export async function registerParticipant(
   if (!built.ok) return fail(built.error);
   const responses = built.responses;
 
+  const [pendingReview] = await db
+    .select({ id: applicationStatuses.id })
+    .from(applicationStatuses)
+    .where(eq(applicationStatuses.label, 'pending_review'))
+    .limit(1);
+  if (!pendingReview) {
+    return fail('Application statuses are not configured.');
+  }
+
   try {
     await db.transaction(async (tx) => {
       await tx
@@ -147,6 +164,7 @@ export async function registerParticipant(
           eventId,
           userId: user.id,
           responses,
+          statusId: pendingReview.id,
         })
         .onConflictDoUpdate({
           target: [eventApplications.eventId, eventApplications.userId],
@@ -250,6 +268,53 @@ export async function submitEventApplication(
   return registerParticipant(profile, eventData, eventId);
 }
 
+export type ApplicationStatusForUser = {
+  applicationId: string;
+  statusKey: ApplicationStatusLabel;
+  statusDisplay: ApplicationStatusDisplay;
+  reviewedAt: Date | null;
+  waitlistPosition: number | null;
+  createdAt: Date;
+};
+
+/**
+ * Current user's application row for an event + review status label.
+ * Returns null if there is no application row for (user, event).
+ */
+export async function getUserApplicationStatus(
+  eventId: string,
+): Promise<ApplicationStatusForUser | null> {
+  const user = await getUser();
+  if (!user) return null;
+  const [row] = await db
+    .select({
+      applicationId: eventApplications.id,
+      statusKey: applicationStatuses.label,
+      reviewedAt: eventApplications.reviewedAt,
+      waitlistPosition: eventApplications.waitlistPosition,
+      createdAt: eventApplications.createdAt,
+    })
+    .from(eventApplications)
+    .leftJoin(
+      applicationStatuses,
+      eq(eventApplications.statusId, applicationStatuses.id),
+    )
+    .where(
+      and(
+        eq(eventApplications.userId, user.id),
+        eq(eventApplications.eventId, eventId),
+      ),
+    )
+    .limit(1);
+  if (!row) return null;
+  const statusKey = resolveApplicationStatusKey(row.statusKey);
+  return {
+    ...row,
+    statusKey,
+    statusDisplay: await getApplicationStatusDisplay(statusKey),
+  };
+}
+
 /**
  * Records interest for an event for the current user.
  * Requires authentication and a completed profile.
@@ -263,19 +328,10 @@ export async function registerEventInterest(
   const profileResult = await getUserProfile();
   if (!profileResult.success)
     return fail(profileResult.error ?? 'Could not load profile');
-  const profile = profileResult.data;
-  if (profile == null)
+  if (profileResult.data == null)
     return fail(
       'Complete your profile first before getting reminders for events.',
     );
-
-  const [event] = await db
-    .select({ id: events.id })
-    .from(events)
-    .where(eq(events.id, eventId))
-    .limit(1);
-
-  if (event == null) return fail('This event was not found.');
 
   try {
     await db
@@ -300,10 +356,13 @@ export type EventWithUserStatus = {
   id: string;
   name: string;
   hasApplication: boolean;
-  hasInterest: boolean;
+  userHasRegisteredInterest: boolean;
   startsAt: Date | null;
   endsAt: Date | null;
   userStatus: 'applied' | 'registered' | null;
+  statusKey: ApplicationStatusLabel | null;
+  statusDisplay: ApplicationStatusDisplay | null;
+  waitlistPosition: number | null;
 };
 
 /**
@@ -317,43 +376,71 @@ export async function getEventsWithUserStatus(): Promise<
   if (!user) return [];
 
   const allEvents = await db
-    .select()
+    .select({
+      id: events.id,
+      name: events.name,
+      hasApplication: events.hasApplication,
+      startsAt: events.startsAt,
+      endsAt: events.endsAt,
+      userHasRegisteredInterest: isNotNull(eventInterestRegistrations.userId),
+    })
     .from(events)
+    .leftJoin(
+      eventInterestRegistrations,
+      and(
+        eq(eventInterestRegistrations.eventId, events.id),
+        eq(eventInterestRegistrations.userId, user.id),
+      ),
+    )
     .orderBy(desc(events.createdAt));
 
-  const [applicationEventIds, attendeeEventIds, interestEventIds] =
-    await Promise.all([
-      db
-        .select({ eventId: eventApplications.eventId })
-        .from(eventApplications)
-        .where(eq(eventApplications.userId, user.id)),
-      db
-        .select({ eventId: eventAttendees.eventId })
-        .from(eventAttendees)
-        .where(eq(eventAttendees.userId, user.id)),
-      db
-        .select({ eventId: eventInterestRegistrations.eventId })
-        .from(eventInterestRegistrations)
-        .where(eq(eventInterestRegistrations.userId, user.id)),
-    ]);
+  const [applicationRows, attendeeEventIds] = await Promise.all([
+    db
+      .select({
+        eventId: eventApplications.eventId,
+        statusKey: applicationStatuses.label,
+        waitlistPosition: eventApplications.waitlistPosition,
+      })
+      .from(eventApplications)
+      .leftJoin(
+        applicationStatuses,
+        eq(eventApplications.statusId, applicationStatuses.id),
+      )
+      .where(eq(eventApplications.userId, user.id)),
+    db
+      .select({ eventId: eventAttendees.eventId })
+      .from(eventAttendees)
+      .where(eq(eventAttendees.userId, user.id)),
+  ]);
 
-  const appliedSet = new Set(applicationEventIds.map((r) => r.eventId));
   const registeredSet = new Set(attendeeEventIds.map((r) => r.eventId));
-  const interestSet = new Set(interestEventIds.map((r) => r.eventId));
+  const statusByEventId = new Map(
+    applicationRows.map((r) => [r.eventId, r] as const),
+  );
+  const displayMap = await getApplicationStatusDisplayMap();
 
-  return allEvents.map((e) => ({
-    id: e.id,
-    name: e.name,
-    hasApplication: e.hasApplication,
-    hasInterest: interestSet.has(e.id),
-    startsAt: e.startsAt,
-    endsAt: e.endsAt,
-    userStatus: e.hasApplication
-      ? appliedSet.has(e.id)
-        ? ('applied' as const)
-        : null
-      : registeredSet.has(e.id)
-        ? ('registered' as const)
-        : null,
-  }));
+  return allEvents.map((e) => {
+    const application = statusByEventId.get(e.id);
+    const statusKey = application
+      ? resolveApplicationStatusKey(application.statusKey)
+      : null;
+    return {
+      id: e.id,
+      name: e.name,
+      hasApplication: e.hasApplication,
+      userHasRegisteredInterest: Boolean(e.userHasRegisteredInterest),
+      startsAt: e.startsAt,
+      endsAt: e.endsAt,
+      userStatus: e.hasApplication
+        ? statusByEventId.has(e.id)
+          ? ('applied' as const)
+          : null
+        : registeredSet.has(e.id)
+          ? ('registered' as const)
+          : null,
+      statusKey,
+      statusDisplay: statusKey ? displayMap[statusKey] : null,
+      waitlistPosition: application?.waitlistPosition ?? null,
+    };
+  });
 }
