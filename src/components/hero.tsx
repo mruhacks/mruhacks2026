@@ -33,7 +33,6 @@ export function HeroSection() {
               <Button
                 variant='gradient'
                 className='rounded-full border border-[#5e5e5e] py-5 text-xl font-semibold tracking-[-0.02em] text-white hover:opacity-90'
-                aria-disabled='true'
               >
                 Register Now
               </Button>
@@ -42,17 +41,13 @@ export function HeroSection() {
               <Button
                 shadow='md'
                 className='rounded-full border border-[#5e5e5e] bg-black py-5 text-xl font-semibold tracking-[-0.02em] text-white hover:bg-neutral-800'
-                aria-disabled='true'
               >
                 Log In
               </Button>
             )}
           </div>
           {REGISTRATION_OPEN && (
-            <Button
-              className='h-auto shrink-0 rounded-full bg-black px-4 py-2 text-xs font-semibold tracking-tight text-white hover:bg-neutral-800 lg:hidden'
-              aria-disabled='true'
-            >
+            <Button className='h-auto shrink-0 rounded-full bg-black px-4 py-2 text-xs font-semibold tracking-tight text-white hover:bg-neutral-800 lg:hidden'>
               Register Now
             </Button>
           )}
