@@ -22,7 +22,7 @@ import {
   FieldLabel,
 } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { Loader2 } from 'lucide-react';
+import { Loader2, MailCheck } from 'lucide-react';
 import { authClient } from '@/utils/auth-client';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -37,6 +37,7 @@ export default function SignInForm() {
   const [loading, setLoading] = React.useState(false);
   const [magicLinkLoading, setMagicLinkLoading] = React.useState(false);
   const [magicLinkSent, setMagicLinkSent] = React.useState(false);
+  const [unverifiedEmail, setUnverifiedEmail] = React.useState<string | null>(null);
   const router = useRouter();
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -59,6 +60,11 @@ export default function SignInForm() {
       },
       onError: (ctx) => {
         setLoading(false);
+        const code = ctx?.error?.code;
+        if (code === 'EMAIL_NOT_VERIFIED') {
+          setUnverifiedEmail(credentials.email);
+          return;
+        }
         toast.error('Sign-in failed', {
           description:
             ctx?.error?.message ?? 'Invalid credentials or network issue.',
@@ -88,6 +94,38 @@ export default function SignInForm() {
     toast.success('Check your email', {
       description: `We sent a sign-in link to ${email}.`,
     });
+  }
+
+  if (unverifiedEmail) {
+    return (
+      <Card className='w-full sm:max-w-md'>
+        <CardHeader>
+          <div className='bg-muted mb-4 flex size-12 items-center justify-center rounded-full'>
+            <MailCheck className='text-primary size-6' />
+          </div>
+          <CardTitle>Verify your email to continue</CardTitle>
+          <CardDescription>
+            Your account hasn&apos;t been verified yet. We sent a verification
+            link to{' '}
+            <span className='text-foreground font-medium'>{unverifiedEmail}</span>
+            . Click the link in that email to activate your account and sign in.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <p className='text-muted-foreground text-sm'>
+            Didn&apos;t receive the email? Check your spam folder, or{' '}
+            <button
+              type='button'
+              className='font-medium underline underline-offset-4 hover:no-underline'
+              onClick={() => setUnverifiedEmail(null)}
+            >
+              go back
+            </button>
+            .
+          </p>
+        </CardContent>
+      </Card>
+    );
   }
 
   return (

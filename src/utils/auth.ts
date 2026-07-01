@@ -48,6 +48,12 @@ export const auth = betterAuth({
     provider: 'pg',
     schema,
   }),
+  rateLimit: {
+    storage: 'database',
+    customRules: {
+      '/send-verification-email': { window: 300, max: 3 },
+    },
+  },
   emailVerification: {
     sendOnSignUp: true,
     sendOnSignIn: false,

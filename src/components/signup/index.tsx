@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Controller, useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import Link from 'next/link';
-import { Loader2 } from 'lucide-react';
+import { Loader2, MailCheck } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 import { Button } from '@/components/ui/button';
@@ -35,7 +35,16 @@ export default function SignUpForm() {
   const [loading, setLoading] = React.useState(false);
   const [magicLinkLoading, setMagicLinkLoading] = React.useState(false);
   const [magicLinkSent, setMagicLinkSent] = React.useState(false);
+  const [verificationPendingEmail, setVerificationPendingEmail] = React.useState<string | null>(null);
+  const [resendLoading, setResendLoading] = React.useState(false);
+  const [resendCooldown, setResendCooldown] = React.useState(0);
   const router = useRouter();
+
+  React.useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const id = setInterval(() => setResendCooldown((c) => Math.max(0, c - 1)), 1000);
+    return () => clearInterval(id);
+  }, [resendCooldown]);
 
   const form = useForm<SignUpFormValues>({
     resolver: zodResolver(signUpFormSchema),
@@ -47,25 +56,25 @@ export default function SignUpForm() {
   });
 
   function onSubmit(userDetails: SignUpFormValues) {
-    authClient.signUp.email(userDetails, {
-      onRequest: () => {
-        setLoading(true);
+    authClient.signUp.email(
+      { ...userDetails, callbackURL: '/dashboard' },
+      {
+        onRequest: () => {
+          setLoading(true);
+        },
+        onSuccess: () => {
+          setLoading(false);
+          setVerificationPendingEmail(userDetails.email);
+        },
+        onError: (ctx) => {
+          setLoading(false);
+          toast.error('Sign-up failed', {
+            description:
+              ctx?.error?.message ?? 'An unexpected error occurred. Try again.',
+          });
+        },
       },
-      onSuccess: () => {
-        setLoading(false);
-        toast.success('Account created successfully', {
-          description: 'Check your inbox to verify your email.',
-        });
-        router.push('/dashboard/profile');
-      },
-      onError: (ctx) => {
-        setLoading(false);
-        toast.error('Sign-up failed', {
-          description:
-            ctx?.error?.message ?? 'An unexpected error occurred. Try again.',
-        });
-      },
-    });
+    );
   }
 
   async function handleMagicLink() {
@@ -89,6 +98,61 @@ export default function SignUpForm() {
     toast.success('Check your email', {
       description: `We sent a magic link to ${email}.`,
     });
+  }
+
+  if (verificationPendingEmail) {
+    return (
+      <Card className='w-full sm:max-w-md'>
+        <CardHeader>
+          <div className='bg-muted mb-4 flex size-12 items-center justify-center rounded-full'>
+            <MailCheck className='text-primary size-6' />
+          </div>
+          <CardTitle>Check your inbox</CardTitle>
+          <CardDescription>
+            We sent a verification link to{' '}
+            <span className='text-foreground font-medium'>
+              {verificationPendingEmail}
+            </span>
+            . Click the link in that email to verify your account and continue
+            to your dashboard.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <p className='text-muted-foreground text-sm'>
+            Didn&apos;t receive the email? Check your spam folder, or{' '}
+            <button
+              type='button'
+              disabled={resendLoading || resendCooldown > 0}
+              className='font-medium underline underline-offset-4 hover:no-underline disabled:cursor-not-allowed disabled:opacity-50'
+              onClick={async () => {
+                if (!verificationPendingEmail) return;
+                setResendLoading(true);
+                const res = await authClient.sendVerificationEmail({
+                  email: verificationPendingEmail,
+                  callbackURL: '/dashboard',
+                });
+                setResendLoading(false);
+                if (res.error) {
+                  toast.error(res.error.message ?? 'Failed to resend verification email');
+                } else {
+                  setResendCooldown(30);
+                  toast.success('Verification email resent', {
+                    description: `Check your inbox at ${verificationPendingEmail}.`,
+                  });
+                }
+              }}
+            >
+              {resendLoading
+                ? 'Sending...'
+                : resendCooldown > 0
+                  ? `resend the email (${resendCooldown}s)`
+                  : 'resend the email'}
+            </button>
+            .
+          </p>
+        </CardContent>
+      </Card>
+    );
   }
 
   return (
