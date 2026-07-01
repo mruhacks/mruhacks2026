@@ -30,6 +30,8 @@ export async function registerForEvent(eventId: string): Promise<ActionResult> {
         target: [eventAttendees.eventId, eventAttendees.userId],
       });
     revalidatePath('/dashboard/events');
+    revalidatePath('/dashboard');
+    revalidatePath(`/dashboard/events/${eventId}`);
     return ok('Registered for event.');
   } catch (error) {
     console.error('Register for event error:', error);
@@ -68,6 +70,8 @@ export async function unregisterFromEvent(
         ),
       );
     revalidatePath('/dashboard/events');
+    revalidatePath('/dashboard');
+    revalidatePath(`/dashboard/events/${eventId}`);
     return ok('Unregistered from event.');
   } catch (error) {
     console.error('Unregister from event error:', error);

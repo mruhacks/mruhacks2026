@@ -1,46 +1,29 @@
-import { AppSidebar } from '@/components/sidebar/index';
-import { Separator } from '@/components/ui/separator';
-import {
-  SidebarInset,
-  SidebarProvider,
-  SidebarTrigger,
-} from '@/components/ui/sidebar';
-import { DashboardBreadcrumb } from '@/components/dashboardBreadcrumb';
 import { ImpersonationBanner } from '@/components/impersonation-banner';
-import { Suspense } from 'react';
-import AppSidebarLoading from '@/components/sidebar/loading';
+import { DashboardHeader } from '@/components/dashboard-header';
+import { getUser } from '@/utils/auth';
+import { redirect } from 'next/navigation';
 
-export default function DashboardLayout({
+export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  return (
-    <SidebarProvider>
-      <Suspense fallback={<AppSidebarLoading />}>
-        <AppSidebar />
-      </Suspense>
-      <SidebarInset>
-        <ImpersonationBanner />
-        <header className='flex h-16 shrink-0 items-center gap-2'>
-          <div className='flex items-center gap-2 px-4'>
-            <SidebarTrigger className='-ml-1' />
-            <Separator
-              orientation='vertical'
-              className='mr-2 data-[orientation=vertical]:h-4'
-            />
-            <Suspense fallback={null}>
-              <DashboardBreadcrumb />
-            </Suspense>
-          </div>
-        </header>
+  const user = await getUser();
+  if (!user) redirect('/signin');
 
-        <Suspense
-          fallback={<div className='flex flex-1 flex-col gap-4 p-4 pt-0' />}
-        >
-          <div className='flex flex-1 flex-col gap-4 p-4 pt-0'>{children}</div>
-        </Suspense>
-      </SidebarInset>
-    </SidebarProvider>
+  return (
+    <div className='min-h-screen bg-background'>
+      <ImpersonationBanner />
+      <DashboardHeader
+        user={{
+          name: user.name ?? '',
+          email: user.email,
+          avatar: user.image ?? undefined,
+        }}
+      />
+      <main className='mx-auto max-w-screen-xl px-4 py-8 sm:px-6'>
+        {children}
+      </main>
+    </div>
   );
 }
