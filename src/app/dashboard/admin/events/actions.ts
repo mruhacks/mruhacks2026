@@ -1,8 +1,10 @@
 'use server';
 
 import { randomUUID } from 'crypto';
-import { and, count, eq } from 'drizzle-orm';
+import { and, count, eq, ne } from 'drizzle-orm';
+import { updateTag } from 'next/cache';
 import { db } from '@/utils/db';
+import { FEATURED_EVENT_CACHE_TAG } from '@/lib/featured-event';
 import { events, eventApplications, user, userProfiles } from '@/db/schema';
 import { getUser } from '@/utils/auth';
 import { ok, fail, type ActionResult } from '@/utils/action-result';
@@ -330,6 +332,8 @@ export type EventDetails = {
   capacity: number | null;
   startsAt: Date | null;
   endsAt: Date | null;
+  registerUrl: string | null;
+  isFeatured: boolean;
   createdAt: Date;
   updatedAt: Date;
   questionsCount: number;
@@ -370,6 +374,8 @@ export async function getEventDetails(
     capacity: eventRow.capacity ?? null,
     startsAt: eventRow.startsAt ?? null,
     endsAt: eventRow.endsAt ?? null,
+    registerUrl: eventRow.registerUrl ?? null,
+    isFeatured: eventRow.isFeatured,
     createdAt: eventRow.createdAt,
     updatedAt: eventRow.updatedAt,
     questionsCount,
@@ -412,17 +418,32 @@ export async function updateEventSettings(
     }
   };
 
-  await db
-    .update(events)
-    .set({
-      name: input.name ?? eventRow.name,
-      hasApplication: input.hasApplication ?? eventRow.hasApplication,
-      capacity: input.capacity ?? eventRow.capacity,
-      startsAt: input.startsAt !== undefined ? parseDateTime(input.startsAt) : eventRow.startsAt,
-      endsAt: input.endsAt !== undefined ? parseDateTime(input.endsAt) : eventRow.endsAt,
-      updatedAt: new Date(),
-    })
-    .where(eq(events.id, eventId));
+  await db.transaction(async (tx) => {
+    // Only one event may be featured at a time (enforced by idx_events_featured_unique).
+    if (input.isFeatured === true) {
+      await tx
+        .update(events)
+        .set({ isFeatured: false })
+        .where(and(eq(events.isFeatured, true), ne(events.id, eventId)));
+    }
+
+    await tx
+      .update(events)
+      .set({
+        name: input.name ?? eventRow.name,
+        hasApplication: input.hasApplication ?? eventRow.hasApplication,
+        capacity: input.capacity ?? eventRow.capacity,
+        startsAt: input.startsAt !== undefined ? parseDateTime(input.startsAt) : eventRow.startsAt,
+        endsAt: input.endsAt !== undefined ? parseDateTime(input.endsAt) : eventRow.endsAt,
+        registerUrl: input.registerUrl !== undefined ? input.registerUrl : eventRow.registerUrl,
+        isFeatured: input.isFeatured ?? eventRow.isFeatured,
+        updatedAt: new Date(),
+      })
+      .where(eq(events.id, eventId));
+  });
+
+  // Homepage register-link lookup is cached; bust it so edits show up immediately.
+  updateTag(FEATURED_EVENT_CACHE_TAG);
 
   // TODO: Log audit trail: { action: 'event.updated', eventId, userId, changes: {...}, timestamp }
   return ok('Event updated.');

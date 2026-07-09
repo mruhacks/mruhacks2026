@@ -40,12 +40,30 @@ export type EditQuestionInput = z.infer<typeof editQuestionSchema>;
 
 // ── Event schemas ────────────────────────────────────────────────────────
 
+/** Accepts an absolute URL (e.g. a Google Form) or a site-relative path like "/signup". */
+const registerUrlSchema = z
+  .string()
+  .trim()
+  .min(1, 'Register URL is required')
+  .refine((val) => {
+    if (val.startsWith('/')) return true;
+    try {
+      new URL(val);
+      return true;
+    } catch {
+      return false;
+    }
+  }, 'Must be a valid URL or a path starting with /')
+  .nullish();
+
 export const createEventSchema = z.object({
   name: z.string().trim().min(1, 'Event name is required'),
   hasApplication: z.boolean().default(false),
   capacity: z.number().int().positive().nullish(),
   startsAt: z.string().nullish(),
   endsAt: z.string().nullish(),
+  registerUrl: registerUrlSchema,
+  isFeatured: z.boolean().optional(),
 }).refine(
   (data) => {
     if (!data.startsAt || !data.endsAt) return true;
@@ -65,6 +83,8 @@ export const updateEventSettingsSchema = z.object({
   capacity: z.number().int().positive().nullish(),
   startsAt: z.string().nullish(),
   endsAt: z.string().nullish(),
+  registerUrl: registerUrlSchema,
+  isFeatured: z.boolean().optional(),
 }).refine(
   (data) => {
     if (!data.startsAt || !data.endsAt) return true;

@@ -65,6 +65,8 @@ export default function EventOverviewPage({ params }: EventOverviewPageProps) {
           capacity: result.data.capacity ?? undefined,
           startsAt: result.data.startsAt ? result.data.startsAt.toISOString().slice(0, 16) : undefined,
           endsAt: result.data.endsAt ? result.data.endsAt.toISOString().slice(0, 16) : undefined,
+          registerUrl: result.data.registerUrl ?? undefined,
+          isFeatured: result.data.isFeatured,
         });
       } else if (!result.success) {
         toast.error(result.error || 'Failed to load event');
@@ -191,6 +193,18 @@ export default function EventOverviewPage({ params }: EventOverviewPageProps) {
                   </p>
                 </div>
               )}
+              <div>
+                <p className='text-xs font-semibold text-muted-foreground uppercase'>
+                  Register URL
+                </p>
+                <p className='text-sm mt-1'>{event.registerUrl ?? '—'}</p>
+              </div>
+              <div>
+                <p className='text-xs font-semibold text-muted-foreground uppercase'>
+                  Featured on Homepage
+                </p>
+                <p className='text-sm mt-1'>{event.isFeatured ? 'Yes' : 'No'}</p>
+              </div>
             </div>
           ) : (
             <form onSubmit={handleSubmit(onSubmit)} className='space-y-4'>
@@ -260,6 +274,39 @@ export default function EventOverviewPage({ params }: EventOverviewPageProps) {
                   />
                   {errors.endsAt && <FieldError errors={[errors.endsAt]} />}
                 </Field>
+
+                {/* Register URL */}
+                <Field>
+                  <FieldLabel htmlFor='registerUrl'>Register URL</FieldLabel>
+                  <FieldDescription>
+                    Where the public site&apos;s &quot;Register Now&quot; buttons link to.
+                    Use a full URL (e.g. an external form) or a site path like /signup.
+                  </FieldDescription>
+                  <Input
+                    id='registerUrl'
+                    {...register('registerUrl')}
+                    placeholder='/signup'
+                  />
+                  {errors.registerUrl && <FieldError errors={[errors.registerUrl]} />}
+                </Field>
+
+                {/* Featured on homepage */}
+                <div className='flex items-center gap-3'>
+                  <Controller
+                    name='isFeatured'
+                    control={control}
+                    render={({ field }) => (
+                      <Switch
+                        id='isFeatured'
+                        checked={field.value ?? false}
+                        onCheckedChange={field.onChange}
+                      />
+                    )}
+                  />
+                  <Label htmlFor='isFeatured'>
+                    Featured on homepage (its Register URL is used site-wide)
+                  </Label>
+                </div>
               </FieldGroup>
 
               <div className='flex gap-2 justify-end pt-2'>

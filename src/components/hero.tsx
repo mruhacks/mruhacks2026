@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import gloveSticker from '@/assets/mruhacks-2026-stickers-glove.png';
 import logoSticker from '@/assets/mruhacks-2026-stickers-logo.png';
 import { HeroArtwork } from '@/components/hero-artwork';
+import { AuthNavButton } from '@/components/auth-nav-button';
 import {
   EVENT_DATE_DISPLAY,
   EVENT_LOCATION_DISPLAY,
@@ -14,7 +15,11 @@ import {
 } from '@/content';
 import Link from 'next/link';
 
-export function HeroSection() {
+type HeroSectionProps = {
+  registerUrl: string;
+};
+
+export function HeroSection({ registerUrl }: HeroSectionProps) {
   return (
     <section className='relative overflow-hidden'>
       <div className='mx-auto w-full max-w-screen-2xl px-4 pt-5 pb-10 sm:px-6 lg:px-16 lg:pt-7 lg:pb-12'>
@@ -33,22 +38,21 @@ export function HeroSection() {
               <Button
                 variant='gradient'
                 className='rounded-full border border-[#5e5e5e] py-5 text-xl font-semibold tracking-[-0.02em] text-white hover:opacity-90'
+                asChild
               >
-                Register Now
+                <Link href={registerUrl}>Register Now</Link>
               </Button>
             )}
             {LOGIN_ENABLED && (
-              <Button
-                shadow='md'
-                className='rounded-full border border-[#5e5e5e] bg-black py-5 text-xl font-semibold tracking-[-0.02em] text-white hover:bg-neutral-800'
-              >
-                Log In
-              </Button>
+              <AuthNavButton className='rounded-full border border-[#5e5e5e] bg-black py-5 text-xl font-semibold tracking-[-0.02em] text-white hover:bg-neutral-800' />
             )}
           </div>
           {REGISTRATION_OPEN && (
-            <Button className='h-auto shrink-0 rounded-full bg-black px-4 py-2 text-xs font-semibold tracking-tight text-white hover:bg-neutral-800 lg:hidden'>
-              Register Now
+            <Button
+              className='h-auto shrink-0 rounded-full bg-black px-4 py-2 text-xs font-semibold tracking-tight text-white hover:bg-neutral-800 lg:hidden'
+              asChild
+            >
+              <Link href={registerUrl}>Register Now</Link>
             </Button>
           )}
         </div>
@@ -108,8 +112,9 @@ export function HeroSection() {
                 <Button
                   variant='gradient'
                   className='rounded-full px-5 py-2.5 text-sm font-semibold tracking-[-0.02em] sm:px-6 sm:py-3 sm:text-base lg:p-5 lg:text-xl'
+                  asChild
                 >
-                  Register Now
+                  <Link href={registerUrl}>Register Now</Link>
                 </Button>
               )}
               <Button

@@ -92,6 +92,13 @@
       "when": 1782851720184,
       "tag": "0012_graceful_reaper",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1783610408725,
+      "tag": "0013_add_event_register_url_featured",
+      "breakpoints": true
     }
   ]
 }
