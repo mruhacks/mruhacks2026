@@ -41,68 +41,118 @@ export function DashboardHeader({ user }: Props) {
   }
 
   return (
-    <header className='border-b bg-white'>
-      <div className='mx-auto flex h-14 max-w-screen-xl items-center justify-between px-4 sm:px-6'>
-        <div className='flex items-center gap-6'>
-          <Link href='/dashboard' className='flex items-center gap-2'>
-            <Chevron className='h-7 w-auto' />
-            <span className='font-semibold tracking-tight'>MRUHacks</span>
-          </Link>
+    <header
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '16px 28px',
+        borderBottom: 'var(--border-hairline)',
+        position: 'sticky',
+        top: 0,
+        background: 'var(--white)',
+        zIndex: 20,
+        fontFamily: 'var(--font-ui)',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: '28px' }}>
+        <Link href='/dashboard' className='flex items-center gap-2'>
+          <Chevron className='h-7 w-auto' />
+          <span
+            style={{
+              fontFamily: 'var(--font-display)',
+              fontWeight: 'var(--fw-semibold)',
+              fontSize: '16px',
+              letterSpacing: 'var(--track-display)',
+            }}
+          >
+            MRUHacks
+          </span>
+        </Link>
 
-          <nav className='hidden items-center gap-1 sm:flex'>
-            {NAV_LINKS.map(({ label, href }) => (
-              <Link
-                key={href}
-                href={href}
-                className={[
-                  'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
-                  pathname === href
-                    ? 'bg-accent text-accent-foreground'
-                    : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
-                ].join(' ')}
-              >
-                {label}
-              </Link>
-            ))}
-          </nav>
-        </div>
+        <nav className='hidden sm:flex' style={{ gap: '26px' }}>
+          {NAV_LINKS.map(({ label, href }) => (
+            <Link
+              key={href}
+              href={href}
+              style={{
+                fontFamily: 'var(--font-ui)',
+                fontWeight: 'var(--fw-semibold)',
+                fontSize: '15px',
+                letterSpacing: 'var(--track-ui)',
+                color: pathname === href ? 'var(--black)' : 'var(--ink-500)',
+                textDecoration: 'none',
+              }}
+            >
+              {label}
+            </Link>
+          ))}
+        </nav>
+      </div>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button className='rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'>
-              <Avatar className='size-8'>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            style={{
+              width: '38px',
+              height: '38px',
+              borderRadius: 'var(--radius-pill)',
+              background: 'var(--gradient-brand)',
+              color: '#fff',
+              display: 'grid',
+              placeItems: 'center',
+              fontFamily: 'var(--font-ui)',
+              fontWeight: 'var(--fw-extrabold)',
+              fontSize: '14px',
+              boxShadow: 'inset 0 0 0 1px rgba(0,0,0,.15)',
+              border: 'none',
+              cursor: 'pointer',
+              flexShrink: 0,
+            }}
+            aria-label='Account menu'
+          >
+            {user.avatar ? (
+              <Avatar className='size-full'>
                 <AvatarImage src={user.avatar} alt={user.name} />
-                <AvatarFallback className='text-xs'>
+                <AvatarFallback
+                  style={{
+                    background: 'transparent',
+                    fontSize: '14px',
+                    fontWeight: 'var(--fw-extrabold)',
+                  }}
+                >
                   {getInitials(user.name)}
                 </AvatarFallback>
               </Avatar>
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align='end' className='w-52'>
-            <div className='px-2 py-1.5'>
-              <p className='text-sm font-medium leading-tight'>{user.name}</p>
-              <p className='text-muted-foreground truncate text-xs'>
-                {user.email}
-              </p>
-            </div>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem asChild>
-              <Link href='/dashboard/profile'>
-                <User className='mr-2 size-4' />
-                Profile
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onClick={handleLogout}
-              className='text-destructive focus:text-destructive'
-            >
-              <LogOut className='mr-2 size-4' />
-              Log out
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
+            ) : (
+              getInitials(user.name)
+            )}
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align='end' className='w-52'>
+          <div className='px-2 py-1.5'>
+            <p className='text-sm font-medium leading-tight'>{user.name}</p>
+            <p className='text-muted-foreground truncate text-xs'>
+              {user.email}
+            </p>
+          </div>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem asChild>
+            <Link href='/dashboard/profile'>
+              <User className='mr-2 size-4' />
+              Profile
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onClick={handleLogout}
+            className='text-destructive focus:text-destructive'
+          >
+            <LogOut className='mr-2 size-4' />
+            Log out
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </header>
   );
 }

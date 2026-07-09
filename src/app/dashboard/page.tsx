@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { sql } from 'drizzle-orm';
@@ -8,22 +9,14 @@ import { user, role, permission, userRole } from '@/db/schema';
 import { getEventsWithUserStatus } from '@/app/dashboard/events/actions';
 import { getAuthenticatedUserPermissions } from '@/lib/rbac/guards';
 import { anyPermissionMatches } from '@/lib/rbac/permissions';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
-  CardTitle,
 } from '@/components/ui/card';
-import {
-  ArrowRight,
-  ExternalLink,
-  KeyRound,
-  ShieldCheck,
-  Users,
-} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { ArrowRight, KeyRound, ShieldCheck, Users } from 'lucide-react';
 import type { EventWithUserStatus } from '@/app/dashboard/events/actions';
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -52,28 +45,123 @@ function eventCtaLabel(e: EventWithUserStatus): string {
   }
 }
 
-function EventStatusBadge({ e }: { e: EventWithUserStatus }) {
-  if (e.statusDisplay) {
+// ── Design system UI primitives ────────────────────────────────────────────────
+
+function SectionEyebrow({
+  color,
+  children,
+}: {
+  color: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <span
+      style={{
+        fontFamily: 'var(--font-ds-mono)',
+        fontSize: '13px',
+        fontWeight: 500,
+        letterSpacing: '0.06em',
+        textTransform: 'uppercase' as const,
+        color,
+      }}
+    >
+      {children}
+    </span>
+  );
+}
+
+function StatusPill({
+  bg,
+  fg,
+  label,
+}: {
+  bg: string;
+  fg: string;
+  label: string;
+}) {
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '8px',
+        padding: '7px 15px',
+        borderRadius: 'var(--radius-pill)',
+        background: bg,
+        color: fg,
+        fontFamily: 'var(--font-ui)',
+        fontWeight: 'var(--fw-semibold)',
+        fontSize: '14px',
+        letterSpacing: 'var(--track-ui)',
+        lineHeight: 1,
+        whiteSpace: 'nowrap' as const,
+      }}
+    >
+      <span
+        style={{
+          width: '7px',
+          height: '7px',
+          borderRadius: '999px',
+          background: 'currentColor',
+          display: 'block',
+          flexShrink: 0,
+        }}
+      />
+      {label}
+    </span>
+  );
+}
+
+const STATUS_COLORS: Record<string, { bg: string; fg: string }> = {
+  approved:       { bg: 'var(--green)',   fg: 'var(--white)' },
+  denied:         { bg: 'var(--pink)',    fg: 'var(--white)' },
+  waitlisted:     { bg: 'var(--orange)',  fg: 'var(--white)' },
+  pending_review: { bg: 'var(--yellow)',  fg: 'var(--black)' },
+};
+
+function EventStatusPill({ e }: { e: EventWithUserStatus }) {
+  if (e.statusKey && STATUS_COLORS[e.statusKey]) {
+    const { bg, fg } = STATUS_COLORS[e.statusKey]!;
     return (
-      <Badge variant={e.statusDisplay.variant}>{e.statusDisplay.title}</Badge>
+      <StatusPill bg={bg} fg={fg} label={e.statusDisplay?.title ?? e.statusKey} />
     );
   }
   if (e.userStatus === 'registered') {
-    return <Badge variant='success'>Registered</Badge>;
+    return <StatusPill bg='var(--blue)' fg='var(--white)' label='Registered' />;
   }
   if (e.hasApplication) {
-    return <Badge variant='outline'>Open to apply</Badge>;
+    return (
+      <StatusPill bg='var(--green)' fg='var(--white)' label='Open to apply' />
+    );
   }
-  return <Badge variant='outline'>Registration open</Badge>;
+  return (
+    <StatusPill bg='var(--green)' fg='var(--white)' label='Registration open' />
+  );
 }
+
+// ── Quick links & resources ────────────────────────────────────────────────────
 
 const QUICK_LINKS = ['Discord', 'Venue map', 'Schedule', 'Help desk'];
 
 const RESOURCES = [
-  { title: 'Getting started guide', sub: 'Setup, accounts & the basics' },
-  { title: 'Rules & judging criteria', sub: 'How projects are scored' },
-  { title: 'Code of conduct', sub: 'Keeping MRUHacks safe & kind' },
+  {
+    title: 'Getting started guide',
+    sub: 'Setup, accounts & the basics',
+    color: 'var(--tint-cyan)',
+  },
+  {
+    title: 'Rules & judging criteria',
+    sub: 'How projects are scored',
+    color: 'var(--tint-orange)',
+  },
+  {
+    title: 'Code of conduct',
+    sub: 'Keeping MRUHacks safe & kind',
+    color: 'var(--tint-lavender)',
+  },
 ];
+
+// ── Admin permissions ──────────────────────────────────────────────────────────
 
 const ADMIN_PERMISSIONS = [
   'user:read:all',
@@ -82,8 +170,6 @@ const ADMIN_PERMISSIONS = [
   'role:read:all',
   'permission:read:all',
 ];
-
-// ── Admin panel ────────────────────────────────────────────────────────────────
 
 async function fetchAdminCounts() {
   const [userCount, roleCount, permCount, assignmentCount] = await Promise.all([
@@ -100,6 +186,20 @@ async function fetchAdminCounts() {
   };
 }
 
+function AdminPanelSkeleton() {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      <div className='animate-pulse' style={{ width: 48, height: 13, borderRadius: 3, background: 'var(--ink-200)' }} />
+      <div className='grid grid-cols-2 gap-3 sm:grid-cols-4'>
+        {[...Array(4)].map((_, i) => (
+          <div key={i} className='animate-pulse' style={{ height: 76, borderRadius: 'var(--radius-card)', background: 'var(--ink-100)' }} />
+        ))}
+      </div>
+      <div className='animate-pulse' style={{ height: 44, borderRadius: 'var(--radius-card)', background: 'var(--ink-100)' }} />
+    </div>
+  );
+}
+
 async function AdminPanel() {
   const counts = await fetchAdminCounts();
 
@@ -112,9 +212,7 @@ async function AdminPanel() {
 
   return (
     <section className='space-y-3'>
-      <p className='text-muted-foreground text-xs font-semibold uppercase tracking-wider'>
-        Admin
-      </p>
+      <SectionEyebrow color='var(--pink)'>Admin</SectionEyebrow>
 
       <div className='grid grid-cols-2 gap-3 sm:grid-cols-4'>
         {stats.map(({ label, value, icon: Icon, href }) => (
@@ -163,123 +261,254 @@ export default async function Dashboard() {
   const currentUser = await getUser();
   if (!currentUser) redirect('/signin');
 
-  const { permissions } = await getAuthenticatedUserPermissions();
+  const [{ permissions }, events] = await Promise.all([
+    getAuthenticatedUserPermissions(),
+    getEventsWithUserStatus(),
+  ]);
+
   const isAdmin = ADMIN_PERMISSIONS.some((p) =>
     anyPermissionMatches(permissions, p),
   );
 
-  const events = await getEventsWithUserStatus();
   const firstName = currentUser.name?.split(' ')[0] ?? null;
 
+  const tile: React.CSSProperties = {
+    background: 'var(--white)',
+    border: 'var(--border-hairline)',
+    borderRadius: 'var(--radius-md)',
+    padding: '18px 20px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '14px',
+    boxShadow: 'var(--shadow-card)',
+  };
+
   return (
-    <div className='space-y-8'>
-      <div>
-        <h1 className='text-2xl font-semibold'>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+      {/* Page header */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+        <SectionEyebrow color='var(--blue)'>Home</SectionEyebrow>
+        <h1
+          style={{
+            fontFamily: 'var(--font-display)',
+            fontWeight: 'var(--fw-semibold)',
+            fontSize: 'clamp(28px, 4vw, 40px)',
+            lineHeight: 1.05,
+            letterSpacing: 'var(--track-display)',
+            margin: '4px 0 0',
+          }}
+        >
           Welcome back{firstName ? `, ${firstName}` : ''}
         </h1>
-        <p className='text-muted-foreground mt-1'>
+        <p
+          style={{
+            fontFamily: 'var(--font-body)',
+            fontSize: '17px',
+            lineHeight: 1.5,
+            color: 'var(--ink-700)',
+            margin: 0,
+            maxWidth: '56ch',
+          }}
+        >
           Track your applications, RSVPs and check-ins.
         </p>
       </div>
 
+      {/* Main grid */}
       <div className='grid gap-6 lg:grid-cols-[1.55fr_1fr]'>
         {/* Events list */}
-        <div className='space-y-3'>
-          <p className='text-muted-foreground text-xs font-semibold uppercase tracking-wider'>
-            My events
-          </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <SectionEyebrow color='var(--black)'>My events</SectionEyebrow>
 
           {events.length === 0 ? (
-            <Card>
-              <CardHeader>
-                <CardTitle className='text-base'>No events yet</CardTitle>
-              </CardHeader>
-              <CardContent className='text-muted-foreground text-sm'>
+            <div style={tile}>
+              <p
+                style={{
+                  fontFamily: 'var(--font-ui)',
+                  fontWeight: 'var(--fw-semibold)',
+                  fontSize: '16px',
+                  margin: 0,
+                }}
+              >
+                No events yet
+              </p>
+              <p
+                style={{
+                  fontSize: '14px',
+                  color: 'var(--ink-500)',
+                  margin: 0,
+                }}
+              >
                 Check back later — events will appear here once they&apos;re
                 live.
-              </CardContent>
-            </Card>
+              </p>
+            </div>
           ) : (
-            <ul className='space-y-2'>
+            <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {events.map((event) => (
-                <li key={event.id}>
-                  <Card className='transition-shadow hover:shadow-sm'>
-                    <CardContent className='flex items-center justify-between gap-3 p-4'>
-                      <div className='min-w-0 flex-1'>
-                        <p className='truncate font-semibold leading-tight'>
+                  <li key={event.id}>
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '16px',
+                        background: 'var(--white)',
+                        border: 'var(--border-hairline)',
+                        borderRadius: 'var(--radius-md)',
+                        padding: '18px 20px',
+                        boxShadow: 'var(--shadow-card)',
+                      }}
+                    >
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <p
+                          style={{
+                            fontFamily: 'var(--font-ui)',
+                            fontWeight: 'var(--fw-semibold)',
+                            fontSize: '17px',
+                            margin: 0,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
                           {event.name}
                         </p>
-                        <p className='text-muted-foreground mt-0.5 text-sm'>
+                        <p
+                          style={{
+                            fontSize: '14px',
+                            color: 'var(--ink-500)',
+                            margin: '3px 0 0',
+                          }}
+                        >
                           {event.hasApplication ? 'Application · ' : ''}
                           {formatDateRange(event.startsAt, event.endsAt)}
                         </p>
                       </div>
-                      <div className='flex shrink-0 items-center gap-2'>
-                        <EventStatusBadge e={event} />
+
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '14px',
+                          flexShrink: 0,
+                        }}
+                      >
+                        <EventStatusPill e={event} />
                         <Button
                           asChild
                           size='sm'
-                          variant={event.userStatus ? 'outline' : 'default'}
+                          variant={!event.userStatus ? 'gradient' : 'outline'}
                         >
                           <Link href={`/dashboard/events/${event.id}`}>
                             {eventCtaLabel(event)}
                           </Link>
                         </Button>
                       </div>
-                    </CardContent>
-                  </Card>
-                </li>
+                    </div>
+                  </li>
               ))}
             </ul>
           )}
         </div>
 
         {/* Rail */}
-        <aside className='space-y-4'>
-          <Card>
-            <CardHeader className='pb-2 pt-4'>
-              <CardTitle className='text-muted-foreground text-xs font-semibold uppercase tracking-wider'>
-                Quick links
-              </CardTitle>
-            </CardHeader>
-            <CardContent className='grid grid-cols-2 gap-2 pb-4'>
+        <aside style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          {/* Quick links */}
+          <div style={tile}>
+            <SectionEyebrow color='var(--pink)'>Quick links</SectionEyebrow>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: '10px',
+              }}
+            >
               {QUICK_LINKS.map((l) => (
-                <Button
+                <a
                   key={l}
-                  variant='secondary'
-                  size='sm'
-                  className='justify-start'
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    padding: '13px 14px',
+                    borderRadius: 'var(--radius-card)',
+                    background: 'var(--ink-050)',
+                    fontFamily: 'var(--font-ui)',
+                    fontWeight: 'var(--fw-semibold)',
+                    fontSize: '14px',
+                    color: 'var(--black)',
+                    textDecoration: 'none',
+                    cursor: 'pointer',
+                  }}
                 >
                   {l}
-                </Button>
+                </a>
               ))}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
-          <Card>
-            <CardHeader className='pb-2 pt-4'>
-              <CardTitle className='text-muted-foreground text-xs font-semibold uppercase tracking-wider'>
-                Resources
-              </CardTitle>
-            </CardHeader>
-            <CardContent className='space-y-3 pb-4'>
-              {RESOURCES.map((w) => (
-                <div key={w.title} className='flex items-start gap-3'>
-                  <ExternalLink className='text-muted-foreground mt-0.5 size-4 shrink-0' />
+          {/* Resources / wiki */}
+          <div style={tile}>
+            <SectionEyebrow color='var(--ultramarine)'>
+              Wiki &amp; resources
+            </SectionEyebrow>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              {RESOURCES.map((w, i) => (
+                <div
+                  key={w.title}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                    padding: '11px 0',
+                    borderTop:
+                      i === 0 ? 'none' : 'var(--border-hairline)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <span
+                    style={{
+                      width: '30px',
+                      height: '30px',
+                      borderRadius: '8px',
+                      background: w.color,
+                      flexShrink: 0,
+                    }}
+                  />
                   <div>
-                    <p className='text-sm font-semibold leading-tight'>
+                    <p
+                      style={{
+                        fontFamily: 'var(--font-ui)',
+                        fontWeight: 'var(--fw-semibold)',
+                        fontSize: '14px',
+                        color: 'var(--black)',
+                        margin: 0,
+                      }}
+                    >
                       {w.title}
                     </p>
-                    <p className='text-muted-foreground text-xs'>{w.sub}</p>
+                    <p
+                      style={{
+                        fontSize: '12px',
+                        color: 'var(--ink-500)',
+                        margin: 0,
+                      }}
+                    >
+                      {w.sub}
+                    </p>
                   </div>
                 </div>
               ))}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </aside>
       </div>
 
-      {isAdmin && <AdminPanel />}
+      {isAdmin && (
+        <Suspense fallback={<AdminPanelSkeleton />}>
+          <AdminPanel />
+        </Suspense>
+      )}
     </div>
   );
 }
