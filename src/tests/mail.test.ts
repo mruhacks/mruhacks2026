@@ -19,7 +19,7 @@ describe('sendMail', () => {
 
   beforeEach(() => {
     sendMailImpl.mockClear();
-    process.env.EMAIL_FROM = 'MRU Hacks <noreply@localhost>';
+    process.env.EMAIL_FROM = 'MRUHacks <noreply@localhost>';
     process.env.SMTP_HOST = 'localhost';
     process.env.SMTP_PORT = '1025';
     process.env.SMTP_USER = '';
@@ -40,7 +40,7 @@ describe('sendMail', () => {
     expect(sendMailImpl).toHaveBeenCalledTimes(1);
     expect(sendMailImpl).toHaveBeenCalledWith(
       expect.objectContaining({
-        from: 'MRU Hacks <noreply@localhost>',
+        from: 'MRUHacks <noreply@localhost>',
         to: 'user@example.com',
         subject: 'Test subject',
         text: 'Plain body',

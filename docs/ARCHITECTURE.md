@@ -1,6 +1,6 @@
 # Architecture Overview
 
-This document provides an overview of the MRU Hacks 2026 platform architecture.
+This document provides an overview of the MRUHacks 2026 platform architecture.
 
 ## Terminology (Glossary)
 

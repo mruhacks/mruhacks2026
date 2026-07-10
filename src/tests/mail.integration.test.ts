@@ -22,7 +22,7 @@ import {
 const ts = Date.now();
 
 beforeAll(() => {
-  process.env.EMAIL_FROM = 'MRU Hacks <noreply@localhost>';
+  process.env.EMAIL_FROM = 'MRUHacks <noreply@localhost>';
   process.env.SMTP_HOST = 'localhost';
   process.env.SMTP_PORT = '1025';
   process.env.SMTP_USER = '';
@@ -56,7 +56,7 @@ describe('sendMail → MailHog integration', () => {
     const to = `verify-${ts}@example.com`;
     await sendMail({
       to,
-      subject: 'Verify your email — MRU Hacks',
+      subject: 'Verify your email — MRUHacks',
       html: '<p>Click <a href="https://example.com/verify?token=abc">here</a></p>',
     });
 
@@ -68,7 +68,7 @@ describe('sendMail → MailHog integration', () => {
     const to = `reset-${ts}@example.com`;
     await sendMail({
       to,
-      subject: 'Reset your password — MRU Hacks',
+      subject: 'Reset your password — MRUHacks',
       html: '<p>Click <a href="https://example.com/reset?token=xyz">here</a></p>',
     });
 
@@ -81,11 +81,11 @@ describe('sendMail → MailHog integration', () => {
     const to = `magic-${ts}@example.com`;
     await sendMail({
       to,
-      subject: 'Sign in to MRU Hacks',
+      subject: 'Sign in to MRUHacks',
       html: '<p>Sign in <a href="https://example.com/auth?token=magic">here</a></p>',
     });
 
-    const messages = await searchMessagesByContent('Sign in to MRU Hacks');
+    const messages = await searchMessagesByContent('Sign in to MRUHacks');
     expect(messages.length).toBeGreaterThan(0);
     expect(messages[0].To[0].Mailbox).toBe(`magic-${ts}`);
   });

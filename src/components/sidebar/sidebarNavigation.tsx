@@ -20,6 +20,7 @@ import {
   LifeBuoy,
   MessageSquare,
   Scale,
+  Settings,
   ShieldCheck,
   User,
   UserCheck,
@@ -118,6 +119,7 @@ const sections: NavItem[] = [
   { title: 'Volunteer', url: '/dashboard/volunteer', icon: UserCheck },
   { title: 'Judge', url: '/dashboard/judge', icon: Scale },
   { title: 'Sponsor', url: '/dashboard/sponsor', icon: Briefcase },
+  { title: 'Account & Privacy', url: '/dashboard/account', icon: Settings },
 ];
 
 function canSee(item: NavItem, permissions: Set<string>): boolean {

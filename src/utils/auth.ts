@@ -62,7 +62,7 @@ export const auth = betterAuth({
     sendVerificationEmail: async ({ user, url }) => {
       void sendMail({
         to: user.email,
-        subject: 'Verify your email — MRU Hacks',
+        subject: 'Verify your email — MRUHacks',
         text: `Verify your email address by opening this link:\n\n${url}\n`,
         html: `<p>Verify your email address by clicking <a href="${url}">this link</a>.</p>`,
       }).catch((err) => {
@@ -76,12 +76,42 @@ export const auth = betterAuth({
     sendResetPassword: async ({ user, url }) => {
       void sendMail({
         to: user.email,
-        subject: 'Reset your password — MRU Hacks',
+        subject: 'Reset your password — MRUHacks',
         text: `Reset your password by opening this link:\n\n${url}\n`,
         html: `<p>Reset your password by clicking <a href="${url}">this link</a>.</p>`,
       }).catch((err) => {
         console.error('[auth] sendResetPassword failed', err);
       });
+    },
+  },
+  user: {
+    /**
+     * Self-serve account deletion (right to erasure — PIPEDA / Alberta PIPA /
+     * GDPR Art. 17). Deletion is confirmed via an emailed verification link so
+     * it cannot be triggered by a hijacked session. Once verified, Better Auth
+     * removes the user row; every user-scoped table cascades via its
+     * `onDelete: 'cascade'` foreign key, so no residual personal data remains.
+     */
+    deleteUser: {
+      enabled: true,
+      sendDeleteAccountVerification: async ({ user, url }) => {
+        void sendMail({
+          to: user.email,
+          subject: 'Confirm account deletion — MRUHacks',
+          text:
+            `We received a request to permanently delete your MRUHacks account.\n\n` +
+            `Confirm by opening this link (valid for 24 hours):\n\n${url}\n\n` +
+            `This erases your account and all associated data and cannot be undone. ` +
+            `If you did not request this, you can safely ignore this email.\n`,
+          html:
+            `<p>We received a request to permanently delete your MRUHacks account.</p>` +
+            `<p>Confirm by clicking <a href="${url}">this link</a> (valid for 24 hours).</p>` +
+            `<p>This erases your account and all associated data and <strong>cannot be undone</strong>. ` +
+            `If you did not request this, you can safely ignore this email.</p>`,
+        }).catch((err) => {
+          console.error('[auth] sendDeleteAccountVerification failed', err);
+        });
+      },
     },
   },
   socialProviders: {
@@ -104,7 +134,7 @@ export const auth = betterAuth({
       sendMagicLink: async ({ email, url }) => {
         void sendMail({
           to: email,
-          subject: 'Sign in to MRU Hacks',
+          subject: 'Sign in to MRUHacks',
           text: `Sign in by opening this link:\n\n${url}\n`,
           html: `<p>Sign in by clicking <a href="${url}">this link</a>.</p>`,
         }).catch((err) => {

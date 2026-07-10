@@ -103,6 +103,28 @@ export const verification = pgTable('verification', {
 });
 
 /**
+ * Per-user consent record. Stores privacy-related choices (e.g. opting in to
+ * marketing/non-essential email) together with the timestamp the choice was
+ * made, which is the auditable evidence of consent required under Canadian
+ * privacy law (PIPEDA / Alberta PIPA) and GDPR. One row per user; cascades on
+ * account deletion.
+ */
+export const userConsents = pgTable('user_consents', {
+  userId: uuid('user_id')
+    .primaryKey()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  /** Opt-in to non-essential / marketing email. Defaults to off (no consent). */
+  marketingEmails: boolean('marketing_emails').default(false).notNull(),
+  /** When marketingEmails was last set to true; null if never opted in. */
+  marketingConsentAt: timestamp('marketing_consent_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at')
+    .defaultNow()
+    .$onUpdate(() => new Date())
+    .notNull(),
+});
+
+/**
  * Outstanding user invites. When an admin invites an email address, a row
  * lands here with the roles that should be applied on first sign-in.
  * Consumed and deleted by the /welcome page after the invitee clicks the

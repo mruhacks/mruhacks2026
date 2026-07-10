@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { LogOut, User } from 'lucide-react';
+import { LogOut, Settings, User } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   DropdownMenu,
@@ -141,6 +141,12 @@ export function DashboardHeader({ user }: Props) {
             <Link href='/dashboard/profile'>
               <User className='mr-2 size-4' />
               Profile
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link href='/dashboard/account'>
+              <Settings className='mr-2 size-4' />
+              Account &amp; Privacy
             </Link>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
