@@ -77,7 +77,7 @@ export async function searchMessagesByContent(text: string): Promise<MailHogMess
 export function decodeMimeWords(str: string): string {
   return str.replace(/=\?([^?]+)\?([BbQq])\?([^?]*)\?=/g, (_, charset, encoding, text) => {
     if (encoding.toUpperCase() === 'Q') {
-      const bytes = text.replace(/_/g, ' ').replace(/=([0-9A-Fa-f]{2})/g, (__, hex) =>
+      const bytes = text.replace(/_/g, ' ').replace(/=([0-9A-Fa-f]{2})/g, (__: string, hex: string) =>
         String.fromCharCode(parseInt(hex, 16)),
       );
       try {

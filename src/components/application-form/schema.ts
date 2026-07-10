@@ -5,7 +5,7 @@ import type { ApplicationQuestion } from '@/types/application';
 const applicationResponsesSchema = z.record(z.string(), z.unknown());
 
 /** Event-only form: applicationResponses keyed by question UUID. */
-const eventOnlySchema = z.object({
+export const eventOnlySchema = z.object({
   applicationResponses: z.record(z.string(), z.unknown()).default({}),
 });
 

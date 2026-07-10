@@ -332,7 +332,6 @@ export type EventDetails = {
   capacity: number | null;
   startsAt: Date | null;
   endsAt: Date | null;
-  registerUrl: string | null;
   isFeatured: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -374,7 +373,6 @@ export async function getEventDetails(
     capacity: eventRow.capacity ?? null,
     startsAt: eventRow.startsAt ?? null,
     endsAt: eventRow.endsAt ?? null,
-    registerUrl: eventRow.registerUrl ?? null,
     isFeatured: eventRow.isFeatured,
     createdAt: eventRow.createdAt,
     updatedAt: eventRow.updatedAt,
@@ -435,7 +433,6 @@ export async function updateEventSettings(
         capacity: input.capacity ?? eventRow.capacity,
         startsAt: input.startsAt !== undefined ? parseDateTime(input.startsAt) : eventRow.startsAt,
         endsAt: input.endsAt !== undefined ? parseDateTime(input.endsAt) : eventRow.endsAt,
-        registerUrl: input.registerUrl !== undefined ? input.registerUrl : eventRow.registerUrl,
         isFeatured: input.isFeatured ?? eventRow.isFeatured,
         updatedAt: new Date(),
       })

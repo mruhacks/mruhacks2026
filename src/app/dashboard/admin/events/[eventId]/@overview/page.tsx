@@ -65,7 +65,6 @@ export default function EventOverviewPage({ params }: EventOverviewPageProps) {
           capacity: result.data.capacity ?? undefined,
           startsAt: result.data.startsAt ? result.data.startsAt.toISOString().slice(0, 16) : undefined,
           endsAt: result.data.endsAt ? result.data.endsAt.toISOString().slice(0, 16) : undefined,
-          registerUrl: result.data.registerUrl ?? undefined,
           isFeatured: result.data.isFeatured,
         });
       } else if (!result.success) {
@@ -195,12 +194,6 @@ export default function EventOverviewPage({ params }: EventOverviewPageProps) {
               )}
               <div>
                 <p className='text-xs font-semibold text-muted-foreground uppercase'>
-                  Register URL
-                </p>
-                <p className='text-sm mt-1'>{event.registerUrl ?? '—'}</p>
-              </div>
-              <div>
-                <p className='text-xs font-semibold text-muted-foreground uppercase'>
                   Featured on Homepage
                 </p>
                 <p className='text-sm mt-1'>{event.isFeatured ? 'Yes' : 'No'}</p>
@@ -273,21 +266,6 @@ export default function EventOverviewPage({ params }: EventOverviewPageProps) {
                     {...register('endsAt')}
                   />
                   {errors.endsAt && <FieldError errors={[errors.endsAt]} />}
-                </Field>
-
-                {/* Register URL */}
-                <Field>
-                  <FieldLabel htmlFor='registerUrl'>Register URL</FieldLabel>
-                  <FieldDescription>
-                    Where the public site&apos;s &quot;Register Now&quot; buttons link to.
-                    Use a full URL (e.g. an external form) or a site path like /signup.
-                  </FieldDescription>
-                  <Input
-                    id='registerUrl'
-                    {...register('registerUrl')}
-                    placeholder='/signup'
-                  />
-                  {errors.registerUrl && <FieldError errors={[errors.registerUrl]} />}
                 </Field>
 
                 {/* Featured on homepage */}
