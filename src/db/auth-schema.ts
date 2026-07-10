@@ -103,25 +103,57 @@ export const verification = pgTable('verification', {
 });
 
 /**
- * Per-user consent record. Stores privacy-related choices (e.g. opting in to
- * marketing/non-essential email) together with the timestamp the choice was
- * made, which is the auditable evidence of consent required under Canadian
- * privacy law (PIPEDA / Alberta PIPA) and GDPR. One row per user; cascades on
- * account deletion.
+ * Consent is stored as one table per consent type. Terms-of-Use and
+ * Privacy-Policy acceptances are append-only histories (one row per
+ * acceptance, tagged with the document version), so re-acceptance after a
+ * policy update is preserved as auditable evidence required under Canadian
+ * privacy law (PIPEDA / Alberta PIPA) and GDPR. Marketing consent is a single
+ * current-state row per user, since it is a toggle the user flips over time.
+ * All three cascade on account deletion.
  */
-export const userConsents = pgTable('user_consents', {
+
+/** Append-only log of Terms-of-Use acceptances. */
+export const termsAcceptances = pgTable(
+  'terms_acceptances',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    /** Version identifier of the Terms document the user accepted. */
+    version: text('version').notNull(),
+    acceptedAt: timestamp('accepted_at').defaultNow().notNull(),
+  },
+  (table) => [index('terms_acceptances_user_id_idx').on(table.userId)],
+);
+
+/** Append-only log of Privacy-Policy acceptances. */
+export const privacyAcceptances = pgTable(
+  'privacy_acceptances',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    /** Version identifier of the Privacy Policy the user accepted. */
+    version: text('version').notNull(),
+    acceptedAt: timestamp('accepted_at').defaultNow().notNull(),
+  },
+  (table) => [index('privacy_acceptances_user_id_idx').on(table.userId)],
+);
+
+/**
+ * Current marketing / non-essential email preference. One row per user;
+ * `changedAt` is the auditable timestamp of the most recent opt-in or opt-out.
+ */
+export const marketingConsents = pgTable('marketing_consents', {
   userId: uuid('user_id')
     .primaryKey()
     .references(() => user.id, { onDelete: 'cascade' }),
-  /** Opt-in to non-essential / marketing email. Defaults to off (no consent). */
-  marketingEmails: boolean('marketing_emails').default(false).notNull(),
-  /** When marketingEmails was last set to true; null if never opted in. */
-  marketingConsentAt: timestamp('marketing_consent_at'),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at')
-    .defaultNow()
-    .$onUpdate(() => new Date())
-    .notNull(),
+  /** Whether the user has opted in to non-essential / marketing email. */
+  optedIn: boolean('opted_in').default(false).notNull(),
+  /** When `optedIn` was last changed. */
+  changedAt: timestamp('changed_at').defaultNow().notNull(),
 });
 
 /**

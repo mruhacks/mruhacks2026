@@ -5,11 +5,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 
-import {
-  consumeInvite,
-  setInitialPassword,
-  setOwnName,
-} from '@/app/actions/users';
+import { consumeInvite, setOwnName } from '@/app/actions/users';
+import { recordOnboardingConsent } from '@/app/dashboard/account/actions';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -19,30 +16,33 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Loader2 } from 'lucide-react';
 
 interface WelcomeClientProps {
-  hasPassword: boolean;
+  needsConsent: boolean;
   userEmail: string;
   userName: string;
+  /** Where to send the user once onboarding is complete. */
+  returnUrl: string;
 }
 
 export function WelcomeClient({
-  hasPassword,
+  needsConsent,
   userEmail,
   userName,
+  returnUrl,
 }: WelcomeClientProps) {
   const router = useRouter();
   const needsName = userName.trim().length === 0;
-  const needsPassword = !hasPassword;
-  const needsOnboarding = needsName || needsPassword;
+  const needsOnboarding = needsName || needsConsent;
 
   const [consumed, setConsumed] = React.useState(false);
   const [name, setName] = React.useState(userName);
-  const [password, setPassword] = React.useState('');
-  const [confirm, setConfirm] = React.useState('');
+  const [acceptLegal, setAcceptLegal] = React.useState(false);
+  const [marketing, setMarketing] = React.useState(false);
   const [submitting, setSubmitting] = React.useState(false);
   const ranRef = React.useRef(false);
 
@@ -61,15 +61,9 @@ export function WelcomeClient({
       toast.error('Enter your full name');
       return;
     }
-    if (needsPassword) {
-      if (password.length < 8) {
-        toast.error('Password must be at least 8 characters');
-        return;
-      }
-      if (password !== confirm) {
-        toast.error('Passwords do not match');
-        return;
-      }
+    if (needsConsent && !acceptLegal) {
+      toast.error('You must accept the Terms of Use and Privacy Policy');
+      return;
     }
     setSubmitting(true);
     if (needsName) {
@@ -80,17 +74,17 @@ export function WelcomeClient({
         return;
       }
     }
-    if (needsPassword) {
-      const pwRes = await setInitialPassword(password);
-      if (!pwRes.success) {
+    if (needsConsent) {
+      const consentRes = await recordOnboardingConsent(marketing);
+      if (!consentRes.success) {
         setSubmitting(false);
-        toast.error(pwRes.error);
+        toast.error(consentRes.error);
         return;
       }
     }
     setSubmitting(false);
     toast.success('All set. Welcome aboard!');
-    router.push('/dashboard');
+    router.push(returnUrl);
   };
 
   const description = needsOnboarding ? (
@@ -134,32 +128,56 @@ export function WelcomeClient({
                     />
                   </div>
                 )}
-                {needsPassword && (
-                  <>
-                    <div className='space-y-2'>
-                      <Label htmlFor='welcome-password'>Password</Label>
-                      <Input
-                        id='welcome-password'
-                        type='password'
-                        autoComplete='new-password'
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        placeholder='Min. 8 characters'
+                {needsConsent && (
+                  <div className='space-y-3'>
+                    <div className='flex items-start gap-3'>
+                      <Checkbox
+                        id='welcome-legal'
+                        checked={acceptLegal}
+                        onCheckedChange={(v) => setAcceptLegal(v === true)}
                         disabled={submitting}
+                        className='mt-0.5'
                       />
+                      <Label
+                        htmlFor='welcome-legal'
+                        className='text-sm leading-snug font-normal'
+                      >
+                        I agree to the{' '}
+                        <Link
+                          href='/terms'
+                          target='_blank'
+                          className='text-primary underline underline-offset-2'
+                        >
+                          Terms of Use
+                        </Link>{' '}
+                        and{' '}
+                        <Link
+                          href='/privacy'
+                          target='_blank'
+                          className='text-primary underline underline-offset-2'
+                        >
+                          Privacy Policy
+                        </Link>
+                        .
+                      </Label>
                     </div>
-                    <div className='space-y-2'>
-                      <Label htmlFor='welcome-confirm'>Confirm password</Label>
-                      <Input
-                        id='welcome-confirm'
-                        type='password'
-                        autoComplete='new-password'
-                        value={confirm}
-                        onChange={(e) => setConfirm(e.target.value)}
+                    <div className='flex items-start gap-3'>
+                      <Checkbox
+                        id='welcome-marketing'
+                        checked={marketing}
+                        onCheckedChange={(v) => setMarketing(v === true)}
                         disabled={submitting}
+                        className='mt-0.5'
                       />
+                      <Label
+                        htmlFor='welcome-marketing'
+                        className='text-muted-foreground text-sm leading-snug font-normal'
+                      >
+                        Send me newsletters, sponsor offers, and updates about
+                        future MRUHacks events.
+                      </Label>
                     </div>
-                  </>
+                  </div>
                 )}
               </form>
             </CardContent>
@@ -184,7 +202,7 @@ export function WelcomeClient({
         ) : (
           <CardFooter>
             <Button asChild className='w-full'>
-              <Link href='/dashboard'>Go to dashboard</Link>
+              <Link href={returnUrl}>Continue</Link>
             </Button>
           </CardFooter>
         )}

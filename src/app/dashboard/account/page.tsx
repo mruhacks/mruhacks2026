@@ -40,7 +40,14 @@ export default async function AccountPage() {
   const consent =
     consentResult.success && consentResult.data
       ? consentResult.data
-      : { marketingEmails: false, marketingConsentAt: null };
+      : {
+          marketingEmails: false,
+          marketingConsentAt: null,
+          termsVersion: null,
+          termsAcceptedAt: null,
+          privacyVersion: null,
+          privacyAcceptedAt: null,
+        };
 
   return (
     <div className='w-full max-w-2xl space-y-6'>

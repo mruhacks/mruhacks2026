@@ -120,6 +120,13 @@
       "when": 1783696764657,
       "tag": "0016_account_management",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1783698449456,
+      "tag": "0017_consent_tables",
+      "breakpoints": true
     }
   ]
 }
