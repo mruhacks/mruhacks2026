@@ -65,8 +65,8 @@ export const account = pgTable(
   {
     id: uuid('id').defaultRandom().primaryKey(),
 
-    // 👇 this is what BetterAuth expects to exist
-    accountId: uuid('account_id').defaultRandom().notNull(),
+    // stores the OAuth provider's external user ID (e.g. GitHub numeric ID) or a UUID for email/password
+    accountId: text('account_id').notNull(),
 
     providerId: text('provider_id').notNull(),
 
