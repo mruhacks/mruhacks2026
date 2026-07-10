@@ -11,10 +11,7 @@ import {
 } from '@/db/schema';
 import { ok, fail, type ActionResult } from '@/utils/action-result';
 import { redirect } from 'next/navigation';
-import {
-  permissionMatches,
-  anyPermissionMatches,
-} from '@/lib/rbac/permissions';
+import { anyPermissionMatches } from '@/lib/rbac/permissions';
 
 /**
  * Retrieves all permissions for a user, including:
@@ -256,6 +253,3 @@ export async function requireRole(
     redirect(`/forbidden?reason=missing_role&role=${roleSlug}`);
   }
 }
-
-// Re-export the pure matcher so existing tests and callers keep working.
-export { permissionMatches };

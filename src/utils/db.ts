@@ -94,8 +94,6 @@ export const client = postgres(connectionString, {
 
 export const db = drizzle(client, { schema, casing: 'snake_case' });
 
-export default db;
-
 /**
  * Gracefully close the database connection on process shutdown.
  * Prevents hanging connections and properly cleans up the pool.

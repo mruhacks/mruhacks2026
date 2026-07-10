@@ -386,5 +386,4 @@ export default function ApplicationForm({
   );
 }
 
-export { applicationResponsesSchema, eventOnlySchema } from './schema';
-export type { EventOnlyFormValues, ApplicationSelectOption } from './schema';
+export type { EventOnlyFormValues } from './schema';

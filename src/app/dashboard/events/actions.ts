@@ -50,7 +50,7 @@ import {
  * Returns the first event with has_application = true (e.g. default hackathon).
  * Used for redirecting /register to /dashboard/events and for ticket default event.
  */
-export async function getDefaultApplicationEvent() {
+async function getDefaultApplicationEvent() {
   'use cache';
   cacheLife('minutes');
   const rows = await db
@@ -67,7 +67,7 @@ export async function getDefaultApplicationEvent() {
  * 2. Replaces user_interests and user_dietary_restrictions (from profileData)
  * 3. Upserts event_applications for (eventId, userId) with responses from eventData
  */
-export async function registerParticipant(
+async function registerParticipant(
   profileData: ProfileFormValues,
   eventData: EventOnlyFormValues,
   eventId: string,

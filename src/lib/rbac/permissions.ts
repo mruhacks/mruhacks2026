@@ -93,7 +93,7 @@ export function anyPermissionMatches(
  * Canonical list of permission slugs the app expects to exist. Used for
  * seeding, admin UIs, and validation.
  */
-export const CORE_PERMISSIONS = [
+const CORE_PERMISSIONS = [
   { slug: 'user:read:all', description: 'View any user information' },
   { slug: 'user:write:all', description: 'Modify any user information' },
   {
@@ -123,7 +123,7 @@ export const CORE_PERMISSIONS = [
 /**
  * Canonical roles the app seeds by default.
  */
-export const CORE_ROLES = [
+const CORE_ROLES = [
   { slug: 'admin', description: 'Full system administrator' },
   { slug: 'organizer', description: 'Manages event logistics and users' },
   { slug: 'judge', description: 'Evaluates hackathon projects' },

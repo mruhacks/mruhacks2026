@@ -2,10 +2,10 @@ import { z } from 'zod';
 import type { ApplicationQuestion } from '@/types/application';
 
 /** Event-specific answers keyed by question UUID. Validated server-side against event.applicationQuestions. */
-export const applicationResponsesSchema = z.record(z.string(), z.unknown());
+const applicationResponsesSchema = z.record(z.string(), z.unknown());
 
 /** Event-only form: applicationResponses keyed by question UUID. */
-export const eventOnlySchema = z.object({
+const eventOnlySchema = z.object({
   applicationResponses: z.record(z.string(), z.unknown()).default({}),
 });
 

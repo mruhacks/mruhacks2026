@@ -5,7 +5,7 @@
 
 const MAILHOG_API_URL = process.env.MAILHOG_API_URL || 'http://localhost:8025/api';
 
-export interface MailHogPath {
+interface MailHogPath {
   Relays: string[] | null;
   Mailbox: string;
   Domain: string;
@@ -36,7 +36,7 @@ interface MailHogListResult {
   items: MailHogMessage[];
 }
 
-export async function getMessages(start = 0, limit = 50): Promise<MailHogMessage[]> {
+async function getMessages(start = 0, limit = 50): Promise<MailHogMessage[]> {
   const response = await fetch(`${MAILHOG_API_URL}/v2/messages?start=${start}&limit=${limit}`);
   if (!response.ok) throw new Error(`MailHog API error: ${response.statusText}`);
   const result: MailHogListResult = await response.json();
@@ -52,7 +52,7 @@ export async function searchMessagesByTo(email: string): Promise<MailHogMessage[
   return result.items ?? [];
 }
 
-export async function searchMessagesByFrom(email: string): Promise<MailHogMessage[]> {
+async function searchMessagesByFrom(email: string): Promise<MailHogMessage[]> {
   const response = await fetch(
     `${MAILHOG_API_URL}/v2/search?kind=from&query=${encodeURIComponent(email)}`,
   );

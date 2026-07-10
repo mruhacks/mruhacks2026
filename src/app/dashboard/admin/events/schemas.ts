@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const questionTypeSchema = z.enum([
+const questionTypeSchema = z.enum([
   'short_text',
   'long_text',
   'single_select',

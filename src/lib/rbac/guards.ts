@@ -19,7 +19,7 @@ type User = NonNullable<Awaited<ReturnType<typeof getUser>>>;
 /**
  * Require an authenticated session. Redirects to /signin if missing.
  */
-export async function requireAuth(redirectTo = '/signin'): Promise<User> {
+async function requireAuth(redirectTo = '/signin'): Promise<User> {
   const user = await getUser();
   if (!user) redirect(redirectTo);
   return user;
@@ -48,7 +48,7 @@ export async function requireAuthWithPermission(
 /**
  * Require a session AND a specific role slug.
  */
-export async function requireAuthWithRole(roleSlug: string): Promise<User> {
+async function requireAuthWithRole(roleSlug: string): Promise<User> {
   const user = await requireAuth();
   const ok = await hasRole(user.id, roleSlug);
   if (!ok) {
