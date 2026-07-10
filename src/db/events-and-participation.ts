@@ -67,7 +67,6 @@ export const events = pgTable(
     startsAt: timestamp('starts_at'),
     endsAt: timestamp('ends_at'),
     capacity: integer('capacity'),
-    registerUrl: text('register_url'),
     // Marks the single event whose registerUrl the public site links to.
     isFeatured: boolean('is_featured').notNull().default(false),
     createdAt: timestamp('created_at').defaultNow().notNull(),

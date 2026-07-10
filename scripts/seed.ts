@@ -90,7 +90,6 @@ async function seedEvents() {
       name: 'MRUHacks 2026',
       hasApplication: true,
       capacity: null,
-      registerUrl: '/signup',
       isFeatured: true,
       applicationQuestions: [
         {

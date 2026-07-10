@@ -18,10 +18,13 @@ export async function getFeaturedEventRegisterUrl(): Promise<string> {
   cacheLife('hours');
 
   const [featured] = await db
-    .select({ registerUrl: events.registerUrl })
+    .select({ id: events.id })
     .from(events)
     .where(eq(events.isFeatured, true))
     .limit(1);
 
-  return featured?.registerUrl || DEFAULT_REGISTER_URL;
+  if (featured) {
+    return `http://localhost:3000/dashboard/events/${featured.id}`;
+  }
+  return DEFAULT_REGISTER_URL;
 }
