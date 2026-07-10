@@ -118,6 +118,9 @@ export default async function ApplyEventPage({ params }: Props) {
 
   const decisionIsFinal =
     applicationStatus != null && applicationStatus.statusDisplay.isFinal;
+  const hasCustomQuestions = event.applicationQuestions.some(
+    (question) => question.active && question.type !== 'section_divider',
+  );
 
   if (decisionIsFinal && applicationStatus) {
     return (
@@ -137,7 +140,9 @@ export default async function ApplyEventPage({ params }: Props) {
       <CardHeader>
         <CardTitle>Application: {event.name}</CardTitle>
         <CardDescription>
-          Review your profile and complete the event application below.
+          {hasCustomQuestions
+            ? 'Review your profile and complete the event application below.'
+            : 'Review your profile and submit your application for review.'}
         </CardDescription>
       </CardHeader>
       <CardContent className='space-y-8'>
@@ -150,9 +155,12 @@ export default async function ApplyEventPage({ params }: Props) {
         <section>
           <ApplicationForm
             initial={eventInitial}
-            applicationQuestions={event.applicationQuestions ?? null}
+            applicationQuestions={event.applicationQuestions}
             submitAction={submitEventApplication}
             eventId={eventId}
+            submitLabel={
+              applicationStatus ? 'Save changes' : 'Submit application'
+            }
           />
         </section>
       </CardContent>

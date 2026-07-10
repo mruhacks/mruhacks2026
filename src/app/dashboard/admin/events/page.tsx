@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { getUser } from '@/utils/auth';
-import { requirePermission } from '@/app/actions/authz';
+import { requirePermission } from '@/lib/rbac/authorization';
 import { db } from '@/utils/db';
 import { events } from '@/db/schema';
 import { desc } from 'drizzle-orm';

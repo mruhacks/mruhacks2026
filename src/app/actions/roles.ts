@@ -1,16 +1,46 @@
 'use server';
 
 import { db } from '@/utils/db';
-import { eq, and, asc, sql, inArray } from 'drizzle-orm';
+import { eq, and, asc, sql } from 'drizzle-orm';
 import {
   role,
   permission,
   rolePermissions,
   userRole,
   userPermission,
-  user,
 } from '@/db/schema';
 import { ok, fail, type ActionResult } from '@/utils/action-result';
+import { getUser } from '@/utils/auth';
+import { requirePermission } from '@/lib/rbac/authorization';
+import {
+  replaceRolePermissions,
+  replaceUserDirectPermissions,
+  replaceUserRoles,
+} from '@/lib/rbac/role-mutations';
+import { writeAuditLog } from '@/utils/audit-log';
+import { serverActionError } from '@/utils/server-action-error';
+
+async function authorize(permission: string) {
+  const caller = await getUser();
+  if (!caller) return false;
+  await requirePermission(caller.id, permission);
+  return true;
+}
+
+async function audit(
+  action: string,
+  targetType: string,
+  targetId?: string | number,
+  metadata?: Record<string, unknown>,
+) {
+  await writeAuditLog({
+    actorId: (await getUser())?.id ?? null,
+    action,
+    targetType,
+    targetId,
+    metadata,
+  });
+}
 
 /**
  * Canonical database identifier types.
@@ -40,6 +70,7 @@ export interface PermissionRow {
  * Returns every role along with counts of permissions and users attached to it.
  */
 export async function listRoles(): Promise<ActionResult<RoleWithCounts[]>> {
+  if (!(await authorize('role:read:all'))) return fail('Not authenticated');
   try {
     // Correlated subqueries avoid the Cartesian product that a LEFT JOIN +
     // COUNT(DISTINCT) produces across millions of user_role rows.
@@ -61,7 +92,7 @@ export async function listRoles(): Promise<ActionResult<RoleWithCounts[]>> {
       .orderBy(asc(role.slug));
     return ok(roles);
   } catch (e) {
-    return fail(`Failed to list roles: ${(e as Error).message}`);
+    return serverActionError('list roles', e);
   }
 }
 
@@ -71,6 +102,8 @@ export async function listRoles(): Promise<ActionResult<RoleWithCounts[]>> {
 export async function listPermissions(): Promise<
   ActionResult<PermissionRow[]>
 > {
+  if (!(await authorize('permission:read:all')))
+    return fail('Not authenticated');
   try {
     const perms = await db
       .select({
@@ -82,7 +115,7 @@ export async function listPermissions(): Promise<
       .orderBy(asc(permission.slug));
     return ok(perms);
   } catch (e) {
-    return fail(`Failed to list permissions: ${(e as Error).message}`);
+    return serverActionError('list permissions', e);
   }
 }
 
@@ -101,15 +134,17 @@ export async function createRole(
   slug: string,
   description?: string,
 ): Promise<ActionResult<RoleId>> {
+  if (!(await authorize('role:write:all'))) return fail('Not authenticated');
   try {
     const [result] = await db
       .insert(role)
       .values({ slug, description })
       .onConflictDoNothing()
       .returning({ id: role.id });
+    await audit('role.created', 'role', result?.id, { slug });
     return ok(result?.id);
   } catch (e) {
-    return fail(`Failed to create role: ${(e as Error).message}`);
+    return serverActionError('create role', e);
   }
 }
 
@@ -117,11 +152,13 @@ export async function createRole(
  * Permanently removes a role by ID.
  */
 export async function deleteRole(roleId: RoleId): Promise<ActionResult> {
+  if (!(await authorize('role:write:all'))) return fail('Not authenticated');
   try {
     await db.delete(role).where(eq(role.id, roleId));
+    await audit('role.deleted', 'role', roleId);
     return ok();
   } catch (e) {
-    return fail(`Failed to delete role: ${(e as Error).message}`);
+    return serverActionError('delete role', e);
   }
 }
 
@@ -132,15 +169,19 @@ export async function updateRole(
   roleId: RoleId,
   patch: { slug?: string; description?: string | null },
 ): Promise<ActionResult> {
+  if (!(await authorize('role:write:all'))) return fail('Not authenticated');
   try {
     const changes: Record<string, unknown> = {};
     if (typeof patch.slug === 'string') changes.slug = patch.slug.toLowerCase();
     if ('description' in patch) changes.description = patch.description ?? null;
     if (Object.keys(changes).length === 0) return ok();
     await db.update(role).set(changes).where(eq(role.id, roleId));
+    await audit('role.updated', 'role', roleId, {
+      fields: Object.keys(changes),
+    });
     return ok();
   } catch (e) {
-    return fail(`Failed to update role: ${(e as Error).message}`);
+    return serverActionError('update role', e);
   }
 }
 
@@ -154,11 +195,13 @@ export async function assignRoleToUser(
   userId: string,
   roleId: RoleId,
 ): Promise<ActionResult> {
+  if (!(await authorize('role:write:all'))) return fail('Not authenticated');
   try {
     await db.insert(userRole).values({ userId, roleId }).onConflictDoNothing();
+    await audit('role.assigned', 'user', userId, { roleId });
     return ok();
   } catch (e) {
-    return fail(`Failed to assign role: ${(e as Error).message}`);
+    return serverActionError('assign role', e);
   }
 }
 
@@ -169,13 +212,15 @@ export async function revokeRoleFromUser(
   userId: string,
   roleId: RoleId,
 ): Promise<ActionResult> {
+  if (!(await authorize('role:write:all'))) return fail('Not authenticated');
   try {
     await db
       .delete(userRole)
       .where(and(eq(userRole.userId, userId), eq(userRole.roleId, roleId)));
+    await audit('role.revoked', 'user', userId, { roleId });
     return ok();
   } catch (e) {
-    return fail(`Failed to revoke role: ${(e as Error).message}`);
+    return serverActionError('revoke role', e);
   }
 }
 
@@ -192,15 +237,18 @@ export async function addPermission(
   key: string,
   description?: string,
 ): Promise<ActionResult<PermissionId>> {
+  if (!(await authorize('permission:write:all')))
+    return fail('Not authenticated');
   try {
     const [perm] = await db
       .insert(permission)
       .values({ slug: key, description })
       .onConflictDoNothing()
       .returning({ id: permission.id });
+    await audit('permission.created', 'permission', perm?.id, { slug: key });
     return ok(perm?.id);
   } catch (e) {
-    return fail(`Failed to add permission: ${(e as Error).message}`);
+    return serverActionError('add permission', e);
   }
 }
 
@@ -210,11 +258,14 @@ export async function addPermission(
 export async function deletePermission(
   permissionId: PermissionId,
 ): Promise<ActionResult> {
+  if (!(await authorize('permission:write:all')))
+    return fail('Not authenticated');
   try {
     await db.delete(permission).where(eq(permission.id, permissionId));
+    await audit('permission.deleted', 'permission', permissionId);
     return ok();
   } catch (e) {
-    return fail(`Failed to delete permission: ${(e as Error).message}`);
+    return serverActionError('delete permission', e);
   }
 }
 
@@ -225,6 +276,8 @@ export async function updatePermission(
   permissionId: PermissionId,
   patch: { slug?: string; description?: string | null },
 ): Promise<ActionResult> {
+  if (!(await authorize('permission:write:all')))
+    return fail('Not authenticated');
   try {
     const changes: Record<string, unknown> = {};
     if (typeof patch.slug === 'string') changes.slug = patch.slug.toLowerCase();
@@ -234,9 +287,12 @@ export async function updatePermission(
       .update(permission)
       .set(changes)
       .where(eq(permission.id, permissionId));
+    await audit('permission.updated', 'permission', permissionId, {
+      fields: Object.keys(changes),
+    });
     return ok();
   } catch (e) {
-    return fail(`Failed to update permission: ${(e as Error).message}`);
+    return serverActionError('update permission', e);
   }
 }
 
@@ -247,14 +303,16 @@ export async function grantPermissionToRole(
   roleId: RoleId,
   permissionId: PermissionId,
 ): Promise<ActionResult> {
+  if (!(await authorize('role:write:all'))) return fail('Not authenticated');
   try {
     await db
       .insert(rolePermissions)
       .values({ roleId, permissionId })
       .onConflictDoNothing();
+    await audit('role.permission.granted', 'role', roleId, { permissionId });
     return ok();
   } catch (e) {
-    return fail(`Failed to grant permission: ${(e as Error).message}`);
+    return serverActionError('grant role permission', e);
   }
 }
 
@@ -265,6 +323,7 @@ export async function revokePermissionFromRole(
   roleId: RoleId,
   permissionId: PermissionId,
 ): Promise<ActionResult> {
+  if (!(await authorize('role:write:all'))) return fail('Not authenticated');
   try {
     await db
       .delete(rolePermissions)
@@ -274,9 +333,10 @@ export async function revokePermissionFromRole(
           eq(rolePermissions.permissionId, permissionId),
         ),
       );
+    await audit('role.permission.revoked', 'role', roleId, { permissionId });
     return ok();
   } catch (e) {
-    return fail(`Failed to revoke permission: ${(e as Error).message}`);
+    return serverActionError('revoke role permission', e);
   }
 }
 
@@ -288,14 +348,17 @@ export async function grantPermissionToUser(
   userId: string,
   permissionId: PermissionId,
 ): Promise<ActionResult> {
+  if (!(await authorize('permission:write:all')))
+    return fail('Not authenticated');
   try {
     await db
       .insert(userPermission)
       .values({ userId, permissionId })
       .onConflictDoNothing();
+    await audit('user.permission.granted', 'user', userId, { permissionId });
     return ok();
   } catch (e) {
-    return fail(`Failed to grant permission: ${(e as Error).message}`);
+    return serverActionError('grant user permission', e);
   }
 }
 
@@ -306,6 +369,8 @@ export async function revokePermissionFromUser(
   userId: string,
   permissionId: PermissionId,
 ): Promise<ActionResult> {
+  if (!(await authorize('permission:write:all')))
+    return fail('Not authenticated');
   try {
     await db
       .delete(userPermission)
@@ -315,9 +380,10 @@ export async function revokePermissionFromUser(
           eq(userPermission.permissionId, permissionId),
         ),
       );
+    await audit('user.permission.revoked', 'user', userId, { permissionId });
     return ok();
   } catch (e) {
-    return fail(`Failed to revoke permission: ${(e as Error).message}`);
+    return serverActionError('revoke user permission', e);
   }
 }
 
@@ -332,34 +398,13 @@ export async function setUserRoles(
   userId: string,
   roleIds: RoleId[],
 ): Promise<ActionResult> {
+  if (!(await authorize('role:write:all'))) return fail('Not authenticated');
   try {
-    await db.transaction(async (tx) => {
-      await tx.delete(userRole).where(eq(userRole.userId, userId));
-      if (roleIds.length > 0) {
-        await tx
-          .insert(userRole)
-          .values(roleIds.map((roleId) => ({ userId, roleId })))
-          .onConflictDoNothing();
-      }
-
-      // Sync user.role for the Better Auth admin plugin.
-      // If the user has the 'admin' RBAC role, mark them as 'admin' in the
-      // user table so the plugin recognises them as admins.
-      const assignedRoles =
-        roleIds.length > 0
-          ? await tx
-              .select({ slug: role.slug })
-              .from(role)
-              .where(inArray(role.id, roleIds))
-          : [];
-      const baRole = assignedRoles.some((r) => r.slug === 'admin')
-        ? 'admin'
-        : 'user';
-      await tx.update(user).set({ role: baRole }).where(eq(user.id, userId));
-    });
+    await replaceUserRoles(userId, roleIds);
+    await audit('user.roles.replaced', 'user', userId, { roleIds });
     return ok();
   } catch (e) {
-    return fail(`Failed to set user roles: ${(e as Error).message}`);
+    return serverActionError('set user roles', e);
   }
 }
 
@@ -370,21 +415,14 @@ export async function setUserDirectPermissions(
   userId: string,
   permissionIds: PermissionId[],
 ): Promise<ActionResult> {
+  if (!(await authorize('permission:write:all')))
+    return fail('Not authenticated');
   try {
-    await db.transaction(async (tx) => {
-      await tx.delete(userPermission).where(eq(userPermission.userId, userId));
-      if (permissionIds.length > 0) {
-        await tx
-          .insert(userPermission)
-          .values(
-            permissionIds.map((permissionId) => ({ userId, permissionId })),
-          )
-          .onConflictDoNothing();
-      }
-    });
+    await replaceUserDirectPermissions(userId, permissionIds);
+    await audit('user.permissions.replaced', 'user', userId, { permissionIds });
     return ok();
   } catch (e) {
-    return fail(`Failed to set user permissions: ${(e as Error).message}`);
+    return serverActionError('set user permissions', e);
   }
 }
 
@@ -395,22 +433,12 @@ export async function setRolePermissions(
   roleId: RoleId,
   permissionIds: PermissionId[],
 ): Promise<ActionResult> {
+  if (!(await authorize('role:write:all'))) return fail('Not authenticated');
   try {
-    await db.transaction(async (tx) => {
-      await tx
-        .delete(rolePermissions)
-        .where(eq(rolePermissions.roleId, roleId));
-      if (permissionIds.length > 0) {
-        await tx
-          .insert(rolePermissions)
-          .values(
-            permissionIds.map((permissionId) => ({ roleId, permissionId })),
-          )
-          .onConflictDoNothing();
-      }
-    });
+    await replaceRolePermissions(roleId, permissionIds);
+    await audit('role.permissions.replaced', 'role', roleId, { permissionIds });
     return ok();
   } catch (e) {
-    return fail(`Failed to set role permissions: ${(e as Error).message}`);
+    return serverActionError('set role permissions', e);
   }
 }

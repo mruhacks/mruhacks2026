@@ -61,9 +61,12 @@ export const events = pgTable(
     }),
     name: text('name').notNull(),
     hasApplication: boolean('has_application').notNull().default(false),
-    applicationQuestions: jsonb('application_questions').$type<
-      ApplicationQuestion[] | null
-    >(),
+    // Questions are configured independently from whether an application is
+    // required. An empty list is a valid application configuration.
+    applicationQuestions: jsonb('application_questions')
+      .$type<ApplicationQuestion[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
     startsAt: timestamp('starts_at'),
     endsAt: timestamp('ends_at'),
     capacity: integer('capacity'),
@@ -106,6 +109,10 @@ export const userProfiles = pgTable('user_profiles', {
   yearOfStudyId: integer('year_of_study_id')
     .notNull()
     .references(() => yearsOfStudy.id),
+  /** Optional resume, stored as a validated data URL with its original name. */
+  resumeFile: text('resume_file'),
+  resumeFileName: varchar('resume_file_name', { length: 255 }),
+  resumeFileType: varchar('resume_file_type', { length: 100 }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at')
     .defaultNow()

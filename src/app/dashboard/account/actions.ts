@@ -19,10 +19,7 @@ import { desc, eq } from 'drizzle-orm';
 import { db } from '@/utils/db';
 import { getUser } from '@/utils/auth';
 import { ActionResult, fail, ok } from '@/utils/action-result';
-import {
-  CURRENT_PRIVACY_VERSION,
-  CURRENT_TERMS_VERSION,
-} from '@/lib/consent';
+import { CURRENT_PRIVACY_VERSION, CURRENT_TERMS_VERSION } from '@/lib/consent';
 import { userNeedsConsent } from '@/utils/consent-check';
 import {
   account,
@@ -38,6 +35,7 @@ import {
   checkIns,
   eventRsvpResponses,
   groupMembers,
+  user as authUser,
 } from '@/db/schema';
 
 export type ConsentData = {
@@ -217,6 +215,36 @@ export async function recordOnboardingConsent(
   }
 }
 
+/**
+ * Marks the welcome flow complete only after both its requirements are met.
+ * This persistent marker distinguishes a first-time welcome from a later
+ * consent refresh without making legacy, already-complete accounts repeat it.
+ */
+export async function completeWelcomeOnboarding(): Promise<ActionResult> {
+  const currentUser = await getUser();
+  if (!currentUser) return fail('User not authenticated');
+
+  const [profile] = await db
+    .select({ userId: userProfiles.userId })
+    .from(userProfiles)
+    .where(eq(userProfiles.userId, currentUser.id))
+    .limit(1);
+  if (!profile || (await userNeedsConsent(currentUser.id))) {
+    return fail('Finish your profile and accept the required policies first.');
+  }
+
+  try {
+    await db
+      .update(authUser)
+      .set({ onboardingCompletedAt: new Date() })
+      .where(eq(authUser.id, currentUser.id));
+    return ok();
+  } catch (error) {
+    console.error('completeWelcomeOnboarding error:', error);
+    return fail('Unable to complete onboarding.');
+  }
+}
+
 /** Upserts the single marketing-preference row, stamping `changed_at` now. */
 async function upsertMarketingConsent(userId: string, optIn: boolean) {
   const now = new Date();
@@ -287,7 +315,10 @@ export async function exportMyData(): Promise<ActionResult<unknown>> {
         .select()
         .from(privacyAcceptances)
         .where(eq(privacyAcceptances.userId, uid)),
-      db.select().from(marketingConsents).where(eq(marketingConsents.userId, uid)),
+      db
+        .select()
+        .from(marketingConsents)
+        .where(eq(marketingConsents.userId, uid)),
       // Linked auth providers only — no secrets.
       db
         .select({

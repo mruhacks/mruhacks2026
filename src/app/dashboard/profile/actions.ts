@@ -7,6 +7,7 @@
 'use server';
 
 import {
+  user as authUser,
   userProfiles,
   userInterests,
   userDietaryRestrictions,
@@ -14,6 +15,7 @@ import {
 import { getUser } from '@/utils/auth';
 import { db } from '@/utils/db';
 import { eq } from 'drizzle-orm';
+import { revalidatePath } from 'next/cache';
 import { ActionResult, fail, ok } from '@/utils/action-result';
 import {
   profileFormSchema,
@@ -28,7 +30,64 @@ export type UserProfileData = {
   yearOfStudyId: number;
   interests: number[];
   dietaryRestrictions: number[];
+  hasResume: boolean;
+  resumeFileName: string | null;
+  resumeFileType: string | null;
 };
+
+const MAX_PROFILE_PICTURE_BYTES = 2 * 1024 * 1024;
+const MAX_RESUME_BYTES = 5 * 1024 * 1024;
+const PROFILE_PICTURE_TYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+]);
+const RESUME_TYPES = new Set([
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+]);
+
+type UploadedFile = {
+  name: string;
+  type: string;
+  dataUrl: string;
+};
+
+async function readUploadedFile(
+  formData: FormData,
+  key: string,
+  allowedTypes: Set<string>,
+  maxBytes: number,
+): Promise<ActionResult<UploadedFile>> {
+  const value = formData.get(key);
+  if (
+    !value ||
+    typeof value === 'string' ||
+    typeof value.arrayBuffer !== 'function'
+  ) {
+    return fail('Choose a file to upload.');
+  }
+  if (!allowedTypes.has(value.type)) {
+    return fail('That file type is not supported.');
+  }
+  if (value.size === 0 || value.size > maxBytes) {
+    return fail(`File must be smaller than ${maxBytes / 1024 / 1024} MB.`);
+  }
+
+  const fileName = value.name.replace(/[^a-zA-Z0-9._ -]/g, '_').slice(0, 255);
+  const encoded = Buffer.from(await value.arrayBuffer()).toString('base64');
+  return ok({
+    name: fileName || 'upload',
+    type: value.type,
+    dataUrl: `data:${value.type};base64,${encoded}`,
+  });
+}
+
+function revalidateProfile() {
+  revalidatePath('/dashboard/profile');
+  revalidatePath('/dashboard', 'layout');
+}
 
 /**
  * Returns the current user's profile (user_profiles + user_interests + user_dietary_restrictions).
@@ -68,6 +127,9 @@ export async function getUserProfile(): Promise<
     yearOfStudyId: profile.yearOfStudyId,
     interests: interestRows.map((r) => r.interestId),
     dietaryRestrictions: restrictionRows.map((r) => r.restrictionId),
+    hasResume: profile.resumeFile != null,
+    resumeFileName: profile.resumeFileName,
+    resumeFileType: profile.resumeFileType,
   });
 }
 
@@ -112,6 +174,13 @@ export async function saveUserProfile(
           },
         });
 
+      // Keep the Better Auth display name in sync with the required profile
+      // name so first-time users do not appear anonymous in the dashboard.
+      await tx
+        .update(authUser)
+        .set({ name: data.fullName })
+        .where(eq(authUser.id, user.id));
+
       await tx.delete(userInterests).where(eq(userInterests.userId, user.id));
       if (data.interests?.length) {
         await tx.insert(userInterests).values(
@@ -140,4 +209,131 @@ export async function saveUserProfile(
     console.error('Profile save error:', error);
     return fail('Failed to save profile.');
   }
+}
+
+/** Uploads a profile photo for the signed-in user. */
+export async function uploadProfilePicture(
+  formData: FormData,
+): Promise<ActionResult> {
+  const currentUser = await getUser();
+  if (!currentUser) return fail('User not authenticated');
+
+  const file = await readUploadedFile(
+    formData,
+    'profilePicture',
+    PROFILE_PICTURE_TYPES,
+    MAX_PROFILE_PICTURE_BYTES,
+  );
+  if (!file.success) return fail(file.error);
+  if (!file.data) return fail('Unable to read image.');
+
+  try {
+    await db
+      .update(authUser)
+      .set({ image: file.data.dataUrl })
+      .where(eq(authUser.id, currentUser.id));
+    revalidateProfile();
+    return ok();
+  } catch (error) {
+    console.error('Profile picture upload error:', error);
+    return fail('Unable to upload your profile picture.');
+  }
+}
+
+/** Removes the signed-in user's uploaded profile photo. */
+export async function removeProfilePicture(): Promise<ActionResult> {
+  const currentUser = await getUser();
+  if (!currentUser) return fail('User not authenticated');
+
+  try {
+    await db
+      .update(authUser)
+      .set({ image: null })
+      .where(eq(authUser.id, currentUser.id));
+    revalidateProfile();
+    return ok();
+  } catch (error) {
+    console.error('Profile picture removal error:', error);
+    return fail('Unable to remove your profile picture.');
+  }
+}
+
+/** Uploads an optional resume for a completed profile. */
+export async function uploadResume(formData: FormData): Promise<ActionResult> {
+  const currentUser = await getUser();
+  if (!currentUser) return fail('User not authenticated');
+
+  const file = await readUploadedFile(
+    formData,
+    'resume',
+    RESUME_TYPES,
+    MAX_RESUME_BYTES,
+  );
+  if (!file.success) return fail(file.error);
+  if (!file.data) return fail('Unable to read resume.');
+
+  try {
+    const result = await db
+      .update(userProfiles)
+      .set({
+        resumeFile: file.data.dataUrl,
+        resumeFileName: file.data.name,
+        resumeFileType: file.data.type,
+        updatedAt: new Date(),
+      })
+      .where(eq(userProfiles.userId, currentUser.id))
+      .returning({ userId: userProfiles.userId });
+    if (result.length === 0)
+      return fail('Complete your profile before uploading a resume.');
+    revalidateProfile();
+    return ok();
+  } catch (error) {
+    console.error('Resume upload error:', error);
+    return fail('Unable to upload your resume.');
+  }
+}
+
+/** Removes the signed-in user's optional resume. */
+export async function removeResume(): Promise<ActionResult> {
+  const currentUser = await getUser();
+  if (!currentUser) return fail('User not authenticated');
+
+  try {
+    await db
+      .update(userProfiles)
+      .set({
+        resumeFile: null,
+        resumeFileName: null,
+        resumeFileType: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(userProfiles.userId, currentUser.id));
+    revalidateProfile();
+    return ok();
+  } catch (error) {
+    console.error('Resume removal error:', error);
+    return fail('Unable to remove your resume.');
+  }
+}
+
+/** Returns the current user's resume only; the data is never exposed in list views. */
+export async function getOwnResume(): Promise<
+  ActionResult<{ dataUrl: string; fileName: string } | null>
+> {
+  const currentUser = await getUser();
+  if (!currentUser) return fail('User not authenticated');
+
+  const [profile] = await db
+    .select({
+      resumeFile: userProfiles.resumeFile,
+      resumeFileName: userProfiles.resumeFileName,
+    })
+    .from(userProfiles)
+    .where(eq(userProfiles.userId, currentUser.id))
+    .limit(1);
+  if (!profile?.resumeFile) return ok(null);
+  return ok({
+    dataUrl: profile.resumeFile,
+    fileName: profile.resumeFileName ?? 'resume',
+  });
 }

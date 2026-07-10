@@ -1,55 +1,44 @@
 'use server';
 
-import { db } from '@/utils/db';
-import { eq, inArray, sql } from 'drizzle-orm';
+import { getUser } from '@/utils/auth';
+import { fail, ok, type ActionResult } from '@/utils/action-result';
 import {
-  role,
-  permission,
-  rolePermissions,
-  userRole,
-  userPermission,
-} from '@/db/schema';
-import { ok, fail, type ActionResult } from '@/utils/action-result';
-import { redirect } from 'next/navigation';
-import { anyPermissionMatches } from '@/lib/rbac/permissions';
+  hasPermission,
+  loadDirectUserPermissions,
+  loadRolePermissions,
+  loadRolesForUsers,
+  loadUserPermissions,
+  loadUserRoles,
+} from '@/lib/rbac/authorization';
 
-/**
- * Retrieves all permissions for a user, including:
- *  - Direct user permissions
- *  - Permissions inherited through roles
- */
+async function mayInspectUser(targetUserId: string): Promise<boolean> {
+  const caller = await getUser();
+  return Boolean(
+    caller &&
+    (caller.id === targetUserId ||
+      (await hasPermission(caller.id, 'user:read:all'))),
+  );
+}
+
+async function mayReadAdministration(permission: string): Promise<boolean> {
+  const caller = await getUser();
+  return Boolean(caller && (await hasPermission(caller.id, permission)));
+}
+
+/** Guarded client-facing lookup for a user's effective permissions. */
 export async function getUserPermissions(
   userId: string,
 ): Promise<ActionResult<Set<string>>> {
+  if (!(await mayInspectUser(userId))) return fail('Forbidden');
   try {
-    // Fetch direct + role-derived permission IDs in a single round-trip via
-    // UNION, then resolve slugs in one join. Halves the query count compared
-    // to running the two lookups independently.
-    const rows = await db.execute<{ slug: string }>(sql`
-      SELECT p.slug FROM authz.permission p
-      WHERE p.id IN (
-        SELECT up.permission_id
-          FROM authz.user_permission up
-         WHERE up.user_id = ${userId}
-        UNION
-        SELECT rp.permission_id
-          FROM authz.user_role ur
-          JOIN authz.role_permission rp ON rp.role_id = ur.role_id
-         WHERE ur.user_id = ${userId}
-      )
-    `);
-
-    const permissions = new Set<string>();
-    for (const r of rows) permissions.add(r.slug);
-    return ok(permissions);
-  } catch (e) {
-    return fail(`Failed to get user permissions: ${(e as Error).message}`);
+    return ok(await loadUserPermissions(userId));
+  } catch (error) {
+    console.error('[authz] failed to load user permissions', error);
+    return fail('Unable to load permissions');
   }
 }
 
-/**
- * Retrieves all roles assigned to a user.
- */
+/** Guarded client-facing lookup for a user's roles. */
 export async function getUserRoles(
   userId: string,
 ): Promise<
@@ -57,199 +46,56 @@ export async function getUserRoles(
     { id: number; slug: string | null; description: string | null }[]
   >
 > {
+  if (!(await mayInspectUser(userId))) return fail('Forbidden');
   try {
-    const rows = await db
-      .select({
-        id: role.id,
-        slug: role.slug,
-        description: role.description,
-      })
-      .from(userRole)
-      .innerJoin(role, eq(userRole.roleId, role.id))
-      .where(eq(userRole.userId, userId));
-    return ok(rows);
-  } catch (e) {
-    return fail(`Failed to get user roles: ${(e as Error).message}`);
+    return ok(await loadUserRoles(userId));
+  } catch (error) {
+    console.error('[authz] failed to load user roles', error);
+    return fail('Unable to load roles');
   }
 }
 
-/**
- * Returns only the direct (user-level) permissions, not those granted via roles.
- */
+/** Guarded client-facing lookup for direct permissions. */
 export async function getDirectUserPermissions(
   userId: string,
 ): Promise<
   ActionResult<{ id: number; slug: string; description: string | null }[]>
 > {
+  if (!(await mayInspectUser(userId))) return fail('Forbidden');
   try {
-    const rows = await db
-      .select({
-        id: permission.id,
-        slug: permission.slug,
-        description: permission.description,
-      })
-      .from(userPermission)
-      .innerJoin(permission, eq(userPermission.permissionId, permission.id))
-      .where(eq(userPermission.userId, userId));
-    return ok(rows);
-  } catch (e) {
-    return fail(`Failed to get direct permissions: ${(e as Error).message}`);
+    return ok(await loadDirectUserPermissions(userId));
+  } catch (error) {
+    console.error('[authz] failed to load direct permissions', error);
+    return fail('Unable to load permissions');
   }
 }
 
-/**
- * Returns all permissions assigned to a role.
- */
+/** Role-to-permission mappings are administrative data. */
 export async function getRolePermissions(
   roleId: number,
 ): Promise<
   ActionResult<{ id: number; slug: string; description: string | null }[]>
 > {
+  if (!(await mayReadAdministration('role:read:all'))) return fail('Forbidden');
   try {
-    const rows = await db
-      .select({
-        id: permission.id,
-        slug: permission.slug,
-        description: permission.description,
-      })
-      .from(rolePermissions)
-      .innerJoin(permission, eq(rolePermissions.permissionId, permission.id))
-      .where(eq(rolePermissions.roleId, roleId));
-    return ok(rows);
-  } catch (e) {
-    return fail(`Failed to get role permissions: ${(e as Error).message}`);
+    return ok(await loadRolePermissions(roleId));
+  } catch (error) {
+    console.error('[authz] failed to load role permissions', error);
+    return fail('Unable to load role permissions');
   }
 }
 
-/**
- * Efficient batch lookup: given a set of user IDs, return each user's roles.
- */
+/** Batch role lookup reserved for user administrators. */
 export async function getRolesForUsers(
   userIds: string[],
 ): Promise<
   ActionResult<Record<string, { id: number; slug: string | null }[]>>
 > {
+  if (!(await mayReadAdministration('user:read:all'))) return fail('Forbidden');
   try {
-    if (userIds.length === 0) return ok({});
-    const rows = await db
-      .select({
-        userId: userRole.userId,
-        roleId: role.id,
-        roleSlug: role.slug,
-      })
-      .from(userRole)
-      .innerJoin(role, eq(userRole.roleId, role.id))
-      .where(inArray(userRole.userId, userIds));
-
-    const map: Record<string, { id: number; slug: string | null }[]> = {};
-    for (const id of userIds) map[id] = [];
-    for (const r of rows) {
-      map[r.userId]!.push({ id: r.roleId, slug: r.roleSlug });
-    }
-    return ok(map);
-  } catch (e) {
-    return fail(`Failed to batch-load roles: ${(e as Error).message}`);
-  }
-}
-
-/**
- * Checks if a user has a specific permission (exact or hierarchical match).
- */
-export async function hasPermission(
-  userId: string,
-  permissionString: string,
-): Promise<boolean> {
-  const result = await getUserPermissions(userId);
-  if (!result.success || !result.data) return false;
-  return anyPermissionMatches(result.data, permissionString);
-}
-
-/**
- * Returns true if the user has at least one of the supplied permissions.
- */
-export async function hasAnyPermission(
-  userId: string,
-  permissionStrings: string[],
-): Promise<boolean> {
-  if (permissionStrings.length === 0) return true;
-  const result = await getUserPermissions(userId);
-  if (!result.success || !result.data) return false;
-  for (const required of permissionStrings) {
-    if (anyPermissionMatches(result.data, required)) return true;
-  }
-  return false;
-}
-
-/**
- * Returns true only if the user has every one of the supplied permissions.
- */
-export async function hasAllPermissions(
-  userId: string,
-  permissionStrings: string[],
-): Promise<boolean> {
-  if (permissionStrings.length === 0) return true;
-  const result = await getUserPermissions(userId);
-  if (!result.success || !result.data) return false;
-  for (const required of permissionStrings) {
-    if (!anyPermissionMatches(result.data, required)) return false;
-  }
-  return true;
-}
-
-/**
- * Returns true if the user has the supplied role slug.
- */
-export async function hasRole(
-  userId: string,
-  roleSlug: string,
-): Promise<boolean> {
-  const rows = await db
-    .select({ slug: role.slug })
-    .from(userRole)
-    .innerJoin(role, eq(userRole.roleId, role.id))
-    .where(eq(userRole.userId, userId));
-  return rows.some((r) => r.slug === roleSlug);
-}
-
-/**
- * Redirects to /forbidden if the user lacks a permission.
- */
-export async function requirePermission(
-  userId: string,
-  permissionString: string,
-): Promise<void> {
-  const hasPerm = await hasPermission(userId, permissionString);
-  if (!hasPerm) {
-    redirect(
-      `/forbidden?reason=missing_permission&permission=${permissionString}`,
-    );
-  }
-}
-
-/**
- * Redirects to /forbidden if the user lacks ALL of the supplied permissions.
- */
-export async function requireAnyPermission(
-  userId: string,
-  permissionStrings: string[],
-): Promise<void> {
-  const ok = await hasAnyPermission(userId, permissionStrings);
-  if (!ok) {
-    redirect(
-      `/forbidden?reason=missing_permission&permission=${permissionStrings.join(',')}`,
-    );
-  }
-}
-
-/**
- * Redirects to /forbidden if the user doesn't hold the given role.
- */
-export async function requireRole(
-  userId: string,
-  roleSlug: string,
-): Promise<void> {
-  const ok = await hasRole(userId, roleSlug);
-  if (!ok) {
-    redirect(`/forbidden?reason=missing_role&role=${roleSlug}`);
+    return ok(await loadRolesForUsers(userIds));
+  } catch (error) {
+    console.error('[authz] failed to load user roles', error);
+    return fail('Unable to load roles');
   }
 }

@@ -8,11 +8,22 @@ import { FEATURED_EVENT_CACHE_TAG } from '@/lib/featured-event';
 import { events, eventApplications, user, userProfiles } from '@/db/schema';
 import { getUser } from '@/utils/auth';
 import { ok, fail, type ActionResult } from '@/utils/action-result';
-import { requirePermission } from '@/app/actions/authz';
+import { requirePermission } from '@/lib/rbac/authorization';
 import type { ApplicationQuestion } from '@/types/application';
-import { addQuestionSchema, editQuestionSchema, createEventSchema, updateEventSettingsSchema } from './schemas';
-import type { AddQuestionInput, EditQuestionInput, CreateEventInput, UpdateEventSettingsInput } from './schemas';
+import {
+  addQuestionSchema,
+  editQuestionSchema,
+  createEventSchema,
+  updateEventSettingsSchema,
+} from './schemas';
+import type {
+  AddQuestionInput,
+  EditQuestionInput,
+  CreateEventInput,
+  UpdateEventSettingsInput,
+} from './schemas';
 import { validateQuestionEdit } from '@/lib/question-diff';
+import { writeAuditLog } from '@/utils/audit-log';
 
 // ── Internal helpers ──────────────────────────────────────────────────────
 
@@ -41,7 +52,9 @@ async function fetchQuestions(
 }
 
 /** Fetch all event_applications.responses for a given event. */
-async function fetchAllResponses(eventId: string): Promise<Record<string, unknown>[]> {
+async function fetchAllResponses(
+  eventId: string,
+): Promise<Record<string, unknown>[]> {
   const rows = await db
     .select({ responses: eventApplications.responses })
     .from(eventApplications)
@@ -121,14 +134,16 @@ export async function addQuestion(
   if (!user) return fail('Not authenticated');
 
   const parsed = addQuestionSchema.safeParse(data);
-  if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? 'Invalid input');
+  if (!parsed.success)
+    return fail(parsed.error.issues[0]?.message ?? 'Invalid input');
 
   const input = parsed.data;
   const questions = await fetchQuestions(eventId);
   if (!questions) return fail('Event not found');
 
   const maxOrder = questions.reduce((m, q) => Math.max(m, q.order), 0);
-  const needsOptions = input.type === 'single_select' || input.type === 'multi_select';
+  const needsOptions =
+    input.type === 'single_select' || input.type === 'multi_select';
 
   const newQuestion: ApplicationQuestion = {
     id: randomUUID(),
@@ -139,13 +154,23 @@ export async function addQuestion(
     order: maxOrder + 1,
     active: true,
     options: needsOptions
-      ? (input.options ?? []).map((o) => ({ value: randomUUID(), label: o.label, active: true }))
+      ? (input.options ?? []).map((o) => ({
+          value: randomUUID(),
+          label: o.label,
+          active: true,
+        }))
       : undefined,
   };
 
   await writeQuestions(eventId, [...questions, newQuestion]);
 
-  // TODO: Log audit trail: { action: 'question.added', eventId, questionId, userId, timestamp }
+  await writeAuditLog({
+    actorId: user.id,
+    action: 'event.question.added',
+    targetType: 'event',
+    targetId: eventId,
+    metadata: { questionId: newQuestion.id },
+  });
   return ok(newQuestion);
 }
 
@@ -163,7 +188,8 @@ export async function editQuestion(
   if (!user) return fail('Not authenticated');
 
   const parsed = editQuestionSchema.safeParse(data);
-  if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? 'Invalid input');
+  if (!parsed.success)
+    return fail(parsed.error.issues[0]?.message ?? 'Invalid input');
 
   const questions = await fetchQuestions(eventId);
   if (!questions) return fail('Event not found');
@@ -180,7 +206,13 @@ export async function editQuestion(
   const updated = questions.map((q, i) => (i === idx ? result.question : q));
   await writeQuestions(eventId, updated);
 
-  // TODO: Log audit trail: { action: 'question.edited', eventId, questionId, userId, changes: {...}, timestamp }
+  await writeAuditLog({
+    actorId: user.id,
+    action: 'event.question.updated',
+    targetType: 'event',
+    targetId: eventId,
+    metadata: { questionId },
+  });
   return ok('Question updated.');
 }
 
@@ -221,8 +253,20 @@ export async function removeQuestion(
 
   await writeQuestions(eventId, updated);
 
-  // TODO: Log audit trail: { action: shouldHardDelete ? 'question.deleted' : 'question.hidden', eventId, questionId, userId, timestamp }
-  return ok(shouldHardDelete ? 'Question deleted.' : 'Question hidden (applications exist).');
+  await writeAuditLog({
+    actorId: user.id,
+    action: shouldHardDelete
+      ? 'event.question.deleted'
+      : 'event.question.hidden',
+    targetType: 'event',
+    targetId: eventId,
+    metadata: { questionId },
+  });
+  return ok(
+    shouldHardDelete
+      ? 'Question deleted.'
+      : 'Question hidden (applications exist).',
+  );
 }
 
 /**
@@ -242,14 +286,26 @@ export async function reorderQuestions(
 
   const byId = new Map(questions.map((q) => [q.id, q]));
 
-  if (orderedIds.length !== byId.size || !orderedIds.every((id) => byId.has(id))) {
+  if (
+    orderedIds.length !== byId.size ||
+    !orderedIds.every((id) => byId.has(id))
+  ) {
     return fail('orderedIds must contain exactly all existing question IDs');
   }
 
-  const reordered = orderedIds.map((id, i) => ({ ...byId.get(id)!, order: i + 1 }));
+  const reordered = orderedIds.map((id, i) => ({
+    ...byId.get(id)!,
+    order: i + 1,
+  }));
   await writeQuestions(eventId, reordered);
 
-  // TODO: Log audit trail: { action: 'questions.reordered', eventId, userId, newOrder: orderedIds, timestamp }
+  await writeAuditLog({
+    actorId: user.id,
+    action: 'event.questions.reordered',
+    targetType: 'event',
+    targetId: eventId,
+    metadata: { orderedIds },
+  });
   return ok('Questions reordered.');
 }
 
@@ -275,7 +331,13 @@ export async function reactivateQuestion(
   );
   await writeQuestions(eventId, updated);
 
-  // TODO: Log audit trail: { action: 'question.reactivated', eventId, questionId, userId, timestamp }
+  await writeAuditLog({
+    actorId: user.id,
+    action: 'event.question.reactivated',
+    targetType: 'event',
+    targetId: eventId,
+    metadata: { questionId },
+  });
   return ok('Question reactivated.');
 }
 
@@ -292,7 +354,8 @@ export async function createEvent(
   if (!user) return fail('Not authenticated');
 
   const parsed = createEventSchema.safeParse(data);
-  if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? 'Invalid input');
+  if (!parsed.success)
+    return fail(parsed.error.issues[0]?.message ?? 'Invalid input');
 
   const input = parsed.data;
 
@@ -315,13 +378,20 @@ export async function createEvent(
       capacity: input.capacity ?? null,
       startsAt: parseDateTime(input.startsAt),
       endsAt: parseDateTime(input.endsAt),
-      applicationQuestions: input.hasApplication ? [] : null,
+      // Keep question configuration independent from the application-process
+      // toggle. Events may require an application with no custom questions.
+      applicationQuestions: [],
       createdAt: new Date(),
       updatedAt: new Date(),
     })
     .returning({ id: events.id });
 
-  // TODO: Log audit trail: { action: 'event.created', eventId, userId, timestamp }
+  await writeAuditLog({
+    actorId: user.id,
+    action: 'event.created',
+    targetType: 'event',
+    targetId: newEvent.id,
+  });
   return ok({ id: newEvent.id });
 }
 
@@ -393,7 +463,8 @@ export async function updateEventSettings(
   if (!user) return fail('Not authenticated');
 
   const parsed = updateEventSettingsSchema.safeParse(data);
-  if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? 'Invalid input');
+  if (!parsed.success)
+    return fail(parsed.error.issues[0]?.message ?? 'Invalid input');
 
   const [eventRow] = await db
     .select()
@@ -431,8 +502,14 @@ export async function updateEventSettings(
         name: input.name ?? eventRow.name,
         hasApplication: input.hasApplication ?? eventRow.hasApplication,
         capacity: input.capacity ?? eventRow.capacity,
-        startsAt: input.startsAt !== undefined ? parseDateTime(input.startsAt) : eventRow.startsAt,
-        endsAt: input.endsAt !== undefined ? parseDateTime(input.endsAt) : eventRow.endsAt,
+        startsAt:
+          input.startsAt !== undefined
+            ? parseDateTime(input.startsAt)
+            : eventRow.startsAt,
+        endsAt:
+          input.endsAt !== undefined
+            ? parseDateTime(input.endsAt)
+            : eventRow.endsAt,
         isFeatured: input.isFeatured ?? eventRow.isFeatured,
         updatedAt: new Date(),
       })
@@ -442,7 +519,13 @@ export async function updateEventSettings(
   // Homepage register-link lookup is cached; bust it so edits show up immediately.
   updateTag(FEATURED_EVENT_CACHE_TAG);
 
-  // TODO: Log audit trail: { action: 'event.updated', eventId, userId, changes: {...}, timestamp }
+  await writeAuditLog({
+    actorId: user.id,
+    action: 'event.updated',
+    targetType: 'event',
+    targetId: eventId,
+    metadata: { fields: Object.keys(input) },
+  });
   return ok('Event updated.');
 }
 

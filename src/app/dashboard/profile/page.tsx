@@ -11,6 +11,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import ProfileForm from '@/components/profile-form';
+import { ProfileAssets } from './profile-assets';
 
 type DashboardProfilePageProps = {
   searchParams: Promise<{ next?: string }>;
@@ -44,6 +45,18 @@ export default async function DashboardProfilePage({
         </CardDescription>
       </CardHeader>
       <CardContent>
+        <ProfileAssets
+          image={user.image}
+          name={initial.fullName ?? user.name}
+          hasResume={
+            profileResult.success && profileResult.data?.hasResume === true
+          }
+          resumeFileName={
+            profileResult.success
+              ? (profileResult.data?.resumeFileName ?? null)
+              : null
+          }
+        />
         <ProfileForm
           initial={initial}
           options={options}

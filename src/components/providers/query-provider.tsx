@@ -17,18 +17,9 @@ function makeQueryClient() {
   });
 }
 
-let browserClient: QueryClient | undefined;
-
-function getQueryClient() {
-  if (typeof window === 'undefined') {
-    // Server: always make a new client to avoid cross-request state leakage.
-    return makeQueryClient();
-  }
-  browserClient ??= makeQueryClient();
-  return browserClient;
-}
-
 export function QueryProvider({ children }: { children: React.ReactNode }) {
-  const client = getQueryClient();
+  // A per-provider lazy state initializer is stable for the browser lifetime
+  // and avoids a server module singleton during Cache Components rendering.
+  const [client] = React.useState(makeQueryClient);
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }

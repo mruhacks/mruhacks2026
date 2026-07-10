@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { getUser } from '@/utils/auth';
-import { requirePermission } from '@/app/actions/authz';
+import { requirePermission } from '@/lib/rbac/authorization';
 import { getEventWithQuestions } from '@/app/dashboard/admin/events/actions';
 import { QuestionBuilder } from '@/components/question-builder';
 

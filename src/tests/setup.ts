@@ -11,7 +11,9 @@ vi.mock('next/navigation', () => ({
   redirect: vi.fn((path: string) => {
     throw new Error(`REDIRECT:${path}`);
   }),
+  unstable_rethrow: vi.fn(),
 }));
+vi.mock('server-only', () => ({}));
 
 // ─────────────────────────────────────────────
 // Run migrations once before all tests

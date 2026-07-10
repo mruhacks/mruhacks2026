@@ -11,8 +11,8 @@ import { getUser } from '@/utils/auth';
 import {
   hasAnyPermission,
   hasRole,
-  getUserPermissions,
-} from '@/app/actions/authz';
+  loadUserPermissions,
+} from './authorization';
 
 type User = NonNullable<Awaited<ReturnType<typeof getUser>>>;
 
@@ -68,6 +68,5 @@ export async function getAuthenticatedUserPermissions(): Promise<{
   permissions: Set<string>;
 }> {
   const user = await requireAuth();
-  const res = await getUserPermissions(user.id);
-  return { user, permissions: res.success && res.data ? res.data : new Set() };
+  return { user, permissions: await loadUserPermissions(user.id) };
 }

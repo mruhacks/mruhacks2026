@@ -40,7 +40,7 @@ mruhacks2026/
 │   │   ├── dashboard/    # Dashboard pages and features
 │   │   │   └── events/
 │   │   │       └── [eventId]/apply/  # Event application flow (apply to event)
-│   │   └── register/     # Root redirect + simple event signup actions
+│   │   └── register/     # Simple event signup server actions (no public route)
 │   ├── components/       # Reusable React components
 │   │   ├── ui/           # Base UI components (shadcn/ui)
 │   ├── db/               # Database schema and configurations
@@ -53,7 +53,7 @@ mruhacks2026/
 │   │   ├── db.ts         # Database connection
 │   │   └── action-result.ts  # Server action result types
 │   ├── hooks/            # Custom React hooks
-│   └── middleware.ts     # Next.js middleware for route protection
+│   └── proxy.ts          # Next.js proxy for route protection
 ├── scripts/              # Utility scripts (e.g., database seeding)
 ├── public/               # Static assets
 ├── drizzle/              # Database migrations
@@ -62,7 +62,7 @@ mruhacks2026/
 
 ## Key Features
 
-- **User Authentication**: Sign up and sign in using email/password
+- **User Authentication**: Sign in using magic links, email/password, or OAuth
 - **Event Applications**: Event-scoped application flow; events can have applications (full form) or simple signup; application questions are stored on the event
 - **Dashboard**:
   - Settings management
@@ -72,7 +72,7 @@ mruhacks2026/
   - Workshop registration
   - Project submissions
 - **Responsive Design**: Mobile-first design with tablet and desktop support
-- **Route Protection**: Middleware-based authentication for protected routes
+- **Route Protection**: Proxy-based authentication for protected routes
 
 ## Database Architecture
 
@@ -147,32 +147,32 @@ stateDiagram-v2
 
 ## Authentication Flow
 
-Sign-up flow (client → API):
+Sign-in flow (client → API):
 
 ```mermaid
 sequenceDiagram
   participant User
-  participant SignupPage
+  participant SigninPage
   participant AuthLayout
-  participant SignUpForm
+  participant SignInForm
   participant AuthClient
   participant API
 
-  User->>SignupPage: GET /signup
-  SignupPage->>AuthLayout: children (TabsContent)
-  AuthLayout->>User: Tabs + SignUpForm
-  User->>SignUpForm: submit (name, email, password)
-  SignUpForm->>AuthClient: signUp.email(details, callbacks)
+  User->>SigninPage: GET /signin
+  SigninPage->>AuthLayout: children
+  AuthLayout->>User: SignInForm
+  User->>SignInForm: submit email for a magic link
+  SignInForm->>AuthClient: signIn.magicLink(details)
   AuthClient->>API: POST /api/auth/...
   API-->>AuthClient: session / error
-  AuthClient-->>SignUpForm: onSuccess / onError
-  SignUpForm->>User: toast + redirect to /dashboard/profile (or error)
+  AuthClient-->>SignInForm: success / error
+  SignInForm->>User: toast + redirect to /dashboard
 ```
 
-1. User signs up via `/signup` with email and password
-2. Better Auth creates a user account and session
-3. Middleware checks session for protected routes (`/dashboard/*`)
-4. Unauthenticated requests to protected routes redirect to `/forbidden`
+1. User signs in via `/signin` with a magic link, password, or OAuth provider.
+2. Better Auth creates or restores the user session.
+3. The proxy checks sessions for protected routes (`/dashboard/*`).
+4. Unauthenticated requests to protected routes redirect to `/signin`.
 5. Authenticated users can access dashboard features
 
 ## Event Application Flow

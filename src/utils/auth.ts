@@ -13,6 +13,7 @@ import * as schema from '@/db/schema';
 import { sendMail } from '@/utils/mail';
 import { headers } from 'next/headers';
 import { cache } from 'react';
+import { writeAuditLog } from '@/utils/audit-log';
 
 /** Verification links expire after this many seconds (24 hours). */
 const EMAIL_VERIFICATION_EXPIRES_IN = 86400;
@@ -28,7 +29,9 @@ function getAuthBaseUrl(): string {
 function getAuthSecret(): string {
   const v = (process.env.BETTER_AUTH_SECRET ?? process.env.AUTH_SECRET)?.trim();
   if (!v) {
-    throw new Error('BETTER_AUTH_SECRET or AUTH_SECRET is required for Better Auth');
+    throw new Error(
+      'BETTER_AUTH_SECRET or AUTH_SECRET is required for Better Auth',
+    );
   }
   return v;
 }
@@ -52,6 +55,23 @@ export const auth = betterAuth({
     storage: 'database',
     customRules: {
       '/send-verification-email': { window: 300, max: 3 },
+    },
+  },
+  databaseHooks: {
+    session: {
+      create: {
+        after: async (session) => {
+          const impersonatedBy = session.impersonatedBy;
+          if (typeof impersonatedBy === 'string') {
+            await writeAuditLog({
+              actorId: impersonatedBy,
+              action: 'user.impersonated',
+              targetType: 'user',
+              targetId: session.userId,
+            });
+          }
+        },
+      },
     },
   },
   emailVerification: {

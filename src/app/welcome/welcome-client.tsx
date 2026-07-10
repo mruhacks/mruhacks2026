@@ -4,9 +4,19 @@ import * as React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import { Check, Loader2 } from 'lucide-react';
 
-import { consumeInvite, setOwnName } from '@/app/actions/users';
-import { recordOnboardingConsent } from '@/app/dashboard/account/actions';
+import { consumeInvite } from '@/app/actions/users';
+import {
+  completeWelcomeOnboarding,
+  recordOnboardingConsent,
+} from '@/app/dashboard/account/actions';
+import { saveUserProfile } from '@/app/dashboard/profile/actions';
+import ProfileForm from '@/components/profile-form';
+import type {
+  ProfileFormOptions,
+  ProfileFormValues,
+} from '@/components/profile-form/schema';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -17,32 +27,37 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Input } from '@/components/ui/input';
+import { Field, FieldError, FieldGroup } from '@/components/ui/field';
 import { Label } from '@/components/ui/label';
-import { Loader2 } from 'lucide-react';
 
 interface WelcomeClientProps {
   needsConsent: boolean;
+  needsProfile: boolean;
+  isFirstLogin: boolean;
   userEmail: string;
-  userName: string;
+  initialProfile?: Partial<ProfileFormValues>;
+  options: ProfileFormOptions;
   /** Where to send the user once onboarding is complete. */
   returnUrl: string;
 }
 
+type Step = 'profile' | 'consent';
+
 export function WelcomeClient({
   needsConsent,
+  needsProfile,
+  isFirstLogin,
   userEmail,
-  userName,
+  initialProfile,
+  options,
   returnUrl,
 }: WelcomeClientProps) {
   const router = useRouter();
-  const needsName = userName.trim().length === 0;
-  const needsOnboarding = needsName || needsConsent;
-
-  const [consumed, setConsumed] = React.useState(false);
-  const [name, setName] = React.useState(userName);
+  const initialStep: Step = needsProfile ? 'profile' : 'consent';
+  const [step, setStep] = React.useState<Step>(initialStep);
   const [acceptLegal, setAcceptLegal] = React.useState(false);
   const [marketing, setMarketing] = React.useState(false);
+  const [legalError, setLegalError] = React.useState<string>();
   const [submitting, setSubmitting] = React.useState(false);
   const ranRef = React.useRef(false);
 
@@ -50,161 +65,192 @@ export function WelcomeClient({
     if (ranRef.current) return;
     ranRef.current = true;
     consumeInvite().then((res) => {
-      if (res.success && res.data) setConsumed(res.data.consumed);
-      else if (!res.success) toast.error(res.error);
+      if (!res.success) toast.error(res.error);
     });
   }, []);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (needsName && name.trim().length === 0) {
-      toast.error('Enter your full name');
+  const finish = async () => {
+    const result = await completeWelcomeOnboarding();
+    if (!result.success) {
+      toast.error(result.error ?? 'Unable to finish setup.');
       return;
     }
-    if (needsConsent && !acceptLegal) {
-      toast.error('You must accept the Terms of Use and Privacy Policy');
-      return;
-    }
-    setSubmitting(true);
-    if (needsName) {
-      const nameRes = await setOwnName(name);
-      if (!nameRes.success) {
-        setSubmitting(false);
-        toast.error(nameRes.error);
-        return;
-      }
-    }
-    if (needsConsent) {
-      const consentRes = await recordOnboardingConsent(marketing);
-      if (!consentRes.success) {
-        setSubmitting(false);
-        toast.error(consentRes.error);
-        return;
-      }
-    }
-    setSubmitting(false);
     toast.success('All set. Welcome aboard!');
     router.push(returnUrl);
   };
 
-  const description = needsOnboarding ? (
-    <>
-      Signed in as <span className='font-medium'>{userEmail}</span>. Finish your
-      account to continue.
-    </>
-  ) : (
-    <>
-      Signed in as <span className='font-medium'>{userEmail}</span>.
-    </>
-  );
+  const handleProfileSaved = () => {
+    if (needsConsent) {
+      setStep('consent');
+    } else {
+      void finish();
+    }
+  };
+
+  const handleConsent = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!acceptLegal) {
+      setLegalError('You must accept the Terms of Use and Privacy Policy.');
+      return;
+    }
+
+    setSubmitting(true);
+    const result = await recordOnboardingConsent(marketing);
+    setSubmitting(false);
+    if (!result.success) {
+      toast.error(result.error);
+      return;
+    }
+    await finish();
+  };
+
+  const steps = [
+    ...(needsProfile ? [{ id: 'profile' as const, label: 'Profile' }] : []),
+    ...(needsConsent ? [{ id: 'consent' as const, label: 'Terms' }] : []),
+  ];
+  const currentStep = steps.findIndex((item) => item.id === step) + 1;
 
   return (
-    <div className='flex min-h-screen items-center justify-center px-4'>
-      <Card className='w-full max-w-md'>
+    <div className='flex min-h-screen items-center justify-center px-4 py-8'>
+      <Card className='w-full max-w-2xl'>
         <CardHeader>
-          <CardTitle>Welcome{consumed ? '!' : ' back'}</CardTitle>
-          <CardDescription>{description}</CardDescription>
+          <CardTitle>{isFirstLogin ? 'Welcome!' : 'Welcome back!'}</CardTitle>
+          <CardDescription>
+            Signed in as <span className='font-medium'>{userEmail}</span>. Set
+            up your account to continue.
+          </CardDescription>
+          {steps.length > 1 && (
+            <ol
+              className='mt-4 flex items-center gap-2 text-sm'
+              aria-label='Onboarding progress'
+            >
+              {steps.map((item, index) => {
+                const complete = index + 1 < currentStep;
+                const active = item.id === step;
+                return (
+                  <li key={item.id} className='flex flex-1 items-center gap-2'>
+                    <span
+                      className={`flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-medium ${
+                        complete || active
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-muted text-muted-foreground'
+                      }`}
+                    >
+                      {complete ? <Check className='size-4' /> : index + 1}
+                    </span>
+                    <span
+                      className={
+                        active ? 'font-medium' : 'text-muted-foreground'
+                      }
+                    >
+                      {item.label}
+                    </span>
+                    {index < steps.length - 1 && (
+                      <span className='bg-border h-px flex-1' />
+                    )}
+                  </li>
+                );
+              })}
+            </ol>
+          )}
         </CardHeader>
 
-        {needsOnboarding ? (
-          <>
+        {step === 'profile' && (
+          <CardContent>
+            <ProfileForm
+              initial={initialProfile}
+              options={options}
+              onSubmit={saveUserProfile}
+              submitLabel={needsConsent ? 'Continue' : 'Finish setup'}
+              successMessage='Profile saved.'
+              onSuccess={handleProfileSaved}
+            />
+          </CardContent>
+        )}
+
+        {step === 'consent' && (
+          <form onSubmit={handleConsent} noValidate>
             <CardContent>
-              <form
-                id='form-welcome-onboarding'
-                onSubmit={handleSubmit}
-                className='space-y-4'
-              >
-                {needsName && (
-                  <div className='space-y-2'>
-                    <Label htmlFor='welcome-name'>Full name</Label>
-                    <Input
-                      id='welcome-name'
-                      autoComplete='name'
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      placeholder='Jane Doe'
+              <FieldGroup>
+                <Field data-invalid={Boolean(legalError)}>
+                  <div className='flex items-start gap-3'>
+                    <Checkbox
+                      id='welcome-legal'
+                      checked={acceptLegal}
+                      onCheckedChange={(value) => {
+                        setAcceptLegal(value === true);
+                        setLegalError(undefined);
+                      }}
                       disabled={submitting}
-                      required
+                      className='mt-0.5'
                     />
-                  </div>
-                )}
-                {needsConsent && (
-                  <div className='space-y-3'>
-                    <div className='flex items-start gap-3'>
-                      <Checkbox
-                        id='welcome-legal'
-                        checked={acceptLegal}
-                        onCheckedChange={(v) => setAcceptLegal(v === true)}
-                        disabled={submitting}
-                        className='mt-0.5'
-                      />
-                      <Label
-                        htmlFor='welcome-legal'
-                        className='text-sm leading-snug font-normal'
+                    <Label
+                      htmlFor='welcome-legal'
+                      className='text-sm leading-snug font-normal'
+                    >
+                      I agree to the{' '}
+                      <Link
+                        href='/terms'
+                        target='_blank'
+                        className='text-primary underline underline-offset-2'
                       >
-                        I agree to the{' '}
-                        <Link
-                          href='/terms'
-                          target='_blank'
-                          className='text-primary underline underline-offset-2'
-                        >
-                          Terms of Use
-                        </Link>{' '}
-                        and{' '}
-                        <Link
-                          href='/privacy'
-                          target='_blank'
-                          className='text-primary underline underline-offset-2'
-                        >
-                          Privacy Policy
-                        </Link>
-                        .
-                      </Label>
-                    </div>
-                    <div className='flex items-start gap-3'>
-                      <Checkbox
-                        id='welcome-marketing'
-                        checked={marketing}
-                        onCheckedChange={(v) => setMarketing(v === true)}
-                        disabled={submitting}
-                        className='mt-0.5'
-                      />
-                      <Label
-                        htmlFor='welcome-marketing'
-                        className='text-muted-foreground text-sm leading-snug font-normal'
+                        Terms of Use
+                      </Link>{' '}
+                      and{' '}
+                      <Link
+                        href='/privacy'
+                        target='_blank'
+                        className='text-primary underline underline-offset-2'
                       >
-                        Send me newsletters, sponsor offers, and updates about
-                        future MRUHacks events.
-                      </Label>
-                    </div>
+                        Privacy Policy
+                      </Link>
+                      .
+                    </Label>
                   </div>
-                )}
-              </form>
+                  {legalError && <FieldError>{legalError}</FieldError>}
+                </Field>
+                <Field>
+                  <div className='flex items-start gap-3'>
+                    <Checkbox
+                      id='welcome-marketing'
+                      checked={marketing}
+                      onCheckedChange={(value) => setMarketing(value === true)}
+                      disabled={submitting}
+                      className='mt-0.5'
+                    />
+                    <Label
+                      htmlFor='welcome-marketing'
+                      className='text-muted-foreground text-sm leading-snug font-normal'
+                    >
+                      Send me newsletters, sponsor offers, and updates about
+                      future MRUHacks events.
+                    </Label>
+                  </div>
+                </Field>
+              </FieldGroup>
             </CardContent>
-            <CardFooter>
-              <Button
-                type='submit'
-                form='form-welcome-onboarding'
-                disabled={submitting}
-                className='w-full'
-              >
+            <CardFooter className='flex gap-3'>
+              {needsProfile && (
+                <Button
+                  type='button'
+                  variant='outline'
+                  onClick={() => setStep('profile')}
+                  disabled={submitting}
+                >
+                  Back
+                </Button>
+              )}
+              <Button type='submit' disabled={submitting} className='flex-1'>
                 {submitting ? (
                   <>
-                    <Loader2 className='mr-2 size-4 animate-spin' />
-                    Saving…
+                    <Loader2 className='mr-2 size-4 animate-spin' /> Saving...
                   </>
                 ) : (
-                  'Continue'
+                  'Finish setup'
                 )}
               </Button>
             </CardFooter>
-          </>
-        ) : (
-          <CardFooter>
-            <Button asChild className='w-full'>
-              <Link href={returnUrl}>Continue</Link>
-            </Button>
-          </CardFooter>
+          </form>
         )}
       </Card>
     </div>

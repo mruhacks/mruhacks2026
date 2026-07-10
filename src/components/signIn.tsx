@@ -71,6 +71,7 @@ export default function SignInForm() {
   const [unverifiedEmail, setUnverifiedEmail] = React.useState<string | null>(
     null,
   );
+  const submitInProgress = React.useRef(false);
   const router = useRouter();
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -82,51 +83,92 @@ export default function SignInForm() {
   });
 
   function onSubmit(credentials: z.infer<typeof formSchema>) {
-    authClient.signIn.email(credentials, {
-      onRequest: () => setLoading(true),
-      onSuccess: () => {
+    if (submitInProgress.current) return;
+
+    submitInProgress.current = true;
+    setLoading(true);
+    void authClient.signIn
+      .email(credentials, {
+        onSuccess: () => {
+          submitInProgress.current = false;
+          setLoading(false);
+          toast.success('Signed in successfully', {
+            description: 'Redirecting to your dashboard...',
+          });
+          router.push('/dashboard');
+        },
+        onError: (ctx) => {
+          submitInProgress.current = false;
+          setLoading(false);
+          const code = ctx?.error?.code;
+          if (code === 'EMAIL_NOT_VERIFIED') {
+            setUnverifiedEmail(credentials.email);
+            return;
+          }
+          toast.error('Sign-in failed', {
+            description:
+              ctx?.error?.message ?? 'Invalid credentials or network issue.',
+          });
+        },
+      })
+      .catch(() => {
+        submitInProgress.current = false;
         setLoading(false);
-        toast.success('Signed in successfully', {
-          description: 'Redirecting to your dashboard...',
-        });
-        router.push('/dashboard');
-      },
-      onError: (ctx) => {
-        setLoading(false);
-        const code = ctx?.error?.code;
-        if (code === 'EMAIL_NOT_VERIFIED') {
-          setUnverifiedEmail(credentials.email);
-          return;
-        }
         toast.error('Sign-in failed', {
-          description:
-            ctx?.error?.message ?? 'Invalid credentials or network issue.',
+          description: 'Invalid credentials or network issue.',
         });
-      },
-    });
+      });
   }
 
   async function handleMagicLink() {
+    if (submitInProgress.current || magicLinkSent) return;
+
+    submitInProgress.current = true;
     const email = form.getValues('email');
     const valid = await form.trigger('email');
     if (!valid || !email) {
+      submitInProgress.current = false;
       toast.error('Enter your email first');
       return;
     }
+
     setMagicLinkLoading(true);
-    const res = await authClient.signIn.magicLink({
-      email,
-      callbackURL: '/welcome',
-    });
-    setMagicLinkLoading(false);
-    if (res.error) {
-      toast.error(res.error.message ?? 'Failed to send magic link');
+    try {
+      const res = await authClient.signIn.magicLink({
+        email,
+        callbackURL: '/welcome',
+      });
+      if (res.error) {
+        toast.error(res.error.message ?? 'Failed to send magic link');
+        return;
+      }
+
+      setMagicLinkSent(true);
+      toast.success('Check your email', {
+        description: `We sent a sign-in link to ${email}.`,
+      });
+    } catch {
+      toast.error('Failed to send magic link');
+    } finally {
+      submitInProgress.current = false;
+      setMagicLinkLoading(false);
+    }
+  }
+
+  function handleFormSubmit(event: React.FormEvent<HTMLFormElement>) {
+    if (showPassword) {
+      void form.handleSubmit(onSubmit)(event);
       return;
     }
-    setMagicLinkSent(true);
-    toast.success('Check your email', {
-      description: `We sent a sign-in link to ${email}.`,
-    });
+
+    event.preventDefault();
+    void handleMagicLink();
+  }
+
+  function handleFormKeyDown(event: React.KeyboardEvent<HTMLFormElement>) {
+    if (event.key === 'Enter' && event.repeat && submitInProgress.current) {
+      event.preventDefault();
+    }
   }
 
   function handleSocial(provider: 'github' | 'google') {
@@ -179,7 +221,11 @@ export default function SignInForm() {
       </CardHeader>
 
       <CardContent>
-        <form id='form-signin' onSubmit={form.handleSubmit(onSubmit)}>
+        <form
+          id='form-signin'
+          onSubmit={handleFormSubmit}
+          onKeyDown={handleFormKeyDown}
+        >
           <FieldGroup>
             {/* Email */}
             <Controller

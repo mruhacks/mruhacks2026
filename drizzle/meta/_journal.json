@@ -127,6 +127,27 @@
       "when": 1783698449456,
       "tag": "0017_consent_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1783705708874,
+      "tag": "0018_normalize_event_application_questions",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1783705868533,
+      "tag": "0019_welcome_profile_assets",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1783705950866,
+      "tag": "0020_security_audit_and_invite_expiry",
+      "breakpoints": true
     }
   ]
 }

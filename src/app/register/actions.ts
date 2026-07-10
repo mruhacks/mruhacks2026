@@ -1,6 +1,6 @@
 /**
  * Server actions for simple event signup (register/unregister for events without application).
- * For events with application, use dashboard/events/actions.ts.
+ * This directory contains no page, so `/register` is not a public route.
  */
 
 'use server';

@@ -25,15 +25,16 @@ import { headers } from 'next/headers';
 import {
   hasPermission,
   requirePermission,
-  getRolesForUsers,
-} from '@/app/actions/authz';
+  loadRolesForUsers,
+} from '@/lib/rbac/authorization';
+import { type RoleId, type PermissionId } from '@/app/actions/roles';
 import {
-  setUserRoles,
-  setUserDirectPermissions,
-  type RoleId,
-  type PermissionId,
-} from '@/app/actions/roles';
+  replaceUserDirectPermissions,
+  replaceUserRoles,
+} from '@/lib/rbac/role-mutations';
 import { revalidatePath } from 'next/cache';
+import { serverActionError } from '@/utils/server-action-error';
+import { writeAuditLog } from '@/utils/audit-log';
 
 // ─────────────────────────────────────────────
 // TYPES
@@ -159,8 +160,7 @@ export async function listUsers(
     ]);
     const total = countRow[0]?.total ?? 0;
 
-    const rolesRes = await getRolesForUsers(rows.map((r) => r.id));
-    const rolesMap = rolesRes.success && rolesRes.data ? rolesRes.data : {};
+    const rolesMap = await loadRolesForUsers(rows.map((r) => r.id));
 
     const users: AdminUserRow[] = rows.map((r) => ({
       id: r.id,
@@ -185,7 +185,7 @@ export async function listUsers(
       totalPages,
     });
   } catch (e) {
-    return fail(`Failed to list users: ${(e as Error).message}`);
+    return serverActionError('list users', e);
   }
 }
 
@@ -259,7 +259,7 @@ export async function getUserDetails(userId: string): Promise<
       directPermissions: permRows,
     });
   } catch (e) {
-    return fail(`Failed to load user: ${(e as Error).message}`);
+    return serverActionError('load user', e);
   }
 }
 
@@ -279,12 +279,18 @@ export async function updateUserRoles(
     if (!caller) return fail('Not authenticated');
     await requirePermission(caller.id, 'user:write:all');
 
-    const res = await setUserRoles(userId, roleIds);
-    if (!res.success) return res;
+    await replaceUserRoles(userId, roleIds);
+    await writeAuditLog({
+      actorId: caller.id,
+      action: 'user.roles.updated',
+      targetType: 'user',
+      targetId: userId,
+      metadata: { roleIds },
+    });
     revalidatePath('/dashboard/admin/users');
     return ok();
   } catch (e) {
-    return fail(`Failed to update user roles: ${(e as Error).message}`);
+    return serverActionError('update user roles', e);
   }
 }
 
@@ -300,12 +306,18 @@ export async function updateUserDirectPermissions(
     if (!caller) return fail('Not authenticated');
     await requirePermission(caller.id, 'user:write:all');
 
-    const res = await setUserDirectPermissions(userId, permissionIds);
-    if (!res.success) return res;
+    await replaceUserDirectPermissions(userId, permissionIds);
+    await writeAuditLog({
+      actorId: caller.id,
+      action: 'user.permissions.updated',
+      targetType: 'user',
+      targetId: userId,
+      metadata: { permissionIds },
+    });
     revalidatePath('/dashboard/admin/users');
     return ok();
   } catch (e) {
-    return fail(`Failed to update user permissions: ${(e as Error).message}`);
+    return serverActionError('update user permissions', e);
   }
 }
 
@@ -330,10 +342,16 @@ export async function deleteUser(userId: string): Promise<ActionResult> {
     }
 
     await db.delete(user).where(eq(user.id, userId));
+    await writeAuditLog({
+      actorId: caller.id,
+      action: 'user.deleted',
+      targetType: 'user',
+      targetId: userId,
+    });
     revalidatePath('/dashboard/admin/users');
     return ok();
   } catch (e) {
-    return fail(`Failed to delete user: ${(e as Error).message}`);
+    return serverActionError('delete user', e);
   }
 }
 
@@ -356,9 +374,15 @@ export async function adminSetUserPassword(
       headers: await headers(),
     });
     if (!res.status) return fail('Failed to set password');
+    await writeAuditLog({
+      actorId: caller.id,
+      action: 'user.password.set',
+      targetType: 'user',
+      targetId: userId,
+    });
     return ok();
   } catch (e) {
-    return fail(`Failed to set password: ${(e as Error).message}`);
+    return serverActionError('set password', e);
   }
 }
 
@@ -379,7 +403,7 @@ export async function adminSendPasswordReset(
     });
     return ok();
   } catch (e) {
-    return fail(`Failed to send reset email: ${(e as Error).message}`);
+    return serverActionError('send password reset email', e);
   }
 }
 
@@ -405,10 +429,20 @@ export async function inviteUser(
 
     await db
       .insert(invite)
-      .values({ email: normalized, roleIds, invitedBy: caller.id })
+      .values({
+        email: normalized,
+        roleIds,
+        invitedBy: caller.id,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      })
       .onConflictDoUpdate({
         target: invite.email,
-        set: { roleIds, invitedBy: caller.id, createdAt: new Date() },
+        set: {
+          roleIds,
+          invitedBy: caller.id,
+          createdAt: new Date(),
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        },
       });
 
     await auth.api.signInMagicLink({
@@ -418,9 +452,16 @@ export async function inviteUser(
       },
       headers: await headers(),
     });
+    await writeAuditLog({
+      actorId: caller.id,
+      action: 'user.invited',
+      targetType: 'invite',
+      targetId: normalized,
+      metadata: { roleIds },
+    });
     return ok();
   } catch (e) {
-    return fail(`Failed to send invite: ${(e as Error).message}`);
+    return serverActionError('send invite', e);
   }
 }
 
@@ -444,7 +485,7 @@ export async function currentUserHasPassword(): Promise<
     );
     return ok({ hasPassword });
   } catch (e) {
-    return fail(`Failed to check password state: ${(e as Error).message}`);
+    return serverActionError('check password state', e);
   }
 }
 
@@ -462,7 +503,7 @@ export async function setOwnName(name: string): Promise<ActionResult> {
     await db.update(user).set({ name: trimmed }).where(eq(user.id, caller.id));
     return ok();
   } catch (e) {
-    return fail(`Failed to save name: ${(e as Error).message}`);
+    return serverActionError('save name', e);
   }
 }
 
@@ -477,15 +518,18 @@ export async function setInitialPassword(
   try {
     const caller = await getUser();
     if (!caller) return fail('Not authenticated');
-    if (newPassword.length < 8) {
-      return fail('Password must be at least 8 characters');
+    if (newPassword.length < 12) {
+      return fail('Password must be at least 12 characters');
     }
 
     const existing = await db
       .select({ id: account.id })
       .from(account)
       .where(
-        and(eq(account.userId, caller.id), eq(account.providerId, 'credential')),
+        and(
+          eq(account.userId, caller.id),
+          eq(account.providerId, 'credential'),
+        ),
       )
       .limit(1);
     if (existing.length > 0) {
@@ -502,7 +546,7 @@ export async function setInitialPassword(
     });
     return ok();
   } catch (e) {
-    return fail(`Failed to set password: ${(e as Error).message}`);
+    return serverActionError('set password', e);
   }
 }
 
@@ -520,22 +564,25 @@ export async function consumeInvite(): Promise<
 
     const email = caller.email.toLowerCase();
     const [row] = await db
-      .select({ roleIds: invite.roleIds })
+      .select({ roleIds: invite.roleIds, expiresAt: invite.expiresAt })
       .from(invite)
       .where(eq(invite.email, email))
       .limit(1);
 
     if (!row) return ok({ consumed: false });
+    if (row.expiresAt <= new Date()) {
+      await db.delete(invite).where(eq(invite.email, email));
+      return ok({ consumed: false });
+    }
 
     if (row.roleIds.length > 0) {
-      const res = await setUserRoles(caller.id, row.roleIds);
-      if (!res.success) return res;
+      await replaceUserRoles(caller.id, row.roleIds);
     }
     await db.delete(invite).where(eq(invite.email, email));
     revalidatePath('/dashboard/admin/users');
     return ok({ consumed: true });
   } catch (e) {
-    return fail(`Failed to consume invite: ${(e as Error).message}`);
+    return serverActionError('consume invite', e);
   }
 }
 
@@ -567,10 +614,17 @@ export async function adminBanUser(
       },
       headers: await headers(),
     });
+    await writeAuditLog({
+      actorId: caller.id,
+      action: 'user.banned',
+      targetType: 'user',
+      targetId: userId,
+      metadata: { banExpiresIn: banExpiresIn ?? null },
+    });
     revalidatePath('/dashboard/admin/users');
     return ok();
   } catch (e) {
-    return fail(`Failed to ban user: ${(e as Error).message}`);
+    return serverActionError('ban user', e);
   }
 }
 
@@ -587,10 +641,16 @@ export async function adminUnbanUser(userId: string): Promise<ActionResult> {
       body: { userId },
       headers: await headers(),
     });
+    await writeAuditLog({
+      actorId: caller.id,
+      action: 'user.unbanned',
+      targetType: 'user',
+      targetId: userId,
+    });
     revalidatePath('/dashboard/admin/users');
     return ok();
   } catch (e) {
-    return fail(`Failed to unban user: ${(e as Error).message}`);
+    return serverActionError('unban user', e);
   }
 }
 
@@ -611,7 +671,7 @@ export async function adminRevokeUserSessions(
     });
     return ok();
   } catch (e) {
-    return fail(`Failed to revoke sessions: ${(e as Error).message}`);
+    return serverActionError('revoke user sessions', e);
   }
 }
 
@@ -637,9 +697,16 @@ export async function updateUserProfile(
     if (Object.keys(changes).length === 0) return ok();
 
     await db.update(user).set(changes).where(eq(user.id, userId));
+    await writeAuditLog({
+      actorId: caller.id,
+      action: 'user.profile.updated',
+      targetType: 'user',
+      targetId: userId,
+      metadata: { fields: Object.keys(changes) },
+    });
     revalidatePath('/dashboard/admin/users');
     return ok();
   } catch (e) {
-    return fail(`Failed to update user: ${(e as Error).message}`);
+    return serverActionError('update user', e);
   }
 }

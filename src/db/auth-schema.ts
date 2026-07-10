@@ -6,7 +6,9 @@ import {
   boolean,
   integer,
   index,
+  jsonb,
 } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 
 export const user = pgTable(
   'user',
@@ -16,6 +18,8 @@ export const user = pgTable(
     email: text('email').notNull().unique(),
     emailVerified: boolean('email_verified').default(false).notNull(),
     image: text('image'),
+    /** Set after the user has completed every required welcome step. */
+    onboardingCompletedAt: timestamp('onboarding_completed_at'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at')
       .defaultNow()
@@ -30,14 +34,8 @@ export const user = pgTable(
   (table) => [
     index('user_name_idx').on(table.name),
     index('user_created_at_idx').on(table.createdAt.desc()),
-    index('user_email_trgm_idx').using(
-      'gin',
-      table.email.op('gin_trgm_ops'),
-    ),
-    index('user_name_trgm_idx').using(
-      'gin',
-      table.name.op('gin_trgm_ops'),
-    ),
+    index('user_email_trgm_idx').using('gin', table.email.op('gin_trgm_ops')),
+    index('user_name_trgm_idx').using('gin', table.name.op('gin_trgm_ops')),
   ],
 );
 
@@ -170,4 +168,28 @@ export const invite = pgTable('invite', {
     onDelete: 'set null',
   }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
+  /** Invites are short-lived so a recycled email address cannot inherit roles. */
+  expiresAt: timestamp('expires_at')
+    .default(sql`now() + interval '7 days'`)
+    .notNull(),
 });
+
+/** Durable, append-only record of privileged administrative activity. */
+export const auditLog = pgTable(
+  'audit_log',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    actorId: uuid('actor_id').references(() => user.id, {
+      onDelete: 'set null',
+    }),
+    action: text('action').notNull(),
+    targetType: text('target_type').notNull(),
+    targetId: text('target_id'),
+    metadata: jsonb('metadata').$type<Record<string, unknown>>(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => [
+    index('audit_log_actor_id_idx').on(table.actorId),
+    index('audit_log_created_at_idx').on(table.createdAt.desc()),
+  ],
+);

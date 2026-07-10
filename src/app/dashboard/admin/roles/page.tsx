@@ -1,5 +1,5 @@
 import { requireAuthWithPermission } from '@/lib/rbac/guards';
-import { hasAnyPermission } from '@/app/actions/authz';
+import { hasAnyPermission } from '@/lib/rbac/authorization';
 import { listRoles, listPermissions } from '@/app/actions/roles';
 import { RolesTable } from './roles-table';
 

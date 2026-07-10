@@ -88,12 +88,18 @@ async function registerParticipant(
   const event = eventParsed.data;
 
   const [eventRow] = await db
-    .select({ applicationQuestions: events.applicationQuestions })
+    .select({
+      hasApplication: events.hasApplication,
+      applicationQuestions: events.applicationQuestions,
+    })
     .from(events)
     .where(eq(events.id, eventId))
     .limit(1);
-  const applicationQuestions =
-    (eventRow?.applicationQuestions as ApplicationQuestion[] | null) ?? [];
+  if (!eventRow) return fail('Event not found.');
+  if (!eventRow.hasApplication) {
+    return fail('This event does not require an application.');
+  }
+  const applicationQuestions = eventRow.applicationQuestions as ApplicationQuestion[];
 
   const built = buildApplicationResponses(
     applicationQuestions,

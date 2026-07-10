@@ -50,6 +50,8 @@ type ProfileFormProps = {
   successMessage?: string;
   errorMessage?: string;
   nextUrl?: string;
+  /** Called after a successful save before the default navigation occurs. */
+  onSuccess?: () => void;
 };
 
 const DEFAULT_SUBMIT_LABEL = 'Save Changes';
@@ -68,6 +70,7 @@ export default function ProfileForm({
   successMessage = DEFAULT_SUCCESS_MESSAGE,
   errorMessage = DEFAULT_ERROR_MESSAGE,
   nextUrl,
+  onSuccess,
 }: ProfileFormProps) {
   const router = useRouter();
   const {
@@ -114,7 +117,11 @@ export default function ProfileForm({
 
         if (!result || (isActionResult(result) && result.success)) {
           toast.success(successMessage);
-          router.push(nextUrl ?? '/dashboard');
+          if (onSuccess) {
+            onSuccess();
+          } else {
+            router.push(nextUrl ?? '/dashboard');
+          }
         }
 
         if (isActionResult(result) && !result.success) {
@@ -125,7 +132,7 @@ export default function ProfileForm({
         toast.error(errorMessage);
       }
     },
-    [onSubmit, successMessage, errorMessage, router, nextUrl],
+    [onSubmit, successMessage, errorMessage, router, nextUrl, onSuccess],
   );
 
   const handleNext = async () => {
