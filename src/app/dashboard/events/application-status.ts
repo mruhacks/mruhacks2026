@@ -18,7 +18,7 @@ import {
 export type ApplicationStatusLabel = ApplicationStatus;
 export type { ApplicationStatusBadgeVariant };
 
-export const DEFAULT_APPLICATION_STATUS: ApplicationStatusLabel =
+const DEFAULT_APPLICATION_STATUS: ApplicationStatusLabel =
   'pending_review';
 
 export type ApplicationStatusDisplay = {

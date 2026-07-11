@@ -6,12 +6,14 @@
  */
 
 import { betterAuth } from 'better-auth';
+import { admin, magicLink } from 'better-auth/plugins';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { db } from '@/utils/db';
 import * as schema from '@/db/schema';
 import { sendMail } from '@/utils/mail';
 import { headers } from 'next/headers';
 import { cache } from 'react';
+import { writeAuditLog } from '@/utils/audit-log';
 
 /** Verification links expire after this many seconds (24 hours). */
 const EMAIL_VERIFICATION_EXPIRES_IN = 86400;
@@ -27,7 +29,9 @@ function getAuthBaseUrl(): string {
 function getAuthSecret(): string {
   const v = (process.env.BETTER_AUTH_SECRET ?? process.env.AUTH_SECRET)?.trim();
   if (!v) {
-    throw new Error('BETTER_AUTH_SECRET or AUTH_SECRET is required for Better Auth');
+    throw new Error(
+      'BETTER_AUTH_SECRET or AUTH_SECRET is required for Better Auth',
+    );
   }
   return v;
 }
@@ -47,6 +51,29 @@ export const auth = betterAuth({
     provider: 'pg',
     schema,
   }),
+  rateLimit: {
+    storage: 'database',
+    customRules: {
+      '/send-verification-email': { window: 300, max: 3 },
+    },
+  },
+  databaseHooks: {
+    session: {
+      create: {
+        after: async (session) => {
+          const impersonatedBy = session.impersonatedBy;
+          if (typeof impersonatedBy === 'string') {
+            await writeAuditLog({
+              actorId: impersonatedBy,
+              action: 'user.impersonated',
+              targetType: 'user',
+              targetId: session.userId,
+            });
+          }
+        },
+      },
+    },
+  },
   emailVerification: {
     sendOnSignUp: true,
     sendOnSignIn: false,
@@ -55,7 +82,7 @@ export const auth = betterAuth({
     sendVerificationEmail: async ({ user, url }) => {
       void sendMail({
         to: user.email,
-        subject: 'Verify your email — MRU Hacks',
+        subject: 'Verify your email — MRUHacks',
         text: `Verify your email address by opening this link:\n\n${url}\n`,
         html: `<p>Verify your email address by clicking <a href="${url}">this link</a>.</p>`,
       }).catch((err) => {
@@ -69,7 +96,7 @@ export const auth = betterAuth({
     sendResetPassword: async ({ user, url }) => {
       void sendMail({
         to: user.email,
-        subject: 'Reset your password — MRU Hacks',
+        subject: 'Reset your password — MRUHacks',
         text: `Reset your password by opening this link:\n\n${url}\n`,
         html: `<p>Reset your password by clicking <a href="${url}">this link</a>.</p>`,
       }).catch((err) => {
@@ -77,6 +104,65 @@ export const auth = betterAuth({
       });
     },
   },
+  user: {
+    /**
+     * Self-serve account deletion (right to erasure — PIPEDA / Alberta PIPA /
+     * GDPR Art. 17). Deletion is confirmed via an emailed verification link so
+     * it cannot be triggered by a hijacked session. Once verified, Better Auth
+     * removes the user row; every user-scoped table cascades via its
+     * `onDelete: 'cascade'` foreign key, so no residual personal data remains.
+     */
+    deleteUser: {
+      enabled: true,
+      sendDeleteAccountVerification: async ({ user, url }) => {
+        void sendMail({
+          to: user.email,
+          subject: 'Confirm account deletion — MRUHacks',
+          text:
+            `We received a request to permanently delete your MRUHacks account.\n\n` +
+            `Confirm by opening this link (valid for 24 hours):\n\n${url}\n\n` +
+            `This erases your account and all associated data and cannot be undone. ` +
+            `If you did not request this, you can safely ignore this email.\n`,
+          html:
+            `<p>We received a request to permanently delete your MRUHacks account.</p>` +
+            `<p>Confirm by clicking <a href="${url}">this link</a> (valid for 24 hours).</p>` +
+            `<p>This erases your account and all associated data and <strong>cannot be undone</strong>. ` +
+            `If you did not request this, you can safely ignore this email.</p>`,
+        }).catch((err) => {
+          console.error('[auth] sendDeleteAccountVerification failed', err);
+        });
+      },
+    },
+  },
+  socialProviders: {
+    ...(process.env.GITHUB_CLIENT_ID && {
+      github: {
+        clientId: process.env.GITHUB_CLIENT_ID,
+        clientSecret: process.env.GITHUB_CLIENT_SECRET!,
+      },
+    }),
+    ...(process.env.GOOGLE_CLIENT_ID && {
+      google: {
+        clientId: process.env.GOOGLE_CLIENT_ID,
+        clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      },
+    }),
+  },
+  plugins: [
+    admin(),
+    magicLink({
+      sendMagicLink: async ({ email, url }) => {
+        void sendMail({
+          to: email,
+          subject: 'Sign in to MRUHacks',
+          text: `Sign in by opening this link:\n\n${url}\n`,
+          html: `<p>Sign in by clicking <a href="${url}">this link</a>.</p>`,
+        }).catch((err) => {
+          console.error('[auth] sendMagicLink failed', err);
+        });
+      },
+    }),
+  ],
   advanced: {
     database: {
       generateId: false,
@@ -92,7 +178,7 @@ export const auth = betterAuth({
  *
  * @returns Promise resolving to the current session or null if not authenticated
  */
-export const getSession = cache(async () => {
+const getSession = cache(async () => {
   const session = await auth.api.getSession({ headers: await headers() });
   return session;
 });

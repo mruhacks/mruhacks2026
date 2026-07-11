@@ -68,15 +68,92 @@
     {
       "idx": 9,
       "version": "7",
-      "when": 1780154069038,
-      "tag": "0009_fine_silver_samurai",
+      "when": 1776749827354,
+      "tag": "0009_admin_plugin_fields",
       "breakpoints": true
     },
     {
       "idx": 10,
       "version": "7",
-      "when": 1782707056148,
-      "tag": "0010_hard_madame_hydra",
+      "when": 1776751128910,
+      "tag": "0010_invite_table",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1776779368624,
+      "tag": "0011_perf_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1782851720184,
+      "tag": "0012_graceful_reaper",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1783610408725,
+      "tag": "0013_add_event_register_url_featured",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1783692214051,
+      "tag": "0014_odd_rawhide_kid",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1783695110117,
+      "tag": "0015_account_id_text",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1783696764657,
+      "tag": "0016_account_management",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1783698449456,
+      "tag": "0017_consent_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1783705708874,
+      "tag": "0018_normalize_event_application_questions",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1783705868533,
+      "tag": "0019_welcome_profile_assets",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1783705950866,
+      "tag": "0020_security_audit_and_invite_expiry",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1783715855091,
+      "tag": "0021_onboarding_hackathon_history",
       "breakpoints": true
     }
   ]

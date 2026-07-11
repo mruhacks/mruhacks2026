@@ -12,7 +12,11 @@ import { INTRO_BLURB, REGISTRATION_OPEN } from '../content';
  *
  * @returns section for intro blurb
  */
-export function About() {
+type AboutProps = {
+  registerUrl: string;
+};
+
+export function About({ registerUrl }: AboutProps) {
   return (
     <div className='max-w-2xl'>
       {/* pre-title */}
@@ -36,7 +40,7 @@ export function About() {
 
         {REGISTRATION_OPEN && (
           <Button variant='gradient' size='lg' asChild>
-            <Link href='/signup'>Register Now</Link>
+            <Link href={registerUrl}>Register Now</Link>
           </Button>
         )}
 

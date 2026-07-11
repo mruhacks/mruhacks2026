@@ -25,7 +25,7 @@ import {
   personalSchema,
   type ProfileFormValues,
 } from '@/components/profile-form/schema';
-import { type ApplicationFormOptions } from '@/components/application-form/schema';
+import { type ProfileFormOptions } from '@/components/profile-form/schema';
 import { useRouter } from 'next/navigation';
 
 const tabLabels: Record<string, string> = {
@@ -44,11 +44,16 @@ function RequiredAsterisk(): React.JSX.Element {
 
 type ProfileFormProps = {
   initial?: Partial<ProfileFormValues>;
-  options: ApplicationFormOptions;
+  options: ProfileFormOptions;
   onSubmit: (data: ProfileFormValues) => Promise<ActionResult | void>;
   submitLabel?: string;
   successMessage?: string;
   errorMessage?: string;
+  nextUrl?: string;
+  /** Called after a successful save before the default navigation occurs. */
+  onSuccess?: () => void;
+  /** Render all profile fields in one continuous form instead of tabs. */
+  layout?: 'tabs' | 'single';
 };
 
 const DEFAULT_SUBMIT_LABEL = 'Save Changes';
@@ -66,6 +71,9 @@ export default function ProfileForm({
   submitLabel = DEFAULT_SUBMIT_LABEL,
   successMessage = DEFAULT_SUCCESS_MESSAGE,
   errorMessage = DEFAULT_ERROR_MESSAGE,
+  nextUrl,
+  onSuccess,
+  layout = 'tabs',
 }: ProfileFormProps) {
   const router = useRouter();
   const {
@@ -73,7 +81,7 @@ export default function ProfileForm({
     register,
     handleSubmit,
     trigger,
-    formState: { errors, isSubmitting, touchedFields },
+    formState: { errors, isSubmitting },
     reset,
   } = useForm<ProfileFormValues>({
     resolver: zodResolver(profileFormSchema) as Resolver<ProfileFormValues>,
@@ -112,7 +120,11 @@ export default function ProfileForm({
 
         if (!result || (isActionResult(result) && result.success)) {
           toast.success(successMessage);
-          router.push('/dashboard');
+          if (onSuccess) {
+            onSuccess();
+          } else {
+            router.push(nextUrl ?? '/dashboard');
+          }
         }
 
         if (isActionResult(result) && !result.success) {
@@ -123,11 +135,23 @@ export default function ProfileForm({
         toast.error(errorMessage);
       }
     },
-    [onSubmit, successMessage, errorMessage, router],
+    [onSubmit, successMessage, errorMessage, router, nextUrl, onSuccess],
   );
 
+  const focusActiveSection = () => {
+    requestAnimationFrame(() => {
+      const nextPanel = document.querySelector(
+        `[role="tabpanel"][data-state="active"]`,
+      ) as HTMLElement | null;
+      const focusable = nextPanel?.querySelector<HTMLElement>(
+        'input, select, textarea, button, [tabindex]:not([tabindex="-1"])',
+      );
+      focusable?.focus();
+    });
+  };
+
   const handleNext = async () => {
-    const schema = tabSchemas[tab];
+    const schema = tabSchemas.personal;
     const fields = Object.keys(schema.shape) as Array<keyof ProfileFormValues>;
 
     try {
@@ -138,24 +162,217 @@ export default function ProfileForm({
     }
 
     setTab('interests');
-
-    requestAnimationFrame(() => {
-      const nextPanel = document.querySelector(
-        `[role="tabpanel"][data-state="active"]`,
-      ) as HTMLElement | null;
-
-      if (!nextPanel) return;
-      const focusable = nextPanel.querySelector<HTMLElement>(
-        'input, select, textarea, button, [tabindex]:not([tabindex="-1"])',
-      );
-      if (focusable) focusable.focus();
-    });
+    focusActiveSection();
   };
 
   const tabHasError = (t: 'personal' | 'interests') =>
     Object.keys(tabSchemas[t].shape).some(
       (key) => errors[key as keyof ProfileFormValues],
     );
+
+  const personalFields = (
+    <>
+      <FieldGroup>
+        <Field>
+          <FieldLabel htmlFor='fullName'>
+            Full Name
+            <RequiredAsterisk />
+          </FieldLabel>
+          <Input
+            {...register('fullName')}
+            id='fullName'
+            placeholder='John Doe'
+          />
+          {errors.fullName && <FieldError errors={[errors.fullName]} />}
+        </Field>
+
+        <Controller
+          name='genderId'
+          control={control}
+          render={({ field, fieldState }) => (
+            <Field data-invalid={fieldState.invalid}>
+              <FieldLabel>
+                Gender
+                <RequiredAsterisk />
+              </FieldLabel>
+              <Select
+                id='genderId'
+                instanceId='genderId'
+                options={options.genders}
+                value={
+                  options.genders.find((o) => o.value === field.value) ?? null
+                }
+                onChange={(opt) => field.onChange(getSingleValue(opt))}
+              />
+              {fieldState.error && <FieldError errors={[fieldState.error]} />}
+            </Field>
+          )}
+        />
+
+        <Controller
+          name='universityId'
+          control={control}
+          render={({ field, fieldState }) => (
+            <Field data-invalid={fieldState.invalid}>
+              <FieldLabel>
+                University / Institution
+                <RequiredAsterisk />
+              </FieldLabel>
+              <Select
+                id='universityId'
+                instanceId='universityId'
+                options={options.universities}
+                value={
+                  options.universities.find((o) => o.value === field.value) ??
+                  null
+                }
+                onChange={(opt) => field.onChange(getSingleValue(opt))}
+              />
+              {fieldState.error && <FieldError errors={[fieldState.error]} />}
+            </Field>
+          )}
+        />
+
+        <Controller
+          name='majorId'
+          control={control}
+          render={({ field, fieldState }) => (
+            <Field data-invalid={fieldState.invalid}>
+              <FieldLabel>
+                Major / Program
+                <RequiredAsterisk />
+              </FieldLabel>
+              <Select
+                id='majorId'
+                instanceId='majorId'
+                options={options.majors}
+                value={
+                  options.majors.find((o) => o.value === field.value) ?? null
+                }
+                onChange={(opt) => field.onChange(getSingleValue(opt))}
+              />
+              {fieldState.error && <FieldError errors={[fieldState.error]} />}
+            </Field>
+          )}
+        />
+
+        <Controller
+          name='yearOfStudyId'
+          control={control}
+          render={({ field, fieldState }) => (
+            <Field data-invalid={fieldState.invalid}>
+              <FieldLabel>
+                Year of Study
+                <RequiredAsterisk />
+              </FieldLabel>
+              <Select
+                id='yearOfStudyId'
+                instanceId='yearOfStudyId'
+                options={options.years}
+                value={
+                  options.years.find((o) => o.value === field.value) ?? null
+                }
+                onChange={(opt) => field.onChange(getSingleValue(opt))}
+              />
+              {fieldState.error && <FieldError errors={[fieldState.error]} />}
+            </Field>
+          )}
+        />
+      </FieldGroup>
+      {layout === 'tabs' && (
+        <div className='mt-6 flex justify-end'>
+          <Button type='button' onClick={handleNext}>
+            Continue
+          </Button>
+        </div>
+      )}
+    </>
+  );
+
+  const interestFields = (
+    <>
+      <FieldGroup>
+        <Controller
+          name='interests'
+          control={control}
+          render={({ field, fieldState }) => (
+            <Field data-invalid={fieldState.invalid}>
+              <FieldLabel>
+                Interests
+                <RequiredAsterisk />
+              </FieldLabel>
+              <Select
+                id='interests'
+                instanceId='interests'
+                isMulti
+                options={options.interests}
+                value={options.interests.filter((o) =>
+                  field.value.includes(o.value),
+                )}
+                onChange={(opts) => field.onChange(getMultiValues(opts))}
+              />
+              {fieldState.error && <FieldError errors={[fieldState.error]} />}
+            </Field>
+          )}
+        />
+
+        <Controller
+          name='dietaryRestrictions'
+          control={control}
+          render={({ field }) => (
+            <Field>
+              <FieldLabel>Dietary Restrictions</FieldLabel>
+              <Select
+                id='dietaryRestrictions'
+                instanceId='dietaryRestrictions'
+                isMulti
+                options={options.dietary}
+                value={options.dietary.filter((o) =>
+                  field.value.includes(o.value),
+                )}
+                onChange={(opts) => field.onChange(getMultiValues(opts))}
+              />
+            </Field>
+          )}
+        />
+      </FieldGroup>
+      <div
+        className={`mt-6 flex gap-3 ${
+          layout === 'tabs' ? 'justify-between' : 'justify-end'
+        }`}
+      >
+        {layout === 'tabs' && (
+          <Button
+            type='button'
+            variant='outline'
+            onClick={() => setTab('personal')}
+          >
+            Back
+          </Button>
+        )}
+        <Button type='submit' disabled={isSubmitting}>
+          {isSubmitting ? (
+            <>
+              <Loader2 className='mr-2 size-4 animate-spin' /> Saving...
+            </>
+          ) : (
+            submitLabel
+          )}
+        </Button>
+      </div>
+    </>
+  );
+
+  if (layout === 'single') {
+    return (
+      <form onSubmit={handleSubmit(submitHandler)}>
+        <div className='space-y-8'>
+          {personalFields}
+          {interestFields}
+        </div>
+      </form>
+    );
+  }
 
   return (
     <form onSubmit={handleSubmit(submitHandler)}>
@@ -183,196 +400,9 @@ export default function ProfileForm({
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value='personal'>
-          <FieldGroup>
-            <Field>
-              <FieldLabel htmlFor='fullName'>
-                Full Name
-                <RequiredAsterisk />
-              </FieldLabel>
-              <Input
-                {...register('fullName')}
-                id='fullName'
-                placeholder='John Doe'
-              />
-              {touchedFields.fullName && errors.fullName && (
-                <FieldError errors={[errors.fullName]} />
-              )}
-            </Field>
+        <TabsContent value='personal'>{personalFields}</TabsContent>
 
-            <Controller
-              name='genderId'
-              control={control}
-              render={({ field, fieldState }) => (
-                <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel>
-                    Gender
-                    <RequiredAsterisk />
-                  </FieldLabel>
-                  <Select
-                    id='genderId'
-                    instanceId='genderId'
-                    options={options.genders}
-                    value={
-                      options.genders.find((o) => o.value === field.value) ??
-                      null
-                    }
-                    onChange={(opt) => field.onChange(getSingleValue(opt))}
-                  />
-                  {touchedFields.genderId && fieldState.error && (
-                    <FieldError errors={[fieldState.error]} />
-                  )}
-                </Field>
-              )}
-            />
-
-            <Controller
-              name='universityId'
-              control={control}
-              render={({ field, fieldState }) => (
-                <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel>
-                    University / Institution
-                    <RequiredAsterisk />
-                  </FieldLabel>
-                  <Select
-                    id='universityId'
-                    instanceId='universityId'
-                    options={options.universities}
-                    value={
-                      options.universities.find(
-                        (o) => o.value === field.value,
-                      ) ?? null
-                    }
-                    onChange={(opt) => field.onChange(getSingleValue(opt))}
-                  />
-                  {touchedFields.universityId && fieldState.error && (
-                    <FieldError errors={[fieldState.error]} />
-                  )}
-                </Field>
-              )}
-            />
-
-            <Controller
-              name='majorId'
-              control={control}
-              render={({ field, fieldState }) => (
-                <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel>
-                    Major / Program
-                    <RequiredAsterisk />
-                  </FieldLabel>
-                  <Select
-                    id='majorId'
-                    instanceId='majorId'
-                    options={options.majors}
-                    value={
-                      options.majors.find((o) => o.value === field.value) ??
-                      null
-                    }
-                    onChange={(opt) => field.onChange(getSingleValue(opt))}
-                  />
-                  {touchedFields.majorId && fieldState.error && (
-                    <FieldError errors={[fieldState.error]} />
-                  )}
-                </Field>
-              )}
-            />
-
-            <Controller
-              name='yearOfStudyId'
-              control={control}
-              render={({ field, fieldState }) => (
-                <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel>
-                    Year of Study
-                    <RequiredAsterisk />
-                  </FieldLabel>
-                  <Select
-                    id='yearOfStudyId'
-                    instanceId='yearOfStudyId'
-                    options={options.years}
-                    value={
-                      options.years.find((o) => o.value === field.value) ?? null
-                    }
-                    onChange={(opt) => field.onChange(getSingleValue(opt))}
-                  />
-                  {touchedFields.yearOfStudyId && fieldState.error && (
-                    <FieldError errors={[fieldState.error]} />
-                  )}
-                </Field>
-              )}
-            />
-          </FieldGroup>
-
-          <div className='mt-6 flex justify-end'>
-            <Button type='button' onClick={handleNext}>
-              Next
-            </Button>
-          </div>
-        </TabsContent>
-
-        <TabsContent value='interests'>
-          <FieldGroup>
-            <Controller
-              name='interests'
-              control={control}
-              render={({ field, fieldState }) => (
-                <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel>
-                    Interests
-                    <RequiredAsterisk />
-                  </FieldLabel>
-                  <Select
-                    id='interests'
-                    instanceId='interests'
-                    isMulti
-                    options={options.interests}
-                    value={options.interests.filter((o) =>
-                      field.value.includes(o.value),
-                    )}
-                    onChange={(opts) => field.onChange(getMultiValues(opts))}
-                  />
-                  {touchedFields.interests && fieldState.error && (
-                    <FieldError errors={[fieldState.error]} />
-                  )}
-                </Field>
-              )}
-            />
-
-            <Controller
-              name='dietaryRestrictions'
-              control={control}
-              render={({ field }) => (
-                <Field>
-                  <FieldLabel>Dietary Restrictions</FieldLabel>
-                  <Select
-                    id='dietaryRestrictions'
-                    instanceId='dietaryRestrictions'
-                    isMulti
-                    options={options.dietary}
-                    value={options.dietary.filter((o) =>
-                      field.value.includes(o.value),
-                    )}
-                    onChange={(opts) => field.onChange(getMultiValues(opts))}
-                  />
-                </Field>
-              )}
-            />
-          </FieldGroup>
-
-          <div className='mt-6 flex justify-end'>
-            <Button type='submit' disabled={isSubmitting}>
-              {isSubmitting ? (
-                <>
-                  <Loader2 className='mr-2 size-4 animate-spin' /> Saving…
-                </>
-              ) : (
-                submitLabel
-              )}
-            </Button>
-          </div>
-        </TabsContent>
+        <TabsContent value='interests'>{interestFields}</TabsContent>
       </Tabs>
     </form>
   );

@@ -3,25 +3,28 @@
  * Used by events.applicationQuestions, application form, and server actions.
  */
 
-export type ApplicationQuestionType = 'boolean' | 'text' | 'select';
+export type ApplicationQuestionType =
+  | 'short_text'
+  | 'long_text'
+  | 'single_select'
+  | 'multi_select'
+  | 'number'
+  | 'boolean'
+  | 'section_divider';
 
 export type ApplicationQuestionOption = {
-  value: number | string;
+  value: string;
   label: string;
+  active: boolean;
 };
 
 export type ApplicationQuestion = {
-  key: string;
-  label?: string;
-  type?: ApplicationQuestionType;
-  required?: boolean;
+  id: string;
+  label: string;
+  description?: string;
+  type: ApplicationQuestionType;
+  required: boolean;
   options?: ApplicationQuestionOption[];
-};
-
-/**
- * Maps application question keys to the options key returned by getOptions().
- * Used when rendering select questions that have no inline question.options.
- */
-export const APPLICATION_QUESTION_OPTIONS_MAP: Record<string, string> = {
-  heard_from_id: 'heardFrom',
+  order: number;
+  active: boolean;
 };

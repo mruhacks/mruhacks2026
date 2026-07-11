@@ -24,7 +24,6 @@ import {
   yearsOfStudy,
   interests,
   dietaryRestrictions,
-  heardFromSources,
 } from '@/db/schema';
 import { getUser } from '@/utils/auth';
 import { ActionResult, fail, ok } from '@/utils/action-result';
@@ -38,13 +37,10 @@ import {
   type EventOnlyFormValues,
 } from '@/components/application-form/schema';
 import type { ApplicationQuestion } from '@/types/application';
-import { cacheLife } from 'next/cache';
+import { cacheLife, revalidatePath } from 'next/cache';
 import { and, desc, eq, isNotNull } from 'drizzle-orm';
 import { getUserProfile } from '@/app/dashboard/profile/actions';
-import {
-  buildApplicationResponses,
-  fromResponseKeys,
-} from './application-responses';
+import { buildApplicationResponses } from './application-responses';
 import {
   type ApplicationStatusLabel,
   type ApplicationStatusDisplay,
@@ -64,7 +60,7 @@ import {
  * Returns the first event with has_application = true (e.g. default hackathon).
  * Used for redirecting /register to /dashboard/events and for ticket default event.
  */
-export async function getDefaultApplicationEvent() {
+async function getDefaultApplicationEvent() {
   'use cache';
   cacheLife('minutes');
   const rows = await db
@@ -81,7 +77,7 @@ export async function getDefaultApplicationEvent() {
  * 2. Replaces user_interests and user_dietary_restrictions (from profileData)
  * 3. Upserts event_applications for (eventId, userId) with responses from eventData
  */
-export async function registerParticipant(
+async function registerParticipant(
   profileData: ProfileFormValues,
   eventData: EventOnlyFormValues,
   eventId: string,
@@ -102,14 +98,23 @@ export async function registerParticipant(
   const event = eventParsed.data;
 
   const [eventRow] = await db
-    .select({ applicationQuestions: events.applicationQuestions })
+    .select({
+      hasApplication: events.hasApplication,
+      applicationQuestions: events.applicationQuestions,
+    })
     .from(events)
     .where(eq(events.id, eventId))
     .limit(1);
-  const applicationQuestions =
-    (eventRow?.applicationQuestions as ApplicationQuestion[] | null) ?? [];
+  if (!eventRow) return fail('Event not found.');
+  if (!eventRow.hasApplication) {
+    return fail('This event does not require an application.');
+  }
+  const applicationQuestions = eventRow.applicationQuestions as ApplicationQuestion[];
 
-  const built = buildApplicationResponses(applicationQuestions, event);
+  const built = buildApplicationResponses(
+    applicationQuestions,
+    event.applicationResponses,
+  );
   if (!built.ok) return fail(built.error);
   const responses = built.responses;
 
@@ -206,7 +211,6 @@ export async function getOptions() {
     years: yearsOfStudy,
     interests,
     dietary: dietaryRestrictions,
-    heardFrom: heardFromSources,
   };
 
   const entries = await Promise.all(
@@ -242,7 +246,6 @@ export async function getPreviousFormSubmission(eventId: string) {
 
   const row = data[0];
   const responses = (row.responses ?? {}) as Record<string, unknown>;
-  const eventPart = fromResponseKeys(responses);
   const initial = {
     fullName: row.fullName,
     genderId: row.genderId,
@@ -251,7 +254,7 @@ export async function getPreviousFormSubmission(eventId: string) {
     yearOfStudyId: row.yearOfStudyId,
     interests: row.interests ?? [],
     dietaryRestrictions: row.dietaryRestrictions ?? [],
-    ...eventPart,
+    applicationResponses: responses,
   };
 
   return ok(initial);
@@ -354,6 +357,7 @@ export async function registerEventInterest(
         ],
       });
 
+    revalidatePath('/dashboard/events');
     return ok('Event interest saved successfully.');
   } catch (error) {
     console.error('Event interest save error:', error);

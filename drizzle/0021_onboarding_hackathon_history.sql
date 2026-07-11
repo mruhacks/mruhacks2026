@@ -1,0 +1,1 @@
+ALTER TABLE "user_profiles" ADD COLUMN "attended_hackathon_before" boolean DEFAULT false NOT NULL;

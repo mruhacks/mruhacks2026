@@ -1,6 +1,6 @@
 {
-  "id": "bab381c4-0da6-4cc5-a3ae-5ccdd520d369",
-  "prevId": "6fa48f25-2646-4f68-aa02-1fe1fe9ca1d7",
+  "id": "0ab6cb2c-5cbe-4501-8531-6fcd480f69f6",
+  "prevId": "4d8a3e9f-85c6-454a-89a1-d361679bce3d",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -113,6 +113,74 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.invite": {
+      "name": "invite",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "role_ids": {
+          "name": "role_ids",
+          "type": "integer[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'"
+        },
+        "invited_by": {
+          "name": "invited_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "invite_invited_by_user_id_fk": {
+          "name": "invite_invited_by_user_id_fk",
+          "tableFrom": "invite",
+          "tableTo": "user",
+          "columnsFrom": [
+            "invited_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "invite_email_unique": {
+          "name": "invite_email_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "email"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.session": {
       "name": "session",
       "schema": "",
@@ -167,6 +235,12 @@
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
+        },
+        "impersonated_by": {
+          "name": "impersonated_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},
@@ -248,6 +322,31 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "role": {
+          "name": "role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "banned": {
+          "name": "banned",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": false
+        },
+        "ban_reason": {
+          "name": "ban_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ban_expires": {
+          "name": "ban_expires",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},
@@ -1597,30 +1696,6 @@
           "type": "varchar(50)",
           "primaryKey": false,
           "notNull": true
-        },
-        "title": {
-          "name": "title",
-          "type": "varchar(100)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "description": {
-          "name": "description",
-          "type": "varchar(500)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "variant": {
-          "name": "variant",
-          "type": "varchar(20)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "is_final": {
-          "name": "is_final",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true
         }
       },
       "indexes": {},
@@ -1850,30 +1925,6 @@
         "label": {
           "name": "label",
           "type": "varchar(50)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "title": {
-          "name": "title",
-          "type": "varchar(100)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "description": {
-          "name": "description",
-          "type": "varchar(500)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "variant": {
-          "name": "variant",
-          "type": "varchar(20)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "is_final": {
-          "name": "is_final",
-          "type": "boolean",
           "primaryKey": false,
           "notNull": true
         }
