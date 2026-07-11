@@ -16,11 +16,18 @@ import { getUser } from '@/utils/auth';
 import { db } from '@/utils/db';
 import { eq } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
+import { randomUUID } from 'crypto';
 import { ActionResult, fail, ok } from '@/utils/action-result';
 import {
   profileFormSchema,
   type ProfileFormValues,
 } from '@/components/profile-form/schema';
+import {
+  deleteObject,
+  isObjectStorageKey,
+  profilePictureUrl,
+  putPrivateObject,
+} from '@/utils/object-storage';
 
 export type UserProfileData = {
   fullName: string;
@@ -52,7 +59,7 @@ const RESUME_TYPES = new Set([
 type UploadedFile = {
   name: string;
   type: string;
-  dataUrl: string;
+  bytes: Uint8Array;
 };
 
 async function readUploadedFile(
@@ -77,12 +84,26 @@ async function readUploadedFile(
   }
 
   const fileName = value.name.replace(/[^a-zA-Z0-9._ -]/g, '_').slice(0, 255);
-  const encoded = Buffer.from(await value.arrayBuffer()).toString('base64');
   return ok({
     name: fileName || 'upload',
     type: value.type,
-    dataUrl: `data:${value.type};base64,${encoded}`,
+    bytes: new Uint8Array(await value.arrayBuffer()),
   });
+}
+
+function extension(fileName: string) {
+  const match = /\.[a-z0-9]{1,10}$/i.exec(fileName);
+  return match ? match[0].toLowerCase() : '';
+}
+
+function profilePictureKey(image: string | null | undefined) {
+  const prefix = '/api/assets/';
+  if (!image?.startsWith(prefix)) return null;
+  try {
+    return decodeURIComponent(image.slice(prefix.length));
+  } catch {
+    return null;
+  }
 }
 
 function revalidateProfile() {
@@ -253,10 +274,23 @@ export async function uploadProfilePicture(
   if (!file.data) return fail('Unable to read image.');
 
   try {
+    const key = `profile-pictures/${currentUser.id}/${randomUUID()}${extension(file.data.name)}`;
+    await putPrivateObject({
+      key,
+      body: file.data.bytes,
+      contentType: file.data.type,
+    });
+    const [existing] = await db
+      .select({ image: authUser.image })
+      .from(authUser)
+      .where(eq(authUser.id, currentUser.id))
+      .limit(1);
     await db
       .update(authUser)
-      .set({ image: file.data.dataUrl })
+      .set({ image: profilePictureUrl(key) })
       .where(eq(authUser.id, currentUser.id));
+    const previousKey = profilePictureKey(existing?.image);
+    if (previousKey) await deleteObject(previousKey);
     revalidateProfile();
     return ok();
   } catch (error) {
@@ -271,10 +305,17 @@ export async function removeProfilePicture(): Promise<ActionResult> {
   if (!currentUser) return fail('User not authenticated');
 
   try {
+    const [existing] = await db
+      .select({ image: authUser.image })
+      .from(authUser)
+      .where(eq(authUser.id, currentUser.id))
+      .limit(1);
     await db
       .update(authUser)
       .set({ image: null })
       .where(eq(authUser.id, currentUser.id));
+    const key = profilePictureKey(existing?.image);
+    if (key) await deleteObject(key);
     revalidateProfile();
     return ok();
   } catch (error) {
@@ -298,18 +339,34 @@ export async function uploadResume(formData: FormData): Promise<ActionResult> {
   if (!file.data) return fail('Unable to read resume.');
 
   try {
+    const key = `resumes/${currentUser.id}/${randomUUID()}${extension(file.data.name)}`;
+    await putPrivateObject({
+      key,
+      body: file.data.bytes,
+      contentType: file.data.type,
+    });
+    const [existing] = await db
+      .select({ resumeFile: userProfiles.resumeFile })
+      .from(userProfiles)
+      .where(eq(userProfiles.userId, currentUser.id))
+      .limit(1);
     const result = await db
       .update(userProfiles)
       .set({
-        resumeFile: file.data.dataUrl,
+        resumeFile: key,
         resumeFileName: file.data.name,
         resumeFileType: file.data.type,
         updatedAt: new Date(),
       })
       .where(eq(userProfiles.userId, currentUser.id))
       .returning({ userId: userProfiles.userId });
-    if (result.length === 0)
+    if (result.length === 0) {
+      await deleteObject(key);
       return fail('Complete your profile before uploading a resume.');
+    }
+    if (existing?.resumeFile && isObjectStorageKey(existing.resumeFile)) {
+      await deleteObject(existing.resumeFile);
+    }
     revalidateProfile();
     return ok();
   } catch (error) {
@@ -324,6 +381,11 @@ export async function removeResume(): Promise<ActionResult> {
   if (!currentUser) return fail('User not authenticated');
 
   try {
+    const [existing] = await db
+      .select({ resumeFile: userProfiles.resumeFile })
+      .from(userProfiles)
+      .where(eq(userProfiles.userId, currentUser.id))
+      .limit(1);
     await db
       .update(userProfiles)
       .set({
@@ -333,6 +395,9 @@ export async function removeResume(): Promise<ActionResult> {
         updatedAt: new Date(),
       })
       .where(eq(userProfiles.userId, currentUser.id));
+    if (existing?.resumeFile && isObjectStorageKey(existing.resumeFile)) {
+      await deleteObject(existing.resumeFile);
+    }
     revalidateProfile();
     return ok();
   } catch (error) {
@@ -343,7 +408,7 @@ export async function removeResume(): Promise<ActionResult> {
 
 /** Returns the current user's resume only; the data is never exposed in list views. */
 export async function getOwnResume(): Promise<
-  ActionResult<{ dataUrl: string; fileName: string } | null>
+  ActionResult<{ url: string; fileName: string } | null>
 > {
   const currentUser = await getUser();
   if (!currentUser) return fail('User not authenticated');
@@ -356,9 +421,10 @@ export async function getOwnResume(): Promise<
     .from(userProfiles)
     .where(eq(userProfiles.userId, currentUser.id))
     .limit(1);
-  if (!profile?.resumeFile) return ok(null);
+  if (!profile?.resumeFile || !isObjectStorageKey(profile.resumeFile))
+    return ok(null);
   return ok({
-    dataUrl: profile.resumeFile,
+    url: '/api/profile/resume',
     fileName: profile.resumeFileName ?? 'resume',
   });
 }

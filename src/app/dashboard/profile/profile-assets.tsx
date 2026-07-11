@@ -100,7 +100,7 @@ export function ProfileAssets({
       return;
     }
     const link = document.createElement('a');
-    link.href = result.data.dataUrl;
+    link.href = result.data.url;
     link.download = result.data.fileName;
     link.click();
   };
