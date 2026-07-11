@@ -110,6 +110,24 @@ export function DataTable<TData, TValue>({
     React.useState<VisibilityState>({});
   const [rowSelection, setRowSelection] = React.useState({});
   const [globalFilter, setGlobalFilter] = React.useState('');
+  const didNotifySorting = React.useRef(false);
+  const didNotifyColumnFilters = React.useRef(false);
+
+  React.useEffect(() => {
+    if (!didNotifySorting.current) {
+      didNotifySorting.current = true;
+      return;
+    }
+    onSortingChange?.(sorting);
+  }, [sorting, onSortingChange]);
+
+  React.useEffect(() => {
+    if (!didNotifyColumnFilters.current) {
+      didNotifyColumnFilters.current = true;
+      return;
+    }
+    onColumnFiltersChange?.(columnFilters);
+  }, [columnFilters, onColumnFiltersChange]);
 
   const table = useReactTable({
     data,
@@ -131,20 +149,8 @@ export function DataTable<TData, TValue>({
     },
     manualPagination,
     pageCount: manualPagination ? (pageCount ?? -1) : undefined,
-    onSortingChange: (updater) => {
-      setSorting((prev) => {
-        const next = typeof updater === 'function' ? updater(prev) : updater;
-        onSortingChange?.(next);
-        return next;
-      });
-    },
-    onColumnFiltersChange: (updater) => {
-      setColumnFilters((prev) => {
-        const next = typeof updater === 'function' ? updater(prev) : updater;
-        onColumnFiltersChange?.(next);
-        return next;
-      });
-    },
+    onSortingChange: setSorting,
+    onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
     onRowSelectionChange: setRowSelection,
     onGlobalFilterChange: setGlobalFilter,

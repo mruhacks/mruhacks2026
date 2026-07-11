@@ -9,7 +9,17 @@
  */
 
 import { db } from '@/utils/db';
-import { and, asc, desc, eq, ilike, or, sql, inArray } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  exists,
+  ilike,
+  or,
+  sql,
+  inArray,
+} from 'drizzle-orm';
 import {
   user,
   userRole,
@@ -113,14 +123,19 @@ export async function listUsers(
     }
 
     if (roleSlugs && roleSlugs.length > 0) {
-      // EXISTS subquery avoids materialising a huge user-id IN list when a
-      // role contains many members (e.g. 'user' on a million-row table).
+      // EXISTS avoids materialising a huge user-id IN list when a role
+      // contains many members. inArray also parameterizes a single slug as
+      // `IN ($1)` instead of passing it to PostgreSQL's array-only ANY().
       predicates.push(
-        sql`EXISTS (
-          SELECT 1 FROM authz.user_role ur
-          JOIN authz.role r ON ur.role_id = r.id
-          WHERE ur.user_id = ${user.id} AND r.slug = ANY(${roleSlugs})
-        )` as ReturnType<typeof eq>,
+        exists(
+          db
+            .select({ one: sql`1` })
+            .from(userRole)
+            .innerJoin(role, eq(userRole.roleId, role.id))
+            .where(
+              and(eq(userRole.userId, user.id), inArray(role.slug, roleSlugs)),
+            ),
+        ) as ReturnType<typeof eq>,
       );
     }
 

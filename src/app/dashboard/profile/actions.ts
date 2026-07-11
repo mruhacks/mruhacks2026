@@ -28,6 +28,7 @@ export type UserProfileData = {
   universityId: number;
   majorId: number;
   yearOfStudyId: number;
+  attendedHackathonBefore: boolean;
   interests: number[];
   dietaryRestrictions: number[];
   hasResume: boolean;
@@ -125,6 +126,7 @@ export async function getUserProfile(): Promise<
     universityId: profile.universityId,
     majorId: profile.majorId,
     yearOfStudyId: profile.yearOfStudyId,
+    attendedHackathonBefore: profile.attendedHackathonBefore,
     interests: interestRows.map((r) => r.interestId),
     dietaryRestrictions: restrictionRows.map((r) => r.restrictionId),
     hasResume: profile.resumeFile != null,
@@ -208,6 +210,29 @@ export async function saveUserProfile(
   } catch (error) {
     console.error('Profile save error:', error);
     return fail('Failed to save profile.');
+  }
+}
+
+/** Stores the onboarding-only profile signal after the complete profile is saved. */
+export async function saveWelcomeProfile(
+  formData: ProfileFormValues & { attendedHackathonBefore: boolean },
+): Promise<ActionResult> {
+  const result = await saveUserProfile(formData);
+  if (!result.success) return result;
+
+  const user = await getUser();
+  if (!user) return fail('User not authenticated');
+
+  try {
+    await db
+      .update(userProfiles)
+      .set({ attendedHackathonBefore: formData.attendedHackathonBefore })
+      .where(eq(userProfiles.userId, user.id));
+    revalidateProfile();
+    return ok();
+  } catch (error) {
+    console.error('Welcome profile save error:', error);
+    return fail('Failed to save onboarding profile.');
   }
 }
 

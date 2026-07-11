@@ -259,6 +259,27 @@ describe('listUsers', () => {
     expect(found).toBeDefined();
   });
 
+  test('filters users by a single role slug', async () => {
+    await db
+      .insert(userRole)
+      .values({ userId: targetUserId, roleId: adminRoleId })
+      .onConflictDoNothing();
+
+    const result = await listUsers({ roleSlugs: ['users-test-role'] });
+    expect(result.success).toBe(true);
+    if (!result.success) throw new Error(result.error);
+    expect(result.data?.users.map((entry) => entry.id)).toContain(targetUserId);
+
+    await db
+      .delete(userRole)
+      .where(
+        and(
+          eq(userRole.userId, targetUserId),
+          eq(userRole.roleId, adminRoleId),
+        ),
+      );
+  });
+
   test('totalPages is at least 1 even when total is 0', async () => {
     const result = await listUsers({ search: 'no-match-xyz-9876543' });
     expect(result.success).toBe(true);
@@ -522,14 +543,12 @@ describe('currentUserHasPassword', () => {
 
   test('returns hasPassword: true when credential account with password exists', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(targetUser as never);
-    await db
-      .insert(account)
-      .values({
-        userId: targetUserId,
-        accountId: targetUserId,
-        providerId: 'credential',
-        password: 'hashed_pw',
-      });
+    await db.insert(account).values({
+      userId: targetUserId,
+      accountId: targetUserId,
+      providerId: 'credential',
+      password: 'hashed_pw',
+    });
     const result = await currentUserHasPassword();
     expect(result.success).toBe(true);
     if (!result.success) throw new Error((result as { error: string }).error);
@@ -546,14 +565,12 @@ describe('currentUserHasPassword', () => {
 
   test('returns hasPassword: false when credential account has null password', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(targetUser as never);
-    await db
-      .insert(account)
-      .values({
-        userId: targetUserId,
-        accountId: targetUserId,
-        providerId: 'credential',
-        password: null,
-      });
+    await db.insert(account).values({
+      userId: targetUserId,
+      accountId: targetUserId,
+      providerId: 'credential',
+      password: null,
+    });
     const result = await currentUserHasPassword();
     expect(result.success).toBe(true);
     if (!result.success) throw new Error((result as { error: string }).error);
@@ -635,14 +652,12 @@ describe('setInitialPassword', () => {
   });
 
   test('fails when user already has a credential account', async () => {
-    await db
-      .insert(account)
-      .values({
-        userId: adminUserId,
-        accountId: adminUserId,
-        providerId: 'credential',
-        password: 'existing_hash',
-      });
+    await db.insert(account).values({
+      userId: adminUserId,
+      accountId: adminUserId,
+      providerId: 'credential',
+      password: 'existing_hash',
+    });
     const result = await setInitialPassword('newpassword123');
     expect(result.success).toBe(false);
     expect((result as { error: string }).error).toContain('already');
@@ -688,14 +703,12 @@ describe('consumeInvite', () => {
   });
 
   test('consumes invite and applies role assignments', async () => {
-    await db
-      .insert(invite)
-      .values({
-        email: 'users-admin@test.com',
-        roleIds: [adminRoleId],
-        invitedBy: null,
-        expiresAt: new Date(Date.now() + 60_000),
-      });
+    await db.insert(invite).values({
+      email: 'users-admin@test.com',
+      roleIds: [adminRoleId],
+      invitedBy: null,
+      expiresAt: new Date(Date.now() + 60_000),
+    });
     const result = await consumeInvite();
     expect(result.success).toBe(true);
     if (!result.success) throw new Error((result as { error: string }).error);
@@ -711,14 +724,12 @@ describe('consumeInvite', () => {
   });
 
   test('consumes invite with empty roleIds (no setUserRoles)', async () => {
-    await db
-      .insert(invite)
-      .values({
-        email: 'users-admin@test.com',
-        roleIds: [],
-        invitedBy: null,
-        expiresAt: new Date(Date.now() + 60_000),
-      });
+    await db.insert(invite).values({
+      email: 'users-admin@test.com',
+      roleIds: [],
+      invitedBy: null,
+      expiresAt: new Date(Date.now() + 60_000),
+    });
     const result = await consumeInvite();
     expect(result.success).toBe(true);
     if (!result.success) throw new Error((result as { error: string }).error);

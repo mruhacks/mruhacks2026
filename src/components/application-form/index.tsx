@@ -263,6 +263,7 @@ type ApplicationFormProps = {
   submitLabel?: string;
   successMessage?: string;
   errorMessage?: string;
+  onSuccess?: () => void;
 };
 
 const DEFAULT_SUBMIT_LABEL = 'Save Changes';
@@ -323,6 +324,7 @@ export default function ApplicationForm({
   submitLabel = DEFAULT_SUBMIT_LABEL,
   successMessage = DEFAULT_SUCCESS_MESSAGE,
   errorMessage = DEFAULT_ERROR_MESSAGE,
+  onSuccess,
 }: ApplicationFormProps) {
   const router = useRouter();
   const formSchema = React.useMemo(
@@ -359,7 +361,11 @@ export default function ApplicationForm({
 
         if (!result || (isActionResult(result) && result.success)) {
           toast.success(successMessage);
-          router.push('/dashboard');
+          if (onSuccess) {
+            onSuccess();
+          } else {
+            router.push('/dashboard');
+          }
         }
 
         if (isActionResult(result) && !result.success) {
@@ -370,7 +376,7 @@ export default function ApplicationForm({
         toast.error(errorMessage);
       }
     },
-    [submitAction, eventId, successMessage, errorMessage, router],
+    [submitAction, eventId, successMessage, errorMessage, router, onSuccess],
   );
 
   return (

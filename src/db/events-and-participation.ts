@@ -109,6 +109,9 @@ export const userProfiles = pgTable('user_profiles', {
   yearOfStudyId: integer('year_of_study_id')
     .notNull()
     .references(() => yearsOfStudy.id),
+  attendedHackathonBefore: boolean('attended_hackathon_before')
+    .notNull()
+    .default(false),
   /** Optional resume, stored as a validated data URL with its original name. */
   resumeFile: text('resume_file'),
   resumeFileName: varchar('resume_file_name', { length: 255 }),

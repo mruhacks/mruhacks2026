@@ -148,6 +148,13 @@
       "when": 1783705950866,
       "tag": "0020_security_audit_and_invite_expiry",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1783715855091,
+      "tag": "0021_onboarding_hackathon_history",
+      "breakpoints": true
     }
   ]
 }
