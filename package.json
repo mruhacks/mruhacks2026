@@ -19,6 +19,7 @@
     "db:stop": "echo 'Stopping Postgres (db-dev, db-test)…' && docker compose stop db-dev db-test && echo 'Postgres stopped (Mailhog left running).'",
     "db:reset": "echo 'Resetting Postgres only (dropping db volumes; Mailhog unchanged)…' && docker compose down -v db-dev db-test && echo 'Starting fresh Postgres…' && docker compose up -d db-dev db-test && pnpm db:wait && echo 'Running migrations…' && drizzle-kit migrate && tsx scripts/seed.ts && echo 'Database reset complete.'",
     "db:seed": "echo 'Running migrations…' && drizzle-kit migrate && echo 'Seeding Database' && tsx scripts/seed.ts",
+    "test:rsvp-wave": "tsx --require ./scripts/preload-server-only-mock.cjs scripts/test-send-rsvp-wave.ts",
     "db:wait": "echo 'Waiting for Postgres to be ready…' &&        until docker exec mruhacks-db-dev pg_isready >/dev/null 2>&1; do          printf '.';          sleep 1;        done &&        echo ' Postgres is ready.'",
     "knip": "knip"
   },
