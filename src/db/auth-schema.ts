@@ -174,6 +174,13 @@ export const invite = pgTable('invite', {
     .notNull(),
 });
 
+export const rateLimit = pgTable('rate_limit', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  key: text('key'),
+  count: integer('count'),
+  lastRequest: integer('last_request'),
+});
+
 /** Durable, append-only record of privileged administrative activity. */
 export const auditLog = pgTable(
   'audit_log',

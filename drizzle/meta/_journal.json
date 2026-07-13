@@ -155,6 +155,13 @@
       "when": 1783715855091,
       "tag": "0021_onboarding_hackathon_history",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1783961442148,
+      "tag": "0022_silky_gorilla_man",
+      "breakpoints": true
     }
   ]
 }
