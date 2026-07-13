@@ -5,6 +5,7 @@ import {
   timestamp,
   boolean,
   integer,
+  bigint,
   index,
   jsonb,
 } from 'drizzle-orm/pg-core';
@@ -178,7 +179,7 @@ export const rateLimit = pgTable('rate_limit', {
   id: uuid('id').defaultRandom().primaryKey(),
   key: text('key'),
   count: integer('count'),
-  lastRequest: integer('last_request'),
+  lastRequest: bigint('last_request', { mode: 'number' }),
 });
 
 /** Durable, append-only record of privileged administrative activity. */
