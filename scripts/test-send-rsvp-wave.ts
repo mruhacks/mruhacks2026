@@ -125,10 +125,11 @@ async function main(): Promise<void> {
   console.warn('⚠️  WARNING: This script performs real actions:');
   console.warn('   • Creates a new event_rsvp_waves row');
   console.warn('   • Creates event_rsvp_responses rows for approved applicants');
-  console.warn('   • Sends RSVP invitation emails via SMTP');
+  console.warn('   • Requests Better Auth magic links and sends RSVP emails via SMTP');
   console.warn('');
   console.warn(`   Event ID:   ${eventId}`);
   console.warn(`   Respond by: ${respondBy.toISOString()}`);
+  console.warn('   MailHog UI: http://localhost:8025');
   console.warn('');
 
   try {

@@ -11,8 +11,8 @@ import {
   rsvpStatuses,
   user,
 } from '@/db/schema';
+import { auth } from '@/utils/auth';
 import { db } from '@/utils/db';
-import { sendMail } from '@/utils/mail';
 
 /** DB label in application_statuses for an accepted application (UI title is "Accepted"). */
 const APPROVED_APPLICATION_STATUS_LABEL = 'approved';
@@ -54,52 +54,33 @@ type EligibleApplicant = {
   email: string;
 };
 
-function getEventDashboardUrl(eventId: string): string | null {
-  const base =
-    process.env.BETTER_AUTH_URL?.trim() ??
-    process.env.NEXT_PUBLIC_APP_URL?.trim();
-  if (!base) return null;
-  return `${base.replace(/\/$/, '')}/dashboard/events/${eventId}`;
-}
-
-function formatDeadline(respondBy: Date): string {
-  return respondBy.toLocaleString('en-CA', {
-    dateStyle: 'full',
-    timeStyle: 'short',
+/**
+ * Headers for Better Auth server API calls outside a browser request
+ * (CLI script, future cron). Uses BETTER_AUTH_URL as Origin — the same
+ * trusted origin already configured for the app. Does not call Next.js
+ * `headers()` so this works without an incoming HTTP request.
+ */
+function getBackgroundAuthHeaders(): Headers {
+  const baseUrl = process.env.BETTER_AUTH_URL?.trim();
+  if (!baseUrl) {
+    throw new Error(
+      'BETTER_AUTH_URL is required to send RSVP magic-link invitations',
+    );
+  }
+  return new Headers({
+    origin: baseUrl,
   });
 }
 
-async function sendRsvpInvitationEmail(options: {
-  to: string;
-  eventName: string;
-  respondBy: Date;
-  eventUrl: string | null;
-}): Promise<void> {
-  const { to, eventName, respondBy, eventUrl } = options;
-  const deadline = formatDeadline(respondBy);
-  const linkLine = eventUrl
-    ? `\n\nRespond here:\n${eventUrl}\n`
-    : '\n\nSign in to your dashboard to respond.\n';
-  const linkHtml = eventUrl
-    ? `<p><a href="${eventUrl}">Respond to your RSVP</a></p>`
-    : '<p>Sign in to your dashboard to respond.</p>';
-
-  await sendMail({
-    to,
-    subject: `RSVP invitation — ${eventName}`,
-    text:
-      `You've been invited to RSVP for ${eventName}.\n\n` +
-      `Please respond by ${deadline}.${linkLine}`,
-    html:
-      `<p>You've been invited to RSVP for <strong>${eventName}</strong>.</p>` +
-      `<p>Please respond by <strong>${deadline}</strong>.</p>` +
-      linkHtml,
-  });
+function eventCallbackPath(eventId: string): string {
+  return `/dashboard/events/${eventId}?source=rsvp`;
 }
 
 /**
  * Creates the next RSVP wave for an event, inserts pending RSVP responses for
- * all approved applicants, and sends invitation emails.
+ * all approved applicants, and emails each a Better Auth magic link (same
+ * pattern as admin `inviteUser`) that signs them in and redirects to the event
+ * page. RSVP status stays pending until they Accept/Decline.
  *
  * Intended to be called by the future admin "start RSVP" action and cron-driven
  * follow-up waves.
@@ -193,7 +174,11 @@ export async function sendRsvpWave(
         });
 
       if (eligibleApplicants.length === 0) {
-        return { wave, responsesCreated: 0, invitedApplicants: [] as EligibleApplicant[] };
+        return {
+          wave,
+          responsesCreated: 0,
+          invitedApplicants: [] as EligibleApplicant[],
+        };
       }
 
       const insertedResponses = await tx
@@ -243,24 +228,52 @@ export async function sendRsvpWave(
     };
   }
 
-  const eventUrl = getEventDashboardUrl(eventId);
+  const callbackURL = eventCallbackPath(eventId);
   const emailFailures: RsvpWaveEmailFailure[] = [];
   let emailsSent = 0;
 
+  let authHeaders: Headers;
+  try {
+    authHeaders = getBackgroundAuthHeaders();
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : 'Missing BETTER_AUTH_URL';
+    for (const applicant of invitedApplicants) {
+      emailFailures.push({
+        userId: applicant.userId,
+        email: applicant.email,
+        error: message,
+      });
+    }
+    return {
+      success: true,
+      wave: waveRecord,
+      eligibleApplicantCount: eligibleApplicants.length,
+      responsesCreated: invitedApplicants.length,
+      emailsSent: 0,
+      emailFailures,
+    };
+  }
+
   for (const applicant of invitedApplicants) {
     try {
-      await sendRsvpInvitationEmail({
-        to: applicant.email,
-        eventName: eventRow.name,
-        respondBy: waveRecord.respondBy,
-        eventUrl,
+      // Same pattern as admin inviteUser: Better Auth generates the token and
+      // calls sendMagicLink. RSVP-specific copy is chosen there when the
+      // callbackURL is an event page and a pending RSVP exists.
+      await auth.api.signInMagicLink({
+        body: {
+          email: applicant.email,
+          callbackURL,
+          errorCallbackURL: callbackURL,
+        },
+        headers: authHeaders,
       });
       emailsSent += 1;
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : 'Unknown email error';
+        error instanceof Error ? error.message : 'Unknown magic-link error';
       console.error(
-        `[sendRsvpWave] email failed for user ${applicant.userId}:`,
+        `[sendRsvpWave] magic link failed for user ${applicant.userId}:`,
         error,
       );
       emailFailures.push({

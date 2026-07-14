@@ -11,12 +11,18 @@ import {
   eventRsvpResponses,
 } from '@/db/schema';
 import { sendRsvpWave } from '@/lib/rsvp/send-rsvp-wave';
+import { extractEventIdFromRsvpCallback } from '@/lib/rsvp/resolve-rsvp-magic-link-email';
+import {
+  getMagicLinkCallbackURL,
+  resolveMagicLinkMailOptions,
+} from '@/lib/auth/resolve-magic-link-email';
 
 vi.mock('@/utils/mail', () => ({
   sendMail: vi.fn().mockResolvedValue(undefined),
 }));
 
 import { sendMail } from '@/utils/mail';
+import { auth } from '@/utils/auth';
 
 let approvedStatusId: number;
 let pendingRsvpStatusId: number;
@@ -25,6 +31,13 @@ let testEventId: string;
 let approvedUserId: string;
 let pendingUserId: string;
 const respondBy = new Date('2026-08-01T23:59:59.000Z');
+
+function magicLinkUrlFor(callbackURL: string): string {
+  const url = new URL('http://localhost:3000/api/auth/magic-link/verify');
+  url.searchParams.set('token', 'test-token-not-logged');
+  url.searchParams.set('callbackURL', callbackURL);
+  return url.toString();
+}
 
 beforeAll(async () => {
   process.env.BETTER_AUTH_URL = 'http://localhost:3000';
@@ -150,6 +163,111 @@ afterAll(async () => {
   await db.delete(user).where(eq(user.id, pendingUserId));
 });
 
+// ─── getMagicLinkCallbackURL / extractEventIdFromRsvpCallback ────────────────
+
+describe('getMagicLinkCallbackURL', () => {
+  const eventId = '123e4567-e89b-12d3-a456-426614174000';
+
+  test('returns relative callback URLs including source=rsvp', () => {
+    expect(
+      getMagicLinkCallbackURL(
+        magicLinkUrlFor(`/dashboard/events/${eventId}?source=rsvp`),
+      ),
+    ).toBe(`/dashboard/events/${eventId}?source=rsvp`);
+  });
+
+  test('rejects external or protocol-relative callbacks', () => {
+    expect(
+      getMagicLinkCallbackURL(
+        magicLinkUrlFor(
+          `https://evil.example/dashboard/events/${eventId}?source=rsvp`,
+        ),
+      ),
+    ).toBeNull();
+    expect(
+      getMagicLinkCallbackURL(
+        magicLinkUrlFor(
+          `//evil.example/dashboard/events/${eventId}?source=rsvp`,
+        ),
+      ),
+    ).toBeNull();
+  });
+});
+
+describe('extractEventIdFromRsvpCallback', () => {
+  const eventId = '123e4567-e89b-12d3-a456-426614174000';
+
+  test('extracts event ID from a valid event dashboard path', () => {
+    expect(
+      extractEventIdFromRsvpCallback(
+        `/dashboard/events/${eventId}?source=rsvp`,
+      ),
+    ).toBe(eventId);
+  });
+
+  test('rejects unrelated or invalid paths', () => {
+    expect(extractEventIdFromRsvpCallback('/welcome')).toBeNull();
+    expect(
+      extractEventIdFromRsvpCallback('/welcome?invited=1'),
+    ).toBeNull();
+    expect(
+      extractEventIdFromRsvpCallback(
+        '/dashboard/events/not-a-uuid?source=rsvp',
+      ),
+    ).toBeNull();
+  });
+});
+
+// ─── resolveMagicLinkMailOptions ─────────────────────────────────────────────
+
+describe('resolveMagicLinkMailOptions', () => {
+  test('uses generic sign-in copy for normal and invite callbacks', async () => {
+    const signIn = await resolveMagicLinkMailOptions({
+      email: 'anyone@example.com',
+      magicLinkUrl: magicLinkUrlFor('/welcome'),
+    });
+    expect(signIn.subject).toBe('Sign in to MRUHacks');
+
+    const invite = await resolveMagicLinkMailOptions({
+      email: 'anyone@example.com',
+      magicLinkUrl: magicLinkUrlFor('/welcome?invited=1'),
+    });
+    expect(invite.subject).toBe('Sign in to MRUHacks');
+  });
+
+  test('uses generic sign-in copy for event page without source=rsvp', async () => {
+    const result = await resolveMagicLinkMailOptions({
+      email: 'anyone@example.com',
+      magicLinkUrl: magicLinkUrlFor(`/dashboard/events/${testEventId}`),
+    });
+    expect(result.subject).toBe('Sign in to MRUHacks');
+  });
+
+  test('fails when source=rsvp is present but path is invalid', async () => {
+    await expect(
+      resolveMagicLinkMailOptions({
+        email: 'anyone@example.com',
+        magicLinkUrl: magicLinkUrlFor(
+          '/dashboard/events/not-a-uuid?source=rsvp',
+        ),
+      }),
+    ).rejects.toThrow(/invalid/);
+  });
+
+  test('fails when source=rsvp is present but no pending RSVP exists', async () => {
+    await expect(
+      resolveMagicLinkMailOptions({
+        email: 'approved-rsvp@example.com',
+        magicLinkUrl: magicLinkUrlFor(
+          `/dashboard/events/${testEventId}?source=rsvp`,
+        ),
+      }),
+    ).rejects.toThrow(/pending RSVP/);
+  });
+});
+
+// ─── sendRsvpWave ────────────────────────────────────────────────────────────
+
 describe('sendRsvpWave', () => {
   test('returns error when event does not exist', async () => {
     const result = await sendRsvpWave(
@@ -162,44 +280,64 @@ describe('sendRsvpWave', () => {
     }
   });
 
-  test('creates wave 1, pending responses for approved applicants only, and sends emails', async () => {
+  test('creates wave, pending responses, and sends RSVP-specific magic-link email', async () => {
     vi.mocked(sendMail).mockClear();
+    const signInSpy = vi.spyOn(auth.api, 'signInMagicLink');
 
-    const result = await sendRsvpWave(testEventId, respondBy);
+    try {
+      const result = await sendRsvpWave(testEventId, respondBy);
 
-    expect(result.success).toBe(true);
-    if (!result.success) return;
+      expect(result.success).toBe(true);
+      if (!result.success) return;
 
-    expect(result.wave.wave).toBe(1);
-    expect(result.wave.respondBy).toEqual(respondBy);
-    expect(result.eligibleApplicantCount).toBe(1);
-    expect(result.responsesCreated).toBe(1);
-    expect(result.emailsSent).toBe(1);
-    expect(result.emailFailures).toHaveLength(0);
+      expect(result.wave.wave).toBe(1);
+      expect(result.wave.respondBy).toEqual(respondBy);
+      expect(result.eligibleApplicantCount).toBe(1);
+      expect(result.responsesCreated).toBe(1);
+      expect(result.emailsSent).toBe(1);
+      expect(result.emailFailures).toHaveLength(0);
 
-    const responses = await db
-      .select({
-        userId: eventRsvpResponses.userId,
-        statusId: eventRsvpResponses.statusId,
-      })
-      .from(eventRsvpResponses)
-      .innerJoin(
-        eventRsvpWaves,
-        eq(eventRsvpResponses.rsvpWaveId, eventRsvpWaves.id),
-      )
-      .where(eq(eventRsvpWaves.eventId, testEventId));
+      const responses = await db
+        .select({
+          userId: eventRsvpResponses.userId,
+          statusId: eventRsvpResponses.statusId,
+        })
+        .from(eventRsvpResponses)
+        .innerJoin(
+          eventRsvpWaves,
+          eq(eventRsvpResponses.rsvpWaveId, eventRsvpWaves.id),
+        )
+        .where(eq(eventRsvpWaves.eventId, testEventId));
 
-    expect(responses).toHaveLength(1);
-    expect(responses[0]?.userId).toBe(approvedUserId);
-    expect(responses[0]?.statusId).toBe(pendingRsvpStatusId);
+      expect(responses).toHaveLength(1);
+      expect(responses[0]?.userId).toBe(approvedUserId);
+      expect(responses[0]?.statusId).toBe(pendingRsvpStatusId);
 
-    expect(sendMail).toHaveBeenCalledTimes(1);
-    expect(sendMail).toHaveBeenCalledWith(
-      expect.objectContaining({
-        to: 'approved-rsvp@example.com',
-        subject: expect.stringContaining('RSVP Wave Test Event'),
-      }),
-    );
+      const callbackURL = `/dashboard/events/${testEventId}?source=rsvp`;
+      expect(signInSpy).toHaveBeenCalledTimes(1);
+      expect(signInSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          body: {
+            email: 'approved-rsvp@example.com',
+            callbackURL,
+            errorCallbackURL: callbackURL,
+          },
+          headers: expect.any(Headers),
+        }),
+      );
+
+      expect(sendMail).toHaveBeenCalledTimes(1);
+      const mailCall = vi.mocked(sendMail).mock.calls[0]?.[0];
+      expect(mailCall?.to).toBe('approved-rsvp@example.com');
+      expect(mailCall?.subject).toBe('RSVP invitation — RSVP Wave Test Event');
+      expect(mailCall?.subject).not.toBe('Sign in to MRUHacks');
+      expect(mailCall?.html).toContain('View RSVP');
+      expect(mailCall?.html).toContain('RSVP Wave Test Event');
+      expect(mailCall?.text).toMatch(/respond by/i);
+      expect(mailCall?.html).toContain('/magic-link/verify');
+    } finally {
+      signInSpy.mockRestore();
+    }
   });
 
   test('creates the next wave number on subsequent calls', async () => {
@@ -215,7 +353,7 @@ describe('sendRsvpWave', () => {
     expect(result.emailsSent).toBe(1);
   });
 
-  test('reports email failures without deleting RSVP records', async () => {
+  test('reports magic-link / email failures without deleting RSVP records', async () => {
     vi.mocked(sendMail).mockRejectedValueOnce(new Error('SMTP unavailable'));
 
     const beforeCount = await db
@@ -248,6 +386,166 @@ describe('sendRsvpWave', () => {
       .where(eq(eventRsvpWaves.eventId, testEventId));
 
     expect(afterCount.length).toBe(beforeCount.length + 1);
+
+    const latest = await db
+      .select({
+        statusId: eventRsvpResponses.statusId,
+      })
+      .from(eventRsvpResponses)
+      .innerJoin(
+        eventRsvpWaves,
+        eq(eventRsvpResponses.rsvpWaveId, eventRsvpWaves.id),
+      )
+      .where(eq(eventRsvpWaves.id, result.wave.id));
+
+    expect(latest).toHaveLength(1);
+    expect(latest[0]?.statusId).toBe(pendingRsvpStatusId);
+  });
+
+  test('continues inviting remaining applicants when one magic link fails', async () => {
+    const [secondUser] = await db
+      .insert(user)
+      .values({
+        name: 'Second Approved',
+        email: 'approved-rsvp-2@example.com',
+        emailVerified: true,
+      })
+      .returning({ id: user.id });
+
+    await db.insert(eventApplications).values({
+      eventId: testEventId,
+      userId: secondUser.id,
+      statusId: approvedStatusId,
+    });
+
+    const signInSpy = vi
+      .spyOn(auth.api, 'signInMagicLink')
+      .mockImplementationOnce(async () => {
+        throw new Error('magic link unavailable');
+      });
+
+    vi.mocked(sendMail).mockClear();
+
+    try {
+      const result = await sendRsvpWave(testEventId, respondBy);
+
+      expect(result.success).toBe(true);
+      if (!result.success) return;
+
+      expect(result.responsesCreated).toBe(2);
+      expect(result.emailsSent).toBe(1);
+      expect(result.emailFailures).toHaveLength(1);
+      expect(result.emailFailures[0]?.error).toContain('magic link unavailable');
+      expect(sendMail).toHaveBeenCalledTimes(1);
+    } finally {
+      signInSpy.mockRestore();
+      await db
+        .delete(eventApplications)
+        .where(eq(eventApplications.userId, secondUser.id));
+      await db.delete(user).where(eq(user.id, secondUser.id));
+    }
+  });
+
+  test('does not invite non-approved applicants', async () => {
+    vi.mocked(sendMail).mockClear();
+    const signInSpy = vi.spyOn(auth.api, 'signInMagicLink');
+
+    try {
+      const result = await sendRsvpWave(testEventId, respondBy);
+      expect(result.success).toBe(true);
+      if (!result.success) return;
+
+      expect(result.eligibleApplicantCount).toBe(1);
+      expect(signInSpy).toHaveBeenCalledTimes(1);
+      expect(signInSpy.mock.calls[0]?.[0]?.body?.email).toBe(
+        'approved-rsvp@example.com',
+      );
+      expect(sendMail).toHaveBeenCalledTimes(1);
+    } finally {
+      signInSpy.mockRestore();
+    }
+  });
+
+  test('concurrent waves for different events do not mix email content', async () => {
+    const [eventA] = await db
+      .insert(events)
+      .values({ name: 'Concurrent Event A', hasApplication: true })
+      .returning({ id: events.id });
+    const [eventB] = await db
+      .insert(events)
+      .values({ name: 'Concurrent Event B', hasApplication: true })
+      .returning({ id: events.id });
+
+    const [userA] = await db
+      .insert(user)
+      .values({
+        name: 'Concurrent A',
+        email: 'concurrent-a@example.com',
+        emailVerified: true,
+      })
+      .returning({ id: user.id });
+    const [userB] = await db
+      .insert(user)
+      .values({
+        name: 'Concurrent B',
+        email: 'concurrent-b@example.com',
+        emailVerified: true,
+      })
+      .returning({ id: user.id });
+
+    await db.insert(eventApplications).values([
+      {
+        eventId: eventA.id,
+        userId: userA.id,
+        statusId: approvedStatusId,
+      },
+      {
+        eventId: eventB.id,
+        userId: userB.id,
+        statusId: approvedStatusId,
+      },
+    ]);
+
+    vi.mocked(sendMail).mockClear();
+
+    try {
+      const [resultA, resultB] = await Promise.all([
+        sendRsvpWave(eventA.id, respondBy),
+        sendRsvpWave(eventB.id, respondBy),
+      ]);
+
+      expect(resultA.success).toBe(true);
+      expect(resultB.success).toBe(true);
+
+      const mails = vi.mocked(sendMail).mock.calls.map((call) => call[0]);
+      expect(mails).toHaveLength(2);
+
+      const mailForA = mails.find((m) => m.to === 'concurrent-a@example.com');
+      const mailForB = mails.find((m) => m.to === 'concurrent-b@example.com');
+      expect(mailForA?.subject).toBe('RSVP invitation — Concurrent Event A');
+      expect(mailForB?.subject).toBe('RSVP invitation — Concurrent Event B');
+      expect(mailForA?.html).toContain('Concurrent Event A');
+      expect(mailForA?.html).not.toContain('Concurrent Event B');
+      expect(mailForB?.html).toContain('Concurrent Event B');
+      expect(mailForB?.html).not.toContain('Concurrent Event A');
+    } finally {
+      await db
+        .delete(eventRsvpWaves)
+        .where(eq(eventRsvpWaves.eventId, eventA.id));
+      await db
+        .delete(eventRsvpWaves)
+        .where(eq(eventRsvpWaves.eventId, eventB.id));
+      await db
+        .delete(eventApplications)
+        .where(eq(eventApplications.eventId, eventA.id));
+      await db
+        .delete(eventApplications)
+        .where(eq(eventApplications.eventId, eventB.id));
+      await db.delete(events).where(eq(events.id, eventA.id));
+      await db.delete(events).where(eq(events.id, eventB.id));
+      await db.delete(user).where(eq(user.id, userA.id));
+      await db.delete(user).where(eq(user.id, userB.id));
+    }
   });
 });
 
@@ -271,17 +569,23 @@ describe('sendRsvpWave with no approved applicants', () => {
 
   test('creates an empty wave and sends no emails', async () => {
     vi.mocked(sendMail).mockClear();
+    const signInSpy = vi.spyOn(auth.api, 'signInMagicLink');
 
-    const result = await sendRsvpWave(emptyEventId, respondBy);
+    try {
+      const result = await sendRsvpWave(emptyEventId, respondBy);
 
-    expect(result.success).toBe(true);
-    if (!result.success) return;
+      expect(result.success).toBe(true);
+      if (!result.success) return;
 
-    expect(result.wave.wave).toBe(1);
-    expect(result.eligibleApplicantCount).toBe(0);
-    expect(result.responsesCreated).toBe(0);
-    expect(result.emailsSent).toBe(0);
-    expect(result.emailFailures).toHaveLength(0);
-    expect(sendMail).not.toHaveBeenCalled();
+      expect(result.wave.wave).toBe(1);
+      expect(result.eligibleApplicantCount).toBe(0);
+      expect(result.responsesCreated).toBe(0);
+      expect(result.emailsSent).toBe(0);
+      expect(result.emailFailures).toHaveLength(0);
+      expect(signInSpy).not.toHaveBeenCalled();
+      expect(sendMail).not.toHaveBeenCalled();
+    } finally {
+      signInSpy.mockRestore();
+    }
   });
 });

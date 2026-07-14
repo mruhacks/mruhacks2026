@@ -8,6 +8,7 @@
 import { betterAuth } from 'better-auth';
 import { admin, magicLink } from 'better-auth/plugins';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
+import { resolveMagicLinkMailOptions } from '@/lib/auth/resolve-magic-link-email';
 import { db } from '@/utils/db';
 import * as schema from '@/db/schema';
 import { sendMail } from '@/utils/mail';
@@ -17,6 +18,17 @@ import { writeAuditLog } from '@/utils/audit-log';
 
 /** Verification links expire after this many seconds (24 hours). */
 const EMAIL_VERIFICATION_EXPIRES_IN = 86400;
+
+/**
+ * Magic-link token lifetime (seconds).
+ *
+ * Trade-off: RSVP `respondBy` may be days later, but a long-lived auth token is
+ * risky for general sign-in (same plugin setting). 24h matches email
+ * verification and covers "open the email soon after it arrives." If the link
+ * expires before `respondBy`, a resend-link flow is required (not in this
+ * change).
+ */
+const MAGIC_LINK_EXPIRES_IN = 86400;
 
 function getAuthBaseUrl(): string {
   const v = process.env.BETTER_AUTH_URL?.trim();
@@ -151,15 +163,20 @@ export const auth = betterAuth({
   plugins: [
     admin(),
     magicLink({
+      /**
+       * Not set to `disableSignUp: true`: admin `inviteUser` relies on magic
+       * links to create accounts for new invitees. RSVP waves only email
+       * existing approved applicants (joined from `user`), so they never
+       * create accounts via this path.
+       */
+      expiresIn: MAGIC_LINK_EXPIRES_IN,
       sendMagicLink: async ({ email, url }) => {
-        void sendMail({
-          to: email,
-          subject: 'Sign in to MRUHacks',
-          text: `Sign in by opening this link:\n\n${url}\n`,
-          html: `<p>Sign in by clicking <a href="${url}">this link</a>.</p>`,
-        }).catch((err) => {
-          console.error('[auth] sendMagicLink failed', err);
+        // Routes by callbackURL `source` (e.g. rsvp → RSVP invitation email).
+        const mail = await resolveMagicLinkMailOptions({
+          email,
+          magicLinkUrl: url,
         });
+        await sendMail(mail);
       },
     }),
   ],
