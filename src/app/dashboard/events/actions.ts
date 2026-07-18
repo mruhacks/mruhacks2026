@@ -109,7 +109,8 @@ async function registerParticipant(
   if (!eventRow.hasApplication) {
     return fail('This event does not require an application.');
   }
-  const applicationQuestions = eventRow.applicationQuestions as ApplicationQuestion[];
+  const applicationQuestions =
+    eventRow.applicationQuestions as ApplicationQuestion[];
 
   const built = buildApplicationResponses(
     applicationQuestions,
@@ -378,7 +379,7 @@ export type RsvpStatusForUser = {
 };
 
 /**
- * Current user's RSVP response for an event (through rsvp waves).
+ * Current user's RSVP response for an event (latest wave).
  * Returns null if the user has no RSVP invitation for this event.
  */
 export async function getUserRsvpStatus(
@@ -398,16 +399,14 @@ export async function getUserRsvpStatus(
       eventRsvpWaves,
       eq(eventRsvpResponses.rsvpWaveId, eventRsvpWaves.id),
     )
-    .leftJoin(
-      rsvpStatuses,
-      eq(eventRsvpResponses.statusId, rsvpStatuses.id),
-    )
+    .leftJoin(rsvpStatuses, eq(eventRsvpResponses.statusId, rsvpStatuses.id))
     .where(
       and(
         eq(eventRsvpResponses.userId, user.id),
         eq(eventRsvpWaves.eventId, eventId),
       ),
     )
+    .orderBy(desc(eventRsvpWaves.wave))
     .limit(1);
   if (!row) return null;
   const statusLabel = resolveRsvpStatusKey(row.statusLabel);
@@ -419,7 +418,7 @@ export async function getUserRsvpStatus(
 }
 
 /**
- * Accept or decline an RSVP invitation.
+ * Accept or decline an RSVP invitation on the latest wave.
  * Guards: must be pending, must be before respond_by deadline.
  */
 export async function submitRsvpResponse(
@@ -440,16 +439,14 @@ export async function submitRsvpResponse(
       eventRsvpWaves,
       eq(eventRsvpResponses.rsvpWaveId, eventRsvpWaves.id),
     )
-    .leftJoin(
-      rsvpStatuses,
-      eq(eventRsvpResponses.statusId, rsvpStatuses.id),
-    )
+    .leftJoin(rsvpStatuses, eq(eventRsvpResponses.statusId, rsvpStatuses.id))
     .where(
       and(
         eq(eventRsvpResponses.userId, user.id),
         eq(eventRsvpWaves.eventId, eventId),
       ),
     )
+    .orderBy(desc(eventRsvpWaves.wave))
     .limit(1);
 
   if (!row) return fail('No RSVP invitation found.');
@@ -479,6 +476,7 @@ export async function submitRsvpResponse(
       })
       .where(eq(eventRsvpResponses.id, row.responseId));
 
+    revalidatePath(`/dashboard/events/${eventId}`);
     return ok(decision === 'accepted' ? 'RSVP accepted.' : 'RSVP declined.');
   } catch (error) {
     console.error('RSVP response error:', error);
@@ -561,10 +559,7 @@ export async function getEventsWithUserStatus(): Promise<
         eventRsvpWaves,
         eq(eventRsvpResponses.rsvpWaveId, eventRsvpWaves.id),
       )
-      .leftJoin(
-        rsvpStatuses,
-        eq(eventRsvpResponses.statusId, rsvpStatuses.id),
-      )
+      .leftJoin(rsvpStatuses, eq(eventRsvpResponses.statusId, rsvpStatuses.id))
       .where(eq(eventRsvpResponses.userId, user.id)),
   ]);
 
@@ -603,9 +598,7 @@ export async function getEventsWithUserStatus(): Promise<
       statusKey,
       statusDisplay: statusKey ? displayMap[statusKey] : null,
       waitlistPosition: application?.waitlistPosition ?? null,
-      rsvpStatusLabel: rsvpLabel
-        ? resolveRsvpStatusKey(rsvpLabel)
-        : null,
+      rsvpStatusLabel: rsvpLabel ? resolveRsvpStatusKey(rsvpLabel) : null,
       rsvpStatusDisplay: rsvpLabel
         ? rsvpDisplayMap[resolveRsvpStatusKey(rsvpLabel)]
         : null,

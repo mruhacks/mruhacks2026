@@ -4,13 +4,13 @@ import { eq, and } from 'drizzle-orm';
 
 import { getUser } from '@/utils/auth';
 import { db } from '@/utils/db';
+import { events, eventTypes, eventAttendees } from '@/db/schema';
 import {
-  events,
-  eventTypes,
-  eventAttendees,
-} from '@/db/schema';
-import { getUserApplicationStatus } from '@/app/dashboard/events/actions';
+  getUserApplicationStatus,
+  getUserRsvpStatus,
+} from '@/app/dashboard/events/actions';
 import { ApplicationStatusBanner } from '@/app/dashboard/events/ApplicationStatusBanner';
+import { RsvpStatusCard } from '@/app/dashboard/events/RsvpStatusCard';
 import { RegisterEventButton } from '@/app/dashboard/events/RegisterEventButton';
 import { UnregisterEventButton } from '@/app/dashboard/events/UnregisterEventButton';
 import {
@@ -43,7 +43,9 @@ function dateRange(startsAt: Date | null, endsAt: Date | null) {
   if (!startsAt) return 'Date TBA';
   const start = formatDateShort(startsAt);
   const end = endsAt ? formatDateShort(endsAt) : null;
-  return end && end !== start ? `${start} – ${end}` : (formatDate(startsAt) ?? start);
+  return end && end !== start
+    ? `${start} – ${end}`
+    : (formatDate(startsAt) ?? start);
 }
 
 export default async function EventEntryPage({ params }: Props) {
@@ -69,13 +71,24 @@ export default async function EventEntryPage({ params }: Props) {
   if (!row) notFound();
 
   if (row.hasApplication) {
-    const applicationStatus = await getUserApplicationStatus(eventId);
+    const [applicationStatus, rsvpStatus] = await Promise.all([
+      getUserApplicationStatus(eventId),
+      getUserRsvpStatus(eventId),
+    ]);
     const isFinal = applicationStatus?.statusDisplay.isFinal ?? false;
+    // When an RSVP exists, its card is the status of record — avoids the
+    // approved application "You're in" copy while the invite is still pending.
+    const showApplicationBanner = Boolean(applicationStatus) && !rsvpStatus;
 
     return (
       <div className='max-w-2xl space-y-6'>
         <div>
-          <Button asChild variant='ghost' size='sm' className='text-muted-foreground -ml-2 mb-2'>
+          <Button
+            asChild
+            variant='ghost'
+            size='sm'
+            className='text-muted-foreground mb-2 -ml-2'
+          >
             <Link href='/dashboard'>
               <ArrowLeft className='mr-1.5 size-4' />
               My events
@@ -83,14 +96,28 @@ export default async function EventEntryPage({ params }: Props) {
           </Button>
           <EventTypeTag label={row.eventTypeLabel} hasApplication />
           <h1 className='mt-2 text-3xl font-semibold'>{row.name}</h1>
-          <EventMeta startsAt={row.startsAt} endsAt={row.endsAt} capacity={row.capacity} />
+          <EventMeta
+            startsAt={row.startsAt}
+            endsAt={row.endsAt}
+            capacity={row.capacity}
+          />
         </div>
 
-        {applicationStatus && (
+        {showApplicationBanner && applicationStatus && (
           <ApplicationStatusBanner application={applicationStatus} />
         )}
 
-        {isFinal ? (
+        {rsvpStatus && (
+          <RsvpStatusCard eventId={eventId} rsvp={rsvpStatus} />
+        )}
+
+        {rsvpStatus ? (
+          <div className='flex gap-3'>
+            <Button asChild variant='outline'>
+              <Link href='/dashboard'>Back to dashboard</Link>
+            </Button>
+          </div>
+        ) : isFinal ? (
           <div className='flex gap-3'>
             <Button asChild variant='outline'>
               <Link href='/dashboard'>← Back to dashboard</Link>
@@ -146,7 +173,12 @@ export default async function EventEntryPage({ params }: Props) {
   return (
     <div className='max-w-2xl space-y-6'>
       <div>
-        <Button asChild variant='ghost' size='sm' className='text-muted-foreground -ml-2 mb-2'>
+        <Button
+          asChild
+          variant='ghost'
+          size='sm'
+          className='text-muted-foreground mb-2 -ml-2'
+        >
           <Link href='/dashboard'>
             <ArrowLeft className='mr-1.5 size-4' />
             My events
@@ -154,14 +186,20 @@ export default async function EventEntryPage({ params }: Props) {
         </Button>
         <EventTypeTag label={row.eventTypeLabel} hasApplication={false} />
         <h1 className='mt-2 text-3xl font-semibold'>{row.name}</h1>
-        <EventMeta startsAt={row.startsAt} endsAt={row.endsAt} capacity={row.capacity} />
+        <EventMeta
+          startsAt={row.startsAt}
+          endsAt={row.endsAt}
+          capacity={row.capacity}
+        />
       </div>
 
       {isRegistered ? (
         <Card>
           <CardHeader>
             <div className='flex items-center justify-between gap-2'>
-              <CardTitle className='text-base'>You&apos;re registered</CardTitle>
+              <CardTitle className='text-base'>
+                You&apos;re registered
+              </CardTitle>
               <Badge variant='success'>Registered</Badge>
             </div>
             <CardDescription>
