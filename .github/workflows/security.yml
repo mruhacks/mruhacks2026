@@ -13,6 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
         with:
