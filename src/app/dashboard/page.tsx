@@ -16,6 +16,7 @@ import {
   CardHeader,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { AddToWalletButton } from '@/components/add-to-wallet-button';
 import { ArrowRight, KeyRound, ShieldCheck, Users } from 'lucide-react';
 import type { EventWithUserStatus } from '@/app/dashboard/events/actions';
 
@@ -272,6 +273,8 @@ export default async function Dashboard() {
 
   const firstName = currentUser.name?.split(' ')[0] ?? null;
 
+  const ticketedEvents = events.filter((e) => e.statusKey === 'approved');
+
   const tile: React.CSSProperties = {
     background: 'var(--white)',
     border: 'var(--border-hairline)',
@@ -414,6 +417,55 @@ export default async function Dashboard() {
 
         {/* Rail */}
         <aside style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          {ticketedEvents.length > 0 && (
+            <div style={tile}>
+              <SectionEyebrow color='var(--green)'>Event pass</SectionEyebrow>
+              <p
+                style={{
+                  fontSize: '14px',
+                  color: 'var(--ink-500)',
+                  margin: 0,
+                }}
+              >
+                Add your ticket to Apple Wallet and show its QR code at
+                check-in.
+              </p>
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '12px',
+                }}
+              >
+                {ticketedEvents.map((event) => (
+                  <div
+                    key={event.id}
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'flex-start',
+                      gap: '7px',
+                    }}
+                  >
+                    {ticketedEvents.length > 1 && (
+                      <span
+                        style={{
+                          fontFamily: 'var(--font-ui)',
+                          fontWeight: 'var(--fw-semibold)',
+                          fontSize: '14px',
+                          color: 'var(--black)',
+                        }}
+                      >
+                        {event.name}
+                      </span>
+                    )}
+                    <AddToWalletButton eventId={event.id} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Quick links */}
           <div style={tile}>
             <SectionEyebrow color='var(--pink)'>Quick links</SectionEyebrow>

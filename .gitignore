@@ -24,6 +24,12 @@
 .DS_Store
 *.pem
 
+# apple wallet certs & generated passes
+*.p12
+*.cer
+*.cert
+*.pkpass
+
 # debug
 npm-debug.log*
 yarn-debug.log*

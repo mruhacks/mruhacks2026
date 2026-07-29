@@ -60,6 +60,9 @@ const nextConfig: NextConfig = {
       { protocol: 'https', hostname: 'lh3.googleusercontent.com' },
     ],
   },
+  outputFileTracingIncludes: {
+    '/api/wallet/pass/[eventId]': ['./src/lib/wallet/mruhacks.pass/**'],
+  },
   cacheComponents: true,
 };
 
