@@ -2,13 +2,14 @@
 
 import { randomUUID } from 'crypto';
 import { and, count, eq, ne } from 'drizzle-orm';
-import { updateTag } from 'next/cache';
+import { revalidatePath, updateTag } from 'next/cache';
 import { db } from '@/utils/db';
 import { FEATURED_EVENT_CACHE_TAG } from '@/lib/featured-event';
 import { events, eventApplications, user, userProfiles } from '@/db/schema';
 import { getUser } from '@/utils/auth';
 import { ok, fail, type ActionResult } from '@/utils/action-result';
 import { requirePermission } from '@/lib/rbac/authorization';
+import { sendRsvpWave } from '@/lib/rsvp/send-rsvp-wave';
 import type { ApplicationQuestion } from '@/types/application';
 import {
   addQuestionSchema,
@@ -571,4 +572,67 @@ export async function getApplicationResponses(
       createdAt: row.createdAt,
     })),
   );
+}
+
+export type SendEventRsvpWaveResult = {
+  waveNumber: number;
+  eligibleApplicantCount: number;
+  responsesCreated: number;
+  emailsSent: number;
+  emailFailures: Array<{
+    userId: string;
+    email: string;
+    error: string;
+  }>;
+};
+
+/**
+ * Admin: start the next RSVP wave for an event.
+ * Requires event:manage permission (satisfied by event:manage:all).
+ */
+export async function sendEventRsvpWave(
+  eventId: string,
+  respondByRaw: string,
+): Promise<ActionResult<SendEventRsvpWaveResult>> {
+  const user = await getAuthorizedUser();
+  if (!user) return fail('Not authenticated');
+
+  if (!eventId.trim()) return fail('Event ID is required.');
+
+  const respondBy = new Date(respondByRaw);
+  if (Number.isNaN(respondBy.getTime())) {
+    return fail('Enter a valid RSVP deadline.');
+  }
+  if (respondBy.getTime() <= Date.now()) {
+    return fail('RSVP deadline must be in the future.');
+  }
+
+  const result = await sendRsvpWave(eventId, respondBy);
+  if (!result.success) {
+    return fail(result.error);
+  }
+
+  revalidatePath(`/dashboard/admin/events/${eventId}`);
+
+  await writeAuditLog({
+    actorId: user.id,
+    action: 'event.rsvp_wave_sent',
+    targetType: 'event',
+    targetId: eventId,
+    metadata: {
+      waveNumber: result.wave.wave,
+      eligibleApplicantCount: result.eligibleApplicantCount,
+      responsesCreated: result.responsesCreated,
+      emailsSent: result.emailsSent,
+      emailFailureCount: result.emailFailures.length,
+    },
+  });
+
+  return ok({
+    waveNumber: result.wave.wave,
+    eligibleApplicantCount: result.eligibleApplicantCount,
+    responsesCreated: result.responsesCreated,
+    emailsSent: result.emailsSent,
+    emailFailures: result.emailFailures,
+  });
 }

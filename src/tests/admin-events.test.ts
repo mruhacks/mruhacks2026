@@ -19,6 +19,7 @@ import {
   getEventDetails,
   updateEventSettings,
   getApplicationResponses,
+  sendEventRsvpWave,
 } from '@/app/dashboard/admin/events/actions';
 
 vi.mock('@/utils/auth', () => ({ getUser: vi.fn() }));
@@ -27,9 +28,20 @@ vi.mock('next/navigation', () => ({
     throw new Error(`REDIRECT:${path}`);
   }),
 }));
-vi.mock('next/cache', () => ({ updateTag: vi.fn() }));
+vi.mock('next/cache', () => ({
+  updateTag: vi.fn(),
+  revalidatePath: vi.fn(),
+}));
+vi.mock('@/utils/mail', () => ({
+  sendMail: vi.fn().mockResolvedValue(undefined),
+}));
+vi.mock('@/lib/rsvp/send-rsvp-wave', () => ({
+  sendRsvpWave: vi.fn(),
+}));
 
 import { getUser } from '@/utils/auth';
+import { revalidatePath } from 'next/cache';
+import { sendRsvpWave } from '@/lib/rsvp/send-rsvp-wave';
 
 let adminUserId: string;
 let eventManagePermId: number;
@@ -567,5 +579,84 @@ describe('getApplicationResponses', () => {
     expect(result.data).toEqual([]);
 
     await db.delete(events).where(eq(events.id, eventId));
+  });
+});
+
+describe('sendEventRsvpWave', () => {
+  const futureDeadline = '2099-08-01T23:59';
+
+  test('returns error when not authenticated', async () => {
+    vi.mocked(getUser).mockResolvedValueOnce(null as never);
+    const result = await sendEventRsvpWave(testEventId, futureDeadline);
+    expect(result.success).toBe(false);
+  });
+
+  test('rejects an invalid or past deadline', async () => {
+    const invalid = await sendEventRsvpWave(testEventId, 'not-a-date');
+    expect(invalid.success).toBe(false);
+
+    const past = await sendEventRsvpWave(testEventId, '2020-01-01T00:00');
+    expect(past.success).toBe(false);
+  });
+
+  test('forwards wave results and revalidates the admin event page', async () => {
+    vi.mocked(sendRsvpWave).mockResolvedValueOnce({
+      success: true,
+      wave: {
+        id: 'wave-id',
+        eventId: testEventId,
+        wave: 1,
+        respondBy: new Date('2099-08-01T23:59:00.000Z'),
+        createdAt: new Date(),
+      },
+      eligibleApplicantCount: 3,
+      responsesCreated: 3,
+      emailsSent: 2,
+      emailFailures: [
+        {
+          userId: 'u1',
+          email: 'fail@example.com',
+          error: 'SMTP unavailable',
+        },
+      ],
+    });
+    vi.mocked(revalidatePath).mockClear();
+
+    const result = await sendEventRsvpWave(testEventId, futureDeadline);
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+
+    expect(result.data).toEqual({
+      waveNumber: 1,
+      eligibleApplicantCount: 3,
+      responsesCreated: 3,
+      emailsSent: 2,
+      emailFailures: [
+        {
+          userId: 'u1',
+          email: 'fail@example.com',
+          error: 'SMTP unavailable',
+        },
+      ],
+    });
+    expect(revalidatePath).toHaveBeenCalledWith(
+      `/dashboard/admin/events/${testEventId}`,
+    );
+    expect(sendRsvpWave).toHaveBeenCalledWith(
+      testEventId,
+      expect.any(Date),
+    );
+  });
+
+  test('surfaces sendRsvpWave errors', async () => {
+    vi.mocked(sendRsvpWave).mockResolvedValueOnce({
+      success: false,
+      error: 'No available spots remaining for this event.',
+    });
+
+    const result = await sendEventRsvpWave(testEventId, futureDeadline);
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.error).toContain('No available spots');
   });
 });

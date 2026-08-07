@@ -40,6 +40,7 @@ import type { ApplicationQuestion } from '@/types/application';
 import { cacheLife, revalidatePath } from 'next/cache';
 import { and, desc, eq, isNotNull } from 'drizzle-orm';
 import { getUserProfile } from '@/app/dashboard/profile/actions';
+import { timeoutExpiredRsvpResponses } from '@/lib/rsvp/timeout-expired-rsvp-responses';
 import { buildApplicationResponses } from './application-responses';
 import {
   type ApplicationStatusLabel,
@@ -380,6 +381,7 @@ export type RsvpStatusForUser = {
 
 /**
  * Current user's RSVP response for an event (latest wave).
+ * Times out expired pending invites before reading so the UI stays accurate.
  * Returns null if the user has no RSVP invitation for this event.
  */
 export async function getUserRsvpStatus(
@@ -387,6 +389,9 @@ export async function getUserRsvpStatus(
 ): Promise<RsvpStatusForUser | null> {
   const user = await getUser();
   if (!user) return null;
+
+  await timeoutExpiredRsvpResponses({ eventId, userId: user.id });
+
   const [row] = await db
     .select({
       responseId: eventRsvpResponses.id,
@@ -419,7 +424,9 @@ export async function getUserRsvpStatus(
 
 /**
  * Accept or decline an RSVP invitation on the latest wave.
- * Guards: must be pending, must be before respond_by deadline.
+ *
+ * Accept updates the RSVP row and creates an `event_attendees` record in one
+ * transaction. Decline only updates the RSVP row.
  */
 export async function submitRsvpResponse(
   eventId: string,
@@ -427,6 +434,8 @@ export async function submitRsvpResponse(
 ): Promise<ActionResult> {
   const user = await getUser();
   if (!user) return fail('User not authenticated');
+
+  await timeoutExpiredRsvpResponses({ eventId, userId: user.id });
 
   const [row] = await db
     .select({
@@ -451,7 +460,11 @@ export async function submitRsvpResponse(
 
   if (!row) return fail('No RSVP invitation found.');
 
-  if (resolveRsvpStatusKey(row.statusLabel) !== 'pending') {
+  const currentStatus = resolveRsvpStatusKey(row.statusLabel);
+  if (currentStatus === 'timed_out') {
+    return fail('RSVP deadline has passed.');
+  }
+  if (currentStatus !== 'pending') {
     return fail('Already responded to RSVP.');
   }
 
@@ -468,13 +481,27 @@ export async function submitRsvpResponse(
   if (!decisionStatus) return fail('RSVP statuses are not configured.');
 
   try {
-    await db
-      .update(eventRsvpResponses)
-      .set({
-        statusId: decisionStatus.id,
-        respondedAt: new Date(),
-      })
-      .where(eq(eventRsvpResponses.id, row.responseId));
+    await db.transaction(async (tx) => {
+      await tx
+        .update(eventRsvpResponses)
+        .set({
+          statusId: decisionStatus.id,
+          respondedAt: new Date(),
+        })
+        .where(eq(eventRsvpResponses.id, row.responseId));
+
+      if (decision === 'accepted') {
+        await tx
+          .insert(eventAttendees)
+          .values({
+            eventId,
+            userId: user.id,
+          })
+          .onConflictDoNothing({
+            target: [eventAttendees.eventId, eventAttendees.userId],
+          });
+      }
+    });
 
     revalidatePath(`/dashboard/events/${eventId}`);
     return ok(decision === 'accepted' ? 'RSVP accepted.' : 'RSVP declined.');

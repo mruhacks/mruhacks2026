@@ -1,21 +1,17 @@
 import 'server-only';
 
-import { and, desc, eq } from 'drizzle-orm';
+import { desc, eq } from 'drizzle-orm';
 
 import {
   events,
-  eventApplications,
-  applicationStatuses,
   eventRsvpWaves,
   eventRsvpResponses,
   rsvpStatuses,
-  user,
 } from '@/db/schema';
+import { getEligibleRsvpApplicants } from '@/lib/rsvp/eligible-rsvp-applicants';
+import { timeoutExpiredRsvpResponses } from '@/lib/rsvp/timeout-expired-rsvp-responses';
 import { auth } from '@/utils/auth';
 import { db } from '@/utils/db';
-
-/** DB label in application_statuses for an accepted application (UI title is "Accepted"). */
-const APPROVED_APPLICATION_STATUS_LABEL = 'approved';
 
 const PENDING_RSVP_STATUS_LABEL = 'pending';
 
@@ -78,17 +74,27 @@ function eventCallbackPath(eventId: string): string {
 
 /**
  * Creates the next RSVP wave for an event, inserts pending RSVP responses for
- * all approved applicants, and emails each a Better Auth magic link (same
- * pattern as admin `inviteUser`) that signs them in and redirects to the event
- * page. RSVP status stays pending until they Accept/Decline.
+ * eligible applicants, and emails each a Better Auth magic link.
  *
- * Intended to be called by the future admin "start RSVP" action and cron-driven
- * follow-up waves.
+ * Eligibility (via `getEligibleRsvpApplicants`) excludes attendees, accepted /
+ * declined invitees, and users with an active pending RSVP. Timed-out users
+ * may be invited again. Capacity is checked but never arbitrarily truncated —
+ * if more people are eligible than spots remain, the wave is refused.
+ *
+ * Intended for the admin "Send RSVP Wave" action and future cron follow-ups:
+ * timeout expired → eligible applicants → capacity check → send wave.
  */
 export async function sendRsvpWave(
   eventId: string,
   respondBy: Date,
 ): Promise<SendRsvpWaveResult> {
+  if (Number.isNaN(respondBy.getTime()) || respondBy.getTime() <= Date.now()) {
+    return {
+      success: false,
+      error: 'RSVP deadline must be a valid future date.',
+    };
+  }
+
   const [eventRow] = await db
     .select({ id: events.id, name: events.name })
     .from(events)
@@ -99,25 +105,11 @@ export async function sendRsvpWave(
     return { success: false, error: 'Event not found.' };
   }
 
-  const [[approvedStatus], [pendingRsvpStatus]] = await Promise.all([
-    db
-      .select({ id: applicationStatuses.id })
-      .from(applicationStatuses)
-      .where(eq(applicationStatuses.label, APPROVED_APPLICATION_STATUS_LABEL))
-      .limit(1),
-    db
-      .select({ id: rsvpStatuses.id })
-      .from(rsvpStatuses)
-      .where(eq(rsvpStatuses.label, PENDING_RSVP_STATUS_LABEL))
-      .limit(1),
-  ]);
-
-  if (!approvedStatus) {
-    return {
-      success: false,
-      error: 'Application statuses are not configured (missing approved).',
-    };
-  }
+  const [pendingRsvpStatus] = await db
+    .select({ id: rsvpStatuses.id })
+    .from(rsvpStatuses)
+    .where(eq(rsvpStatuses.label, PENDING_RSVP_STATUS_LABEL))
+    .limit(1);
 
   if (!pendingRsvpStatus) {
     return {
@@ -126,23 +118,34 @@ export async function sendRsvpWave(
     };
   }
 
-  const eligibleApplicants: EligibleApplicant[] = await db
-    .select({
-      userId: eventApplications.userId,
-      email: user.email,
-    })
-    .from(eventApplications)
-    .innerJoin(
-      applicationStatuses,
-      eq(eventApplications.statusId, applicationStatuses.id),
-    )
-    .innerJoin(user, eq(eventApplications.userId, user.id))
-    .where(
-      and(
-        eq(eventApplications.eventId, eventId),
-        eq(applicationStatuses.label, APPROVED_APPLICATION_STATUS_LABEL),
-      ),
-    );
+  await timeoutExpiredRsvpResponses({ eventId });
+
+  const eligibility = await getEligibleRsvpApplicants(eventId);
+  if (!eligibility) {
+    return { success: false, error: 'Event not found.' };
+  }
+
+  if (eligibility.availableSpots === 0) {
+    return {
+      success: false,
+      error: 'No available spots remaining for this event.',
+    };
+  }
+
+  if (
+    eligibility.availableSpots !== null &&
+    eligibility.applicants.length > eligibility.availableSpots
+  ) {
+    return {
+      success: false,
+      error:
+        `Cannot send RSVP wave: ${eligibility.applicants.length} eligible ` +
+        `applicants exceed ${eligibility.availableSpots} available spots, and ` +
+        `no ranking or waitlist order exists to choose a subset.`,
+    };
+  }
+
+  const eligibleApplicants: EligibleApplicant[] = eligibility.applicants;
 
   const [latestWave] = await db
     .select({ wave: eventRsvpWaves.wave })

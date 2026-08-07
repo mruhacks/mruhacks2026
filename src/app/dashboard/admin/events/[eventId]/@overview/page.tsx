@@ -26,6 +26,7 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
+import { SendRsvpWaveCard } from '@/app/dashboard/admin/events/SendRsvpWaveCard';
 
 type EventOverviewPageProps = {
   params: Promise<{ eventId: string }>;
@@ -306,6 +307,11 @@ export default function EventOverviewPage({ params }: EventOverviewPageProps) {
           )}
         </CardContent>
       </Card>
+
+      <SendRsvpWaveCard
+        eventId={event.id}
+        hasApplication={event.hasApplication}
+      />
     </div>
   );
 }

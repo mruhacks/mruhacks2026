@@ -340,7 +340,7 @@ describe('sendRsvpWave', () => {
     }
   });
 
-  test('creates the next wave number on subsequent calls', async () => {
+  test('does not re-invite users who still have an active pending RSVP', async () => {
     vi.mocked(sendMail).mockClear();
 
     const result = await sendRsvpWave(testEventId, respondBy);
@@ -349,11 +349,64 @@ describe('sendRsvpWave', () => {
     if (!result.success) return;
 
     expect(result.wave.wave).toBe(2);
+    expect(result.eligibleApplicantCount).toBe(0);
+    expect(result.responsesCreated).toBe(0);
+    expect(result.emailsSent).toBe(0);
+    expect(sendMail).not.toHaveBeenCalled();
+  });
+
+  test('re-invites applicants after their previous RSVP times out', async () => {
+    const [timedOutStatus] = await db
+      .select({ id: rsvpStatuses.id })
+      .from(rsvpStatuses)
+      .where(eq(rsvpStatuses.label, 'timed_out'))
+      .limit(1);
+
+    let timedOutStatusId = timedOutStatus?.id;
+    if (!timedOutStatusId) {
+      const [inserted] = await db
+        .insert(rsvpStatuses)
+        .values({
+          label: 'timed_out',
+          title: 'RSVP Timed Out',
+          description: 'RSVP Timed Out',
+          variant: 'secondary',
+          isFinal: true,
+        })
+        .returning({ id: rsvpStatuses.id });
+      timedOutStatusId = inserted.id;
+    }
+
+    await db
+      .update(eventRsvpResponses)
+      .set({ statusId: timedOutStatusId })
+      .where(eq(eventRsvpResponses.userId, approvedUserId));
+
+    vi.mocked(sendMail).mockClear();
+    const result = await sendRsvpWave(testEventId, respondBy);
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+
+    expect(result.wave.wave).toBe(3);
+    expect(result.eligibleApplicantCount).toBe(1);
     expect(result.responsesCreated).toBe(1);
     expect(result.emailsSent).toBe(1);
   });
 
   test('reports magic-link / email failures without deleting RSVP records', async () => {
+    const [timedOutStatus] = await db
+      .select({ id: rsvpStatuses.id })
+      .from(rsvpStatuses)
+      .where(eq(rsvpStatuses.label, 'timed_out'))
+      .limit(1);
+    expect(timedOutStatus).toBeTruthy();
+
+    await db
+      .update(eventRsvpResponses)
+      .set({ statusId: timedOutStatus!.id })
+      .where(eq(eventRsvpResponses.userId, approvedUserId));
+
     vi.mocked(sendMail).mockRejectedValueOnce(new Error('SMTP unavailable'));
 
     const beforeCount = await db
@@ -403,6 +456,18 @@ describe('sendRsvpWave', () => {
   });
 
   test('continues inviting remaining applicants when one magic link fails', async () => {
+    const [timedOutStatus] = await db
+      .select({ id: rsvpStatuses.id })
+      .from(rsvpStatuses)
+      .where(eq(rsvpStatuses.label, 'timed_out'))
+      .limit(1);
+    expect(timedOutStatus).toBeTruthy();
+
+    await db
+      .update(eventRsvpResponses)
+      .set({ statusId: timedOutStatus!.id })
+      .where(eq(eventRsvpResponses.userId, approvedUserId));
+
     const [secondUser] = await db
       .insert(user)
       .values({
@@ -440,6 +505,9 @@ describe('sendRsvpWave', () => {
     } finally {
       signInSpy.mockRestore();
       await db
+        .delete(eventRsvpResponses)
+        .where(eq(eventRsvpResponses.userId, secondUser.id));
+      await db
         .delete(eventApplications)
         .where(eq(eventApplications.userId, secondUser.id));
       await db.delete(user).where(eq(user.id, secondUser.id));
@@ -451,18 +519,75 @@ describe('sendRsvpWave', () => {
     const signInSpy = vi.spyOn(auth.api, 'signInMagicLink');
 
     try {
+      // Approved user still has an active pending RSVP from the previous test;
+      // pending-review user must never become eligible.
       const result = await sendRsvpWave(testEventId, respondBy);
       expect(result.success).toBe(true);
       if (!result.success) return;
 
-      expect(result.eligibleApplicantCount).toBe(1);
-      expect(signInSpy).toHaveBeenCalledTimes(1);
-      expect(signInSpy.mock.calls[0]?.[0]?.body?.email).toBe(
-        'approved-rsvp@example.com',
-      );
-      expect(sendMail).toHaveBeenCalledTimes(1);
+      expect(result.eligibleApplicantCount).toBe(0);
+      expect(signInSpy).not.toHaveBeenCalled();
+      expect(sendMail).not.toHaveBeenCalled();
     } finally {
       signInSpy.mockRestore();
+    }
+  });
+
+  test('refuses a wave when eligible applicants exceed remaining capacity', async () => {
+    const [capEvent] = await db
+      .insert(events)
+      .values({
+        name: 'Capacity Limited RSVP Event',
+        hasApplication: true,
+        capacity: 1,
+      })
+      .returning({ id: events.id });
+
+    const [userA] = await db
+      .insert(user)
+      .values({
+        name: 'Cap A',
+        email: 'cap-a@example.com',
+        emailVerified: true,
+      })
+      .returning({ id: user.id });
+    const [userB] = await db
+      .insert(user)
+      .values({
+        name: 'Cap B',
+        email: 'cap-b@example.com',
+        emailVerified: true,
+      })
+      .returning({ id: user.id });
+
+    await db.insert(eventApplications).values([
+      {
+        eventId: capEvent.id,
+        userId: userA.id,
+        statusId: approvedStatusId,
+      },
+      {
+        eventId: capEvent.id,
+        userId: userB.id,
+        statusId: approvedStatusId,
+      },
+    ]);
+
+    try {
+      const result = await sendRsvpWave(capEvent.id, respondBy);
+      expect(result.success).toBe(false);
+      if (result.success) return;
+      expect(result.error).toMatch(/exceed.*available spots/i);
+    } finally {
+      await db
+        .delete(eventRsvpWaves)
+        .where(eq(eventRsvpWaves.eventId, capEvent.id));
+      await db
+        .delete(eventApplications)
+        .where(eq(eventApplications.eventId, capEvent.id));
+      await db.delete(events).where(eq(events.id, capEvent.id));
+      await db.delete(user).where(eq(user.id, userA.id));
+      await db.delete(user).where(eq(user.id, userB.id));
     }
   });
 
