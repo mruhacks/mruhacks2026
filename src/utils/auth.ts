@@ -20,15 +20,12 @@ import { writeAuditLog } from '@/utils/audit-log';
 const EMAIL_VERIFICATION_EXPIRES_IN = 86400;
 
 /**
- * Magic-link token lifetime (seconds).
- *
- * Trade-off: RSVP `respondBy` may be days later, but a long-lived auth token is
- * risky for general sign-in (same plugin setting). 24h matches email
- * verification and covers "open the email soon after it arrives." If the link
- * expires before `respondBy`, a resend-link flow is required (not in this
- * change).
+ * Magic-link token lifetime (seconds). Shared by sign-in, invites, and RSVP.
+ * Kept at 24h for security; when an RSVP link expires before `respondBy`,
+ * use `resendRsvpMagicLink` (no new wave/response).
  */
-const MAGIC_LINK_EXPIRES_IN = 86400;
+export const MAGIC_LINK_EXPIRES_IN_SECONDS = 86400;
+const MAGIC_LINK_EXPIRES_IN = MAGIC_LINK_EXPIRES_IN_SECONDS;
 
 function getAuthBaseUrl(): string {
   const v = process.env.BETTER_AUTH_URL?.trim();
@@ -164,14 +161,11 @@ export const auth = betterAuth({
     admin(),
     magicLink({
       /**
-       * Not set to `disableSignUp: true`: admin `inviteUser` relies on magic
-       * links to create accounts for new invitees. RSVP waves only email
-       * existing approved applicants (joined from `user`), so they never
-       * create accounts via this path.
+       * Leave sign-up enabled: admin `inviteUser` creates accounts via magic
+       * link. RSVP waves only email existing approved applicants.
        */
       expiresIn: MAGIC_LINK_EXPIRES_IN,
       sendMagicLink: async ({ email, url }) => {
-        // Routes by callbackURL `source` (e.g. rsvp → RSVP invitation email).
         const mail = await resolveMagicLinkMailOptions({
           email,
           magicLinkUrl: url,

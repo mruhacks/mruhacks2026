@@ -15,7 +15,7 @@ import {
 } from '@/db/schema';
 import { db } from '@/utils/db';
 
-/** DB label in application_statuses for an accepted application. */
+/** DB label in application_statuses for an approved application. */
 const APPROVED_APPLICATION_STATUS_LABEL = 'approved';
 
 export type EligibleRsvpApplicant = {
@@ -29,29 +29,17 @@ export type RsvpEligibilityResult = {
   capacity: number | null;
   /** Current `event_attendees` count for the event. */
   attendeeCount: number;
-  /**
-   * Remaining spots when capacity is set (`capacity - attendeeCount`, floored
-   * at 0). Null when capacity is unlimited.
-   */
+  /** Remaining spots (`capacity - attendeeCount`), or null when unlimited. */
   availableSpots: number | null;
 };
 
 /**
- * Approved applicants who may receive the next RSVP wave.
+ * Approved applicants eligible for the next RSVP wave.
  *
- * Rules:
- * - Must have an approved application
- * - Must not already be an attendee
- * - Must not have accepted or declined any prior RSVP for this event
- * - Must not have an active pending RSVP (deadline still in the future, or
- *   missing deadline)
- * - Timed-out prior invites and never-invited applicants remain eligible
- *
- * Call `timeoutExpiredRsvpResponses` first so expired pending rows become
- * `timed_out` before this query runs.
- *
- * Does not truncate by capacity — callers decide how to handle
- * `applicants.length > availableSpots` (there is no ranking/waitlist order).
+ * Call `timeoutExpiredRsvpResponses` first so expired pending rows are
+ * `timed_out`. Does not truncate by capacity — callers must refuse when
+ * `applicants.length` exceeds `availableSpots` (no invite ranking yet;
+ * `waitlist_position` applies only to waitlisted applications).
  */
 export async function getEligibleRsvpApplicants(
   eventId: string,

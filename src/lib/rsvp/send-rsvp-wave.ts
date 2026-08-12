@@ -8,9 +8,15 @@ import {
   eventRsvpResponses,
   rsvpStatuses,
 } from '@/db/schema';
-import { getEligibleRsvpApplicants } from '@/lib/rsvp/eligible-rsvp-applicants';
+import {
+  getEligibleRsvpApplicants,
+  type EligibleRsvpApplicant,
+} from '@/lib/rsvp/eligible-rsvp-applicants';
+import {
+  getBackgroundAuthHeaders,
+  sendRsvpMagicLink,
+} from '@/lib/rsvp/send-rsvp-magic-link';
 import { timeoutExpiredRsvpResponses } from '@/lib/rsvp/timeout-expired-rsvp-responses';
-import { auth } from '@/utils/auth';
 import { db } from '@/utils/db';
 
 const PENDING_RSVP_STATUS_LABEL = 'pending';
@@ -45,44 +51,11 @@ export type SendRsvpWaveFailure = {
 
 export type SendRsvpWaveResult = SendRsvpWaveSuccess | SendRsvpWaveFailure;
 
-type EligibleApplicant = {
-  userId: string;
-  email: string;
-};
-
 /**
- * Headers for Better Auth server API calls outside a browser request
- * (CLI script, future cron). Uses BETTER_AUTH_URL as Origin — the same
- * trusted origin already configured for the app. Does not call Next.js
- * `headers()` so this works without an incoming HTTP request.
- */
-function getBackgroundAuthHeaders(): Headers {
-  const baseUrl = process.env.BETTER_AUTH_URL?.trim();
-  if (!baseUrl) {
-    throw new Error(
-      'BETTER_AUTH_URL is required to send RSVP magic-link invitations',
-    );
-  }
-  return new Headers({
-    origin: baseUrl,
-  });
-}
-
-function eventCallbackPath(eventId: string): string {
-  return `/dashboard/events/${eventId}?source=rsvp`;
-}
-
-/**
- * Creates the next RSVP wave for an event, inserts pending RSVP responses for
- * eligible applicants, and emails each a Better Auth magic link.
- *
- * Eligibility (via `getEligibleRsvpApplicants`) excludes attendees, accepted /
- * declined invitees, and users with an active pending RSVP. Timed-out users
- * may be invited again. Capacity is checked but never arbitrarily truncated —
- * if more people are eligible than spots remain, the wave is refused.
- *
- * Intended for the admin "Send RSVP Wave" action and future cron follow-ups:
- * timeout expired → eligible applicants → capacity check → send wave.
+ * Creates the next RSVP wave, pending responses for eligible applicants, and
+ * RSVP magic-link emails. Refuses the wave when eligible count exceeds
+ * remaining capacity (no invite ranking). Used by the admin action and
+ * `runScheduledRsvpWaves`.
  */
 export async function sendRsvpWave(
   eventId: string,
@@ -145,8 +118,6 @@ export async function sendRsvpWave(
     };
   }
 
-  const eligibleApplicants: EligibleApplicant[] = eligibility.applicants;
-
   const [latestWave] = await db
     .select({ wave: eventRsvpWaves.wave })
     .from(eventRsvpWaves)
@@ -156,8 +127,10 @@ export async function sendRsvpWave(
 
   const nextWaveNumber = (latestWave?.wave ?? 0) + 1;
 
+  const { applicants } = eligibility;
+
   let waveRecord: RsvpWaveRecord;
-  let invitedApplicants: EligibleApplicant[];
+  let invitedApplicants: EligibleRsvpApplicant[];
 
   try {
     const created = await db.transaction(async (tx) => {
@@ -176,18 +149,18 @@ export async function sendRsvpWave(
           createdAt: eventRsvpWaves.createdAt,
         });
 
-      if (eligibleApplicants.length === 0) {
+      if (applicants.length === 0) {
         return {
           wave,
           responsesCreated: 0,
-          invitedApplicants: [] as EligibleApplicant[],
+          invitedApplicants: [] as EligibleRsvpApplicant[],
         };
       }
 
       const insertedResponses = await tx
         .insert(eventRsvpResponses)
         .values(
-          eligibleApplicants.map((applicant) => ({
+          applicants.map((applicant) => ({
             rsvpWaveId: wave.id,
             userId: applicant.userId,
             statusId: pendingRsvpStatus.id,
@@ -202,24 +175,17 @@ export async function sendRsvpWave(
       return {
         wave,
         responsesCreated: insertedResponses.length,
-        invitedApplicants: eligibleApplicants.filter((applicant) =>
+        invitedApplicants: applicants.filter((applicant) =>
           invitedUserIds.has(applicant.userId),
         ),
       };
     });
 
-    if (!created.wave.respondBy) {
-      return {
-        success: false,
-        error: 'RSVP wave was created without a respond-by deadline.',
-      };
-    }
-
     waveRecord = {
       id: created.wave.id,
       eventId: created.wave.eventId,
       wave: created.wave.wave,
-      respondBy: created.wave.respondBy,
+      respondBy: created.wave.respondBy!,
       createdAt: created.wave.createdAt,
     };
     invitedApplicants = created.invitedApplicants;
@@ -231,7 +197,6 @@ export async function sendRsvpWave(
     };
   }
 
-  const callbackURL = eventCallbackPath(eventId);
   const emailFailures: RsvpWaveEmailFailure[] = [];
   let emailsSent = 0;
 
@@ -251,7 +216,7 @@ export async function sendRsvpWave(
     return {
       success: true,
       wave: waveRecord,
-      eligibleApplicantCount: eligibleApplicants.length,
+      eligibleApplicantCount: applicants.length,
       responsesCreated: invitedApplicants.length,
       emailsSent: 0,
       emailFailures,
@@ -260,15 +225,9 @@ export async function sendRsvpWave(
 
   for (const applicant of invitedApplicants) {
     try {
-      // Same pattern as admin inviteUser: Better Auth generates the token and
-      // calls sendMagicLink. RSVP-specific copy is chosen there when the
-      // callbackURL is an event page and a pending RSVP exists.
-      await auth.api.signInMagicLink({
-        body: {
-          email: applicant.email,
-          callbackURL,
-          errorCallbackURL: callbackURL,
-        },
+      await sendRsvpMagicLink({
+        email: applicant.email,
+        eventId,
         headers: authHeaders,
       });
       emailsSent += 1;
@@ -290,7 +249,7 @@ export async function sendRsvpWave(
   return {
     success: true,
     wave: waveRecord,
-    eligibleApplicantCount: eligibleApplicants.length,
+    eligibleApplicantCount: applicants.length,
     responsesCreated: invitedApplicants.length,
     emailsSent,
     emailFailures,

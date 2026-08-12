@@ -78,11 +78,9 @@ export async function findPendingRsvpInvitation(
 }
 
 /**
- * Builds RSVP invitation mail options for an explicitly marked RSVP magic link.
- *
- * Called only when `source=rsvp` was already confirmed by the auth router.
- * Invalid paths or missing pending RSVP responses throw so the invitation is
- * counted as an email failure instead of falling back to generic sign-in copy.
+ * Builds RSVP invitation mail for a `source=rsvp` magic link.
+ * Throws on invalid path or missing pending RSVP so the send counts as a
+ * failure instead of falling back to generic sign-in copy.
  */
 export async function resolveRsvpMagicLinkMailOptions(options: {
   email: string;

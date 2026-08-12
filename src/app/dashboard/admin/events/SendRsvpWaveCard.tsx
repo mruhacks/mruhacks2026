@@ -20,9 +20,7 @@ type Props = {
   hasApplication: boolean;
 };
 
-/**
- * Minimal admin control to start the next RSVP wave for an application event.
- */
+/** Admin control to start the next RSVP wave for an application event. */
 export function SendRsvpWaveCard({ eventId, hasApplication }: Props) {
   const [respondBy, setRespondBy] = React.useState('');
   const [isSubmitting, setIsSubmitting] = React.useState(false);

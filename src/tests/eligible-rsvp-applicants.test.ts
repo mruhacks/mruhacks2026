@@ -282,8 +282,7 @@ describe('getEligibleRsvpApplicants', () => {
   });
 
   test('treats expired pending deadlines as non-blocking when already timed out', async () => {
-    // pending user still has future deadline → blocked. After timeout status,
-    // they become eligible again (timeout helper is caller's responsibility).
+    // After marking timed_out, the previously pending user becomes eligible.
     await db
       .update(eventRsvpResponses)
       .set({ statusId: timedOutRsvpStatusId })

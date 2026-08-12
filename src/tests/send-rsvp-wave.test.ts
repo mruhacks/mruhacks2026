@@ -30,7 +30,7 @@ let pendingReviewStatusId: number;
 let testEventId: string;
 let approvedUserId: string;
 let pendingUserId: string;
-const respondBy = new Date('2026-08-01T23:59:59.000Z');
+const respondBy = new Date('2099-08-01T23:59:59.000Z');
 
 function magicLinkUrlFor(callbackURL: string): string {
   const url = new URL('http://localhost:3000/api/auth/magic-link/verify');
@@ -519,8 +519,7 @@ describe('sendRsvpWave', () => {
     const signInSpy = vi.spyOn(auth.api, 'signInMagicLink');
 
     try {
-      // Approved user still has an active pending RSVP from the previous test;
-      // pending-review user must never become eligible.
+      // Prior test left the approved user pending; pending_review stays ineligible.
       const result = await sendRsvpWave(testEventId, respondBy);
       expect(result.success).toBe(true);
       if (!result.success) return;
