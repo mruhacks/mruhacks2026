@@ -1,8 +1,9 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 
 import {
   applicationStatuses,
   eventApplications,
+  eventAttendees,
   events,
   userProfiles,
 } from '@/db/schema';
@@ -25,40 +26,51 @@ export async function GET(
     return new Response('Not found', { status: 404 });
   }
 
-  const [application] = await db
+  const [row] = await db
     .select({
-      id: eventApplications.id,
+      endsAt: events.endsAt,
       statusLabel: applicationStatuses.label,
+      attendeeUserId: eventAttendees.userId,
       fullName: userProfiles.fullName,
-      eventEndsAt: events.endsAt,
     })
-    .from(eventApplications)
-    .innerJoin(events, eq(events.id, eventApplications.eventId))
+    .from(events)
+    .leftJoin(
+      eventApplications,
+      and(
+        eq(eventApplications.eventId, events.id),
+        eq(eventApplications.userId, user.id),
+      ),
+    )
     .leftJoin(
       applicationStatuses,
       eq(applicationStatuses.id, eventApplications.statusId),
     )
-    .leftJoin(userProfiles, eq(userProfiles.userId, eventApplications.userId))
-    .where(
+    .leftJoin(
+      eventAttendees,
       and(
-        eq(eventApplications.userId, user.id),
-        eq(eventApplications.eventId, eventId),
+        eq(eventAttendees.eventId, events.id),
+        eq(eventAttendees.userId, user.id),
       ),
     )
+    .leftJoin(userProfiles, eq(userProfiles.userId, user.id))
+    .where(and(eq(events.id, eventId), isNull(events.parentEventId)))
     .limit(1);
 
-  if (!application) return new Response('Not found', { status: 404 });
+  if (!row) return new Response('Not found', { status: 404 });
 
-  if (application.statusLabel !== 'approved') {
+  const isParticipant =
+    row.statusLabel === 'approved' || row.attendeeUserId !== null;
+  if (!isParticipant) {
     return new Response('Forbidden', { status: 403 });
   }
 
   try {
     const pass = await generateParticipantPass({
-      applicationId: application.id,
-      name: application.fullName ?? user.name,
+      eventId,
+      userId: user.id,
+      name: row.fullName ?? user.name,
       role: 'Participant',
-      expiresAt: application.eventEndsAt,
+      expiresAt: row.endsAt,
     });
 
     return new Response(new Uint8Array(pass), {

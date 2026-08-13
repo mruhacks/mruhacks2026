@@ -273,7 +273,11 @@ export default async function Dashboard() {
 
   const firstName = currentUser.name?.split(' ')[0] ?? null;
 
-  const ticketedEvents = events.filter((e) => e.statusKey === 'approved');
+  const ticketedEvents = events.filter(
+    (e) =>
+      e.parentEventId === null &&
+      (e.statusKey === 'approved' || e.userStatus === 'registered'),
+  );
 
   const tile: React.CSSProperties = {
     background: 'var(--white)',
@@ -417,6 +421,7 @@ export default async function Dashboard() {
 
         {/* Rail */}
         <aside style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          {/* Event pass */}
           {ticketedEvents.length > 0 && (
             <div style={tile}>
               <SectionEyebrow color='var(--green)'>Event pass</SectionEyebrow>

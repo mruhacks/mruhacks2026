@@ -358,6 +358,7 @@ export async function registerEventInterest(
 export type EventWithUserStatus = {
   id: string;
   name: string;
+  parentEventId: string | null;
   hasApplication: boolean;
   userHasRegisteredInterest: boolean;
   startsAt: Date | null;
@@ -382,6 +383,7 @@ export async function getEventsWithUserStatus(): Promise<
     .select({
       id: events.id,
       name: events.name,
+      parentEventId: events.parentEventId,
       hasApplication: events.hasApplication,
       startsAt: events.startsAt,
       endsAt: events.endsAt,
@@ -430,6 +432,7 @@ export async function getEventsWithUserStatus(): Promise<
     return {
       id: e.id,
       name: e.name,
+      parentEventId: e.parentEventId,
       hasApplication: e.hasApplication,
       userHasRegisteredInterest: Boolean(e.userHasRegisteredInterest),
       startsAt: e.startsAt,

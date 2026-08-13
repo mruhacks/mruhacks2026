@@ -16,7 +16,8 @@ const MODEL_PATH = path.join(
 const DEFAULT_QR_TTL_MS = 24 * 60 * 60 * 1000;
 
 export type PassParticipant = {
-  applicationId: string;
+  eventId: string;
+  userId: string;
   name: string;
   role: string;
   expiresAt: Date | null;
@@ -44,7 +45,11 @@ function getCertificates() {
   };
 }
 
-function buildCheckInPayload(applicationId: string, expiresAt: Date): string {
+function buildCheckInPayload(
+  eventId: string,
+  userId: string,
+  expiresAt: Date,
+): string {
   const secret = process.env.APPLE_WALLET_QR_SECRET?.trim();
   if (!secret) {
     throw new Error(
@@ -52,7 +57,7 @@ function buildCheckInPayload(applicationId: string, expiresAt: Date): string {
     );
   }
 
-  const body = `${applicationId}.${Date.now()}.${expiresAt.getTime()}`;
+  const body = `${eventId}.${userId}.${Date.now()}.${expiresAt.getTime()}`;
   const signature = createHmac('sha256', secret)
     .update(body)
     .digest('base64url');
@@ -64,15 +69,16 @@ export async function generateParticipantPass(
 ): Promise<Buffer> {
   const expiresAt =
     participant.expiresAt ?? new Date(Date.now() + DEFAULT_QR_TTL_MS);
+  const serialNumber = `${participant.eventId}:${participant.userId}`;
 
   const pass = await PKPass.from(
     { model: MODEL_PATH, certificates: getCertificates() },
-    { serialNumber: participant.applicationId },
+    { serialNumber },
   );
 
-  if (pass.props.serialNumber !== participant.applicationId) {
+  if (pass.props.serialNumber !== serialNumber) {
     throw new Error(
-      `Pass serial number was not applied for application ${participant.applicationId}`,
+      `Pass serial number was not applied for event ${participant.eventId}`,
     );
   }
 
@@ -84,10 +90,12 @@ export async function generateParticipantPass(
   pass.backFields.push({
     key: 'ticketid',
     label: 'TICKET ID',
-    value: participant.applicationId,
+    value: serialNumber,
   });
 
-  pass.setBarcodes(buildCheckInPayload(participant.applicationId, expiresAt));
+  pass.setBarcodes(
+    buildCheckInPayload(participant.eventId, participant.userId, expiresAt),
+  );
   pass.setExpirationDate(expiresAt);
 
   return pass.getAsBuffer();
