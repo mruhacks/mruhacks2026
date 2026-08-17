@@ -76,8 +76,8 @@ export default async function EventEntryPage({ params }: Props) {
       getUserRsvpStatus(eventId),
     ]);
     const isFinal = applicationStatus?.statusDisplay.isFinal ?? false;
-    // When an RSVP exists, its card is the status of record — avoids the
-    // approved application "You're in" copy while the invite is still pending.
+    // Any latest-wave RSVP (pending, accepted, declined, timed_out) is the
+    // status of record — same precedence as dashboard listing badges.
     const showApplicationBanner = Boolean(applicationStatus) && !rsvpStatus;
 
     return (
