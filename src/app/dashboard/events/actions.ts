@@ -38,7 +38,7 @@ import {
 } from '@/components/application-form/schema';
 import type { ApplicationQuestion } from '@/types/application';
 import { cacheLife, revalidatePath } from 'next/cache';
-import { and, desc, eq, isNotNull } from 'drizzle-orm';
+import { and, count, desc, eq, isNotNull } from 'drizzle-orm';
 import { getUserProfile } from '@/app/dashboard/profile/actions';
 import { timeoutExpiredRsvpResponses } from '@/lib/rsvp/timeout-expired-rsvp-responses';
 import { buildApplicationResponses } from './application-responses';
@@ -422,11 +422,27 @@ export async function getUserRsvpStatus(
   };
 }
 
+const EVENT_AT_CAPACITY_MESSAGE =
+  'This event is at capacity. Your RSVP could not be accepted.';
+
+class RsvpAcceptError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'RsvpAcceptError';
+  }
+}
+
 /**
  * Accept or decline an RSVP invitation on the latest wave.
  *
  * Accept updates the RSVP row and creates an `event_attendees` record in one
  * transaction. Decline only updates the RSVP row.
+ *
+ * Capacity is enforced here — not at wave send — by locking the event row,
+ * counting attendees, and refusing the accept when the event is already full.
+ * Duplicate attendee rows are prevented by the (event_id, user_id) primary key
+ * with ON CONFLICT DO NOTHING; a user who is already an attendee may still
+ * accept without consuming an extra spot.
  */
 export async function submitRsvpResponse(
   eventId: string,
@@ -440,6 +456,7 @@ export async function submitRsvpResponse(
   const [row] = await db
     .select({
       responseId: eventRsvpResponses.id,
+      statusId: eventRsvpResponses.statusId,
       statusLabel: rsvpStatuses.label,
       respondBy: eventRsvpWaves.respondBy,
     })
@@ -459,6 +476,7 @@ export async function submitRsvpResponse(
     .limit(1);
 
   if (!row) return fail('No RSVP invitation found.');
+  if (row.statusId == null) return fail('RSVP statuses are not configured.');
 
   const currentStatus = resolveRsvpStatusKey(row.statusLabel);
   if (currentStatus === 'timed_out') {
@@ -480,17 +498,46 @@ export async function submitRsvpResponse(
 
   if (!decisionStatus) return fail('RSVP statuses are not configured.');
 
+  const pendingResponseStatusId = row.statusId;
+
   try {
     await db.transaction(async (tx) => {
-      await tx
-        .update(eventRsvpResponses)
-        .set({
-          statusId: decisionStatus.id,
-          respondedAt: new Date(),
-        })
-        .where(eq(eventRsvpResponses.id, row.responseId));
-
       if (decision === 'accepted') {
+        const [eventRow] = await tx
+          .select({ id: events.id, capacity: events.capacity })
+          .from(events)
+          .where(eq(events.id, eventId))
+          .for('update')
+          .limit(1);
+
+        if (!eventRow) {
+          throw new RsvpAcceptError('Event not found.');
+        }
+
+        if (eventRow.capacity !== null) {
+          const [existingAttendee] = await tx
+            .select({ userId: eventAttendees.userId })
+            .from(eventAttendees)
+            .where(
+              and(
+                eq(eventAttendees.eventId, eventId),
+                eq(eventAttendees.userId, user.id),
+              ),
+            )
+            .limit(1);
+
+          if (!existingAttendee) {
+            const [{ value: attendeeCount }] = await tx
+              .select({ value: count() })
+              .from(eventAttendees)
+              .where(eq(eventAttendees.eventId, eventId));
+
+            if (Number(attendeeCount) >= eventRow.capacity) {
+              throw new RsvpAcceptError(EVENT_AT_CAPACITY_MESSAGE);
+            }
+          }
+        }
+
         await tx
           .insert(eventAttendees)
           .values({
@@ -501,11 +548,34 @@ export async function submitRsvpResponse(
             target: [eventAttendees.eventId, eventAttendees.userId],
           });
       }
+
+      const updated = await tx
+        .update(eventRsvpResponses)
+        .set({
+          statusId: decisionStatus.id,
+          respondedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(eventRsvpResponses.id, row.responseId),
+            eq(eventRsvpResponses.statusId, pendingResponseStatusId),
+          ),
+        )
+        .returning({ id: eventRsvpResponses.id });
+
+      if (updated.length === 0) {
+        throw new RsvpAcceptError('Already responded to RSVP.');
+      }
     });
 
     revalidatePath(`/dashboard/events/${eventId}`);
+    revalidatePath('/dashboard');
+    revalidatePath('/dashboard/events');
     return ok(decision === 'accepted' ? 'RSVP accepted.' : 'RSVP declined.');
   } catch (error) {
+    if (error instanceof RsvpAcceptError) {
+      return fail(error.message);
+    }
     console.error('RSVP response error:', error);
     return fail('Failed to submit RSVP response.');
   }
@@ -539,6 +609,8 @@ export async function getEventsWithUserStatus(): Promise<
 > {
   const user = await getUser();
   if (!user) return [];
+
+  await timeoutExpiredRsvpResponses({ userId: user.id });
 
   const allEvents = await db
     .select({
@@ -587,16 +659,20 @@ export async function getEventsWithUserStatus(): Promise<
         eq(eventRsvpResponses.rsvpWaveId, eventRsvpWaves.id),
       )
       .leftJoin(rsvpStatuses, eq(eventRsvpResponses.statusId, rsvpStatuses.id))
-      .where(eq(eventRsvpResponses.userId, user.id)),
+      .where(eq(eventRsvpResponses.userId, user.id))
+      .orderBy(desc(eventRsvpWaves.wave)),
   ]);
 
   const registeredSet = new Set(attendeeEventIds.map((r) => r.eventId));
   const statusByEventId = new Map(
     applicationRows.map((r) => [r.eventId, r] as const),
   );
-  const rsvpByEventId = new Map(
-    rsvpRows.map((r) => [r.eventId, r.statusLabel] as const),
-  );
+  const rsvpByEventId = new Map<string, string | null>();
+  for (const row of rsvpRows) {
+    if (!rsvpByEventId.has(row.eventId)) {
+      rsvpByEventId.set(row.eventId, row.statusLabel);
+    }
+  }
   const [displayMap, rsvpDisplayMap] = await Promise.all([
     getApplicationStatusDisplayMap(),
     getRsvpStatusDisplayMap(),

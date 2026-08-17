@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeAll, afterAll, vi } from 'vitest';
-import { and, eq } from 'drizzle-orm';
+import { and, count, eq } from 'drizzle-orm';
 import { db } from '@/utils/db';
 import {
   user,
@@ -69,6 +69,30 @@ async function countAttendees(eventId: string, userId: string): Promise<number> 
       ),
     );
   return rows.length;
+}
+
+async function countEventAttendees(eventId: string): Promise<number> {
+  const [{ value }] = await db
+    .select({ value: count() })
+    .from(eventAttendees)
+    .where(eq(eventAttendees.eventId, eventId));
+  return Number(value);
+}
+
+function mockSession(userId: string, name: string, email: string) {
+  vi.mocked(getUser).mockResolvedValue({
+    id: userId,
+    name,
+    email,
+    emailVerified: true,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    image: null,
+  } as Awaited<ReturnType<typeof getUser>>);
+}
+
+function restoreDefaultSession() {
+  mockSession(testUserId, 'RSVP Responder', 'rsvp-responder@example.com');
 }
 
 beforeAll(async () => {
@@ -217,6 +241,8 @@ describe('submitRsvpResponse', () => {
     expect(revalidatePath).toHaveBeenCalledWith(
       `/dashboard/events/${testEventId}`,
     );
+    expect(revalidatePath).toHaveBeenCalledWith('/dashboard');
+    expect(revalidatePath).toHaveBeenCalledWith('/dashboard/events');
 
     // Older wave stays accepted — submit must not rewrite wave 1.
     const [wave1Row] = await db
@@ -240,7 +266,11 @@ describe('submitRsvpResponse', () => {
   test('accept is idempotent when an attendee row already exists', async () => {
     const [otherEvent] = await db
       .insert(events)
-      .values({ name: 'Existing Attendee RSVP Event', hasApplication: true })
+      .values({
+        name: 'Existing Attendee RSVP Event',
+        hasApplication: true,
+        capacity: 1,
+      })
       .returning({ id: events.id });
 
     const [wave] = await db
@@ -388,6 +418,292 @@ describe('submitRsvpResponse', () => {
         .delete(eventRsvpWaves)
         .where(eq(eventRsvpWaves.eventId, otherEvent.id));
       await db.delete(events).where(eq(events.id, otherEvent.id));
+    }
+  });
+
+  test('accepts when spots are available under a capacity limit', async () => {
+    const [capEvent] = await db
+      .insert(events)
+      .values({
+        name: 'RSVP Capacity Available Event',
+        hasApplication: true,
+        capacity: 2,
+      })
+      .returning({ id: events.id });
+
+    const [wave] = await db
+      .insert(eventRsvpWaves)
+      .values({
+        eventId: capEvent.id,
+        wave: 1,
+        respondBy: new Date('2099-10-01T23:59:59.000Z'),
+      })
+      .returning({ id: eventRsvpWaves.id });
+
+    await db.insert(eventRsvpResponses).values({
+      rsvpWaveId: wave.id,
+      userId: testUserId,
+      statusId: pendingStatusId,
+    });
+
+    try {
+      restoreDefaultSession();
+      const result = await submitRsvpResponse(capEvent.id, 'accepted');
+      expect(result.success).toBe(true);
+      expect(await countEventAttendees(capEvent.id)).toBe(1);
+      expect(await countAttendees(capEvent.id, testUserId)).toBe(1);
+
+      const status = await getUserRsvpStatus(capEvent.id);
+      expect(status?.statusLabel).toBe('accepted');
+    } finally {
+      await db
+        .delete(eventAttendees)
+        .where(eq(eventAttendees.eventId, capEvent.id));
+      await db
+        .delete(eventRsvpWaves)
+        .where(eq(eventRsvpWaves.eventId, capEvent.id));
+      await db.delete(events).where(eq(events.id, capEvent.id));
+      restoreDefaultSession();
+    }
+  });
+
+  test('accepts the final available spot', async () => {
+    const [capEvent] = await db
+      .insert(events)
+      .values({
+        name: 'RSVP Final Spot Event',
+        hasApplication: true,
+        capacity: 1,
+      })
+      .returning({ id: events.id });
+
+    const [wave] = await db
+      .insert(eventRsvpWaves)
+      .values({
+        eventId: capEvent.id,
+        wave: 1,
+        respondBy: new Date('2099-10-01T23:59:59.000Z'),
+      })
+      .returning({ id: eventRsvpWaves.id });
+
+    await db.insert(eventRsvpResponses).values({
+      rsvpWaveId: wave.id,
+      userId: testUserId,
+      statusId: pendingStatusId,
+    });
+
+    try {
+      restoreDefaultSession();
+      const result = await submitRsvpResponse(capEvent.id, 'accepted');
+      expect(result.success).toBe(true);
+      expect(await countEventAttendees(capEvent.id)).toBe(1);
+
+      const status = await getUserRsvpStatus(capEvent.id);
+      expect(status?.statusLabel).toBe('accepted');
+    } finally {
+      await db
+        .delete(eventAttendees)
+        .where(eq(eventAttendees.eventId, capEvent.id));
+      await db
+        .delete(eventRsvpWaves)
+        .where(eq(eventRsvpWaves.eventId, capEvent.id));
+      await db.delete(events).where(eq(events.id, capEvent.id));
+      restoreDefaultSession();
+    }
+  });
+
+  test('refuses accept when capacity is already full and does not mark RSVP accepted', async () => {
+    const [capEvent] = await db
+      .insert(events)
+      .values({
+        name: 'RSVP Already Full Event',
+        hasApplication: true,
+        capacity: 1,
+      })
+      .returning({ id: events.id });
+
+    const [filler] = await db
+      .insert(user)
+      .values({
+        name: 'Capacity Filler',
+        email: 'rsvp-capacity-filler@example.com',
+        emailVerified: true,
+      })
+      .returning({ id: user.id });
+
+    const [wave] = await db
+      .insert(eventRsvpWaves)
+      .values({
+        eventId: capEvent.id,
+        wave: 1,
+        respondBy: new Date('2099-10-01T23:59:59.000Z'),
+      })
+      .returning({ id: eventRsvpWaves.id });
+
+    await db.insert(eventAttendees).values({
+      eventId: capEvent.id,
+      userId: filler.id,
+    });
+    await db.insert(eventRsvpResponses).values({
+      rsvpWaveId: wave.id,
+      userId: testUserId,
+      statusId: pendingStatusId,
+    });
+
+    try {
+      restoreDefaultSession();
+      const result = await submitRsvpResponse(capEvent.id, 'accepted');
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toMatch(/at capacity/i);
+      }
+
+      const [response] = await db
+        .select({
+          statusId: eventRsvpResponses.statusId,
+          respondedAt: eventRsvpResponses.respondedAt,
+        })
+        .from(eventRsvpResponses)
+        .where(eq(eventRsvpResponses.rsvpWaveId, wave.id))
+        .limit(1);
+
+      expect(response?.statusId).toBe(pendingStatusId);
+      expect(response?.respondedAt).toBeNull();
+      expect(await countAttendees(capEvent.id, testUserId)).toBe(0);
+      expect(await countEventAttendees(capEvent.id)).toBe(1);
+    } finally {
+      await db
+        .delete(eventAttendees)
+        .where(eq(eventAttendees.eventId, capEvent.id));
+      await db
+        .delete(eventRsvpWaves)
+        .where(eq(eventRsvpWaves.eventId, capEvent.id));
+      await db.delete(events).where(eq(events.id, capEvent.id));
+      await db.delete(user).where(eq(user.id, filler.id));
+      restoreDefaultSession();
+    }
+  });
+
+  test('concurrent accepts cannot both claim the last spot', async () => {
+    const [capEvent] = await db
+      .insert(events)
+      .values({
+        name: 'RSVP Concurrent Capacity Event',
+        hasApplication: true,
+        capacity: 1,
+      })
+      .returning({ id: events.id });
+
+    const [userA] = await db
+      .insert(user)
+      .values({
+        name: 'Capacity Racer A',
+        email: 'rsvp-capacity-racer-a@example.com',
+        emailVerified: true,
+      })
+      .returning({ id: user.id, name: user.name, email: user.email });
+    const [userB] = await db
+      .insert(user)
+      .values({
+        name: 'Capacity Racer B',
+        email: 'rsvp-capacity-racer-b@example.com',
+        emailVerified: true,
+      })
+      .returning({ id: user.id, name: user.name, email: user.email });
+
+    const [wave] = await db
+      .insert(eventRsvpWaves)
+      .values({
+        eventId: capEvent.id,
+        wave: 1,
+        respondBy: new Date('2099-10-01T23:59:59.000Z'),
+      })
+      .returning({ id: eventRsvpWaves.id });
+
+    await db.insert(eventRsvpResponses).values([
+      {
+        rsvpWaveId: wave.id,
+        userId: userA.id,
+        statusId: pendingStatusId,
+      },
+      {
+        rsvpWaveId: wave.id,
+        userId: userB.id,
+        statusId: pendingStatusId,
+      },
+    ]);
+
+    const sessions = [
+      {
+        id: userA.id,
+        name: userA.name,
+        email: userA.email,
+        emailVerified: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        image: null,
+      },
+      {
+        id: userB.id,
+        name: userB.name,
+        email: userB.email,
+        emailVerified: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        image: null,
+      },
+    ];
+
+    vi.mocked(getUser).mockImplementation(async () => {
+      const next = sessions.shift();
+      if (!next) {
+        throw new Error('unexpected extra getUser call');
+      }
+      return next as Awaited<ReturnType<typeof getUser>>;
+    });
+
+    try {
+      const results = await Promise.all([
+        submitRsvpResponse(capEvent.id, 'accepted'),
+        submitRsvpResponse(capEvent.id, 'accepted'),
+      ]);
+
+      const successes = results.filter((result) => result.success);
+      const failures = results.filter((result) => !result.success);
+      expect(successes).toHaveLength(1);
+      expect(failures).toHaveLength(1);
+      if (!failures[0].success) {
+        expect(failures[0].error).toMatch(/at capacity/i);
+      }
+      expect(await countEventAttendees(capEvent.id)).toBe(1);
+
+      const responseRows = await db
+        .select({
+          userId: eventRsvpResponses.userId,
+          statusId: eventRsvpResponses.statusId,
+        })
+        .from(eventRsvpResponses)
+        .where(eq(eventRsvpResponses.rsvpWaveId, wave.id));
+
+      const acceptedCount = responseRows.filter(
+        (response) => response.statusId === acceptedStatusId,
+      ).length;
+      const pendingCount = responseRows.filter(
+        (response) => response.statusId === pendingStatusId,
+      ).length;
+      expect(acceptedCount).toBe(1);
+      expect(pendingCount).toBe(1);
+    } finally {
+      restoreDefaultSession();
+      await db
+        .delete(eventAttendees)
+        .where(eq(eventAttendees.eventId, capEvent.id));
+      await db
+        .delete(eventRsvpWaves)
+        .where(eq(eventRsvpWaves.eventId, capEvent.id));
+      await db.delete(events).where(eq(events.id, capEvent.id));
+      await db.delete(user).where(eq(user.id, userA.id));
+      await db.delete(user).where(eq(user.id, userB.id));
     }
   });
 });
