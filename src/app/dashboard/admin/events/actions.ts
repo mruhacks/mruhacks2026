@@ -10,6 +10,7 @@ import { getUser } from '@/utils/auth';
 import { ok, fail, type ActionResult } from '@/utils/action-result';
 import { requirePermission } from '@/lib/rbac/authorization';
 import { sendRsvpWave } from '@/lib/rsvp/send-rsvp-wave';
+import { parseRsvpDeadline } from '@/lib/rsvp/rsvp-datetime';
 import type { ApplicationQuestion } from '@/types/application';
 import {
   addQuestionSchema,
@@ -599,7 +600,7 @@ export async function sendEventRsvpWave(
 
   if (!eventId.trim()) return fail('Event ID is required.');
 
-  const respondBy = new Date(respondByRaw);
+  const respondBy = parseRsvpDeadline(respondByRaw);
   if (Number.isNaN(respondBy.getTime())) {
     return fail('Enter a valid RSVP deadline.');
   }

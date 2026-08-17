@@ -10,14 +10,7 @@ import type { RsvpStatusForUser } from '@/app/dashboard/events/actions';
 import { RsvpResponseButtons } from '@/app/dashboard/events/RsvpResponseButtons';
 import { RSVP_TIMELINE_LABELS } from '@/app/dashboard/events/rsvp-status';
 import { RSVP_DASHBOARD_LABELS } from '@/app/dashboard/events/event-display-status';
-
-function formatDate(d: Date | null) {
-  if (!d) return null;
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(d);
-}
+import { formatRsvpDateTime } from '@/lib/rsvp/rsvp-datetime';
 
 type Props = {
   eventId: string;
@@ -31,8 +24,10 @@ type Props = {
 export function RsvpStatusCard({ eventId, rsvp }: Props) {
   const { statusLabel, statusDisplay, respondBy, respondedAt } = rsvp;
   const isPending = statusLabel === 'pending';
-  const respondByFormatted = formatDate(respondBy);
-  const respondedAtFormatted = formatDate(respondedAt);
+  const respondByFormatted = respondBy ? formatRsvpDateTime(respondBy) : null;
+  const respondedAtFormatted = respondedAt
+    ? formatRsvpDateTime(respondedAt)
+    : null;
 
   const title = RSVP_DASHBOARD_LABELS[statusLabel];
   const description = isPending

@@ -1,14 +1,9 @@
 import type { SendMailOptions } from '@/utils/mail';
-
-function formatDeadline(respondBy: Date): string {
-  return respondBy.toLocaleString('en-CA', {
-    dateStyle: 'full',
-    timeStyle: 'short',
-  });
-}
+import { formatRsvpDeadline } from '@/lib/rsvp/rsvp-datetime';
 
 /**
  * Builds RSVP invitation email copy. Auth tokens and delivery stay outside.
+ * Deadline is formatted in Calgary time with a timezone abbreviation.
  */
 export function buildRsvpInvitationEmail(options: {
   eventName: string;
@@ -16,7 +11,7 @@ export function buildRsvpInvitationEmail(options: {
   magicLinkUrl: string;
 }): Pick<SendMailOptions, 'subject' | 'text' | 'html'> {
   const { eventName, respondBy, magicLinkUrl } = options;
-  const deadline = formatDeadline(respondBy);
+  const deadline = formatRsvpDeadline(respondBy);
 
   return {
     subject: `RSVP invitation — ${eventName}`,

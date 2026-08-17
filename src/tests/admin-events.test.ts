@@ -42,6 +42,7 @@ vi.mock('@/lib/rsvp/send-rsvp-wave', () => ({
 import { getUser } from '@/utils/auth';
 import { revalidatePath } from 'next/cache';
 import { sendRsvpWave } from '@/lib/rsvp/send-rsvp-wave';
+import { parseRsvpDeadline } from '@/lib/rsvp/rsvp-datetime';
 
 let adminUserId: string;
 let eventManagePermId: number;
@@ -644,7 +645,7 @@ describe('sendEventRsvpWave', () => {
     );
     expect(sendRsvpWave).toHaveBeenCalledWith(
       testEventId,
-      expect.any(Date),
+      parseRsvpDeadline(futureDeadline),
     );
   });
 

@@ -1,4 +1,6 @@
 export const EVENT_START_DATE = new Date('2026-10-23T00:00:00-06:00'); // October 23, 2026 (MDT — DST ends Nov 1, 2026)
+/** IANA timezone for MRUHacks (Calgary). Used for organizer-entered datetimes. */
+export const EVENT_TIMEZONE = 'America/Edmonton';
 export const EVENT_DATE_DISPLAY = 'October 23-25, 2026';
 export const EVENT_LOCATION_DISPLAY = 'In-Person Event @ Riddell Library';
 

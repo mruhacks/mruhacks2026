@@ -69,7 +69,8 @@ export function SendRsvpWaveCard({ eventId, hasApplication }: Props) {
           <Field>
             <FieldLabel htmlFor='rsvpRespondBy'>RSVP deadline</FieldLabel>
             <FieldDescription>
-              Applicants must respond by this date and time.
+              Applicants must respond by this date and time in Calgary
+              (Mountain Time).
             </FieldDescription>
             <Input
               id='rsvpRespondBy'
