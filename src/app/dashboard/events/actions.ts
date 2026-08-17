@@ -40,7 +40,7 @@ import type { ApplicationQuestion } from '@/types/application';
 import { cacheLife, revalidatePath } from 'next/cache';
 import { and, count, desc, eq, isNotNull } from 'drizzle-orm';
 import { getUserProfile } from '@/app/dashboard/profile/actions';
-import { timeoutExpiredRsvpResponses } from '@/lib/rsvp/timeout-expired-rsvp-responses';
+import { resolveEffectiveRsvpStatus } from '@/lib/rsvp/effective-rsvp-status';
 import { buildApplicationResponses } from './application-responses';
 import {
   type ApplicationStatusLabel,
@@ -381,16 +381,14 @@ export type RsvpStatusForUser = {
 
 /**
  * Current user's RSVP response for an event (latest wave).
- * Times out expired pending invites before reading so the UI stays accurate.
- * Returns null if the user has no RSVP invitation for this event.
+ * Effective status treats expired pending invites as timed_out without a
+ * write sweep. Returns null if the user has no RSVP invitation for this event.
  */
 export async function getUserRsvpStatus(
   eventId: string,
 ): Promise<RsvpStatusForUser | null> {
   const user = await getUser();
   if (!user) return null;
-
-  await timeoutExpiredRsvpResponses({ eventId, userId: user.id });
 
   const [row] = await db
     .select({
@@ -414,7 +412,10 @@ export async function getUserRsvpStatus(
     .orderBy(desc(eventRsvpWaves.wave))
     .limit(1);
   if (!row) return null;
-  const statusLabel = resolveRsvpStatusKey(row.statusLabel);
+  const statusLabel = resolveEffectiveRsvpStatus(
+    row.statusLabel,
+    row.respondBy,
+  );
   return {
     ...row,
     statusLabel,
@@ -451,8 +452,6 @@ export async function submitRsvpResponse(
   const user = await getUser();
   if (!user) return fail('User not authenticated');
 
-  await timeoutExpiredRsvpResponses({ eventId, userId: user.id });
-
   const [row] = await db
     .select({
       responseId: eventRsvpResponses.id,
@@ -478,16 +477,15 @@ export async function submitRsvpResponse(
   if (!row) return fail('No RSVP invitation found.');
   if (row.statusId == null) return fail('RSVP statuses are not configured.');
 
-  const currentStatus = resolveRsvpStatusKey(row.statusLabel);
+  const currentStatus = resolveEffectiveRsvpStatus(
+    row.statusLabel,
+    row.respondBy,
+  );
   if (currentStatus === 'timed_out') {
     return fail('RSVP deadline has passed.');
   }
   if (currentStatus !== 'pending') {
     return fail('Already responded to RSVP.');
-  }
-
-  if (row.respondBy && row.respondBy < new Date()) {
-    return fail('RSVP deadline has passed.');
   }
 
   const [decisionStatus] = await db
@@ -610,8 +608,6 @@ export async function getEventsWithUserStatus(): Promise<
   const user = await getUser();
   if (!user) return [];
 
-  await timeoutExpiredRsvpResponses({ userId: user.id });
-
   const allEvents = await db
     .select({
       id: events.id,
@@ -652,6 +648,7 @@ export async function getEventsWithUserStatus(): Promise<
       .select({
         eventId: eventRsvpWaves.eventId,
         statusLabel: rsvpStatuses.label,
+        respondBy: eventRsvpWaves.respondBy,
       })
       .from(eventRsvpResponses)
       .innerJoin(
@@ -667,10 +664,16 @@ export async function getEventsWithUserStatus(): Promise<
   const statusByEventId = new Map(
     applicationRows.map((r) => [r.eventId, r] as const),
   );
-  const rsvpByEventId = new Map<string, string | null>();
+  const rsvpByEventId = new Map<
+    string,
+    { statusLabel: string | null; respondBy: Date | null }
+  >();
   for (const row of rsvpRows) {
     if (!rsvpByEventId.has(row.eventId)) {
-      rsvpByEventId.set(row.eventId, row.statusLabel);
+      rsvpByEventId.set(row.eventId, {
+        statusLabel: row.statusLabel,
+        respondBy: row.respondBy,
+      });
     }
   }
   const [displayMap, rsvpDisplayMap] = await Promise.all([
@@ -683,7 +686,10 @@ export async function getEventsWithUserStatus(): Promise<
     const statusKey = application
       ? resolveApplicationStatusKey(application.statusKey)
       : null;
-    const rsvpLabel = rsvpByEventId.get(e.id);
+    const rsvp = rsvpByEventId.get(e.id);
+    const rsvpLabel = rsvp
+      ? resolveEffectiveRsvpStatus(rsvp.statusLabel, rsvp.respondBy)
+      : null;
     return {
       id: e.id,
       name: e.name,

@@ -36,10 +36,11 @@ export type RsvpEligibilityResult = {
 /**
  * Approved applicants eligible for the next RSVP wave.
  *
- * Call `timeoutExpiredRsvpResponses` first so expired pending rows are
- * `timed_out`. Does not truncate by capacity — callers must refuse when
- * `applicants.length` exceeds `availableSpots` (no invite ranking yet;
- * `waitlist_position` applies only to waitlisted applications).
+ * Expired pending invites do not block eligibility (`pending` only blocks
+ * while `respondBy` is null or still in the future). Does not truncate by
+ * capacity — callers must refuse when `applicants.length` exceeds
+ * `availableSpots` (no invite ranking yet; `waitlist_position` applies only
+ * to waitlisted applications).
  */
 export async function getEligibleRsvpApplicants(
   eventId: string,

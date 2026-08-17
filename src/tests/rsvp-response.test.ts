@@ -20,6 +20,7 @@ import { getUser } from '@/utils/auth';
 import { revalidatePath } from 'next/cache';
 import {
   getUserRsvpStatus,
+  getEventsWithUserStatus,
   submitRsvpResponse,
 } from '@/app/dashboard/events/actions';
 import { timeoutExpiredRsvpResponses } from '@/lib/rsvp/timeout-expired-rsvp-responses';
@@ -212,6 +213,129 @@ describe('getUserRsvpStatus', () => {
 
     const status = await getUserRsvpStatus(testEventId);
     expect(status).toBeNull();
+  });
+
+  test('treats stored pending with expired respondBy as timed_out without persisting', async () => {
+    const [otherEvent] = await db
+      .insert(events)
+      .values({
+        name: 'Expired Pending Read Event',
+        hasApplication: true,
+      })
+      .returning({ id: events.id });
+
+    const [wave] = await db
+      .insert(eventRsvpWaves)
+      .values({
+        eventId: otherEvent.id,
+        wave: 1,
+        respondBy: new Date('2020-01-01T00:00:00.000Z'),
+      })
+      .returning({ id: eventRsvpWaves.id });
+
+    const [response] = await db
+      .insert(eventRsvpResponses)
+      .values({
+        rsvpWaveId: wave.id,
+        userId: testUserId,
+        statusId: pendingStatusId,
+      })
+      .returning({ id: eventRsvpResponses.id });
+
+    try {
+      restoreDefaultSession();
+      const status = await getUserRsvpStatus(otherEvent.id);
+      expect(status?.statusLabel).toBe('timed_out');
+
+      const [stored] = await db
+        .select({ statusId: eventRsvpResponses.statusId })
+        .from(eventRsvpResponses)
+        .where(eq(eventRsvpResponses.id, response.id))
+        .limit(1);
+      expect(stored?.statusId).toBe(pendingStatusId);
+    } finally {
+      await db
+        .delete(eventRsvpWaves)
+        .where(eq(eventRsvpWaves.eventId, otherEvent.id));
+      await db.delete(events).where(eq(events.id, otherEvent.id));
+      restoreDefaultSession();
+    }
+  });
+
+  test('accepted with expired respondBy remains accepted', async () => {
+    const [otherEvent] = await db
+      .insert(events)
+      .values({
+        name: 'Expired Accepted Read Event',
+        hasApplication: true,
+      })
+      .returning({ id: events.id });
+
+    const [wave] = await db
+      .insert(eventRsvpWaves)
+      .values({
+        eventId: otherEvent.id,
+        wave: 1,
+        respondBy: new Date('2020-01-01T00:00:00.000Z'),
+      })
+      .returning({ id: eventRsvpWaves.id });
+
+    await db.insert(eventRsvpResponses).values({
+      rsvpWaveId: wave.id,
+      userId: testUserId,
+      statusId: acceptedStatusId,
+      respondedAt: new Date('2020-01-02T00:00:00.000Z'),
+    });
+
+    try {
+      restoreDefaultSession();
+      const status = await getUserRsvpStatus(otherEvent.id);
+      expect(status?.statusLabel).toBe('accepted');
+    } finally {
+      await db
+        .delete(eventRsvpWaves)
+        .where(eq(eventRsvpWaves.eventId, otherEvent.id));
+      await db.delete(events).where(eq(events.id, otherEvent.id));
+      restoreDefaultSession();
+    }
+  });
+
+  test('declined with expired respondBy remains declined', async () => {
+    const [otherEvent] = await db
+      .insert(events)
+      .values({
+        name: 'Expired Declined Read Event',
+        hasApplication: true,
+      })
+      .returning({ id: events.id });
+
+    const [wave] = await db
+      .insert(eventRsvpWaves)
+      .values({
+        eventId: otherEvent.id,
+        wave: 1,
+        respondBy: new Date('2020-01-01T00:00:00.000Z'),
+      })
+      .returning({ id: eventRsvpWaves.id });
+
+    await db.insert(eventRsvpResponses).values({
+      rsvpWaveId: wave.id,
+      userId: testUserId,
+      statusId: declinedStatusId,
+      respondedAt: new Date('2020-01-02T00:00:00.000Z'),
+    });
+
+    try {
+      restoreDefaultSession();
+      const status = await getUserRsvpStatus(otherEvent.id);
+      expect(status?.statusLabel).toBe('declined');
+    } finally {
+      await db
+        .delete(eventRsvpWaves)
+        .where(eq(eventRsvpWaves.eventId, otherEvent.id));
+      await db.delete(events).where(eq(events.id, otherEvent.id));
+      restoreDefaultSession();
+    }
   });
 });
 
@@ -842,6 +966,108 @@ describe('timeoutExpiredRsvpResponses', () => {
         .where(eq(eventRsvpWaves.eventId, otherEvent.id));
       await db.delete(events).where(eq(events.id, otherEvent.id));
       await db.delete(user).where(eq(user.id, otherUser.id));
+    }
+  });
+
+  test('does not write a second timeout when the sweep runs twice', async () => {
+    const [otherEvent] = await db
+      .insert(events)
+      .values({ name: 'Idempotent Timeout Event', hasApplication: true })
+      .returning({ id: events.id });
+
+    const [wave] = await db
+      .insert(eventRsvpWaves)
+      .values({
+        eventId: otherEvent.id,
+        wave: 1,
+        respondBy: new Date('2020-01-01T00:00:00.000Z'),
+      })
+      .returning({ id: eventRsvpWaves.id });
+
+    const [response] = await db
+      .insert(eventRsvpResponses)
+      .values({
+        rsvpWaveId: wave.id,
+        userId: testUserId,
+        statusId: pendingStatusId,
+      })
+      .returning({ id: eventRsvpResponses.id });
+
+    try {
+      const first = await timeoutExpiredRsvpResponses({
+        eventId: otherEvent.id,
+        userId: testUserId,
+      });
+      expect(first.timedOutCount).toBe(1);
+
+      const second = await timeoutExpiredRsvpResponses({
+        eventId: otherEvent.id,
+        userId: testUserId,
+      });
+      expect(second.timedOutCount).toBe(0);
+
+      const [row] = await db
+        .select({ statusId: eventRsvpResponses.statusId })
+        .from(eventRsvpResponses)
+        .where(eq(eventRsvpResponses.id, response.id))
+        .limit(1);
+      expect(row?.statusId).toBe(timedOutStatusId);
+    } finally {
+      await db
+        .delete(eventRsvpWaves)
+        .where(eq(eventRsvpWaves.eventId, otherEvent.id));
+      await db.delete(events).where(eq(events.id, otherEvent.id));
+    }
+  });
+});
+
+describe('getEventsWithUserStatus', () => {
+  test('does not return an expired pending invite as pending', async () => {
+    const [otherEvent] = await db
+      .insert(events)
+      .values({
+        name: 'Listing Expired Pending Event',
+        hasApplication: true,
+      })
+      .returning({ id: events.id });
+
+    const [wave] = await db
+      .insert(eventRsvpWaves)
+      .values({
+        eventId: otherEvent.id,
+        wave: 1,
+        respondBy: new Date('2020-01-01T00:00:00.000Z'),
+      })
+      .returning({ id: eventRsvpWaves.id });
+
+    const [response] = await db
+      .insert(eventRsvpResponses)
+      .values({
+        rsvpWaveId: wave.id,
+        userId: testUserId,
+        statusId: pendingStatusId,
+      })
+      .returning({ id: eventRsvpResponses.id });
+
+    try {
+      restoreDefaultSession();
+      const eventsList = await getEventsWithUserStatus();
+      const listed = eventsList.find((event) => event.id === otherEvent.id);
+      expect(listed?.rsvpStatusLabel).toBe('timed_out');
+      expect(listed?.rsvpStatusLabel).not.toBe('pending');
+
+      const [stored] = await db
+        .select({ statusId: eventRsvpResponses.statusId })
+        .from(eventRsvpResponses)
+        .where(eq(eventRsvpResponses.id, response.id))
+        .limit(1);
+      expect(stored?.statusId).toBe(pendingStatusId);
+    } finally {
+      await db
+        .delete(eventRsvpWaves)
+        .where(eq(eventRsvpWaves.eventId, otherEvent.id));
+      await db.delete(events).where(eq(events.id, otherEvent.id));
+      restoreDefaultSession();
     }
   });
 });

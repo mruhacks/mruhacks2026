@@ -10,10 +10,10 @@ import { cache } from 'react';
 import { db } from '@/utils/db';
 import { rsvpStatuses } from '@/db/schema';
 import {
-  rsvpStatusesList,
   type RsvpStatus,
   type ApplicationStatusBadgeVariant,
 } from '@/types/lookups';
+import { resolveStoredRsvpStatus } from '@/lib/rsvp/effective-rsvp-status';
 
 export type RsvpStatusLabel = RsvpStatus;
 
@@ -26,16 +26,11 @@ export type RsvpStatusDisplay = {
   isFinal: boolean;
 };
 
-const VALID_RSVP_LABELS: readonly string[] = rsvpStatusesList;
-
 /** Normalize DB label, null → pending. */
 export function resolveRsvpStatusKey(
   statusKey: string | null | undefined,
 ): RsvpStatusLabel {
-  if (statusKey && VALID_RSVP_LABELS.includes(statusKey)) {
-    return statusKey as RsvpStatusLabel;
-  }
-  return DEFAULT_RSVP_STATUS;
+  return resolveStoredRsvpStatus(statusKey);
 }
 
 /**

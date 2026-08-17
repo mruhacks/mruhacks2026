@@ -27,7 +27,12 @@ export type TimeoutExpiredRsvpResult = {
 
 /**
  * Marks pending RSVP responses as `timed_out` when their wave `respond_by`
- * is in the past. Safe for cron (no filters) or scoped to event/user.
+ * is in the past. Persistence/audit helper for cron and wave send — reads
+ * must not depend on this. Effective status is derived in
+ * `resolveEffectiveRsvpStatus`.
+ *
+ * Idempotent: already-timed-out rows are not selected again, so running the
+ * sweep twice does not write duplicate timeout transitions.
  *
  * Does not touch accepted/declined rows and does not set `responded_at`
  * (that field is reserved for an explicit user response).

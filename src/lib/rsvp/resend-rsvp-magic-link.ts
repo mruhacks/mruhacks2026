@@ -9,6 +9,7 @@ import {
   user,
 } from '@/db/schema';
 import { sendRsvpMagicLink } from '@/lib/rsvp/send-rsvp-magic-link';
+import { isEffectivePendingRsvp } from '@/lib/rsvp/effective-rsvp-status';
 import { db } from '@/utils/db';
 
 const PENDING_RSVP_STATUS_LABEL = 'pending';
@@ -91,6 +92,7 @@ export async function resendRsvpMagicLink(
       waveId: eventRsvpWaves.id,
       userId: eventRsvpResponses.userId,
       email: user.email,
+      respondBy: eventRsvpWaves.respondBy,
     })
     .from(eventRsvpResponses)
     .innerJoin(
@@ -102,7 +104,10 @@ export async function resendRsvpMagicLink(
     .orderBy(desc(eventRsvpWaves.wave))
     .limit(1);
 
-  if (!pending) {
+  if (
+    !pending ||
+    !isEffectivePendingRsvp(PENDING_RSVP_STATUS_LABEL, pending.respondBy)
+  ) {
     return {
       success: false,
       error: 'No pending RSVP response found for this user and event.',

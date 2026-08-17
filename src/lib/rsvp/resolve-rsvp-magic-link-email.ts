@@ -7,6 +7,7 @@ import {
   rsvpStatuses,
   user,
 } from '@/db/schema';
+import { isEffectivePendingRsvp } from '@/lib/rsvp/effective-rsvp-status';
 import { buildRsvpInvitationEmail } from '@/lib/rsvp/rsvp-invitation-email';
 import { db } from '@/utils/db';
 import type { SendMailOptions } from '@/utils/mail';
@@ -37,7 +38,8 @@ export function extractEventIdFromRsvpCallback(
 
 /**
  * Confirms the recipient has a pending RSVP for the event and returns
- * invitation details for the latest matching wave.
+ * invitation details for the latest matching wave. Expired pending rows
+ * are not treated as pending.
  */
 export async function findPendingRsvpInvitation(
   email: string,
@@ -70,6 +72,9 @@ export async function findPendingRsvpInvitation(
     .limit(1);
 
   if (!row?.respondBy) return null;
+  if (!isEffectivePendingRsvp(PENDING_RSVP_STATUS_LABEL, row.respondBy)) {
+    return null;
+  }
 
   return {
     eventName: row.eventName,
