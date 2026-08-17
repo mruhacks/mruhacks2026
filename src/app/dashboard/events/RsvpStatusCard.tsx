@@ -9,6 +9,7 @@ import {
 import type { RsvpStatusForUser } from '@/app/dashboard/events/actions';
 import { RsvpResponseButtons } from '@/app/dashboard/events/RsvpResponseButtons';
 import { RSVP_TIMELINE_LABELS } from '@/app/dashboard/events/rsvp-status';
+import { RSVP_DASHBOARD_LABELS } from '@/app/dashboard/events/event-display-status';
 
 function formatDate(d: Date | null) {
   if (!d) return null;
@@ -33,7 +34,7 @@ export function RsvpStatusCard({ eventId, rsvp }: Props) {
   const respondByFormatted = formatDate(respondBy);
   const respondedAtFormatted = formatDate(respondedAt);
 
-  const title = isPending ? 'RSVP required' : statusDisplay.title;
+  const title = RSVP_DASHBOARD_LABELS[statusLabel];
   const description = isPending
     ? 'Your application was accepted. Please confirm whether you will attend.'
     : statusDisplay.description;
@@ -51,7 +52,9 @@ export function RsvpStatusCard({ eventId, rsvp }: Props) {
       <CardHeader>
         <div className='flex items-center justify-between gap-2'>
           <CardTitle className='text-base'>{title}</CardTitle>
-          <Badge variant={statusDisplay.variant}>{statusDisplay.title}</Badge>
+          <Badge variant={isPending ? 'purple' : statusDisplay.variant}>
+            {title}
+          </Badge>
         </div>
         <CardDescription>{description}</CardDescription>
       </CardHeader>

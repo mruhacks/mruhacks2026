@@ -48,6 +48,7 @@ export function RsvpResponseButtons({ eventId }: Props) {
       <Button
         onClick={() => handleDecision('accepted')}
         disabled={isPending}
+        variant='purple'
         size='lg'
       >
         {activeDecision === 'accepted' && isPending

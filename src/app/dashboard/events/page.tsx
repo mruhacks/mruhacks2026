@@ -18,6 +18,7 @@ import { UnregisterEventButton } from './UnregisterEventButton';
 import { RegisterEventInterestButton } from './RegisterEventInterestButton';
 import { Calendar } from 'lucide-react';
 import type { ApplicationStatusLabel } from '@/app/dashboard/events/application-status';
+import { getApplicationDisplayStatus } from '@/app/dashboard/events/event-display-status';
 
 function formatDate(d: Date | null) {
   if (!d) return null;
@@ -76,73 +77,84 @@ export default async function DashboardEventsPage() {
         </Card>
       ) : (
         <ul className='grid gap-4 sm:grid-cols-2 lg:grid-cols-3'>
-          {eventsList.map((event) => (
-            <li key={event.id}>
-              <Card className='flex h-full flex-col'>
-                <CardHeader className='pb-2'>
-                  <div className='flex items-start justify-between gap-2'>
-                    <CardTitle className='text-lg'>{event.name}</CardTitle>
-                    {event.hasApplication &&
-                      event.userStatus === 'applied' &&
-                      event.statusDisplay && (
-                        <Badge variant={event.statusDisplay.variant}>
-                          {event.statusDisplay.title}
+          {eventsList.map((event) => {
+            const statusBadge =
+              event.hasApplication && event.userStatus === 'applied'
+                ? getApplicationDisplayStatus(event)
+                : null;
+
+            return (
+              <li key={event.id}>
+                <Card className='flex h-full flex-col'>
+                  <CardHeader className='pb-2'>
+                    <div className='flex items-start justify-between gap-2'>
+                      <CardTitle className='text-lg'>{event.name}</CardTitle>
+                      {statusBadge && (
+                        <Badge
+                          variant={
+                            statusBadge.pill === 'rsvp_pending'
+                              ? 'purple'
+                              : statusBadge.badgeVariant
+                          }
+                        >
+                          {statusBadge.label}
                         </Badge>
                       )}
-                  </div>
-                  <CardDescription className='text-sm'>
-                    {event.startsAt && (
-                      <span>
-                        {formatDate(event.startsAt)}
-                        {event.endsAt && ` – ${formatDate(event.endsAt)}`}
-                      </span>
-                    )}
-                    {!event.startsAt && 'Date TBA'}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className='mt-auto pt-4'>
-                  {event.hasApplication ? (
-                    <Button asChild size='sm' variant='default'>
-                      <Link href={`/dashboard/events/${event.id}/apply`}>
-                        {applyCtaLabel(
-                          event.userStatus === 'applied',
-                          event.statusKey,
-                        )}
-                      </Link>
-                    </Button>
-                  ) : (
-                    <>
-                      {event.userStatus === 'registered' ? (
-                        <div className='flex items-center gap-2'>
-                          <span className='text-muted-foreground text-sm'>
-                            You are registered
-                          </span>
-                          <UnregisterEventButton eventId={event.id} />
-                        </div>
-                      ) : (
-                        <RegisterEventButton eventId={event.id} />
+                    </div>
+                    <CardDescription className='text-sm'>
+                      {event.startsAt && (
+                        <span>
+                          {formatDate(event.startsAt)}
+                          {event.endsAt && ` – ${formatDate(event.endsAt)}`}
+                        </span>
                       )}
-                    </>
-                  )}
+                      {!event.startsAt && 'Date TBA'}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className='mt-auto pt-4'>
+                    {event.hasApplication ? (
+                      <Button asChild size='sm' variant='default'>
+                        <Link href={`/dashboard/events/${event.id}/apply`}>
+                          {applyCtaLabel(
+                            event.userStatus === 'applied',
+                            event.statusKey,
+                          )}
+                        </Link>
+                      </Button>
+                    ) : (
+                      <>
+                        {event.userStatus === 'registered' ? (
+                          <div className='flex items-center gap-2'>
+                            <span className='text-muted-foreground text-sm'>
+                              You are registered
+                            </span>
+                            <UnregisterEventButton eventId={event.id} />
+                          </div>
+                        ) : (
+                          <RegisterEventButton eventId={event.id} />
+                        )}
+                      </>
+                    )}
 
-                  {hasProfile ? (
-                    <RegisterEventInterestButton
-                      eventId={event.id}
-                      userHasRegisteredInterest={
-                        event.userHasRegisteredInterest
-                      }
-                    />
-                  ) : (
-                    <Button asChild size='sm' variant='default'>
-                      <Link href='/dashboard/profile?next=/dashboard/events'>
-                        Complete profile to notify me
-                      </Link>
-                    </Button>
-                  )}
-                </CardContent>
-              </Card>
-            </li>
-          ))}
+                    {hasProfile ? (
+                      <RegisterEventInterestButton
+                        eventId={event.id}
+                        userHasRegisteredInterest={
+                          event.userHasRegisteredInterest
+                        }
+                      />
+                    ) : (
+                      <Button asChild size='sm' variant='default'>
+                        <Link href='/dashboard/profile?next=/dashboard/events'>
+                          Complete profile to notify me
+                        </Link>
+                      </Button>
+                    )}
+                  </CardContent>
+                </Card>
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>
