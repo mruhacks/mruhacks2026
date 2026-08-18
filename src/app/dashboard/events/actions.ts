@@ -187,10 +187,7 @@ async function registerParticipant(
   }
 }
 
-/**
- * Fetches all application form options with caching
- */
-export async function getOptions() {
+async function fetchOptionsData() {
   'use cache';
   cacheLife('hours');
 
@@ -210,6 +207,17 @@ export async function getOptions() {
   );
 
   return Object.fromEntries(entries);
+}
+
+/**
+ * Fetches all application form options. Requires authentication.
+ * The DB query is cached separately because 'use cache' functions cannot
+ * read request-scoped context like the session.
+ */
+export async function getOptions() {
+  const u = await getUser();
+  if (!u) throw new Error('Not authenticated');
+  return fetchOptionsData();
 }
 
 /**

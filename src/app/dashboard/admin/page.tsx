@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { db } from '@/utils/db';
 import { sql } from 'drizzle-orm';
 import { user, role, permission, userRole } from '@/db/schema';
+import { requireAuthWithPermission } from '@/lib/rbac/guards';
 import {
   Card,
   CardContent,
@@ -13,6 +14,13 @@ import { Button } from '@/components/ui/button';
 import { Users, ShieldCheck, KeyRound, ArrowRight } from 'lucide-react';
 
 async function fetchCounts() {
+  await requireAuthWithPermission([
+    'user:read:all',
+    'user:all:all',
+    'role:read:all',
+    'permission:read:all',
+    'event:manage:all',
+  ]);
   const [userCount, roleCount, permCount, assignmentCount] = await Promise.all([
     db.select({ c: sql<number>`COUNT(*)`.mapWith(Number) }).from(user),
     db.select({ c: sql<number>`COUNT(*)`.mapWith(Number) }).from(role),

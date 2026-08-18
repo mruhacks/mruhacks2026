@@ -189,6 +189,8 @@ function hasAnyAdminAccess(permissions: Set<string>): boolean {
 }
 
 async function fetchAdminCounts() {
+  const u = await getUser();
+  if (!u) redirect('/signin');
   const [userCount, roleCount, permCount, assignmentCount] = await Promise.all([
     db.select({ c: sql<number>`COUNT(*)`.mapWith(Number) }).from(user),
     db.select({ c: sql<number>`COUNT(*)`.mapWith(Number) }).from(role),
