@@ -142,6 +142,8 @@ function validProfileData() {
     majorId,
     yearOfStudyId,
     dietaryRestrictions: [],
+    linkedinUrl: '',
+    githubUrl: '',
   };
 }
 
@@ -155,6 +157,7 @@ describe('getUserProfile', () => {
   test('returns ok(null) when no profile exists', async () => {
     const result = await getUserProfile();
     expect(result.success).toBe(true);
+    if (!result.success) throw new Error(result.error);
     expect(result.data).toBeNull();
   });
 
@@ -170,6 +173,7 @@ describe('getUserProfile', () => {
 
     const result = await getUserProfile();
     expect(result.success).toBe(true);
+    if (!result.success) throw new Error(result.error);
     expect(result.data?.fullName).toBe('Alice Smith');
     expect(result.data?.genderId).toBe(genderId);
     expect(result.data?.dietaryRestrictions).toEqual([]);
@@ -192,6 +196,7 @@ describe('getUserProfile', () => {
 
     const result = await getUserProfile();
     expect(result.success).toBe(true);
+    if (!result.success) throw new Error(result.error);
     expect(result.data?.dietaryRestrictions).toContain(dietaryRestrictionId);
 
     await db
@@ -216,6 +221,8 @@ describe('saveUserProfile', () => {
       majorId,
       yearOfStudyId,
       dietaryRestrictions: [],
+      linkedinUrl: '',
+      githubUrl: '',
     });
     expect(result.success).toBe(false);
     expect((result as { error: string }).error).toContain('Validation');

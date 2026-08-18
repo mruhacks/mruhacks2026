@@ -31,6 +31,7 @@ import {
   setRolePermissions,
 } from '@/app/actions/roles';
 import { getUser } from '@/utils/auth';
+import { unwrap } from './unwrap';
 
 let testUserId: string;
 let actorUserId: string;
@@ -92,6 +93,7 @@ describe('createRole', () => {
   test('creates a new role and returns its ID', async () => {
     const result = await createRole('test-organizer', 'Test organizer role');
     expect(result.success).toBe(true);
+    if (!result.success) throw new Error(result.error);
     expect(result.data).toBeTypeOf('number');
 
     const [row] = await db.select().from(role).where(eq(role.id, result.data!));
@@ -104,10 +106,12 @@ describe('createRole', () => {
   test('duplicate slug returns success with undefined ID (onConflictDoNothing)', async () => {
     const first = await createRole('test-duplicate-role');
     expect(first.success).toBe(true);
+    if (!first.success) throw new Error(first.error);
     expect(first.data).toBeTypeOf('number');
 
     const second = await createRole('test-duplicate-role');
     expect(second.success).toBe(true);
+    if (!second.success) throw new Error(second.error);
     expect(second.data).toBeUndefined();
 
     await db.delete(role).where(eq(role.id, first.data!));
@@ -116,8 +120,8 @@ describe('createRole', () => {
 
 describe('deleteRole', () => {
   test('deletes an existing role', async () => {
-    const { data: roleId } = await createRole('test-to-delete');
-    await deleteRole(roleId!);
+    const roleId = unwrap(await createRole('test-to-delete'));
+    await deleteRole(roleId);
     const rows = await db.select().from(role).where(eq(role.id, roleId!));
     expect(rows).toHaveLength(0);
   });
@@ -130,7 +134,7 @@ describe('deleteRole', () => {
 
 describe('updateRole', () => {
   test('updates role slug and description', async () => {
-    const { data: roleId } = await createRole('test-before-update');
+    const roleId = unwrap(await createRole('test-before-update'));
     await updateRole(roleId!, {
       slug: 'test-after-update',
       description: 'Updated desc',
@@ -144,7 +148,7 @@ describe('updateRole', () => {
   });
 
   test('auto-lowercases the slug', async () => {
-    const { data: roleId } = await createRole('test-case-role');
+    const roleId = unwrap(await createRole('test-case-role'));
     await updateRole(roleId!, { slug: 'TEST-CASE-ROLE' });
 
     const [row] = await db.select().from(role).where(eq(role.id, roleId!));
@@ -154,7 +158,7 @@ describe('updateRole', () => {
   });
 
   test('can set description to null', async () => {
-    const { data: roleId } = await createRole('test-null-desc', 'some desc');
+    const roleId = unwrap(await createRole('test-null-desc', 'some desc'));
     await updateRole(roleId!, { description: null });
 
     const [row] = await db.select().from(role).where(eq(role.id, roleId!));
@@ -164,7 +168,7 @@ describe('updateRole', () => {
   });
 
   test('empty patch object is a no-op and returns success', async () => {
-    const { data: roleId } = await createRole('test-noop-role');
+    const roleId = unwrap(await createRole('test-noop-role'));
     const result = await updateRole(roleId!, {});
     expect(result.success).toBe(true);
 
@@ -174,9 +178,10 @@ describe('updateRole', () => {
 
 describe('listRoles', () => {
   test('returns an array of roles with permissionCount and userCount', async () => {
-    const { data: roleId } = await createRole('test-listed-role');
+    const roleId = unwrap(await createRole('test-listed-role'));
     const result = await listRoles();
     expect(result.success).toBe(true);
+    if (!result.success) throw new Error(result.error);
     const found = result.data!.find((r) => r.id === roleId);
     expect(found).toBeDefined();
     expect(found!.permissionCount).toBe(0);
@@ -190,6 +195,7 @@ describe('addPermission / deletePermission / updatePermission / listPermissions'
   test('adds a permission and returns its ID', async () => {
     const result = await addPermission('test:read:all', 'A test permission');
     expect(result.success).toBe(true);
+    if (!result.success) throw new Error(result.error);
     expect(result.data).toBeTypeOf('number');
 
     await db.delete(permission).where(eq(permission.id, result.data!));
@@ -198,15 +204,17 @@ describe('addPermission / deletePermission / updatePermission / listPermissions'
   test('duplicate permission slug returns success with undefined ID', async () => {
     const first = await addPermission('test:dup:all');
     const second = await addPermission('test:dup:all');
+    if (!first.success) throw new Error(first.error);
     expect(second.success).toBe(true);
+    if (!second.success) throw new Error(second.error);
     expect(second.data).toBeUndefined();
 
     await db.delete(permission).where(eq(permission.id, first.data!));
   });
 
   test('deletes a permission', async () => {
-    const { data: permId } = await addPermission('test:delete-me:all');
-    await deletePermission(permId!);
+    const permId = unwrap(await addPermission('test:delete-me:all'));
+    await deletePermission(permId);
     const rows = await db
       .select()
       .from(permission)
@@ -215,8 +223,8 @@ describe('addPermission / deletePermission / updatePermission / listPermissions'
   });
 
   test('updatePermission auto-lowercases the slug', async () => {
-    const { data: permId } = await addPermission('test:lowercase:all');
-    await updatePermission(permId!, { slug: 'TEST:LOWERCASE:ALL' });
+    const permId = unwrap(await addPermission('test:lowercase:all'));
+    await updatePermission(permId, { slug: 'TEST:LOWERCASE:ALL' });
     const [row] = await db
       .select()
       .from(permission)
@@ -226,10 +234,11 @@ describe('addPermission / deletePermission / updatePermission / listPermissions'
   });
 
   test('listPermissions returns all permissions in alphabetical order', async () => {
-    const { data: p1 } = await addPermission('zzz:test:all');
-    const { data: p2 } = await addPermission('aaa:test:all');
+    const p1 = unwrap(await addPermission('zzz:test:all'));
+    const p2 = unwrap(await addPermission('aaa:test:all'));
     const result = await listPermissions();
     expect(result.success).toBe(true);
+    if (!result.success) throw new Error(result.error);
     const slugs = result.data!.map((p) => p.slug);
     const idx1 = slugs.indexOf('aaa:test:all');
     const idx2 = slugs.indexOf('zzz:test:all');
@@ -242,7 +251,7 @@ describe('addPermission / deletePermission / updatePermission / listPermissions'
 
 describe('assignRoleToUser / revokeRoleFromUser', () => {
   test('assigns a role to a user', async () => {
-    const { data: roleId } = await createRole('test-assign-role');
+    const roleId = unwrap(await createRole('test-assign-role'));
     await assignRoleToUser(testUserId, roleId!);
 
     const rows = await db
@@ -256,7 +265,7 @@ describe('assignRoleToUser / revokeRoleFromUser', () => {
   });
 
   test('assigning same role twice is idempotent', async () => {
-    const { data: roleId } = await createRole('test-idempotent-role');
+    const roleId = unwrap(await createRole('test-idempotent-role'));
     await assignRoleToUser(testUserId, roleId!);
     const result = await assignRoleToUser(testUserId, roleId!);
     expect(result.success).toBe(true);
@@ -272,7 +281,7 @@ describe('assignRoleToUser / revokeRoleFromUser', () => {
   });
 
   test('revokes a role from a user', async () => {
-    const { data: roleId } = await createRole('test-revoke-role');
+    const roleId = unwrap(await createRole('test-revoke-role'));
     await assignRoleToUser(testUserId, roleId!);
     await revokeRoleFromUser(testUserId, roleId!);
 
@@ -288,8 +297,8 @@ describe('assignRoleToUser / revokeRoleFromUser', () => {
 
 describe('grantPermissionToRole / revokePermissionFromRole', () => {
   test('grants a permission to a role', async () => {
-    const { data: roleId } = await createRole('test-grant-role');
-    const { data: permId } = await addPermission('test:grant:role');
+    const roleId = unwrap(await createRole('test-grant-role'));
+    const permId = unwrap(await addPermission('test:grant:role'));
     await grantPermissionToRole(roleId!, permId!);
 
     const rows = await db
@@ -304,8 +313,8 @@ describe('grantPermissionToRole / revokePermissionFromRole', () => {
   });
 
   test('granting same permission twice is idempotent', async () => {
-    const { data: roleId } = await createRole('test-grant-idempotent-role');
-    const { data: permId } = await addPermission('test:grant:idempotent');
+    const roleId = unwrap(await createRole('test-grant-idempotent-role'));
+    const permId = unwrap(await addPermission('test:grant:idempotent'));
     await grantPermissionToRole(roleId!, permId!);
     const result = await grantPermissionToRole(roleId!, permId!);
     expect(result.success).toBe(true);
@@ -322,8 +331,8 @@ describe('grantPermissionToRole / revokePermissionFromRole', () => {
   });
 
   test('revokes a permission from a role', async () => {
-    const { data: roleId } = await createRole('test-revoke-perm-role');
-    const { data: permId } = await addPermission('test:revoke:role');
+    const roleId = unwrap(await createRole('test-revoke-perm-role'));
+    const permId = unwrap(await addPermission('test:revoke:role'));
     await grantPermissionToRole(roleId!, permId!);
     await revokePermissionFromRole(roleId!, permId!);
 
@@ -340,7 +349,7 @@ describe('grantPermissionToRole / revokePermissionFromRole', () => {
 
 describe('grantPermissionToUser / revokePermissionFromUser', () => {
   test('grants a direct permission to a user', async () => {
-    const { data: permId } = await addPermission('test:grant:user');
+    const permId = unwrap(await addPermission('test:grant:user'));
     await grantPermissionToUser(testUserId, permId!);
 
     const rows = await db
@@ -356,7 +365,7 @@ describe('grantPermissionToUser / revokePermissionFromUser', () => {
   });
 
   test('revokes a direct permission from a user', async () => {
-    const { data: permId } = await addPermission('test:revoke:user');
+    const permId = unwrap(await addPermission('test:revoke:user'));
     await grantPermissionToUser(testUserId, permId!);
     await revokePermissionFromUser(testUserId, permId!);
 
@@ -372,8 +381,8 @@ describe('grantPermissionToUser / revokePermissionFromUser', () => {
 
 describe('setUserRoles', () => {
   test('replaces all user roles', async () => {
-    const { data: r1 } = await createRole('test-set-role-1');
-    const { data: r2 } = await createRole('test-set-role-2');
+    const r1 = unwrap(await createRole('test-set-role-1'));
+    const r2 = unwrap(await createRole('test-set-role-2'));
 
     await setUserRoles(testUserId, [r1!]);
     let rows = await db
@@ -397,7 +406,7 @@ describe('setUserRoles', () => {
   });
 
   test('clearing all roles (empty array) sets Better Auth role to user', async () => {
-    const { data: roleId } = await createRole('test-set-admin-role');
+    const roleId = unwrap(await createRole('test-set-admin-role'));
     await setUserRoles(testUserId, [roleId!]);
     await setUserRoles(testUserId, []);
 
@@ -417,7 +426,7 @@ describe('setUserRoles', () => {
   });
 
   test('assigning a role with slug "admin" sets Better Auth role to admin', async () => {
-    const { data: adminRoleId } = await createRole('admin');
+    const adminRoleId = unwrap(await createRole('admin'));
 
     await setUserRoles(testUserId, [adminRoleId!]);
 
@@ -435,8 +444,8 @@ describe('setUserRoles', () => {
 
 describe('setUserDirectPermissions', () => {
   test('replaces all user direct permissions', async () => {
-    const { data: p1 } = await addPermission('test:set-direct:p1');
-    const { data: p2 } = await addPermission('test:set-direct:p2');
+    const p1 = unwrap(await addPermission('test:set-direct:p1'));
+    const p2 = unwrap(await addPermission('test:set-direct:p2'));
 
     await setUserDirectPermissions(testUserId, [p1!, p2!]);
     let rows = await db
@@ -461,7 +470,7 @@ describe('setUserDirectPermissions', () => {
   });
 
   test('clears all permissions when given empty array', async () => {
-    const { data: permId } = await addPermission('test:set-direct:clear');
+    const permId = unwrap(await addPermission('test:set-direct:clear'));
     await setUserDirectPermissions(testUserId, [permId!]);
     await setUserDirectPermissions(testUserId, []);
 
@@ -477,9 +486,9 @@ describe('setUserDirectPermissions', () => {
 
 describe('setRolePermissions', () => {
   test('replaces all permissions for a role', async () => {
-    const { data: roleId } = await createRole('test-set-role-perms');
-    const { data: p1 } = await addPermission('test:set-role-perms:p1');
-    const { data: p2 } = await addPermission('test:set-role-perms:p2');
+    const roleId = unwrap(await createRole('test-set-role-perms'));
+    const p1 = unwrap(await addPermission('test:set-role-perms:p1'));
+    const p2 = unwrap(await addPermission('test:set-role-perms:p2'));
 
     await setRolePermissions(roleId!, [p1!, p2!]);
     let rows = await db
@@ -503,8 +512,10 @@ describe('setRolePermissions', () => {
   });
 
   test('clears all role permissions when given empty array', async () => {
-    const { data: roleId } = await createRole('test-set-role-perms-clear');
-    const { data: permId } = await addPermission('test:set-role-perms:clear');
+    const roleId = unwrap(await createRole('test-set-role-perms-clear'));
+    const permId = unwrap(
+      await addPermission('test:set-role-perms:clear'),
+    );
 
     await setRolePermissions(roleId!, [permId!]);
     await setRolePermissions(roleId!, []);

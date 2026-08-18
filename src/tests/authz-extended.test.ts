@@ -37,6 +37,7 @@ import {
   grantPermissionToUser,
 } from '@/app/actions/roles';
 import { getUser } from '@/utils/auth';
+import { unwrap } from './unwrap';
 
 vi.mock('next/navigation', () => ({
   redirect: vi.fn((path: string) => {
@@ -83,15 +84,15 @@ beforeAll(async () => {
   }
   vi.mocked(getUser).mockResolvedValue({ id: userId } as never);
 
-  const r1 = await createRole('ext-test-role-a', 'Extended test role A');
-  const r2 = await createRole('ext-test-role-b', 'Extended test role B');
-  roleId = r1.data!;
-  altRoleId = r2.data!;
+  roleId = unwrap(
+    await createRole('ext-test-role-a', 'Extended test role A'),
+  );
+  altRoleId = unwrap(
+    await createRole('ext-test-role-b', 'Extended test role B'),
+  );
 
-  const pA = await addPermission('ext:read:all', 'Ext read all');
-  const pB = await addPermission('ext:write:all', 'Ext write all');
-  permIdA = pA.data!;
-  permIdB = pB.data!;
+  permIdA = unwrap(await addPermission('ext:read:all', 'Ext read all'));
+  permIdB = unwrap(await addPermission('ext:write:all', 'Ext write all'));
 
   // Assign role A to user, grant permA to role A
   await assignRoleToUser(userId, roleId);
@@ -117,6 +118,7 @@ describe('getUserRoles', () => {
   test('returns roles assigned to the user', async () => {
     const result = await getUserRoles(userId);
     expect(result.success).toBe(true);
+    if (!result.success) throw new Error(result.error);
     const slugs = result.data!.map((r) => r.slug);
     expect(slugs).toContain('ext-test-role-a');
   });
@@ -124,6 +126,7 @@ describe('getUserRoles', () => {
   test('does not include roles the user was not assigned', async () => {
     const result = await getUserRoles(userId);
     expect(result.success).toBe(true);
+    if (!result.success) throw new Error(result.error);
     const slugs = result.data!.map((r) => r.slug);
     expect(slugs).not.toContain('ext-test-role-b');
   });
@@ -139,6 +142,7 @@ describe('getUserRoles', () => {
       .returning({ id: user.id });
     const result = await getUserRoles(u.id);
     expect(result.success).toBe(true);
+    if (!result.success) throw new Error(result.error);
     expect(result.data).toHaveLength(0);
     await db.delete(user).where(eq(user.id, u.id));
   });
@@ -148,6 +152,7 @@ describe('getDirectUserPermissions', () => {
   test('returns only directly assigned permissions, not role-inherited ones', async () => {
     const result = await getDirectUserPermissions(userId);
     expect(result.success).toBe(true);
+    if (!result.success) throw new Error(result.error);
     const slugs = result.data!.map((p) => p.slug);
     // permB is directly assigned
     expect(slugs).toContain('ext:write:all');
@@ -166,6 +171,7 @@ describe('getDirectUserPermissions', () => {
       .returning({ id: user.id });
     const result = await getDirectUserPermissions(u.id);
     expect(result.success).toBe(true);
+    if (!result.success) throw new Error(result.error);
     expect(result.data).toHaveLength(0);
     await db.delete(user).where(eq(user.id, u.id));
   });
@@ -175,6 +181,7 @@ describe('getRolePermissions', () => {
   test('returns permissions assigned to the role', async () => {
     const result = await getRolePermissions(roleId);
     expect(result.success).toBe(true);
+    if (!result.success) throw new Error(result.error);
     const slugs = result.data!.map((p) => p.slug);
     expect(slugs).toContain('ext:read:all');
   });
@@ -182,6 +189,7 @@ describe('getRolePermissions', () => {
   test('returns empty array for a role with no permissions', async () => {
     const result = await getRolePermissions(altRoleId);
     expect(result.success).toBe(true);
+    if (!result.success) throw new Error(result.error);
     expect(result.data).toHaveLength(0);
   });
 });
@@ -190,12 +198,14 @@ describe('getRolesForUsers', () => {
   test('returns empty object for empty user list', async () => {
     const result = await getRolesForUsers([]);
     expect(result.success).toBe(true);
+    if (!result.success) throw new Error(result.error);
     expect(result.data).toEqual({});
   });
 
   test('returns roles keyed by user ID', async () => {
     const result = await getRolesForUsers([userId]);
     expect(result.success).toBe(true);
+    if (!result.success) throw new Error(result.error);
     expect(result.data![userId]).toBeDefined();
     const slugs = result.data![userId].map((r) => r.slug);
     expect(slugs).toContain('ext-test-role-a');
@@ -213,6 +223,7 @@ describe('getRolesForUsers', () => {
 
     const result = await getRolesForUsers([userId, u.id]);
     expect(result.success).toBe(true);
+    if (!result.success) throw new Error(result.error);
     expect(result.data![u.id]).toEqual([]);
     expect(result.data![userId].length).toBeGreaterThan(0);
 
