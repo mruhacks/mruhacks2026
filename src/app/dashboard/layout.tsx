@@ -13,28 +13,29 @@ function HeaderSkeleton() {
   return (
     <div
       style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '16px 28px',
         borderBottom: 'var(--border-hairline)',
         background: 'var(--white)',
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: '28px' }}>
+      <div
+        className='mx-auto flex w-full items-center justify-between px-4 py-4 sm:px-6'
+        style={{ maxWidth: 'var(--content-max)' }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '28px' }}>
+          <div
+            className='animate-pulse'
+            style={{ width: 120, height: 22, borderRadius: 6, background: 'var(--ink-100)' }}
+          />
+          <div className='hidden sm:flex' style={{ gap: '26px' }}>
+            <div className='animate-pulse' style={{ width: 40, height: 14, borderRadius: 4, background: 'var(--ink-100)' }} />
+            <div className='animate-pulse' style={{ width: 50, height: 14, borderRadius: 4, background: 'var(--ink-100)' }} />
+          </div>
+        </div>
         <div
           className='animate-pulse'
-          style={{ width: 120, height: 22, borderRadius: 6, background: 'var(--ink-100)' }}
+          style={{ width: 38, height: 38, borderRadius: '999px', background: 'var(--ink-100)' }}
         />
-        <div className='hidden sm:flex' style={{ gap: '26px' }}>
-          <div className='animate-pulse' style={{ width: 40, height: 14, borderRadius: 4, background: 'var(--ink-100)' }} />
-          <div className='animate-pulse' style={{ width: 50, height: 14, borderRadius: 4, background: 'var(--ink-100)' }} />
-        </div>
       </div>
-      <div
-        className='animate-pulse'
-        style={{ width: 38, height: 38, borderRadius: '999px', background: 'var(--ink-100)' }}
-      />
     </div>
   );
 }
