@@ -7,6 +7,8 @@ import { getConsentStatus } from '@/app/dashboard/account/actions';
 import { getUserProfile } from '@/app/dashboard/profile/actions';
 import { redirect } from 'next/navigation';
 
+export const instant = false;
+
 // ── Skeletons ──────────────────────────────────────────────────────────────────
 
 function HeaderSkeleton() {
@@ -18,7 +20,7 @@ function HeaderSkeleton() {
       }}
     >
       <div
-        className='mx-auto flex w-full items-center justify-between px-4 py-4 sm:px-6'
+        className='mx-auto flex w-full items-center justify-between p-4 sm:px-6'
         style={{ maxWidth: 'var(--content-max)' }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '28px' }}>

@@ -49,7 +49,7 @@ export function DashboardHeader({ user }: Props) {
       }}
     >
       <div
-        className='mx-auto flex w-full items-center justify-between px-4 py-4 sm:px-6'
+        className='mx-auto flex w-full items-center justify-between p-4 sm:px-6'
         style={{ maxWidth: 'var(--content-max)' }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '28px' }}>
