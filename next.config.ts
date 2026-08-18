@@ -1,6 +1,24 @@
 import type { NextConfig } from 'next';
+import { execSync } from 'child_process';
 
 const isDev = process.env.NODE_ENV !== 'production';
+
+/**
+ * Captured at build time (not runtime) since deployed environments typically
+ * don't ship a `.git` directory or the `git` binary.
+ */
+function getBuildInfo(): string {
+  try {
+    return execSync('git describe --long --always', {
+      cwd: __dirname,
+      stdio: ['ignore', 'pipe', 'ignore'],
+    })
+      .toString()
+      .trim();
+  } catch {
+    return 'unknown';
+  }
+}
 
 const nextConfig: NextConfig = {
   async headers() {
@@ -67,6 +85,9 @@ const nextConfig: NextConfig = {
     ],
   },
   cacheComponents: true,
+  env: {
+    BUILD_INFO: getBuildInfo(),
+  },
 };
 
 export default nextConfig;

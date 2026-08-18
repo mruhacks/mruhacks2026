@@ -32,6 +32,12 @@ export const metadata: Metadata = {
   title: 'MRUHacks',
 };
 
+// This app is an authenticated dashboard where nearly every route needs a
+// per-request session check — a poor fit for instant-navigation validation.
+// Opt the whole app out at the root rather than chasing this warning route
+// by route; individual routes can still re-opt-in with `instant = true`.
+export const instant = false;
+
 export default function RootLayout({
   children,
 }: {

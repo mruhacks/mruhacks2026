@@ -1,7 +1,10 @@
 import { Suspense } from 'react';
 import { ImpersonationBanner } from '@/components/impersonation-banner';
 import { DashboardHeader } from '@/components/dashboard-header';
+import { DashboardFooter } from '@/components/dashboard-footer';
 import { getUser } from '@/utils/auth';
+import { getConsentStatus } from '@/app/dashboard/account/actions';
+import { getUserProfile } from '@/app/dashboard/profile/actions';
 import { redirect } from 'next/navigation';
 
 // ── Skeletons ──────────────────────────────────────────────────────────────────
@@ -46,24 +49,16 @@ function ContentSkeleton() {
         <div className='animate-pulse' style={{ width: 320, height: 16, borderRadius: 4, background: 'var(--ink-100)' }} />
       </div>
 
-      {/* Two-column grid */}
-      <div className='grid gap-6 lg:grid-cols-[1.55fr_1fr]'>
-        {/* Events column */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          <div className='animate-pulse' style={{ width: 72, height: 13, borderRadius: 3, background: 'var(--ink-200)' }} />
-          {[78, 78, 78].map((h, i) => (
-            <div
-              key={i}
-              className='animate-pulse'
-              style={{ height: h, borderRadius: 'var(--radius-md)', background: 'var(--ink-100)' }}
-            />
-          ))}
-        </div>
-        {/* Rail column */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          <div className='animate-pulse' style={{ height: 150, borderRadius: 'var(--radius-md)', background: 'var(--ink-100)' }} />
-          <div className='animate-pulse' style={{ height: 178, borderRadius: 'var(--radius-md)', background: 'var(--ink-100)' }} />
-        </div>
+      {/* Events column */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <div className='animate-pulse' style={{ width: 72, height: 13, borderRadius: 3, background: 'var(--ink-200)' }} />
+        {[78, 78, 78].map((h, i) => (
+          <div
+            key={i}
+            className='animate-pulse'
+            style={{ height: h, borderRadius: 'var(--radius-md)', background: 'var(--ink-100)' }}
+          />
+        ))}
       </div>
     </div>
   );
@@ -74,6 +69,17 @@ function ContentSkeleton() {
 async function DashboardHeaderLoader() {
   const user = await getUser();
   if (!user) redirect('/signin');
+
+  // Bounce back into onboarding if it was never finished — e.g. the user
+  // closed the tab mid-welcome-flow, or typed a dashboard URL directly.
+  const [consentRes, profileRes] = await Promise.all([
+    getConsentStatus(),
+    getUserProfile(),
+  ]);
+  const needsConsent =
+    consentRes.success && consentRes.data ? consentRes.data.needsConsent : true;
+  const needsProfile = !profileRes.success || profileRes.data == null;
+  if (needsConsent || needsProfile) redirect('/welcome');
 
   return (
     <DashboardHeader
@@ -95,7 +101,7 @@ export default function DashboardLayout({
 }) {
   return (
     <div
-      className='min-h-screen'
+      className='flex min-h-screen flex-col'
       style={{ background: 'var(--ink-050)', fontFamily: 'var(--font-body)' }}
     >
       <ImpersonationBanner />
@@ -103,13 +109,14 @@ export default function DashboardLayout({
         <DashboardHeaderLoader />
       </Suspense>
       <main
-        className='mx-auto px-4 py-8 sm:px-6'
+        className='mx-auto w-full flex-1 px-4 py-8 sm:px-6'
         style={{ maxWidth: 'var(--content-max)' }}
       >
         <Suspense fallback={<ContentSkeleton />}>
           {children}
         </Suspense>
       </main>
+      <DashboardFooter />
     </div>
   );
 }

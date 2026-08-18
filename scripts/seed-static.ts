@@ -143,6 +143,10 @@ async function seedRolesAndPermissions() {
       slug: 'application:review:all',
       description: 'Approve or reject applications',
     },
+    {
+      slug: 'system:read:all',
+      description: 'View system health and diagnostics',
+    },
   ];
 
   console.log('🧱 Seeding roles and permissions...');

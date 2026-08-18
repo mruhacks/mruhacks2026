@@ -16,6 +16,7 @@ import { DataExportCard } from './data-export-card';
 import { ConsentCard } from './consent-card';
 import { SessionsCard } from './sessions-card';
 import { DeleteAccountCard } from './delete-account-card';
+import { ProfilePictureCard } from './profile-picture-card';
 
 const PROVIDER_LABELS: Record<string, string> = {
   credential: 'Email & password',
@@ -60,6 +61,8 @@ export default async function AccountPage() {
           privacy rights.
         </p>
       </div>
+
+      <ProfilePictureCard image={user.image} name={overview?.name ?? user.name ?? user.email} />
 
       {/* Account overview */}
       <Card>

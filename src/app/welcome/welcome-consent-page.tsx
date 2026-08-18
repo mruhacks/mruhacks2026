@@ -9,7 +9,12 @@ import { toast } from 'sonner';
 import { recordOnboardingConsent } from '@/app/dashboard/account/actions';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Field, FieldError, FieldGroup } from '@/components/ui/field';
+import {
+  Field,
+  FieldError,
+  FieldGroup,
+  RequiredAsterisk,
+} from '@/components/ui/field';
 import { Label } from '@/components/ui/label';
 import curtWaving from '@/assets/crt_waving.png';
 
@@ -49,7 +54,7 @@ export function WelcomeConsentPage({
           <Image
             src={curtWaving}
             alt='Curt waving'
-            className='mb-5 h-auto w-40'
+            className='mx-auto mb-5 h-auto w-40'
             priority
           />
           <h2 className='text-lg font-semibold'>Welcome to MRUHacks!</h2>
@@ -57,7 +62,7 @@ export function WelcomeConsentPage({
             First, some legal stuff.
           </p>
         </div>
-        <FieldGroup>
+        <FieldGroup className='gap-3'>
           <Field data-invalid={Boolean(legalError)}>
             <div className='flex items-start gap-3'>
               <Checkbox
@@ -77,7 +82,6 @@ export function WelcomeConsentPage({
                 I agree to the{' '}
                 <Link
                   href='/terms'
-                  target='_blank'
                   className='text-primary underline underline-offset-2'
                 >
                   Terms of Use
@@ -85,12 +89,11 @@ export function WelcomeConsentPage({
                 and{' '}
                 <Link
                   href='/privacy'
-                  target='_blank'
                   className='text-primary underline underline-offset-2'
                 >
                   Privacy Policy
                 </Link>
-                .
+                <RequiredAsterisk />
               </Label>
             </div>
             {legalError && <FieldError>{legalError}</FieldError>}

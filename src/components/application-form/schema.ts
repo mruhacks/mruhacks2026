@@ -1,5 +1,13 @@
 import { z } from 'zod';
 import type { ApplicationQuestion } from '@/types/application';
+import { otherTextKey } from '@/lib/other-option';
+
+const otherTextSchema = z
+  .string()
+  .trim()
+  .max(255, 'Keep it under 255 characters.')
+  .optional()
+  .nullable();
 
 /** Event-specific answers keyed by question UUID. Validated server-side against event.applicationQuestions. */
 const applicationResponsesSchema = z.record(z.string(), z.unknown());
@@ -66,12 +74,14 @@ export function createApplicationFormSchema(
         fieldSchema = z
           .string()
           .min(1, `Please select an option for ${question.label}`);
+        responsesSchema[otherTextKey(questionId)] = otherTextSchema;
         break;
 
       case 'multi_select':
         fieldSchema = z
           .array(z.string())
           .min(1, `Please select at least one option for ${question.label}`);
+        responsesSchema[otherTextKey(questionId)] = otherTextSchema;
         break;
 
       default:

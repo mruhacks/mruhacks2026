@@ -29,11 +29,16 @@ import { ApplicationStatusBanner } from '@/app/dashboard/events/ApplicationStatu
 type PreviousSubmission = {
   fullName: string;
   genderId: number;
+  genderOtherText: string;
   universityId: number;
+  universityOtherText: string;
   majorId: number;
+  majorOtherText: string;
   yearOfStudyId: number;
-  interests: number[];
+  linkedinUrl: string;
+  githubUrl: string;
   dietaryRestrictions: number[];
+  dietaryOtherText: string;
   applicationResponses: Record<string, unknown>;
 };
 
@@ -49,11 +54,16 @@ function buildApplyInitials(
     ? {
         fullName: prev.fullName,
         genderId: prev.genderId,
+        genderOtherText: prev.genderOtherText ?? '',
         universityId: prev.universityId,
+        universityOtherText: prev.universityOtherText ?? '',
         majorId: prev.majorId,
+        majorOtherText: prev.majorOtherText ?? '',
         yearOfStudyId: prev.yearOfStudyId,
-        interests: prev.interests ?? [],
+        linkedinUrl: prev.linkedinUrl ?? '',
+        githubUrl: prev.githubUrl ?? '',
         dietaryRestrictions: prev.dietaryRestrictions ?? [],
+        dietaryOtherText: prev.dietaryOtherText ?? '',
       }
     : (profileData ?? { fullName: user.name ?? '' });
 

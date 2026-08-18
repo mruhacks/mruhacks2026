@@ -2,7 +2,7 @@
  * Tests for authz.ts functions not covered by authz.test.ts:
  *   getUserRoles, getDirectUserPermissions, getRolePermissions,
  *   getRolesForUsers, hasAnyPermission, hasAllPermissions,
- *   hasRole, requireAnyPermission, requireRole
+ *   hasRole, requireAnyPermission
  */
 import { describe, test, expect, beforeAll, afterAll, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
@@ -28,7 +28,6 @@ import {
   hasAllPermissions,
   hasRole,
   requireAnyPermission,
-  requireRole,
 } from '@/lib/rbac/authorization';
 import {
   createRole,
@@ -308,26 +307,3 @@ describe('requireAnyPermission', () => {
   });
 });
 
-describe('requireRole', () => {
-  test('does not redirect when user has the role', async () => {
-    let threw = false;
-    try {
-      await requireRole(userId, 'ext-test-role-a');
-    } catch {
-      threw = true;
-    }
-    expect(threw).toBe(false);
-  });
-
-  test('redirects to /forbidden when user does not have the role', async () => {
-    let redirectTarget: string | null = null;
-    try {
-      await requireRole(userId, 'ext-test-role-b');
-    } catch (e) {
-      redirectTarget = (e as Error).message;
-    }
-    expect(redirectTarget).toContain('/forbidden');
-    expect(redirectTarget).toContain('missing_role');
-    expect(redirectTarget).toContain('ext-test-role-b');
-  });
-});

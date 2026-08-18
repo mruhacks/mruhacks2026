@@ -1,6 +1,6 @@
 /**
  * Server actions for user profile (dashboard profile page).
- * Profile-only: user_profiles, user_interests, user_dietary_restrictions.
+ * Profile-only: user_profiles, user_dietary_restrictions.
  * Decoupled from event application/registration (see register/actions.ts and dashboard/events/actions.ts).
  */
 
@@ -9,7 +9,6 @@
 import {
   user as authUser,
   userProfiles,
-  userInterests,
   userDietaryRestrictions,
 } from '@/db/schema';
 import { getUser } from '@/utils/auth';
@@ -17,6 +16,7 @@ import { db } from '@/utils/db';
 import { eq } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { randomUUID } from 'crypto';
+import sharp from 'sharp';
 import { ActionResult, fail, ok } from '@/utils/action-result';
 import {
   profileFormSchema,
@@ -25,6 +25,7 @@ import {
 import {
   deleteObject,
   isObjectStorageKey,
+  parseProfilePictureKey,
   profilePictureUrl,
   putPrivateObject,
 } from '@/utils/object-storage';
@@ -32,12 +33,17 @@ import {
 export type UserProfileData = {
   fullName: string;
   genderId: number;
+  genderOtherText: string;
   universityId: number;
+  universityOtherText: string;
   majorId: number;
+  majorOtherText: string;
   yearOfStudyId: number;
   attendedHackathonBefore: boolean;
-  interests: number[];
+  linkedinUrl: string;
+  githubUrl: string;
   dietaryRestrictions: number[];
+  dietaryOtherText: string;
   hasResume: boolean;
   resumeFileName: string | null;
   resumeFileType: string | null;
@@ -96,23 +102,69 @@ function extension(fileName: string) {
   return match ? match[0].toLowerCase() : '';
 }
 
-function profilePictureKey(image: string | null | undefined) {
-  const prefix = '/api/assets/';
-  if (!image?.startsWith(prefix)) return null;
+const PROFILE_PICTURE_MAX_DIMENSION = 512;
+// Guards against decompression-bomb images: a tiny compressed file (e.g. a
+// PNG a few KB on disk) can decode to a huge pixel buffer. This caps decoded
+// size well above any real photo (a 24MP photo is ~24_000_000) while still
+// rejecting pathological inputs before they blow up memory.
+const PROFILE_PICTURE_MAX_INPUT_PIXELS = 50_000_000;
+// Upload bytes are already capped by MAX_PROFILE_PICTURE_BYTES, but a
+// small-but-slow-to-decode file (or a stalled/blocked worker) shouldn't be
+// able to hold the request open indefinitely — fail fast instead.
+const PROFILE_PICTURE_PROCESSING_TIMEOUT_MS = 8000;
+
+/**
+ * Re-encodes an uploaded profile picture: auto-orients from the EXIF
+ * orientation tag, downsizes to a fixed avatar size, and outputs WebP.
+ * Sharp does not copy EXIF/ICC/XMP metadata to the output unless
+ * `.withMetadata()` is called, so this also strips it in the process.
+ */
+async function processProfilePicture(
+  bytes: Uint8Array,
+): Promise<ActionResult<Uint8Array>> {
   try {
-    return decodeURIComponent(image.slice(prefix.length));
-  } catch {
-    return null;
+    const output = await Promise.race([
+      sharp(bytes, {
+        failOn: 'none',
+        limitInputPixels: PROFILE_PICTURE_MAX_INPUT_PIXELS,
+      })
+        .rotate()
+        .resize({
+          width: PROFILE_PICTURE_MAX_DIMENSION,
+          height: PROFILE_PICTURE_MAX_DIMENSION,
+          fit: 'cover',
+          withoutEnlargement: true,
+        })
+        .webp({ quality: 85 })
+        .toBuffer(),
+      new Promise<never>((_, reject) =>
+        setTimeout(
+          () => reject(new Error('timeout')),
+          PROFILE_PICTURE_PROCESSING_TIMEOUT_MS,
+        ),
+      ),
+    ]);
+    return ok(new Uint8Array(output));
+  } catch (error) {
+    const isTimeout = error instanceof Error && error.message === 'timeout';
+    console.error(
+      isTimeout
+        ? 'Profile picture processing timed out'
+        : 'Profile picture processing error:',
+      isTimeout ? undefined : error,
+    );
+    return fail('That file could not be read as an image.');
   }
 }
 
 function revalidateProfile() {
   revalidatePath('/dashboard/profile');
+  revalidatePath('/dashboard/account');
   revalidatePath('/dashboard', 'layout');
 }
 
 /**
- * Returns the current user's profile (user_profiles + user_interests + user_dietary_restrictions).
+ * Returns the current user's profile (user_profiles + user_dietary_restrictions).
  * No attendedBefore; used for ProfileForm initial and event-form pre-fill when no prior application.
  * Returns ok(null) when no profile row exists.
  */
@@ -130,26 +182,25 @@ export async function getUserProfile(): Promise<
 
   if (!profile) return ok(null);
 
-  const [interestRows, restrictionRows] = await Promise.all([
-    db
-      .select({ interestId: userInterests.interestId })
-      .from(userInterests)
-      .where(eq(userInterests.userId, user.id)),
-    db
-      .select({ restrictionId: userDietaryRestrictions.restrictionId })
-      .from(userDietaryRestrictions)
-      .where(eq(userDietaryRestrictions.userId, user.id)),
-  ]);
+  const restrictionRows = await db
+    .select({ restrictionId: userDietaryRestrictions.restrictionId })
+    .from(userDietaryRestrictions)
+    .where(eq(userDietaryRestrictions.userId, user.id));
 
   return ok({
     fullName: profile.fullName,
     genderId: profile.genderId,
+    genderOtherText: profile.genderOtherText ?? '',
     universityId: profile.universityId,
+    universityOtherText: profile.universityOtherText ?? '',
     majorId: profile.majorId,
+    majorOtherText: profile.majorOtherText ?? '',
     yearOfStudyId: profile.yearOfStudyId,
     attendedHackathonBefore: profile.attendedHackathonBefore,
-    interests: interestRows.map((r) => r.interestId),
+    linkedinUrl: profile.linkedinUrl ?? '',
+    githubUrl: profile.githubUrl ?? '',
     dietaryRestrictions: restrictionRows.map((r) => r.restrictionId),
+    dietaryOtherText: profile.dietaryOtherText ?? '',
     hasResume: profile.resumeFile != null,
     resumeFileName: profile.resumeFileName,
     resumeFileType: profile.resumeFileType,
@@ -157,7 +208,7 @@ export async function getUserProfile(): Promise<
 }
 
 /**
- * Saves user profile only (user_profiles, user_interests, user_dietary_restrictions).
+ * Saves user profile only (user_profiles, user_dietary_restrictions).
  * Does not touch event_applications. Accommodations stay event-only.
  */
 export async function saveUserProfile(
@@ -181,18 +232,30 @@ export async function saveUserProfile(
           userId: user.id,
           fullName: data.fullName,
           genderId: data.genderId,
+          genderOtherText: data.genderOtherText || null,
           universityId: data.universityId,
+          universityOtherText: data.universityOtherText || null,
           majorId: data.majorId,
+          majorOtherText: data.majorOtherText || null,
           yearOfStudyId: data.yearOfStudyId,
+          dietaryOtherText: data.dietaryOtherText || null,
+          linkedinUrl: data.linkedinUrl || null,
+          githubUrl: data.githubUrl || null,
         })
         .onConflictDoUpdate({
           target: userProfiles.userId,
           set: {
             fullName: data.fullName,
             genderId: data.genderId,
+            genderOtherText: data.genderOtherText || null,
             universityId: data.universityId,
+            universityOtherText: data.universityOtherText || null,
             majorId: data.majorId,
+            majorOtherText: data.majorOtherText || null,
             yearOfStudyId: data.yearOfStudyId,
+            dietaryOtherText: data.dietaryOtherText || null,
+            linkedinUrl: data.linkedinUrl || null,
+            githubUrl: data.githubUrl || null,
             updatedAt: new Date(),
           },
         });
@@ -203,16 +266,6 @@ export async function saveUserProfile(
         .update(authUser)
         .set({ name: data.fullName })
         .where(eq(authUser.id, user.id));
-
-      await tx.delete(userInterests).where(eq(userInterests.userId, user.id));
-      if (data.interests?.length) {
-        await tx.insert(userInterests).values(
-          data.interests.map((interestId) => ({
-            userId: user.id,
-            interestId,
-          })),
-        );
-      }
 
       await tx
         .delete(userDietaryRestrictions)
@@ -273,12 +326,16 @@ export async function uploadProfilePicture(
   if (!file.success) return fail(file.error);
   if (!file.data) return fail('Unable to read image.');
 
+  const processed = await processProfilePicture(file.data.bytes);
+  if (!processed.success) return fail(processed.error);
+  if (!processed.data) return fail('Unable to process image.');
+
   try {
-    const key = `profile-pictures/${currentUser.id}/${randomUUID()}${extension(file.data.name)}`;
+    const key = `profile-pictures/${currentUser.id}/${randomUUID()}.webp`;
     await putPrivateObject({
       key,
-      body: file.data.bytes,
-      contentType: file.data.type,
+      body: processed.data,
+      contentType: 'image/webp',
     });
     const [existing] = await db
       .select({ image: authUser.image })
@@ -289,7 +346,7 @@ export async function uploadProfilePicture(
       .update(authUser)
       .set({ image: profilePictureUrl(key) })
       .where(eq(authUser.id, currentUser.id));
-    const previousKey = profilePictureKey(existing?.image);
+    const previousKey = parseProfilePictureKey(existing?.image);
     if (previousKey) await deleteObject(previousKey);
     revalidateProfile();
     return ok();
@@ -314,7 +371,7 @@ export async function removeProfilePicture(): Promise<ActionResult> {
       .update(authUser)
       .set({ image: null })
       .where(eq(authUser.id, currentUser.id));
-    const key = profilePictureKey(existing?.image);
+    const key = parseProfilePictureKey(existing?.image);
     if (key) await deleteObject(key);
     revalidateProfile();
     return ok();

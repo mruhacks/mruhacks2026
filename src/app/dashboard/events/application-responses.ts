@@ -5,6 +5,14 @@
 
 import { z } from 'zod';
 import type { ApplicationQuestion, ApplicationQuestionType } from '@/types/application';
+import { isOtherOption, otherTextKey } from '@/lib/other-option';
+
+const otherTextSchema = z
+  .string()
+  .trim()
+  .max(255, 'Keep it under 255 characters.')
+  .optional()
+  .nullable();
 
 export type BuildApplicationResponsesResult =
   | { ok: true; responses: Record<string, unknown> }
@@ -81,6 +89,35 @@ export function buildApplicationResponses(
     // Only include defined values in the response
     if (result.data !== undefined && result.data !== null) {
       responses[question.id] = result.data;
+    }
+
+    // When an "Other" option is selected, validate and carry along the
+    // companion free-text answer stored under the synthetic `__other` key.
+    if (question.type === 'single_select' || question.type === 'multi_select') {
+      const selectedLabels =
+        question.type === 'single_select'
+          ? [result.data as string | undefined]
+          : ((result.data as string[] | undefined) ?? []);
+      const otherSelected = selectedLabels.some((value) =>
+        isOtherOption(
+          question.options?.find((o) => o.value === value)?.label,
+        ),
+      );
+
+      if (otherSelected) {
+        const otherKey = otherTextKey(question.id);
+        const otherResult = otherTextSchema.safeParse(formResponses[otherKey]);
+        if (!otherResult.success) {
+          const issue = otherResult.error.issues[0];
+          return {
+            ok: false,
+            error: `${question.label}: ${issue?.message || 'Invalid response'}`,
+          };
+        }
+        if (otherResult.data) {
+          responses[otherKey] = otherResult.data;
+        }
+      }
     }
   }
 

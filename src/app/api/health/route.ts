@@ -2,9 +2,12 @@ import { timingSafeEqual } from 'crypto';
 import { sql } from 'drizzle-orm';
 import { db } from '@/utils/db';
 import { getUser } from '@/utils/auth';
-import { hasRole } from '@/lib/rbac/authorization';
+import { hasPermission } from '@/lib/rbac/authorization';
 import { verifyMailConnection } from '@/utils/mail';
 import { checkObjectStorageConnection } from '@/utils/object-storage';
+
+/** Dedicated permission for the full health report — unrelated to any other admin permission. */
+const HEALTH_PERMISSION = 'system:read:all';
 
 const CHECK_TIMEOUT_MS = 5000;
 const CACHE_TTL_MS = 10_000;
@@ -106,6 +109,8 @@ type HealthReport = {
   };
   missingEnv: string[];
   checkedAt: string;
+  /** `git describe --long --always` output, captured at build time. */
+  buildInfo: string;
 };
 
 let cached: { report: HealthReport; expiresAt: number } | null = null;
@@ -134,6 +139,7 @@ async function buildReport(): Promise<HealthReport> {
     checks: { database, mail, objectStorage, turnstile },
     missingEnv,
     checkedAt: new Date().toISOString(),
+    buildInfo: process.env.BUILD_INFO ?? 'unknown',
   };
   cached = { report, expiresAt: Date.now() + CACHE_TTL_MS };
   return report;
@@ -165,22 +171,28 @@ function hasValidAccessKey(request: Request): boolean {
  * GET /api/health
  *
  * Unauthenticated callers (uptime monitors, load balancers) get only the
- * overall status — no service names, error detail, or config state, so a
- * scan of this endpoint can't be used to map out our infrastructure.
- * The full per-service breakdown is available to signed-in admins, or to
- * anyone presenting the `x-health-access-key` header matching
- * HEALTH_CHECK_ACCESS_KEY (for external monitoring tools).
+ * overall status and build info — no service names, error detail, or config
+ * state, so a scan of this endpoint can't be used to map out our infrastructure.
+ * The full per-service breakdown is available to signed-in users holding the
+ * dedicated `system:read:all` permission, or to anyone presenting the
+ * `x-health-access-key` header matching HEALTH_CHECK_ACCESS_KEY (for
+ * external monitoring tools).
  */
 export async function GET(request: Request) {
   const report = await buildReport();
   const httpStatus = report.status === 'down' ? 503 : 200;
 
   const user = await getUser().catch(() => null);
-  const isAdmin = user ? await hasRole(user.id, 'admin') : false;
-  const hasFullAccess = isAdmin || hasValidAccessKey(request);
+  const canReadHealth = user
+    ? await hasPermission(user.id, HEALTH_PERMISSION)
+    : false;
+  const hasFullAccess = canReadHealth || hasValidAccessKey(request);
 
   if (!hasFullAccess) {
-    return Response.json({ status: report.status }, { status: httpStatus });
+    return Response.json(
+      { status: report.status, buildInfo: report.buildInfo },
+      { status: httpStatus },
+    );
   }
 
   return Response.json(report, { status: httpStatus });

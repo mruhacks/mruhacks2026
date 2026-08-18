@@ -8,7 +8,7 @@
 import { betterAuth, APIError } from 'better-auth';
 import { admin, captcha, magicLink } from 'better-auth/plugins';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
-import { lt, sql } from 'drizzle-orm';
+import { eq, lt, sql } from 'drizzle-orm';
 import { db } from '@/utils/db';
 import * as schema from '@/db/schema';
 import { sendMail } from '@/utils/mail';
@@ -16,6 +16,7 @@ import { headers } from 'next/headers';
 import { after } from 'next/server';
 import { cache } from 'react';
 import { writeAuditLog } from '@/utils/audit-log';
+import { deleteObject, parseProfilePictureKey } from '@/utils/object-storage';
 
 /** Verification links expire after this many seconds (24 hours). */
 const EMAIL_VERIFICATION_EXPIRES_IN = 86400;
@@ -132,10 +133,30 @@ export const auth = betterAuth({
      * GDPR Art. 17). Deletion is confirmed via an emailed verification link so
      * it cannot be triggered by a hijacked session. Once verified, Better Auth
      * removes the user row; every user-scoped table cascades via its
-     * `onDelete: 'cascade'` foreign key, so no residual personal data remains.
+     * `onDelete: 'cascade'` foreign key, so no residual personal data remains
+     * in the database — but object storage (resume, profile picture) is
+     * outside the DB and cascades don't reach it, so `beforeDelete` removes
+     * those objects explicitly while the row can still be queried.
      */
     deleteUser: {
       enabled: true,
+      beforeDelete: async (user) => {
+        const [profile] = await db
+          .select({ resumeFile: schema.userProfiles.resumeFile })
+          .from(schema.userProfiles)
+          .where(eq(schema.userProfiles.userId, user.id))
+          .limit(1);
+
+        const pictureKey = parseProfilePictureKey(user.image);
+        await Promise.all([
+          pictureKey ? deleteObject(pictureKey) : Promise.resolve(),
+          profile?.resumeFile
+            ? deleteObject(profile.resumeFile)
+            : Promise.resolve(),
+        ]).catch((error) => {
+          console.error('[auth] failed to delete user object storage files', error);
+        });
+      },
       sendDeleteAccountVerification: async ({ user, url }) => {
         void sendMail({
           to: user.email,

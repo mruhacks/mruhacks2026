@@ -8,7 +8,6 @@
 import {
   events,
   userProfiles,
-  userInterests,
   userDietaryRestrictions,
   eventApplications,
   applicationStatuses,
@@ -19,7 +18,6 @@ import {
   universities,
   majors,
   yearsOfStudy,
-  interests,
   dietaryRestrictions,
 } from '@/db/schema';
 import { getUser } from '@/utils/auth';
@@ -64,7 +62,7 @@ async function getDefaultApplicationEvent() {
 /**
  * Saves profile and event application for an event that has_application.
  * 1. Upserts user_profiles (from profileData)
- * 2. Replaces user_interests and user_dietary_restrictions (from profileData)
+ * 2. Replaces user_dietary_restrictions (from profileData)
  * 3. Upserts event_applications for (eventId, userId) with responses from eventData
  */
 async function registerParticipant(
@@ -125,31 +123,33 @@ async function registerParticipant(
           userId: user.id,
           fullName: profile.fullName,
           genderId: profile.genderId,
+          genderOtherText: profile.genderOtherText || null,
           universityId: profile.universityId,
+          universityOtherText: profile.universityOtherText || null,
           majorId: profile.majorId,
+          majorOtherText: profile.majorOtherText || null,
           yearOfStudyId: profile.yearOfStudyId,
+          dietaryOtherText: profile.dietaryOtherText || null,
+          linkedinUrl: profile.linkedinUrl || null,
+          githubUrl: profile.githubUrl || null,
         })
         .onConflictDoUpdate({
           target: userProfiles.userId,
           set: {
             fullName: profile.fullName,
             genderId: profile.genderId,
+            genderOtherText: profile.genderOtherText || null,
             universityId: profile.universityId,
+            universityOtherText: profile.universityOtherText || null,
             majorId: profile.majorId,
+            majorOtherText: profile.majorOtherText || null,
             yearOfStudyId: profile.yearOfStudyId,
+            dietaryOtherText: profile.dietaryOtherText || null,
+            linkedinUrl: profile.linkedinUrl || null,
+            githubUrl: profile.githubUrl || null,
             updatedAt: new Date(),
           },
         });
-
-      await tx.delete(userInterests).where(eq(userInterests.userId, user.id));
-      if (profile.interests?.length) {
-        await tx.insert(userInterests).values(
-          profile.interests.map((interestId) => ({
-            userId: user.id,
-            interestId,
-          })),
-        );
-      }
 
       await tx
         .delete(userDietaryRestrictions)
@@ -199,7 +199,6 @@ export async function getOptions() {
     universities,
     majors,
     years: yearsOfStudy,
-    interests,
     dietary: dietaryRestrictions,
   };
 
@@ -239,11 +238,16 @@ export async function getPreviousFormSubmission(eventId: string) {
   const initial = {
     fullName: row.fullName,
     genderId: row.genderId,
+    genderOtherText: row.genderOtherText ?? '',
     universityId: row.universityId,
+    universityOtherText: row.universityOtherText ?? '',
     majorId: row.majorId,
+    majorOtherText: row.majorOtherText ?? '',
     yearOfStudyId: row.yearOfStudyId,
-    interests: row.interests ?? [],
+    linkedinUrl: row.linkedinUrl ?? '',
+    githubUrl: row.githubUrl ?? '',
     dietaryRestrictions: row.dietaryRestrictions ?? [],
+    dietaryOtherText: row.dietaryOtherText ?? '',
     applicationResponses: responses,
   };
 

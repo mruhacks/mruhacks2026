@@ -4,13 +4,11 @@ import { eq } from 'drizzle-orm';
 import {
   user,
   userProfiles,
-  userInterests,
   userDietaryRestrictions,
   genders,
   universities,
   majors,
   yearsOfStudy,
-  interests,
   dietaryRestrictions,
 } from '@/db/schema';
 import {
@@ -27,7 +25,6 @@ let genderId: number;
 let universityId: number;
 let majorId: number;
 let yearOfStudyId: number;
-let interestId: number;
 let dietaryRestrictionId: number;
 
 beforeAll(async () => {
@@ -105,22 +102,6 @@ beforeAll(async () => {
     yearOfStudyId = existing.id;
   }
 
-  const [interest] = await db
-    .insert(interests)
-    .values({ label: 'test-interest' })
-    .onConflictDoNothing()
-    .returning({ id: interests.id });
-  if (interest) {
-    interestId = interest.id;
-  } else {
-    const [existing] = await db
-      .select({ id: interests.id })
-      .from(interests)
-      .where(eq(interests.label, 'test-interest'))
-      .limit(1);
-    interestId = existing.id;
-  }
-
   const [diet] = await db
     .insert(dietaryRestrictions)
     .values({ label: 'test-diet' })
@@ -146,7 +127,6 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await db.delete(userInterests).where(eq(userInterests.userId, testUserId));
   await db
     .delete(userDietaryRestrictions)
     .where(eq(userDietaryRestrictions.userId, testUserId));
@@ -161,7 +141,6 @@ function validProfileData() {
     universityId,
     majorId,
     yearOfStudyId,
-    interests: [interestId],
     dietaryRestrictions: [],
   };
 }
@@ -188,16 +167,13 @@ describe('getUserProfile', () => {
       majorId,
       yearOfStudyId,
     });
-    await db.insert(userInterests).values({ userId: testUserId, interestId });
 
     const result = await getUserProfile();
     expect(result.success).toBe(true);
     expect(result.data?.fullName).toBe('Alice Smith');
     expect(result.data?.genderId).toBe(genderId);
-    expect(result.data?.interests).toContain(interestId);
     expect(result.data?.dietaryRestrictions).toEqual([]);
 
-    await db.delete(userInterests).where(eq(userInterests.userId, testUserId));
     await db.delete(userProfiles).where(eq(userProfiles.userId, testUserId));
   });
 
@@ -210,7 +186,6 @@ describe('getUserProfile', () => {
       majorId,
       yearOfStudyId,
     });
-    await db.insert(userInterests).values({ userId: testUserId, interestId });
     await db
       .insert(userDietaryRestrictions)
       .values({ userId: testUserId, restrictionId: dietaryRestrictionId });
@@ -222,7 +197,6 @@ describe('getUserProfile', () => {
     await db
       .delete(userDietaryRestrictions)
       .where(eq(userDietaryRestrictions.userId, testUserId));
-    await db.delete(userInterests).where(eq(userInterests.userId, testUserId));
     await db.delete(userProfiles).where(eq(userProfiles.userId, testUserId));
   });
 });
@@ -241,7 +215,6 @@ describe('saveUserProfile', () => {
       universityId,
       majorId,
       yearOfStudyId,
-      interests: [interestId],
       dietaryRestrictions: [],
     });
     expect(result.success).toBe(false);
@@ -280,15 +253,50 @@ describe('saveUserProfile', () => {
     expect(profile.fullName).toBe('Alice Updated');
   });
 
-  test('replaces interests on save', async () => {
-    await saveUserProfile(validProfileData());
+  test('saves linkedin and github urls', async () => {
+    await saveUserProfile({
+      ...validProfileData(),
+      linkedinUrl: 'https://linkedin.com/in/alice',
+      githubUrl: 'https://github.com/alice',
+    });
 
-    const rows = await db
+    const [profile] = await db
       .select()
-      .from(userInterests)
-      .where(eq(userInterests.userId, testUserId));
-    expect(rows).toHaveLength(1);
-    expect(rows[0].interestId).toBe(interestId);
+      .from(userProfiles)
+      .where(eq(userProfiles.userId, testUserId));
+    expect(profile.linkedinUrl).toBe('https://linkedin.com/in/alice');
+    expect(profile.githubUrl).toBe('https://github.com/alice');
+  });
+
+  test('strips query params and normalizes to https', async () => {
+    await saveUserProfile({
+      ...validProfileData(),
+      linkedinUrl: 'http://www.linkedin.com/in/alice/?utm_source=x&trk=y',
+      githubUrl: 'https://github.com/alice?tab=repositories#readme',
+    });
+
+    const [profile] = await db
+      .select()
+      .from(userProfiles)
+      .where(eq(userProfiles.userId, testUserId));
+    expect(profile.linkedinUrl).toBe('https://www.linkedin.com/in/alice');
+    expect(profile.githubUrl).toBe('https://github.com/alice');
+  });
+
+  test('validation fails for a non-linkedin host, even if it contains "linkedin.com"', async () => {
+    const result = await saveUserProfile({
+      ...validProfileData(),
+      linkedinUrl: 'https://linkedin.com.evil.com/in/alice',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  test('validation fails when a github url is put in the linkedin field', async () => {
+    const result = await saveUserProfile({
+      ...validProfileData(),
+      linkedinUrl: 'https://github.com/alice',
+    });
+    expect(result.success).toBe(false);
   });
 
   test('saves dietary restrictions', async () => {
@@ -315,10 +323,10 @@ describe('saveUserProfile', () => {
     expect(rows).toHaveLength(0);
   });
 
-  test('validation fails when interests array is empty', async () => {
+  test('validation fails for a malformed linkedin url', async () => {
     const result = await saveUserProfile({
       ...validProfileData(),
-      interests: [] as never,
+      linkedinUrl: 'not-a-url',
     });
     expect(result.success).toBe(false);
   });

@@ -30,6 +30,8 @@ interface WelcomeClientProps {
   isFirstLogin: boolean;
   userEmail: string;
   initialProfile?: Partial<ProfileFormValues>;
+  hasResume: boolean;
+  resumeFileName: string | null;
   options: ProfileFormOptions;
   featuredEvent?: FeaturedOnboardingEvent;
   returnUrl: string;
@@ -43,6 +45,8 @@ export function WelcomeClient({
   isFirstLogin,
   userEmail,
   initialProfile,
+  hasResume,
+  resumeFileName,
   options,
   featuredEvent,
   returnUrl,
@@ -60,7 +64,9 @@ export function WelcomeClient({
   const [personal, setPersonal] = React.useState<PersonalOnboardingValues>({
     fullName: initialProfile?.fullName ?? '',
     genderId: initialProfile?.genderId ?? 0,
+    genderOtherText: initialProfile?.genderOtherText ?? '',
     dietaryRestrictions: initialProfile?.dietaryRestrictions ?? [],
+    dietaryOtherText: initialProfile?.dietaryOtherText ?? '',
   });
   const inviteConsumed = React.useRef(false);
 
@@ -100,16 +106,12 @@ export function WelcomeClient({
     setStep('about');
   };
 
-  const aboutComplete = async (data: AboutOnboardingValues) => {
-    const result = await saveWelcomeProfile({
-      ...personal,
-      ...data,
-    });
-    if (!result.success) {
-      toast.error(result.error);
-      return;
-    }
-    toast.success('Profile saved.');
+  // WelcomeAboutPage saves the profile itself (and any queued resume) before
+  // calling onComplete, so all this needs to do is advance the wizard.
+  const saveAboutData = (data: AboutOnboardingValues) =>
+    saveWelcomeProfile({ ...personal, ...data });
+
+  const aboutComplete = () => {
     if (featuredEvent) setStep('event');
     else void finish();
   };
@@ -124,24 +126,35 @@ export function WelcomeClient({
       userEmail={userEmail}
       steps={steps}
       activeStep={step}
+      onStepClick={(id) => setStep(id as Step)}
     >
-      {step === 'legal' && <WelcomeConsentPage onComplete={legalComplete} />}
-      {step === 'personal' && (
+      {/* Steps stay mounted (just hidden) once reached, rather than being
+          unmounted on navigation, so react-hook-form state — and anything
+          the user typed — survives going back and forth between steps. */}
+      <div className={step === 'legal' ? undefined : 'hidden'}>
+        <WelcomeConsentPage onComplete={legalComplete} />
+      </div>
+      <div className={step === 'personal' ? undefined : 'hidden'}>
         <WelcomePersonalPage
           initial={initialProfile}
           options={options}
           onComplete={personalComplete}
         />
-      )}
-      {step === 'about' && (
+      </div>
+      <div className={step === 'about' ? undefined : 'hidden'}>
         <WelcomeAboutPage
           options={options}
+          hasResume={hasResume}
+          resumeFileName={resumeFileName}
           onBack={() => setStep('personal')}
           onComplete={aboutComplete}
+          onSaveDraft={saveAboutData}
         />
-      )}
-      {step === 'event' && featuredEvent && (
-        <WelcomeEventPage event={featuredEvent} onComplete={eventComplete} />
+      </div>
+      {featuredEvent && (
+        <div className={step === 'event' ? undefined : 'hidden'}>
+          <WelcomeEventPage event={featuredEvent} onComplete={eventComplete} />
+        </div>
       )}
     </WelcomeLayout>
   );

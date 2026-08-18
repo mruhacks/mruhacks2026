@@ -87,7 +87,10 @@ export default async function EventEntryPage({ params }: Props) {
         </div>
 
         {applicationStatus && (
-          <ApplicationStatusBanner application={applicationStatus} />
+          <ApplicationStatusBanner
+            application={applicationStatus}
+            editHref={`/dashboard/events/${eventId}/apply`}
+          />
         )}
 
         {isFinal ? (
@@ -98,11 +101,6 @@ export default async function EventEntryPage({ params }: Props) {
           </div>
         ) : applicationStatus ? (
           <div className='flex gap-3'>
-            <Button asChild>
-              <Link href={`/dashboard/events/${eventId}/apply`}>
-                Edit application
-              </Link>
-            </Button>
             <Button asChild variant='outline'>
               <Link href='/dashboard'>Back to dashboard</Link>
             </Button>

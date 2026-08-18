@@ -8,11 +8,7 @@
 
 import { redirect } from 'next/navigation';
 import { getUser } from '@/utils/auth';
-import {
-  hasAnyPermission,
-  hasRole,
-  loadUserPermissions,
-} from './authorization';
+import { hasAnyPermission, loadUserPermissions } from './authorization';
 
 type User = NonNullable<Awaited<ReturnType<typeof getUser>>>;
 
@@ -40,20 +36,6 @@ export async function requireAuthWithPermission(
       `/forbidden?reason=missing_permission&permission=${encodeURIComponent(
         perms.join(','),
       )}`,
-    );
-  }
-  return user;
-}
-
-/**
- * Require a session AND a specific role slug.
- */
-async function requireAuthWithRole(roleSlug: string): Promise<User> {
-  const user = await requireAuth();
-  const ok = await hasRole(user.id, roleSlug);
-  if (!ok) {
-    redirect(
-      `/forbidden?reason=missing_role&role=${encodeURIComponent(roleSlug)}`,
     );
   }
   return user;

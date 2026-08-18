@@ -186,4 +186,76 @@ describe('buildApplicationResponses', () => {
     expect(result.responses['q1']).toBe('Alice');
     expect(result.responses['q2']).toBe(22);
   });
+
+  describe('"Other" option free text', () => {
+    const options = [
+      { value: 'js', label: 'JavaScript', active: true },
+      { value: 'other', label: 'Other', active: true },
+    ];
+
+    test('single_select: non-other selection ignores the companion text', () => {
+      const questions = [
+        q({ id: 'q1', type: 'single_select', label: 'Skills', required: true, options }),
+      ];
+      const result = buildApplicationResponses(questions, {
+        q1: 'js',
+        q1__other: 'ignored',
+      });
+      expect(result.ok).toBe(true);
+      if (!result.ok) throw new Error(result.error);
+      expect('q1__other' in result.responses).toBe(false);
+    });
+
+    test('single_select: other selection includes valid companion text', () => {
+      const questions = [
+        q({ id: 'q1', type: 'single_select', label: 'Skills', required: true, options }),
+      ];
+      const result = buildApplicationResponses(questions, {
+        q1: 'other',
+        q1__other: 'Rust',
+      });
+      expect(result.ok).toBe(true);
+      if (!result.ok) throw new Error(result.error);
+      expect(result.responses['q1__other']).toBe('Rust');
+    });
+
+    test('single_select: other selection with too-long companion text fails', () => {
+      const questions = [
+        q({ id: 'q1', type: 'single_select', label: 'Skills', required: true, options }),
+      ];
+      const result = buildApplicationResponses(questions, {
+        q1: 'other',
+        q1__other: 'x'.repeat(256),
+      });
+      expect(result.ok).toBe(false);
+      if (result.ok) throw new Error('expected failure');
+      expect(result.error).toContain('Skills');
+    });
+
+    test('multi_select: other included among selections includes companion text', () => {
+      const questions = [
+        q({ id: 'q1', type: 'multi_select', label: 'Skills', required: true, options }),
+      ];
+      const result = buildApplicationResponses(questions, {
+        q1: ['js', 'other'],
+        q1__other: 'Zig',
+      });
+      expect(result.ok).toBe(true);
+      if (!result.ok) throw new Error(result.error);
+      expect(result.responses['q1__other']).toBe('Zig');
+    });
+
+    test('multi_select: other not selected excludes companion text', () => {
+      const questions = [
+        q({ id: 'q1', type: 'multi_select', label: 'Skills', required: true, options }),
+      ];
+      const result = buildApplicationResponses(questions, {
+        q1: ['js'],
+        q1__other: 'ignored',
+      });
+      expect(result.ok).toBe(true);
+      if (!result.ok) throw new Error(result.error);
+      expect('q1__other' in result.responses).toBe(false);
+    });
+  });
 });

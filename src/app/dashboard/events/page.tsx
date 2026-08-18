@@ -13,11 +13,9 @@ import {
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { RegisterEventButton } from './RegisterEventButton';
 import { UnregisterEventButton } from './UnregisterEventButton';
 import { RegisterEventInterestButton } from './RegisterEventInterestButton';
 import { Calendar } from 'lucide-react';
-import type { ApplicationStatusLabel } from '@/app/dashboard/events/application-status';
 
 function formatDate(d: Date | null) {
   if (!d) return null;
@@ -25,23 +23,6 @@ function formatDate(d: Date | null) {
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(d);
-}
-
-function applyCtaLabel(
-  hasApplied: boolean,
-  statusKey: ApplicationStatusLabel | null,
-): string {
-  if (!hasApplied) return 'Apply';
-
-  switch (statusKey) {
-    case 'approved':
-    case 'denied':
-    case 'waitlisted':
-      return 'View status';
-    case 'pending_review':
-    default:
-      return 'Edit application';
-  }
 }
 
 export default async function DashboardEventsPage() {
@@ -78,7 +59,12 @@ export default async function DashboardEventsPage() {
         <ul className='grid gap-4 sm:grid-cols-2 lg:grid-cols-3'>
           {eventsList.map((event) => (
             <li key={event.id}>
-              <Card className='flex h-full flex-col'>
+              <Card className='hover:border-primary/40 relative flex h-full flex-col transition-colors'>
+                <Link
+                  href={`/dashboard/events/${event.id}`}
+                  className='absolute inset-0 z-0 rounded-xl'
+                  aria-label={`View ${event.name}`}
+                />
                 <CardHeader className='pb-2'>
                   <div className='flex items-start justify-between gap-2'>
                     <CardTitle className='text-lg'>{event.name}</CardTitle>
@@ -88,6 +74,10 @@ export default async function DashboardEventsPage() {
                         <Badge variant={event.statusDisplay.variant}>
                           {event.statusDisplay.title}
                         </Badge>
+                      )}
+                    {!event.hasApplication &&
+                      event.userStatus === 'registered' && (
+                        <Badge variant='success'>Registered</Badge>
                       )}
                   </div>
                   <CardDescription className='text-sm'>
@@ -100,29 +90,9 @@ export default async function DashboardEventsPage() {
                     {!event.startsAt && 'Date TBA'}
                   </CardDescription>
                 </CardHeader>
-                <CardContent className='mt-auto pt-4'>
-                  {event.hasApplication ? (
-                    <Button asChild size='sm' variant='default'>
-                      <Link href={`/dashboard/events/${event.id}/apply`}>
-                        {applyCtaLabel(
-                          event.userStatus === 'applied',
-                          event.statusKey,
-                        )}
-                      </Link>
-                    </Button>
-                  ) : (
-                    <>
-                      {event.userStatus === 'registered' ? (
-                        <div className='flex items-center gap-2'>
-                          <span className='text-muted-foreground text-sm'>
-                            You are registered
-                          </span>
-                          <UnregisterEventButton eventId={event.id} />
-                        </div>
-                      ) : (
-                        <RegisterEventButton eventId={event.id} />
-                      )}
-                    </>
+                <CardContent className='relative z-10 mt-auto flex flex-wrap items-center gap-2 pt-4'>
+                  {!event.hasApplication && event.userStatus === 'registered' && (
+                    <UnregisterEventButton eventId={event.id} />
                   )}
 
                   {hasProfile ? (
@@ -133,7 +103,7 @@ export default async function DashboardEventsPage() {
                       }
                     />
                   ) : (
-                    <Button asChild size='sm' variant='default'>
+                    <Button asChild size='sm' variant='outline'>
                       <Link href='/dashboard/profile?next=/dashboard/events'>
                         Complete profile to notify me
                       </Link>

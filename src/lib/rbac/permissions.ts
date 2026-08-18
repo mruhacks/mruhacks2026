@@ -21,7 +21,8 @@ export type PermissionEntity =
   | 'event'
   | 'participant'
   | 'checkin'
-  | 'application';
+  | 'application'
+  | 'system';
 
 export type PermissionAction =
   | 'read'
@@ -117,6 +118,10 @@ const CORE_PERMISSIONS = [
   {
     slug: 'application:review:all',
     description: 'Approve or reject applications',
+  },
+  {
+    slug: 'system:read:all',
+    description: 'View system health and diagnostics',
   },
 ] as const;
 

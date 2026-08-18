@@ -44,19 +44,22 @@ export default async function AdminEventsMealsPage() {
 
       <div className='grid gap-4'>
         {allEvents.map((event) => (
-          <Card key={event.id} className='hover:bg-muted/50 transition-colors cursor-pointer'>
+          <Card key={event.id} className='hover:bg-muted/50 relative transition-colors'>
+            <Link
+              href={`/dashboard/admin/events/${event.id}`}
+              className='absolute inset-0 rounded-xl'
+              aria-label={`Manage ${event.name}`}
+            />
             <CardHeader className='pb-3'>
-              <Link href={`/dashboard/admin/events/${event.id}`} className='block'>
-                <div className='flex items-center justify-between'>
-                  <div>
-                    <CardTitle className='text-base'>{event.name}</CardTitle>
-                    <CardDescription>
-                      {event.hasApplication ? 'Has application form' : 'No application required'}
-                    </CardDescription>
-                  </div>
-                  <FileQuestion className='size-5 text-muted-foreground' />
+              <div className='flex items-center justify-between'>
+                <div>
+                  <CardTitle className='text-base'>{event.name}</CardTitle>
+                  <CardDescription>
+                    {event.hasApplication ? 'Has application form' : 'No application required'}
+                  </CardDescription>
                 </div>
-              </Link>
+                <FileQuestion className='size-5 text-muted-foreground' />
+              </div>
             </CardHeader>
           </Card>
         ))}

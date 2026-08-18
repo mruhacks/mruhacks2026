@@ -79,8 +79,44 @@ export function isObjectStorageKey(
   );
 }
 
+/**
+ * Profile pictures are served straight from object storage/CDN rather than
+ * proxied through the app server — proxying would mean paying egress twice
+ * (storage → server, then server → client) for every avatar view. Set
+ * `S3_PUBLIC_URL` to a base URL where the `profile-pictures/` prefix is
+ * publicly readable (public bucket, or a CDN in front of it) to enable this.
+ * Without it, falls back to the `/api/assets` proxy route (fine for local
+ * dev, still cached aggressively, just not egress-free).
+ */
 export function profilePictureUrl(key: string) {
+  const publicBase = process.env.S3_PUBLIC_URL?.trim().replace(/\/+$/, '');
+  if (publicBase) return `${publicBase}/${key}`;
   return `/api/assets/${key}`;
+}
+
+/**
+ * Inverse of `profilePictureUrl`: extracts the storage key from a stored
+ * image URL, or null if it isn't one of ours (e.g. an OAuth avatar URL).
+ * Checks both URL shapes since `S3_PUBLIC_URL` may have been added or
+ * changed after some rows were written.
+ */
+export function parseProfilePictureKey(
+  image: string | null | undefined,
+): string | null {
+  if (!image) return null;
+  const publicBase = process.env.S3_PUBLIC_URL?.trim().replace(/\/+$/, '');
+  const prefixes = [publicBase ? `${publicBase}/` : null, '/api/assets/'].filter(
+    (p): p is string => Boolean(p),
+  );
+  for (const prefix of prefixes) {
+    if (!image.startsWith(prefix)) continue;
+    try {
+      return decodeURIComponent(image.slice(prefix.length));
+    } catch {
+      return null;
+    }
+  }
+  return null;
 }
 
 export async function putPrivateObject({

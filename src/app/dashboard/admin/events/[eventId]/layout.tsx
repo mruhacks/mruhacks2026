@@ -25,13 +25,9 @@ export default function EventLayout({
   responses,
   params,
 }: EventLayoutProps) {
-  const [eventId, setEventId] = React.useState<string | null>(null);
+  const { eventId } = React.use(params);
   const searchParams = useSearchParams();
   const activeTab = (searchParams.get('tab') || 'overview') as typeof TABS[number]['id'];
-
-  React.useEffect(() => {
-    params.then((p) => setEventId(p.eventId));
-  }, [params]);
 
   return (
     <div className='space-y-6'>
@@ -45,13 +41,7 @@ export default function EventLayout({
             className='rounded-none border-b-2 border-transparent data-[active=true]:border-primary'
             data-active={activeTab === tab.id}
           >
-            <Link
-              href={
-                eventId
-                  ? `/dashboard/admin/events/${eventId}?tab=${tab.id}`
-                  : '#'
-              }
-            >
+            <Link href={`/dashboard/admin/events/${eventId}?tab=${tab.id}`}>
               {tab.label}
             </Link>
           </Button>

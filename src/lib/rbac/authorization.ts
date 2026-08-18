@@ -151,12 +151,3 @@ export async function requireAnyPermission(
     );
   }
 }
-
-export async function requireRole(
-  userId: string,
-  roleSlug: string,
-): Promise<void> {
-  if (!(await hasRole(userId, roleSlug))) {
-    redirect(`/forbidden?reason=missing_role&role=${roleSlug}`);
-  }
-}

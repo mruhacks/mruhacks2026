@@ -13,6 +13,7 @@ import {
   FieldLabel,
   FieldError,
   FieldDescription,
+  RequiredAsterisk,
 } from '@/components/ui/field';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -27,12 +28,9 @@ import {
   type EventOnlyFormValues,
 } from './schema';
 import type { ApplicationQuestion } from '@/types/application';
+import { isOtherOption, otherTextKey } from '@/lib/other-option';
 import { useRouter } from 'next/navigation';
 import type { Control } from 'react-hook-form';
-
-function RequiredAsterisk(): React.JSX.Element {
-  return <span className='text-destructive ml-0.5'>*</span>;
-}
 
 type ApplicationQuestionFieldProps = {
   question: ApplicationQuestion;
@@ -93,47 +91,71 @@ function ApplicationQuestionField({
   }
 
   if (q.type === 'single_select') {
-    return (
-      <Controller
-        name={fieldName}
-        control={control}
-        render={({ field, fieldState }) => (
-          <Field>
-            <FieldLabel>
-              {q.label}
-              {q.required && <RequiredAsterisk />}
-            </FieldLabel>
-            {q.description && (
-              <FieldDescription>{q.description}</FieldDescription>
-            )}
-            <Select
-              id={q.id}
-              instanceId={`app-q-${q.id}`}
-              options={activeOptions}
-              value={activeOptions.find((o) => o.value === field.value) ?? null}
-              onChange={(opt) =>
-                field.onChange(
-                  (opt as SingleValue<{ value: string; label: string }>)
-                    ?.value ?? null,
-                )
-              }
-            />
-            {fieldState.error && <FieldError errors={[fieldState.error]} />}
-          </Field>
-        )}
-      />
-    );
-  }
-
-  if (q.type === 'multi_select') {
+    const otherFieldName =
+      `applicationResponses.${otherTextKey(q.id)}` as const;
     return (
       <Controller
         name={fieldName}
         control={control}
         render={({ field, fieldState }) => {
-          const selected = Array.isArray(field.value)
+          const selected = activeOptions.find((o) => o.value === field.value);
+          return (
+            <Field>
+              <FieldLabel>
+                {q.label}
+                {q.required && <RequiredAsterisk />}
+              </FieldLabel>
+              {q.description && (
+                <FieldDescription>{q.description}</FieldDescription>
+              )}
+              <Select
+                id={q.id}
+                instanceId={`app-q-${q.id}`}
+                options={activeOptions}
+                value={selected ?? null}
+                onChange={(opt) =>
+                  field.onChange(
+                    (opt as SingleValue<{ value: string; label: string }>)
+                      ?.value ?? null,
+                  )
+                }
+              />
+              {fieldState.error && <FieldError errors={[fieldState.error]} />}
+              {isOtherOption(selected?.label) && (
+                <Controller
+                  name={otherFieldName}
+                  control={control}
+                  render={({ field: otherField }) => (
+                    <Input
+                      value={(otherField.value as string) ?? ''}
+                      onChange={(e) => otherField.onChange(e.target.value)}
+                      placeholder='Please specify'
+                      aria-label={`Specify ${q.label}`}
+                    />
+                  )}
+                />
+              )}
+            </Field>
+          );
+        }}
+      />
+    );
+  }
+
+  if (q.type === 'multi_select') {
+    const otherFieldName =
+      `applicationResponses.${otherTextKey(q.id)}` as const;
+    return (
+      <Controller
+        name={fieldName}
+        control={control}
+        render={({ field, fieldState }) => {
+          const selectedValues = Array.isArray(field.value)
             ? (field.value as string[])
             : [];
+          const selected = activeOptions.filter((o) =>
+            selectedValues.includes(o.value),
+          );
           return (
             <Field>
               <FieldLabel>
@@ -148,7 +170,7 @@ function ApplicationQuestionField({
                 instanceId={`app-q-${q.id}`}
                 isMulti
                 options={activeOptions}
-                value={activeOptions.filter((o) => selected.includes(o.value))}
+                value={selected}
                 onChange={(opts) =>
                   field.onChange(
                     (opts as MultiValue<{ value: string; label: string }>).map(
@@ -158,6 +180,20 @@ function ApplicationQuestionField({
                 }
               />
               {fieldState.error && <FieldError errors={[fieldState.error]} />}
+              {selected.some((o) => isOtherOption(o.label)) && (
+                <Controller
+                  name={otherFieldName}
+                  control={control}
+                  render={({ field: otherField }) => (
+                    <Input
+                      value={(otherField.value as string) ?? ''}
+                      onChange={(e) => otherField.onChange(e.target.value)}
+                      placeholder='Please specify'
+                      aria-label={`Specify ${q.label}`}
+                    />
+                  )}
+                />
+              )}
             </Field>
           );
         }}
@@ -291,12 +327,40 @@ function ApplicationFormFields({
     .filter((q) => q.active)
     .sort((a, b) => a.order - b.order);
 
+  // Group consecutive checkbox (boolean) questions so they render close
+  // together instead of each taking a full field-sized gap.
+  const groups: ApplicationQuestion[][] = [];
+  for (const q of activeQuestions) {
+    const last = groups[groups.length - 1];
+    if (q.type === 'boolean' && last?.[0]?.type === 'boolean') {
+      last.push(q);
+    } else {
+      groups.push([q]);
+    }
+  }
+
   return (
     <>
       <FieldGroup className='space-y-4'>
-        {activeQuestions.map((q) => (
-          <ApplicationQuestionField key={q.id} question={q} control={control} />
-        ))}
+        {groups.map((group) =>
+          group.length > 1 ? (
+            <div key={group[0]!.id} className='space-y-2'>
+              {group.map((q) => (
+                <ApplicationQuestionField
+                  key={q.id}
+                  question={q}
+                  control={control}
+                />
+              ))}
+            </div>
+          ) : (
+            <ApplicationQuestionField
+              key={group[0]!.id}
+              question={group[0]!}
+              control={control}
+            />
+          ),
+        )}
       </FieldGroup>
 
       {showSubmit && (

@@ -1,5 +1,11 @@
 import { getObject } from '@/utils/object-storage';
 
+/**
+ * Fallback proxy for profile pictures when `S3_PUBLIC_URL` isn't configured
+ * (see `profilePictureUrl` in `@/utils/object-storage`). When it is set,
+ * avatars are served directly from storage/CDN instead of through here, to
+ * avoid paying egress twice (storage → server → client) on every view.
+ */
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ key: string[] }> },
