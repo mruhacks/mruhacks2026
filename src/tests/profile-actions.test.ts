@@ -14,9 +14,14 @@ import {
 import {
   getUserProfile,
   saveUserProfile,
+  saveWelcomeProfile,
+  removeProfilePicture,
+  removeResume,
+  getOwnResume,
 } from '@/app/dashboard/profile/actions';
 
 vi.mock('@/utils/auth', () => ({ getUser: vi.fn() }));
+vi.mock('next/cache', () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn(), cacheLife: vi.fn() }));
 
 import { getUser } from '@/utils/auth';
 
@@ -336,5 +341,76 @@ describe('saveUserProfile', () => {
       linkedinUrl: 'not-a-url',
     });
     expect(result.success).toBe(false);
+  });
+});
+
+// ─── saveWelcomeProfile ────────────────────────────────────────────────────────
+
+describe('saveWelcomeProfile', () => {
+  test('returns error when not authenticated', async () => {
+    vi.mocked(getUser).mockResolvedValueOnce(null as never);
+    const result = await saveWelcomeProfile({ ...validProfileData(), attendedHackathonBefore: false });
+    expect(result.success).toBe(false);
+  });
+
+  test('saves profile and attendedHackathonBefore flag', async () => {
+    const result = await saveWelcomeProfile({ ...validProfileData(), attendedHackathonBefore: true });
+    expect(result.success).toBe(true);
+
+    const [profile] = await db
+      .select({ attendedHackathonBefore: userProfiles.attendedHackathonBefore })
+      .from(userProfiles)
+      .where(eq(userProfiles.userId, testUserId));
+    expect(profile?.attendedHackathonBefore).toBe(true);
+  });
+});
+
+// ─── removeProfilePicture ─────────────────────────────────────────────────────
+
+describe('removeProfilePicture', () => {
+  test('returns error when not authenticated', async () => {
+    vi.mocked(getUser).mockResolvedValueOnce(null as never);
+    const result = await removeProfilePicture();
+    expect(result.success).toBe(false);
+  });
+
+  test('succeeds when user has no profile picture (no-op S3)', async () => {
+    // Ensure user has no image set.
+    await db.update(user).set({ image: null }).where(eq(user.id, testUserId));
+    const result = await removeProfilePicture();
+    expect(result.success).toBe(true);
+  });
+});
+
+// ─── removeResume ─────────────────────────────────────────────────────────────
+
+describe('removeResume', () => {
+  test('returns error when not authenticated', async () => {
+    vi.mocked(getUser).mockResolvedValueOnce(null as never);
+    const result = await removeResume();
+    expect(result.success).toBe(false);
+  });
+
+  test('succeeds when user has no resume (no-op S3)', async () => {
+    // Profile has no resume; update should clear nulls with no S3 call.
+    const result = await removeResume();
+    expect(result.success).toBe(true);
+  });
+});
+
+// ─── getOwnResume ─────────────────────────────────────────────────────────────
+
+describe('getOwnResume', () => {
+  test('returns error when not authenticated', async () => {
+    vi.mocked(getUser).mockResolvedValueOnce(null as never);
+    const result = await getOwnResume();
+    expect(result.success).toBe(false);
+  });
+
+  test('returns ok(null) when no resume is set', async () => {
+    const result = await getOwnResume();
+    expect(result.success).toBe(true);
+    if (!result.success) throw new Error(result.error);
+    expect(result.data).toBeNull();
   });
 });
