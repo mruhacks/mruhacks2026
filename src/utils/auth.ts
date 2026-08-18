@@ -5,13 +5,15 @@
  * and provides helpers for retrieving session and user information.
  */
 
-import { betterAuth } from 'better-auth';
-import { admin, magicLink } from 'better-auth/plugins';
+import { betterAuth, APIError } from 'better-auth';
+import { admin, captcha, magicLink } from 'better-auth/plugins';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
+import { lt, sql } from 'drizzle-orm';
 import { db } from '@/utils/db';
 import * as schema from '@/db/schema';
 import { sendMail } from '@/utils/mail';
 import { headers } from 'next/headers';
+import { after } from 'next/server';
 import { cache } from 'react';
 import { writeAuditLog } from '@/utils/audit-log';
 
@@ -36,6 +38,14 @@ function getAuthSecret(): string {
   return v;
 }
 
+function getTurnstileSecretKey(): string {
+  const v = process.env.TURNSTILE_SECRET_KEY?.trim();
+  if (!v) {
+    throw new Error('TURNSTILE_SECRET_KEY is required for Better Auth');
+  }
+  return v;
+}
+
 /**
  * Better Auth instance configured with Drizzle ORM adapter
  *
@@ -54,7 +64,19 @@ export const auth = betterAuth({
   rateLimit: {
     storage: 'database',
     customRules: {
+      // Credential brute-forcing
+      '/sign-in/email': { window: 600, max: 10 },
+      // Mass account creation
+      '/sign-up/email': { window: 3600, max: 5 },
+      // Email-sending endpoints — capped to stop spam/enumeration abuse
       '/send-verification-email': { window: 300, max: 3 },
+      '/sign-in/magic-link': { window: 300, max: 3 },
+      '/request-password-reset': { window: 300, max: 3 },
+      '/delete-user': { window: 300, max: 3 },
+      // Sensitive account mutations
+      '/change-password': { window: 300, max: 5 },
+      '/change-email': { window: 300, max: 3 },
+      '/reset-password': { window: 300, max: 5 },
     },
   },
   databaseHooks: {
@@ -152,6 +174,46 @@ export const auth = betterAuth({
     admin(),
     magicLink({
       sendMagicLink: async ({ email, url }) => {
+        // De-dup: skip sending if we already emailed this address within the
+        // last 60s (double submit, multiple tabs, retries). Better Auth has
+        // already minted the verification token by this point, so the
+        // caller still sees a normal success response either way.
+        const [allowed] = await db
+          .insert(schema.magicLinkCooldown)
+          .values({ email })
+          .onConflictDoUpdate({
+            target: schema.magicLinkCooldown.email,
+            set: { lastSentAt: new Date() },
+            where: lt(
+              schema.magicLinkCooldown.lastSentAt,
+              sql`now() - interval '60 seconds'`,
+            ),
+          })
+          .returning();
+        if (!allowed) {
+          throw new APIError('TOO_MANY_REQUESTS', {
+            message:
+              'A sign-in link was already sent to this address. Check your inbox, or try again in a minute.',
+          });
+        }
+
+        // Self-cleaning: occasionally piggyback on a send to prune rows
+        // whose cooldown has already lapsed, so the table doesn't grow
+        // forever without needing a separate cron job. Probabilistic so a
+        // burst of sends doesn't turn into a burst of cleanup deletes.
+        if (Math.random() < 0.1) {
+          after(async () => {
+            await db
+              .delete(schema.magicLinkCooldown)
+              .where(
+                lt(
+                  schema.magicLinkCooldown.lastSentAt,
+                  sql`now() - interval '60 seconds'`,
+                ),
+              );
+          });
+        }
+
         void sendMail({
           to: email,
           subject: 'Sign in to MRUHacks',
@@ -161,6 +223,19 @@ export const auth = betterAuth({
           console.error('[auth] sendMagicLink failed', err);
         });
       },
+    }),
+    // Bot protection on the endpoints a public form can trigger. The client
+    // sends the widget token via the `x-captcha-response` header (see
+    // src/components/turnstile.tsx).
+    captcha({
+      provider: 'cloudflare-turnstile',
+      secretKey: getTurnstileSecretKey(),
+      endpoints: [
+        '/sign-up/email',
+        '/sign-in/email',
+        '/sign-in/magic-link',
+        '/request-password-reset',
+      ],
     }),
   ],
   advanced: {

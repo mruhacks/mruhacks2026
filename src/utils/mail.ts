@@ -75,3 +75,8 @@ export async function sendMail(options: SendMailOptions): Promise<void> {
     html: options.html,
   });
 }
+
+/** Verifies SMTP connectivity and auth without sending an email. */
+export async function verifyMailConnection(): Promise<void> {
+  await getTransporter().verify();
+}

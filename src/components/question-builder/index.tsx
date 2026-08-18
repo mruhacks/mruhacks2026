@@ -44,7 +44,11 @@ export function QuestionBuilder({
 }: QuestionBuilderProps) {
   // TODO: Disable edit/delete buttons if current user lacks event-specific 'event:manage' permission
   // TODO: Show read-only view if user has 'event:read' but not 'event:manage' for this event
-  const [isMounted, setIsMounted] = React.useState(false);
+  const isMounted = React.useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
   const [questions, setQuestions] = React.useState(
     [...initialQuestions].sort((a, b) => a.order - b.order),
   );
@@ -54,10 +58,6 @@ export function QuestionBuilder({
   const [deleteTarget, setDeleteTarget] = React.useState<ApplicationQuestion | null>(null);
   const [deleteLoading, setDeleteLoading] = React.useState(false);
   const [activeDragId, setActiveDragId] = React.useState<string | null>(null);
-
-  React.useEffect(() => {
-    setIsMounted(true);
-  }, []);
 
   const sensors = useSensors(
     useSensor(PointerSensor),

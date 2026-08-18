@@ -50,24 +50,26 @@ export function SessionsCard() {
   const [busyToken, setBusyToken] = React.useState<string | null>(null);
   const [revokingOthers, setRevokingOthers] = React.useState(false);
 
-  const load = React.useCallback(async () => {
-    setLoading(true);
-    const [list, current] = await Promise.all([
-      authClient.listSessions(),
-      authClient.getSession(),
-    ]);
-    setLoading(false);
-    if (list.error) {
-      toast.error('Failed to load sessions.');
-      return;
-    }
-    setSessions((list.data ?? []) as SessionRow[]);
-    setCurrentToken(current.data?.session.token ?? null);
-  }, []);
-
   React.useEffect(() => {
-    void load();
-  }, [load]);
+    let ignore = false;
+    (async () => {
+      const [list, current] = await Promise.all([
+        authClient.listSessions(),
+        authClient.getSession(),
+      ]);
+      if (ignore) return;
+      setLoading(false);
+      if (list.error) {
+        toast.error('Failed to load sessions.');
+        return;
+      }
+      setSessions((list.data ?? []) as SessionRow[]);
+      setCurrentToken(current.data?.session.token ?? null);
+    })();
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   async function revokeOne(token: string) {
     setBusyToken(token);

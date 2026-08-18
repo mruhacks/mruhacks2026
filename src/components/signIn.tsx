@@ -26,6 +26,9 @@ import { Loader2, MailCheck } from 'lucide-react';
 import { authClient } from '@/utils/auth-client';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { Turnstile, type TurnstileHandle } from '@/components/turnstile';
+
+const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? '';
 
 const formSchema = z.object({
   email: z.email('Please enter a valid email address.'),
@@ -71,7 +74,11 @@ export default function SignInForm() {
   const [unverifiedEmail, setUnverifiedEmail] = React.useState<string | null>(
     null,
   );
+  const [turnstileToken, setTurnstileToken] = React.useState<string | null>(
+    null,
+  );
   const submitInProgress = React.useRef(false);
+  const turnstileRef = React.useRef<TurnstileHandle>(null);
   const router = useRouter();
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -84,11 +91,16 @@ export default function SignInForm() {
 
   function onSubmit(credentials: z.infer<typeof formSchema>) {
     if (submitInProgress.current) return;
+    if (!turnstileToken) {
+      toast.error('Please complete the verification challenge.');
+      return;
+    }
 
     submitInProgress.current = true;
     setLoading(true);
     void authClient.signIn
       .email(credentials, {
+        headers: { 'x-captcha-response': turnstileToken },
         onSuccess: () => {
           submitInProgress.current = false;
           setLoading(false);
@@ -100,6 +112,8 @@ export default function SignInForm() {
         onError: (ctx) => {
           submitInProgress.current = false;
           setLoading(false);
+          turnstileRef.current?.reset();
+          setTurnstileToken(null);
           const code = ctx?.error?.code;
           if (code === 'EMAIL_NOT_VERIFIED') {
             setUnverifiedEmail(credentials.email);
@@ -114,6 +128,8 @@ export default function SignInForm() {
       .catch(() => {
         submitInProgress.current = false;
         setLoading(false);
+        turnstileRef.current?.reset();
+        setTurnstileToken(null);
         toast.error('Sign-in failed', {
           description: 'Invalid credentials or network issue.',
         });
@@ -131,13 +147,18 @@ export default function SignInForm() {
       toast.error('Enter your email first');
       return;
     }
+    if (!turnstileToken) {
+      submitInProgress.current = false;
+      toast.error('Please complete the verification challenge.');
+      return;
+    }
 
     setMagicLinkLoading(true);
     try {
-      const res = await authClient.signIn.magicLink({
-        email,
-        callbackURL: '/welcome',
-      });
+      const res = await authClient.signIn.magicLink(
+        { email, callbackURL: '/welcome' },
+        { headers: { 'x-captcha-response': turnstileToken } },
+      );
       if (res.error) {
         toast.error(res.error.message ?? 'Failed to send magic link');
         return;
@@ -152,6 +173,8 @@ export default function SignInForm() {
     } finally {
       submitInProgress.current = false;
       setMagicLinkLoading(false);
+      turnstileRef.current?.reset();
+      setTurnstileToken(null);
     }
   }
 
@@ -296,7 +319,11 @@ export default function SignInForm() {
               >
                 Reset
               </Button>
-              <Button type='submit' form='form-signin' disabled={loading}>
+              <Button
+                type='submit'
+                form='form-signin'
+                disabled={loading || !turnstileToken}
+              >
                 {loading ? (
                   <>
                     <Loader2 className='mr-2 size-4 animate-spin' />
@@ -307,6 +334,13 @@ export default function SignInForm() {
                 )}
               </Button>
             </Field>
+            <Turnstile
+              ref={turnstileRef}
+              siteKey={TURNSTILE_SITE_KEY}
+              onVerify={setTurnstileToken}
+              onExpire={() => setTurnstileToken(null)}
+              className='flex justify-start'
+            />
             <button
               type='button'
               className='text-muted-foreground self-center text-sm hover:underline'
@@ -321,7 +355,12 @@ export default function SignInForm() {
             <Button
               type='button'
               onClick={handleMagicLink}
-              disabled={loading || magicLinkLoading || magicLinkSent}
+              disabled={
+                loading ||
+                magicLinkLoading ||
+                magicLinkSent ||
+                !turnstileToken
+              }
             >
               {magicLinkLoading ? (
                 <>
@@ -369,6 +408,14 @@ export default function SignInForm() {
                 <span className='ml-2'>Continue with Google</span>
               </Button>
             </div>
+
+            <Turnstile
+              ref={turnstileRef}
+              siteKey={TURNSTILE_SITE_KEY}
+              onVerify={setTurnstileToken}
+              onExpire={() => setTurnstileToken(null)}
+              className='flex justify-start'
+            />
 
             {/* Password toggle */}
             <button

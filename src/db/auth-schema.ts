@@ -102,6 +102,18 @@ export const verification = pgTable('verification', {
 });
 
 /**
+ * Tracks the last time a magic-link sign-in email was sent to an address, so
+ * a burst of requests (double submit, multiple tabs, retries) doesn't flood
+ * the same inbox — see the 60s cooldown check in `auth.ts`. This table is
+ * UNLOGGED (see its migration): losing a row on crash just lets one extra
+ * email through, which isn't worth paying WAL overhead to prevent.
+ */
+export const magicLinkCooldown = pgTable('magic_link_cooldown', {
+  email: text('email').primaryKey(),
+  lastSentAt: timestamp('last_sent_at').defaultNow().notNull(),
+});
+
+/**
  * Consent is stored as one table per consent type. Terms-of-Use and
  * Privacy-Policy acceptances are append-only histories (one row per
  * acceptance, tagged with the document version), so re-acceptance after a

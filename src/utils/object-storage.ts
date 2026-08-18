@@ -65,6 +65,11 @@ async function ensureBucket() {
   }
 }
 
+/** Verifies the configured bucket is reachable, without creating it. */
+export async function checkObjectStorageConnection(): Promise<void> {
+  await getClient().send(new HeadBucketCommand({ Bucket: bucket }));
+}
+
 export function isObjectStorageKey(
   value: string | null | undefined,
 ): value is string {

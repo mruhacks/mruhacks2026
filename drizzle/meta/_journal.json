@@ -169,6 +169,13 @@
       "when": 1783961680420,
       "tag": "0023_clear_living_tribunal",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1787011048426,
+      "tag": "0024_magic_link_cooldown",
+      "breakpoints": true
     }
   ]
 }
