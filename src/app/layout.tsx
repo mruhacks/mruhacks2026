@@ -3,6 +3,7 @@ import { DM_Sans, DM_Mono, Inter, Geist_Mono } from 'next/font/google';
 import { Suspense } from 'react';
 import { Toaster } from '@/components/ui/sonner';
 import { QueryProvider } from '@/components/providers/query-provider';
+import { Analytics } from '@vercel/analytics/next';
 import './globals.css';
 
 const dmSans = DM_Sans({
@@ -55,6 +56,7 @@ export default function RootLayout({
             <Toaster />
           </QueryProvider>
         </Suspense>
+        <Analytics />
       </body>
     </html>
   );
