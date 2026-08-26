@@ -37,6 +37,9 @@ const Q_HEARD_FROM = '11111111-0000-0000-0000-000000000004';
 const Q_CONSENT_INFO = '11111111-0000-0000-0000-000000000005';
 const Q_CONSENT_SPONSOR = '11111111-0000-0000-0000-000000000006';
 const Q_CONSENT_MEDIA = '11111111-0000-0000-0000-000000000007';
+const Q_WHY_ATTEND = '11111111-0000-0000-0000-000000000008';
+const Q_IDEAS = '11111111-0000-0000-0000-000000000009';
+const Q_SPACE_JOURNEY = '11111111-0000-0000-0000-00000000000a';
 
 // ── Stable option UUIDs for heard_from question ───────────────────────────
 const OPT_POSTER = '22222222-0000-0000-0000-000000000001';
@@ -91,20 +94,53 @@ async function seedEvents() {
           active: true,
         },
         {
+          id: Q_WHY_ATTEND,
+          label: 'Why do you want to attend MRUHacks?',
+          description:
+            'What excites you about the event, and how do you hope it will help you grow? (60 words max)',
+          type: 'long_text' as const,
+          required: true,
+          maxLength: 250,
+          order: 2,
+          active: true,
+        },
+        {
+          id: Q_IDEAS,
+          label:
+            'Do you have any ideas you want to make or areas you’d like to learn about during MRUHacks?',
+          description: '60 words max',
+          type: 'long_text' as const,
+          required: true,
+          maxLength: 250,
+          order: 3,
+          active: true,
+        },
+        {
+          id: Q_SPACE_JOURNEY,
+          label:
+            'If you had to go on a 10-year journey through space all alone, what would you bring to entertain yourself?',
+          description: '20 words max',
+          type: 'long_text' as const,
+          required: true,
+          maxLength: 90,
+          order: 4,
+          active: true,
+        },
+        {
           id: Q_ACCOMMODATIONS,
           label: 'Accessibility or accommodations',
           description: 'Please let us know if you have any special needs.',
           type: 'long_text' as const,
           required: false,
-          order: 2,
+          order: 5,
           active: true,
         },
         {
           id: Q_NEEDS_PARKING,
-          label: 'Do you need parking?',
+          label: 'I require parking',
           type: 'boolean' as const,
           required: false,
-          order: 3,
+          order: 6,
           active: true,
         },
         {
@@ -112,7 +148,7 @@ async function seedEvents() {
           label: 'How did you hear about us?',
           type: 'single_select' as const,
           required: true,
-          order: 4,
+          order: 7,
           active: true,
           options: [
             { value: OPT_POSTER, label: 'Poster', active: true },
@@ -132,7 +168,7 @@ async function seedEvents() {
           label: 'I consent to MRUHacks collecting and using my information',
           type: 'boolean' as const,
           required: true,
-          order: 5,
+          order: 8,
           active: true,
         },
         {
@@ -140,7 +176,7 @@ async function seedEvents() {
           label: 'I consent to sharing my information with sponsors',
           type: 'boolean' as const,
           required: true,
-          order: 6,
+          order: 9,
           active: true,
         },
         {
@@ -148,7 +184,7 @@ async function seedEvents() {
           label: 'I consent to photos and videos being taken at the event',
           type: 'boolean' as const,
           required: true,
-          order: 7,
+          order: 10,
           active: true,
         },
       ],
