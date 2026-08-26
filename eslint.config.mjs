@@ -3,6 +3,7 @@ import { fileURLToPath } from 'url';
 import { FlatCompat } from '@eslint/eslintrc';
 import eslintConfigPrettier from 'eslint-config-prettier';
 import eslintPluginBetterTailwindcss from 'eslint-plugin-better-tailwindcss';
+import noNestedInteractive from './eslint-rules/no-nested-interactive.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -26,8 +27,14 @@ const eslintConfig = [
   {
     plugins: {
       'better-tailwindcss': eslintPluginBetterTailwindcss,
+      custom: {
+        rules: {
+          'no-nested-interactive': noNestedInteractive,
+        },
+      },
     },
     rules: {
+      'custom/no-nested-interactive': 'error',
       // Enable recommended Tailwind CSS rules
       ...eslintPluginBetterTailwindcss.configs['recommended-warn'].rules,
       // Disable Prettier-conflicting ESLint rules

@@ -10,9 +10,7 @@ import {
   EVENT_LOCATION_DISPLAY,
   REGISTRATION_OPEN,
   LOGIN_ENABLED,
-  DISCORD_LINK,
 } from '@/content';
-import Link from 'next/link';
 
 export function HeroSection() {
   return (
@@ -121,7 +119,7 @@ export function HeroSection() {
                 variant='discord'
                 className='rounded-full px-5 py-2.5 text-sm font-semibold tracking-[-0.02em] sm:px-6 sm:py-3 sm:text-base lg:p-5 lg:text-xl'
               >
-                <Link href={DISCORD_LINK}>Join our Discord</Link>
+                Join our Discord
               </Button>
             </div>
 
