@@ -18,10 +18,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { FieldError } from '@/components/ui/field';
 import { joinTeamByCode } from '@/app/dashboard/events/team-actions';
-
-// Matches TEAM_CODE_LENGTH in src/lib/team-code.ts (a server-only module
-// that can't be imported here — it pulls in node:crypto).
-const TEAM_CODE_LENGTH = 8;
+import { TEAM_CODE_LENGTH } from '@/lib/team-code-constants';
 
 type Props = { eventId: string; defaultCode?: string };
 

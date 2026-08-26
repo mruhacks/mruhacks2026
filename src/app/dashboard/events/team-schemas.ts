@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { TEAM_CODE_LENGTH } from '@/lib/team-code';
+import { TEAM_CODE_LENGTH } from '@/lib/team-code-constants';
 
 export const joinTeamSchema = z.object({
   code: z

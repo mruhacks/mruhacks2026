@@ -15,14 +15,7 @@ import { authClient } from '@/utils/auth-client';
 import { usePathname, useRouter } from 'next/navigation';
 import Chevron from '@/assets/Chevron';
 import { useBreadcrumbContext } from '@/components/breadcrumb-context';
-
-function getInitials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return '?';
-  const first = parts[0][0] ?? '';
-  const last = parts.length > 1 ? (parts[parts.length - 1][0] ?? '') : first;
-  return (first + last).toUpperCase();
-}
+import { getInitials } from '@/lib/initials';
 
 type Props = {
   user: { name: string; email: string; avatar?: string };
@@ -59,18 +52,9 @@ function buildBreadcrumbs(
 export function DashboardHeader({ user }: Props) {
   const router = useRouter();
   const pathname = usePathname();
-  const { segments: contextSegments } = useBreadcrumbContext();
-
-  // The header and page content hydrate as independent Suspense boundaries.
-  // If the content boundary hydrates (and runs its effects) before the
-  // header does, `contextSegments` can already differ from what the header
-  // was server-rendered with, causing a hydration mismatch here. Ignoring
-  // dynamic segments until after this component's own mount guarantees its
-  // first client render always matches its SSR output; the dynamic crumb
-  // then appears a beat later via a normal (non-hydration) re-render.
-  const [mounted, setMounted] = React.useState(false);
-  React.useEffect(() => setMounted(true), []);
-  const dynamicSegments = mounted ? contextSegments : {};
+  // `segments` stays empty until hydration completes (see
+  // BreadcrumbProvider), so this render always matches its SSR output.
+  const { segments: dynamicSegments } = useBreadcrumbContext();
 
   async function handleLogout() {
     await authClient.signOut();

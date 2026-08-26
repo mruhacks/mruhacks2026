@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { Eye, UserMinus } from 'lucide-react';
 
 import {
+  canModerateTeams,
   getEventDetails,
   getFormedTeamsForEvent,
 } from '@/app/dashboard/admin/events/actions';
@@ -34,6 +35,9 @@ export default function TeamsPage({ params }: TeamsPageProps) {
   const [event, setEvent] = React.useState<EventDetails | null>(null);
   const [teamRows, setTeamRows] = React.useState<FormedTeamRow[]>([]);
   const [loading, setLoading] = React.useState(true);
+  const [loadError, setLoadError] = React.useState<string | null>(null);
+  const [canModerate, setCanModerate] = React.useState(false);
+  const [reloadToken, setReloadToken] = React.useState(0);
   const [selectedTeam, setSelectedTeam] = React.useState<FormedTeamRow | null>(
     null,
   );
@@ -48,30 +52,46 @@ export default function TeamsPage({ params }: TeamsPageProps) {
 
   React.useEffect(() => {
     if (!eventId) return;
+    let cancelled = false;
 
     async function fetchData() {
-      const [eventResult, teamsResult] = await Promise.all([
-        getEventDetails(eventId as string),
-        getFormedTeamsForEvent(eventId as string),
-      ]);
+      try {
+        const [eventResult, teamsResult, moderate] = await Promise.all([
+          getEventDetails(eventId as string),
+          getFormedTeamsForEvent(eventId as string),
+          canModerateTeams(),
+        ]);
+        if (cancelled) return;
 
-      if (eventResult.success && eventResult.data) {
-        setEvent(eventResult.data);
-      } else if (!eventResult.success) {
-        toast.error(eventResult.error || 'Failed to load event');
+        setCanModerate(moderate);
+
+        if (eventResult.success && eventResult.data) {
+          setEvent(eventResult.data);
+        } else if (!eventResult.success) {
+          toast.error(eventResult.error || 'Failed to load event');
+        }
+
+        if (teamsResult.success && teamsResult.data) {
+          setTeamRows(teamsResult.data);
+          setLoadError(null);
+        } else if (!teamsResult.success) {
+          setLoadError(teamsResult.error || 'Failed to load teams');
+        }
+      } catch (error) {
+        // Without this the awaited Promise.all rejects, `setLoading(false)`
+        // never runs, and the tab sits on "Loading..." forever.
+        console.error('Failed to load teams tab:', error);
+        if (!cancelled) setLoadError('Failed to load teams.');
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-
-      if (teamsResult.success && teamsResult.data) {
-        setTeamRows(teamsResult.data);
-      } else if (!teamsResult.success) {
-        toast.error(teamsResult.error || 'Failed to load teams');
-      }
-
-      setLoading(false);
     }
 
     fetchData();
-  }, [eventId]);
+    return () => {
+      cancelled = true;
+    };
+  }, [eventId, reloadToken]);
 
   const handleRemove = async (teamId: string, targetUserId: string) => {
     if (!eventId) return;
@@ -160,6 +180,26 @@ export default function TeamsPage({ params }: TeamsPageProps) {
     );
   }
 
+  if (loadError) {
+    return (
+      <div className='space-y-3 py-8 text-center'>
+        <p className='text-destructive text-sm'>{loadError}</p>
+        <Button
+          type='button'
+          variant='outline'
+          size='sm'
+          onClick={() => {
+            setLoading(true);
+            setLoadError(null);
+            setReloadToken((n) => n + 1);
+          }}
+        >
+          Try again
+        </Button>
+      </div>
+    );
+  }
+
   if (event && !event.teamsEnabled) {
     return (
       <div className='text-muted-foreground py-8 text-center'>
@@ -214,7 +254,7 @@ export default function TeamsPage({ params }: TeamsPageProps) {
                     {member.isOrganizer && (
                       <Badge variant='outline'>Organizer</Badge>
                     )}
-                    {!member.isOrganizer && (
+                    {canModerate && (
                       <Button
                         type='button'
                         variant='ghost'

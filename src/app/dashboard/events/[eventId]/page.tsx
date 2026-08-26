@@ -28,7 +28,7 @@ import { ArrowLeft, CalendarDays, Users } from 'lucide-react';
 
 type Props = {
   params: Promise<{ eventId: string }>;
-  searchParams: Promise<{ joinCode?: string }>;
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 };
 
 function formatDate(d: Date | null) {
@@ -53,7 +53,10 @@ function dateRange(startsAt: Date | null, endsAt: Date | null) {
 
 export default async function EventEntryPage({ params, searchParams }: Props) {
   const { eventId } = await params;
-  const { joinCode } = await searchParams;
+  const { joinCode: rawJoinCode } = await searchParams;
+  // A repeated `?joinCode=` (a double-appended share link) arrives as an
+  // array; take the first so the dialog always gets a plain code string.
+  const joinCode = Array.isArray(rawJoinCode) ? rawJoinCode[0] : rawJoinCode;
   const user = await getUser();
   if (!user) redirect('/signin');
 

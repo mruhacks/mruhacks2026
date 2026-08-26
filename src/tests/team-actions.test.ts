@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeAll, afterAll, vi } from 'vitest';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { db } from '@/utils/db';
 import {
   user,
@@ -47,6 +47,9 @@ let userA: TestUser;
 let userB: TestUser;
 let userC: TestUser;
 let userD: TestUser;
+let userE: TestUser;
+let userF: TestUser;
+let userG: TestUser;
 let adminUser: TestUser;
 
 async function makeUser(label: string): Promise<TestUser> {
@@ -82,6 +85,9 @@ beforeAll(async () => {
   userB = await makeUser('B');
   userC = await makeUser('C');
   userD = await makeUser('D');
+  userE = await makeUser('E');
+  userF = await makeUser('F');
+  userG = await makeUser('G');
   adminUser = await makeUser('Admin');
 
   await db
@@ -91,6 +97,9 @@ beforeAll(async () => {
       { eventId, userId: userB.id },
       { eventId, userId: userC.id },
       { eventId, userId: userD.id },
+      { eventId, userId: userE.id },
+      { eventId, userId: userF.id },
+      { eventId, userId: userG.id },
     ]);
 
   const perms = await db
@@ -107,7 +116,8 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await db.delete(events).where(eq(events.id, eventId));
-  for (const u of [userA, userB, userC, userD, adminUser]) {
+  const testUsers = [userA, userB, userC, userD, userE, userF, userG, adminUser];
+  for (const u of testUsers) {
     await db.delete(user).where(eq(user.id, u.id));
   }
 });
@@ -304,5 +314,88 @@ describe('getFormedTeamsForEvent', () => {
     expect(formedTeam?.members.map((m) => m.userId).sort()).toEqual(
       [userA.id, userC.id].sort(),
     );
+  });
+});
+
+describe('getMyTeam concurrency', () => {
+  test('two simultaneous first-time reads settle on one team, with no orphan', async () => {
+    loginAs(userG);
+    const [first, second] = await Promise.all([
+      getMyTeam(eventId),
+      getMyTeam(eventId),
+    ]);
+
+    expect(first.success).toBe(true);
+    expect(second.success).toBe(true);
+    if (!first.success || !first.data) throw new Error('expected data');
+    if (!second.success || !second.data) throw new Error('expected data');
+    expect(first.data.teamId).toBe(second.data.teamId);
+
+    // A non-transactional create would leave a second, member-less `teams`
+    // row holding a live code for this event.
+    const rows = await db
+      .select({ id: teams.id })
+      .from(teams)
+      .where(eq(teams.organizerId, userG.id));
+    expect(rows).toHaveLength(1);
+  });
+});
+
+describe('removeMember participation', () => {
+  test('an organizer who is no longer a participant cannot remove a member', async () => {
+    loginAs(userE);
+    const eTeam = await getMyTeam(eventId);
+    if (!eTeam.success || !eTeam.data) throw new Error('expected data');
+
+    loginAs(userF);
+    const joined = await joinTeamByCode(eventId, eTeam.data.code);
+    expect(joined.success).toBe(true);
+
+    // E unregisters (or is denied) but stays `teams.organizerId`.
+    await db
+      .delete(eventAttendees)
+      .where(
+        and(
+          eq(eventAttendees.eventId, eventId),
+          eq(eventAttendees.userId, userE.id),
+        ),
+      );
+
+    loginAs(userE);
+    const denied = await removeMember(eventId, userF.id);
+    expect(denied.success).toBe(false);
+    if (denied.success) throw new Error('expected failure');
+    expect(denied.error).toMatch(/not authorized/i);
+
+    // F is still on E's team.
+    loginAs(userF);
+    const fTeam = await getMyTeam(eventId);
+    if (!fTeam.success || !fTeam.data) throw new Error('expected data');
+    expect(fTeam.data.teamId).toBe(eTeam.data.teamId);
+
+    // Re-registering restores the self-service grant.
+    await db.insert(eventAttendees).values({ eventId, userId: userE.id });
+    loginAs(userE);
+    const allowed = await removeMember(eventId, userF.id);
+    expect(allowed.success).toBe(true);
+  });
+});
+
+describe('getFormedTeamsForEvent payload', () => {
+  test('does not ship team join codes to the admin client', async () => {
+    loginAs(userA);
+    const aTeam = await getMyTeam(eventId);
+    if (!aTeam.success || !aTeam.data) throw new Error('expected data');
+
+    loginAs(userB);
+    expect((await joinTeamByCode(eventId, aTeam.data.code)).success).toBe(true);
+
+    loginAs(adminUser);
+    const result = await getFormedTeamsForEvent(eventId);
+    if (!result.success || !result.data) throw new Error('expected data');
+    expect(result.data.length).toBeGreaterThan(0);
+    for (const row of result.data) {
+      expect(Object.keys(row)).not.toContain('code');
+    }
   });
 });

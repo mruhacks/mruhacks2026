@@ -15,7 +15,7 @@ import {
 } from '@/db/schema';
 import { getUser } from '@/utils/auth';
 import { ok, fail, type ActionResult } from '@/utils/action-result';
-import { requirePermission } from '@/lib/rbac/authorization';
+import { hasPermission, requirePermission } from '@/lib/rbac/authorization';
 import {
   isSummarizableQuestion,
   type ApplicationQuestion,
@@ -608,7 +608,6 @@ export type FormedTeamMember = {
 
 export type FormedTeamRow = {
   teamId: string;
-  code: string;
   organizerId: string;
   organizerName: string;
   organizerEmail: string;
@@ -628,6 +627,28 @@ export async function getFormedTeamsForEvent(
   if (!authUser) return fail('Not authenticated');
   await requirePermission(authUser.id, 'team:read:all');
 
+  try {
+    return await listFormedTeams(eventId);
+  } catch (error) {
+    console.error('getFormedTeamsForEvent error:', error);
+    return fail('Failed to load teams.');
+  }
+}
+
+/**
+ * True when the caller may use the moderation override in `removeMember`.
+ * The Teams tab is readable with `team:read:all` alone, so its remove
+ * controls have to be gated on the permission that actually backs them.
+ */
+export async function canModerateTeams(): Promise<boolean> {
+  const authUser = await getUser();
+  if (!authUser) return false;
+  return hasPermission(authUser.id, 'team:manage:all');
+}
+
+async function listFormedTeams(
+  eventId: string,
+): Promise<ActionResult<FormedTeamRow[]>> {
   const formedTeams = await db
     .select({ teamId: teamMembers.teamId, memberCount: count() })
     .from(teamMembers)
@@ -642,7 +663,7 @@ export async function getFormedTeamsForEvent(
 
   const [teamRows, memberRows] = await Promise.all([
     db
-      .select({ id: teams.id, code: teams.code, organizerId: teams.organizerId })
+      .select({ id: teams.id, organizerId: teams.organizerId })
       .from(teams)
       .where(inArray(teams.id, teamIds)),
     db
@@ -673,7 +694,6 @@ export async function getFormedTeamsForEvent(
       const organizer = members.find((m) => m.isOrganizer);
       return {
         teamId: t.id,
-        code: t.code,
         organizerId: t.organizerId,
         organizerName: organizer?.name ?? 'Unknown',
         organizerEmail: organizer?.email ?? '',

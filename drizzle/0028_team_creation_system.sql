@@ -15,9 +15,13 @@ CREATE TABLE "teams" (
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-DROP TABLE "group_members" CASCADE;--> statement-breakpoint
-DROP TABLE "groups" CASCADE;--> statement-breakpoint
-DROP TABLE "submissions" CASCADE;--> statement-breakpoint
+CREATE SCHEMA IF NOT EXISTS "archive";--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS "archive"."submissions_pre_0028" AS TABLE "public"."submissions";--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS "archive"."group_members_pre_0028" AS TABLE "public"."group_members";--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS "archive"."groups_pre_0028" AS TABLE "public"."groups";--> statement-breakpoint
+DROP TABLE "submissions";--> statement-breakpoint
+DROP TABLE "group_members";--> statement-breakpoint
+DROP TABLE "groups";--> statement-breakpoint
 ALTER TABLE "events" ADD COLUMN "teams_enabled" boolean DEFAULT false NOT NULL;--> statement-breakpoint
 ALTER TABLE "events" ADD COLUMN "max_team_size" integer;--> statement-breakpoint
 ALTER TABLE "team_members" ADD CONSTRAINT "team_members_team_id_teams_id_fk" FOREIGN KEY ("team_id") REFERENCES "public"."teams"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -30,3 +34,16 @@ CREATE INDEX "idx_team_members_team_id" ON "team_members" USING btree ("team_id"
 CREATE INDEX "idx_team_members_event_id" ON "team_members" USING btree ("event_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "teams_event_id_code_unique" ON "teams" USING btree ("event_id","code");--> statement-breakpoint
 CREATE INDEX "idx_teams_event_id" ON "teams" USING btree ("event_id");
+--> statement-breakpoint
+-- The submissions table is gone, so the permissions that gated it are dead
+-- weight in the RBAC surface. Drop the grants first, then the permissions.
+DELETE FROM "authz"."role_permission" WHERE "permission_id" IN (
+    SELECT "id" FROM "authz"."permission"
+    WHERE "slug" IN ('submission:read:all', 'submission:write:all')
+);--> statement-breakpoint
+DELETE FROM "authz"."user_permission" WHERE "permission_id" IN (
+    SELECT "id" FROM "authz"."permission"
+    WHERE "slug" IN ('submission:read:all', 'submission:write:all')
+);--> statement-breakpoint
+DELETE FROM "authz"."permission"
+    WHERE "slug" IN ('submission:read:all', 'submission:write:all');

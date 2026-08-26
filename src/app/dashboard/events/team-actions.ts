@@ -109,6 +109,38 @@ async function getOrCreatePersonalTeam(
 }
 
 /**
+ * Transactional wrapper around `getOrCreatePersonalTeam` for callers that
+ * aren't already inside a transaction. Without one, the SELECT -> INSERT
+ * teams -> INSERT team_members sequence can fail halfway and strand a
+ * member-less `teams` row holding a live code. Two concurrent first-time
+ * requests for the same user also race: the loser trips the
+ * (user_id, event_id) unique index, so it rolls back and re-reads the row
+ * the winner just created instead of surfacing a 23505.
+ */
+async function ensurePersonalTeam(
+  userId: string,
+  eventId: string,
+): Promise<{ teamId: string } | null> {
+  try {
+    return await db.transaction((tx) =>
+      getOrCreatePersonalTeam(userId, eventId, tx),
+    );
+  } catch (error) {
+    const [existing] = await db
+      .select({ teamId: teamMembers.teamId })
+      .from(teamMembers)
+      .where(
+        and(eq(teamMembers.userId, userId), eq(teamMembers.eventId, eventId)),
+      )
+      .limit(1);
+    if (existing) return { teamId: existing.teamId };
+
+    console.error('ensurePersonalTeam error:', error);
+    return null;
+  }
+}
+
+/**
  * Cleans up the team a user just left/was removed from: dissolves it if
  * empty, and reassigns Organizer status to the earliest-joined remaining
  * member if the departing user was the organizer. A no-op when the
@@ -177,37 +209,44 @@ export async function getMyTeam(eventId: string): Promise<ActionResult<TeamView>
     return fail('You must be registered for this event to manage a team.');
   }
 
-  const { teamId } = await getOrCreatePersonalTeam(currentUser.id, eventId);
+  const personalTeam = await ensurePersonalTeam(currentUser.id, eventId);
+  if (!personalTeam) return fail('Failed to load your team.');
+  const { teamId } = personalTeam;
 
-  const [teamRow] = await db
-    .select({ code: teams.code, organizerId: teams.organizerId })
-    .from(teams)
-    .where(eq(teams.id, teamId))
-    .limit(1);
-  if (!teamRow) return fail('Team not found.');
+  try {
+    const [teamRow] = await db
+      .select({ code: teams.code, organizerId: teams.organizerId })
+      .from(teams)
+      .where(eq(teams.id, teamId))
+      .limit(1);
+    if (!teamRow) return fail('Team not found.');
 
-  const memberRows = await db
-    .select({
-      userId: teamMembers.userId,
-      name: authUser.name,
-      email: authUser.email,
-      joinedAt: teamMembers.joinedAt,
-    })
-    .from(teamMembers)
-    .innerJoin(authUser, eq(teamMembers.userId, authUser.id))
-    .where(eq(teamMembers.teamId, teamId))
-    .orderBy(asc(teamMembers.joinedAt));
+    const memberRows = await db
+      .select({
+        userId: teamMembers.userId,
+        name: authUser.name,
+        email: authUser.email,
+        joinedAt: teamMembers.joinedAt,
+      })
+      .from(teamMembers)
+      .innerJoin(authUser, eq(teamMembers.userId, authUser.id))
+      .where(eq(teamMembers.teamId, teamId))
+      .orderBy(asc(teamMembers.joinedAt));
 
-  return ok({
-    teamId,
-    code: teamRow.code,
-    organizerId: teamRow.organizerId,
-    maxTeamSize: settings.maxTeamSize,
-    members: memberRows.map((m) => ({
-      ...m,
-      isOrganizer: m.userId === teamRow.organizerId,
-    })),
-  });
+    return ok({
+      teamId,
+      code: teamRow.code,
+      organizerId: teamRow.organizerId,
+      maxTeamSize: settings.maxTeamSize,
+      members: memberRows.map((m) => ({
+        ...m,
+        isOrganizer: m.userId === teamRow.organizerId,
+      })),
+    });
+  } catch (error) {
+    console.error('getMyTeam error:', error);
+    return fail('Failed to load your team.');
+  }
 }
 
 /** Story 3: leave the current team (if any) and join another by its code. */
@@ -233,11 +272,15 @@ export async function joinTeamByCode(
 
   try {
     const result = await db.transaction(async (tx) => {
+      // Locked for the rest of the transaction: the size check below is a
+      // read-then-write, and without this two simultaneous joins both read
+      // the pre-join count and both pass, overflowing maxTeamSize.
       const [targetTeam] = await tx
         .select({ id: teams.id })
         .from(teams)
         .where(and(eq(teams.eventId, eventId), eq(teams.code, parsed.data.code)))
-        .limit(1);
+        .limit(1)
+        .for('update');
       if (!targetTeam) return fail('Invalid team code.');
 
       const { teamId: currentTeamId } = await getOrCreatePersonalTeam(
@@ -384,9 +427,15 @@ export async function removeMember(
     .limit(1);
   if (!targetTeam) return fail('Team not found.');
 
+  // A denied applicant (or someone who unregistered) keeps their
+  // `teams.organizerId` even though the Team panel is gone from their UI, so
+  // the participant check has to be part of the self-service grant — not
+  // just a precondition of the page that renders the button. Moderators
+  // acting under `team:manage:all` are deliberately exempt.
   const isSelfServiceOrganizer =
     targetTeam.organizerId === currentUser.id &&
-    targetTeam.organizerId !== targetUserId;
+    targetTeam.organizerId !== targetUserId &&
+    (await isEventParticipant(currentUser.id, eventId));
 
   let isAdminOverride = false;
   if (!isSelfServiceOrganizer) {

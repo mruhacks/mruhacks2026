@@ -134,8 +134,6 @@ async function seedRolesAndPermissions() {
     },
     { slug: 'participant:read:all', description: 'View participant profiles' },
     { slug: 'participant:write:all', description: 'Edit participant data' },
-    { slug: 'submission:read:all', description: 'View project submissions' },
-    { slug: 'submission:write:all', description: 'Modify project submissions' },
     { slug: 'event:manage:all', description: 'Create and manage events' },
     {
       slug: 'team:read:all',
@@ -219,20 +217,12 @@ async function seedRolesAndPermissions() {
         permissionId: findPerm('team:manage:all').id,
       },
       {
-        roleId: findRole('judge').id,
-        permissionId: findPerm('submission:read:all').id,
-      },
-      {
         roleId: findRole('volunteer').id,
         permissionId: findPerm('participant:read:all').id,
       },
       {
         roleId: findRole('volunteer').id,
         permissionId: findPerm('checkin:write:all').id,
-      },
-      {
-        roleId: findRole('participant').id,
-        permissionId: findPerm('submission:read:all').id,
       },
     ];
 

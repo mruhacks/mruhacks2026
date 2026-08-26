@@ -3,13 +3,17 @@
 import { Copy } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { copyToClipboard } from '@/lib/clipboard';
 
 type Props = { code: string };
 
 export function TeamCodeDisplay({ code }: Props) {
   const copyCode = async () => {
-    await navigator.clipboard.writeText(code);
-    toast.success('Code copied');
+    if (await copyToClipboard(code)) {
+      toast.success('Code copied');
+    } else {
+      toast.error("Couldn't copy — the code is shown above.");
+    }
   };
 
   return (

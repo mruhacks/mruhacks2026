@@ -3,6 +3,7 @@
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { RemoveMemberButton } from './RemoveMemberButton';
+import { getInitials } from '@/lib/initials';
 import type { TeamMemberView } from '@/app/dashboard/events/team-actions';
 
 type Props = {
@@ -11,18 +12,6 @@ type Props = {
   currentUserId: string;
   isOrganizer: boolean;
 };
-
-function initials(name: string): string {
-  return (
-    name
-      .split(' ')
-      .filter(Boolean)
-      .map((part) => part[0])
-      .join('')
-      .slice(0, 2)
-      .toUpperCase() || '?'
-  );
-}
 
 export function TeamRoster({ eventId, members, currentUserId, isOrganizer }: Props) {
   return (
@@ -35,7 +24,7 @@ export function TeamRoster({ eventId, members, currentUserId, isOrganizer }: Pro
           <div className='flex min-w-0 items-center gap-2'>
             <Avatar className='size-8'>
               <AvatarFallback className='text-xs'>
-                {initials(member.name)}
+                {getInitials(member.name)}
               </AvatarFallback>
             </Avatar>
             <div className='min-w-0'>

@@ -14,15 +14,18 @@ import { teams } from '@/db/schema';
 type Queryable = Pick<typeof dbSingleton, 'select'>;
 import { EN_BAD_WORDS } from '@/lib/profanity-wordlists/en';
 import { FR_BAD_WORDS } from '@/lib/profanity-wordlists/fr';
+import { TEAM_CODE_CHARSET, TEAM_CODE_LENGTH } from '@/lib/team-code-constants';
 
-export const TEAM_CODE_LENGTH = 8;
-
-// Digits 2-9 plus A-Z minus I/L/O: excludes 0/O and 1/I/L to avoid visual ambiguity.
-export const TEAM_CODE_CHARSET = '23456789ABCDEFGHJKMNPQRSTUVWXYZ';
+export { TEAM_CODE_LENGTH, TEAM_CODE_CHARSET } from '@/lib/team-code-constants';
 
 export const TEAM_CODE_MAX_ATTEMPTS = 25;
 
-const DENYLIST = [...EN_BAD_WORDS, ...FR_BAD_WORDS];
+const DENYLIST = new Set([...EN_BAD_WORDS, ...FR_BAD_WORDS]);
+
+// Substring bounds, so `isCodeDenylisted` only enumerates windows that could
+// possibly be a denylisted word.
+const DENYLIST_MIN_LENGTH = Math.min(...[...DENYLIST].map((w) => w.length));
+const DENYLIST_MAX_LENGTH = Math.max(...[...DENYLIST].map((w) => w.length));
 
 const LEETSPEAK_SUBSTITUTIONS: Record<string, string> = {
   '0': 'o',
@@ -52,7 +55,17 @@ export function normalizeLeetspeak(input: string): string {
  */
 export function isCodeDenylisted(code: string): boolean {
   const normalized = normalizeLeetspeak(code);
-  return DENYLIST.some((word) => normalized.includes(word));
+  const maxLength = Math.min(DENYLIST_MAX_LENGTH, normalized.length);
+  for (let start = 0; start < normalized.length; start++) {
+    for (
+      let length = DENYLIST_MIN_LENGTH;
+      length <= maxLength && start + length <= normalized.length;
+      length++
+    ) {
+      if (DENYLIST.has(normalized.slice(start, start + length))) return true;
+    }
+  }
+  return false;
 }
 
 /** Generates a random 8-char code from the restricted charset, no checks applied. */
