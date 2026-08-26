@@ -27,19 +27,26 @@ type SessionRow = {
 /** Best-effort human label from a user-agent string. */
 function describeAgent(ua?: string | null): string {
   if (!ua) return 'Unknown device';
-  const browser =
-    /Edg/.test(ua) ? 'Edge'
-    : /Chrome/.test(ua) ? 'Chrome'
-    : /Firefox/.test(ua) ? 'Firefox'
-    : /Safari/.test(ua) ? 'Safari'
-    : 'Browser';
-  const os =
-    /Windows/.test(ua) ? 'Windows'
-    : /Mac OS/.test(ua) ? 'macOS'
-    : /Android/.test(ua) ? 'Android'
-    : /(iPhone|iPad|iOS)/.test(ua) ? 'iOS'
-    : /Linux/.test(ua) ? 'Linux'
-    : 'Unknown OS';
+  const browser = /Edg/.test(ua)
+    ? 'Edge'
+    : /Chrome/.test(ua)
+      ? 'Chrome'
+      : /Firefox/.test(ua)
+        ? 'Firefox'
+        : /Safari/.test(ua)
+          ? 'Safari'
+          : 'Browser';
+  const os = /Windows/.test(ua)
+    ? 'Windows'
+    : /Mac OS/.test(ua)
+      ? 'macOS'
+      : /Android/.test(ua)
+        ? 'Android'
+        : /(iPhone|iPad|iOS)/.test(ua)
+          ? 'iOS'
+          : /Linux/.test(ua)
+            ? 'Linux'
+            : 'Unknown OS';
   return `${browser} on ${os}`;
 }
 

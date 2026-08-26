@@ -31,7 +31,10 @@ const otherTextSchema = z
 
 const personalSchema = z.object({
   fullName: z.string().trim().min(1, 'Enter your name.'),
-  genderId: z.coerce.number('Choose an option.').int().positive('Choose an option.'),
+  genderId: z.coerce
+    .number('Choose an option.')
+    .int()
+    .positive('Choose an option.'),
   genderOtherText: otherTextSchema,
   dietaryRestrictions: z.array(z.number()).default([]),
   dietaryOtherText: otherTextSchema,
@@ -105,15 +108,12 @@ export function WelcomePersonalPage({
                   value={selected ?? null}
                   onChange={(option) =>
                     field.onChange(
-                      (
-                        option as SingleValue<{ value: number; label: string }>
-                      )?.value ?? '',
+                      (option as SingleValue<{ value: number; label: string }>)
+                        ?.value ?? '',
                     )
                   }
                 />
-                {fieldState.error && (
-                  <FieldError errors={[fieldState.error]} />
-                )}
+                {fieldState.error && <FieldError errors={[fieldState.error]} />}
                 {isOtherOption(selected?.label) && (
                   <Input
                     {...form.register('genderOtherText')}

@@ -21,7 +21,11 @@ import {
 } from '@/app/dashboard/profile/actions';
 
 vi.mock('@/utils/auth', () => ({ getUser: vi.fn() }));
-vi.mock('next/cache', () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn(), cacheLife: vi.fn() }));
+vi.mock('next/cache', () => ({
+  revalidatePath: vi.fn(),
+  revalidateTag: vi.fn(),
+  cacheLife: vi.fn(),
+}));
 
 import { getUser } from '@/utils/auth';
 
@@ -349,12 +353,18 @@ describe('saveUserProfile', () => {
 describe('saveWelcomeProfile', () => {
   test('returns error when not authenticated', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(null as never);
-    const result = await saveWelcomeProfile({ ...validProfileData(), attendedHackathonBefore: false });
+    const result = await saveWelcomeProfile({
+      ...validProfileData(),
+      attendedHackathonBefore: false,
+    });
     expect(result.success).toBe(false);
   });
 
   test('saves profile and attendedHackathonBefore flag', async () => {
-    const result = await saveWelcomeProfile({ ...validProfileData(), attendedHackathonBefore: true });
+    const result = await saveWelcomeProfile({
+      ...validProfileData(),
+      attendedHackathonBefore: true,
+    });
     expect(result.success).toBe(true);
 
     const [profile] = await db

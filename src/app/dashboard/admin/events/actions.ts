@@ -659,7 +659,9 @@ async function listFormedTeams(
   if (formedTeams.length === 0) return ok([]);
 
   const teamIds = formedTeams.map((t) => t.teamId);
-  const countByTeamId = new Map(formedTeams.map((t) => [t.teamId, t.memberCount]));
+  const countByTeamId = new Map(
+    formedTeams.map((t) => [t.teamId, t.memberCount]),
+  );
 
   const [teamRows, memberRows] = await Promise.all([
     db
@@ -681,7 +683,12 @@ async function listFormedTeams(
   const membersByTeamId = new Map<string, FormedTeamMember[]>();
   for (const row of memberRows) {
     const list = membersByTeamId.get(row.teamId) ?? [];
-    list.push({ userId: row.userId, name: row.name, email: row.email, isOrganizer: false });
+    list.push({
+      userId: row.userId,
+      name: row.name,
+      email: row.email,
+      isOrganizer: false,
+    });
     membersByTeamId.set(row.teamId, list);
   }
 

@@ -25,7 +25,7 @@ type Props = {
 export function EmailLayout({ preview, baseUrl, children }: Props) {
   const logoUrl = `${baseUrl}/email-logo.png`;
   return (
-    <Html lang="en">
+    <Html lang='en'>
       <Head />
       <Preview>{preview}</Preview>
       <Body style={{ margin: 0, padding: 0, backgroundColor: '#e8e8e8' }}>
@@ -39,42 +39,79 @@ export function EmailLayout({ preview, baseUrl, children }: Props) {
           }}
         >
           {/* Logo */}
-          <Section style={{ padding: '28px 24px 16px', textAlign: 'center', backgroundColor: '#ffffff' }}>
-            <Link href="https://mruhacks.ca">
+          <Section
+            style={{
+              padding: '28px 24px 16px',
+              textAlign: 'center',
+              backgroundColor: '#ffffff',
+            }}
+          >
+            <Link href='https://mruhacks.ca'>
               <Img
                 src={logoUrl}
-                alt="MRUHacks"
+                alt='MRUHacks'
                 width={200}
-                style={{ display: 'block', margin: '0 auto', maxWidth: '80%', height: 'auto' }}
+                style={{
+                  display: 'block',
+                  margin: '0 auto',
+                  maxWidth: '80%',
+                  height: 'auto',
+                }}
               />
             </Link>
           </Section>
 
           {/* Rainbow stripe */}
-          <Section style={{ height: 4, backgroundImage: GRADIENT, fontSize: 0, lineHeight: 0 }}>
+          <Section
+            style={{
+              height: 4,
+              backgroundImage: GRADIENT,
+              fontSize: 0,
+              lineHeight: 0,
+            }}
+          >
             <Text style={{ display: 'none' }}>&nbsp;</Text>
           </Section>
 
           {/* Body */}
-          <Section style={{ padding: '36px 40px 32px' }}>
-            {children}
-          </Section>
+          <Section style={{ padding: '36px 40px 32px' }}>{children}</Section>
 
           {/* Rainbow stripe */}
-          <Section style={{ height: 4, backgroundImage: GRADIENT, fontSize: 0, lineHeight: 0 }}>
+          <Section
+            style={{
+              height: 4,
+              backgroundImage: GRADIENT,
+              fontSize: 0,
+              lineHeight: 0,
+            }}
+          >
             <Text style={{ display: 'none' }}>&nbsp;</Text>
           </Section>
 
           {/* Footer */}
-          <Section style={{ backgroundColor: '#0d0d0d', padding: '28px 32px 32px', textAlign: 'center' }}>
-            <Text style={{ margin: '0 0 18px', fontFamily: 'Arial,Helvetica,sans-serif', fontWeight: 700, fontSize: 18, color: '#ffffff' }}>
+          <Section
+            style={{
+              backgroundColor: '#0d0d0d',
+              padding: '28px 32px 32px',
+              textAlign: 'center',
+            }}
+          >
+            <Text
+              style={{
+                margin: '0 0 18px',
+                fontFamily: 'Arial,Helvetica,sans-serif',
+                fontWeight: 700,
+                fontSize: 18,
+                color: '#ffffff',
+              }}
+            >
               Find Us Online
             </Text>
 
             <Row style={{ marginBottom: 20 }}>
               <Column style={{ padding: '0 4px' }}>
                 <Link
-                  href="https://www.instagram.com/mruhacks/"
+                  href='https://www.instagram.com/mruhacks/'
                   style={{
                     display: 'inline-block',
                     fontFamily: 'Arial,Helvetica,sans-serif',
@@ -92,7 +129,7 @@ export function EmailLayout({ preview, baseUrl, children }: Props) {
               </Column>
               <Column style={{ padding: '0 4px' }}>
                 <Link
-                  href="https://ca.linkedin.com/company/mruhacks"
+                  href='https://ca.linkedin.com/company/mruhacks'
                   style={{
                     display: 'inline-block',
                     fontFamily: 'Arial,Helvetica,sans-serif',
@@ -110,7 +147,7 @@ export function EmailLayout({ preview, baseUrl, children }: Props) {
               </Column>
               <Column style={{ padding: '0 4px' }}>
                 <Link
-                  href="https://linktr.ee/mruhacks"
+                  href='https://linktr.ee/mruhacks'
                   style={{
                     display: 'inline-block',
                     fontFamily: 'Arial,Helvetica,sans-serif',
@@ -128,7 +165,7 @@ export function EmailLayout({ preview, baseUrl, children }: Props) {
               </Column>
               <Column style={{ padding: '0 4px' }}>
                 <Link
-                  href="https://mruhacks.ca/"
+                  href='https://mruhacks.ca/'
                   style={{
                     display: 'inline-block',
                     fontFamily: 'Arial,Helvetica,sans-serif',
@@ -146,7 +183,14 @@ export function EmailLayout({ preview, baseUrl, children }: Props) {
               </Column>
             </Row>
 
-            <Text style={{ margin: 0, fontFamily: 'Arial,Helvetica,sans-serif', fontSize: 12, color: '#bbbbbb' }}>
+            <Text
+              style={{
+                margin: 0,
+                fontFamily: 'Arial,Helvetica,sans-serif',
+                fontSize: 12,
+                color: '#bbbbbb',
+              }}
+            >
               Copyright 2026 MRUHacks &bull; Calgary, AB
             </Text>
           </Section>
@@ -181,9 +225,20 @@ export function CtaButton({ label, url }: { label: string; url: string }) {
 
 export function FallbackLink({ url }: { url: string }) {
   return (
-    <Text style={{ margin: '20px 0 0', fontFamily: 'Arial,Helvetica,sans-serif', fontSize: 12, color: '#888888', wordBreak: 'break-all' }}>
+    <Text
+      style={{
+        margin: '20px 0 0',
+        fontFamily: 'Arial,Helvetica,sans-serif',
+        fontSize: 12,
+        color: '#888888',
+        wordBreak: 'break-all',
+      }}
+    >
       Button not working? Paste this link into your browser:{' '}
-      <Link href={url} style={{ color: '#4d75ee', textDecoration: 'underline' }}>
+      <Link
+        href={url}
+        style={{ color: '#4d75ee', textDecoration: 'underline' }}
+      >
         {url}
       </Link>
     </Text>

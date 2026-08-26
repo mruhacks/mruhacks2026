@@ -40,8 +40,7 @@ export default async function UserEditPage({
     rolesRes.success && rolesRes.data
       ? rolesRes.data.map((r) => ({ id: r.id, slug: r.slug }))
       : [];
-  const allPermissions =
-    permsRes.success && permsRes.data ? permsRes.data : [];
+  const allPermissions = permsRes.success && permsRes.data ? permsRes.data : [];
 
   return (
     <div className='space-y-4'>

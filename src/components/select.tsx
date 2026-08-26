@@ -131,7 +131,7 @@ export function Select<
   if (!mounted) {
     return (
       <div
-        className='border-input bg-background flex min-h-10 items-center rounded-[var(--radius)] border px-3 text-sm text-muted-foreground'
+        className='border-input bg-background text-muted-foreground flex min-h-10 items-center rounded-[var(--radius)] border px-3 text-sm'
         aria-hidden
       >
         {props.placeholder ?? ''}

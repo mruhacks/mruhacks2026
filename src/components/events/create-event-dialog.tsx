@@ -69,7 +69,9 @@ export function CreateEventDialog() {
       <DialogContent className='sm:max-w-md'>
         <DialogHeader>
           <DialogTitle>Create New Event</DialogTitle>
-          <DialogDescription>Add a new event to your organization.</DialogDescription>
+          <DialogDescription>
+            Add a new event to your organization.
+          </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className='space-y-4'>
@@ -111,7 +113,8 @@ export function CreateEventDialog() {
                 id='capacity'
                 type='number'
                 {...register('capacity', {
-                  setValueAs: (value) => (value === '' ? undefined : Number(value)),
+                  setValueAs: (value) =>
+                    value === '' ? undefined : Number(value),
                 })}
                 placeholder='e.g. 100'
               />

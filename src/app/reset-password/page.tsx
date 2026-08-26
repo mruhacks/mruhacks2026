@@ -44,7 +44,10 @@ export default function ResetPasswordPage() {
       return;
     }
     setSubmitting(true);
-    const res = await authClient.resetPassword({ newPassword: password, token });
+    const res = await authClient.resetPassword({
+      newPassword: password,
+      token,
+    });
     setSubmitting(false);
     if (res.error) {
       toast.error(res.error.message ?? 'Failed to reset password');

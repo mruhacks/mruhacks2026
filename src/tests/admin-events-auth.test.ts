@@ -29,9 +29,15 @@ import {
   getApplicationResponses,
 } from '@/app/dashboard/admin/events/actions';
 
-type MockUser = { id: string; email: string; name: string; emailVerified: boolean };
+type MockUser = {
+  id: string;
+  email: string;
+  name: string;
+  emailVerified: boolean;
+};
 
-const FORBIDDEN = 'REDIRECT:/forbidden?reason=missing_permission&permission=event:manage';
+const FORBIDDEN =
+  'REDIRECT:/forbidden?reason=missing_permission&permission=event:manage';
 
 let noPermUserId: string;
 let noPermUser: MockUser;
@@ -40,14 +46,27 @@ let testEventId: string;
 beforeAll(async () => {
   const [u] = await db
     .insert(user)
-    .values({ name: 'No Perm Admin', email: 'admin-events-noperm@example.com', emailVerified: true })
+    .values({
+      name: 'No Perm Admin',
+      email: 'admin-events-noperm@example.com',
+      emailVerified: true,
+    })
     .returning({ id: user.id });
   noPermUserId = u.id;
-  noPermUser = { id: noPermUserId, email: 'admin-events-noperm@example.com', name: 'No Perm Admin', emailVerified: true };
+  noPermUser = {
+    id: noPermUserId,
+    email: 'admin-events-noperm@example.com',
+    name: 'No Perm Admin',
+    emailVerified: true,
+  };
 
   const [e] = await db
     .insert(events)
-    .values({ name: 'Auth Test Event', hasApplication: true, applicationQuestions: [] })
+    .values({
+      name: 'Auth Test Event',
+      hasApplication: true,
+      applicationQuestions: [],
+    })
     .returning({ id: events.id });
   testEventId = e.id;
 
@@ -64,11 +83,15 @@ afterAll(async () => {
 describe('createEvent', () => {
   test('fails when unauthenticated', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(null as never);
-    await expect(createEvent({ name: 'X', hasApplication: false })).resolves.toMatchObject({ success: false });
+    await expect(
+      createEvent({ name: 'X', hasApplication: false }),
+    ).resolves.toMatchObject({ success: false });
   });
 
   test('redirects to /forbidden without event:manage', async () => {
-    await expect(createEvent({ name: 'X', hasApplication: false })).rejects.toThrow(FORBIDDEN);
+    await expect(
+      createEvent({ name: 'X', hasApplication: false }),
+    ).rejects.toThrow(FORBIDDEN);
   });
 });
 
@@ -77,7 +100,9 @@ describe('createEvent', () => {
 describe('getEventWithQuestions', () => {
   test('fails when unauthenticated', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(null as never);
-    await expect(getEventWithQuestions(testEventId)).resolves.toMatchObject({ success: false });
+    await expect(getEventWithQuestions(testEventId)).resolves.toMatchObject({
+      success: false,
+    });
   });
 
   test('redirects to /forbidden without event:manage', async () => {
@@ -90,7 +115,9 @@ describe('getEventWithQuestions', () => {
 describe('getEventDetails', () => {
   test('fails when unauthenticated', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(null as never);
-    await expect(getEventDetails(testEventId)).resolves.toMatchObject({ success: false });
+    await expect(getEventDetails(testEventId)).resolves.toMatchObject({
+      success: false,
+    });
   });
 
   test('redirects to /forbidden without event:manage', async () => {
@@ -103,11 +130,15 @@ describe('getEventDetails', () => {
 describe('getApplicationResponses', () => {
   test('fails when unauthenticated', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(null as never);
-    await expect(getApplicationResponses(testEventId)).resolves.toMatchObject({ success: false });
+    await expect(getApplicationResponses(testEventId)).resolves.toMatchObject({
+      success: false,
+    });
   });
 
   test('redirects to /forbidden without event:manage', async () => {
-    await expect(getApplicationResponses(testEventId)).rejects.toThrow(FORBIDDEN);
+    await expect(getApplicationResponses(testEventId)).rejects.toThrow(
+      FORBIDDEN,
+    );
   });
 });
 
@@ -117,13 +148,21 @@ describe('addQuestion', () => {
   test('fails when unauthenticated', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(null as never);
     await expect(
-      addQuestion(testEventId, { label: 'Q', type: 'short_text', required: false }),
+      addQuestion(testEventId, {
+        label: 'Q',
+        type: 'short_text',
+        required: false,
+      }),
     ).resolves.toMatchObject({ success: false });
   });
 
   test('redirects to /forbidden without event:manage', async () => {
     await expect(
-      addQuestion(testEventId, { label: 'Q', type: 'short_text', required: false }),
+      addQuestion(testEventId, {
+        label: 'Q',
+        type: 'short_text',
+        required: false,
+      }),
     ).rejects.toThrow(FORBIDDEN);
   });
 });
@@ -134,13 +173,17 @@ describe('editQuestion', () => {
   test('fails when unauthenticated', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(null as never);
     await expect(
-      editQuestion(testEventId, '00000000-0000-0000-0000-000000000000', { label: 'Q' }),
+      editQuestion(testEventId, '00000000-0000-0000-0000-000000000000', {
+        label: 'Q',
+      }),
     ).resolves.toMatchObject({ success: false });
   });
 
   test('redirects to /forbidden without event:manage', async () => {
     await expect(
-      editQuestion(testEventId, '00000000-0000-0000-0000-000000000000', { label: 'Q' }),
+      editQuestion(testEventId, '00000000-0000-0000-0000-000000000000', {
+        label: 'Q',
+      }),
     ).rejects.toThrow(FORBIDDEN);
   });
 });
@@ -167,7 +210,9 @@ describe('removeQuestion', () => {
 describe('reorderQuestions', () => {
   test('fails when unauthenticated', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(null as never);
-    await expect(reorderQuestions(testEventId, [])).resolves.toMatchObject({ success: false });
+    await expect(reorderQuestions(testEventId, [])).resolves.toMatchObject({
+      success: false,
+    });
   });
 
   test('redirects to /forbidden without event:manage', async () => {
@@ -197,10 +242,14 @@ describe('reactivateQuestion', () => {
 describe('updateEventSettings', () => {
   test('fails when unauthenticated', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(null as never);
-    await expect(updateEventSettings(testEventId, { name: 'X' })).resolves.toMatchObject({ success: false });
+    await expect(
+      updateEventSettings(testEventId, { name: 'X' }),
+    ).resolves.toMatchObject({ success: false });
   });
 
   test('redirects to /forbidden without event:manage', async () => {
-    await expect(updateEventSettings(testEventId, { name: 'X' })).rejects.toThrow(FORBIDDEN);
+    await expect(
+      updateEventSettings(testEventId, { name: 'X' }),
+    ).rejects.toThrow(FORBIDDEN);
   });
 });

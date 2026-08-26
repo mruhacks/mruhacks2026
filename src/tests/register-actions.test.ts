@@ -19,7 +19,11 @@ let testEventId: string;
 beforeAll(async () => {
   const [u] = await db
     .insert(user)
-    .values({ name: 'Register Test User', email: 'register-test@example.com', emailVerified: true })
+    .values({
+      name: 'Register Test User',
+      email: 'register-test@example.com',
+      emailVerified: true,
+    })
     .returning({ id: user.id });
   testUserId = u.id;
 
@@ -29,7 +33,12 @@ beforeAll(async () => {
     .returning({ id: events.id });
   testEventId = e.id;
 
-  vi.mocked(getUser).mockResolvedValue({ id: testUserId, email: 'register-test@example.com', name: 'Register Test User', emailVerified: true } as never);
+  vi.mocked(getUser).mockResolvedValue({
+    id: testUserId,
+    email: 'register-test@example.com',
+    name: 'Register Test User',
+    emailVerified: true,
+  } as never);
 });
 
 afterAll(async () => {
@@ -53,7 +62,12 @@ describe('registerForEvent', () => {
     const rows = await db
       .select()
       .from(eventAttendees)
-      .where(and(eq(eventAttendees.userId, testUserId), eq(eventAttendees.eventId, testEventId)));
+      .where(
+        and(
+          eq(eventAttendees.userId, testUserId),
+          eq(eventAttendees.eventId, testEventId),
+        ),
+      );
     expect(rows).toHaveLength(1);
   });
 
@@ -64,7 +78,12 @@ describe('registerForEvent', () => {
     const rows = await db
       .select()
       .from(eventAttendees)
-      .where(and(eq(eventAttendees.userId, testUserId), eq(eventAttendees.eventId, testEventId)));
+      .where(
+        and(
+          eq(eventAttendees.userId, testUserId),
+          eq(eventAttendees.eventId, testEventId),
+        ),
+      );
     expect(rows).toHaveLength(1);
   });
 });
@@ -78,7 +97,14 @@ describe('registerForEventFormAction', () => {
   });
 
   test('registers when valid eventId is in FormData', async () => {
-    await db.delete(eventAttendees).where(and(eq(eventAttendees.userId, testUserId), eq(eventAttendees.eventId, testEventId)));
+    await db
+      .delete(eventAttendees)
+      .where(
+        and(
+          eq(eventAttendees.userId, testUserId),
+          eq(eventAttendees.eventId, testEventId),
+        ),
+      );
     const formData = new FormData();
     formData.set('eventId', testEventId);
     const result = await registerForEventFormAction(formData);
@@ -95,14 +121,22 @@ describe('unregisterFromEvent', () => {
   });
 
   test('removes the attendee row', async () => {
-    await db.insert(eventAttendees).values({ userId: testUserId, eventId: testEventId }).onConflictDoNothing();
+    await db
+      .insert(eventAttendees)
+      .values({ userId: testUserId, eventId: testEventId })
+      .onConflictDoNothing();
     const result = await unregisterFromEvent(testEventId);
     expect(result.success).toBe(true);
 
     const rows = await db
       .select()
       .from(eventAttendees)
-      .where(and(eq(eventAttendees.userId, testUserId), eq(eventAttendees.eventId, testEventId)));
+      .where(
+        and(
+          eq(eventAttendees.userId, testUserId),
+          eq(eventAttendees.eventId, testEventId),
+        ),
+      );
     expect(rows).toHaveLength(0);
   });
 

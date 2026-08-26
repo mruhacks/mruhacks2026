@@ -513,9 +513,7 @@ describe('setRolePermissions', () => {
 
   test('clears all role permissions when given empty array', async () => {
     const roleId = unwrap(await createRole('test-set-role-perms-clear'));
-    const permId = unwrap(
-      await addPermission('test:set-role-perms:clear'),
-    );
+    const permId = unwrap(await addPermission('test:set-role-perms:clear'));
 
     await setRolePermissions(roleId!, [permId!]);
     await setRolePermissions(roleId!, []);

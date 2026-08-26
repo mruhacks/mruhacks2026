@@ -90,17 +90,15 @@ beforeAll(async () => {
   userG = await makeUser('G');
   adminUser = await makeUser('Admin');
 
-  await db
-    .insert(eventAttendees)
-    .values([
-      { eventId, userId: userA.id },
-      { eventId, userId: userB.id },
-      { eventId, userId: userC.id },
-      { eventId, userId: userD.id },
-      { eventId, userId: userE.id },
-      { eventId, userId: userF.id },
-      { eventId, userId: userG.id },
-    ]);
+  await db.insert(eventAttendees).values([
+    { eventId, userId: userA.id },
+    { eventId, userId: userB.id },
+    { eventId, userId: userC.id },
+    { eventId, userId: userD.id },
+    { eventId, userId: userE.id },
+    { eventId, userId: userF.id },
+    { eventId, userId: userG.id },
+  ]);
 
   const perms = await db
     .insert(permission)
@@ -116,7 +114,16 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await db.delete(events).where(eq(events.id, eventId));
-  const testUsers = [userA, userB, userC, userD, userE, userF, userG, adminUser];
+  const testUsers = [
+    userA,
+    userB,
+    userC,
+    userD,
+    userE,
+    userF,
+    userG,
+    adminUser,
+  ];
   for (const u of testUsers) {
     await db.delete(user).where(eq(user.id, u.id));
   }
@@ -184,14 +191,16 @@ describe('joinTeamByCode', () => {
 
     loginAs(userB);
     const bTeamBefore = await getMyTeam(eventId);
-    if (!bTeamBefore.success || !bTeamBefore.data) throw new Error('expected data');
+    if (!bTeamBefore.success || !bTeamBefore.data)
+      throw new Error('expected data');
     const bOldTeamId = bTeamBefore.data.teamId;
 
     const joinResult = await joinTeamByCode(eventId, aCode);
     expect(joinResult.success).toBe(true);
 
     const rosterAfter = await getMyTeam(eventId);
-    if (!rosterAfter.success || !rosterAfter.data) throw new Error('expected data');
+    if (!rosterAfter.success || !rosterAfter.data)
+      throw new Error('expected data');
     expect(rosterAfter.data.teamId).toBe(aTeamId);
     expect(rosterAfter.data.organizerId).toBe(userA.id);
     expect(rosterAfter.data.members.map((m) => m.userId).sort()).toEqual(
@@ -246,7 +255,8 @@ describe('leaveTeam', () => {
     // A reverted to a fresh personal team-of-one.
     loginAs(userA);
     const aTeamAfter = await getMyTeam(eventId);
-    if (!aTeamAfter.success || !aTeamAfter.data) throw new Error('expected data');
+    if (!aTeamAfter.success || !aTeamAfter.data)
+      throw new Error('expected data');
     expect(aTeamAfter.data.members).toHaveLength(1);
     expect(aTeamAfter.data.organizerId).toBe(userA.id);
   });

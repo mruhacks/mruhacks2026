@@ -24,7 +24,12 @@ import {
   submitEventApplication,
 } from '@/app/dashboard/events/actions';
 
-type MockUser = { id: string; email: string; name: string; emailVerified: boolean };
+type MockUser = {
+  id: string;
+  email: string;
+  name: string;
+  emailVerified: boolean;
+};
 
 let testUserId: string;
 let testUser: MockUser;
@@ -33,14 +38,27 @@ let testEventId: string;
 beforeAll(async () => {
   const [u] = await db
     .insert(user)
-    .values({ name: 'Events Test User', email: 'events-test@example.com', emailVerified: true })
+    .values({
+      name: 'Events Test User',
+      email: 'events-test@example.com',
+      emailVerified: true,
+    })
     .returning({ id: user.id });
   testUserId = u.id;
-  testUser = { id: testUserId, email: 'events-test@example.com', name: 'Events Test User', emailVerified: true };
+  testUser = {
+    id: testUserId,
+    email: 'events-test@example.com',
+    name: 'Events Test User',
+    emailVerified: true,
+  };
 
   const [e] = await db
     .insert(events)
-    .values({ name: 'Auth Test Event', hasApplication: false, applicationQuestions: [] })
+    .values({
+      name: 'Auth Test Event',
+      hasApplication: false,
+      applicationQuestions: [],
+    })
     .returning({ id: events.id });
   testEventId = e.id;
 
@@ -48,7 +66,9 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await db.delete(eventApplications).where(eq(eventApplications.userId, testUserId));
+  await db
+    .delete(eventApplications)
+    .where(eq(eventApplications.userId, testUserId));
   await db.delete(userProfiles).where(eq(userProfiles.userId, testUserId));
   await db.delete(events).where(eq(events.id, testEventId));
   await db.delete(user).where(eq(user.id, testUserId));
@@ -133,7 +153,11 @@ describe('getUserApplicationStatus — with application', () => {
   beforeAll(async () => {
     const [e] = await db
       .insert(events)
-      .values({ name: 'App Status Event', hasApplication: true, applicationQuestions: [] })
+      .values({
+        name: 'App Status Event',
+        hasApplication: true,
+        applicationQuestions: [],
+      })
       .returning({ id: events.id });
     appEventId = e.id;
 
@@ -161,12 +185,19 @@ describe('getUserApplicationStatus — with application', () => {
 
     await db
       .insert(eventApplications)
-      .values({ eventId: appEventId, userId: testUserId, statusId: pendingStatusId, responses: {} })
+      .values({
+        eventId: appEventId,
+        userId: testUserId,
+        statusId: pendingStatusId,
+        responses: {},
+      })
       .onConflictDoNothing();
   });
 
   afterAll(async () => {
-    await db.delete(eventApplications).where(eq(eventApplications.eventId, appEventId));
+    await db
+      .delete(eventApplications)
+      .where(eq(eventApplications.eventId, appEventId));
     await db.delete(events).where(eq(events.id, appEventId));
   });
 
@@ -187,7 +218,11 @@ describe('getEventsWithUserStatus — applied user', () => {
   beforeAll(async () => {
     const [e] = await db
       .insert(events)
-      .values({ name: 'Applied Event', hasApplication: true, applicationQuestions: [] })
+      .values({
+        name: 'Applied Event',
+        hasApplication: true,
+        applicationQuestions: [],
+      })
       .returning({ id: events.id });
     appliedEventId = e.id;
 
@@ -196,16 +231,27 @@ describe('getEventsWithUserStatus — applied user', () => {
       .from(applicationStatuses)
       .where(eq(applicationStatuses.label, 'pending_review'))
       .limit(1);
-    pendingStatusId = existing?.id ?? (() => { throw new Error('pending_review status missing'); })();
+    pendingStatusId =
+      existing?.id ??
+      (() => {
+        throw new Error('pending_review status missing');
+      })();
 
     await db
       .insert(eventApplications)
-      .values({ eventId: appliedEventId, userId: testUserId, statusId: pendingStatusId, responses: {} })
+      .values({
+        eventId: appliedEventId,
+        userId: testUserId,
+        statusId: pendingStatusId,
+        responses: {},
+      })
       .onConflictDoNothing();
   });
 
   afterAll(async () => {
-    await db.delete(eventApplications).where(eq(eventApplications.eventId, appliedEventId));
+    await db
+      .delete(eventApplications)
+      .where(eq(eventApplications.eventId, appliedEventId));
     await db.delete(events).where(eq(events.id, appliedEventId));
   });
 

@@ -147,15 +147,12 @@ export function WelcomeAboutPage({
                   value={selected ?? null}
                   onChange={(option) =>
                     field.onChange(
-                      (
-                        option as SingleValue<{ value: number; label: string }>
-                      )?.value ?? '',
+                      (option as SingleValue<{ value: number; label: string }>)
+                        ?.value ?? '',
                     )
                   }
                 />
-                {fieldState.error && (
-                  <FieldError errors={[fieldState.error]} />
-                )}
+                {fieldState.error && <FieldError errors={[fieldState.error]} />}
                 {isOtherOption(selected?.label) && (
                   <Input
                     {...form.register('universityOtherText')}
@@ -187,15 +184,12 @@ export function WelcomeAboutPage({
                   value={selected ?? null}
                   onChange={(option) =>
                     field.onChange(
-                      (
-                        option as SingleValue<{ value: number; label: string }>
-                      )?.value ?? '',
+                      (option as SingleValue<{ value: number; label: string }>)
+                        ?.value ?? '',
                     )
                   }
                 />
-                {fieldState.error && (
-                  <FieldError errors={[fieldState.error]} />
-                )}
+                {fieldState.error && <FieldError errors={[fieldState.error]} />}
                 {isOtherOption(selected?.label) && (
                   <Input
                     {...form.register('majorOtherText')}
@@ -285,7 +279,12 @@ export function WelcomeAboutPage({
       </FieldGroup>
 
       <div className='flex justify-between gap-3'>
-        <Button type='button' variant='outline' onClick={onBack} disabled={busy}>
+        <Button
+          type='button'
+          variant='outline'
+          onClick={onBack}
+          disabled={busy}
+        >
           Back
         </Button>
         <Button type='submit' disabled={busy}>

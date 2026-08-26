@@ -1,5 +1,8 @@
 import { z } from 'zod';
-import { resolveMaxLength, type ApplicationQuestion } from '@/types/application';
+import {
+  resolveMaxLength,
+  type ApplicationQuestion,
+} from '@/types/application';
 import { otherTextKey } from '@/lib/other-option';
 
 const otherTextSchema = z

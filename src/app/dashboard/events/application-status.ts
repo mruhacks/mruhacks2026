@@ -18,8 +18,7 @@ import {
 export type ApplicationStatusLabel = ApplicationStatus;
 export type { ApplicationStatusBadgeVariant };
 
-const DEFAULT_APPLICATION_STATUS: ApplicationStatusLabel =
-  'pending_review';
+const DEFAULT_APPLICATION_STATUS: ApplicationStatusLabel = 'pending_review';
 
 export type ApplicationStatusDisplay = {
   title: string;
@@ -45,7 +44,9 @@ export function resolveApplicationStatusKey(
  * Cached per request so callers can resolve many statuses with one query.
  */
 export const getApplicationStatusDisplayMap = cache(
-  async (): Promise<Record<ApplicationStatusLabel, ApplicationStatusDisplay>> => {
+  async (): Promise<
+    Record<ApplicationStatusLabel, ApplicationStatusDisplay>
+  > => {
     const rows = await db
       .select({
         label: applicationStatuses.label,

@@ -2,7 +2,15 @@
  * Integration tests for src/app/dashboard/account/actions.ts — authenticated paths.
  * Unauthenticated cases are covered by account-actions.test.ts.
  */
-import { describe, test, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
+import {
+  describe,
+  test,
+  expect,
+  beforeAll,
+  afterAll,
+  beforeEach,
+  vi,
+} from 'vitest';
 import { db } from '@/utils/db';
 import { eq } from 'drizzle-orm';
 import {
@@ -47,15 +55,23 @@ let mockUser: MockUser;
 async function clearConsent() {
   await Promise.all([
     db.delete(termsAcceptances).where(eq(termsAcceptances.userId, testUserId)),
-    db.delete(privacyAcceptances).where(eq(privacyAcceptances.userId, testUserId)),
-    db.delete(marketingConsents).where(eq(marketingConsents.userId, testUserId)),
+    db
+      .delete(privacyAcceptances)
+      .where(eq(privacyAcceptances.userId, testUserId)),
+    db
+      .delete(marketingConsents)
+      .where(eq(marketingConsents.userId, testUserId)),
   ]);
 }
 
 beforeAll(async () => {
   const [u] = await db
     .insert(authUser)
-    .values({ name: 'Account Test User', email: 'account-int@example.com', emailVerified: true })
+    .values({
+      name: 'Account Test User',
+      email: 'account-int@example.com',
+      emailVerified: true,
+    })
     .returning({ id: authUser.id });
   testUserId = u.id;
   mockUser = {
@@ -128,8 +144,12 @@ describe('getConsentStatus', () => {
   });
 
   test('returns needsConsent: false after accepting current versions', async () => {
-    await db.insert(termsAcceptances).values({ userId: testUserId, version: CURRENT_TERMS_VERSION });
-    await db.insert(privacyAcceptances).values({ userId: testUserId, version: CURRENT_PRIVACY_VERSION });
+    await db
+      .insert(termsAcceptances)
+      .values({ userId: testUserId, version: CURRENT_TERMS_VERSION });
+    await db
+      .insert(privacyAcceptances)
+      .values({ userId: testUserId, version: CURRENT_PRIVACY_VERSION });
     const result = await getConsentStatus();
     expect(result.success).toBe(true);
     if (!result.success) throw new Error(result.error);
@@ -215,11 +235,25 @@ describe('completeWelcomeOnboarding', () => {
 
   beforeAll(async () => {
     // Seed lookup rows needed for the profile FK constraints.
-    type LookupTable = typeof genders | typeof universities | typeof majors | typeof yearsOfStudy;
-    const upsertLookup = async (tbl: LookupTable, label: string): Promise<number> => {
-      const [existing] = await db.select({ id: tbl.id }).from(tbl).where(eq(tbl.label, label)).limit(1);
+    type LookupTable =
+      | typeof genders
+      | typeof universities
+      | typeof majors
+      | typeof yearsOfStudy;
+    const upsertLookup = async (
+      tbl: LookupTable,
+      label: string,
+    ): Promise<number> => {
+      const [existing] = await db
+        .select({ id: tbl.id })
+        .from(tbl)
+        .where(eq(tbl.label, label))
+        .limit(1);
       if (existing) return existing.id;
-      const [row] = await db.insert(tbl).values({ label }).returning({ id: tbl.id });
+      const [row] = await db
+        .insert(tbl)
+        .values({ label })
+        .returning({ id: tbl.id });
       return row!.id;
     };
     genderId = await upsertLookup(genders, 'acct-gender');
@@ -238,10 +272,21 @@ describe('completeWelcomeOnboarding', () => {
     // Insert profile and accept consent.
     await db
       .insert(userProfiles)
-      .values({ userId: testUserId, fullName: 'Test', genderId, universityId, majorId, yearOfStudyId: yearId })
+      .values({
+        userId: testUserId,
+        fullName: 'Test',
+        genderId,
+        universityId,
+        majorId,
+        yearOfStudyId: yearId,
+      })
       .onConflictDoNothing();
-    await db.insert(termsAcceptances).values({ userId: testUserId, version: CURRENT_TERMS_VERSION });
-    await db.insert(privacyAcceptances).values({ userId: testUserId, version: CURRENT_PRIVACY_VERSION });
+    await db
+      .insert(termsAcceptances)
+      .values({ userId: testUserId, version: CURRENT_TERMS_VERSION });
+    await db
+      .insert(privacyAcceptances)
+      .values({ userId: testUserId, version: CURRENT_PRIVACY_VERSION });
 
     const result = await completeWelcomeOnboarding();
     expect(result.success).toBe(true);

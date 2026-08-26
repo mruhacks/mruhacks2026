@@ -96,7 +96,8 @@ async function registerParticipant(
   if (!eventRow.hasApplication) {
     return fail('This event does not require an application.');
   }
-  const applicationQuestions = eventRow.applicationQuestions as ApplicationQuestion[];
+  const applicationQuestions =
+    eventRow.applicationQuestions as ApplicationQuestion[];
 
   const built = buildApplicationResponses(
     applicationQuestions,
@@ -153,7 +154,8 @@ async function registerParticipant(
       await tx
         .delete(userDietaryRestrictions)
         .where(eq(userDietaryRestrictions.userId, user.id));
-      const realRestrictions = profile.dietaryRestrictions?.filter((id) => id > 0) ?? [];
+      const realRestrictions =
+        profile.dietaryRestrictions?.filter((id) => id > 0) ?? [];
       if (realRestrictions.length) {
         await tx.insert(userDietaryRestrictions).values(
           realRestrictions.map((restrictionId) => ({

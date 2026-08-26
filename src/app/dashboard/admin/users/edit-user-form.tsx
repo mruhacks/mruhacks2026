@@ -65,13 +65,19 @@ export function EditUserForm({
 
   const handleSave = async () => {
     setSaving(true);
-    const profileRes = await updateUserProfile(user.id, { name, emailVerified });
+    const profileRes = await updateUserProfile(user.id, {
+      name,
+      emailVerified,
+    });
     if (!profileRes.success) {
       setSaving(false);
       toast.error(profileRes.error);
       return;
     }
-    const rolesRes = await updateUserRoles(user.id, Array.from(selectedRoleIds));
+    const rolesRes = await updateUserRoles(
+      user.id,
+      Array.from(selectedRoleIds),
+    );
     if (!rolesRes.success) {
       setSaving(false);
       toast.error(rolesRes.error);
@@ -158,15 +164,17 @@ export function EditUserForm({
               </label>
             ))}
             {allRoles.length === 0 && (
-              <div className='text-muted-foreground text-xs'>No roles defined.</div>
+              <div className='text-muted-foreground text-xs'>
+                No roles defined.
+              </div>
             )}
           </div>
         </TabsContent>
 
         <TabsContent value='permissions' className='space-y-3 pt-4'>
           <p className='text-muted-foreground text-xs'>
-            Grant ad-hoc permissions beyond what the user&apos;s roles provide. Prefer
-            role-based grants.
+            Grant ad-hoc permissions beyond what the user&apos;s roles provide.
+            Prefer role-based grants.
           </p>
           <div className='max-h-72 space-y-2 overflow-y-auto rounded-md border p-3'>
             {allPermissions.map((p) => (
@@ -192,7 +200,9 @@ export function EditUserForm({
               </label>
             ))}
             {allPermissions.length === 0 && (
-              <div className='text-muted-foreground text-xs'>No permissions defined.</div>
+              <div className='text-muted-foreground text-xs'>
+                No permissions defined.
+              </div>
             )}
           </div>
         </TabsContent>

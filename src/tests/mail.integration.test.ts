@@ -61,7 +61,9 @@ describe('sendMail → MailHog integration', () => {
     });
 
     const msg = await waitForEmail((m) => m.To[0]?.Mailbox === `verify-${ts}`);
-    expect(decodeMimeWords(msg.Content.Headers['Subject'][0])).toContain('Verify your email');
+    expect(decodeMimeWords(msg.Content.Headers['Subject'][0])).toContain(
+      'Verify your email',
+    );
   });
 
   it('sends a password reset email', async () => {
@@ -74,7 +76,9 @@ describe('sendMail → MailHog integration', () => {
 
     const messages = await searchMessagesByTo(to);
     expect(messages.length).toBeGreaterThan(0);
-    expect(decodeMimeWords(messages[0].Content.Headers['Subject'][0])).toContain('Reset your password');
+    expect(
+      decodeMimeWords(messages[0].Content.Headers['Subject'][0]),
+    ).toContain('Reset your password');
   });
 
   it('sends a magic link email', async () => {

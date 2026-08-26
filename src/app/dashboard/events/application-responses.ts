@@ -28,7 +28,9 @@ function createQuestionSchema(question: ApplicationQuestion) {
   if (question.required && question.type === 'boolean') {
     return z.boolean().refine((val) => val === true, 'Must be checked');
   }
-  const withRequired = question.required ? baseSchema : baseSchema.optional().nullable();
+  const withRequired = question.required
+    ? baseSchema
+    : baseSchema.optional().nullable();
   return withRequired;
 }
 
@@ -42,7 +44,10 @@ function getBaseSchema(question: ApplicationQuestion) {
       let schema = z.string().trim().min(1, 'Cannot be empty');
       const maxLength = resolveMaxLength(question);
       if (maxLength != null) {
-        schema = schema.max(maxLength, `Keep it under ${maxLength} characters.`);
+        schema = schema.max(
+          maxLength,
+          `Keep it under ${maxLength} characters.`,
+        );
       }
       return schema;
     }
@@ -105,9 +110,7 @@ export function buildApplicationResponses(
           ? [result.data as string | undefined]
           : ((result.data as string[] | undefined) ?? []);
       const otherSelected = selectedLabels.some((value) =>
-        isOtherOption(
-          question.options?.find((o) => o.value === value)?.label,
-        ),
+        isOtherOption(question.options?.find((o) => o.value === value)?.label),
       );
 
       if (otherSelected) {

@@ -87,7 +87,11 @@ async function checkTurnstile(): Promise<CheckResult> {
     } | null;
     const errors = data?.['error-codes'] ?? [];
     if (errors.includes('invalid-input-secret')) {
-      return { ok: false, latencyMs: Date.now() - start, detail: 'invalid secret' };
+      return {
+        ok: false,
+        latencyMs: Date.now() - start,
+        detail: 'invalid secret',
+      };
     }
     return { ok: true, latencyMs: Date.now() - start };
   } catch {

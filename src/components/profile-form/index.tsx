@@ -35,7 +35,11 @@ const tabLabels: Record<string, string> = {
   about: 'About you',
 };
 
-const PERSONAL_FIELDS = ['fullName', 'genderId', 'dietaryRestrictions'] as const;
+const PERSONAL_FIELDS = [
+  'fullName',
+  'genderId',
+  'dietaryRestrictions',
+] as const;
 const ABOUT_FIELDS = ['universityId', 'majorId', 'yearOfStudyId'] as const;
 
 const getSingleValue = (opt: SingleValue<{ value: number; label: string }>) =>
@@ -219,9 +223,7 @@ export default function ProfileForm({
                   value={selected ?? null}
                   onChange={(opt) => field.onChange(getSingleValue(opt))}
                 />
-                {fieldState.error && (
-                  <FieldError errors={[fieldState.error]} />
-                )}
+                {fieldState.error && <FieldError errors={[fieldState.error]} />}
                 {isOtherOption(selected?.label) && (
                   <Input
                     {...register('genderOtherText')}
@@ -310,9 +312,7 @@ export default function ProfileForm({
                   value={selected ?? null}
                   onChange={(opt) => field.onChange(getSingleValue(opt))}
                 />
-                {fieldState.error && (
-                  <FieldError errors={[fieldState.error]} />
-                )}
+                {fieldState.error && <FieldError errors={[fieldState.error]} />}
                 {isOtherOption(selected?.label) && (
                   <Input
                     {...register('universityOtherText')}
@@ -345,9 +345,7 @@ export default function ProfileForm({
                   value={selected ?? null}
                   onChange={(opt) => field.onChange(getSingleValue(opt))}
                 />
-                {fieldState.error && (
-                  <FieldError errors={[fieldState.error]} />
-                )}
+                {fieldState.error && <FieldError errors={[fieldState.error]} />}
                 {isOtherOption(selected?.label) && (
                   <Input
                     {...register('majorOtherText')}

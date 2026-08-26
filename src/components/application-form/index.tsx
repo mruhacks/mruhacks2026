@@ -27,7 +27,10 @@ import {
   createApplicationFormSchema,
   type EventOnlyFormValues,
 } from './schema';
-import { resolveMaxLength, type ApplicationQuestion } from '@/types/application';
+import {
+  resolveMaxLength,
+  type ApplicationQuestion,
+} from '@/types/application';
 import { isOtherOption, otherTextKey } from '@/lib/other-option';
 import { useRouter } from 'next/navigation';
 import type { Control } from 'react-hook-form';

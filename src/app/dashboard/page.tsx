@@ -9,7 +9,10 @@ import { user, role, permission, userRole } from '@/db/schema';
 import { getAuthenticatedUserPermissions } from '@/lib/rbac/guards';
 import { anyPermissionMatches } from '@/lib/rbac/permissions';
 import { getEventsWithUserStatus } from '@/app/dashboard/events/actions';
-import { EventTileList, SectionEyebrow } from '@/app/dashboard/events/EventTileList';
+import {
+  EventTileList,
+  SectionEyebrow,
+} from '@/app/dashboard/events/EventTileList';
 import {
   Card,
   CardContent,
@@ -90,13 +93,36 @@ async function fetchAdminCounts() {
 function AdminPanelSkeleton() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-      <div className='animate-pulse' style={{ width: 48, height: 13, borderRadius: 3, background: 'var(--ink-200)' }} />
+      <div
+        className='animate-pulse'
+        style={{
+          width: 48,
+          height: 13,
+          borderRadius: 3,
+          background: 'var(--ink-200)',
+        }}
+      />
       <div className='grid grid-cols-2 gap-3 sm:grid-cols-4'>
         {[...Array(4)].map((_, i) => (
-          <div key={i} className='animate-pulse' style={{ height: 76, borderRadius: 'var(--radius-card)', background: 'var(--ink-100)' }} />
+          <div
+            key={i}
+            className='animate-pulse'
+            style={{
+              height: 76,
+              borderRadius: 'var(--radius-card)',
+              background: 'var(--ink-100)',
+            }}
+          />
         ))}
       </div>
-      <div className='animate-pulse' style={{ height: 44, borderRadius: 'var(--radius-card)', background: 'var(--ink-100)' }} />
+      <div
+        className='animate-pulse'
+        style={{
+          height: 44,
+          borderRadius: 'var(--radius-card)',
+          background: 'var(--ink-100)',
+        }}
+      />
     </div>
   );
 }
@@ -122,7 +148,7 @@ async function AdminPanel({ permissions }: { permissions: Set<string> }) {
           {visibleStats.map(({ label, countKey, icon: Icon, href }) => (
             <Link key={label} href={href}>
               <Card className='hover:border-primary/40 transition-colors'>
-                <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-1 pt-3'>
+                <CardHeader className='flex flex-row items-center justify-between space-y-0 pt-3 pb-1'>
                   <CardDescription className='text-xs'>{label}</CardDescription>
                   <Icon className='text-muted-foreground size-3.5' />
                 </CardHeader>

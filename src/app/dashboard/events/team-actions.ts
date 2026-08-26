@@ -62,7 +62,10 @@ async function isEventParticipant(
     .select({ userId: eventAttendees.userId })
     .from(eventAttendees)
     .where(
-      and(eq(eventAttendees.eventId, eventId), eq(eventAttendees.userId, userId)),
+      and(
+        eq(eventAttendees.eventId, eventId),
+        eq(eventAttendees.userId, userId),
+      ),
     )
     .limit(1);
   if (attendee) return true;
@@ -93,7 +96,9 @@ async function getOrCreatePersonalTeam(
   const [existing] = await dbHandle
     .select({ teamId: teamMembers.teamId })
     .from(teamMembers)
-    .where(and(eq(teamMembers.userId, userId), eq(teamMembers.eventId, eventId)))
+    .where(
+      and(eq(teamMembers.userId, userId), eq(teamMembers.eventId, eventId)),
+    )
     .limit(1);
   if (existing) return { teamId: existing.teamId };
 
@@ -197,13 +202,16 @@ export type TeamView = {
 };
 
 /** Story 5: view the caller's team roster for an event. */
-export async function getMyTeam(eventId: string): Promise<ActionResult<TeamView>> {
+export async function getMyTeam(
+  eventId: string,
+): Promise<ActionResult<TeamView>> {
   const currentUser = await getUser();
   if (!currentUser) return fail('Not authenticated');
 
   const settings = await getEventTeamSettings(eventId);
   if (!settings) return fail('Event not found.');
-  if (!settings.teamsEnabled) return fail('Teams are not enabled for this event.');
+  if (!settings.teamsEnabled)
+    return fail('Teams are not enabled for this event.');
 
   if (!(await isEventParticipant(currentUser.id, eventId))) {
     return fail('You must be registered for this event to manage a team.');
@@ -264,7 +272,8 @@ export async function joinTeamByCode(
 
   const settings = await getEventTeamSettings(eventId);
   if (!settings) return fail('Event not found.');
-  if (!settings.teamsEnabled) return fail('Teams are not enabled for this event.');
+  if (!settings.teamsEnabled)
+    return fail('Teams are not enabled for this event.');
 
   if (!(await isEventParticipant(currentUser.id, eventId))) {
     return fail('You must be registered for this event to manage a team.');
@@ -278,7 +287,9 @@ export async function joinTeamByCode(
       const [targetTeam] = await tx
         .select({ id: teams.id })
         .from(teams)
-        .where(and(eq(teams.eventId, eventId), eq(teams.code, parsed.data.code)))
+        .where(
+          and(eq(teams.eventId, eventId), eq(teams.code, parsed.data.code)),
+        )
         .limit(1)
         .for('update');
       if (!targetTeam) return fail('Invalid team code.');
@@ -335,7 +346,8 @@ export async function leaveTeam(eventId: string): Promise<ActionResult> {
 
   const settings = await getEventTeamSettings(eventId);
   if (!settings) return fail('Event not found.');
-  if (!settings.teamsEnabled) return fail('Teams are not enabled for this event.');
+  if (!settings.teamsEnabled)
+    return fail('Teams are not enabled for this event.');
 
   if (!(await isEventParticipant(currentUser.id, eventId))) {
     return fail('You must be registered for this event to manage a team.');
@@ -407,13 +419,17 @@ export async function removeMember(
 
   const settings = await getEventTeamSettings(eventId);
   if (!settings) return fail('Event not found.');
-  if (!settings.teamsEnabled) return fail('Teams are not enabled for this event.');
+  if (!settings.teamsEnabled)
+    return fail('Teams are not enabled for this event.');
 
   const [targetMembership] = await db
     .select({ teamId: teamMembers.teamId })
     .from(teamMembers)
     .where(
-      and(eq(teamMembers.userId, targetUserId), eq(teamMembers.eventId, eventId)),
+      and(
+        eq(teamMembers.userId, targetUserId),
+        eq(teamMembers.eventId, eventId),
+      ),
     )
     .limit(1);
   if (!targetMembership) {

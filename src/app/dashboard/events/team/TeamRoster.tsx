@@ -13,7 +13,12 @@ type Props = {
   isOrganizer: boolean;
 };
 
-export function TeamRoster({ eventId, members, currentUserId, isOrganizer }: Props) {
+export function TeamRoster({
+  eventId,
+  members,
+  currentUserId,
+  isOrganizer,
+}: Props) {
   return (
     <ul className='space-y-2'>
       {members.map((member) => (
@@ -40,7 +45,10 @@ export function TeamRoster({ eventId, members, currentUserId, isOrganizer }: Pro
           <div className='flex shrink-0 items-center gap-2'>
             {member.isOrganizer && <Badge variant='outline'>Organizer</Badge>}
             {isOrganizer && member.userId !== currentUserId && (
-              <RemoveMemberButton eventId={eventId} targetUserId={member.userId} />
+              <RemoveMemberButton
+                eventId={eventId}
+                targetUserId={member.userId}
+              />
             )}
           </div>
         </li>
