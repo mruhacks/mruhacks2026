@@ -14,7 +14,6 @@ import { Badge } from '@/components/ui/badge';
 import { getAccountOverview, getConsent } from './actions';
 import { DataExportCard } from './data-export-card';
 import { ConsentCard } from './consent-card';
-import { SessionsCard } from './sessions-card';
 import { DeleteAccountCard } from './delete-account-card';
 import { ProfilePictureCard } from './profile-picture-card';
 
@@ -123,8 +122,6 @@ export default async function AccountPage() {
       </Card>
 
       <ConsentCard initial={consent} />
-
-      <SessionsCard />
 
       <DataExportCard />
 
