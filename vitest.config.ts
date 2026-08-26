@@ -13,6 +13,7 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'lcov', 'html', 'json-summary', 'json'],
       reportsDirectory: './coverage',
+      reportOnFailure: true,
       include: ['src/**/*.ts'],
       exclude: [
         'src/tests/**',
