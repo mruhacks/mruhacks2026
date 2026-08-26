@@ -28,12 +28,14 @@ export const addQuestionSchema = z.object({
   description: z.string().trim().optional(),
   required: z.boolean().default(false),
   maxLength: maxLengthSchema,
+  showInApplicationReview: z.boolean().default(false),
+  showInReports: z.boolean().default(false),
   options: z
     .array(z.object({ label: z.string().trim().min(1, 'Option label is required') }))
     .optional(),
 });
 
-export type AddQuestionInput = z.infer<typeof addQuestionSchema>;
+export type AddQuestionInput = z.input<typeof addQuestionSchema>;
 
 /** Option entry for editing: existing options have a value UUID; new ones omit it. */
 const editOptionSchema = z.object({
@@ -47,6 +49,8 @@ export const editQuestionSchema = z.object({
   description: z.string().trim().optional(),
   required: z.boolean().optional(),
   maxLength: maxLengthSchema,
+  showInApplicationReview: z.boolean().optional(),
+  showInReports: z.boolean().optional(),
   options: z.array(editOptionSchema).optional(),
 });
 

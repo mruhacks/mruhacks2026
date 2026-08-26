@@ -6,6 +6,7 @@
 import { randomUUID } from 'crypto';
 import {
   isStringQuestion,
+  isSummarizableQuestion,
   type ApplicationQuestion,
   type ApplicationQuestionOption,
 } from '@/types/application';
@@ -135,6 +136,17 @@ export function validateQuestionEdit(
       : patch.maxLength === undefined
         ? existing.maxLength
         : (patch.maxLength ?? undefined),
+    showInApplicationReview:
+      patch.showInApplicationReview !== undefined
+        ? patch.showInApplicationReview
+        : existing.showInApplicationReview,
+    // Non-summarizable questions (free text, section dividers) never carry
+    // this flag, whatever the patch says.
+    showInReports: !isSummarizableQuestion(existing.type)
+      ? undefined
+      : patch.showInReports !== undefined
+        ? patch.showInReports
+        : existing.showInReports,
     options: mergedOptions,
   };
 

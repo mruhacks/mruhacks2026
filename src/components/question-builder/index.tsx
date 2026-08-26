@@ -74,6 +74,8 @@ export function QuestionBuilder({
       description: data.description,
       required: data.required,
       maxLength: normalizeMaxLength(data.maxLength),
+      showInApplicationReview: data.showInApplicationReview,
+      showInReports: data.showInReports,
       options: data.options?.filter((o) => o.label).map((o) => ({ label: o.label })),
     });
     if (result.success && result.data) {
@@ -95,6 +97,8 @@ export function QuestionBuilder({
       description: data.description,
       required: data.required,
       maxLength,
+      showInApplicationReview: data.showInApplicationReview,
+      showInReports: data.showInReports,
       options: data.options,
     });
     if (result.success) {
@@ -110,6 +114,8 @@ export function QuestionBuilder({
                 description: data.description ?? q.description,
                 required: data.required ?? q.required,
                 maxLength: maxLength ?? undefined,
+                showInApplicationReview: data.showInApplicationReview,
+                showInReports: data.showInReports,
                 options: data.options?.map((o) => ({
                   value: o.value || q.options?.find((opt) => opt.label === o.label)?.value || crypto.randomUUID(),
                   label: o.label,

@@ -9,7 +9,10 @@ import { events, eventApplications, user, userProfiles } from '@/db/schema';
 import { getUser } from '@/utils/auth';
 import { ok, fail, type ActionResult } from '@/utils/action-result';
 import { requirePermission } from '@/lib/rbac/authorization';
-import type { ApplicationQuestion } from '@/types/application';
+import {
+  isSummarizableQuestion,
+  type ApplicationQuestion,
+} from '@/types/application';
 import {
   addQuestionSchema,
   editQuestionSchema,
@@ -152,6 +155,10 @@ export async function addQuestion(
     type: input.type,
     required: input.required,
     maxLength: input.maxLength ?? undefined,
+    showInApplicationReview: input.showInApplicationReview,
+    showInReports: isSummarizableQuestion(input.type)
+      ? input.showInReports
+      : undefined,
     order: maxOrder + 1,
     active: true,
     options: needsOptions

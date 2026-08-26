@@ -58,6 +58,7 @@ import {
   DEFAULT_QUESTION_MAX_LENGTH,
   QUESTION_MAX_LENGTH_LIMIT,
   isStringQuestion,
+  isSummarizableQuestion,
   type ApplicationQuestion,
 } from '@/types/application';
 
@@ -87,6 +88,8 @@ const formSchema = z.object({
         .max(QUESTION_MAX_LENGTH_LIMIT, `Max length cannot exceed ${QUESTION_MAX_LENGTH_LIMIT}`),
     ])
     .optional(),
+  showInApplicationReview: z.boolean().default(false),
+  showInReports: z.boolean().default(false),
   options: z.array(
     z.object({
       value: z.string().optional(),
@@ -278,6 +281,8 @@ export function QuestionDialog({
           type: question.type,
           required: question.required,
           maxLength: question.maxLength ?? '',
+          showInApplicationReview: question.showInApplicationReview ?? false,
+          showInReports: question.showInReports ?? false,
           options: question.options?.map((o) => ({
             value: o.value,
             label: o.label,
@@ -290,6 +295,8 @@ export function QuestionDialog({
           type: 'short_text',
           required: false,
           maxLength: '',
+          showInApplicationReview: false,
+          showInReports: false,
           options: [],
         },
   });
@@ -299,6 +306,7 @@ export function QuestionDialog({
   const options = watch('options');
   const showOptions = questionType === 'single_select' || questionType === 'multi_select';
   const showMaxLength = isStringQuestion(questionType);
+  const showInReportsSwitch = isSummarizableQuestion(questionType);
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
@@ -354,6 +362,8 @@ export function QuestionDialog({
               type: question.type,
               required: question.required,
               maxLength: question.maxLength ?? '',
+              showInApplicationReview: question.showInApplicationReview ?? false,
+              showInReports: question.showInReports ?? false,
               options: question.options?.map((o) => ({
                 value: o.value,
                 label: o.label,
@@ -366,6 +376,8 @@ export function QuestionDialog({
               type: 'short_text',
               required: false,
               maxLength: '',
+              showInApplicationReview: false,
+              showInReports: false,
               options: [],
             },
       );
@@ -461,6 +473,42 @@ export function QuestionDialog({
                   )}
                 />
                 <Label htmlFor='q-required'>Required</Label>
+              </div>
+            )}
+
+            {/* Show in Application Review */}
+            {questionType !== 'section_divider' && (
+              <div className='flex items-center gap-3'>
+                <Controller
+                  name='showInApplicationReview'
+                  control={control}
+                  render={({ field }) => (
+                    <Switch
+                      id='q-show-in-review'
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  )}
+                />
+                <Label htmlFor='q-show-in-review'>Show in Application Review</Label>
+              </div>
+            )}
+
+            {/* Show in Reports (summarizable types only) */}
+            {showInReportsSwitch && (
+              <div className='flex items-center gap-3'>
+                <Controller
+                  name='showInReports'
+                  control={control}
+                  render={({ field }) => (
+                    <Switch
+                      id='q-show-in-reports'
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  )}
+                />
+                <Label htmlFor='q-show-in-reports'>Show in Reports</Label>
               </div>
             )}
 
