@@ -4,7 +4,11 @@
  */
 
 import { randomUUID } from 'crypto';
-import type { ApplicationQuestion, ApplicationQuestionOption } from '@/types/application';
+import {
+  isStringQuestion,
+  type ApplicationQuestion,
+  type ApplicationQuestionOption,
+} from '@/types/application';
 import type { EditQuestionInput } from '@/app/dashboard/admin/events/schemas';
 
 export type QuestionEditResult =
@@ -124,6 +128,13 @@ export function validateQuestionEdit(
     label: patch.label ?? existing.label,
     description: patch.description !== undefined ? patch.description : existing.description,
     required: patch.required !== undefined ? patch.required : existing.required,
+    // `null` clears the cap back to the type default; `undefined` leaves it alone.
+    // Non-string questions never carry a cap, whatever the patch says.
+    maxLength: !isStringQuestion(existing.type)
+      ? undefined
+      : patch.maxLength === undefined
+        ? existing.maxLength
+        : (patch.maxLength ?? undefined),
     options: mergedOptions,
   };
 

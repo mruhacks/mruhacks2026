@@ -4,7 +4,8 @@
  */
 
 import { z } from 'zod';
-import type { ApplicationQuestion, ApplicationQuestionType } from '@/types/application';
+import type { ApplicationQuestion } from '@/types/application';
+import { resolveMaxLength } from '@/types/application';
 import { isOtherOption, otherTextKey } from '@/lib/other-option';
 
 const otherTextSchema = z
@@ -22,7 +23,7 @@ export type BuildApplicationResponsesResult =
  * Creates a Zod schema for a single question based on its type.
  */
 function createQuestionSchema(question: ApplicationQuestion) {
-  const baseSchema = getBaseSchema(question.type);
+  const baseSchema = getBaseSchema(question);
   // For required boolean fields, must be true (consent checkboxes)
   if (question.required && question.type === 'boolean') {
     return z.boolean().refine((val) => val === true, 'Must be checked');
@@ -34,12 +35,17 @@ function createQuestionSchema(question: ApplicationQuestion) {
 /**
  * Returns the base Zod schema for each question type.
  */
-function getBaseSchema(type: ApplicationQuestionType) {
-  switch (type) {
+function getBaseSchema(question: ApplicationQuestion) {
+  switch (question.type) {
     case 'short_text':
-      return z.string().trim().min(1, 'Cannot be empty');
-    case 'long_text':
-      return z.string().trim().min(1, 'Cannot be empty');
+    case 'long_text': {
+      let schema = z.string().trim().min(1, 'Cannot be empty');
+      const maxLength = resolveMaxLength(question);
+      if (maxLength != null) {
+        schema = schema.max(maxLength, `Keep it under ${maxLength} characters.`);
+      }
+      return schema;
+    }
     case 'number':
       return z.number().or(z.string().pipe(z.coerce.number()));
     case 'boolean':

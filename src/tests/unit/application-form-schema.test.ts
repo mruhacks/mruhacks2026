@@ -130,3 +130,41 @@ describe('createApplicationFormSchema', () => {
     expect(schema.safeParse({}).success).toBe(true);
   });
 });
+
+describe('createApplicationFormSchema — max length', () => {
+  const answer = (text: string) => ({ applicationResponses: { q1: text } });
+
+  test('short_text defaults to 255 characters', () => {
+    const schema = createApplicationFormSchema([q({ id: 'q1', type: 'short_text', required: true })]);
+    expect(schema.safeParse(answer('a'.repeat(255))).success).toBe(true);
+    expect(schema.safeParse(answer('a'.repeat(256))).success).toBe(false);
+  });
+
+  test('long_text defaults to 2000 characters', () => {
+    const schema = createApplicationFormSchema([q({ id: 'q1', type: 'long_text', required: true })]);
+    expect(schema.safeParse(answer('a'.repeat(2000))).success).toBe(true);
+    expect(schema.safeParse(answer('a'.repeat(2001))).success).toBe(false);
+  });
+
+  test('a configured maxLength overrides the default in both directions', () => {
+    const tighter = createApplicationFormSchema([
+      q({ id: 'q1', type: 'short_text', required: true, maxLength: 10 }),
+    ]);
+    expect(tighter.safeParse(answer('a'.repeat(10))).success).toBe(true);
+    expect(tighter.safeParse(answer('a'.repeat(11))).success).toBe(false);
+
+    const looser = createApplicationFormSchema([
+      q({ id: 'q1', type: 'short_text', required: true, maxLength: 400 }),
+    ]);
+    expect(looser.safeParse(answer('a'.repeat(400))).success).toBe(true);
+  });
+
+  test('the limit applies to optional questions too', () => {
+    const schema = createApplicationFormSchema([
+      q({ id: 'q1', type: 'long_text', required: false, maxLength: 5 }),
+    ]);
+    expect(schema.safeParse(answer('abcde')).success).toBe(true);
+    expect(schema.safeParse(answer('abcdef')).success).toBe(false);
+    expect(schema.safeParse({ applicationResponses: {} }).success).toBe(true);
+  });
+});

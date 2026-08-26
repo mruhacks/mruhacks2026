@@ -20,7 +20,11 @@ import {
 import { Button } from '@/components/ui/button';
 import type { ApplicationQuestion } from '@/types/application';
 import { QuestionCard } from './question-card';
-import { QuestionDialog } from './question-dialog';
+import {
+  QuestionDialog,
+  normalizeMaxLength,
+  type QuestionFormValues,
+} from './question-dialog';
 import { DeleteQuestionDialog } from './delete-question-dialog';
 import {
   addQuestion,
@@ -29,7 +33,6 @@ import {
   reorderQuestions,
   reactivateQuestion,
 } from '@/app/dashboard/admin/events/actions';
-import type { AddQuestionInput, EditQuestionInput } from '@/app/dashboard/admin/events/schemas';
 
 type QuestionBuilderProps = {
   eventId: string;
@@ -64,12 +67,13 @@ export function QuestionBuilder({
   );
 
   // ── Add ─────────────────────────────────────────────────────────────────
-  const handleAdd = async (data: AddQuestionInput & { options: { label: string; value?: string; active: boolean }[] }) => {
+  const handleAdd = async (data: QuestionFormValues) => {
     const result = await addQuestion(eventId, {
       label: data.label,
       type: data.type,
       description: data.description,
       required: data.required,
+      maxLength: normalizeMaxLength(data.maxLength),
       options: data.options?.filter((o) => o.label).map((o) => ({ label: o.label })),
     });
     if (result.success && result.data) {
@@ -83,14 +87,14 @@ export function QuestionBuilder({
   };
 
   // ── Edit ─────────────────────────────────────────────────────────────────
-  const handleEdit = async (
-    data: EditQuestionInput & { options: { label: string; value?: string; active: boolean }[] },
-  ) => {
+  const handleEdit = async (data: QuestionFormValues) => {
     if (!editTarget) return;
+    const maxLength = normalizeMaxLength(data.maxLength);
     const result = await editQuestion(eventId, editTarget.id, {
       label: data.label,
       description: data.description,
       required: data.required,
+      maxLength,
       options: data.options,
     });
     if (result.success) {
@@ -105,6 +109,7 @@ export function QuestionBuilder({
                 label: data.label ?? q.label,
                 description: data.description ?? q.description,
                 required: data.required ?? q.required,
+                maxLength: maxLength ?? undefined,
                 options: data.options?.map((o) => ({
                   value: o.value || q.options?.find((opt) => opt.label === o.label)?.value || crypto.randomUUID(),
                   label: o.label,

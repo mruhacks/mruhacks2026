@@ -302,3 +302,46 @@ describe('validateQuestionEdit', () => {
     });
   });
 });
+
+describe('validateQuestionEdit — maxLength', () => {
+  const base: ApplicationQuestion = {
+    id: 'q1',
+    label: 'Q1',
+    type: 'short_text',
+    required: true,
+    order: 0,
+    active: true,
+  };
+
+  test('an omitted patch leaves the existing cap alone', () => {
+    const result = validateQuestionEdit({ ...base, maxLength: 40 }, {}, []);
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.error);
+    expect(result.question.maxLength).toBe(40);
+  });
+
+  test('a number sets the cap', () => {
+    const result = validateQuestionEdit(base, { maxLength: 120 }, []);
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.error);
+    expect(result.question.maxLength).toBe(120);
+  });
+
+  test('null clears the cap back to the type default', () => {
+    const result = validateQuestionEdit({ ...base, maxLength: 40 }, { maxLength: null }, []);
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.error);
+    expect(result.question.maxLength).toBeUndefined();
+  });
+
+  test('non-string questions never carry a cap', () => {
+    const result = validateQuestionEdit(
+      { ...base, type: 'single_select', options: [] },
+      { maxLength: 120 },
+      [],
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.error);
+    expect(result.question.maxLength).toBeUndefined();
+  });
+});

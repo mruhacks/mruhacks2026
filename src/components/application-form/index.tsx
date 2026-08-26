@@ -27,7 +27,7 @@ import {
   createApplicationFormSchema,
   type EventOnlyFormValues,
 } from './schema';
-import type { ApplicationQuestion } from '@/types/application';
+import { resolveMaxLength, type ApplicationQuestion } from '@/types/application';
 import { isOtherOption, otherTextKey } from '@/lib/other-option';
 import { useRouter } from 'next/navigation';
 import type { Control } from 'react-hook-form';
@@ -36,6 +36,20 @@ type ApplicationQuestionFieldProps = {
   question: ApplicationQuestion;
   control: Control<EventOnlyFormValues>;
 };
+
+/**
+ * Live counter under a capped free-text field. Only appears once the answer is
+ * long enough for the limit to matter, so short answers stay uncluttered.
+ */
+function CharacterCount({ value, max }: { value: unknown; max: number }) {
+  const length = typeof value === 'string' ? value.length : 0;
+  if (length < max * 0.8) return null;
+  return (
+    <FieldDescription className='text-right tabular-nums'>
+      {length} / {max}
+    </FieldDescription>
+  );
+}
 
 function ApplicationQuestionField({
   question: q,
@@ -232,6 +246,7 @@ function ApplicationQuestionField({
   }
 
   if (q.type === 'short_text') {
+    const max = resolveMaxLength(q)!;
     return (
       <Controller
         name={fieldName}
@@ -251,8 +266,9 @@ function ApplicationQuestionField({
               value={(field.value as string) ?? ''}
               onChange={(e) => field.onChange(e.target.value)}
               placeholder={q.label}
-              maxLength={255}
+              maxLength={max}
             />
+            <CharacterCount value={field.value} max={max} />
           </Field>
         )}
       />
@@ -260,6 +276,7 @@ function ApplicationQuestionField({
   }
 
   // long_text (default)
+  const max = resolveMaxLength(q)!;
   return (
     <Controller
       name={fieldName}
@@ -279,8 +296,9 @@ function ApplicationQuestionField({
             value={(field.value as string) ?? ''}
             onChange={(e) => field.onChange(e.target.value)}
             placeholder={q.label}
-            maxLength={2000}
+            maxLength={max}
           />
+          <CharacterCount value={field.value} max={max} />
         </Field>
       )}
     />

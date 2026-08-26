@@ -259,3 +259,46 @@ describe('buildApplicationResponses', () => {
     });
   });
 });
+
+describe('buildApplicationResponses — max length', () => {
+  test('rejects a short_text answer past the 255-character default', () => {
+    const questions = [q({ id: 'q1', type: 'short_text', label: 'Q1', required: true })];
+    expect(buildApplicationResponses(questions, { q1: 'a'.repeat(255) }).ok).toBe(true);
+
+    const result = buildApplicationResponses(questions, { q1: 'a'.repeat(256) });
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error('expected rejection');
+    expect(result.error).toContain('255');
+  });
+
+  test('rejects a long_text answer past the 2000-character default', () => {
+    const questions = [q({ id: 'q1', type: 'long_text', label: 'Q1', required: true })];
+    expect(buildApplicationResponses(questions, { q1: 'a'.repeat(2000) }).ok).toBe(true);
+    expect(buildApplicationResponses(questions, { q1: 'a'.repeat(2001) }).ok).toBe(false);
+  });
+
+  test('honours a configured maxLength over the type default', () => {
+    const questions = [
+      q({ id: 'q1', type: 'short_text', label: 'Q1', required: true, maxLength: 10 }),
+    ];
+    expect(buildApplicationResponses(questions, { q1: 'a'.repeat(10) }).ok).toBe(true);
+    expect(buildApplicationResponses(questions, { q1: 'a'.repeat(11) }).ok).toBe(false);
+  });
+
+  test('a configured maxLength can raise the cap above the default', () => {
+    const questions = [
+      q({ id: 'q1', type: 'short_text', label: 'Q1', required: true, maxLength: 500 }),
+    ];
+    expect(buildApplicationResponses(questions, { q1: 'a'.repeat(400) }).ok).toBe(true);
+  });
+
+  test('the cap is applied after trimming', () => {
+    const questions = [
+      q({ id: 'q1', type: 'short_text', label: 'Q1', required: true, maxLength: 5 }),
+    ];
+    const result = buildApplicationResponses(questions, { q1: '   abcde   ' });
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.error);
+    expect(result.responses.q1).toBe('abcde');
+  });
+});

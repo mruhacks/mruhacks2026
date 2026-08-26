@@ -151,6 +151,7 @@ export async function addQuestion(
     description: input.description,
     type: input.type,
     required: input.required,
+    maxLength: input.maxLength ?? undefined,
     order: maxOrder + 1,
     active: true,
     options: needsOptions

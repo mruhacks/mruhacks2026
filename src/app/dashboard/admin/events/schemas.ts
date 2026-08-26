@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { QUESTION_MAX_LENGTH_LIMIT } from '@/types/application';
 
 const questionTypeSchema = z.enum([
   'short_text',
@@ -10,11 +11,23 @@ const questionTypeSchema = z.enum([
   'section_divider',
 ]);
 
+/**
+ * Character cap for string-shaped questions. `null` clears an explicit cap and
+ * falls the question back to the per-type default.
+ */
+const maxLengthSchema = z
+  .number()
+  .int()
+  .min(1, 'Max length must be at least 1')
+  .max(QUESTION_MAX_LENGTH_LIMIT, `Max length cannot exceed ${QUESTION_MAX_LENGTH_LIMIT}`)
+  .nullish();
+
 export const addQuestionSchema = z.object({
   label: z.string().trim().min(1, 'Label is required'),
   type: questionTypeSchema,
   description: z.string().trim().optional(),
   required: z.boolean().default(false),
+  maxLength: maxLengthSchema,
   options: z
     .array(z.object({ label: z.string().trim().min(1, 'Option label is required') }))
     .optional(),
@@ -33,6 +46,7 @@ export const editQuestionSchema = z.object({
   label: z.string().trim().min(1, 'Label is required').optional(),
   description: z.string().trim().optional(),
   required: z.boolean().optional(),
+  maxLength: maxLengthSchema,
   options: z.array(editOptionSchema).optional(),
 });
 

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { ApplicationQuestion } from '@/types/application';
+import { resolveMaxLength, type ApplicationQuestion } from '@/types/application';
 import { otherTextKey } from '@/lib/other-option';
 
 const otherTextSchema = z
@@ -47,12 +47,15 @@ export function createApplicationFormSchema(
 
     switch (question.type) {
       case 'short_text':
-      case 'long_text':
+      case 'long_text': {
+        const max = resolveMaxLength(question)!;
         fieldSchema = z
           .string()
           .trim()
-          .min(1, `At least one option must be selected`);
+          .min(1, `At least one option must be selected`)
+          .max(max, `Keep it under ${max} characters.`);
         break;
+      }
 
       case 'number':
         fieldSchema = z

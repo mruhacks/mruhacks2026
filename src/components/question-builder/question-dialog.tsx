@@ -54,7 +54,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import type { ApplicationQuestion } from '@/types/application';
+import {
+  DEFAULT_QUESTION_MAX_LENGTH,
+  QUESTION_MAX_LENGTH_LIMIT,
+  isStringQuestion,
+  type ApplicationQuestion,
+} from '@/types/application';
 
 const QUESTION_TYPES = [
   { value: 'short_text', label: 'Short Text' },
@@ -71,6 +76,17 @@ const formSchema = z.object({
   description: z.string().trim().optional(),
   type: z.enum(['short_text', 'long_text', 'single_select', 'multi_select', 'number', 'boolean', 'section_divider']),
   required: z.boolean().default(false),
+  // Empty input means "use the type default", which the action stores as null.
+  maxLength: z
+    .union([
+      z.literal(''),
+      z.coerce
+        .number()
+        .int()
+        .min(1, 'Max length must be at least 1')
+        .max(QUESTION_MAX_LENGTH_LIMIT, `Max length cannot exceed ${QUESTION_MAX_LENGTH_LIMIT}`),
+    ])
+    .optional(),
   options: z.array(
     z.object({
       value: z.string().optional(),
@@ -80,7 +96,15 @@ const formSchema = z.object({
   ),
 });
 
-type FormValues = z.infer<typeof formSchema>;
+export type QuestionFormValues = z.infer<typeof formSchema>;
+type FormValues = QuestionFormValues;
+
+/** Blank input → `null`, meaning "fall back to the per-type default". */
+export function normalizeMaxLength(
+  value: QuestionFormValues['maxLength'],
+): number | null {
+  return value === '' || value === undefined ? null : value;
+}
 
 type QuestionDialogProps = {
   open: boolean;
@@ -253,6 +277,7 @@ export function QuestionDialog({
           description: question.description ?? '',
           type: question.type,
           required: question.required,
+          maxLength: question.maxLength ?? '',
           options: question.options?.map((o) => ({
             value: o.value,
             label: o.label,
@@ -264,6 +289,7 @@ export function QuestionDialog({
           description: '',
           type: 'short_text',
           required: false,
+          maxLength: '',
           options: [],
         },
   });
@@ -272,6 +298,7 @@ export function QuestionDialog({
   const questionType = watch('type');
   const options = watch('options');
   const showOptions = questionType === 'single_select' || questionType === 'multi_select';
+  const showMaxLength = isStringQuestion(questionType);
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
@@ -326,6 +353,7 @@ export function QuestionDialog({
               description: question.description ?? '',
               type: question.type,
               required: question.required,
+              maxLength: question.maxLength ?? '',
               options: question.options?.map((o) => ({
                 value: o.value,
                 label: o.label,
@@ -337,6 +365,7 @@ export function QuestionDialog({
               description: '',
               type: 'short_text',
               required: false,
+              maxLength: '',
               options: [],
             },
       );
@@ -433,6 +462,27 @@ export function QuestionDialog({
                 />
                 <Label htmlFor='q-required'>Required</Label>
               </div>
+            )}
+
+            {/* Max length (free-text types only) */}
+            {showMaxLength && (
+              <Field>
+                <FieldLabel htmlFor='q-max-length'>Max characters</FieldLabel>
+                <FieldDescription>
+                  Leave blank to use the default of{' '}
+                  {DEFAULT_QUESTION_MAX_LENGTH[questionType]} characters. Applicants
+                  cannot type past this limit.
+                </FieldDescription>
+                <Input
+                  id='q-max-length'
+                  type='number'
+                  min={1}
+                  max={QUESTION_MAX_LENGTH_LIMIT}
+                  {...register('maxLength')}
+                  placeholder={String(DEFAULT_QUESTION_MAX_LENGTH[questionType])}
+                />
+                {errors.maxLength && <FieldError errors={[errors.maxLength]} />}
+              </Field>
             )}
 
             {/* Options (for select types) */}
