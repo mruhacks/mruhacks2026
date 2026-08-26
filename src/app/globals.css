@@ -189,13 +189,22 @@
   --tint-lavender: #cbd0ff;
 
   /* Gradients */
-  --gradient-brand: linear-gradient(112deg,
-    var(--spectrum-cyan) -17%, var(--spectrum-blue) 21%,
-    var(--spectrum-magenta) 58%, var(--spectrum-coral) 82%,
-    var(--spectrum-gold) 102%);
-  --gradient-logo: linear-gradient(180deg,
-    #ffc527 0%, var(--orange) 34.5%, var(--pink) 52%,
-    var(--purple) 73%, var(--blue) 100%);
+  --gradient-brand: linear-gradient(
+    112deg,
+    var(--spectrum-cyan) -17%,
+    var(--spectrum-blue) 21%,
+    var(--spectrum-magenta) 58%,
+    var(--spectrum-coral) 82%,
+    var(--spectrum-gold) 102%
+  );
+  --gradient-logo: linear-gradient(
+    180deg,
+    #ffc527 0%,
+    var(--orange) 34.5%,
+    var(--pink) 52%,
+    var(--purple) 73%,
+    var(--blue) 100%
+  );
 
   /* Semantic aliases */
   --text-primary: var(--black);
@@ -209,10 +218,16 @@
   --hairline: var(--ink-200);
 
   /* Fonts — wired to Next.js loaded font CSS vars */
-  --font-display: var(--font-dm-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --font-ui:      var(--font-dm-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --font-body:    var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --font-ds-mono: var(--font-dm-mono), ui-monospace, "SF Mono", Menlo, monospace;
+  --font-display:
+    var(--font-dm-sans), -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    sans-serif;
+  --font-ui:
+    var(--font-dm-sans), -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    sans-serif;
+  --font-body:
+    var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-ds-mono:
+    var(--font-dm-mono), ui-monospace, 'SF Mono', Menlo, monospace;
 
   /* Font weights */
   --fw-regular: 400;
@@ -237,7 +252,7 @@
   --track-ui: -0.02em;
 
   /* Leading */
-  --lh-tight: 1.0;
+  --lh-tight: 1;
   --lh-snug: 1.25;
   --lh-body: 1.5;
 

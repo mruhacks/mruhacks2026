@@ -105,9 +105,10 @@ export function parseProfilePictureKey(
 ): string | null {
   if (!image) return null;
   const publicBase = process.env.S3_PUBLIC_URL?.trim().replace(/\/+$/, '');
-  const prefixes = [publicBase ? `${publicBase}/` : null, '/api/assets/'].filter(
-    (p): p is string => Boolean(p),
-  );
+  const prefixes = [
+    publicBase ? `${publicBase}/` : null,
+    '/api/assets/',
+  ].filter((p): p is string => Boolean(p));
   for (const prefix of prefixes) {
     if (!image.startsWith(prefix)) continue;
     try {

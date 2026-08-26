@@ -270,7 +270,8 @@ export async function saveUserProfile(
       await tx
         .delete(userDietaryRestrictions)
         .where(eq(userDietaryRestrictions.userId, user.id));
-      const realRestrictions = data.dietaryRestrictions?.filter((id) => id > 0) ?? [];
+      const realRestrictions =
+        data.dietaryRestrictions?.filter((id) => id > 0) ?? [];
       if (realRestrictions.length) {
         await tx.insert(userDietaryRestrictions).values(
           realRestrictions.map((restrictionId) => ({

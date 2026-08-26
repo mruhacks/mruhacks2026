@@ -38,7 +38,7 @@ const nextConfig: NextConfig = {
               "font-src 'self' data:",
               "connect-src 'self' https://challenges.cloudflare.com",
               // Cloudflare Turnstile renders its challenge in an iframe from this origin.
-              "frame-src https://challenges.cloudflare.com",
+              'frame-src https://challenges.cloudflare.com',
               "frame-ancestors 'none'",
               "base-uri 'self'",
               "form-action 'self'",

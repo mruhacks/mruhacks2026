@@ -28,19 +28,52 @@ function HeaderSkeleton() {
           {/* Logo: icon + wordmark */}
           <div
             className='animate-pulse'
-            style={{ width: 128, height: 22, borderRadius: 6, background: 'var(--ink-100)' }}
+            style={{
+              width: 128,
+              height: 22,
+              borderRadius: 6,
+              background: 'var(--ink-100)',
+            }}
           />
           {/* Breadcrumb: slash separator + one crumb label */}
           <div className='hidden sm:flex' style={{ alignItems: 'center' }}>
-            <div style={{ width: 26, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <div className='animate-pulse' style={{ width: 4, height: 14, borderRadius: 2, background: 'var(--ink-100)' }} />
+            <div
+              style={{
+                width: 26,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <div
+                className='animate-pulse'
+                style={{
+                  width: 4,
+                  height: 14,
+                  borderRadius: 2,
+                  background: 'var(--ink-100)',
+                }}
+              />
             </div>
-            <div className='animate-pulse' style={{ width: 76, height: 14, borderRadius: 4, background: 'var(--ink-100)' }} />
+            <div
+              className='animate-pulse'
+              style={{
+                width: 76,
+                height: 14,
+                borderRadius: 4,
+                background: 'var(--ink-100)',
+              }}
+            />
           </div>
         </div>
         <div
           className='animate-pulse'
-          style={{ width: 38, height: 38, borderRadius: '999px', background: 'var(--ink-100)' }}
+          style={{
+            width: 38,
+            height: 38,
+            borderRadius: '999px',
+            background: 'var(--ink-100)',
+          }}
         />
       </div>
     </div>
@@ -52,13 +85,45 @@ function ContentSkeleton() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
       {/* Welcome section */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-        <div className='animate-pulse' style={{ width: 48, height: 13, borderRadius: 3, background: 'var(--ink-200)' }} />
-        <div className='animate-pulse' style={{ width: 260, height: 36, borderRadius: 6, background: 'var(--ink-200)' }} />
-        <div className='animate-pulse' style={{ width: 320, height: 16, borderRadius: 4, background: 'var(--ink-100)' }} />
+        <div
+          className='animate-pulse'
+          style={{
+            width: 48,
+            height: 13,
+            borderRadius: 3,
+            background: 'var(--ink-200)',
+          }}
+        />
+        <div
+          className='animate-pulse'
+          style={{
+            width: 260,
+            height: 36,
+            borderRadius: 6,
+            background: 'var(--ink-200)',
+          }}
+        />
+        <div
+          className='animate-pulse'
+          style={{
+            width: 320,
+            height: 16,
+            borderRadius: 4,
+            background: 'var(--ink-100)',
+          }}
+        />
       </div>
       {/* Events section */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-        <div className='animate-pulse' style={{ width: 72, height: 13, borderRadius: 3, background: 'var(--ink-200)' }} />
+        <div
+          className='animate-pulse'
+          style={{
+            width: 72,
+            height: 13,
+            borderRadius: 3,
+            background: 'var(--ink-200)',
+          }}
+        />
         {[1, 2, 3].map((i) => (
           <div
             key={i}
@@ -124,9 +189,7 @@ export default function DashboardLayout({
           className='mx-auto w-full flex-1 px-4 py-8 sm:px-6'
           style={{ maxWidth: 'var(--content-max)' }}
         >
-          <Suspense fallback={<ContentSkeleton />}>
-            {children}
-          </Suspense>
+          <Suspense fallback={<ContentSkeleton />}>{children}</Suspense>
         </main>
       </BreadcrumbProvider>
       <DashboardFooter />

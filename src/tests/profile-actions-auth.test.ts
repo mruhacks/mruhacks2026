@@ -37,22 +37,30 @@ describe('profile actions — unauthenticated', () => {
   test('saveWelcomeProfile fails', async () => {
     asUnauthed();
     // saveWelcomeProfile delegates to saveUserProfile first; saveUserProfile checks auth
-    await expect(saveWelcomeProfile({} as never)).resolves.toMatchObject({ success: false });
+    await expect(saveWelcomeProfile({} as never)).resolves.toMatchObject({
+      success: false,
+    });
   });
 
   test('uploadProfilePicture fails before reading FormData', async () => {
     asUnauthed();
-    await expect(uploadProfilePicture(new FormData())).resolves.toMatchObject({ success: false });
+    await expect(uploadProfilePicture(new FormData())).resolves.toMatchObject({
+      success: false,
+    });
   });
 
   test('removeProfilePicture fails', async () => {
     asUnauthed();
-    await expect(removeProfilePicture()).resolves.toMatchObject({ success: false });
+    await expect(removeProfilePicture()).resolves.toMatchObject({
+      success: false,
+    });
   });
 
   test('uploadResume fails before reading FormData', async () => {
     asUnauthed();
-    await expect(uploadResume(new FormData())).resolves.toMatchObject({ success: false });
+    await expect(uploadResume(new FormData())).resolves.toMatchObject({
+      success: false,
+    });
   });
 
   test('removeResume fails', async () => {

@@ -31,9 +31,7 @@ function statusColor(status: string): string {
 }
 
 function resolveHealthURL(input: string): string {
-  const url = new URL(
-    input.startsWith('http') ? input : `http://${input}`,
-  );
+  const url = new URL(input.startsWith('http') ? input : `http://${input}`);
   if (!url.pathname.includes('/api/health')) {
     url.pathname = url.pathname.replace(/\/+$/, '') + '/api/health';
   }
@@ -90,9 +88,7 @@ async function main() {
     for (const [name, check] of Object.entries(report.checks)) {
       const mark = check.ok ? `${GREEN}✓${RESET}` : `${RED}✗${RESET}`;
       const detail = check.detail ? ` ${DIM}(${check.detail})${RESET}` : '';
-      console.log(
-        `  ${mark} ${name.padEnd(14)} ${check.latencyMs}ms${detail}`,
-      );
+      console.log(`  ${mark} ${name.padEnd(14)} ${check.latencyMs}ms${detail}`);
     }
   }
 
@@ -113,7 +109,9 @@ async function main() {
     );
   }
 
-  process.exit(report.status === 'ok' ? 0 : report.status === 'degraded' ? 1 : 2);
+  process.exit(
+    report.status === 'ok' ? 0 : report.status === 'degraded' ? 1 : 2,
+  );
 }
 
 void main();

@@ -53,23 +53,41 @@ const FORBIDDEN = (perm: string) =>
 beforeAll(async () => {
   const [noPerm] = await db
     .insert(user)
-    .values({ name: 'No Perm', email: 'rpe-noperm@example.com', emailVerified: true })
+    .values({
+      name: 'No Perm',
+      email: 'rpe-noperm@example.com',
+      emailVerified: true,
+    })
     .returning({ id: user.id });
   const [roUser] = await db
     .insert(user)
-    .values({ name: 'Read Only Role User', email: 'rpe-ro-role@example.com', emailVerified: true })
+    .values({
+      name: 'Read Only Role User',
+      email: 'rpe-ro-role@example.com',
+      emailVerified: true,
+    })
     .returning({ id: user.id });
   const [rpUser] = await db
     .insert(user)
-    .values({ name: 'Read Only Perm User', email: 'rpe-ro-perm@example.com', emailVerified: true })
+    .values({
+      name: 'Read Only Perm User',
+      email: 'rpe-ro-perm@example.com',
+      emailVerified: true,
+    })
     .returning({ id: user.id });
 
   noPermUserId = noPerm.id;
   readOnlyRoleUserId = roUser.id;
   readOnlyPermUserId = rpUser.id;
   noPermUser = { id: noPermUserId, email: 'rpe-noperm@example.com' };
-  readOnlyRoleUser = { id: readOnlyRoleUserId, email: 'rpe-ro-role@example.com' };
-  readOnlyPermUser = { id: readOnlyPermUserId, email: 'rpe-ro-perm@example.com' };
+  readOnlyRoleUser = {
+    id: readOnlyRoleUserId,
+    email: 'rpe-ro-role@example.com',
+  };
+  readOnlyPermUser = {
+    id: readOnlyPermUserId,
+    email: 'rpe-ro-perm@example.com',
+  };
 
   const ensurePerm = async (slug: string) => {
     const [created] = await db
@@ -132,7 +150,9 @@ describe('listPermissions', () => {
 
   test('redirects to /forbidden for caller without permission:read:all', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(noPermUser as never);
-    await expect(listPermissions()).rejects.toThrow(FORBIDDEN('permission:read:all'));
+    await expect(listPermissions()).rejects.toThrow(
+      FORBIDDEN('permission:read:all'),
+    );
   });
 });
 
@@ -141,17 +161,23 @@ describe('listPermissions', () => {
 describe('createRole', () => {
   test('returns fail for unauthenticated caller', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(null as never);
-    await expect(createRole('test-slug')).resolves.toMatchObject({ success: false });
+    await expect(createRole('test-slug')).resolves.toMatchObject({
+      success: false,
+    });
   });
 
   test('redirects to /forbidden for caller without role:write:all', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(noPermUser as never);
-    await expect(createRole('test-slug')).rejects.toThrow(FORBIDDEN('role:write:all'));
+    await expect(createRole('test-slug')).rejects.toThrow(
+      FORBIDDEN('role:write:all'),
+    );
   });
 
   test('role:read:all alone is insufficient — redirects to /forbidden', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(readOnlyRoleUser as never);
-    await expect(createRole('test-slug')).rejects.toThrow(FORBIDDEN('role:write:all'));
+    await expect(createRole('test-slug')).rejects.toThrow(
+      FORBIDDEN('role:write:all'),
+    );
   });
 });
 
@@ -179,12 +205,16 @@ describe('deleteRole', () => {
 describe('updateRole', () => {
   test('returns fail for unauthenticated caller', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(null as never);
-    await expect(updateRole(999, { slug: 'x' })).resolves.toMatchObject({ success: false });
+    await expect(updateRole(999, { slug: 'x' })).resolves.toMatchObject({
+      success: false,
+    });
   });
 
   test('redirects to /forbidden for caller without role:write:all', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(noPermUser as never);
-    await expect(updateRole(999, { slug: 'x' })).rejects.toThrow(FORBIDDEN('role:write:all'));
+    await expect(updateRole(999, { slug: 'x' })).rejects.toThrow(
+      FORBIDDEN('role:write:all'),
+    );
   });
 });
 
@@ -193,24 +223,32 @@ describe('updateRole', () => {
 describe('assignRoleToUser', () => {
   test('returns fail for unauthenticated caller', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(null as never);
-    await expect(assignRoleToUser('uid', 1)).resolves.toMatchObject({ success: false });
+    await expect(assignRoleToUser('uid', 1)).resolves.toMatchObject({
+      success: false,
+    });
   });
 
   test('redirects to /forbidden for caller without role:write:all', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(noPermUser as never);
-    await expect(assignRoleToUser('uid', 1)).rejects.toThrow(FORBIDDEN('role:write:all'));
+    await expect(assignRoleToUser('uid', 1)).rejects.toThrow(
+      FORBIDDEN('role:write:all'),
+    );
   });
 });
 
 describe('revokeRoleFromUser', () => {
   test('returns fail for unauthenticated caller', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(null as never);
-    await expect(revokeRoleFromUser('uid', 1)).resolves.toMatchObject({ success: false });
+    await expect(revokeRoleFromUser('uid', 1)).resolves.toMatchObject({
+      success: false,
+    });
   });
 
   test('redirects to /forbidden for caller without role:write:all', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(noPermUser as never);
-    await expect(revokeRoleFromUser('uid', 1)).rejects.toThrow(FORBIDDEN('role:write:all'));
+    await expect(revokeRoleFromUser('uid', 1)).rejects.toThrow(
+      FORBIDDEN('role:write:all'),
+    );
   });
 });
 
@@ -219,7 +257,9 @@ describe('revokeRoleFromUser', () => {
 describe('addPermission', () => {
   test('returns fail for unauthenticated caller', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(null as never);
-    await expect(addPermission('test:perm', 'desc')).resolves.toMatchObject({ success: false });
+    await expect(addPermission('test:perm', 'desc')).resolves.toMatchObject({
+      success: false,
+    });
   });
 
   test('redirects to /forbidden for caller without permission:write:all', async () => {
@@ -240,19 +280,25 @@ describe('addPermission', () => {
 describe('deletePermission', () => {
   test('returns fail for unauthenticated caller', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(null as never);
-    await expect(deletePermission(999)).resolves.toMatchObject({ success: false });
+    await expect(deletePermission(999)).resolves.toMatchObject({
+      success: false,
+    });
   });
 
   test('redirects to /forbidden for caller without permission:write:all', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(noPermUser as never);
-    await expect(deletePermission(999)).rejects.toThrow(FORBIDDEN('permission:write:all'));
+    await expect(deletePermission(999)).rejects.toThrow(
+      FORBIDDEN('permission:write:all'),
+    );
   });
 });
 
 describe('updatePermission', () => {
   test('returns fail for unauthenticated caller', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(null as never);
-    await expect(updatePermission(999, { slug: 'x' })).resolves.toMatchObject({ success: false });
+    await expect(updatePermission(999, { slug: 'x' })).resolves.toMatchObject({
+      success: false,
+    });
   });
 
   test('redirects to /forbidden for caller without permission:write:all', async () => {
@@ -268,24 +314,32 @@ describe('updatePermission', () => {
 describe('grantPermissionToRole', () => {
   test('returns fail for unauthenticated caller', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(null as never);
-    await expect(grantPermissionToRole(1, 1)).resolves.toMatchObject({ success: false });
+    await expect(grantPermissionToRole(1, 1)).resolves.toMatchObject({
+      success: false,
+    });
   });
 
   test('redirects to /forbidden for caller without role:write:all', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(noPermUser as never);
-    await expect(grantPermissionToRole(1, 1)).rejects.toThrow(FORBIDDEN('role:write:all'));
+    await expect(grantPermissionToRole(1, 1)).rejects.toThrow(
+      FORBIDDEN('role:write:all'),
+    );
   });
 });
 
 describe('revokePermissionFromRole', () => {
   test('returns fail for unauthenticated caller', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(null as never);
-    await expect(revokePermissionFromRole(1, 1)).resolves.toMatchObject({ success: false });
+    await expect(revokePermissionFromRole(1, 1)).resolves.toMatchObject({
+      success: false,
+    });
   });
 
   test('redirects to /forbidden for caller without role:write:all', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(noPermUser as never);
-    await expect(revokePermissionFromRole(1, 1)).rejects.toThrow(FORBIDDEN('role:write:all'));
+    await expect(revokePermissionFromRole(1, 1)).rejects.toThrow(
+      FORBIDDEN('role:write:all'),
+    );
   });
 });
 
@@ -294,7 +348,9 @@ describe('revokePermissionFromRole', () => {
 describe('grantPermissionToUser', () => {
   test('returns fail for unauthenticated caller', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(null as never);
-    await expect(grantPermissionToUser('uid', 1)).resolves.toMatchObject({ success: false });
+    await expect(grantPermissionToUser('uid', 1)).resolves.toMatchObject({
+      success: false,
+    });
   });
 
   test('redirects to /forbidden for caller without permission:write:all', async () => {
@@ -308,7 +364,9 @@ describe('grantPermissionToUser', () => {
 describe('revokePermissionFromUser', () => {
   test('returns fail for unauthenticated caller', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(null as never);
-    await expect(revokePermissionFromUser('uid', 1)).resolves.toMatchObject({ success: false });
+    await expect(revokePermissionFromUser('uid', 1)).resolves.toMatchObject({
+      success: false,
+    });
   });
 
   test('redirects to /forbidden for caller without permission:write:all', async () => {
@@ -324,17 +382,23 @@ describe('revokePermissionFromUser', () => {
 describe('setUserRoles', () => {
   test('returns fail for unauthenticated caller', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(null as never);
-    await expect(setUserRoles('uid', [])).resolves.toMatchObject({ success: false });
+    await expect(setUserRoles('uid', [])).resolves.toMatchObject({
+      success: false,
+    });
   });
 
   test('redirects to /forbidden for caller without role:write:all', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(noPermUser as never);
-    await expect(setUserRoles('uid', [])).rejects.toThrow(FORBIDDEN('role:write:all'));
+    await expect(setUserRoles('uid', [])).rejects.toThrow(
+      FORBIDDEN('role:write:all'),
+    );
   });
 
   test('role:read:all alone is insufficient — redirects to /forbidden', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(readOnlyRoleUser as never);
-    await expect(setUserRoles('uid', [])).rejects.toThrow(FORBIDDEN('role:write:all'));
+    await expect(setUserRoles('uid', [])).rejects.toThrow(
+      FORBIDDEN('role:write:all'),
+    );
   });
 });
 
@@ -343,7 +407,9 @@ describe('setUserRoles', () => {
 describe('setUserDirectPermissions', () => {
   test('returns fail for unauthenticated caller', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(null as never);
-    await expect(setUserDirectPermissions('uid', [])).resolves.toMatchObject({ success: false });
+    await expect(setUserDirectPermissions('uid', [])).resolves.toMatchObject({
+      success: false,
+    });
   });
 
   test('redirects to /forbidden for caller without permission:write:all', async () => {
@@ -366,16 +432,22 @@ describe('setUserDirectPermissions', () => {
 describe('setRolePermissions', () => {
   test('returns fail for unauthenticated caller', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(null as never);
-    await expect(setRolePermissions(1, [])).resolves.toMatchObject({ success: false });
+    await expect(setRolePermissions(1, [])).resolves.toMatchObject({
+      success: false,
+    });
   });
 
   test('redirects to /forbidden for caller without role:write:all', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(noPermUser as never);
-    await expect(setRolePermissions(1, [])).rejects.toThrow(FORBIDDEN('role:write:all'));
+    await expect(setRolePermissions(1, [])).rejects.toThrow(
+      FORBIDDEN('role:write:all'),
+    );
   });
 
   test('role:read:all alone is insufficient — redirects to /forbidden', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(readOnlyRoleUser as never);
-    await expect(setRolePermissions(1, [])).rejects.toThrow(FORBIDDEN('role:write:all'));
+    await expect(setRolePermissions(1, [])).rejects.toThrow(
+      FORBIDDEN('role:write:all'),
+    );
   });
 });

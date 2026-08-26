@@ -21,7 +21,10 @@ function socialUrlSchema(host: string, label: string) {
       try {
         url = new URL(value);
       } catch {
-        ctx.addIssue({ code: 'custom', message: `Enter a valid ${label} URL.` });
+        ctx.addIssue({
+          code: 'custom',
+          message: `Enter a valid ${label} URL.`,
+        });
         return z.NEVER;
       }
 

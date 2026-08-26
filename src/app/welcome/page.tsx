@@ -104,9 +104,7 @@ async function WelcomeContent({
       initialProfile={
         profileRes.success ? (profileRes.data ?? undefined) : undefined
       }
-      hasResume={
-        profileRes.success && profileRes.data?.hasResume === true
-      }
+      hasResume={profileRes.success && profileRes.data?.hasResume === true}
       resumeFileName={
         profileRes.success ? (profileRes.data?.resumeFileName ?? null) : null
       }

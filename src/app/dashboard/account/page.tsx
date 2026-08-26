@@ -62,7 +62,10 @@ export default async function AccountPage() {
         </p>
       </div>
 
-      <ProfilePictureCard image={user.image} name={overview?.name ?? user.name ?? user.email} />
+      <ProfilePictureCard
+        image={user.image}
+        name={overview?.name ?? user.name ?? user.email}
+      />
 
       {/* Account overview */}
       <Card>
