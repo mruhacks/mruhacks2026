@@ -12,6 +12,12 @@ import { eq, lt, sql } from 'drizzle-orm';
 import { db } from '@/utils/db';
 import * as schema from '@/db/schema';
 import { sendMail } from '@/utils/mail';
+import { render } from 'react-email';
+import { MagicLinkEmail } from '@/emails/MagicLinkEmail';
+import { VerifyEmailEmail } from '@/emails/VerifyEmailEmail';
+import { ResetPasswordEmail } from '@/emails/ResetPasswordEmail';
+import { DeleteAccountEmail } from '@/emails/DeleteAccountEmail';
+import React from 'react';
 import { headers } from 'next/headers';
 import { after } from 'next/server';
 import { cache } from 'react';
@@ -107,7 +113,7 @@ export const auth = betterAuth({
         to: user.email,
         subject: 'Verify your email — MRUHacks',
         text: `Verify your email address by opening this link:\n\n${url}\n`,
-        html: `<p>Verify your email address by clicking <a href="${url}">this link</a>.</p>`,
+        html: await render(React.createElement(VerifyEmailEmail, { url, baseUrl: getAuthBaseUrl() })),
       }).catch((err) => {
         console.error('[auth] sendVerificationEmail failed', err);
       });
@@ -121,7 +127,7 @@ export const auth = betterAuth({
         to: user.email,
         subject: 'Reset your password — MRUHacks',
         text: `Reset your password by opening this link:\n\n${url}\n`,
-        html: `<p>Reset your password by clicking <a href="${url}">this link</a>.</p>`,
+        html: await render(React.createElement(ResetPasswordEmail, { url, baseUrl: getAuthBaseUrl() })),
       }).catch((err) => {
         console.error('[auth] sendResetPassword failed', err);
       });
@@ -166,11 +172,7 @@ export const auth = betterAuth({
             `Confirm by opening this link (valid for 24 hours):\n\n${url}\n\n` +
             `This erases your account and all associated data and cannot be undone. ` +
             `If you did not request this, you can safely ignore this email.\n`,
-          html:
-            `<p>We received a request to permanently delete your MRUHacks account.</p>` +
-            `<p>Confirm by clicking <a href="${url}">this link</a> (valid for 24 hours).</p>` +
-            `<p>This erases your account and all associated data and <strong>cannot be undone</strong>. ` +
-            `If you did not request this, you can safely ignore this email.</p>`,
+          html: await render(React.createElement(DeleteAccountEmail, { url, baseUrl: getAuthBaseUrl() })),
         }).catch((err) => {
           console.error('[auth] sendDeleteAccountVerification failed', err);
         });
@@ -239,7 +241,7 @@ export const auth = betterAuth({
           to: email,
           subject: 'Sign in to MRUHacks',
           text: `Sign in by opening this link:\n\n${url}\n`,
-          html: `<p>Sign in by clicking <a href="${url}">this link</a>.</p>`,
+          html: await render(React.createElement(MagicLinkEmail, { url, baseUrl: getAuthBaseUrl() })),
         }).catch((err) => {
           console.error('[auth] sendMagicLink failed', err);
         });

@@ -59,6 +59,7 @@
     "rate-limiter-flexible": "^11.2.0",
     "react": "19.1.0",
     "react-dom": "19.1.0",
+    "react-email": "^6.9.2",
     "react-hook-form": "^7.71.1",
     "react-select": "^5.10.2",
     "server-only": "^0.0.1",
