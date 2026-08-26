@@ -4,6 +4,7 @@ import { eq, and } from 'drizzle-orm';
 
 import { getUser } from '@/utils/auth';
 import { db } from '@/utils/db';
+import { BreadcrumbSegment } from '@/components/breadcrumb-context';
 import {
   events,
   eventTypes,
@@ -74,6 +75,7 @@ export default async function EventEntryPage({ params }: Props) {
 
     return (
       <div className='max-w-2xl space-y-6'>
+        <BreadcrumbSegment id={eventId} label={row.name} />
         <div>
           <Button asChild variant='ghost' size='sm' className='text-muted-foreground -ml-2 mb-2'>
             <Link href='/dashboard'>
@@ -143,6 +145,7 @@ export default async function EventEntryPage({ params }: Props) {
 
   return (
     <div className='max-w-2xl space-y-6'>
+      <BreadcrumbSegment id={eventId} label={row.name} />
       <div>
         <Button asChild variant='ghost' size='sm' className='text-muted-foreground -ml-2 mb-2'>
           <Link href='/dashboard'>

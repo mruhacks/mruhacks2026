@@ -215,16 +215,17 @@ describe('completeWelcomeOnboarding', () => {
 
   beforeAll(async () => {
     // Seed lookup rows needed for the profile FK constraints.
-    const upsertLookup = async (tbl: typeof genders, label: string): Promise<number> => {
+    type LookupTable = typeof genders | typeof universities | typeof majors | typeof yearsOfStudy;
+    const upsertLookup = async (tbl: LookupTable, label: string): Promise<number> => {
       const [existing] = await db.select({ id: tbl.id }).from(tbl).where(eq(tbl.label, label)).limit(1);
       if (existing) return existing.id;
       const [row] = await db.insert(tbl).values({ label }).returning({ id: tbl.id });
       return row!.id;
     };
     genderId = await upsertLookup(genders, 'acct-gender');
-    universityId = await upsertLookup(universities as typeof genders, 'acct-uni');
-    majorId = await upsertLookup(majors as typeof genders, 'acct-major');
-    yearId = await upsertLookup(yearsOfStudy as typeof genders, 'acct-yr');
+    universityId = await upsertLookup(universities, 'acct-uni');
+    majorId = await upsertLookup(majors, 'acct-major');
+    yearId = await upsertLookup(yearsOfStudy, 'acct-yr');
   });
 
   test('fails when user has no profile', async () => {

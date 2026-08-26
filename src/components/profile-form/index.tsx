@@ -118,6 +118,7 @@ export default function ProfileForm({
   const [tab, setTab] = React.useState<'personal' | 'about'>('personal');
   const [queuedResume, setQueuedResume] = React.useState<File | null>(null);
   const [uploadingResume, setUploadingResume] = React.useState(false);
+  const [dietaryNoneSelected, setDietaryNoneSelected] = React.useState(false);
 
   const submitHandler = React.useCallback(
     async (data: ProfileFormValues) => {
@@ -142,6 +143,7 @@ export default function ProfileForm({
             toast.error(uploadResult.error ?? 'Failed to upload resume.');
             return;
           }
+          setQueuedResume(null);
         }
 
         toast.success(successMessage);
@@ -250,9 +252,11 @@ export default function ProfileForm({
           name='dietaryRestrictions'
           control={control}
           render={({ field }) => {
-            const selected = options.dietary.filter((o) =>
-              field.value.includes(o.value),
-            );
+            const NONE_OPTION = { value: 0, label: 'None' };
+            const dietaryOptions = [NONE_OPTION, ...options.dietary];
+            const selected = dietaryNoneSelected
+              ? [NONE_OPTION]
+              : options.dietary.filter((o) => field.value.includes(o.value));
             return (
               <Field>
                 <FieldLabel>Dietary Restrictions</FieldLabel>
@@ -260,9 +264,22 @@ export default function ProfileForm({
                   id='dietaryRestrictions'
                   instanceId='dietaryRestrictions'
                   isMulti
-                  options={options.dietary}
+                  options={dietaryOptions}
                   value={selected}
-                  onChange={(opts) => field.onChange(getMultiValues(opts))}
+                  onChange={(opts) => {
+                    const vals = getMultiValues(opts);
+                    const hasNone = vals.includes(0);
+                    if (hasNone && !dietaryNoneSelected) {
+                      setDietaryNoneSelected(true);
+                      field.onChange([]);
+                    } else if (hasNone && dietaryNoneSelected) {
+                      setDietaryNoneSelected(false);
+                      field.onChange(vals.filter((v) => v !== 0));
+                    } else {
+                      setDietaryNoneSelected(false);
+                      field.onChange(vals);
+                    }
+                  }}
                 />
                 {selected.some((o) => isOtherOption(o.label)) && (
                   <Input

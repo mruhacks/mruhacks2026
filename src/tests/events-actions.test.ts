@@ -250,7 +250,8 @@ describe('registerEventInterest — authenticated', () => {
     interestEventId = e.id;
 
     // Seed profile lookups needed by getUserProfile (called by registerEventInterest).
-    const upsertLookup = async (tbl: typeof genders, label: string): Promise<number> => {
+    type LookupTable = typeof genders | typeof universities | typeof majors | typeof yearsOfStudy;
+    const upsertLookup = async (tbl: LookupTable, label: string): Promise<number> => {
       const [existing] = await db.select({ id: tbl.id }).from(tbl).where(eq(tbl.label, label)).limit(1);
       if (existing) return existing.id;
       const [inserted] = await db.insert(tbl).values({ label }).returning({ id: tbl.id });
@@ -258,9 +259,9 @@ describe('registerEventInterest — authenticated', () => {
     };
 
     genderId = await upsertLookup(genders, 'test-gender-ri');
-    universityId = await upsertLookup(universities as typeof genders, 'test-uni-ri');
-    majorId = await upsertLookup(majors as typeof genders, 'test-major-ri');
-    yearId = await upsertLookup(yearsOfStudy as typeof genders, 'tst-yr-ri');
+    universityId = await upsertLookup(universities, 'test-uni-ri');
+    majorId = await upsertLookup(majors, 'test-major-ri');
+    yearId = await upsertLookup(yearsOfStudy, 'tst-yr-ri');
 
     // Create a profile so the interest registration succeeds.
     await db

@@ -154,9 +154,10 @@ async function registerParticipant(
       await tx
         .delete(userDietaryRestrictions)
         .where(eq(userDietaryRestrictions.userId, user.id));
-      if (profile.dietaryRestrictions?.length) {
+      const realRestrictions = profile.dietaryRestrictions?.filter((id) => id > 0) ?? [];
+      if (realRestrictions.length) {
         await tx.insert(userDietaryRestrictions).values(
-          profile.dietaryRestrictions.map((restrictionId) => ({
+          realRestrictions.map((restrictionId) => ({
             userId: user.id,
             restrictionId,
           })),

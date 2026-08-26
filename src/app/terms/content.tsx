@@ -17,6 +17,11 @@ export function TermsContent() {
 
       <h2>Eligibility</h2>
       <p>
+        You must be 18 years of age or older to create an account or participate
+        in MRUHacks events. By using the Service, you confirm that you meet this
+        requirement.
+      </p>
+      <p>
         You must provide accurate information when registering and keep it up to
         date. You are responsible for activity that happens under your account
         and for keeping your login credentials secure.

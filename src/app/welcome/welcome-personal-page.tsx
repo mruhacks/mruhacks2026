@@ -1,5 +1,6 @@
 'use client';
 
+import * as React from 'react';
 import { Controller, useForm, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -57,6 +58,7 @@ export function WelcomePersonalPage({
       dietaryOtherText: initial?.dietaryOtherText ?? '',
     },
   });
+  const [dietaryNoneSelected, setDietaryNoneSelected] = React.useState(false);
 
   return (
     <form onSubmit={form.handleSubmit(onComplete)} className='space-y-6'>
@@ -127,9 +129,13 @@ export function WelcomePersonalPage({
           name='dietaryRestrictions'
           control={form.control}
           render={({ field }) => {
-            const selected = options.dietary.filter((option) =>
-              field.value.includes(option.value),
-            );
+            const NONE_OPTION = { value: 0, label: 'None' };
+            const dietaryOptions = [NONE_OPTION, ...options.dietary];
+            const selected = dietaryNoneSelected
+              ? [NONE_OPTION]
+              : options.dietary.filter((option) =>
+                  field.value.includes(option.value),
+                );
             return (
               <Field>
                 <FieldLabel>Dietary Restrictions</FieldLabel>
@@ -137,15 +143,24 @@ export function WelcomePersonalPage({
                   id='dietaryRestrictions'
                   instanceId='welcome-dietary'
                   isMulti
-                  options={options.dietary}
+                  options={dietaryOptions}
                   value={selected}
-                  onChange={(values) =>
-                    field.onChange(
-                      (
-                        values as MultiValue<{ value: number; label: string }>
-                      ).map((option) => option.value),
-                    )
-                  }
+                  onChange={(values) => {
+                    const vals = (
+                      values as MultiValue<{ value: number; label: string }>
+                    ).map((o) => o.value);
+                    const hasNone = vals.includes(0);
+                    if (hasNone && !dietaryNoneSelected) {
+                      setDietaryNoneSelected(true);
+                      field.onChange([]);
+                    } else if (hasNone && dietaryNoneSelected) {
+                      setDietaryNoneSelected(false);
+                      field.onChange(vals.filter((v) => v !== 0));
+                    } else {
+                      setDietaryNoneSelected(false);
+                      field.onChange(vals);
+                    }
+                  }}
                 />
                 {selected.some((option) => isOtherOption(option.label)) && (
                   <Input

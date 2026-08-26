@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { redirect, notFound } from 'next/navigation';
+import { BreadcrumbSegment } from '@/components/breadcrumb-context';
 
 import { getUser } from '@/utils/auth';
 import {
@@ -147,6 +148,7 @@ export default async function ApplyEventPage({ params }: Props) {
 
   return (
     <Card className='w-full sm:max-w-2xl'>
+      <BreadcrumbSegment id={eventId} label={event.name} />
       <CardHeader>
         <CardTitle>Application: {event.name}</CardTitle>
         <CardDescription>

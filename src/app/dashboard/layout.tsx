@@ -2,6 +2,7 @@ import { Suspense } from 'react';
 import { ImpersonationBanner } from '@/components/impersonation-banner';
 import { DashboardHeader } from '@/components/dashboard-header';
 import { DashboardFooter } from '@/components/dashboard-footer';
+import { BreadcrumbProvider } from '@/components/breadcrumb-context';
 import { getUser } from '@/utils/auth';
 import { getConsentStatus } from '@/app/dashboard/account/actions';
 import { getUserProfile } from '@/app/dashboard/profile/actions';
@@ -23,14 +24,18 @@ function HeaderSkeleton() {
         className='mx-auto flex w-full items-center justify-between p-4 sm:px-6'
         style={{ maxWidth: 'var(--content-max)' }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '28px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          {/* Logo: icon + wordmark */}
           <div
             className='animate-pulse'
-            style={{ width: 120, height: 22, borderRadius: 6, background: 'var(--ink-100)' }}
+            style={{ width: 128, height: 22, borderRadius: 6, background: 'var(--ink-100)' }}
           />
-          <div className='hidden sm:flex' style={{ gap: '26px' }}>
-            <div className='animate-pulse' style={{ width: 40, height: 14, borderRadius: 4, background: 'var(--ink-100)' }} />
-            <div className='animate-pulse' style={{ width: 50, height: 14, borderRadius: 4, background: 'var(--ink-100)' }} />
+          {/* Breadcrumb: slash separator + one crumb label */}
+          <div className='hidden sm:flex' style={{ alignItems: 'center' }}>
+            <div style={{ width: 26, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div className='animate-pulse' style={{ width: 4, height: 14, borderRadius: 2, background: 'var(--ink-100)' }} />
+            </div>
+            <div className='animate-pulse' style={{ width: 76, height: 14, borderRadius: 4, background: 'var(--ink-100)' }} />
           </div>
         </div>
         <div
@@ -45,21 +50,24 @@ function HeaderSkeleton() {
 function ContentSkeleton() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
-      {/* Page header */}
+      {/* Welcome section */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
         <div className='animate-pulse' style={{ width: 48, height: 13, borderRadius: 3, background: 'var(--ink-200)' }} />
         <div className='animate-pulse' style={{ width: 260, height: 36, borderRadius: 6, background: 'var(--ink-200)' }} />
         <div className='animate-pulse' style={{ width: 320, height: 16, borderRadius: 4, background: 'var(--ink-100)' }} />
       </div>
-
-      {/* Events column */}
+      {/* Events section */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
         <div className='animate-pulse' style={{ width: 72, height: 13, borderRadius: 3, background: 'var(--ink-200)' }} />
-        {[78, 78, 78].map((h, i) => (
+        {[1, 2, 3].map((i) => (
           <div
             key={i}
             className='animate-pulse'
-            style={{ height: h, borderRadius: 'var(--radius-md)', background: 'var(--ink-100)' }}
+            style={{
+              height: 78,
+              borderRadius: 'var(--radius-md)',
+              background: 'var(--ink-100)',
+            }}
           />
         ))}
       </div>
@@ -108,17 +116,19 @@ export default function DashboardLayout({
       style={{ background: 'var(--ink-050)', fontFamily: 'var(--font-body)' }}
     >
       <ImpersonationBanner />
-      <Suspense fallback={<HeaderSkeleton />}>
-        <DashboardHeaderLoader />
-      </Suspense>
-      <main
-        className='mx-auto w-full flex-1 px-4 py-8 sm:px-6'
-        style={{ maxWidth: 'var(--content-max)' }}
-      >
-        <Suspense fallback={<ContentSkeleton />}>
-          {children}
+      <BreadcrumbProvider>
+        <Suspense fallback={<HeaderSkeleton />}>
+          <DashboardHeaderLoader />
         </Suspense>
-      </main>
+        <main
+          className='mx-auto w-full flex-1 px-4 py-8 sm:px-6'
+          style={{ maxWidth: 'var(--content-max)' }}
+        >
+          <Suspense fallback={<ContentSkeleton />}>
+            {children}
+          </Suspense>
+        </main>
+      </BreadcrumbProvider>
       <DashboardFooter />
     </div>
   );

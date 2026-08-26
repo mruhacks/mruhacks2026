@@ -5,6 +5,7 @@ import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
 import { getEventDetails, updateEventSettings } from '@/app/dashboard/admin/events/actions';
+import { useBreadcrumbSegment } from '@/components/breadcrumb-context';
 import { updateEventSettingsSchema } from '@/app/dashboard/admin/events/schemas';
 import type { EventDetails } from '@/app/dashboard/admin/events/actions';
 import type { UpdateEventSettingsInput } from '@/app/dashboard/admin/events/schemas';
@@ -36,6 +37,7 @@ export default function EventOverviewPage({ params }: EventOverviewPageProps) {
   const [event, setEvent] = React.useState<EventDetails | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [isEditing, setIsEditing] = React.useState(false);
+  useBreadcrumbSegment(eventId, event?.name);
 
   const {
     register,

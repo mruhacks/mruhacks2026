@@ -100,6 +100,7 @@ export function WelcomeAboutPage({
         toast.error(uploadResult.error ?? 'Failed to upload resume.');
         return;
       }
+      setQueuedResume(null);
     }
 
     toast.success('Profile saved.');
