@@ -71,6 +71,8 @@ export const createEventSchema = z
     startsAt: z.string().nullish(),
     endsAt: z.string().nullish(),
     isFeatured: z.boolean().optional(),
+    teamsEnabled: z.boolean().optional(),
+    maxTeamSize: z.number().int().positive().nullish(),
   })
   .refine(
     (data) => {
@@ -93,6 +95,8 @@ export const updateEventSettingsSchema = z
     startsAt: z.string().nullish(),
     endsAt: z.string().nullish(),
     isFeatured: z.boolean().optional(),
+    teamsEnabled: z.boolean().optional(),
+    maxTeamSize: z.number().int().positive().nullish(),
   })
   .refine(
     (data) => {

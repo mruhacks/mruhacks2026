@@ -10,6 +10,7 @@ import { getUserApplicationStatus } from '@/app/dashboard/events/actions';
 import { ApplicationStatusBanner } from '@/app/dashboard/events/ApplicationStatusBanner';
 import { RegisterEventButton } from '@/app/dashboard/events/RegisterEventButton';
 import { UnregisterEventButton } from '@/app/dashboard/events/UnregisterEventButton';
+import { TeamPanel } from '@/app/dashboard/events/team/TeamPanel';
 import {
   Card,
   CardContent,
@@ -21,7 +22,10 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, CalendarDays, Users } from 'lucide-react';
 
-type Props = { params: Promise<{ eventId: string }> };
+type Props = {
+  params: Promise<{ eventId: string }>;
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+};
 
 function formatDate(d: Date | null) {
   if (!d) return null;
@@ -45,8 +49,12 @@ function dateRange(startsAt: Date | null, endsAt: Date | null) {
     : (formatDate(startsAt) ?? start);
 }
 
-export default async function EventEntryPage({ params }: Props) {
+export default async function EventEntryPage({ params, searchParams }: Props) {
   const { eventId } = await params;
+  const { joinCode: rawJoinCode } = await searchParams;
+  // A repeated `?joinCode=` (a double-appended share link) arrives as an
+  // array; take the first so the dialog always gets a plain code string.
+  const joinCode = Array.isArray(rawJoinCode) ? rawJoinCode[0] : rawJoinCode;
   const user = await getUser();
   if (!user) redirect('/signin');
 
@@ -58,6 +66,7 @@ export default async function EventEntryPage({ params }: Props) {
       startsAt: events.startsAt,
       endsAt: events.endsAt,
       capacity: events.capacity,
+      teamsEnabled: events.teamsEnabled,
       eventTypeLabel: eventTypes.label,
     })
     .from(events)
@@ -101,6 +110,12 @@ export default async function EventEntryPage({ params }: Props) {
             editHref={`/dashboard/events/${eventId}/apply`}
           />
         )}
+
+        {row.teamsEnabled &&
+          applicationStatus &&
+          applicationStatus.statusKey !== 'denied' && (
+            <TeamPanel eventId={eventId} joinCode={joinCode} />
+          )}
 
         {isFinal ? (
           <div className='flex gap-3'>
@@ -175,25 +190,30 @@ export default async function EventEntryPage({ params }: Props) {
       </div>
 
       {isRegistered ? (
-        <Card>
-          <CardHeader>
-            <div className='flex items-center justify-between gap-2'>
-              <CardTitle className='text-base'>
-                You&apos;re registered
-              </CardTitle>
-              <Badge variant='success'>Registered</Badge>
-            </div>
-            <CardDescription>
-              Your spot is confirmed. We&apos;ll see you there!
-            </CardDescription>
-          </CardHeader>
-          <CardContent className='flex gap-3'>
-            <Button asChild variant='outline' size='sm'>
-              <Link href='/dashboard'>Back to dashboard</Link>
-            </Button>
-            <UnregisterEventButton eventId={eventId} />
-          </CardContent>
-        </Card>
+        <div className='space-y-6'>
+          <Card>
+            <CardHeader>
+              <div className='flex items-center justify-between gap-2'>
+                <CardTitle className='text-base'>
+                  You&apos;re registered
+                </CardTitle>
+                <Badge variant='success'>Registered</Badge>
+              </div>
+              <CardDescription>
+                Your spot is confirmed. We&apos;ll see you there!
+              </CardDescription>
+            </CardHeader>
+            <CardContent className='flex gap-3'>
+              <Button asChild variant='outline' size='sm'>
+                <Link href='/dashboard'>Back to dashboard</Link>
+              </Button>
+              <UnregisterEventButton eventId={eventId} />
+            </CardContent>
+          </Card>
+          {row.teamsEnabled && (
+            <TeamPanel eventId={eventId} joinCode={joinCode} />
+          )}
+        </div>
       ) : (
         <div className='space-y-4'>
           <p className='text-muted-foreground'>

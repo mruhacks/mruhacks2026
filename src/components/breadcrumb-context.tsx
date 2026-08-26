@@ -2,6 +2,8 @@
 
 import * as React from 'react';
 
+import { useIsHydrated } from '@/lib/use-is-hydrated';
+
 type ContextValue = {
   segments: Record<string, string>;
   setSegment: (id: string, label: string) => void;
@@ -11,6 +13,8 @@ const BreadcrumbContext = React.createContext<ContextValue>({
   segments: {},
   setSegment: () => {},
 });
+
+const EMPTY_SEGMENTS: Record<string, string> = {};
 
 export function BreadcrumbProvider({
   children,
@@ -25,8 +29,21 @@ export function BreadcrumbProvider({
     );
   }, []);
 
+  // Page content and the header hydrate as independent boundaries, so a
+  // segment registered by content's effects can land before a consumer
+  // hydrates — which would make that consumer's first client render differ
+  // from its SSR output. Withholding segments until hydration finishes keeps
+  // every consumer's hydration render identical to the server's; the dynamic
+  // crumbs then appear via a normal re-render a beat later.
+  const hydrated = useIsHydrated();
+
+  const value = React.useMemo(
+    () => ({ segments: hydrated ? segments : EMPTY_SEGMENTS, setSegment }),
+    [hydrated, segments, setSegment],
+  );
+
   return (
-    <BreadcrumbContext.Provider value={{ segments, setSegment }}>
+    <BreadcrumbContext.Provider value={value}>
       {children}
     </BreadcrumbContext.Provider>
   );

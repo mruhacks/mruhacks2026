@@ -134,9 +134,15 @@ async function seedRolesAndPermissions() {
     },
     { slug: 'participant:read:all', description: 'View participant profiles' },
     { slug: 'participant:write:all', description: 'Edit participant data' },
-    { slug: 'submission:read:all', description: 'View project submissions' },
-    { slug: 'submission:write:all', description: 'Modify project submissions' },
     { slug: 'event:manage:all', description: 'Create and manage events' },
+    {
+      slug: 'team:read:all',
+      description: 'View all formed teams for an event',
+    },
+    {
+      slug: 'team:manage:all',
+      description: 'Remove any team member (moderation override)',
+    },
     { slug: 'checkin:write:all', description: 'Check participants in or out' },
     { slug: 'application:read:all', description: 'View event applications' },
     {
@@ -203,8 +209,12 @@ async function seedRolesAndPermissions() {
         permissionId: findPerm('checkin:write:all').id,
       },
       {
-        roleId: findRole('judge').id,
-        permissionId: findPerm('submission:read:all').id,
+        roleId: findRole('organizer').id,
+        permissionId: findPerm('team:read:all').id,
+      },
+      {
+        roleId: findRole('organizer').id,
+        permissionId: findPerm('team:manage:all').id,
       },
       {
         roleId: findRole('volunteer').id,
@@ -213,10 +223,6 @@ async function seedRolesAndPermissions() {
       {
         roleId: findRole('volunteer').id,
         permissionId: findPerm('checkin:write:all').id,
-      },
-      {
-        roleId: findRole('participant').id,
-        permissionId: findPerm('submission:read:all').id,
       },
     ];
 

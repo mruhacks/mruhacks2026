@@ -75,6 +75,8 @@ export default function EventOverviewPage({ params }: EventOverviewPageProps) {
             ? result.data.endsAt.toISOString().slice(0, 16)
             : undefined,
           isFeatured: result.data.isFeatured,
+          teamsEnabled: result.data.teamsEnabled,
+          maxTeamSize: result.data.maxTeamSize ?? undefined,
         });
       } else if (!result.success) {
         toast.error(result.error || 'Failed to load event');
@@ -85,6 +87,7 @@ export default function EventOverviewPage({ params }: EventOverviewPageProps) {
   }, [eventId, reset]);
 
   const hasApplication = watch('hasApplication');
+  const teamsEnabled = watch('teamsEnabled');
 
   const onSubmit = async (data: UpdateEventSettingsInput) => {
     if (!eventId) return;
@@ -221,6 +224,16 @@ export default function EventOverviewPage({ params }: EventOverviewPageProps) {
                   {event.isFeatured ? 'Yes' : 'No'}
                 </p>
               </div>
+              <div>
+                <p className='text-muted-foreground text-xs font-semibold uppercase'>
+                  Teams
+                </p>
+                <p className='mt-1 text-sm'>
+                  {event.teamsEnabled
+                    ? `Enabled (max team size: ${event.maxTeamSize ?? 'uncapped'})`
+                    : 'Disabled'}
+                </p>
+              </div>
             </div>
           ) : (
             <form onSubmit={handleSubmit(onSubmit)} className='space-y-4'>
@@ -317,6 +330,46 @@ export default function EventOverviewPage({ params }: EventOverviewPageProps) {
                     Featured on homepage (its Register URL is used site-wide)
                   </Label>
                 </div>
+
+                {/* Teams enabled */}
+                <div className='flex items-center gap-3'>
+                  <Controller
+                    name='teamsEnabled'
+                    control={control}
+                    render={({ field }) => (
+                      <Switch
+                        id='teamsEnabled'
+                        checked={field.value ?? false}
+                        onCheckedChange={field.onChange}
+                      />
+                    )}
+                  />
+                  <Label htmlFor='teamsEnabled'>
+                    Allow participants to form teams
+                  </Label>
+                </div>
+
+                {/* Max team size */}
+                {teamsEnabled && (
+                  <Field>
+                    <FieldLabel htmlFor='maxTeamSize'>
+                      Max team size (optional)
+                    </FieldLabel>
+                    <FieldDescription>Leave blank for no cap.</FieldDescription>
+                    <Input
+                      id='maxTeamSize'
+                      type='number'
+                      {...register('maxTeamSize', {
+                        setValueAs: (value) =>
+                          value === '' ? null : Number(value),
+                      })}
+                      placeholder='e.g. 4'
+                    />
+                    {errors.maxTeamSize && (
+                      <FieldError errors={[errors.maxTeamSize]} />
+                    )}
+                  </Field>
+                )}
               </FieldGroup>
 
               <div className='flex justify-end gap-2 pt-2'>
