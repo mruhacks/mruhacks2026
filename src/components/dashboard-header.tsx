@@ -1,5 +1,6 @@
 'use client';
 
+import * as React from 'react';
 import Link from 'next/link';
 import { LogOut, Settings, User } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -58,7 +59,18 @@ function buildBreadcrumbs(
 export function DashboardHeader({ user }: Props) {
   const router = useRouter();
   const pathname = usePathname();
-  const { segments: dynamicSegments } = useBreadcrumbContext();
+  const { segments: contextSegments } = useBreadcrumbContext();
+
+  // The header and page content hydrate as independent Suspense boundaries.
+  // If the content boundary hydrates (and runs its effects) before the
+  // header does, `contextSegments` can already differ from what the header
+  // was server-rendered with, causing a hydration mismatch here. Ignoring
+  // dynamic segments until after this component's own mount guarantees its
+  // first client render always matches its SSR output; the dynamic crumb
+  // then appears a beat later via a normal (non-hydration) re-render.
+  const [mounted, setMounted] = React.useState(false);
+  React.useEffect(() => setMounted(true), []);
+  const dynamicSegments = mounted ? contextSegments : {};
 
   async function handleLogout() {
     await authClient.signOut();

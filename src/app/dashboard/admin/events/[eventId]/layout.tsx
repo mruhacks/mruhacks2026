@@ -10,6 +10,7 @@ type EventLayoutProps = {
   overview: React.ReactNode;
   questions: React.ReactNode;
   responses: React.ReactNode;
+  teams: React.ReactNode;
   params: Promise<{ eventId: string }>;
 };
 
@@ -17,12 +18,14 @@ const TABS = [
   { id: 'overview', label: 'Overview & Settings' },
   { id: 'questions', label: 'Questions' },
   { id: 'responses', label: 'Responses' },
+  { id: 'teams', label: 'Teams' },
 ] as const;
 
 export default function EventLayout({
   overview,
   questions,
   responses,
+  teams,
   params,
 }: EventLayoutProps) {
   const { eventId } = React.use(params);
@@ -53,6 +56,7 @@ export default function EventLayout({
         {activeTab === 'overview' && overview}
         {activeTab === 'questions' && questions}
         {activeTab === 'responses' && responses}
+        {activeTab === 'teams' && teams}
       </div>
     </div>
   );

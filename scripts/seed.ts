@@ -84,6 +84,8 @@ async function seedEvents() {
       hasApplication: true,
       capacity: null,
       isFeatured: true,
+      teamsEnabled: true,
+      maxTeamSize: 5,
       applicationQuestions: [
         {
           id: Q_ATTENDED_BEFORE,

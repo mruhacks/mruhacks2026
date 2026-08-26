@@ -72,6 +72,9 @@ export const events = pgTable(
     capacity: integer('capacity'),
     // Marks the single event whose registerUrl the public site links to.
     isFeatured: boolean('is_featured').notNull().default(false),
+    teamsEnabled: boolean('teams_enabled').notNull().default(false),
+    // Nullable = uncapped team size.
+    maxTeamSize: integer('max_team_size'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at')
       .defaultNow()
@@ -316,62 +319,64 @@ export const eventRsvpResponses = pgTable(
 );
 
 // ---------------------------------------------------------------------------
-// Groups (event hosts groups)
+// Teams (event-scoped groups participants form to attend together)
 // ---------------------------------------------------------------------------
 
-export const groups = pgTable('groups', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  eventId: uuid('event_id')
-    .notNull()
-    .references(() => events.id, { onDelete: 'cascade' }),
-  name: text('name').notNull(),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at')
-    .defaultNow()
-    .$onUpdate(() => new Date())
-    .notNull(),
-});
-
-// ---------------------------------------------------------------------------
-// Group membership (groups contain users)
-// ---------------------------------------------------------------------------
-
-export const groupMembers = pgTable(
-  'group_members',
+export const teams = pgTable(
+  'teams',
   {
-    groupId: uuid('group_id')
+    id: uuid('id').defaultRandom().primaryKey(),
+    eventId: uuid('event_id')
       .notNull()
-      .references(() => groups.id, { onDelete: 'cascade' }),
-    userId: uuid('user_id')
+      .references(() => events.id, { onDelete: 'cascade' }),
+    organizerId: uuid('organizer_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
+    // 8-char alphanumeric join code, unique per event (not globally).
+    code: varchar('code', { length: 8 }).notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at')
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
   },
   (table) => ({
-    pk: primaryKey({ columns: [table.groupId, table.userId] }),
+    eventCodeUnique: uniqueIndex('teams_event_id_code_unique').on(
+      table.eventId,
+      table.code,
+    ),
+    idxEventId: index('idx_teams_event_id').on(table.eventId),
   }),
 );
 
 // ---------------------------------------------------------------------------
-// Submissions (groups submit to events)
+// Team membership (a user belongs to at most one team per event)
 // ---------------------------------------------------------------------------
 
-export const submissions = pgTable(
-  'submissions',
+export const teamMembers = pgTable(
+  'team_members',
   {
     id: uuid('id').defaultRandom().primaryKey(),
-    groupId: uuid('group_id')
+    teamId: uuid('team_id')
       .notNull()
-      .references(() => groups.id, { onDelete: 'cascade' }),
+      .references(() => teams.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    // Denormalized for fast per-event lookups and to enforce "one active
+    // team per user per event" via the unique index below.
     eventId: uuid('event_id')
       .notNull()
       .references(() => events.id, { onDelete: 'cascade' }),
-    submittedAt: timestamp('submitted_at').defaultNow().notNull(),
+    joinedAt: timestamp('joined_at').defaultNow().notNull(),
   },
   (table) => ({
-    groupEventUnique: uniqueIndex('submissions_group_id_event_id_unique').on(
-      table.groupId,
+    userEventUnique: uniqueIndex('team_members_user_id_event_id_unique').on(
+      table.userId,
       table.eventId,
     ),
+    idxTeamId: index('idx_team_members_team_id').on(table.teamId),
+    idxEventId: index('idx_team_members_event_id').on(table.eventId),
   }),
 );
 
@@ -394,8 +399,8 @@ export const eventsRelations = relations(events, ({ one, many }) => ({
   attendees: many(eventAttendees),
   checkIns: many(checkIns),
   rsvpWaves: many(eventRsvpWaves),
-  groups: many(groups),
-  submissions: many(submissions),
+  teams: many(teams),
+  teamMembers: many(teamMembers),
 }));
 
 export const userProfilesRelations = relations(userProfiles, ({ one }) => ({
@@ -509,33 +514,29 @@ export const eventRsvpResponsesRelations = relations(
   }),
 );
 
-export const groupsRelations = relations(groups, ({ one, many }) => ({
+export const teamsRelations = relations(teams, ({ one, many }) => ({
   event: one(events, {
-    fields: [groups.eventId],
+    fields: [teams.eventId],
     references: [events.id],
   }),
-  members: many(groupMembers),
-  submissions: many(submissions),
-}));
-
-export const groupMembersRelations = relations(groupMembers, ({ one }) => ({
-  group: one(groups, {
-    fields: [groupMembers.groupId],
-    references: [groups.id],
-  }),
-  user: one(user, {
-    fields: [groupMembers.userId],
+  organizer: one(user, {
+    fields: [teams.organizerId],
     references: [user.id],
   }),
+  members: many(teamMembers),
 }));
 
-export const submissionsRelations = relations(submissions, ({ one }) => ({
-  group: one(groups, {
-    fields: [submissions.groupId],
-    references: [groups.id],
+export const teamMembersRelations = relations(teamMembers, ({ one }) => ({
+  team: one(teams, {
+    fields: [teamMembers.teamId],
+    references: [teams.id],
+  }),
+  user: one(user, {
+    fields: [teamMembers.userId],
+    references: [user.id],
   }),
   event: one(events, {
-    fields: [submissions.eventId],
+    fields: [teamMembers.eventId],
     references: [events.id],
   }),
 }));

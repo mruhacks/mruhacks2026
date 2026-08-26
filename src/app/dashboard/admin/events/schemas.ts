@@ -65,6 +65,8 @@ export const createEventSchema = z.object({
   startsAt: z.string().nullish(),
   endsAt: z.string().nullish(),
   isFeatured: z.boolean().optional(),
+  teamsEnabled: z.boolean().optional(),
+  maxTeamSize: z.number().int().positive().nullish(),
 }).refine(
   (data) => {
     if (!data.startsAt || !data.endsAt) return true;
@@ -85,6 +87,8 @@ export const updateEventSettingsSchema = z.object({
   startsAt: z.string().nullish(),
   endsAt: z.string().nullish(),
   isFeatured: z.boolean().optional(),
+  teamsEnabled: z.boolean().optional(),
+  maxTeamSize: z.number().int().positive().nullish(),
 }).refine(
   (data) => {
     if (!data.startsAt || !data.endsAt) return true;

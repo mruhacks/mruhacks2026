@@ -33,7 +33,9 @@ import {
   eventAttendees,
   checkIns,
   eventRsvpResponses,
-  groupMembers,
+  teamMembers,
+  teams,
+  events,
   user as authUser,
 } from '@/db/schema';
 
@@ -278,7 +280,7 @@ export async function exportMyData(): Promise<ActionResult<unknown>> {
       attendance,
       checkInRows,
       rsvpResponses,
-      groupMemberships,
+      teamMemberships,
       termsHistory,
       privacyHistory,
       marketingConsent,
@@ -300,7 +302,19 @@ export async function exportMyData(): Promise<ActionResult<unknown>> {
         .select()
         .from(eventRsvpResponses)
         .where(eq(eventRsvpResponses.userId, uid)),
-      db.select().from(groupMembers).where(eq(groupMembers.userId, uid)),
+      db
+        .select({
+          eventId: teams.eventId,
+          eventName: events.name,
+          teamId: teams.id,
+          teamCode: teams.code,
+          isOrganizer: eq(teams.organizerId, uid),
+          joinedAt: teamMembers.joinedAt,
+        })
+        .from(teamMembers)
+        .innerJoin(teams, eq(teamMembers.teamId, teams.id))
+        .innerJoin(events, eq(teams.eventId, events.id))
+        .where(eq(teamMembers.userId, uid)),
       db
         .select()
         .from(termsAcceptances)
@@ -349,7 +363,7 @@ export async function exportMyData(): Promise<ActionResult<unknown>> {
       eventAttendance: attendance,
       checkIns: checkInRows,
       rsvpResponses,
-      groupMemberships,
+      teamMemberships,
     };
 
     return ok(exportPayload);
