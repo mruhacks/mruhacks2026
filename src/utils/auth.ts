@@ -109,11 +109,16 @@ export const auth = betterAuth({
     autoSignInAfterVerification: true,
     expiresIn: EMAIL_VERIFICATION_EXPIRES_IN,
     sendVerificationEmail: async ({ user, url }) => {
-      void sendMail({
+      await sendMail({
         to: user.email,
         subject: 'Verify your email — MRUHacks',
         text: `Verify your email address by opening this link:\n\n${url}\n`,
-        html: await render(React.createElement(VerifyEmailEmail, { url, baseUrl: getAuthBaseUrl() })),
+        html: await render(
+          React.createElement(VerifyEmailEmail, {
+            url,
+            baseUrl: getAuthBaseUrl(),
+          }),
+        ),
       }).catch((err) => {
         console.error('[auth] sendVerificationEmail failed', err);
       });
@@ -123,11 +128,16 @@ export const auth = betterAuth({
     enabled: true,
     requireEmailVerification: true,
     sendResetPassword: async ({ user, url }) => {
-      void sendMail({
+      await sendMail({
         to: user.email,
         subject: 'Reset your password — MRUHacks',
         text: `Reset your password by opening this link:\n\n${url}\n`,
-        html: await render(React.createElement(ResetPasswordEmail, { url, baseUrl: getAuthBaseUrl() })),
+        html: await render(
+          React.createElement(ResetPasswordEmail, {
+            url,
+            baseUrl: getAuthBaseUrl(),
+          }),
+        ),
       }).catch((err) => {
         console.error('[auth] sendResetPassword failed', err);
       });
@@ -160,11 +170,14 @@ export const auth = betterAuth({
             ? deleteObject(profile.resumeFile)
             : Promise.resolve(),
         ]).catch((error) => {
-          console.error('[auth] failed to delete user object storage files', error);
+          console.error(
+            '[auth] failed to delete user object storage files',
+            error,
+          );
         });
       },
       sendDeleteAccountVerification: async ({ user, url }) => {
-        void sendMail({
+        await sendMail({
           to: user.email,
           subject: 'Confirm account deletion — MRUHacks',
           text:
@@ -172,7 +185,12 @@ export const auth = betterAuth({
             `Confirm by opening this link (valid for 24 hours):\n\n${url}\n\n` +
             `This erases your account and all associated data and cannot be undone. ` +
             `If you did not request this, you can safely ignore this email.\n`,
-          html: await render(React.createElement(DeleteAccountEmail, { url, baseUrl: getAuthBaseUrl() })),
+          html: await render(
+            React.createElement(DeleteAccountEmail, {
+              url,
+              baseUrl: getAuthBaseUrl(),
+            }),
+          ),
         }).catch((err) => {
           console.error('[auth] sendDeleteAccountVerification failed', err);
         });
@@ -237,11 +255,16 @@ export const auth = betterAuth({
           });
         }
 
-        void sendMail({
+        await sendMail({
           to: email,
           subject: 'Sign in to MRUHacks',
           text: `Sign in by opening this link:\n\n${url}\n`,
-          html: await render(React.createElement(MagicLinkEmail, { url, baseUrl: getAuthBaseUrl() })),
+          html: await render(
+            React.createElement(MagicLinkEmail, {
+              url,
+              baseUrl: getAuthBaseUrl(),
+            }),
+          ),
         }).catch((err) => {
           console.error('[auth] sendMagicLink failed', err);
         });

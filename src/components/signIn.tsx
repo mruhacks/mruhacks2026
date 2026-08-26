@@ -69,7 +69,9 @@ function GoogleIcon() {
 export default function SignInForm() {
   const [loading, setLoading] = React.useState(false);
   const [magicLinkLoading, setMagicLinkLoading] = React.useState(false);
-  const [magicLinkSent, setMagicLinkSent] = React.useState(false);
+  const [magicLinkSentEmail, setMagicLinkSentEmail] = React.useState<
+    string | null
+  >(null);
   const [showPassword, setShowPassword] = React.useState(false);
   const [unverifiedEmail, setUnverifiedEmail] = React.useState<string | null>(
     null,
@@ -98,6 +100,7 @@ export default function SignInForm() {
 
     submitInProgress.current = true;
     setLoading(true);
+    form.clearErrors('root');
     void authClient.signIn
       .email(credentials, {
         headers: { 'x-captcha-response': turnstileToken },
@@ -119,8 +122,9 @@ export default function SignInForm() {
             setUnverifiedEmail(credentials.email);
             return;
           }
-          toast.error('Sign-in failed', {
-            description:
+          form.setError('root', {
+            type: 'manual',
+            message:
               ctx?.error?.message ?? 'Invalid credentials or network issue.',
           });
         },
@@ -130,21 +134,22 @@ export default function SignInForm() {
         setLoading(false);
         turnstileRef.current?.reset();
         setTurnstileToken(null);
-        toast.error('Sign-in failed', {
-          description: 'Invalid credentials or network issue.',
+        form.setError('root', {
+          type: 'manual',
+          message: 'Invalid credentials or network issue.',
         });
       });
   }
 
   async function handleMagicLink() {
-    if (submitInProgress.current || magicLinkSent) return;
+    if (submitInProgress.current || magicLinkSentEmail) return;
 
     submitInProgress.current = true;
+    form.clearErrors('root');
     const email = form.getValues('email');
     const valid = await form.trigger('email');
     if (!valid || !email) {
       submitInProgress.current = false;
-      toast.error('Enter your email first');
       return;
     }
     if (!turnstileToken) {
@@ -160,16 +165,19 @@ export default function SignInForm() {
         { headers: { 'x-captcha-response': turnstileToken } },
       );
       if (res.error) {
-        toast.error(res.error.message ?? 'Failed to send magic link');
+        form.setError('root', {
+          type: 'manual',
+          message: res.error.message ?? 'Failed to send magic link',
+        });
         return;
       }
 
-      setMagicLinkSent(true);
-      toast.success('Check your email', {
-        description: `We sent a sign-in link to ${email}.`,
-      });
+      setMagicLinkSentEmail(email);
     } catch {
-      toast.error('Failed to send magic link');
+      form.setError('root', {
+        type: 'manual',
+        message: 'Failed to send magic link',
+      });
     } finally {
       submitInProgress.current = false;
       setMagicLinkLoading(false);
@@ -196,6 +204,39 @@ export default function SignInForm() {
 
   function handleSocial(provider: 'github' | 'google') {
     authClient.signIn.social({ provider, callbackURL: '/dashboard' });
+  }
+
+  if (magicLinkSentEmail) {
+    return (
+      <Card className='w-full sm:max-w-md'>
+        <CardHeader>
+          <div className='bg-muted mb-4 flex size-12 items-center justify-center rounded-full'>
+            <MailCheck className='text-primary size-6' />
+          </div>
+          <CardTitle>Check your email</CardTitle>
+          <CardDescription>
+            We sent a sign-in link to{' '}
+            <span className='text-foreground font-medium'>
+              {magicLinkSentEmail}
+            </span>
+            . Click the link in that email to continue.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <p className='text-muted-foreground text-sm'>
+            Didn&apos;t receive the email? Check your spam folder, or{' '}
+            <button
+              type='button'
+              className='font-medium underline underline-offset-4 hover:no-underline'
+              onClick={() => setMagicLinkSentEmail(null)}
+            >
+              go back
+            </button>
+            .
+          </p>
+        </CardContent>
+      </Card>
+    );
   }
 
   if (unverifiedEmail) {
@@ -305,6 +346,9 @@ export default function SignInForm() {
             )}
           </FieldGroup>
         </form>
+        {form.formState.errors.root && (
+          <FieldError errors={[form.formState.errors.root]} />
+        )}
       </CardContent>
 
       <CardFooter className='flex-col items-stretch gap-4'>
@@ -344,7 +388,10 @@ export default function SignInForm() {
             <button
               type='button'
               className='text-muted-foreground self-center text-sm hover:underline'
-              onClick={() => setShowPassword(false)}
+              onClick={() => {
+                form.clearErrors('root');
+                setShowPassword(false);
+              }}
             >
               Use magic link instead
             </button>
@@ -355,22 +402,12 @@ export default function SignInForm() {
             <Button
               type='button'
               onClick={handleMagicLink}
-              disabled={
-                loading ||
-                magicLinkLoading ||
-                magicLinkSent ||
-                !turnstileToken
-              }
+              disabled={loading || magicLinkLoading || !turnstileToken}
             >
               {magicLinkLoading ? (
                 <>
                   <Loader2 className='mr-2 size-4 animate-spin' />
                   Sending link...
-                </>
-              ) : magicLinkSent ? (
-                <>
-                  <MailCheck className='mr-2 size-4' />
-                  Check your inbox
                 </>
               ) : (
                 'Send magic link'
@@ -421,7 +458,10 @@ export default function SignInForm() {
             <button
               type='button'
               className='text-muted-foreground self-center text-sm hover:underline'
-              onClick={() => setShowPassword(true)}
+              onClick={() => {
+                form.clearErrors('root');
+                setShowPassword(true);
+              }}
             >
               Have a password?
             </button>

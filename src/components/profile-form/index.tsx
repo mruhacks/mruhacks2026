@@ -28,7 +28,6 @@ import {
   type ProfileFormValues,
 } from '@/components/profile-form/schema';
 import { type ProfileFormOptions } from '@/components/profile-form/schema';
-import { useRouter } from 'next/navigation';
 
 // Mirrors the welcome onboarding flow's step categories (Personal / About you).
 const tabLabels: Record<string, string> = {
@@ -51,8 +50,7 @@ type ProfileFormProps = {
   submitLabel?: string;
   successMessage?: string;
   errorMessage?: string;
-  nextUrl?: string;
-  /** Called after a successful save before the default navigation occurs. */
+  /** Called after a successful save. */
   onSuccess?: () => void;
   /** Resume upload state, shown in the About you tab. */
   hasResume: boolean;
@@ -74,12 +72,10 @@ export default function ProfileForm({
   submitLabel = DEFAULT_SUBMIT_LABEL,
   successMessage = DEFAULT_SUCCESS_MESSAGE,
   errorMessage = DEFAULT_ERROR_MESSAGE,
-  nextUrl,
   onSuccess,
   hasResume,
   resumeFileName,
 }: ProfileFormProps) {
-  const router = useRouter();
   const {
     control,
     register,
@@ -149,23 +145,13 @@ export default function ProfileForm({
         toast.success(successMessage);
         if (onSuccess) {
           onSuccess();
-        } else {
-          router.push(nextUrl ?? '/dashboard');
         }
       } catch (err) {
         console.error('Profile submission error:', err);
         toast.error(errorMessage);
       }
     },
-    [
-      onSubmit,
-      successMessage,
-      errorMessage,
-      router,
-      nextUrl,
-      onSuccess,
-      queuedResume,
-    ],
+    [onSubmit, successMessage, errorMessage, onSuccess, queuedResume],
   );
 
   const focusActiveSection = () => {
