@@ -12,7 +12,6 @@ import {
   eventApplications,
   applicationStatuses,
   eventAttendees,
-  eventInterestRegistrations,
   applicationFormView,
   genders,
   universities,
@@ -32,8 +31,8 @@ import {
   type EventOnlyFormValues,
 } from '@/components/application-form/schema';
 import type { ApplicationQuestion } from '@/types/application';
-import { cacheLife, revalidatePath } from 'next/cache';
-import { and, desc, eq, isNotNull } from 'drizzle-orm';
+import { cacheLife } from 'next/cache';
+import { and, desc, eq } from 'drizzle-orm';
 import { getUserProfile } from '@/app/dashboard/profile/actions';
 import { buildApplicationResponses } from './application-responses';
 import {
@@ -331,48 +330,10 @@ export async function getUserApplicationStatus(
   };
 }
 
-/**
- * Records interest for an event for the current user.
- * Requires authentication and a completed profile.
- */
-export async function registerEventInterest(
-  eventId: string,
-): Promise<ActionResult> {
-  const user = await getUser();
-  if (!user) return fail('User not authenticated');
-
-  const profileResult = await getUserProfile();
-  if (!profileResult.success)
-    return fail(profileResult.error ?? 'Could not load profile');
-  if (profileResult.data == null)
-    return fail(
-      'Complete your profile first before getting reminders for events.',
-    );
-
-  try {
-    await db
-      .insert(eventInterestRegistrations)
-      .values({ userId: user.id, eventId })
-      .onConflictDoNothing({
-        target: [
-          eventInterestRegistrations.userId,
-          eventInterestRegistrations.eventId,
-        ],
-      });
-
-    revalidatePath('/dashboard/events');
-    return ok('Event interest saved successfully.');
-  } catch (error) {
-    console.error('Event interest save error:', error);
-    return fail('Failed to save event interest.');
-  }
-}
-
 export type EventWithUserStatus = {
   id: string;
   name: string;
   hasApplication: boolean;
-  userHasRegisteredInterest: boolean;
   startsAt: Date | null;
   endsAt: Date | null;
   userStatus: 'applied' | 'registered' | null;
@@ -398,16 +359,8 @@ export async function getEventsWithUserStatus(): Promise<
       hasApplication: events.hasApplication,
       startsAt: events.startsAt,
       endsAt: events.endsAt,
-      userHasRegisteredInterest: isNotNull(eventInterestRegistrations.userId),
     })
     .from(events)
-    .leftJoin(
-      eventInterestRegistrations,
-      and(
-        eq(eventInterestRegistrations.eventId, events.id),
-        eq(eventInterestRegistrations.userId, user.id),
-      ),
-    )
     .orderBy(desc(events.createdAt));
 
   const [applicationRows, attendeeEventIds] = await Promise.all([
@@ -444,7 +397,6 @@ export async function getEventsWithUserStatus(): Promise<
       id: e.id,
       name: e.name,
       hasApplication: e.hasApplication,
-      userHasRegisteredInterest: Boolean(e.userHasRegisteredInterest),
       startsAt: e.startsAt,
       endsAt: e.endsAt,
       userStatus: e.hasApplication

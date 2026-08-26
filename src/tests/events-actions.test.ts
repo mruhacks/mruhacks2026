@@ -4,14 +4,9 @@ import { eq } from 'drizzle-orm';
 import {
   user,
   events,
-  eventInterestRegistrations,
   eventApplications,
   applicationStatuses,
   userProfiles,
-  genders,
-  universities,
-  majors,
-  yearsOfStudy,
 } from '@/db/schema';
 
 vi.mock('@/utils/auth', () => ({ getUser: vi.fn() }));
@@ -25,7 +20,6 @@ import {
   getOptions,
   getEventsWithUserStatus,
   getUserApplicationStatus,
-  registerEventInterest,
   getPreviousFormSubmission,
   submitEventApplication,
 } from '@/app/dashboard/events/actions';
@@ -55,7 +49,6 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await db.delete(eventApplications).where(eq(eventApplications.userId, testUserId));
-  await db.delete(eventInterestRegistrations).where(eq(eventInterestRegistrations.userId, testUserId));
   await db.delete(userProfiles).where(eq(userProfiles.userId, testUserId));
   await db.delete(events).where(eq(events.id, testEventId));
   await db.delete(user).where(eq(user.id, testUserId));
@@ -112,14 +105,6 @@ describe('getPreviousFormSubmission', () => {
   test('fails when unauthenticated', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(null as never);
     const result = await getPreviousFormSubmission(testEventId);
-    expect(result.success).toBe(false);
-  });
-});
-
-describe('registerEventInterest', () => {
-  test('fails when unauthenticated', async () => {
-    vi.mocked(getUser).mockResolvedValueOnce(null as never);
-    const result = await registerEventInterest(testEventId);
     expect(result.success).toBe(false);
   });
 });
@@ -230,81 +215,5 @@ describe('getEventsWithUserStatus — applied user', () => {
     expect(found).toBeDefined();
     expect(found?.userStatus).toBe('applied');
     expect(found?.statusKey).toBe('pending_review');
-  });
-});
-
-// ─── registerEventInterest — authenticated ────────────────────────────────────
-
-describe('registerEventInterest — authenticated', () => {
-  let interestEventId: string;
-  let genderId: number;
-  let universityId: number;
-  let majorId: number;
-  let yearId: number;
-
-  beforeAll(async () => {
-    const [e] = await db
-      .insert(events)
-      .values({ name: 'Interest Event', hasApplication: true, applicationQuestions: [] })
-      .returning({ id: events.id });
-    interestEventId = e.id;
-
-    // Seed profile lookups needed by getUserProfile (called by registerEventInterest).
-    type LookupTable = typeof genders | typeof universities | typeof majors | typeof yearsOfStudy;
-    const upsertLookup = async (tbl: LookupTable, label: string): Promise<number> => {
-      const [existing] = await db.select({ id: tbl.id }).from(tbl).where(eq(tbl.label, label)).limit(1);
-      if (existing) return existing.id;
-      const [inserted] = await db.insert(tbl).values({ label }).returning({ id: tbl.id });
-      return inserted!.id;
-    };
-
-    genderId = await upsertLookup(genders, 'test-gender-ri');
-    universityId = await upsertLookup(universities, 'test-uni-ri');
-    majorId = await upsertLookup(majors, 'test-major-ri');
-    yearId = await upsertLookup(yearsOfStudy, 'tst-yr-ri');
-
-    // Create a profile so the interest registration succeeds.
-    await db
-      .insert(userProfiles)
-      .values({
-        userId: testUserId,
-        fullName: 'Events Test User',
-        genderId,
-        universityId,
-        majorId,
-        yearOfStudyId: yearId,
-      })
-      .onConflictDoUpdate({
-        target: userProfiles.userId,
-        set: { fullName: 'Events Test User', genderId, universityId, majorId, yearOfStudyId: yearId },
-      });
-  });
-
-  afterAll(async () => {
-    await db.delete(eventInterestRegistrations).where(eq(eventInterestRegistrations.eventId, interestEventId));
-    await db.delete(events).where(eq(events.id, interestEventId));
-    await db.delete(userProfiles).where(eq(userProfiles.userId, testUserId));
-    await db.delete(genders).where(eq(genders.label, 'test-gender-ri'));
-    await db.delete(universities).where(eq(universities.label, 'test-uni-ri'));
-    await db.delete(majors).where(eq(majors.label, 'test-major-ri'));
-    await db.delete(yearsOfStudy).where(eq(yearsOfStudy.label, 'tst-yr-ri'));
-  });
-
-  test('registers interest when user has a profile', async () => {
-    const result = await registerEventInterest(interestEventId);
-    expect(result.success).toBe(true);
-    const rows = await db
-      .select()
-      .from(eventInterestRegistrations)
-      .where(
-        eq(eventInterestRegistrations.userId, testUserId),
-      );
-    expect(rows.some((r) => r.eventId === interestEventId)).toBe(true);
-  });
-
-  test('getEventsWithUserStatus marks userHasRegisteredInterest=true', async () => {
-    const results = await getEventsWithUserStatus();
-    const found = results.find((e) => e.id === interestEventId);
-    expect(found?.userHasRegisteredInterest).toBe(true);
   });
 });

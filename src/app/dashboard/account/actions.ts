@@ -30,7 +30,6 @@ import {
   userInterests,
   userDietaryRestrictions,
   eventApplications,
-  eventInterestRegistrations,
   eventAttendees,
   checkIns,
   eventRsvpResponses,
@@ -276,7 +275,6 @@ export async function exportMyData(): Promise<ActionResult<unknown>> {
       interests,
       dietaryRestrictions,
       applications,
-      interestRegistrations,
       attendance,
       checkInRows,
       rsvpResponses,
@@ -296,10 +294,6 @@ export async function exportMyData(): Promise<ActionResult<unknown>> {
         .select()
         .from(eventApplications)
         .where(eq(eventApplications.userId, uid)),
-      db
-        .select()
-        .from(eventInterestRegistrations)
-        .where(eq(eventInterestRegistrations.userId, uid)),
       db.select().from(eventAttendees).where(eq(eventAttendees.userId, uid)),
       db.select().from(checkIns).where(eq(checkIns.userId, uid)),
       db
@@ -352,7 +346,6 @@ export async function exportMyData(): Promise<ActionResult<unknown>> {
       interests,
       dietaryRestrictions,
       eventApplications: applications,
-      eventInterestRegistrations: interestRegistrations,
       eventAttendance: attendance,
       checkIns: checkInRows,
       rsvpResponses,
