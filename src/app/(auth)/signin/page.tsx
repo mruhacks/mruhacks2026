@@ -1,10 +1,18 @@
-import { TabsContent } from '@/components/ui/tabs';
+import { Suspense } from 'react';
 import SignInForm from '@/components/signIn';
+import { getUser } from '@/utils/auth';
+import { redirect } from 'next/navigation';
+
+async function SignInGate() {
+  if (await getUser()) redirect('/dashboard');
+
+  return <SignInForm />;
+}
 
 export default function LoginPage() {
   return (
-    <TabsContent value='signin'>
-      <SignInForm />
-    </TabsContent>
+    <Suspense fallback={<SignInForm />}>
+      <SignInGate />
+    </Suspense>
   );
 }

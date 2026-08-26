@@ -61,12 +61,17 @@ export const events = pgTable(
     }),
     name: text('name').notNull(),
     hasApplication: boolean('has_application').notNull().default(false),
-    applicationQuestions: jsonb('application_questions').$type<
-      ApplicationQuestion[] | null
-    >(),
+    // Questions are configured independently from whether an application is
+    // required. An empty list is a valid application configuration.
+    applicationQuestions: jsonb('application_questions')
+      .$type<ApplicationQuestion[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
     startsAt: timestamp('starts_at'),
     endsAt: timestamp('ends_at'),
     capacity: integer('capacity'),
+    // Marks the single event whose registerUrl the public site links to.
+    isFeatured: boolean('is_featured').notNull().default(false),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at')
       .defaultNow()
@@ -77,6 +82,9 @@ export const events = pgTable(
     idxHasApplication: index('idx_events_has_application').on(
       table.hasApplication,
     ),
+    idxFeaturedUnique: uniqueIndex('idx_events_featured_unique')
+      .on(table.isFeatured)
+      .where(sql`${table.isFeatured} = true`),
   }),
 );
 
@@ -92,15 +100,33 @@ export const userProfiles = pgTable('user_profiles', {
   genderId: integer('gender_id')
     .notNull()
     .references(() => genders.id),
+  /** Free-text answer when genderId points at the "Other" option. */
+  genderOtherText: varchar('gender_other_text', { length: 255 }),
   universityId: integer('university_id')
     .notNull()
     .references(() => universities.id),
+  /** Free-text answer when universityId points at the "Other" option. */
+  universityOtherText: varchar('university_other_text', { length: 255 }),
   majorId: integer('major_id')
     .notNull()
     .references(() => majors.id),
+  /** Free-text answer when majorId points at the "Other" option. */
+  majorOtherText: varchar('major_other_text', { length: 255 }),
   yearOfStudyId: integer('year_of_study_id')
     .notNull()
     .references(() => yearsOfStudy.id),
+  attendedHackathonBefore: boolean('attended_hackathon_before')
+    .notNull()
+    .default(false),
+  /** Free-text answer when dietaryRestrictions includes the "Other" option. */
+  dietaryOtherText: varchar('dietary_other_text', { length: 255 }),
+  /** Optional social links, shown to organizers/sponsors reviewing applications. */
+  linkedinUrl: varchar('linkedin_url', { length: 255 }),
+  githubUrl: varchar('github_url', { length: 255 }),
+  /** Optional resume, stored as a validated data URL with its original name. */
+  resumeFile: text('resume_file'),
+  resumeFileName: varchar('resume_file_name', { length: 255 }),
+  resumeFileType: varchar('resume_file_type', { length: 100 }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at')
     .defaultNow()
@@ -535,6 +561,12 @@ export const applicationView = pgView('application_view', {
   dietaryRestrictions: text('dietary_restrictions').array(),
   responses: jsonb('responses').$type<Record<string, unknown>>(),
   createdAt: timestamp('created_at', { mode: 'string' }).notNull(),
+  linkedinUrl: varchar('linkedin_url', { length: 255 }),
+  githubUrl: varchar('github_url', { length: 255 }),
+  genderOtherText: varchar('gender_other_text', { length: 255 }),
+  universityOtherText: varchar('university_other_text', { length: 255 }),
+  majorOtherText: varchar('major_other_text', { length: 255 }),
+  dietaryOtherText: varchar('dietary_other_text', { length: 255 }),
 }).as(
   sql`
 WITH
@@ -567,7 +599,13 @@ SELECT
   ints.interests,
   dr.dietary_restrictions,
   a.responses,
-  a.created_at
+  a.created_at,
+  p.linkedin_url,
+  p.github_url,
+  p.gender_other_text,
+  p.university_other_text,
+  p.major_other_text,
+  p.dietary_other_text
 FROM event_applications a
 JOIN events e ON e.id = a.event_id
 JOIN "user" u ON u.id = a.user_id
@@ -596,6 +634,12 @@ export const applicationFormView = pgView('application_form_view', {
   dietaryRestrictions: integer('dietary_restrictions').array().notNull(),
   responses: jsonb('responses').$type<Record<string, unknown>>(),
   createdAt: timestamp('created_at', { mode: 'string' }).notNull(),
+  linkedinUrl: varchar('linkedin_url', { length: 255 }),
+  githubUrl: varchar('github_url', { length: 255 }),
+  genderOtherText: varchar('gender_other_text', { length: 255 }),
+  universityOtherText: varchar('university_other_text', { length: 255 }),
+  majorOtherText: varchar('major_other_text', { length: 255 }),
+  dietaryOtherText: varchar('dietary_other_text', { length: 255 }),
 }).as(
   sql`
 WITH
@@ -626,7 +670,13 @@ SELECT
   COALESCE(i.interests, '{}'::integer[]) AS interests,
   COALESCE(d.dietary_restrictions, '{}'::integer[]) AS dietary_restrictions,
   a.responses,
-  a.created_at
+  a.created_at,
+  p.linkedin_url,
+  p.github_url,
+  p.gender_other_text,
+  p.university_other_text,
+  p.major_other_text,
+  p.dietary_other_text
 FROM event_applications a
 JOIN user_profiles p ON p.user_id = a.user_id
 LEFT JOIN interests_agg i ON i.user_id = a.user_id

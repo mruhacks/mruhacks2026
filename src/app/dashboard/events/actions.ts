@@ -8,18 +8,16 @@
 import {
   events,
   userProfiles,
-  userInterests,
   userDietaryRestrictions,
   eventApplications,
+  applicationStatuses,
   eventAttendees,
   applicationFormView,
   genders,
   universities,
   majors,
   yearsOfStudy,
-  interests,
   dietaryRestrictions,
-  heardFromSources,
 } from '@/db/schema';
 import { getUser } from '@/utils/auth';
 import { ActionResult, fail, ok } from '@/utils/action-result';
@@ -36,16 +34,20 @@ import type { ApplicationQuestion } from '@/types/application';
 import { cacheLife } from 'next/cache';
 import { and, desc, eq } from 'drizzle-orm';
 import { getUserProfile } from '@/app/dashboard/profile/actions';
+import { buildApplicationResponses } from './application-responses';
 import {
-  buildApplicationResponses,
-  fromResponseKeys,
-} from './application-responses';
+  type ApplicationStatusLabel,
+  type ApplicationStatusDisplay,
+  getApplicationStatusDisplay,
+  getApplicationStatusDisplayMap,
+  resolveApplicationStatusKey,
+} from './application-status';
 
 /**
  * Returns the first event with has_application = true (e.g. default hackathon).
  * Used for redirecting /register to /dashboard/events and for ticket default event.
  */
-export async function getDefaultApplicationEvent() {
+async function getDefaultApplicationEvent() {
   'use cache';
   cacheLife('minutes');
   const rows = await db
@@ -59,10 +61,10 @@ export async function getDefaultApplicationEvent() {
 /**
  * Saves profile and event application for an event that has_application.
  * 1. Upserts user_profiles (from profileData)
- * 2. Replaces user_interests and user_dietary_restrictions (from profileData)
+ * 2. Replaces user_dietary_restrictions (from profileData)
  * 3. Upserts event_applications for (eventId, userId) with responses from eventData
  */
-export async function registerParticipant(
+async function registerParticipant(
   profileData: ProfileFormValues,
   eventData: EventOnlyFormValues,
   eventId: string,
@@ -83,16 +85,34 @@ export async function registerParticipant(
   const event = eventParsed.data;
 
   const [eventRow] = await db
-    .select({ applicationQuestions: events.applicationQuestions })
+    .select({
+      hasApplication: events.hasApplication,
+      applicationQuestions: events.applicationQuestions,
+    })
     .from(events)
     .where(eq(events.id, eventId))
     .limit(1);
-  const applicationQuestions =
-    (eventRow?.applicationQuestions as ApplicationQuestion[] | null) ?? [];
+  if (!eventRow) return fail('Event not found.');
+  if (!eventRow.hasApplication) {
+    return fail('This event does not require an application.');
+  }
+  const applicationQuestions = eventRow.applicationQuestions as ApplicationQuestion[];
 
-  const built = buildApplicationResponses(applicationQuestions, event);
+  const built = buildApplicationResponses(
+    applicationQuestions,
+    event.applicationResponses,
+  );
   if (!built.ok) return fail(built.error);
   const responses = built.responses;
+
+  const [pendingReview] = await db
+    .select({ id: applicationStatuses.id })
+    .from(applicationStatuses)
+    .where(eq(applicationStatuses.label, 'pending_review'))
+    .limit(1);
+  if (!pendingReview) {
+    return fail('Application statuses are not configured.');
+  }
 
   try {
     await db.transaction(async (tx) => {
@@ -102,38 +122,41 @@ export async function registerParticipant(
           userId: user.id,
           fullName: profile.fullName,
           genderId: profile.genderId,
+          genderOtherText: profile.genderOtherText || null,
           universityId: profile.universityId,
+          universityOtherText: profile.universityOtherText || null,
           majorId: profile.majorId,
+          majorOtherText: profile.majorOtherText || null,
           yearOfStudyId: profile.yearOfStudyId,
+          dietaryOtherText: profile.dietaryOtherText || null,
+          linkedinUrl: profile.linkedinUrl || null,
+          githubUrl: profile.githubUrl || null,
         })
         .onConflictDoUpdate({
           target: userProfiles.userId,
           set: {
             fullName: profile.fullName,
             genderId: profile.genderId,
+            genderOtherText: profile.genderOtherText || null,
             universityId: profile.universityId,
+            universityOtherText: profile.universityOtherText || null,
             majorId: profile.majorId,
+            majorOtherText: profile.majorOtherText || null,
             yearOfStudyId: profile.yearOfStudyId,
+            dietaryOtherText: profile.dietaryOtherText || null,
+            linkedinUrl: profile.linkedinUrl || null,
+            githubUrl: profile.githubUrl || null,
             updatedAt: new Date(),
           },
         });
 
-      await tx.delete(userInterests).where(eq(userInterests.userId, user.id));
-      if (profile.interests?.length) {
-        await tx.insert(userInterests).values(
-          profile.interests.map((interestId) => ({
-            userId: user.id,
-            interestId,
-          })),
-        );
-      }
-
       await tx
         .delete(userDietaryRestrictions)
         .where(eq(userDietaryRestrictions.userId, user.id));
-      if (profile.dietaryRestrictions?.length) {
+      const realRestrictions = profile.dietaryRestrictions?.filter((id) => id > 0) ?? [];
+      if (realRestrictions.length) {
         await tx.insert(userDietaryRestrictions).values(
-          profile.dietaryRestrictions.map((restrictionId) => ({
+          realRestrictions.map((restrictionId) => ({
             userId: user.id,
             restrictionId,
           })),
@@ -146,6 +169,7 @@ export async function registerParticipant(
           eventId,
           userId: user.id,
           responses,
+          statusId: pendingReview.id,
         })
         .onConflictDoUpdate({
           target: [eventApplications.eventId, eventApplications.userId],
@@ -163,10 +187,7 @@ export async function registerParticipant(
   }
 }
 
-/**
- * Fetches all application form options with caching
- */
-export async function getOptions() {
+async function fetchOptionsData() {
   'use cache';
   cacheLife('hours');
 
@@ -175,9 +196,7 @@ export async function getOptions() {
     universities,
     majors,
     years: yearsOfStudy,
-    interests,
     dietary: dietaryRestrictions,
-    heardFrom: heardFromSources,
   };
 
   const entries = await Promise.all(
@@ -188,6 +207,17 @@ export async function getOptions() {
   );
 
   return Object.fromEntries(entries);
+}
+
+/**
+ * Fetches all application form options. Requires authentication.
+ * The DB query is cached separately because 'use cache' functions cannot
+ * read request-scoped context like the session.
+ */
+export async function getOptions() {
+  const u = await getUser();
+  if (!u) throw new Error('Not authenticated');
+  return fetchOptionsData();
 }
 
 /**
@@ -213,16 +243,20 @@ export async function getPreviousFormSubmission(eventId: string) {
 
   const row = data[0];
   const responses = (row.responses ?? {}) as Record<string, unknown>;
-  const eventPart = fromResponseKeys(responses);
   const initial = {
     fullName: row.fullName,
     genderId: row.genderId,
+    genderOtherText: row.genderOtherText ?? '',
     universityId: row.universityId,
+    universityOtherText: row.universityOtherText ?? '',
     majorId: row.majorId,
+    majorOtherText: row.majorOtherText ?? '',
     yearOfStudyId: row.yearOfStudyId,
-    interests: row.interests ?? [],
+    linkedinUrl: row.linkedinUrl ?? '',
+    githubUrl: row.githubUrl ?? '',
     dietaryRestrictions: row.dietaryRestrictions ?? [],
-    ...eventPart,
+    dietaryOtherText: row.dietaryOtherText ?? '',
+    applicationResponses: responses,
   };
 
   return ok(initial);
@@ -249,6 +283,53 @@ export async function submitEventApplication(
   return registerParticipant(profile, eventData, eventId);
 }
 
+export type ApplicationStatusForUser = {
+  applicationId: string;
+  statusKey: ApplicationStatusLabel;
+  statusDisplay: ApplicationStatusDisplay;
+  reviewedAt: Date | null;
+  waitlistPosition: number | null;
+  createdAt: Date;
+};
+
+/**
+ * Current user's application row for an event + review status label.
+ * Returns null if there is no application row for (user, event).
+ */
+export async function getUserApplicationStatus(
+  eventId: string,
+): Promise<ApplicationStatusForUser | null> {
+  const user = await getUser();
+  if (!user) return null;
+  const [row] = await db
+    .select({
+      applicationId: eventApplications.id,
+      statusKey: applicationStatuses.label,
+      reviewedAt: eventApplications.reviewedAt,
+      waitlistPosition: eventApplications.waitlistPosition,
+      createdAt: eventApplications.createdAt,
+    })
+    .from(eventApplications)
+    .leftJoin(
+      applicationStatuses,
+      eq(eventApplications.statusId, applicationStatuses.id),
+    )
+    .where(
+      and(
+        eq(eventApplications.userId, user.id),
+        eq(eventApplications.eventId, eventId),
+      ),
+    )
+    .limit(1);
+  if (!row) return null;
+  const statusKey = resolveApplicationStatusKey(row.statusKey);
+  return {
+    ...row,
+    statusKey,
+    statusDisplay: await getApplicationStatusDisplay(statusKey),
+  };
+}
+
 export type EventWithUserStatus = {
   id: string;
   name: string;
@@ -256,6 +337,9 @@ export type EventWithUserStatus = {
   startsAt: Date | null;
   endsAt: Date | null;
   userStatus: 'applied' | 'registered' | null;
+  statusKey: ApplicationStatusLabel | null;
+  statusDisplay: ApplicationStatusDisplay | null;
+  waitlistPosition: number | null;
 };
 
 /**
@@ -269,14 +353,28 @@ export async function getEventsWithUserStatus(): Promise<
   if (!user) return [];
 
   const allEvents = await db
-    .select()
+    .select({
+      id: events.id,
+      name: events.name,
+      hasApplication: events.hasApplication,
+      startsAt: events.startsAt,
+      endsAt: events.endsAt,
+    })
     .from(events)
     .orderBy(desc(events.createdAt));
 
-  const [applicationEventIds, attendeeEventIds] = await Promise.all([
+  const [applicationRows, attendeeEventIds] = await Promise.all([
     db
-      .select({ eventId: eventApplications.eventId })
+      .select({
+        eventId: eventApplications.eventId,
+        statusKey: applicationStatuses.label,
+        waitlistPosition: eventApplications.waitlistPosition,
+      })
       .from(eventApplications)
+      .leftJoin(
+        applicationStatuses,
+        eq(eventApplications.statusId, applicationStatuses.id),
+      )
       .where(eq(eventApplications.userId, user.id)),
     db
       .select({ eventId: eventAttendees.eventId })
@@ -284,21 +382,33 @@ export async function getEventsWithUserStatus(): Promise<
       .where(eq(eventAttendees.userId, user.id)),
   ]);
 
-  const appliedSet = new Set(applicationEventIds.map((r) => r.eventId));
   const registeredSet = new Set(attendeeEventIds.map((r) => r.eventId));
+  const statusByEventId = new Map(
+    applicationRows.map((r) => [r.eventId, r] as const),
+  );
+  const displayMap = await getApplicationStatusDisplayMap();
 
-  return allEvents.map((e) => ({
-    id: e.id,
-    name: e.name,
-    hasApplication: e.hasApplication,
-    startsAt: e.startsAt,
-    endsAt: e.endsAt,
-    userStatus: e.hasApplication
-      ? appliedSet.has(e.id)
-        ? ('applied' as const)
-        : null
-      : registeredSet.has(e.id)
-        ? ('registered' as const)
-        : null,
-  }));
+  return allEvents.map((e) => {
+    const application = statusByEventId.get(e.id);
+    const statusKey = application
+      ? resolveApplicationStatusKey(application.statusKey)
+      : null;
+    return {
+      id: e.id,
+      name: e.name,
+      hasApplication: e.hasApplication,
+      startsAt: e.startsAt,
+      endsAt: e.endsAt,
+      userStatus: e.hasApplication
+        ? statusByEventId.has(e.id)
+          ? ('applied' as const)
+          : null
+        : registeredSet.has(e.id)
+          ? ('registered' as const)
+          : null,
+      statusKey,
+      statusDisplay: statusKey ? displayMap[statusKey] : null,
+      waitlistPosition: application?.waitlistPosition ?? null,
+    };
+  });
 }

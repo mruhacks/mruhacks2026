@@ -2,8 +2,8 @@ export const EVENT_START_DATE = new Date('2026-10-23T00:00:00-06:00'); // Octobe
 export const EVENT_DATE_DISPLAY = 'October 23-25, 2026';
 export const EVENT_LOCATION_DISPLAY = 'In-Person Event @ Riddell Library';
 
-export const REGISTRATION_OPEN = false;
-export const LOGIN_ENABLED = false;
+export const REGISTRATION_OPEN = true;
+export const LOGIN_ENABLED = true;
 
 export const INTRO_BLURB: string = `
 MRUHacks is Mount Royal University’s largest hackathon, bringing
@@ -105,9 +105,11 @@ export const SPONSOR_CTA: string = `
 MRUHacks would be impossible to run without our fantastic sponsors.
 `;
 
+export const DISCORD_LINK = 'https://discord.com/invite/e7Fg6jsnrm';
+
 export type FooterLink = { label: string; href: string };
 export const FOOTER_LINKS: FooterLink[] = [
-  { label: 'Discord Server', href: 'https://discord.gg/e7Fg6jsnrm' },
+  { label: 'Discord Server', href: DISCORD_LINK },
   { label: 'LinkedIn', href: 'https://www.linkedin.com/company/mruhacks' },
   { label: 'Instagram', href: 'https://www.instagram.com/mruhacks' },
 ];

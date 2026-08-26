@@ -1,19 +1,14 @@
-import { dirname } from 'path';
-import { fileURLToPath } from 'url';
-import { FlatCompat } from '@eslint/eslintrc';
+import eslintConfigNextCoreWebVitals from 'eslint-config-next/core-web-vitals';
+import eslintConfigNextTypescript from 'eslint-config-next/typescript';
 import eslintConfigPrettier from 'eslint-config-prettier';
 import eslintPluginBetterTailwindcss from 'eslint-plugin-better-tailwindcss';
 import noNestedInteractive from './eslint-rules/no-nested-interactive.mjs';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-const compat = new FlatCompat({
-  baseDirectory: __dirname,
-});
+import noRouterRefresh from './eslint-rules/no-router-refresh.mjs';
+import enforceMRUHacksNaming from './eslint-rules/enforce-mruhacks-naming.mjs';
 
 const eslintConfig = [
-  ...compat.extends('next/core-web-vitals', 'next/typescript'),
+  ...eslintConfigNextCoreWebVitals,
+  ...eslintConfigNextTypescript,
   {
     ignores: [
       'node_modules/**',
@@ -22,6 +17,7 @@ const eslintConfig = [
       'build/**',
       'next-env.d.ts',
       'src/components/ui/**',
+      'eslint-rules/**',
     ],
   },
   {
@@ -30,11 +26,15 @@ const eslintConfig = [
       custom: {
         rules: {
           'no-nested-interactive': noNestedInteractive,
+          'no-router-refresh': noRouterRefresh,
+          'enforce-mruhacks-naming': enforceMRUHacksNaming,
         },
       },
     },
     rules: {
       'custom/no-nested-interactive': 'error',
+      'custom/no-router-refresh': 'warn',
+      'custom/enforce-mruhacks-naming': 'error',
       // Enable recommended Tailwind CSS rules
       ...eslintPluginBetterTailwindcss.configs['recommended-warn'].rules,
       // Disable Prettier-conflicting ESLint rules

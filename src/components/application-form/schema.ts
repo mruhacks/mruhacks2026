@@ -1,25 +1,107 @@
 import { z } from 'zod';
+import { resolveMaxLength, type ApplicationQuestion } from '@/types/application';
+import { otherTextKey } from '@/lib/other-option';
 
-/** Event-specific answers keyed by application question key. Validated in server action against event.applicationQuestions. */
-export const applicationResponsesSchema = z.record(z.string(), z.unknown());
+const otherTextSchema = z
+  .string()
+  .trim()
+  .max(255, 'Keep it under 255 characters.')
+  .optional()
+  .nullable();
 
-/** Event-only form (for ApplicationForm): attendedBefore, accommodations, applicationResponses. */
+/** Event-specific answers keyed by question UUID. Validated server-side against event.applicationQuestions. */
+const applicationResponsesSchema = z.record(z.string(), z.unknown());
+
+/** Event-only form: applicationResponses keyed by question UUID. */
 export const eventOnlySchema = z.object({
-  attendedBefore: z.boolean(),
-  accommodations: z.string().max(500).optional(),
   applicationResponses: z.record(z.string(), z.unknown()).default({}),
 });
 
 export type EventOnlyFormValues = z.infer<typeof eventOnlySchema>;
 
-export type ApplicationSelectOption = { value: number; label: string };
+export type ApplicationSelectOption = { value: string; label: string };
 
-export type ApplicationFormOptions = {
-  genders: ApplicationSelectOption[];
-  universities: ApplicationSelectOption[];
-  majors: ApplicationSelectOption[];
-  years: ApplicationSelectOption[];
-  interests: ApplicationSelectOption[];
-  dietary: ApplicationSelectOption[];
-  heardFrom: ApplicationSelectOption[];
-};
+/**
+ * Generates a Zod schema for validation based on application questions.
+ * Creates field-level validation rules for each question type.
+ */
+export function createApplicationFormSchema(
+  questions: ApplicationQuestion[] | null,
+) {
+  const responsesSchema: Record<string, z.ZodTypeAny> = {};
+
+  if (!questions) {
+    return z.object({
+      applicationResponses: z.record(z.string(), z.unknown()).default({}),
+    });
+  }
+
+  for (const question of questions) {
+    if (!question.active) continue;
+
+    // Section dividers don't need validation
+    if (question.type === 'section_divider') continue;
+
+    const questionId = question.id;
+    let fieldSchema: z.ZodTypeAny;
+
+    switch (question.type) {
+      case 'short_text':
+      case 'long_text': {
+        const max = resolveMaxLength(question)!;
+        fieldSchema = z
+          .string()
+          .trim()
+          .min(1, `At least one option must be selected`)
+          .max(max, `Keep it under ${max} characters.`);
+        break;
+      }
+
+      case 'number':
+        fieldSchema = z
+          .number('Must be a number')
+          .or(z.string().pipe(z.coerce.number('Must be a number')));
+        break;
+
+      case 'boolean':
+        if (question.required) {
+          fieldSchema = z.boolean().refine((val) => val === true, {
+            message: `Must be checked`,
+          });
+        } else {
+          fieldSchema = z.boolean().optional().nullable();
+        }
+        break;
+
+      case 'single_select':
+        fieldSchema = z
+          .string()
+          .min(1, `Please select an option for ${question.label}`);
+        responsesSchema[otherTextKey(questionId)] = otherTextSchema;
+        break;
+
+      case 'multi_select':
+        fieldSchema = z
+          .array(z.string())
+          .min(1, `Please select at least one option for ${question.label}`);
+        responsesSchema[otherTextKey(questionId)] = otherTextSchema;
+        break;
+
+      default:
+        fieldSchema = z.unknown();
+    }
+
+    // Apply required/optional logic
+    if (question.required && question.type !== 'boolean') {
+      responsesSchema[questionId] = fieldSchema;
+    } else if (question.type !== 'boolean') {
+      responsesSchema[questionId] = fieldSchema.optional().nullable();
+    } else {
+      responsesSchema[questionId] = fieldSchema;
+    }
+  }
+
+  return z.object({
+    applicationResponses: z.object(responsesSchema).default({}),
+  });
+}

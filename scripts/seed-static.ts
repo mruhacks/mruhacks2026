@@ -1,4 +1,4 @@
-import { db } from '@/utils/db';
+import { client, db } from '@/utils/db';
 import { InferInsertModel, Table, getTableName } from 'drizzle-orm';
 import {
   genders,
@@ -11,6 +11,11 @@ import {
   applicationStatuses,
   rsvpStatuses,
   eventTypes,
+  role,
+  permission,
+  rolePermissions,
+  userRole,
+  userPermission,
 } from '@/db/schema';
 import {
   gendersList,
@@ -21,6 +26,7 @@ import {
   dietaryRestrictionsList,
   heardFromSourcesList,
   applicationStatusesList,
+  applicationStatusDisplayList,
   rsvpStatusesList,
   eventTypesList,
 } from '@/types/lookups';
@@ -45,6 +51,22 @@ function defineSeedTable<TTable extends Table>(
   };
 }
 
+function defineApplicationStatusSeedTable(): SeedTable<
+  typeof applicationStatuses
+> {
+  return {
+    table: applicationStatuses,
+    validLabels: applicationStatusesList as readonly string[],
+    values: applicationStatusDisplayList.map((s) => ({
+      label: s.label,
+      title: s.title,
+      description: s.description,
+      variant: s.variant,
+      isFinal: s.isFinal,
+    })),
+  };
+}
+
 // ---------- Table registry ----------
 const tables = [
   defineSeedTable(genders, gendersList),
@@ -54,7 +76,7 @@ const tables = [
   defineSeedTable(interests, interestsList),
   defineSeedTable(dietaryRestrictions, dietaryRestrictionsList),
   defineSeedTable(heardFromSources, heardFromSourcesList),
-  defineSeedTable(applicationStatuses, applicationStatusesList),
+  defineApplicationStatusSeedTable(),
   defineSeedTable(rsvpStatuses, rsvpStatusesList),
   defineSeedTable(eventTypes, eventTypesList),
 ] satisfies SeedTable<Table>[];
@@ -78,16 +100,146 @@ export async function seedStaticTables() {
   }
 
   console.log('✅ Static tables seeded successfully');
+
+  return await seedRolesAndPermissions();
+}
+
+// ---------- Roles & permissions ----------
+type RoleInsert = InferInsertModel<typeof role>;
+type PermissionInsert = InferInsertModel<typeof permission>;
+type RolePermissionInsert = InferInsertModel<typeof rolePermissions>;
+
+async function seedRolesAndPermissions() {
+  const baseRoles: RoleInsert[] = [
+    { slug: 'admin', description: 'Full system administrator' },
+    { slug: 'organizer', description: 'Manages event logistics and users' },
+    { slug: 'judge', description: 'Evaluates hackathon projects' },
+    { slug: 'volunteer', description: 'Supports event operations' },
+    { slug: 'participant', description: 'Registered hackathon attendee' },
+  ];
+
+  const basePermissions: PermissionInsert[] = [
+    { slug: 'user:read:all', description: 'View any user information' },
+    { slug: 'user:write:all', description: 'Modify any user information' },
+    {
+      slug: 'user:all:all',
+      description: 'Full user management (create/update/delete)',
+    },
+    { slug: 'role:read:all', description: 'View roles and their permissions' },
+    { slug: 'role:write:all', description: 'Create, update and delete roles' },
+    { slug: 'permission:read:all', description: 'View permissions' },
+    {
+      slug: 'permission:write:all',
+      description: 'Create and delete permissions',
+    },
+    { slug: 'participant:read:all', description: 'View participant profiles' },
+    { slug: 'participant:write:all', description: 'Edit participant data' },
+    { slug: 'submission:read:all', description: 'View project submissions' },
+    { slug: 'submission:write:all', description: 'Modify project submissions' },
+    { slug: 'event:manage:all', description: 'Create and manage events' },
+    { slug: 'checkin:write:all', description: 'Check participants in or out' },
+    { slug: 'application:read:all', description: 'View event applications' },
+    {
+      slug: 'application:review:all',
+      description: 'Approve or reject applications',
+    },
+    {
+      slug: 'system:read:all',
+      description: 'View system health and diagnostics',
+    },
+  ];
+
+  console.log('🧱 Seeding roles and permissions...');
+
+  const result = await db.transaction(async (tx) => {
+    await tx.delete(rolePermissions);
+    await tx.delete(userRole);
+    await tx.delete(userPermission);
+    await tx.delete(role);
+    await tx.delete(permission);
+
+    const insertedRoles = await tx.insert(role).values(baseRoles).returning();
+    const insertedPerms = await tx
+      .insert(permission)
+      .values(basePermissions)
+      .returning();
+
+    const findPerm = (slug: string) =>
+      insertedPerms.find((p) => p.slug === slug)!;
+    const findRole = (slug: string) =>
+      insertedRoles.find((r) => r.slug === slug)!;
+
+    const rolePerms: RolePermissionInsert[] = [
+      ...insertedPerms.map((p) => ({
+        roleId: findRole('admin').id,
+        permissionId: p.id,
+      })),
+      {
+        roleId: findRole('organizer').id,
+        permissionId: findPerm('event:manage:all').id,
+      },
+      {
+        roleId: findRole('organizer').id,
+        permissionId: findPerm('participant:read:all').id,
+      },
+      {
+        roleId: findRole('organizer').id,
+        permissionId: findPerm('participant:write:all').id,
+      },
+      {
+        roleId: findRole('organizer').id,
+        permissionId: findPerm('user:read:all').id,
+      },
+      {
+        roleId: findRole('organizer').id,
+        permissionId: findPerm('application:read:all').id,
+      },
+      {
+        roleId: findRole('organizer').id,
+        permissionId: findPerm('application:review:all').id,
+      },
+      {
+        roleId: findRole('organizer').id,
+        permissionId: findPerm('checkin:write:all').id,
+      },
+      {
+        roleId: findRole('judge').id,
+        permissionId: findPerm('submission:read:all').id,
+      },
+      {
+        roleId: findRole('volunteer').id,
+        permissionId: findPerm('participant:read:all').id,
+      },
+      {
+        roleId: findRole('volunteer').id,
+        permissionId: findPerm('checkin:write:all').id,
+      },
+      {
+        roleId: findRole('participant').id,
+        permissionId: findPerm('submission:read:all').id,
+      },
+    ];
+
+    await tx.insert(rolePermissions).values(rolePerms);
+
+    console.log(
+      `✅ Seeded ${insertedRoles.length} roles, ${insertedPerms.length} permissions, and ${rolePerms.length} links.`,
+    );
+
+    return { insertedRoles, insertedPerms };
+  });
+
+  return result;
 }
 
 // ---------- Direct execution ----------
 if (require.main === module) {
-  seedStaticTables()
-    .then(() => {
-      process.exit(0);
-    })
+  void seedStaticTables()
     .catch((err) => {
       console.error('❌ Seed failed:', err);
-      process.exit(1);
+      process.exitCode = 1;
+    })
+    .finally(async () => {
+      await client.end();
     });
 }

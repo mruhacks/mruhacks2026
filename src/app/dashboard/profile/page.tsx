@@ -40,6 +40,14 @@ export default async function DashboardProfilePage() {
           initial={initial}
           options={options}
           onSubmit={saveUserProfile}
+          hasResume={
+            profileResult.success && profileResult.data?.hasResume === true
+          }
+          resumeFileName={
+            profileResult.success
+              ? (profileResult.data?.resumeFileName ?? null)
+              : null
+          }
         />
       </CardContent>
     </Card>

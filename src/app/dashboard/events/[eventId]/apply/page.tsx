@@ -1,15 +1,15 @@
+import Link from 'next/link';
 import { redirect, notFound } from 'next/navigation';
+import { BreadcrumbSegment } from '@/components/breadcrumb-context';
 
 import { getUser } from '@/utils/auth';
 import {
   getOptions,
   getPreviousFormSubmission,
+  getUserApplicationStatus,
   submitEventApplication,
 } from '@/app/dashboard/events/actions';
-import {
-  getUserProfile,
-  saveUserProfile,
-} from '@/app/dashboard/profile/actions';
+import { getUserProfile } from '@/app/dashboard/profile/actions';
 import { db } from '@/utils/db';
 import { events } from '@/db/schema';
 import { eq } from 'drizzle-orm';
@@ -20,21 +20,26 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import ProfileForm from '@/components/profile-form';
+import { Button } from '@/components/ui/button';
+import { ProfileView } from '@/components/profile-view';
 import ApplicationForm from '@/components/application-form';
 import type { ProfileFormValues } from '@/components/profile-form/schema';
 import type { EventOnlyFormValues } from '@/components/application-form/schema';
+import { ApplicationStatusBanner } from '@/app/dashboard/events/ApplicationStatusBanner';
 
 type PreviousSubmission = {
   fullName: string;
   genderId: number;
+  genderOtherText: string;
   universityId: number;
+  universityOtherText: string;
   majorId: number;
+  majorOtherText: string;
   yearOfStudyId: number;
-  interests: number[];
+  linkedinUrl: string;
+  githubUrl: string;
   dietaryRestrictions: number[];
-  attendedBefore: boolean;
-  accommodations: string | undefined;
+  dietaryOtherText: string;
   applicationResponses: Record<string, unknown>;
 };
 
@@ -50,25 +55,22 @@ function buildApplyInitials(
     ? {
         fullName: prev.fullName,
         genderId: prev.genderId,
+        genderOtherText: prev.genderOtherText ?? '',
         universityId: prev.universityId,
+        universityOtherText: prev.universityOtherText ?? '',
         majorId: prev.majorId,
+        majorOtherText: prev.majorOtherText ?? '',
         yearOfStudyId: prev.yearOfStudyId,
-        interests: prev.interests ?? [],
+        linkedinUrl: prev.linkedinUrl ?? '',
+        githubUrl: prev.githubUrl ?? '',
         dietaryRestrictions: prev.dietaryRestrictions ?? [],
+        dietaryOtherText: prev.dietaryOtherText ?? '',
       }
     : (profileData ?? { fullName: user.name ?? '' });
 
   const eventInitial = prev
-    ? {
-        attendedBefore: prev.attendedBefore,
-        accommodations: prev.accommodations,
-        applicationResponses: prev.applicationResponses ?? {},
-      }
-    : {
-        attendedBefore: false,
-        accommodations: '',
-        applicationResponses: {} as Record<string, unknown>,
-      };
+    ? { applicationResponses: prev.applicationResponses ?? {} }
+    : { applicationResponses: {} as Record<string, unknown> };
 
   return { profileInitial, eventInitial };
 }
@@ -103,11 +105,13 @@ export default async function ApplyEventPage({ params }: Props) {
     );
   }
 
-  const [previousApplication, options, profileResult] = await Promise.all([
-    getPreviousFormSubmission(eventId),
-    getOptions(),
-    getUserProfile(),
-  ]);
+  const [previousApplication, options, profileResult, applicationStatus] =
+    await Promise.all([
+      getPreviousFormSubmission(eventId),
+      getOptions(),
+      getUserProfile(),
+      getUserApplicationStatus(eventId),
+    ]);
 
   const hasProfile = profileResult.success && profileResult.data != null;
   const profileData = hasProfile ? profileResult.data : null;
@@ -123,31 +127,52 @@ export default async function ApplyEventPage({ params }: Props) {
     redirect(`/dashboard/profile?next=/dashboard/events/${eventId}/apply`);
   }
 
+  const decisionIsFinal =
+    applicationStatus != null && applicationStatus.statusDisplay.isFinal;
+  const hasCustomQuestions = event.applicationQuestions.some(
+    (question) => question.active && question.type !== 'section_divider',
+  );
+
+  if (decisionIsFinal && applicationStatus) {
+    return (
+      <div className='space-y-4'>
+        <ApplicationStatusBanner application={applicationStatus} standalone />
+        <div className='sm:max-w-2xl'>
+          <Button asChild variant='outline' size='sm'>
+            <Link href='/dashboard/events'>← Back to events</Link>
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <Card className='w-full sm:max-w-2xl'>
+      <BreadcrumbSegment id={eventId} label={event.name} />
       <CardHeader>
         <CardTitle>Application: {event.name}</CardTitle>
         <CardDescription>
-          Update your profile and event application below.
+          {hasCustomQuestions
+            ? 'Review your profile and complete the event application below.'
+            : 'Review your profile and submit your application for review.'}
         </CardDescription>
       </CardHeader>
       <CardContent className='space-y-8'>
+        {applicationStatus && (
+          <ApplicationStatusBanner application={applicationStatus} />
+        )}
         <section>
-          <h3 className='mb-4 text-sm font-medium'>Your profile</h3>
-          <ProfileForm
-            initial={profileInitial}
-            options={options}
-            onSubmit={saveUserProfile}
-          />
+          <ProfileView profile={profileInitial} options={options} />
         </section>
         <section>
-          <h3 className='mb-4 text-sm font-medium'>Event questions</h3>
           <ApplicationForm
             initial={eventInitial}
-            options={options}
-            applicationQuestions={event.applicationQuestions ?? null}
+            applicationQuestions={event.applicationQuestions}
             submitAction={submitEventApplication}
             eventId={eventId}
+            submitLabel={
+              applicationStatus ? 'Save changes' : 'Submit application'
+            }
           />
         </section>
       </CardContent>

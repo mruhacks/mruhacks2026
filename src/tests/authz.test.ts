@@ -18,11 +18,8 @@ import {
   revokePermissionFromUser,
   revokePermissionFromRole,
 } from '@/app/actions/roles';
-import {
-  getUserPermissions,
-  hasPermission,
-  requirePermission,
-} from '@/app/actions/authz';
+import { getUserPermissions } from '@/app/actions/authz';
+import { hasPermission, requirePermission } from '@/lib/rbac/authorization';
 import {
   user,
   role,
@@ -34,7 +31,10 @@ import {
 // Note: rolePermissions is used, others are imported but not directly used in this file
 import { eq } from 'drizzle-orm';
 
-import { describe, vi, beforeAll, test, expect } from 'vitest';
+import { describe, vi, beforeAll, afterAll, test, expect } from 'vitest';
+vi.mock('server-only', () => ({}));
+vi.mock('@/utils/auth', () => ({ getUser: vi.fn() }));
+import { getUser } from '@/utils/auth';
 
 // Mock redirect to capture redirects instead of terminating test
 vi.mock('next/navigation', () => ({
@@ -60,7 +60,6 @@ describe('Authorization system', () => {
       })
       .returning({ id: user.id });
     userId = u.id;
-
     // Clear any pre-existing roles / perms
     await db.delete(userRole);
     await db.delete(userPermission);
@@ -69,8 +68,22 @@ describe('Authorization system', () => {
     await db.delete(rolePermissions);
     await db.delete(role);
     await db.delete(permission);
+    const privilegeSlugs = [
+      'role:all:all',
+      'permission:all:all',
+      'user:all:all',
+    ];
+    for (const slug of privilegeSlugs) {
+      const [created] = await db
+        .insert(permission)
+        .values({ slug })
+        .returning({ id: permission.id });
+      await db
+        .insert(userPermission)
+        .values({ userId, permissionId: created.id });
+    }
+    vi.mocked(getUser).mockResolvedValue({ id: userId } as never);
     await db.delete(role);
-    await db.delete(permission);
   });
 
   afterAll(async () => {
@@ -90,6 +103,7 @@ describe('Authorization system', () => {
   test('should create roles and permissions', async () => {
     const role = await createRole('admin', 'Administrator');
     expect(role.success).toBe(true);
+    if (!role.success) throw new Error(role.error);
     expect(role.data).toBeDefined();
     roleId = role.data!;
 
@@ -97,6 +111,8 @@ describe('Authorization system', () => {
     const permAllAll = await addPermission('submission:all:all');
     expect(permSelf.success).toBe(true);
     expect(permAllAll.success).toBe(true);
+    if (!permSelf.success) throw new Error(permSelf.error);
+    if (!permAllAll.success) throw new Error(permAllAll.error);
 
     permIdEditSelf = permSelf.data!;
     permIdAllAll = permAllAll.data!;
@@ -132,7 +148,7 @@ describe('Authorization system', () => {
       .select()
       .from(userPermission)
       .where(eq(userPermission.userId, userId));
-    expect(perms.length).toBe(1);
+    expect(perms.length).toBe(4);
 
     const revoke = await revokePermissionFromUser(userId, permIdAllAll);
     expect(revoke.success).toBe(true);
@@ -141,7 +157,7 @@ describe('Authorization system', () => {
       .select()
       .from(userPermission)
       .where(eq(userPermission.userId, userId));
-    expect(perms.length).toBe(0);
+    expect(perms.length).toBe(3);
   });
 
   // ─────────────────────────────────────────────
@@ -151,6 +167,7 @@ describe('Authorization system', () => {
   test('should resolve permissions through roles', async () => {
     const res = await getUserPermissions(userId);
     expect(res.success).toBe(true);
+    if (!res.success) throw new Error(res.error);
     expect(res.data!.has('submission:edit:self')).toBe(true);
   });
 
@@ -181,6 +198,14 @@ describe('Authorization system', () => {
     }
     expect(thrown).toContain('/forbidden');
     expect(thrown).toContain('reason=');
+
+    for (const slug of ['role:all:all', 'permission:all:all', 'user:all:all']) {
+      const [row] = await db
+        .select({ id: permission.id })
+        .from(permission)
+        .where(eq(permission.slug, slug));
+      await db.insert(userPermission).values({ userId, permissionId: row.id });
+    }
   });
 
   test('requirePermission should allow authorized user', async () => {

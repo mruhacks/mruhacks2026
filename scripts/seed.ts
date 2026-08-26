@@ -1,7 +1,8 @@
 import 'dotenv/config';
 import { randomBytes, randomUUID } from 'crypto';
 import { faker } from '@faker-js/faker';
-import { db } from '@/utils/db';
+import { auth } from './auth';
+import { client, db } from '@/utils/db';
 import {
   user,
   account,
@@ -18,19 +19,43 @@ import {
   yearsOfStudy,
   interests,
   dietaryRestrictions,
-  heardFromSources,
   applicationStatuses,
-  permission,
-  role,
   userRole,
   userPermission,
-  rolePermissions,
 } from '@/db/schema';
 import type { InferInsertModel } from 'drizzle-orm';
 import { seedStaticTables } from './seed-static';
 
-const COUNT = Number(process.env.SEED_COUNT ?? 1e3);
+const COUNT = Number(process.env.SEED_COUNT ?? 3e2);
 const CHUNK_SIZE = Number(process.env.SEED_CHUNK_SIZE ?? 2000);
+
+// ── Stable question UUIDs (deterministic for seed data consistency) ────────
+const Q_ATTENDED_BEFORE = '11111111-0000-0000-0000-000000000001';
+const Q_ACCOMMODATIONS = '11111111-0000-0000-0000-000000000002';
+const Q_NEEDS_PARKING = '11111111-0000-0000-0000-000000000003';
+const Q_HEARD_FROM = '11111111-0000-0000-0000-000000000004';
+const Q_CONSENT_INFO = '11111111-0000-0000-0000-000000000005';
+const Q_CONSENT_SPONSOR = '11111111-0000-0000-0000-000000000006';
+const Q_CONSENT_MEDIA = '11111111-0000-0000-0000-000000000007';
+const Q_WHY_ATTEND = '11111111-0000-0000-0000-000000000008';
+const Q_IDEAS = '11111111-0000-0000-0000-000000000009';
+const Q_SPACE_JOURNEY = '11111111-0000-0000-0000-00000000000a';
+
+// ── Stable option UUIDs for heard_from question ───────────────────────────
+const OPT_POSTER = '22222222-0000-0000-0000-000000000001';
+const OPT_FRIEND = '22222222-0000-0000-0000-000000000002';
+const OPT_CLASSROOM = '22222222-0000-0000-0000-000000000003';
+const OPT_SOCIAL = '22222222-0000-0000-0000-000000000004';
+const OPT_PROFESSOR = '22222222-0000-0000-0000-000000000005';
+const OPT_OTHER = '22222222-0000-0000-0000-000000000006';
+const HEARD_FROM_OPTIONS = [
+  OPT_POSTER,
+  OPT_FRIEND,
+  OPT_CLASSROOM,
+  OPT_SOCIAL,
+  OPT_PROFESSOR,
+  OPT_OTHER,
+];
 
 // ── Types ────────────────────────────────────────────────────────────────
 type UserInsert = InferInsertModel<typeof user>;
@@ -42,11 +67,8 @@ type UserInterestInsert = InferInsertModel<typeof userInterests>;
 type UserDietaryInsert = InferInsertModel<typeof userDietaryRestrictions>;
 type EventApplicationInsert = InferInsertModel<typeof eventApplications>;
 type EventAttendeeInsert = InferInsertModel<typeof eventAttendees>;
-type RoleInsert = InferInsertModel<typeof role>;
-type PermissionInsert = InferInsertModel<typeof permission>;
 type UserRoleInsert = InferInsertModel<typeof userRole>;
 type UserPermissionInsert = InferInsertModel<typeof userPermission>;
-type RolePermissionInsert = InferInsertModel<typeof rolePermissions>;
 
 // ── Seed events ───────────────────────────────────────────────────────────
 async function seedEvents() {
@@ -61,42 +83,109 @@ async function seedEvents() {
       name: 'MRUHacks 2026',
       hasApplication: true,
       capacity: null,
+      isFeatured: true,
       applicationQuestions: [
         {
-          key: 'attended_before',
-          label: 'Have you attended before?',
-          type: 'boolean',
+          id: Q_ATTENDED_BEFORE,
+          label: 'Have you attended MRUHacks before?',
+          type: 'boolean' as const,
           required: true,
+          order: 1,
+          active: true,
         },
         {
-          key: 'accommodations',
+          id: Q_WHY_ATTEND,
+          label: 'Why do you want to attend MRUHacks?',
+          description:
+            'What excites you about the event, and how do you hope it will help you grow? (60 words max)',
+          type: 'long_text' as const,
+          required: true,
+          maxLength: 250,
+          order: 2,
+          active: true,
+        },
+        {
+          id: Q_IDEAS,
+          label:
+            'Do you have any ideas you want to make or areas you’d like to learn about during MRUHacks?',
+          description: '60 words max',
+          type: 'long_text' as const,
+          required: true,
+          maxLength: 250,
+          order: 3,
+          active: true,
+        },
+        {
+          id: Q_SPACE_JOURNEY,
+          label:
+            'If you had to go on a 10-year journey through space all alone, what would you bring to entertain yourself?',
+          description: '20 words max',
+          type: 'long_text' as const,
+          required: true,
+          maxLength: 90,
+          order: 4,
+          active: true,
+        },
+        {
+          id: Q_ACCOMMODATIONS,
           label: 'Accessibility or accommodations',
-          type: 'text',
+          description: 'Please let us know if you have any special needs.',
+          type: 'long_text' as const,
+          required: false,
+          order: 5,
+          active: true,
         },
-        { key: 'needs_parking', label: 'Need parking?', type: 'boolean' },
         {
-          key: 'heard_from_id',
+          id: Q_NEEDS_PARKING,
+          label: 'I require parking',
+          type: 'boolean' as const,
+          required: false,
+          order: 6,
+          active: true,
+        },
+        {
+          id: Q_HEARD_FROM,
           label: 'How did you hear about us?',
-          type: 'select',
+          type: 'single_select' as const,
           required: true,
+          order: 7,
+          active: true,
+          options: [
+            { value: OPT_POSTER, label: 'Poster', active: true },
+            { value: OPT_FRIEND, label: 'Friend / Classmate', active: true },
+            { value: OPT_CLASSROOM, label: 'Classroom Visit', active: true },
+            { value: OPT_SOCIAL, label: 'Social Media', active: true },
+            {
+              value: OPT_PROFESSOR,
+              label: 'Professor / Course Announcement',
+              active: true,
+            },
+            { value: OPT_OTHER, label: 'Other', active: true },
+          ],
         },
         {
-          key: 'consent_info_use',
-          label: 'Consent to use info',
-          type: 'boolean',
+          id: Q_CONSENT_INFO,
+          label: 'I consent to MRUHacks collecting and using my information',
+          type: 'boolean' as const,
           required: true,
+          order: 8,
+          active: true,
         },
         {
-          key: 'consent_sponsor_share',
-          label: 'Consent to share with sponsors',
-          type: 'boolean',
+          id: Q_CONSENT_SPONSOR,
+          label: 'I consent to sharing my information with sponsors',
+          type: 'boolean' as const,
           required: true,
+          order: 9,
+          active: true,
         },
         {
-          key: 'consent_media_use',
-          label: 'Consent to photos/videos',
-          type: 'boolean',
+          id: Q_CONSENT_MEDIA,
+          label: 'I consent to photos and videos being taken at the event',
+          type: 'boolean' as const,
           required: true,
+          order: 10,
+          active: true,
         },
       ],
     },
@@ -113,97 +202,64 @@ async function seedEvents() {
   return { applicationEvent, noAppEvent };
 }
 
-// ── Helper: seed base roles/permissions ─────────────────────────────────
-async function seedRolesAndPermissions() {
-  const baseRoles: RoleInsert[] = [
-    { slug: 'admin', description: 'Full system administrator' },
-    { slug: 'organizer', description: 'Manages event logistics and users' },
-    { slug: 'judge', description: 'Evaluates hackathon projects' },
-    { slug: 'volunteer', description: 'Supports event operations' },
-    { slug: 'participant', description: 'Registered hackathon attendee' },
-  ];
+// ── Seed a fixed admin user from env vars ────────────────────────────────
+async function seedEnvAdminUser(
+  insertedRoles: { id: number; slug: string | null }[],
+) {
+  const email = process.env.SEED_ADMIN_EMAIL?.trim();
+  const password = process.env.SEED_ADMIN_PASSWORD?.trim();
+  const name = process.env.SEED_ADMIN_NAME?.trim() ?? 'Admin';
 
-  const basePermissions: PermissionInsert[] = [
-    { slug: 'user:read', description: 'View user information' },
-    { slug: 'user:write', description: 'Modify user information' },
-    { slug: 'participant:read', description: 'View participant profiles' },
-    { slug: 'participant:write', description: 'Edit participant data' },
-    { slug: 'submission:read', description: 'View project submissions' },
-    { slug: 'submission:write', description: 'Modify project submissions' },
-    { slug: 'event:manage', description: 'Create and manage events' },
-  ];
+  if (!email || !password) return;
 
-  console.log('🧱 Seeding roles and permissions...');
+  console.log(`👤 Seeding admin user: ${email}`);
 
-  const result = await db.transaction(async (tx) => {
-    await tx.delete(rolePermissions);
-    await tx.delete(userRole);
-    await tx.delete(userPermission);
-    await tx.delete(role);
-    await tx.delete(permission);
+  const adminRole = insertedRoles.find((r) => r.slug === 'admin');
+  const ctx = await auth.$context;
 
-    const insertedRoles = await tx.insert(role).values(baseRoles).returning();
-    const insertedPerms = await tx
-      .insert(permission)
-      .values(basePermissions)
-      .returning();
+  const existing = await ctx.internalAdapter.findUserByEmail(email);
+  let userId: string;
 
-    const findPerm = (slug: string) =>
-      insertedPerms.find((p) => p.slug === slug)!;
-    const findRole = (slug: string) =>
-      insertedRoles.find((r) => r.slug === slug)!;
+  if (existing) {
+    await ctx.internalAdapter.updateUser(existing.user.id, {
+      name,
+      emailVerified: true,
+    });
+    const hashedPassword = await ctx.password.hash(password);
+    await ctx.internalAdapter.updatePassword(existing.user.id, hashedPassword);
+    userId = existing.user.id;
+    console.log(`♻️  Updated existing user ${email}`);
+  } else {
+    const result = await auth.api.signUpEmail({
+      body: { email, password, name },
+    });
+    await ctx.internalAdapter.updateUser(result.user.id, {
+      emailVerified: true,
+    });
+    userId = result.user.id;
+    console.log(`✅ Created user ${email}`);
+  }
 
-    const rolePerms: RolePermissionInsert[] = [
-      ...insertedPerms.map((p) => ({
-        roleId: findRole('admin').id,
-        permissionId: p.id,
-      })),
-      {
-        roleId: findRole('organizer').id,
-        permissionId: findPerm('event:manage').id,
-      },
-      {
-        roleId: findRole('organizer').id,
-        permissionId: findPerm('participant:read').id,
-      },
-      {
-        roleId: findRole('organizer').id,
-        permissionId: findPerm('participant:write').id,
-      },
-      {
-        roleId: findRole('judge').id,
-        permissionId: findPerm('submission:read').id,
-      },
-      {
-        roleId: findRole('volunteer').id,
-        permissionId: findPerm('participant:read').id,
-      },
-      {
-        roleId: findRole('participant').id,
-        permissionId: findPerm('submission:read').id,
-      },
-    ];
+  // Sync Better Auth admin plugin role field
+  await ctx.internalAdapter.updateUser(userId, { role: 'admin' });
 
-    await tx.insert(rolePermissions).values(rolePerms);
+  if (adminRole) {
+    await db
+      .insert(userRole)
+      .values({ userId, roleId: adminRole.id })
+      .onConflictDoNothing();
+  }
 
-    console.log(
-      `✅ Seeded ${insertedRoles.length} roles, ${insertedPerms.length} permissions, and ${rolePerms.length} links.`,
-    );
-
-    return { insertedRoles, insertedPerms };
-  });
-
-  return result;
+  console.log(`✅ Admin user ready (email: ${email})`);
 }
 
 // ── Main user seeding ───────────────────────────────────────────────────
 async function main() {
-  const { insertedRoles, insertedPerms } = await seedRolesAndPermissions();
   const { applicationEvent, noAppEvent } = await seedEvents();
 
   console.log(`🌱 Seeding ${COUNT} fake users in chunks of ${CHUNK_SIZE}...`);
 
-  await seedStaticTables();
+  const { insertedRoles, insertedPerms } = await seedStaticTables();
 
   const [
     genderRows,
@@ -212,7 +268,6 @@ async function main() {
     yearRows,
     interestRows,
     dietaryRows,
-    heardRows,
     applicationStatusRows,
   ] = await Promise.all([
     db.select().from(genders),
@@ -221,7 +276,6 @@ async function main() {
     db.select().from(yearsOfStudy),
     db.select().from(interests),
     db.select().from(dietaryRestrictions),
-    db.select().from(heardFromSources),
     db.select().from(applicationStatuses),
   ]);
 
@@ -292,7 +346,6 @@ async function main() {
       const university = faker.helpers.arrayElement(universityRows);
       const major = faker.helpers.arrayElement(majorRows);
       const year = faker.helpers.arrayElement(yearRows);
-      const heardFrom = faker.helpers.arrayElement(heardRows);
 
       profiles.push({
         userId: id,
@@ -312,15 +365,18 @@ async function main() {
         createdAt: now,
         updatedAt: now,
         responses: {
-          attended_before: faker.datatype.boolean(),
-          accommodations: faker.helpers.maybe(() => faker.lorem.sentence(), {
-            probability: 0.25,
-          }),
-          needs_parking: faker.datatype.boolean(),
-          heard_from_id: heardFrom.id,
-          consent_info_use: true,
-          consent_sponsor_share: faker.datatype.boolean({ probability: 0.9 }),
-          consent_media_use: faker.datatype.boolean({ probability: 0.9 }),
+          [Q_ATTENDED_BEFORE]: faker.datatype.boolean(),
+          [Q_ACCOMMODATIONS]: faker.helpers.maybe(
+            () => faker.lorem.sentence(),
+            {
+              probability: 0.25,
+            },
+          ),
+          [Q_NEEDS_PARKING]: faker.datatype.boolean(),
+          [Q_HEARD_FROM]: faker.helpers.arrayElement(HEARD_FROM_OPTIONS),
+          [Q_CONSENT_INFO]: true,
+          [Q_CONSENT_SPONSOR]: faker.datatype.boolean({ probability: 0.9 }),
+          [Q_CONSENT_MEDIA]: faker.datatype.boolean({ probability: 0.9 }),
         },
       });
 
@@ -413,9 +469,19 @@ async function main() {
   console.log(
     `🎉 Done! Inserted ${COUNT} fake users with profiles, applications, and roles.`,
   );
+
+  await seedEnvAdminUser(insertedRoles);
 }
 
-main().catch((err) => {
-  console.error('❌ Seed failed:', err);
-  process.exit(1);
-});
+async function run() {
+  try {
+    await main();
+  } catch (err) {
+    console.error('❌ Seed failed:', err);
+    process.exitCode = 1;
+  } finally {
+    await client.end();
+  }
+}
+
+void run();

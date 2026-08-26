@@ -57,6 +57,146 @@
       "when": 1770925183678,
       "tag": "0007_dusty_odin",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1775883902186,
+      "tag": "0008_funny_human_robot",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1776749827354,
+      "tag": "0009_admin_plugin_fields",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1776751128910,
+      "tag": "0010_invite_table",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1776779368624,
+      "tag": "0011_perf_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1782851720184,
+      "tag": "0012_graceful_reaper",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1783610408725,
+      "tag": "0013_add_event_register_url_featured",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1783692214051,
+      "tag": "0014_odd_rawhide_kid",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1783695110117,
+      "tag": "0015_account_id_text",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1783696764657,
+      "tag": "0016_account_management",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1783698449456,
+      "tag": "0017_consent_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1783705708874,
+      "tag": "0018_normalize_event_application_questions",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1783705868533,
+      "tag": "0019_welcome_profile_assets",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1783705950866,
+      "tag": "0020_security_audit_and_invite_expiry",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1783715855091,
+      "tag": "0021_onboarding_hackathon_history",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1783961442148,
+      "tag": "0022_silky_gorilla_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1783961680420,
+      "tag": "0023_clear_living_tribunal",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1787011048426,
+      "tag": "0024_magic_link_cooldown",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1787017272434,
+      "tag": "0025_add_linkedin_github_to_profile",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1787020566444,
+      "tag": "0026_add_profile_other_text_fields",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1787714074240,
+      "tag": "0027_drop_event_interest_registrations",
+      "breakpoints": true
     }
   ]
 }

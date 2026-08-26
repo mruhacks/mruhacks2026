@@ -120,6 +120,25 @@ export function Select<
   IsMulti extends boolean = false,
   Group extends GroupBase<Option> = GroupBase<Option>,
 >(props: SelectProps<Option, IsMulti, Group>) {
+  // react-select injects its emotion <style> tags in an order that can
+  // differ between server and client render, which React reports as a
+  // hydration mismatch. Render a plain placeholder on the server (and on
+  // the client's first pass) and swap in the real widget only after mount,
+  // once hydration has already settled.
+  const [mounted, setMounted] = React.useState(false);
+  React.useEffect(() => setMounted(true), []);
+
+  if (!mounted) {
+    return (
+      <div
+        className='border-input bg-background flex min-h-10 items-center rounded-[var(--radius)] border px-3 text-sm text-muted-foreground'
+        aria-hidden
+      >
+        {props.placeholder ?? ''}
+      </div>
+    );
+  }
+
   return (
     <SelectInner
       {...props}
