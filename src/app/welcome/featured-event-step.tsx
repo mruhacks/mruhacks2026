@@ -7,7 +7,15 @@ import { toast } from 'sonner';
 import ApplicationForm from '@/components/application-form';
 import type { ApplicationQuestion } from '@/types/application';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import {
+  Field,
+  FieldLabel,
+  FieldDescription,
+  FieldError,
+} from '@/components/ui/field';
 import { submitEventApplication } from '@/app/dashboard/events/actions';
+import { joinTeamByCode } from '@/app/dashboard/events/team-actions';
 import { registerForEvent } from '@/app/register/actions';
 
 export type FeaturedOnboardingEvent = {
@@ -16,6 +24,7 @@ export type FeaturedOnboardingEvent = {
   hasApplication: boolean;
   applicationQuestions: ApplicationQuestion[];
   startsAt: Date | null;
+  teamsEnabled: boolean;
 };
 
 export function FeaturedEventStep({
@@ -26,9 +35,32 @@ export function FeaturedEventStep({
   onComplete: () => void;
 }) {
   const [registering, setRegistering] = React.useState(false);
+  const [teamCode, setTeamCode] = React.useState('');
+  const [teamCodeError, setTeamCodeError] = React.useState<string | null>(null);
   const activeQuestionCount = event.applicationQuestions.filter(
     (question) => question.active && question.type !== 'section_divider',
   ).length;
+
+  /**
+   * Runs once the application/registration itself has already succeeded. A
+   * team code can only be redeemed after the caller has a live
+   * registration/application row (see isEventParticipant in
+   * team-actions.ts), so joining is a follow-up call rather than part of
+   * that submit. A bad code blocks moving to the next step (so the user can
+   * fix or clear it) but never touches the application, which is already
+   * saved.
+   */
+  const joinTeamIfProvided = async (): Promise<boolean> => {
+    const trimmed = teamCode.trim();
+    if (!trimmed) return true;
+    const result = await joinTeamByCode(event.id, trimmed);
+    if (!result.success) {
+      setTeamCodeError(result.error ?? 'Unable to join that team.');
+      return false;
+    }
+    toast.success('Joined team.');
+    return true;
+  };
 
   const register = async () => {
     setRegistering(true);
@@ -39,10 +71,14 @@ export function FeaturedEventStep({
         return;
       }
       toast.success('Registered for event.');
-      onComplete();
+      if (await joinTeamIfProvided()) onComplete();
     } finally {
       setRegistering(false);
     }
+  };
+
+  const onApplicationSuccess = async () => {
+    if (await joinTeamIfProvided()) onComplete();
   };
 
   return (
@@ -71,6 +107,29 @@ export function FeaturedEventStep({
         </p>
       </div>
 
+      {event.teamsEnabled && (
+        <Field data-invalid={teamCodeError != null}>
+          <FieldLabel htmlFor='welcome-team-code'>
+            Team code (optional)
+          </FieldLabel>
+          <FieldDescription>
+            Have a code from a teammate? Enter it to join their team when you
+            submit below — you can also do this later from the event page.
+          </FieldDescription>
+          <Input
+            id='welcome-team-code'
+            value={teamCode}
+            onChange={(e) => {
+              setTeamCode(e.target.value);
+              if (teamCodeError) setTeamCodeError(null);
+            }}
+            placeholder='e.g. AB12CD34'
+            autoCapitalize='characters'
+          />
+          {teamCodeError && <FieldError>{teamCodeError}</FieldError>}
+        </Field>
+      )}
+
       {event.hasApplication ? (
         <ApplicationForm
           eventId={event.id}
@@ -78,7 +137,7 @@ export function FeaturedEventStep({
           submitAction={submitEventApplication}
           submitLabel='Submit application'
           successMessage='Application submitted.'
-          onSuccess={onComplete}
+          onSuccess={onApplicationSuccess}
         />
       ) : (
         <div className='flex justify-end'>

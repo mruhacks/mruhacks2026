@@ -45,6 +45,7 @@ async function WelcomeContent({
         hasApplication: events.hasApplication,
         applicationQuestions: events.applicationQuestions,
         startsAt: events.startsAt,
+        teamsEnabled: events.teamsEnabled,
       })
       .from(events)
       .where(eq(events.isFeatured, true))
