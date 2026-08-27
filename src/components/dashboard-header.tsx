@@ -16,6 +16,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import Chevron from '@/assets/Chevron';
 import { useBreadcrumbContext } from '@/components/breadcrumb-context';
 import { getInitials } from '@/lib/initials';
+import { useIsHydrated } from '@/lib/use-is-hydrated';
 
 type Props = {
   user: { name: string; email: string; avatar?: string };
@@ -33,6 +34,8 @@ const SEGMENT_LABELS: Record<string, string> = {
   register: 'Register',
   apply: 'Apply',
 };
+
+const EMPTY_DYNAMIC_SEGMENTS: Record<string, string> = {};
 
 function buildBreadcrumbs(
   pathname: string,
@@ -52,9 +55,13 @@ function buildBreadcrumbs(
 export function DashboardHeader({ user }: Props) {
   const router = useRouter();
   const pathname = usePathname();
-  // `segments` stays empty until hydration completes (see
-  // BreadcrumbProvider), so this render always matches its SSR output.
-  const { segments: dynamicSegments } = useBreadcrumbContext();
+  const { segments } = useBreadcrumbContext();
+  // The header and page content hydrate in separate Suspense boundaries. A
+  // page can therefore register its dynamic label before this header starts
+  // hydrating. Deferring here as well guarantees the initial header tree
+  // matches its SSR output; labels appear in the next render.
+  const isHydrated = useIsHydrated();
+  const dynamicSegments = isHydrated ? segments : EMPTY_DYNAMIC_SEGMENTS;
 
   async function handleLogout() {
     await authClient.signOut();
@@ -196,7 +203,7 @@ export function DashboardHeader({ user }: Props) {
           </DropdownMenuTrigger>
           <DropdownMenuContent align='end' className='w-52'>
             <div className='px-2 py-1.5'>
-              <p className='text-sm leading-tight font-medium'>{user.name}</p>
+              <p className='text-sm/tight font-medium'>{user.name}</p>
               <p className='text-muted-foreground truncate text-xs'>
                 {user.email}
               </p>

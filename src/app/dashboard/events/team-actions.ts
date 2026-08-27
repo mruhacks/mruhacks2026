@@ -189,6 +189,7 @@ export type TeamMemberView = {
   userId: string;
   name: string;
   email: string;
+  image: string | null;
   isOrganizer: boolean;
   joinedAt: Date;
 };
@@ -234,6 +235,7 @@ export async function getMyTeam(
         userId: teamMembers.userId,
         name: authUser.name,
         email: authUser.email,
+        image: authUser.image,
         joinedAt: teamMembers.joinedAt,
       })
       .from(teamMembers)

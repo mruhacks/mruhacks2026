@@ -35,6 +35,7 @@ type TestUser = {
   id: string;
   email: string;
   name: string;
+  image: string | null;
   emailVerified: boolean;
 };
 
@@ -58,12 +59,14 @@ async function makeUser(label: string): Promise<TestUser> {
     .values({
       name: `Team Test ${label}`,
       email: `team-test-${label.toLowerCase()}@example.com`,
+      image: `https://example.com/avatar-${label.toLowerCase()}.png`,
       emailVerified: true,
     })
     .returning({
       id: user.id,
       email: user.email,
       name: user.name,
+      image: user.image,
       emailVerified: user.emailVerified,
     });
   return u;
@@ -148,6 +151,7 @@ describe('getMyTeam', () => {
         id: user.id,
         email: user.email,
         name: user.name,
+        image: user.image,
         emailVerified: user.emailVerified,
       });
     loginAs(nonParticipant);
@@ -164,6 +168,7 @@ describe('getMyTeam', () => {
     expect(result.data.members).toHaveLength(1);
     expect(result.data.organizerId).toBe(userA.id);
     expect(result.data.code).toHaveLength(8);
+    expect(result.data.members[0]?.image).toBe(userA.image);
   });
 });
 

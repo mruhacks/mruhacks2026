@@ -1,6 +1,6 @@
 'use client';
 
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { RemoveMemberButton } from './RemoveMemberButton';
 import { getInitials } from '@/lib/initials';
@@ -28,6 +28,9 @@ export function TeamRoster({
         >
           <div className='flex min-w-0 items-center gap-2'>
             <Avatar className='size-8'>
+              {member.image && (
+                <AvatarImage src={member.image} alt={member.name} />
+              )}
               <AvatarFallback className='text-xs'>
                 {getInitials(member.name)}
               </AvatarFallback>

@@ -73,12 +73,12 @@ export function ApplicationStatusBanner({
   }
 
   return (
-    <div className='bg-muted/40 flex items-start justify-between gap-3 rounded-lg border p-4'>
-      <div className='flex items-start gap-3'>
+    <div className='bg-muted/40 flex flex-col gap-3 rounded-lg border p-4'>
+      <div className='flex min-w-0 flex-col gap-2'>
         <Badge variant={display.variant} className='shrink-0'>
           {label}
         </Badge>
-        <div className='space-y-0.5 text-sm'>
+        <div className='flex min-w-0 flex-col gap-0.5 text-sm'>
           <p>{display.description}</p>
           {submitted && (
             <p className='text-muted-foreground text-xs'>
@@ -88,7 +88,7 @@ export function ApplicationStatusBanner({
         </div>
       </div>
       {showEdit && (
-        <Button asChild size='sm' className='shrink-0'>
+        <Button asChild size='sm' className='self-start'>
           <Link href={editHref!}>Edit application</Link>
         </Button>
       )}
