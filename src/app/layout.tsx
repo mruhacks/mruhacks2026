@@ -4,6 +4,7 @@ import { Suspense } from 'react';
 import { Toaster } from '@/components/ui/sonner';
 import { QueryProvider } from '@/components/providers/query-provider';
 import { Analytics } from '@vercel/analytics/next';
+import { SpeedInsights } from '@vercel/speed-insights/next';
 import './globals.css';
 
 const dmSans = DM_Sans({
@@ -57,6 +58,7 @@ export default function RootLayout({
           </QueryProvider>
         </Suspense>
         <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );
