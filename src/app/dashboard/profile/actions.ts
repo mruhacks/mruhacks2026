@@ -27,7 +27,7 @@ import {
   isObjectStorageKey,
   parseProfilePictureKey,
   profilePictureUrl,
-  putPrivateObject,
+  putObject,
 } from '@/utils/object-storage';
 
 export type UserProfileData = {
@@ -334,7 +334,7 @@ export async function uploadProfilePicture(
 
   try {
     const key = `profile-pictures/${currentUser.id}/${randomUUID()}.webp`;
-    await putPrivateObject({
+    await putObject({
       key,
       body: processed.data,
       contentType: 'image/webp',
@@ -399,7 +399,7 @@ export async function uploadResume(formData: FormData): Promise<ActionResult> {
 
   try {
     const key = `resumes/${currentUser.id}/${randomUUID()}${extension(file.data.name)}`;
-    await putPrivateObject({
+    await putObject({
       key,
       body: file.data.bytes,
       contentType: file.data.type,

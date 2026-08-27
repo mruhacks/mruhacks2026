@@ -24,7 +24,7 @@ import { writeAuditLog } from '@/utils/audit-log';
 import {
   deleteObject,
   eventAttachmentUrl,
-  putPrivateObject,
+  putObject,
 } from '@/utils/object-storage';
 import { collectAttachmentKeys } from '@/lib/markdown-attachments';
 import { slugifyArticleTitle, uniqueArticleSlug } from '@/lib/article-slug';
@@ -84,7 +84,7 @@ async function storeAttachment(
 
   try {
     const key = `event-content/${eventId}/${randomUUID()}${extension}`;
-    await putPrivateObject({
+    await putObject({
       key,
       body: new Uint8Array(await value.arrayBuffer()),
       contentType: value.type,

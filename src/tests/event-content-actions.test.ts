@@ -22,13 +22,13 @@ import {
 vi.mock('@/utils/auth', () => ({ getUser: vi.fn() }));
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 
-const putPrivateObject =
+const putObject =
   vi.fn<(args: { key: string; contentType: string }) => Promise<void>>();
 const deleteObject = vi.fn<(key: string) => Promise<void>>();
 vi.mock('@/utils/object-storage', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/utils/object-storage')>()),
-  putPrivateObject: (args: { key: string; contentType: string }) =>
-    putPrivateObject(args),
+  putObject: (args: { key: string; contentType: string }) =>
+    putObject(args),
   deleteObject: (key: string) => deleteObject(key),
 }));
 
@@ -362,39 +362,39 @@ describe('attachments', () => {
   }
 
   test('stores an allowed image under a key the asset route will serve', async () => {
-    putPrivateObject.mockClear();
+    putObject.mockClear();
     const result = await uploadArticleAttachment(
       eventId,
       imageFormData('image/png'),
     );
     expect(result.success).toBe(true);
 
-    const key = (putPrivateObject.mock.calls[0][0] as { key: string }).key;
+    const key = (putObject.mock.calls[0][0] as { key: string }).key;
     expect(key.startsWith(`event-content/${eventId}/`)).toBe(true);
     expect(isEventAttachmentKey(key)).toBe(true);
     expect(unwrap(result).url).toBe(`/api/assets/${key}`);
   });
 
   test('rejects file types the asset route would hand back unexecuted', async () => {
-    putPrivateObject.mockClear();
+    putObject.mockClear();
     await expect(
       uploadArticleAttachment(eventId, imageFormData('image/svg+xml')),
     ).resolves.toMatchObject({ success: false });
     await expect(
       uploadArticleAttachment(eventId, imageFormData('text/html')),
     ).resolves.toMatchObject({ success: false });
-    expect(putPrivateObject).not.toHaveBeenCalled();
+    expect(putObject).not.toHaveBeenCalled();
   });
 
   test('rejects an oversized image', async () => {
-    putPrivateObject.mockClear();
+    putObject.mockClear();
     await expect(
       uploadArticleAttachment(
         eventId,
         imageFormData('image/png', 5 * 1024 * 1024 + 1),
       ),
     ).resolves.toMatchObject({ success: false });
-    expect(putPrivateObject).not.toHaveBeenCalled();
+    expect(putObject).not.toHaveBeenCalled();
   });
 
   test('rejects an upload for an event that does not exist', async () => {

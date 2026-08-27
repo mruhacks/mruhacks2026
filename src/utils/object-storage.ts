@@ -3,9 +3,11 @@ import {
   DeleteObjectCommand,
   GetObjectCommand,
   HeadBucketCommand,
+  HeadObjectCommand,
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 const bucket = process.env.S3_BUCKET?.trim() || 'mruhacks-assets';
 
@@ -85,44 +87,33 @@ export function isObjectStorageKey(
 }
 
 /**
- * Profile pictures are served straight from object storage/CDN rather than
- * proxied through the app server — proxying would mean paying egress twice
- * (storage → server, then server → client) for every avatar view. Set
- * `S3_PUBLIC_URL` to a base URL where the `profile-pictures/` prefix is
- * publicly readable (public bucket, or a CDN in front of it) to enable this.
- * Without it, falls back to the `/api/assets` proxy route (fine for local
- * dev, still cached aggressively, just not egress-free).
+ * The bucket is private — nothing in it is fetchable without a signature.
+ * Every stored URL (`authUser.image`, markdown attachment links) is a stable
+ * `/api/assets/<key>` (or, for resumes, `/api/profile/resume`) path that never
+ * expires and never changes for a given upload. That route resolves the key
+ * to a short-lived presigned S3/R2 URL and 302s to it, so the actual bytes
+ * still flow browser → storage directly (no egress through the app server),
+ * while access control and link stability both stay on our side.
  */
 export function profilePictureUrl(key: string) {
-  const publicBase = process.env.S3_PUBLIC_URL?.trim().replace(/\/+$/, '');
-  if (publicBase) return `${publicBase}/${key}`;
   return `/api/assets/${key}`;
 }
 
 /**
  * Inverse of `profilePictureUrl`: extracts the storage key from a stored
  * image URL, or null if it isn't one of ours (e.g. an OAuth avatar URL).
- * Checks both URL shapes since `S3_PUBLIC_URL` may have been added or
- * changed after some rows were written.
  */
 export function parseProfilePictureKey(
   image: string | null | undefined,
 ): string | null {
   if (!image) return null;
-  const publicBase = process.env.S3_PUBLIC_URL?.trim().replace(/\/+$/, '');
-  const prefixes = [
-    publicBase ? `${publicBase}/` : null,
-    '/api/assets/',
-  ].filter((p): p is string => Boolean(p));
-  for (const prefix of prefixes) {
-    if (!image.startsWith(prefix)) continue;
-    try {
-      return decodeURIComponent(image.slice(prefix.length));
-    } catch {
-      return null;
-    }
+  const prefix = '/api/assets/';
+  if (!image.startsWith(prefix)) return null;
+  try {
+    return decodeURIComponent(image.slice(prefix.length));
+  } catch {
+    return null;
   }
-  return null;
 }
 
 /**
@@ -139,12 +130,7 @@ export function isEventAttachmentKey(
   return Boolean(value && EVENT_ATTACHMENT_KEY_PATTERN.test(value));
 }
 
-/**
- * Markdown attachments are always served through the `/api/assets` proxy —
- * deliberately *not* through `S3_PUBLIC_URL` the way avatars are. The proxy
- * requires a signed-in session, and a publicly readable bucket URL embedded in
- * article markdown would hand that content to anyone holding the link.
- */
+/** Markdown attachments are always served through the `/api/assets` proxy, gated on a signed-in session — see `profilePictureUrl` for how the redirect works. */
 export function eventAttachmentUrl(key: string) {
   return `/api/assets/${key}`;
 }
@@ -165,7 +151,7 @@ export function parseEventAttachmentKey(
   return isEventAttachmentKey(key) ? key : null;
 }
 
-export async function putPrivateObject({
+export async function putObject({
   key,
   body,
   contentType,
@@ -191,15 +177,107 @@ export async function deleteObject(key: string) {
   await getClient().send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
 }
 
-export async function getObject(key: string) {
+/**
+ * Signs a temporary GET URL for `key`, after confirming the object exists (a
+ * `HeadObjectCommand` — presigning itself is a local computation and would
+ * happily sign a URL for an object that was never there or has since been
+ * deleted). Returns null for an unknown key shape or a missing object; any
+ * other failure (bad credentials, unreachable endpoint) propagates so the
+ * caller can log it.
+ */
+async function presignGetUrl(
+  key: string,
+  opts: { expiresIn: number; responseContentDisposition?: string },
+): Promise<string | null> {
   if (!isObjectStorageKey(key)) return null;
   await ensureBucket();
-  const result = await getClient().send(
-    new GetObjectCommand({ Bucket: bucket, Key: key }),
+  const client = getClient();
+  try {
+    await client.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
+  } catch {
+    return null;
+  }
+  return getSignedUrl(
+    client,
+    new GetObjectCommand({
+      Bucket: bucket,
+      Key: key,
+      ...(opts.responseContentDisposition
+        ? { ResponseContentDisposition: opts.responseContentDisposition }
+        : {}),
+    }),
+    { expiresIn: opts.expiresIn },
   );
-  if (!result.Body) return null;
-  return {
-    bytes: await result.Body.transformToByteArray(),
-    contentType: result.ContentType ?? 'application/octet-stream',
-  };
+}
+
+/**
+ * Turns a key into the 302 response the serving routes hand back: this is the
+ * one place that presigns and redirects, so every object type (avatars,
+ * attachments, resumes) gets the same "sign, check it exists, redirect, log
+ * and 404 on failure" behavior instead of each route reimplementing it. The
+ * redirect's `Cache-Control` is set well under `expiresIn` so a browser never
+ * replays a cached redirect to an already-expired signed URL.
+ */
+async function redirectToObject(
+  key: string,
+  opts: {
+    expiresIn: number;
+    cacheControl: string;
+    responseContentDisposition?: string;
+  },
+): Promise<Response> {
+  try {
+    const url = await presignGetUrl(key, opts);
+    if (!url) return new Response('Not found', { status: 404 });
+    return new Response(null, {
+      status: 302,
+      headers: { Location: url, 'Cache-Control': opts.cacheControl },
+    });
+  } catch (error) {
+    console.error('[storage] failed to presign object', { key, error });
+    return new Response('Not found', { status: 404 });
+  }
+}
+
+const PROFILE_PICTURE_URL_TTL_SECONDS = 60 * 60;
+const EVENT_ATTACHMENT_URL_TTL_SECONDS = 60 * 60;
+const RESUME_URL_TTL_SECONDS = 5 * 60;
+
+/**
+ * Redirects to a signed URL for a profile picture. No session check here —
+ * avatars need to be visible to other users too (team rosters, admin user
+ * lists, anywhere a name is shown), not just the owner, so this is reachable
+ * by anyone who has the (unguessable, UUID-keyed) `/api/assets/<key>` link.
+ */
+export function profilePictureRedirect(key: string): Promise<Response> {
+  return redirectToObject(key, {
+    expiresIn: PROFILE_PICTURE_URL_TTL_SECONDS,
+    cacheControl: `public, max-age=${PROFILE_PICTURE_URL_TTL_SECONDS / 2}`,
+  });
+}
+
+/** Redirects to a signed URL for an event/wiki attachment. Caller must check the session before calling this — see `/api/assets`. */
+export function eventAttachmentRedirect(key: string): Promise<Response> {
+  return redirectToObject(key, {
+    expiresIn: EVENT_ATTACHMENT_URL_TTL_SECONDS,
+    cacheControl: `private, max-age=${EVENT_ATTACHMENT_URL_TTL_SECONDS / 2}`,
+  });
+}
+
+/**
+ * Redirects to a signed URL for the caller's own resume, with a
+ * `Content-Disposition` naming the download after their original filename.
+ * Short-lived and never cached — this is only ever hit right before a
+ * download starts, from the session-gated `/api/profile/resume` route.
+ */
+export function resumeRedirect(
+  key: string,
+  fileName: string,
+): Promise<Response> {
+  const safeName = fileName.replace(/["\\]/g, '_');
+  return redirectToObject(key, {
+    expiresIn: RESUME_URL_TTL_SECONDS,
+    cacheControl: 'private, no-store',
+    responseContentDisposition: `attachment; filename="${safeName}"`,
+  });
 }

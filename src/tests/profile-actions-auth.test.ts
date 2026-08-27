@@ -11,7 +11,7 @@ import { describe, test, expect, vi } from 'vitest';
 vi.mock('@/utils/auth', () => ({ getUser: vi.fn() }));
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 vi.mock('@/utils/object-storage', () => ({
-  putPrivateObject: vi.fn(),
+  putObject: vi.fn(),
   deleteObject: vi.fn(),
   isObjectStorageKey: vi.fn().mockReturnValue(false),
   parseProfilePictureKey: vi.fn().mockReturnValue(null),
