@@ -211,27 +211,46 @@ async function presignGetUrl(
 }
 
 /**
+ * A cached redirect must expire well before the signed URL it points to
+ * does, or a client could replay it after the URL is already dead — 0.5
+ * leaves a browser reusing a redirect from the very start of its cache
+ * window a full half of `expiresIn` of remaining validity when it finally
+ * follows it. Kept as a ratio (not a fixed buffer) so it scales with
+ * whatever TTL a given object type uses, rather than needing to be
+ * re-checked by hand every time a TTL constant changes.
+ */
+const REDIRECT_CACHE_RATIO = 0.5;
+
+/**
  * Turns a key into the 302 response the serving routes hand back: this is the
  * one place that presigns and redirects, so every object type (avatars,
  * attachments, resumes) gets the same "sign, check it exists, redirect, log
- * and 404 on failure" behavior instead of each route reimplementing it. The
- * redirect's `Cache-Control` is set well under `expiresIn` so a browser never
- * replays a cached redirect to an already-expired signed URL.
+ * and 404 on failure" behavior instead of each route reimplementing it.
+ *
+ * `cache` controls whether the redirect itself may be cached by the browser
+ * — `false` for anything that shouldn't be replayed (e.g. a one-shot resume
+ * download); otherwise its `visibility` becomes `public`/`private` in the
+ * response's `Cache-Control`, with `max-age` derived from `expiresIn` via
+ * `REDIRECT_CACHE_RATIO` rather than passed in, so a cached redirect can
+ * never outlive the signed URL it points to.
  */
 async function redirectToObject(
   key: string,
   opts: {
     expiresIn: number;
-    cacheControl: string;
+    cache: false | { visibility: 'public' | 'private' };
     responseContentDisposition?: string;
   },
 ): Promise<Response> {
   try {
     const url = await presignGetUrl(key, opts);
     if (!url) return new Response('Not found', { status: 404 });
+    const cacheControl = opts.cache
+      ? `${opts.cache.visibility}, max-age=${Math.floor(opts.expiresIn * REDIRECT_CACHE_RATIO)}`
+      : 'private, no-store';
     return new Response(null, {
       status: 302,
-      headers: { Location: url, 'Cache-Control': opts.cacheControl },
+      headers: { Location: url, 'Cache-Control': cacheControl },
     });
   } catch (error) {
     console.error('[storage] failed to presign object', { key, error });
@@ -252,7 +271,7 @@ const RESUME_URL_TTL_SECONDS = 5 * 60;
 export function profilePictureRedirect(key: string): Promise<Response> {
   return redirectToObject(key, {
     expiresIn: PROFILE_PICTURE_URL_TTL_SECONDS,
-    cacheControl: `public, max-age=${PROFILE_PICTURE_URL_TTL_SECONDS / 2}`,
+    cache: { visibility: 'public' },
   });
 }
 
@@ -260,7 +279,7 @@ export function profilePictureRedirect(key: string): Promise<Response> {
 export function eventAttachmentRedirect(key: string): Promise<Response> {
   return redirectToObject(key, {
     expiresIn: EVENT_ATTACHMENT_URL_TTL_SECONDS,
-    cacheControl: `private, max-age=${EVENT_ATTACHMENT_URL_TTL_SECONDS / 2}`,
+    cache: { visibility: 'private' },
   });
 }
 
@@ -277,7 +296,7 @@ export function resumeRedirect(
   const safeName = fileName.replace(/["\\]/g, '_');
   return redirectToObject(key, {
     expiresIn: RESUME_URL_TTL_SECONDS,
-    cacheControl: 'private, no-store',
+    cache: false,
     responseContentDisposition: `attachment; filename="${safeName}"`,
   });
 }
