@@ -10,6 +10,7 @@ type EventLayoutProps = {
   questions: React.ReactNode;
   responses: React.ReactNode;
   teams: React.ReactNode;
+  wiki: React.ReactNode;
   params: Promise<{ eventId: string }>;
 };
 
@@ -18,6 +19,7 @@ export default async function EventLayout({
   questions,
   responses,
   teams,
+  wiki,
   params,
 }: EventLayoutProps) {
   const { eventId } = await params;
@@ -25,11 +27,14 @@ export default async function EventLayout({
   // The admin section admits several disjoint permission sets, so a
   // user-admin can reach this page without being able to read teams. The
   // Teams tab redirects to /forbidden on entry, which would throw them off
-  // the whole event page — so gate the tab on the permission behind it.
+  // the whole event page — so gate each tab on the permission behind it.
   const user = await getUser();
-  const canReadTeams = user
-    ? await hasPermission(user.id, 'team:read:all')
-    : false;
+  const [canReadTeams, canReadArticles] = user
+    ? await Promise.all([
+        hasPermission(user.id, 'team:read:all'),
+        hasPermission(user.id, 'article:read:all'),
+      ])
+    : [false, false];
 
   const tabs = [
     {
@@ -41,6 +46,9 @@ export default async function EventLayout({
     { id: 'responses' as const, label: 'Responses', content: responses },
     ...(canReadTeams
       ? [{ id: 'teams' as const, label: 'Teams', content: teams }]
+      : []),
+    ...(canReadArticles
+      ? [{ id: 'wiki' as const, label: 'Wiki', content: wiki }]
       : []),
   ];
 

@@ -30,6 +30,7 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
+import { EventDescriptionCard } from './event-description-card';
 
 type EventOverviewPageProps = {
   params: Promise<{ eventId: string }>;
@@ -157,6 +158,14 @@ export default function EventOverviewPage({ params }: EventOverviewPageProps) {
           </CardContent>
         </Card>
       </div>
+
+      {/* Participant-facing description. Remounted on event load so the
+          editor picks up the saved markdown rather than an empty draft. */}
+      <EventDescriptionCard
+        key={event.id}
+        eventId={event.id}
+        initialMarkdown={event.descriptionMarkdown}
+      />
 
       {/* Event Settings Card */}
       <Card>

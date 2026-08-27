@@ -415,6 +415,7 @@ export async function createEvent(
 export type EventDetails = {
   id: string;
   name: string;
+  descriptionMarkdown: string;
   hasApplication: boolean;
   capacity: number | null;
   startsAt: Date | null;
@@ -458,6 +459,7 @@ export async function getEventDetails(
   return ok({
     id: eventRow.id,
     name: eventRow.name,
+    descriptionMarkdown: eventRow.descriptionMarkdown ?? '',
     hasApplication: eventRow.hasApplication,
     capacity: eventRow.capacity ?? null,
     startsAt: eventRow.startsAt ?? null,

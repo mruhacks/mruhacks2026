@@ -303,3 +303,158 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* ── Markdown content ─────────────────────────────────────────────
+   Shared by the MDX editor's writing surface (`contentEditableClassName`)
+   and the read-only renderer, so what an organizer types is what a
+   participant sees. Styling reaches down to bare elements rather than
+   utility classes because the markup comes out of `react-markdown` and
+   Lexical, neither of which we hand-annotate. */
+@utility mdx-prose {
+  & {
+    color: var(--foreground);
+    font-family: var(--font-body);
+    font-size: var(--fs-body);
+    line-height: var(--lh-body);
+  }
+
+  & > :first-child {
+    margin-top: 0;
+  }
+
+  & > :last-child {
+    margin-bottom: 0;
+  }
+
+  & h1,
+  & h2,
+  & h3,
+  & h4 {
+    font-family: var(--font-display);
+    font-weight: var(--fw-semibold);
+    letter-spacing: var(--track-ui);
+    line-height: var(--lh-snug);
+    margin: var(--space-6) 0 var(--space-3);
+  }
+
+  & h1 {
+    font-size: var(--fs-h2);
+  }
+
+  & h2 {
+    font-size: var(--fs-h3);
+  }
+
+  & h3 {
+    font-size: 20px;
+  }
+
+  & h4 {
+    font-size: var(--fs-body);
+  }
+
+  & p {
+    margin: var(--space-4) 0;
+  }
+
+  & ul,
+  & ol {
+    margin: var(--space-4) 0;
+    padding-left: var(--space-5);
+  }
+
+  & ul {
+    list-style: disc;
+  }
+
+  & ol {
+    list-style: decimal;
+  }
+
+  & li {
+    margin: var(--space-2) 0;
+  }
+
+  & li > ul,
+  & li > ol {
+    margin: var(--space-2) 0;
+  }
+
+  /* GFM task lists render as a list item with a checkbox and no marker. */
+  & li:has(> input[type='checkbox']) {
+    list-style: none;
+    margin-left: calc(var(--space-5) * -1);
+    padding-left: var(--space-5);
+  }
+
+  & li > input[type='checkbox'] {
+    margin-right: var(--space-2);
+  }
+
+  & a {
+    color: var(--text-link);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  & blockquote {
+    border-left: 3px solid var(--hairline);
+    color: var(--text-secondary);
+    margin: var(--space-4) 0;
+    padding-left: var(--space-4);
+  }
+
+  & code {
+    background: var(--ink-050);
+    border-radius: var(--radius-sm);
+    font-family: var(--font-ds-mono);
+    font-size: var(--fs-small);
+    padding: 2px 5px;
+  }
+
+  & pre {
+    background: var(--ink-050);
+    border: var(--border-hairline);
+    border-radius: var(--radius-card);
+    margin: var(--space-4) 0;
+    overflow-x: auto;
+    padding: var(--space-4);
+  }
+
+  & pre code {
+    background: none;
+    padding: 0;
+  }
+
+  & img {
+    border-radius: var(--radius-card);
+    height: auto;
+    max-width: 100%;
+  }
+
+  & hr {
+    border: 0;
+    border-top: var(--border-hairline);
+    margin: var(--space-6) 0;
+  }
+
+  & table {
+    border-collapse: collapse;
+    display: block;
+    margin: var(--space-4) 0;
+    overflow-x: auto;
+    width: 100%;
+  }
+
+  & th,
+  & td {
+    border: var(--border-hairline);
+    padding: var(--space-2) var(--space-3);
+    text-align: left;
+  }
+
+  & th {
+    background: var(--ink-050);
+    font-weight: var(--fw-semibold);
+  }
+}

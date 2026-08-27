@@ -181,6 +181,14 @@ async function seedRolesAndPermissions() {
       description: 'Approve or reject applications',
     },
     {
+      slug: 'article:read:all',
+      description: 'View unpublished event wiki articles',
+    },
+    {
+      slug: 'article:write:all',
+      description: 'Create, edit, publish and delete event wiki articles',
+    },
+    {
       slug: 'system:read:all',
       description: 'View system health and diagnostics',
     },
@@ -259,6 +267,14 @@ async function seedRolesAndPermissions() {
       {
         roleId: findRole('organizer').id,
         permissionId: findPerm('team:manage:all').id,
+      },
+      {
+        roleId: findRole('organizer').id,
+        permissionId: findPerm('article:read:all').id,
+      },
+      {
+        roleId: findRole('organizer').id,
+        permissionId: findPerm('article:write:all').id,
       },
       {
         roleId: findRole('volunteer').id,

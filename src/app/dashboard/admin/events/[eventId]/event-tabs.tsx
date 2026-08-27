@@ -5,7 +5,12 @@ import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 
-export type EventTabId = 'overview' | 'questions' | 'responses' | 'teams';
+export type EventTabId =
+  | 'overview'
+  | 'questions'
+  | 'responses'
+  | 'teams'
+  | 'wiki';
 
 type Tab = { id: EventTabId; label: string; content: React.ReactNode };
 

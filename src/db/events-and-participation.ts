@@ -7,6 +7,7 @@
  * - user_interests / user_dietary_restrictions: User-level many-to-many with lookups
  * - event_applications: Apply flow (one per user per event with has_application); minimal + responses JSONB
  * - event_attendees: Register-for-event flow (simple signup for events without application)
+ * - event_articles: Per-event wiki pages authored in markdown by organizers
  * - application_view / application_form_view: Denormalized views for display and form pre-fill
  *
  * Event participation: events with application use event_applications; events without use event_attendees (we call the latter "register for event").
@@ -60,6 +61,12 @@ export const events = pgTable(
       onDelete: 'set null',
     }),
     name: text('name').notNull(),
+    /**
+     * Organizer-authored blurb shown on the participant event page, stored as
+     * markdown (authored in the MDX editor). Attachments referenced from it
+     * live in object storage under `event-content/`.
+     */
+    descriptionMarkdown: text('description_markdown'),
     hasApplication: boolean('has_application').notNull().default(false),
     // Questions are configured independently from whether an application is
     // required. An empty list is a valid application configuration.
@@ -381,6 +388,50 @@ export const teamMembers = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// Event articles (per-event wiki pages, authored in markdown by organizers)
+// ---------------------------------------------------------------------------
+
+export const eventArticles = pgTable(
+  'event_articles',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    eventId: uuid('event_id')
+      .notNull()
+      .references(() => events.id, { onDelete: 'cascade' }),
+    /** URL segment, unique per event — articles are addressed by it, not by id. */
+    slug: varchar('slug', { length: 120 }).notNull(),
+    title: text('title').notNull(),
+    /** Markdown body produced by the MDX editor; rendered read-only elsewhere. */
+    bodyMarkdown: text('body_markdown').notNull().default(''),
+    /** Drafts stay organizer-only until this flips. */
+    published: boolean('published').notNull().default(false),
+    /** Manual ordering within an event's wiki index; ties break on title. */
+    sortOrder: integer('sort_order').notNull().default(0),
+    createdBy: uuid('created_by').references(() => user.id, {
+      onDelete: 'set null',
+    }),
+    updatedBy: uuid('updated_by').references(() => user.id, {
+      onDelete: 'set null',
+    }),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at')
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => ({
+    eventSlugUnique: uniqueIndex('event_articles_event_id_slug_unique').on(
+      table.eventId,
+      table.slug,
+    ),
+    idxEventPublished: index('idx_event_articles_event_id_published').on(
+      table.eventId,
+      table.published,
+    ),
+  }),
+);
+
+// ---------------------------------------------------------------------------
 // Relations
 // ---------------------------------------------------------------------------
 
@@ -401,6 +452,24 @@ export const eventsRelations = relations(events, ({ one, many }) => ({
   rsvpWaves: many(eventRsvpWaves),
   teams: many(teams),
   teamMembers: many(teamMembers),
+  articles: many(eventArticles),
+}));
+
+export const eventArticlesRelations = relations(eventArticles, ({ one }) => ({
+  event: one(events, {
+    fields: [eventArticles.eventId],
+    references: [events.id],
+  }),
+  createdByUser: one(user, {
+    fields: [eventArticles.createdBy],
+    references: [user.id],
+    relationName: 'eventArticleAuthor',
+  }),
+  updatedByUser: one(user, {
+    fields: [eventArticles.updatedBy],
+    references: [user.id],
+    relationName: 'eventArticleEditor',
+  }),
 }));
 
 export const userProfilesRelations = relations(userProfiles, ({ one }) => ({

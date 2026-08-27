@@ -21,6 +21,7 @@ export type PermissionEntity =
   | 'participant'
   | 'checkin'
   | 'application'
+  | 'article'
   | 'system';
 
 export type PermissionAction =
@@ -120,6 +121,14 @@ const CORE_PERMISSIONS = [
   {
     slug: 'application:review:all',
     description: 'Approve or reject applications',
+  },
+  {
+    slug: 'article:read:all',
+    description: 'View unpublished event wiki articles',
+  },
+  {
+    slug: 'article:write:all',
+    description: 'Create, edit, publish and delete event wiki articles',
   },
   {
     slug: 'system:read:all',

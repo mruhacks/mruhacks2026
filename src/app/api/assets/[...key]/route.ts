@@ -1,10 +1,17 @@
-import { getObject } from '@/utils/object-storage';
+import { getUser } from '@/utils/auth';
+import { getObject, isEventAttachmentKey } from '@/utils/object-storage';
 
 /**
- * Fallback proxy for profile pictures when `S3_PUBLIC_URL` isn't configured
- * (see `profilePictureUrl` in `@/utils/object-storage`). When it is set,
- * avatars are served directly from storage/CDN instead of through here, to
- * avoid paying egress twice (storage → server → client) on every view.
+ * Serves two kinds of object-storage assets:
+ *
+ * - `profile-pictures/…` — fallback proxy for avatars when `S3_PUBLIC_URL`
+ *   isn't configured (see `profilePictureUrl` in `@/utils/object-storage`).
+ *   When it is set, avatars are served directly from storage/CDN instead of
+ *   through here, to avoid paying egress twice (storage → server → client) on
+ *   every view.
+ * - `event-content/…` — attachments embedded in event descriptions and wiki
+ *   articles. These always come through here, never from a public bucket URL,
+ *   because the wiki lives behind the dashboard and so must its images.
  */
 export async function GET(
   _request: Request,
@@ -12,7 +19,13 @@ export async function GET(
 ) {
   const { key } = await params;
   const objectKey = key.join('/');
-  if (!objectKey.startsWith('profile-pictures/')) {
+
+  const isAttachment: boolean = isEventAttachmentKey(objectKey);
+
+  if (isAttachment) {
+    const user = await getUser();
+    if (!user) return new Response('Not found', { status: 404 });
+  } else if (!objectKey.startsWith('profile-pictures/')) {
     return new Response('Not found', { status: 404 });
   }
 
@@ -23,11 +36,16 @@ export async function GET(
     return new Response(body, {
       headers: {
         'Content-Type': object.contentType,
-        'Cache-Control': 'public, max-age=31536000, immutable',
+        // Keys are content-addressed by a fresh UUID per upload, so a given
+        // key never changes. Attachments cache privately: the response was
+        // gated on the caller's session and must not land in a shared cache.
+        'Cache-Control': isAttachment
+          ? 'private, max-age=31536000, immutable'
+          : 'public, max-age=31536000, immutable',
       },
     });
   } catch (error) {
-    console.error('[assets] failed to load profile picture', error);
+    console.error('[assets] failed to load object', error);
     return new Response('Not found', { status: 404 });
   }
 }

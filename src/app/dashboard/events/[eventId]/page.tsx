@@ -1,11 +1,12 @@
 import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, count } from 'drizzle-orm';
 
 import { getUser } from '@/utils/auth';
 import { db } from '@/utils/db';
 import { BreadcrumbSegment } from '@/components/breadcrumb-context';
-import { events, eventTypes, eventAttendees } from '@/db/schema';
+import { MarkdownContent } from '@/components/markdown/markdown-content';
+import { events, eventTypes, eventAttendees, eventArticles } from '@/db/schema';
 import { getUserApplicationStatus } from '@/app/dashboard/events/actions';
 import { ApplicationStatusBanner } from '@/app/dashboard/events/ApplicationStatusBanner';
 import { RegisterEventButton } from '@/app/dashboard/events/RegisterEventButton';
@@ -20,7 +21,7 @@ import {
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, CalendarDays, Users } from 'lucide-react';
+import { ArrowLeft, BookOpen, CalendarDays, Users } from 'lucide-react';
 
 type Props = {
   params: Promise<{ eventId: string }>;
@@ -62,6 +63,7 @@ export default async function EventEntryPage({ params, searchParams }: Props) {
     .select({
       id: events.id,
       name: events.name,
+      descriptionMarkdown: events.descriptionMarkdown,
       hasApplication: events.hasApplication,
       startsAt: events.startsAt,
       endsAt: events.endsAt,
@@ -75,6 +77,16 @@ export default async function EventEntryPage({ params, searchParams }: Props) {
     .limit(1);
 
   if (!row) notFound();
+
+  const [{ total: publishedArticleCount }] = await db
+    .select({ total: count() })
+    .from(eventArticles)
+    .where(
+      and(
+        eq(eventArticles.eventId, eventId),
+        eq(eventArticles.published, true),
+      ),
+    );
 
   if (row.hasApplication) {
     const applicationStatus = await getUserApplicationStatus(eventId);
@@ -103,6 +115,10 @@ export default async function EventEntryPage({ params, searchParams }: Props) {
             capacity={row.capacity}
           />
         </div>
+
+        <EventDescription markdown={row.descriptionMarkdown} />
+
+        <WikiLink eventId={eventId} articleCount={publishedArticleCount} />
 
         {applicationStatus && (
           <ApplicationStatusBanner
@@ -189,6 +205,10 @@ export default async function EventEntryPage({ params, searchParams }: Props) {
         />
       </div>
 
+      <EventDescription markdown={row.descriptionMarkdown} />
+
+      <WikiLink eventId={eventId} articleCount={publishedArticleCount} />
+
       {isRegistered ? (
         <div className='space-y-6'>
           <Card>
@@ -228,6 +248,45 @@ export default async function EventEntryPage({ params, searchParams }: Props) {
         </div>
       )}
     </div>
+  );
+}
+
+function EventDescription({ markdown }: { markdown: string | null }) {
+  if (!markdown?.trim()) return null;
+  return <MarkdownContent markdown={markdown} />;
+}
+
+/**
+ * Entry point to the event's wiki. Hidden entirely when nothing is published
+ * yet, so participants never follow a link into an empty page.
+ */
+function WikiLink({
+  eventId,
+  articleCount,
+}: {
+  eventId: string;
+  articleCount: number;
+}) {
+  if (articleCount === 0) return null;
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className='flex items-center gap-2 text-base'>
+          <BookOpen className='size-4' />
+          Event wiki
+        </CardTitle>
+        <CardDescription>
+          {articleCount === 1
+            ? '1 article from the organizers.'
+            : `${articleCount} articles from the organizers.`}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Button asChild variant='outline' size='sm'>
+          <Link href={`/dashboard/events/${eventId}/wiki`}>Read the wiki</Link>
+        </Button>
+      </CardContent>
+    </Card>
   );
 }
 

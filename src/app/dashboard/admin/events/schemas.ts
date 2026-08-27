@@ -1,5 +1,9 @@
 import { z } from 'zod';
 import { QUESTION_MAX_LENGTH_LIMIT } from '@/types/application';
+import {
+  ARTICLE_SLUG_MAX_LENGTH,
+  isValidArticleSlug,
+} from '@/lib/article-slug';
 
 const questionTypeSchema = z.enum([
   'short_text',
@@ -112,3 +116,72 @@ export const updateEventSettingsSchema = z
 export type UpdateEventSettingsInput = z.infer<
   typeof updateEventSettingsSchema
 >;
+
+// ── Markdown content schemas ─────────────────────────────────────────────
+
+/**
+ * Upper bounds on stored markdown. These are deliberately generous — they
+ * exist to stop a runaway paste or a scripted client from writing an
+ * unbounded blob into a row that gets read on every page view, not to
+ * discipline organizers about article length.
+ */
+const EVENT_DESCRIPTION_MAX_LENGTH = 20_000;
+const ARTICLE_BODY_MAX_LENGTH = 200_000;
+const ARTICLE_TITLE_MAX_LENGTH = 200;
+
+const markdownBodySchema = (max: number, label: string) =>
+  z
+    .string()
+    .max(max, `${label} cannot exceed ${max.toLocaleString()} characters`);
+
+export const updateEventDescriptionSchema = z.object({
+  descriptionMarkdown: markdownBodySchema(
+    EVENT_DESCRIPTION_MAX_LENGTH,
+    'Description',
+  ),
+});
+
+const articleSlugSchema = z
+  .string()
+  .trim()
+  .max(ARTICLE_SLUG_MAX_LENGTH)
+  .refine(isValidArticleSlug, {
+    message:
+      'Use lowercase letters, numbers and single hyphens (e.g. "getting-started")',
+  });
+
+export const createArticleSchema = z.object({
+  title: z
+    .string()
+    .trim()
+    .min(1, 'Title is required')
+    .max(
+      ARTICLE_TITLE_MAX_LENGTH,
+      `Title cannot exceed ${ARTICLE_TITLE_MAX_LENGTH} characters`,
+    ),
+  // Omitted means "derive it from the title".
+  slug: articleSlugSchema.optional(),
+});
+
+export type CreateArticleInput = z.infer<typeof createArticleSchema>;
+
+export const updateArticleSchema = z.object({
+  title: z
+    .string()
+    .trim()
+    .min(1, 'Title is required')
+    .max(
+      ARTICLE_TITLE_MAX_LENGTH,
+      `Title cannot exceed ${ARTICLE_TITLE_MAX_LENGTH} characters`,
+    )
+    .optional(),
+  slug: articleSlugSchema.optional(),
+  bodyMarkdown: markdownBodySchema(
+    ARTICLE_BODY_MAX_LENGTH,
+    'Article',
+  ).optional(),
+  published: z.boolean().optional(),
+  sortOrder: z.number().int().min(0).max(9999).optional(),
+});
+
+export type UpdateArticleInput = z.infer<typeof updateArticleSchema>;
