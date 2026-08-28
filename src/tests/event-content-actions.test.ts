@@ -127,11 +127,26 @@ describe('authorization', () => {
     await expect(updateEventDescription(eventId, 'hi')).resolves.toMatchObject({
       success: false,
     });
+    await expect(
+      uploadEventDescriptionAttachment(eventId, new FormData()),
+    ).resolves.toMatchObject({ success: false });
     await expect(listEventArticles(eventId)).resolves.toMatchObject({
+      success: false,
+    });
+    await expect(getEventArticle(eventId, NIL_UUID)).resolves.toMatchObject({
       success: false,
     });
     await expect(
       createEventArticle(eventId, { title: 'X' }),
+    ).resolves.toMatchObject({ success: false });
+    await expect(
+      updateEventArticle(eventId, NIL_UUID, { published: true }),
+    ).resolves.toMatchObject({ success: false });
+    await expect(deleteEventArticle(eventId, NIL_UUID)).resolves.toMatchObject({
+      success: false,
+    });
+    await expect(
+      uploadArticleAttachment(eventId, new FormData()),
     ).resolves.toMatchObject({ success: false });
     await expect(canWriteArticles()).resolves.toBe(false);
     actAs(editor);

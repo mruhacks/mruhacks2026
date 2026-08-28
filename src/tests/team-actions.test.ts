@@ -16,7 +16,10 @@ import {
   leaveTeam,
   removeMember,
 } from '@/app/dashboard/events/team-actions';
-import { getFormedTeamsForEvent } from '@/app/dashboard/admin/events/actions';
+import {
+  getFormedTeamsForEvent,
+  canModerateTeams,
+} from '@/app/dashboard/admin/events/actions';
 
 vi.mock('@/utils/auth', () => ({ getUser: vi.fn() }));
 vi.mock('next/cache', () => ({
@@ -173,6 +176,12 @@ describe('getMyTeam', () => {
 });
 
 describe('joinTeamByCode', () => {
+  test('fails when not authenticated', async () => {
+    vi.mocked(getUser).mockResolvedValueOnce(null as never);
+    const result = await joinTeamByCode(eventId, 'ZZZZZZZZ');
+    expect(result.success).toBe(false);
+  });
+
   test('fails with an invalid code', async () => {
     loginAs(userB);
     const result = await joinTeamByCode(eventId, 'ZZZZZZZZ');
@@ -237,6 +246,12 @@ describe('joinTeamByCode', () => {
 });
 
 describe('leaveTeam', () => {
+  test('fails when not authenticated', async () => {
+    vi.mocked(getUser).mockResolvedValueOnce(null as never);
+    const result = await leaveTeam(eventId);
+    expect(result.success).toBe(false);
+  });
+
   test('leaving a solo team is a no-op', async () => {
     loginAs(userD);
     const result = await leaveTeam(eventId);
@@ -268,6 +283,12 @@ describe('leaveTeam', () => {
 });
 
 describe('removeMember', () => {
+  test('fails when not authenticated', async () => {
+    vi.mocked(getUser).mockResolvedValueOnce(null as never);
+    const result = await removeMember(eventId, userB.id);
+    expect(result.success).toBe(false);
+  });
+
   test('organizer can remove a member; removed member gets a fresh team', async () => {
     // Team is currently B (organizer), C.
     loginAs(userB);
@@ -307,6 +328,20 @@ describe('removeMember', () => {
 });
 
 describe('getFormedTeamsForEvent', () => {
+  test('fails when not authenticated', async () => {
+    vi.mocked(getUser).mockResolvedValueOnce(null as never);
+    await expect(getFormedTeamsForEvent(eventId)).resolves.toMatchObject({
+      success: false,
+    });
+  });
+
+  test('redirects to /forbidden without team:read:all', async () => {
+    loginAs(userA);
+    await expect(getFormedTeamsForEvent(eventId)).rejects.toThrow(
+      'REDIRECT:/forbidden?reason=missing_permission&permission=team:read:all',
+    );
+  });
+
   test('only lists teams with more than one member', async () => {
     // Re-group A and C into one team so there's exactly one formed team.
     loginAs(userA);
@@ -329,6 +364,23 @@ describe('getFormedTeamsForEvent', () => {
     expect(formedTeam?.members.map((m) => m.userId).sort()).toEqual(
       [userA.id, userC.id].sort(),
     );
+  });
+});
+
+describe('canModerateTeams', () => {
+  test('returns false when not authenticated', async () => {
+    vi.mocked(getUser).mockResolvedValueOnce(null as never);
+    expect(await canModerateTeams()).toBe(false);
+  });
+
+  test('returns false without team:manage:all', async () => {
+    loginAs(userA);
+    expect(await canModerateTeams()).toBe(false);
+  });
+
+  test('returns true with team:manage:all', async () => {
+    loginAs(adminUser);
+    expect(await canModerateTeams()).toBe(true);
   });
 });
 
