@@ -8,6 +8,7 @@
 import {
   events,
   userProfiles,
+  userProfileAbout,
   userDietaryRestrictions,
   eventApplications,
   applicationStatuses,
@@ -30,7 +31,7 @@ import {
   type EventOnlyFormValues,
 } from '@/components/application-form/schema';
 import type { ApplicationQuestion } from '@/types/application';
-import { cacheLife, updateTag } from 'next/cache';
+import { cacheLife, revalidatePath, updateTag } from 'next/cache';
 import { and, eq, inArray } from 'drizzle-orm';
 import { getUserProfile } from '@/app/dashboard/profile/actions';
 import {
@@ -128,14 +129,7 @@ async function registerParticipant(
           fullName: profile.fullName,
           genderId: profile.genderId,
           genderOtherText: profile.genderOtherText || null,
-          universityId: profile.universityId,
-          universityOtherText: profile.universityOtherText || null,
-          majorId: profile.majorId,
-          majorOtherText: profile.majorOtherText || null,
-          yearOfStudyId: profile.yearOfStudyId,
           dietaryOtherText: profile.dietaryOtherText || null,
-          linkedinUrl: profile.linkedinUrl || null,
-          githubUrl: profile.githubUrl || null,
         })
         .onConflictDoUpdate({
           target: userProfiles.userId,
@@ -143,12 +137,31 @@ async function registerParticipant(
             fullName: profile.fullName,
             genderId: profile.genderId,
             genderOtherText: profile.genderOtherText || null,
+            dietaryOtherText: profile.dietaryOtherText || null,
+            updatedAt: new Date(),
+          },
+        });
+
+      await tx
+        .insert(userProfileAbout)
+        .values({
+          userId: user.id,
+          universityId: profile.universityId,
+          universityOtherText: profile.universityOtherText || null,
+          majorId: profile.majorId,
+          majorOtherText: profile.majorOtherText || null,
+          yearOfStudyId: profile.yearOfStudyId,
+          linkedinUrl: profile.linkedinUrl || null,
+          githubUrl: profile.githubUrl || null,
+        })
+        .onConflictDoUpdate({
+          target: userProfileAbout.userId,
+          set: {
             universityId: profile.universityId,
             universityOtherText: profile.universityOtherText || null,
             majorId: profile.majorId,
             majorOtherText: profile.majorOtherText || null,
             yearOfStudyId: profile.yearOfStudyId,
-            dietaryOtherText: profile.dietaryOtherText || null,
             linkedinUrl: profile.linkedinUrl || null,
             githubUrl: profile.githubUrl || null,
             updatedAt: new Date(),
@@ -187,6 +200,7 @@ async function registerParticipant(
     });
 
     updateTag(userEventsCacheTag(user.id));
+    revalidatePath('/welcome', 'layout');
     return ok('Application saved successfully.');
   } catch (error) {
     console.error('Application save error:', error);
@@ -284,10 +298,25 @@ export async function submitEventApplication(
   if (!profileResult.success)
     return fail(profileResult.error ?? 'Could not load profile');
   const profile = profileResult.data;
-  if (profile == null)
+  if (
+    profile == null ||
+    profile.universityId == null ||
+    profile.majorId == null ||
+    profile.yearOfStudyId == null
+  ) {
     return fail('Complete your profile first before applying to events.');
+  }
 
-  return registerParticipant(profile, eventData, eventId);
+  return registerParticipant(
+    {
+      ...profile,
+      universityId: profile.universityId,
+      majorId: profile.majorId,
+      yearOfStudyId: profile.yearOfStudyId,
+    },
+    eventData,
+    eventId,
+  );
 }
 
 export type ApplicationStatusForUser = {

@@ -61,26 +61,32 @@ const otherTextSchema = z
   .optional()
   .or(z.literal(''));
 
-/** Profile-only (no attendedBefore; that is event-specific and stored in event_applications.responses). */
+/** Mirrors the welcome wizard's Personal step: who you are + dietary needs. */
 export const personalSchema = z.object({
   fullName: z.string().trim().min(1, 'Required'),
   genderId: requiredOption('Required'),
   genderOtherText: otherTextSchema,
+  dietaryRestrictions: z.array(z.number('Required')),
+  dietaryOtherText: otherTextSchema,
+});
+
+/** Mirrors the welcome wizard's About step: academic info + socials (no attendedBefore; that's wizard-only, not part of this shared schema). */
+export const aboutSchema = z.object({
   universityId: requiredOption('Required'),
   universityOtherText: otherTextSchema,
   majorId: requiredOption('Required'),
   majorOtherText: otherTextSchema,
   yearOfStudyId: requiredOption('Required'),
-});
-
-export const aboutSchema = z.object({
-  dietaryRestrictions: z.array(z.number('Required')),
-  dietaryOtherText: otherTextSchema,
   linkedinUrl: linkedinUrlSchema,
   githubUrl: githubUrlSchema,
 });
 
-/** Profile-only form (for ProfileForm / saveUserProfile): personal + dietary restrictions + socials; no accommodations, attendedBefore, or applicationResponses. */
+/** About-step payload, including the onboarding-only hackathon-history field. */
+export const welcomeAboutSchema = aboutSchema.extend({
+  attendedHackathonBefore: z.boolean(),
+});
+
+/** Profile-only form (for ProfileForm / saveFullProfile): personal + dietary restrictions + socials; no accommodations, attendedBefore, or applicationResponses. */
 export const profileFormSchema = z.object({
   ...personalSchema.shape,
   ...aboutSchema.shape,

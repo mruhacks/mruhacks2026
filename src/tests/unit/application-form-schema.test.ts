@@ -15,6 +15,28 @@ function q(overrides: Partial<ApplicationQuestion>): ApplicationQuestion {
 }
 
 describe('createApplicationFormSchema', () => {
+  test.each([
+    ['short_text', 'Please enter an answer.'],
+    ['long_text', 'Please enter an answer.'],
+    ['number', 'Please enter a valid number.'],
+    ['boolean', 'Please check this box to continue.'],
+    ['single_select', 'Please select an option.'],
+    ['multi_select', 'Please select at least one option.'],
+  ] as const)(
+    'uses a friendly missing-answer error for %s questions',
+    (type, expectedMessage) => {
+      const schema = createApplicationFormSchema([
+        q({ id: 'q1', type, required: true }),
+      ]);
+      const result = schema.safeParse({ applicationResponses: {} });
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.issues[0]?.message).toBe(expectedMessage);
+      }
+    },
+  );
+
   test('returns permissive schema when questions is null', () => {
     const schema = createApplicationFormSchema(null);
     expect(schema.safeParse({ applicationResponses: {} }).success).toBe(true);

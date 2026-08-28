@@ -1,6 +1,6 @@
 /**
  * Server actions for user profile (dashboard profile page).
- * Profile-only: user_profiles, user_dietary_restrictions.
+ * Profile-only: user_profiles, user_profile_about, user_dietary_restrictions.
  * Decoupled from event application/registration (see register/actions.ts and dashboard/events/actions.ts).
  */
 
@@ -9,6 +9,7 @@
 import {
   user as authUser,
   userProfiles,
+  userProfileAbout,
   userDietaryRestrictions,
 } from '@/db/schema';
 import { getUser } from '@/utils/auth';
@@ -19,6 +20,8 @@ import { randomUUID } from 'crypto';
 import sharp from 'sharp';
 import { ActionResult, fail, ok } from '@/utils/action-result';
 import {
+  personalSchema,
+  welcomeAboutSchema,
   profileFormSchema,
   type ProfileFormValues,
 } from '@/components/profile-form/schema';
@@ -29,25 +32,30 @@ import {
   profilePictureUrl,
   putObject,
 } from '@/utils/object-storage';
+import { z } from 'zod';
 
 export type UserProfileData = {
   fullName: string;
   genderId: number;
   genderOtherText: string;
-  universityId: number;
+  dietaryRestrictions: number[];
+  dietaryOtherText: string;
+  /** Null until the About step (or a dashboard edit) has saved this. */
+  universityId: number | null;
   universityOtherText: string;
-  majorId: number;
+  majorId: number | null;
   majorOtherText: string;
-  yearOfStudyId: number;
+  yearOfStudyId: number | null;
   attendedHackathonBefore: boolean;
   linkedinUrl: string;
   githubUrl: string;
-  dietaryRestrictions: number[];
-  dietaryOtherText: string;
   hasResume: boolean;
   resumeFileName: string | null;
   resumeFileType: string | null;
 };
+
+export type PersonalProfileValues = z.infer<typeof personalSchema>;
+export type AboutProfileValues = z.infer<typeof welcomeAboutSchema>;
 
 const MAX_PROFILE_PICTURE_BYTES = 2 * 1024 * 1024;
 const MAX_RESUME_BYTES = 5 * 1024 * 1024;
@@ -161,12 +169,14 @@ function revalidateProfile() {
   revalidatePath('/dashboard/profile');
   revalidatePath('/dashboard/account');
   revalidatePath('/dashboard', 'layout');
+  revalidatePath('/welcome', 'layout');
 }
 
 /**
- * Returns the current user's profile (user_profiles + user_dietary_restrictions).
- * No attendedBefore; used for ProfileForm initial and event-form pre-fill when no prior application.
- * Returns ok(null) when no profile row exists.
+ * Returns the current user's profile (user_profiles + user_profile_about +
+ * user_dietary_restrictions). The About-owned fields are null until the About
+ * step (or a dashboard edit) has saved them. Returns ok(null) when no
+ * user_profiles row exists at all (Personal step not done).
  */
 export async function getUserProfile(): Promise<
   ActionResult<UserProfileData | null>
@@ -174,13 +184,33 @@ export async function getUserProfile(): Promise<
   const user = await getUser();
   if (!user) return fail('User not authenticated');
 
-  const [profile] = await db
-    .select()
+  const [row] = await db
+    .select({
+      fullName: userProfiles.fullName,
+      genderId: userProfiles.genderId,
+      genderOtherText: userProfiles.genderOtherText,
+      dietaryOtherText: userProfiles.dietaryOtherText,
+      resumeFile: userProfiles.resumeFile,
+      resumeFileName: userProfiles.resumeFileName,
+      resumeFileType: userProfiles.resumeFileType,
+      universityId: userProfileAbout.universityId,
+      universityOtherText: userProfileAbout.universityOtherText,
+      majorId: userProfileAbout.majorId,
+      majorOtherText: userProfileAbout.majorOtherText,
+      yearOfStudyId: userProfileAbout.yearOfStudyId,
+      attendedHackathonBefore: userProfileAbout.attendedHackathonBefore,
+      linkedinUrl: userProfileAbout.linkedinUrl,
+      githubUrl: userProfileAbout.githubUrl,
+    })
     .from(userProfiles)
+    .leftJoin(
+      userProfileAbout,
+      eq(userProfileAbout.userId, userProfiles.userId),
+    )
     .where(eq(userProfiles.userId, user.id))
     .limit(1);
 
-  if (!profile) return ok(null);
+  if (!row) return ok(null);
 
   const restrictionRows = await db
     .select({ restrictionId: userDietaryRestrictions.restrictionId })
@@ -188,36 +218,84 @@ export async function getUserProfile(): Promise<
     .where(eq(userDietaryRestrictions.userId, user.id));
 
   return ok({
-    fullName: profile.fullName,
-    genderId: profile.genderId,
-    genderOtherText: profile.genderOtherText ?? '',
-    universityId: profile.universityId,
-    universityOtherText: profile.universityOtherText ?? '',
-    majorId: profile.majorId,
-    majorOtherText: profile.majorOtherText ?? '',
-    yearOfStudyId: profile.yearOfStudyId,
-    attendedHackathonBefore: profile.attendedHackathonBefore,
-    linkedinUrl: profile.linkedinUrl ?? '',
-    githubUrl: profile.githubUrl ?? '',
+    fullName: row.fullName,
+    genderId: row.genderId,
+    genderOtherText: row.genderOtherText ?? '',
     dietaryRestrictions: restrictionRows.map((r) => r.restrictionId),
-    dietaryOtherText: profile.dietaryOtherText ?? '',
-    hasResume: profile.resumeFile != null,
-    resumeFileName: profile.resumeFileName,
-    resumeFileType: profile.resumeFileType,
+    dietaryOtherText: row.dietaryOtherText ?? '',
+    universityId: row.universityId,
+    universityOtherText: row.universityOtherText ?? '',
+    majorId: row.majorId,
+    majorOtherText: row.majorOtherText ?? '',
+    yearOfStudyId: row.yearOfStudyId,
+    attendedHackathonBefore: row.attendedHackathonBefore ?? false,
+    linkedinUrl: row.linkedinUrl ?? '',
+    githubUrl: row.githubUrl ?? '',
+    hasResume: row.resumeFile != null,
+    resumeFileName: row.resumeFileName,
+    resumeFileType: row.resumeFileType,
   });
 }
 
+/** Upserts the About-owned columns; attendedHackathonBefore is left untouched on conflict when omitted. */
+async function upsertAboutProfile(
+  userId: string,
+  data: {
+    universityId: number;
+    universityOtherText?: string;
+    majorId: number;
+    majorOtherText?: string;
+    yearOfStudyId: number;
+    linkedinUrl?: string;
+    githubUrl?: string;
+  },
+  attendedHackathonBefore?: boolean,
+) {
+  await db
+    .insert(userProfileAbout)
+    .values({
+      userId,
+      universityId: data.universityId,
+      universityOtherText: data.universityOtherText || null,
+      majorId: data.majorId,
+      majorOtherText: data.majorOtherText || null,
+      yearOfStudyId: data.yearOfStudyId,
+      linkedinUrl: data.linkedinUrl || null,
+      githubUrl: data.githubUrl || null,
+      ...(attendedHackathonBefore !== undefined && {
+        attendedHackathonBefore,
+      }),
+    })
+    .onConflictDoUpdate({
+      target: userProfileAbout.userId,
+      set: {
+        universityId: data.universityId,
+        universityOtherText: data.universityOtherText || null,
+        majorId: data.majorId,
+        majorOtherText: data.majorOtherText || null,
+        yearOfStudyId: data.yearOfStudyId,
+        linkedinUrl: data.linkedinUrl || null,
+        githubUrl: data.githubUrl || null,
+        ...(attendedHackathonBefore !== undefined && {
+          attendedHackathonBefore,
+        }),
+        updatedAt: new Date(),
+      },
+    });
+}
+
 /**
- * Saves user profile only (user_profiles, user_dietary_restrictions).
- * Does not touch event_applications. Accommodations stay event-only.
+ * Saves the Personal-owned fields (user_profiles + user_dietary_restrictions):
+ * name, gender, dietary. Independent of the About step — creates the profile
+ * row on its own.
  */
-export async function saveUserProfile(
-  formData: ProfileFormValues,
+export async function savePersonalProfile(
+  formData: PersonalProfileValues,
 ): Promise<ActionResult> {
   const user = await getUser();
   if (!user) return fail('User not authenticated');
 
-  const parsed = profileFormSchema.safeParse(formData);
+  const parsed = personalSchema.safeParse(formData);
   if (!parsed.success) {
     return fail(`Validation failed: ${parsed.error.message}`);
   }
@@ -233,14 +311,7 @@ export async function saveUserProfile(
           fullName: data.fullName,
           genderId: data.genderId,
           genderOtherText: data.genderOtherText || null,
-          universityId: data.universityId,
-          universityOtherText: data.universityOtherText || null,
-          majorId: data.majorId,
-          majorOtherText: data.majorOtherText || null,
-          yearOfStudyId: data.yearOfStudyId,
           dietaryOtherText: data.dietaryOtherText || null,
-          linkedinUrl: data.linkedinUrl || null,
-          githubUrl: data.githubUrl || null,
         })
         .onConflictDoUpdate({
           target: userProfiles.userId,
@@ -248,14 +319,7 @@ export async function saveUserProfile(
             fullName: data.fullName,
             genderId: data.genderId,
             genderOtherText: data.genderOtherText || null,
-            universityId: data.universityId,
-            universityOtherText: data.universityOtherText || null,
-            majorId: data.majorId,
-            majorOtherText: data.majorOtherText || null,
-            yearOfStudyId: data.yearOfStudyId,
             dietaryOtherText: data.dietaryOtherText || null,
-            linkedinUrl: data.linkedinUrl || null,
-            githubUrl: data.githubUrl || null,
             updatedAt: new Date(),
           },
         });
@@ -282,33 +346,71 @@ export async function saveUserProfile(
       }
     });
 
+    revalidateProfile();
     return ok('Profile saved successfully.');
   } catch (error) {
-    console.error('Profile save error:', error);
+    console.error('Personal profile save error:', error);
     return fail('Failed to save profile.');
   }
 }
 
-/** Stores the onboarding-only profile signal after the complete profile is saved. */
-export async function saveWelcomeProfile(
-  formData: ProfileFormValues & { attendedHackathonBefore: boolean },
+/**
+ * Saves the About-owned fields (user_profile_about): academic info + socials
+ * + attendedHackathonBefore. Independent of the Personal step.
+ */
+export async function saveAboutProfile(
+  formData: AboutProfileValues,
 ): Promise<ActionResult> {
-  const result = await saveUserProfile(formData);
-  if (!result.success) return result;
+  const user = await getUser();
+  if (!user) return fail('User not authenticated');
+
+  const parsed = welcomeAboutSchema.safeParse(formData);
+  if (!parsed.success) {
+    return fail(`Validation failed: ${parsed.error.message}`);
+  }
+
+  try {
+    await upsertAboutProfile(
+      user.id,
+      parsed.data,
+      parsed.data.attendedHackathonBefore,
+    );
+    revalidateProfile();
+    return ok('Profile saved successfully.');
+  } catch (error) {
+    console.error('About profile save error:', error);
+    return fail('Failed to save profile.');
+  }
+}
+
+/**
+ * Saves both halves in one go, for the dashboard's single-page edit form.
+ * Never touches attendedHackathonBefore (the dashboard form doesn't collect
+ * it) — that stays whatever the welcome wizard originally set.
+ */
+export async function saveFullProfile(
+  formData: ProfileFormValues,
+): Promise<ActionResult> {
+  // Validate the whole dashboard payload before either half is persisted. A
+  // malformed About field must not partially save the Personal half.
+  const parsed = profileFormSchema.safeParse(formData);
+  if (!parsed.success) {
+    return fail(`Validation failed: ${parsed.error.message}`);
+  }
+
+  const personalResult = await savePersonalProfile(parsed.data);
+  if (!personalResult.success) return personalResult;
 
   const user = await getUser();
   if (!user) return fail('User not authenticated');
 
   try {
-    await db
-      .update(userProfiles)
-      .set({ attendedHackathonBefore: formData.attendedHackathonBefore })
-      .where(eq(userProfiles.userId, user.id));
+    await upsertAboutProfile(user.id, parsed.data);
     revalidateProfile();
-    return ok();
+    return ok('Profile saved successfully.');
   } catch (error) {
-    console.error('Welcome profile save error:', error);
-    return fail('Failed to save onboarding profile.');
+    console.error('Full profile save error:', error);
+    return fail('Failed to save profile.');
   }
 }
 

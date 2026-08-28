@@ -218,6 +218,13 @@
       "when": 1787928061542,
       "tag": "0030_user_oauth_name",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1787936015171,
+      "tag": "0031_split_user_profile_about",
+      "breakpoints": true
     }
   ]
 }

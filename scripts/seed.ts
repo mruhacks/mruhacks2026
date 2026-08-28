@@ -9,6 +9,7 @@ import {
   session,
   events,
   userProfiles,
+  userProfileAbout,
   userInterests,
   userDietaryRestrictions,
   eventApplications,
@@ -39,9 +40,6 @@ const Q_HEARD_FROM = '11111111-0000-0000-0000-000000000004';
 const Q_CONSENT_INFO = '11111111-0000-0000-0000-000000000005';
 const Q_CONSENT_SPONSOR = '11111111-0000-0000-0000-000000000006';
 const Q_CONSENT_MEDIA = '11111111-0000-0000-0000-000000000007';
-const Q_WHY_ATTEND = '11111111-0000-0000-0000-000000000008';
-const Q_IDEAS = '11111111-0000-0000-0000-000000000009';
-const Q_SPACE_JOURNEY = '11111111-0000-0000-0000-00000000000a';
 
 // ── Stable option UUIDs for heard_from question ───────────────────────────
 const OPT_POSTER = '22222222-0000-0000-0000-000000000001';
@@ -70,6 +68,7 @@ type AccountInsert = InferInsertModel<typeof account>;
 type SessionInsert = InferInsertModel<typeof session>;
 type EventInsert = InferInsertModel<typeof events>;
 type UserProfileInsert = InferInsertModel<typeof userProfiles>;
+type UserProfileAboutInsert = InferInsertModel<typeof userProfileAbout>;
 type UserInterestInsert = InferInsertModel<typeof userInterests>;
 type UserDietaryInsert = InferInsertModel<typeof userDietaryRestrictions>;
 type EventApplicationInsert = InferInsertModel<typeof eventApplications>;
@@ -95,69 +94,11 @@ async function seedEvents() {
       maxTeamSize: 5,
       applicationQuestions: [
         {
-          id: Q_ATTENDED_BEFORE,
-          label: 'Have you attended MRUHacks before?',
-          type: 'boolean' as const,
-          required: true,
-          order: 1,
-          active: true,
-        },
-        {
-          id: Q_WHY_ATTEND,
-          label: 'Why do you want to attend MRUHacks?',
-          description:
-            'What excites you about the event, and how do you hope it will help you grow? (60 words max)',
-          type: 'long_text' as const,
-          required: true,
-          maxLength: 250,
-          order: 2,
-          active: true,
-        },
-        {
-          id: Q_IDEAS,
-          label:
-            'Do you have any ideas you want to make or areas you’d like to learn about during MRUHacks?',
-          description: '60 words max',
-          type: 'long_text' as const,
-          required: true,
-          maxLength: 250,
-          order: 3,
-          active: true,
-        },
-        {
-          id: Q_SPACE_JOURNEY,
-          label:
-            'If you had to go on a 10-year journey through space all alone, what would you bring to entertain yourself?',
-          description: '20 words max',
-          type: 'long_text' as const,
-          required: true,
-          maxLength: 90,
-          order: 4,
-          active: true,
-        },
-        {
-          id: Q_ACCOMMODATIONS,
-          label: 'Accessibility or accommodations',
-          description: 'Please let us know if you have any special needs.',
-          type: 'long_text' as const,
-          required: false,
-          order: 5,
-          active: true,
-        },
-        {
-          id: Q_NEEDS_PARKING,
-          label: 'I require parking',
-          type: 'boolean' as const,
-          required: false,
-          order: 6,
-          active: true,
-        },
-        {
           id: Q_HEARD_FROM,
           label: 'How did you hear about us?',
           type: 'single_select' as const,
           required: true,
-          order: 7,
+          order: 1,
           active: true,
           options: [
             { value: OPT_POSTER, label: 'Poster', active: true },
@@ -171,30 +112,6 @@ async function seedEvents() {
             },
             { value: OPT_OTHER, label: 'Other', active: true },
           ],
-        },
-        {
-          id: Q_CONSENT_INFO,
-          label: 'I consent to MRUHacks collecting and using my information',
-          type: 'boolean' as const,
-          required: true,
-          order: 8,
-          active: true,
-        },
-        {
-          id: Q_CONSENT_SPONSOR,
-          label: 'I consent to sharing my information with sponsors',
-          type: 'boolean' as const,
-          required: true,
-          order: 9,
-          active: true,
-        },
-        {
-          id: Q_CONSENT_MEDIA,
-          label: 'I consent to photos and videos being taken at the event',
-          type: 'boolean' as const,
-          required: true,
-          order: 10,
-          active: true,
         },
       ],
     },
@@ -563,6 +480,7 @@ async function main() {
     const accounts: AccountInsert[] = [];
     const sessions: SessionInsert[] = [];
     const profiles: UserProfileInsert[] = [];
+    const profilesAbout: UserProfileAboutInsert[] = [];
     const interestLinks: UserInterestInsert[] = [];
     const dietaryLinks: UserDietaryInsert[] = [];
     const applicationData: EventApplicationInsert[] = [];
@@ -618,6 +536,12 @@ async function main() {
         userId: id,
         fullName: name,
         genderId: gender.id,
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      profilesAbout.push({
+        userId: id,
         universityId: university.id,
         majorId: major.id,
         yearOfStudyId: year.id,
@@ -710,6 +634,7 @@ async function main() {
       await tx.insert(account).values(accounts);
       await tx.insert(session).values(sessions);
       await tx.insert(userProfiles).values(profiles);
+      await tx.insert(userProfileAbout).values(profilesAbout);
       if (interestLinks.length > 0)
         await tx.insert(userInterests).values(interestLinks);
       if (dietaryLinks.length > 0)

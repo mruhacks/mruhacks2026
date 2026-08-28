@@ -112,6 +112,29 @@ export const userProfiles = pgTable('user_profiles', {
     .references(() => genders.id),
   /** Free-text answer when genderId points at the "Other" option. */
   genderOtherText: varchar('gender_other_text', { length: 255 }),
+  /** Free-text answer when dietaryRestrictions includes the "Other" option. */
+  dietaryOtherText: varchar('dietary_other_text', { length: 255 }),
+  /** Optional resume, stored as a validated data URL with its original name. */
+  resumeFile: text('resume_file'),
+  resumeFileName: varchar('resume_file_name', { length: 255 }),
+  resumeFileType: varchar('resume_file_type', { length: 100 }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at')
+    .defaultNow()
+    .$onUpdate(() => new Date())
+    .notNull(),
+});
+
+/**
+ * Academic/optional profile info, split from user_profiles so the welcome
+ * wizard's About step can persist independently of the Personal step: a row
+ * existing here (not a nullable column on user_profiles) is what "About step
+ * done" means, so no column here is ever required-but-not-yet-known.
+ */
+export const userProfileAbout = pgTable('user_profile_about', {
+  userId: uuid('user_id')
+    .primaryKey()
+    .references(() => user.id, { onDelete: 'cascade' }),
   universityId: integer('university_id')
     .notNull()
     .references(() => universities.id),
@@ -128,15 +151,9 @@ export const userProfiles = pgTable('user_profiles', {
   attendedHackathonBefore: boolean('attended_hackathon_before')
     .notNull()
     .default(false),
-  /** Free-text answer when dietaryRestrictions includes the "Other" option. */
-  dietaryOtherText: varchar('dietary_other_text', { length: 255 }),
   /** Optional social links, shown to organizers/sponsors reviewing applications. */
   linkedinUrl: varchar('linkedin_url', { length: 255 }),
   githubUrl: varchar('github_url', { length: 255 }),
-  /** Optional resume, stored as a validated data URL with its original name. */
-  resumeFile: text('resume_file'),
-  resumeFileName: varchar('resume_file_name', { length: 255 }),
-  resumeFileType: varchar('resume_file_type', { length: 100 }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at')
     .defaultNow()
@@ -478,19 +495,29 @@ export const userProfilesRelations = relations(userProfiles, ({ one }) => ({
     fields: [userProfiles.genderId],
     references: [genders.id],
   }),
-  university: one(universities, {
-    fields: [userProfiles.universityId],
-    references: [universities.id],
-  }),
-  major: one(majors, {
-    fields: [userProfiles.majorId],
-    references: [majors.id],
-  }),
-  yearOfStudy: one(yearsOfStudy, {
-    fields: [userProfiles.yearOfStudyId],
-    references: [yearsOfStudy.id],
-  }),
 }));
+
+export const userProfileAboutRelations = relations(
+  userProfileAbout,
+  ({ one }) => ({
+    user: one(user, {
+      fields: [userProfileAbout.userId],
+      references: [user.id],
+    }),
+    university: one(universities, {
+      fields: [userProfileAbout.universityId],
+      references: [universities.id],
+    }),
+    major: one(majors, {
+      fields: [userProfileAbout.majorId],
+      references: [majors.id],
+    }),
+    yearOfStudy: one(yearsOfStudy, {
+      fields: [userProfileAbout.yearOfStudyId],
+      references: [yearsOfStudy.id],
+    }),
+  }),
+);
 
 export const eventApplicationsRelations = relations(
   eventApplications,
@@ -670,20 +697,21 @@ SELECT
   dr.dietary_restrictions,
   a.responses,
   a.created_at,
-  p.linkedin_url,
-  p.github_url,
+  pa.linkedin_url,
+  pa.github_url,
   p.gender_other_text,
-  p.university_other_text,
-  p.major_other_text,
+  pa.university_other_text,
+  pa.major_other_text,
   p.dietary_other_text
 FROM event_applications a
 JOIN events e ON e.id = a.event_id
 JOIN "user" u ON u.id = a.user_id
 LEFT JOIN user_profiles p ON p.user_id = a.user_id
+LEFT JOIN user_profile_about pa ON pa.user_id = a.user_id
 LEFT JOIN genders g ON g.id = p.gender_id
-LEFT JOIN universities un ON un.id = p.university_id
-LEFT JOIN majors m ON m.id = p.major_id
-LEFT JOIN years_of_study y ON y.id = p.year_of_study_id
+LEFT JOIN universities un ON un.id = pa.university_id
+LEFT JOIN majors m ON m.id = pa.major_id
+LEFT JOIN years_of_study y ON y.id = pa.year_of_study_id
 LEFT JOIN ints ON ints.user_id = a.user_id
 LEFT JOIN dr ON dr.user_id = a.user_id
 `,
@@ -734,21 +762,22 @@ SELECT
   a.user_id,
   p.full_name,
   p.gender_id,
-  p.university_id,
-  p.major_id,
-  p.year_of_study_id,
+  pa.university_id,
+  pa.major_id,
+  pa.year_of_study_id,
   COALESCE(i.interests, '{}'::integer[]) AS interests,
   COALESCE(d.dietary_restrictions, '{}'::integer[]) AS dietary_restrictions,
   a.responses,
   a.created_at,
-  p.linkedin_url,
-  p.github_url,
+  pa.linkedin_url,
+  pa.github_url,
   p.gender_other_text,
-  p.university_other_text,
-  p.major_other_text,
+  pa.university_other_text,
+  pa.major_other_text,
   p.dietary_other_text
 FROM event_applications a
 JOIN user_profiles p ON p.user_id = a.user_id
+LEFT JOIN user_profile_about pa ON pa.user_id = a.user_id
 LEFT JOIN interests_agg i ON i.user_id = a.user_id
 LEFT JOIN dietary_agg d ON d.user_id = a.user_id
 `,

@@ -1,7 +1,8 @@
 'use client';
 
 import * as React from 'react';
-import { CalendarDays, Loader2 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { CalendarDays } from 'lucide-react';
 import { toast } from 'sonner';
 
 import ApplicationForm from '@/components/application-form';
@@ -17,6 +18,8 @@ import {
 import { submitEventApplication } from '@/app/dashboard/events/actions';
 import { joinTeamByCode } from '@/app/dashboard/events/team-actions';
 import { registerForEvent } from '@/app/register/actions';
+import { completeWelcomeOnboarding } from '@/app/dashboard/account/actions';
+import { Spinner } from '@/components/ui/spinner';
 
 export type FeaturedOnboardingEvent = {
   id: string;
@@ -29,17 +32,40 @@ export type FeaturedOnboardingEvent = {
 
 export function FeaturedEventStep({
   event,
-  onComplete,
+  backHref,
+  nextHref,
+  isFinalStep,
 }: {
   event: FeaturedOnboardingEvent;
-  onComplete: () => void;
+  backHref: string;
+  nextHref: string;
+  isFinalStep: boolean;
 }) {
+  const router = useRouter();
   const [registering, setRegistering] = React.useState(false);
   const [teamCode, setTeamCode] = React.useState('');
   const [teamCodeError, setTeamCodeError] = React.useState<string | null>(null);
+  const [advanceError, setAdvanceError] = React.useState<string | null>(null);
   const activeQuestionCount = event.applicationQuestions.filter(
     (question) => question.active && question.type !== 'section_divider',
   ).length;
+
+  React.useEffect(() => {
+    router.prefetch(nextHref);
+    router.prefetch(backHref);
+  }, [router, nextHref, backHref]);
+
+  const advance = async () => {
+    setAdvanceError(null);
+    if (isFinalStep) {
+      const result = await completeWelcomeOnboarding();
+      if (!result.success) {
+        setAdvanceError(result.error ?? 'Unable to finish setup.');
+        return;
+      }
+    }
+    router.push(nextHref);
+  };
 
   /**
    * Runs once the application/registration itself has already succeeded. A
@@ -71,19 +97,19 @@ export function FeaturedEventStep({
         return;
       }
       toast.success('Registered for event.');
-      if (await joinTeamIfProvided()) onComplete();
+      if (await joinTeamIfProvided()) await advance();
     } finally {
       setRegistering(false);
     }
   };
 
   const onApplicationSuccess = async () => {
-    if (await joinTeamIfProvided()) onComplete();
+    if (await joinTeamIfProvided()) await advance();
   };
 
   return (
-    <div className='space-y-6'>
-      <div className='space-y-1'>
+    <div className='flex flex-col gap-6'>
+      <div className='flex flex-col gap-1'>
         <h2 className='text-lg font-semibold'>
           {event.hasApplication
             ? `Apply for ${event.name}`
@@ -118,6 +144,7 @@ export function FeaturedEventStep({
           </FieldDescription>
           <Input
             id='welcome-team-code'
+            aria-invalid={teamCodeError != null}
             value={teamCode}
             onChange={(e) => {
               setTeamCode(e.target.value);
@@ -140,11 +167,19 @@ export function FeaturedEventStep({
           onSuccess={onApplicationSuccess}
         />
       ) : (
-        <div className='flex justify-end'>
+        <div className='flex items-center justify-between gap-3'>
+          <Button
+            type='button'
+            variant='outline'
+            onClick={() => router.push(backHref)}
+            disabled={registering}
+          >
+            Back
+          </Button>
           <Button onClick={register} disabled={registering}>
             {registering ? (
               <>
-                <Loader2 className='mr-2 size-4 animate-spin' /> Registering...
+                <Spinner data-icon='inline-start' /> Registering...
               </>
             ) : (
               'Register'
@@ -152,6 +187,17 @@ export function FeaturedEventStep({
           </Button>
         </div>
       )}
+      {event.hasApplication && (
+        <Button
+          type='button'
+          variant='outline'
+          className='self-start'
+          onClick={() => router.push(backHref)}
+        >
+          Back
+        </Button>
+      )}
+      {advanceError && <FieldError>{advanceError}</FieldError>}
     </div>
   );
 }

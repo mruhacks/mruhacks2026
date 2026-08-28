@@ -33,6 +33,7 @@ export async function registerForEvent(eventId: string): Promise<ActionResult> {
     revalidatePath('/dashboard/events');
     revalidatePath('/dashboard');
     revalidatePath(`/dashboard/events/${eventId}`);
+    revalidatePath('/welcome', 'layout');
     updateTag(userEventsCacheTag(user.id));
     return ok('Registered for event.');
   } catch (error) {

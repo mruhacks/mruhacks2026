@@ -9,7 +9,10 @@ import {
   getUserApplicationStatus,
   submitEventApplication,
 } from '@/app/dashboard/events/actions';
-import { getUserProfile } from '@/app/dashboard/profile/actions';
+import {
+  getUserProfile,
+  type UserProfileData,
+} from '@/app/dashboard/profile/actions';
 import { db } from '@/utils/db';
 import { events } from '@/db/schema';
 import { eq } from 'drizzle-orm';
@@ -46,7 +49,7 @@ type PreviousSubmission = {
 
 function buildApplyInitials(
   prev: PreviousSubmission | null,
-  profileData: ProfileFormValues | null,
+  profileData: UserProfileData | null,
   user: { oauthName?: string | null },
 ): {
   profileInitial: Partial<ProfileFormValues> & { fullName: string };
@@ -67,7 +70,16 @@ function buildApplyInitials(
         dietaryRestrictions: prev.dietaryRestrictions ?? [],
         dietaryOtherText: prev.dietaryOtherText ?? '',
       }
-    : (profileData ?? { fullName: oauthPrefillName(user.oauthName) });
+    : profileData
+      ? {
+          ...profileData,
+          // This page is only reachable with a fully-onboarded profile, so
+          // these are never actually null here — just normalizing the type.
+          universityId: profileData.universityId ?? undefined,
+          majorId: profileData.majorId ?? undefined,
+          yearOfStudyId: profileData.yearOfStudyId ?? undefined,
+        }
+      : { fullName: oauthPrefillName(user.oauthName) };
 
   const eventInitial = prev
     ? { applicationResponses: prev.applicationResponses ?? {} }

@@ -19,8 +19,8 @@ import { ResetPasswordEmail } from '@/emails/ResetPasswordEmail';
 import { DeleteAccountEmail } from '@/emails/DeleteAccountEmail';
 import React from 'react';
 import { headers } from 'next/headers';
+import { cacheLife } from 'next/cache';
 import { after } from 'next/server';
-import { cache } from 'react';
 import { writeAuditLog } from '@/utils/audit-log';
 import { deleteObject, parseProfilePictureKey } from '@/utils/object-storage';
 
@@ -310,15 +310,22 @@ export const auth = betterAuth({
 /**
  * Retrieves the current session from the request headers
  *
- * This function is cached using React's cache() to avoid redundant
- * database queries within the same render cycle.
+ * The private cache is scoped to the browser session and is never stored in
+ * the shared server cache. Besides deduplicating reads, this gives Next a
+ * request-aware cache boundary it can include in the authenticated App Shell.
  *
  * @returns Promise resolving to the current session or null if not authenticated
  */
-const getSession = cache(async () => {
+async function getSession() {
+  'use cache: private';
+  // Session data is browser-private. Giving it a known lifetime lets Next
+  // include the authenticated App Shell in client navigations without ever
+  // placing the result in the shared server cache.
+  cacheLife('minutes');
+
   const session = await auth.api.getSession({ headers: await headers() });
   return session;
-});
+}
 
 /**
  * Retrieves the currently authenticated user

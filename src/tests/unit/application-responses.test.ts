@@ -10,6 +10,28 @@ function q(
 }
 
 describe('buildApplicationResponses', () => {
+  test.each([
+    ['short_text', 'Please enter an answer.'],
+    ['long_text', 'Please enter an answer.'],
+    ['number', 'Please enter a valid number.'],
+    ['boolean', 'Please check this box to continue.'],
+    ['single_select', 'Please select an option.'],
+    ['multi_select', 'Please select at least one option.'],
+  ] as const)(
+    'returns a friendly server error for a missing required %s answer',
+    (type, expectedMessage) => {
+      const result = buildApplicationResponses(
+        [q({ id: 'q1', type, label: 'Custom question', required: true })],
+        {},
+      );
+
+      expect(result).toEqual({
+        ok: false,
+        error: `Custom question: ${expectedMessage}`,
+      });
+    },
+  );
+
   test('empty questions returns empty responses', () => {
     const result = buildApplicationResponses([], {});
     expect(result.ok).toBe(true);

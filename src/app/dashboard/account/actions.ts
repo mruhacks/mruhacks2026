@@ -15,6 +15,7 @@
 'use server';
 
 import { desc, eq } from 'drizzle-orm';
+import { revalidatePath } from 'next/cache';
 
 import { db } from '@/utils/db';
 import { getUser } from '@/utils/auth';
@@ -27,6 +28,7 @@ import {
   privacyAcceptances,
   marketingConsents,
   userProfiles,
+  userProfileAbout,
   userInterests,
   userDietaryRestrictions,
   eventApplications,
@@ -208,6 +210,7 @@ export async function recordOnboardingConsent(
       );
     }
     await Promise.all(writes);
+    revalidatePath('/welcome', 'layout');
 
     return getConsent();
   } catch (error) {
@@ -230,7 +233,12 @@ export async function completeWelcomeOnboarding(): Promise<ActionResult> {
     .from(userProfiles)
     .where(eq(userProfiles.userId, currentUser.id))
     .limit(1);
-  if (!profile || (await userNeedsConsent(currentUser.id))) {
+  const [about] = await db
+    .select({ userId: userProfileAbout.userId })
+    .from(userProfileAbout)
+    .where(eq(userProfileAbout.userId, currentUser.id))
+    .limit(1);
+  if (!profile || !about || (await userNeedsConsent(currentUser.id))) {
     return fail('Finish your profile and accept the required policies first.');
   }
 
@@ -239,6 +247,7 @@ export async function completeWelcomeOnboarding(): Promise<ActionResult> {
       .update(authUser)
       .set({ onboardingCompletedAt: new Date() })
       .where(eq(authUser.id, currentUser.id));
+    revalidatePath('/welcome', 'layout');
     return ok();
   } catch (error) {
     console.error('completeWelcomeOnboarding error:', error);
@@ -274,6 +283,7 @@ export async function exportMyData(): Promise<ActionResult<unknown>> {
   try {
     const [
       profile,
+      profileAbout,
       interests,
       dietaryRestrictions,
       applications,
@@ -287,6 +297,10 @@ export async function exportMyData(): Promise<ActionResult<unknown>> {
       linkedAccounts,
     ] = await Promise.all([
       db.select().from(userProfiles).where(eq(userProfiles.userId, uid)),
+      db
+        .select()
+        .from(userProfileAbout)
+        .where(eq(userProfileAbout.userId, uid)),
       db.select().from(userInterests).where(eq(userInterests.userId, uid)),
       db
         .select()
@@ -357,7 +371,11 @@ export async function exportMyData(): Promise<ActionResult<unknown>> {
         privacyAcceptances: privacyHistory,
         marketing: marketingConsent[0] ?? null,
       },
-      profile: profile[0] ?? null,
+      // Merged so the export's shape doesn't reveal the internal Personal/About
+      // table split.
+      profile: profile[0]
+        ? { ...profile[0], ...(profileAbout[0] ?? {}) }
+        : null,
       interests,
       dietaryRestrictions,
       eventApplications: applications,

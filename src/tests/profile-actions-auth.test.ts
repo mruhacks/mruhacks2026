@@ -1,6 +1,6 @@
 /**
- * Auth tests for the six profile actions not covered by profile-actions.test.ts:
- * saveWelcomeProfile, uploadProfilePicture, removeProfilePicture,
+ * Auth tests for the profile actions not covered by profile-actions.test.ts:
+ * saveAboutProfile, uploadProfilePicture, removeProfilePicture,
  * uploadResume, removeResume, getOwnResume.
  *
  * All actions require only authentication (no permission gate), so the only
@@ -21,7 +21,7 @@ vi.mock('sharp', () => ({ default: vi.fn() }));
 
 import { getUser } from '@/utils/auth';
 import {
-  saveWelcomeProfile,
+  saveAboutProfile,
   uploadProfilePicture,
   removeProfilePicture,
   uploadResume,
@@ -34,10 +34,9 @@ function asUnauthed() {
 }
 
 describe('profile actions — unauthenticated', () => {
-  test('saveWelcomeProfile fails', async () => {
+  test('saveAboutProfile fails', async () => {
     asUnauthed();
-    // saveWelcomeProfile delegates to saveUserProfile first; saveUserProfile checks auth
-    await expect(saveWelcomeProfile({} as never)).resolves.toMatchObject({
+    await expect(saveAboutProfile({} as never)).resolves.toMatchObject({
       success: false,
     });
   });

@@ -19,6 +19,7 @@ import {
   privacyAcceptances,
   marketingConsents,
   userProfiles,
+  userProfileAbout,
   genders,
   universities,
   majors,
@@ -27,6 +28,7 @@ import {
 import { CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION } from '@/lib/consent';
 
 vi.mock('@/utils/auth', () => ({ getUser: vi.fn() }));
+vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 
 import { getUser } from '@/utils/auth';
 import {
@@ -88,6 +90,9 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await clearConsent();
+  await db
+    .delete(userProfileAbout)
+    .where(eq(userProfileAbout.userId, testUserId));
   await db.delete(userProfiles).where(eq(userProfiles.userId, testUserId));
   await db.delete(authUser).where(eq(authUser.id, testUserId));
 });
@@ -262,20 +267,37 @@ describe('completeWelcomeOnboarding', () => {
     yearId = await upsertLookup(yearsOfStudy, 'acct-yr');
   });
 
-  test('fails when user has no profile', async () => {
+  test('fails when user has no profile at all', async () => {
+    await db
+      .delete(userProfileAbout)
+      .where(eq(userProfileAbout.userId, testUserId));
     await db.delete(userProfiles).where(eq(userProfiles.userId, testUserId));
     const result = await completeWelcomeOnboarding();
     expect(result.success).toBe(false);
   });
 
-  test('succeeds when profile exists and consent is accepted', async () => {
-    // Insert profile and accept consent.
+  test('fails when personal step is done but about step is not', async () => {
     await db
       .insert(userProfiles)
+      .values({ userId: testUserId, fullName: 'Test', genderId })
+      .onConflictDoNothing();
+    const result = await completeWelcomeOnboarding();
+    expect(result.success).toBe(false);
+
+    // Cleanup.
+    await db.delete(userProfiles).where(eq(userProfiles.userId, testUserId));
+  });
+
+  test('succeeds when both profile halves exist and consent is accepted', async () => {
+    // Insert both profile halves and accept consent.
+    await db
+      .insert(userProfiles)
+      .values({ userId: testUserId, fullName: 'Test', genderId })
+      .onConflictDoNothing();
+    await db
+      .insert(userProfileAbout)
       .values({
         userId: testUserId,
-        fullName: 'Test',
-        genderId,
         universityId,
         majorId,
         yearOfStudyId: yearId,
@@ -292,6 +314,9 @@ describe('completeWelcomeOnboarding', () => {
     expect(result.success).toBe(true);
 
     // Cleanup.
+    await db
+      .delete(userProfileAbout)
+      .where(eq(userProfileAbout.userId, testUserId));
     await db.delete(userProfiles).where(eq(userProfiles.userId, testUserId));
   });
 });
