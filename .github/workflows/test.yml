@@ -5,10 +5,12 @@ on:
     branches:
       - main
       - master
+      - test
   pull_request:
     branches:
       - main
       - master
+      - test
   workflow_dispatch:
 
 jobs:
@@ -32,6 +34,12 @@ jobs:
           --health-retries 5
         ports:
           - 5432:5432
+
+      mailhog:
+        image: mailhog/mailhog
+        ports:
+          - 1025:1025
+          - 8025:8025
 
     env:
       NODE_ENV: test

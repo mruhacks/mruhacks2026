@@ -1,14 +1,17 @@
 'use client';
 
 import * as React from 'react';
+import { useRouter } from 'next/navigation';
 import { Controller, useForm, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
 
-import type {
-  ProfileFormOptions,
-  ProfileFormValues,
+import {
+  personalSchema,
+  type ProfileFormOptions,
+  type ProfileFormValues,
 } from '@/components/profile-form/schema';
+import type { PersonalProfileValues } from '@/app/dashboard/profile/actions';
+import { savePersonalProfile } from '@/app/dashboard/profile/actions';
 import { isOtherOption } from '@/lib/other-option';
 import { Button } from '@/components/ui/button';
 import {
@@ -19,37 +22,27 @@ import {
   RequiredAsterisk,
 } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
+import { Separator } from '@/components/ui/separator';
+import { Spinner } from '@/components/ui/spinner';
 import { Select } from '@/components/select';
 import type { MultiValue, SingleValue } from 'react-select';
-
-const otherTextSchema = z
-  .string()
-  .trim()
-  .max(255, 'Keep it under 255 characters.')
-  .optional()
-  .or(z.literal(''));
-
-const personalSchema = z.object({
-  fullName: z.string().trim().min(1, 'Enter your name.'),
-  genderId: z.coerce.number('Choose an option.').int().positive('Choose an option.'),
-  genderOtherText: otherTextSchema,
-  dietaryRestrictions: z.array(z.number()).default([]),
-  dietaryOtherText: otherTextSchema,
-});
-
-export type PersonalOnboardingValues = z.infer<typeof personalSchema>;
+import { markCurrentWelcomeStepReviewable } from './welcome-navigation';
 
 export function WelcomePersonalPage({
   initial,
   options,
-  onComplete,
+  backHref,
+  nextHref,
 }: {
   initial?: Partial<ProfileFormValues>;
   options: ProfileFormOptions;
-  onComplete: (data: PersonalOnboardingValues) => void;
+  backHref: string;
+  nextHref: string;
 }) {
-  const form = useForm<PersonalOnboardingValues>({
-    resolver: zodResolver(personalSchema) as Resolver<PersonalOnboardingValues>,
+  const router = useRouter();
+  const [saveError, setSaveError] = React.useState<string>();
+  const form = useForm<PersonalProfileValues>({
+    resolver: zodResolver(personalSchema) as Resolver<PersonalProfileValues>,
     defaultValues: {
       fullName: initial?.fullName ?? '',
       genderId: initial?.genderId,
@@ -60,8 +53,24 @@ export function WelcomePersonalPage({
   });
   const [dietaryNoneSelected, setDietaryNoneSelected] = React.useState(false);
 
+  React.useEffect(() => {
+    router.prefetch(nextHref);
+    router.prefetch(backHref);
+  }, [router, nextHref, backHref]);
+
+  const submit = async (data: PersonalProfileValues) => {
+    setSaveError(undefined);
+    const result = await savePersonalProfile(data);
+    if (!result.success) {
+      setSaveError(result.error);
+      return;
+    }
+    markCurrentWelcomeStepReviewable();
+    router.push(nextHref);
+  };
+
   return (
-    <form onSubmit={form.handleSubmit(onComplete)} className='space-y-6'>
+    <form onSubmit={form.handleSubmit(submit)} className='flex flex-col gap-6'>
       <div>
         <h2 className='text-lg font-semibold'>
           Complete your personal information
@@ -79,6 +88,7 @@ export function WelcomePersonalPage({
           <Input
             id='fullName'
             placeholder='Jane Doe'
+            aria-invalid={Boolean(form.formState.errors.fullName)}
             {...form.register('fullName')}
           />
           {form.formState.errors.fullName && (
@@ -102,18 +112,16 @@ export function WelcomePersonalPage({
                   id='genderId'
                   instanceId='welcome-gender'
                   options={options.genders}
+                  aria-invalid={fieldState.invalid}
                   value={selected ?? null}
                   onChange={(option) =>
                     field.onChange(
-                      (
-                        option as SingleValue<{ value: number; label: string }>
-                      )?.value ?? '',
+                      (option as SingleValue<{ value: number; label: string }>)
+                        ?.value ?? '',
                     )
                   }
                 />
-                {fieldState.error && (
-                  <FieldError errors={[fieldState.error]} />
-                )}
+                {fieldState.error && <FieldError errors={[fieldState.error]} />}
                 {isOtherOption(selected?.label) && (
                   <Input
                     {...form.register('genderOtherText')}
@@ -128,7 +136,7 @@ export function WelcomePersonalPage({
         <Controller
           name='dietaryRestrictions'
           control={form.control}
-          render={({ field }) => {
+          render={({ field, fieldState }) => {
             const NONE_OPTION = { value: 0, label: 'None' };
             const dietaryOptions = [NONE_OPTION, ...options.dietary];
             const selected = dietaryNoneSelected
@@ -137,13 +145,14 @@ export function WelcomePersonalPage({
                   field.value.includes(option.value),
                 );
             return (
-              <Field>
+              <Field data-invalid={fieldState.invalid}>
                 <FieldLabel>Dietary Restrictions</FieldLabel>
                 <Select
                   id='dietaryRestrictions'
                   instanceId='welcome-dietary'
                   isMulti
                   options={dietaryOptions}
+                  aria-invalid={fieldState.invalid}
                   value={selected}
                   onChange={(values) => {
                     const vals = (
@@ -169,13 +178,34 @@ export function WelcomePersonalPage({
                     aria-label='Specify dietary restriction'
                   />
                 )}
+                {fieldState.error && <FieldError errors={[fieldState.error]} />}
               </Field>
             );
           }}
         />
       </FieldGroup>
-      <div className='flex justify-end border-t pt-6'>
-        <Button type='submit'>Continue</Button>
+      <Separator />
+      <div className='flex flex-col gap-2'>
+        <div className='flex items-center justify-between gap-3'>
+          <Button
+            type='button'
+            variant='outline'
+            onClick={() => router.push(backHref)}
+            disabled={form.formState.isSubmitting}
+          >
+            Back
+          </Button>
+          <Button type='submit' disabled={form.formState.isSubmitting}>
+            {form.formState.isSubmitting ? (
+              <>
+                <Spinner data-icon='inline-start' /> Saving...
+              </>
+            ) : (
+              'Continue'
+            )}
+          </Button>
+        </div>
+        {saveError && <FieldError>{saveError}</FieldError>}
       </div>
     </form>
   );

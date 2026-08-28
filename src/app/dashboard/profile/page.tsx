@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 
 import { getUser } from '@/utils/auth';
-import { getUserProfile, saveUserProfile } from './actions';
+import { getUserProfile, saveFullProfile } from './actions';
 import { getOptions } from '@/app/dashboard/events/actions';
 import {
   Card,
@@ -11,6 +11,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import ProfileForm from '@/components/profile-form';
+import { oauthPrefillName } from '@/lib/oauth-name';
 
 export default async function DashboardProfilePage() {
   const user = await getUser();
@@ -21,10 +22,19 @@ export default async function DashboardProfilePage() {
     getOptions(),
   ]);
 
+  // This page is only reachable once onboarding (including the About step)
+  // is fully complete, so these are never actually null here in practice —
+  // still, the type is nullable at the source, so normalize to `undefined`
+  // for ProfileForm's Partial<ProfileFormValues> initial values.
   const initial =
     profileResult.success && profileResult.data != null
-      ? profileResult.data
-      : { fullName: user.name };
+      ? {
+          ...profileResult.data,
+          universityId: profileResult.data.universityId ?? undefined,
+          majorId: profileResult.data.majorId ?? undefined,
+          yearOfStudyId: profileResult.data.yearOfStudyId ?? undefined,
+        }
+      : { fullName: oauthPrefillName(user.oauthName) };
 
   return (
     <Card className='w-full sm:max-w-2xl'>
@@ -39,7 +49,7 @@ export default async function DashboardProfilePage() {
         <ProfileForm
           initial={initial}
           options={options}
-          onSubmit={saveUserProfile}
+          onSubmit={saveFullProfile}
           hasResume={
             profileResult.success && profileResult.data?.hasResume === true
           }

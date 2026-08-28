@@ -120,7 +120,7 @@ export function ProfileAssets({
       {showDropZone && (
         <div
           className={cn(
-            'hidden md:flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-6 py-8 text-center transition-colors cursor-pointer',
+            'hidden cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-6 py-8 text-center transition-colors md:flex',
             isDragOver
               ? 'border-primary bg-primary/5'
               : 'border-border hover:border-primary/50 hover:bg-muted/40',

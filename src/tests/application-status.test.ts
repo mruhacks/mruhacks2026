@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm';
 import { applicationStatuses } from '@/db/schema';
 
 vi.mock('server-only', () => ({}));
+vi.mock('next/cache', () => ({ cacheLife: vi.fn() }));
 
 import {
   resolveApplicationStatusKey,
@@ -55,11 +56,15 @@ describe('resolveApplicationStatusKey', () => {
     expect(resolveApplicationStatusKey('approved')).toBe('approved');
     expect(resolveApplicationStatusKey('denied')).toBe('denied');
     expect(resolveApplicationStatusKey('waitlisted')).toBe('waitlisted');
-    expect(resolveApplicationStatusKey('pending_review')).toBe('pending_review');
+    expect(resolveApplicationStatusKey('pending_review')).toBe(
+      'pending_review',
+    );
   });
 
   test('falls back to pending_review for an unknown string', () => {
-    expect(resolveApplicationStatusKey('unknown_status')).toBe('pending_review');
+    expect(resolveApplicationStatusKey('unknown_status')).toBe(
+      'pending_review',
+    );
     expect(resolveApplicationStatusKey('')).toBe('pending_review');
   });
 

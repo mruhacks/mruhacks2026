@@ -1,0 +1,5 @@
+# Drizzle migration metadata: machine-generated, large, and never meant to be
+# diffed line-by-line — mark them binary so PRs show "Bin X -> Y bytes"
+# instead of a wall of changed JSON lines.
+drizzle/meta/*_snapshot.json -diff
+drizzle/meta/_journal.json -diff

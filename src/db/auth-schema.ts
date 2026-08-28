@@ -19,6 +19,13 @@ export const user = pgTable(
     email: text('email').notNull().unique(),
     emailVerified: boolean('email_verified').default(false).notNull(),
     image: text('image'),
+    /**
+     * Display name from the OAuth provider, kept only when the provider
+     * actually supplied one — GitHub falls back to the account handle for
+     * `name`, which is fine to display but wrong to pre-fill into a profile's
+     * Full Name. Unlike `name`, this is never overwritten by a profile save.
+     */
+    oauthName: text('oauth_name'),
     /** Set after the user has completed every required welcome step. */
     onboardingCompletedAt: timestamp('onboarding_completed_at'),
     createdAt: timestamp('created_at').defaultNow().notNull(),

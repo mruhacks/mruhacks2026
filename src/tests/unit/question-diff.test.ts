@@ -107,7 +107,11 @@ describe('validateQuestionEdit', () => {
 
     test('updates label', () => {
       const q = makeQuestion();
-      const result = validateQuestionEdit(q, { label: 'New Label' }, noResponses);
+      const result = validateQuestionEdit(
+        q,
+        { label: 'New Label' },
+        noResponses,
+      );
       expect(result.ok).toBe(true);
       if (!result.ok) throw new Error(result.error);
       expect(result.question.label).toBe('New Label');
@@ -162,7 +166,11 @@ describe('validateQuestionEdit', () => {
 
     test('preserves unchanged fields', () => {
       const q = makeQuestion({ description: 'A helpful description' });
-      const result = validateQuestionEdit(q, { label: 'New Label' }, noResponses);
+      const result = validateQuestionEdit(
+        q,
+        { label: 'New Label' },
+        noResponses,
+      );
       expect(result.ok).toBe(true);
       if (!result.ok) throw new Error(result.error);
       expect(result.question.description).toBe('A helpful description');
@@ -281,7 +289,9 @@ describe('validateQuestionEdit', () => {
       expect(result.ok).toBe(true);
       if (!result.ok) throw new Error(result.error);
       expect(result.question.options).toHaveLength(3);
-      const newOpt = result.question.options!.find((o) => o.label === 'Brand New');
+      const newOpt = result.question.options!.find(
+        (o) => o.label === 'Brand New',
+      );
       expect(newOpt).toBeDefined();
       expect(newOpt!.value).toBeTruthy();
     });
@@ -328,7 +338,11 @@ describe('validateQuestionEdit — maxLength', () => {
   });
 
   test('null clears the cap back to the type default', () => {
-    const result = validateQuestionEdit({ ...base, maxLength: 40 }, { maxLength: null }, []);
+    const result = validateQuestionEdit(
+      { ...base, maxLength: 40 },
+      { maxLength: null },
+      [],
+    );
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error(result.error);
     expect(result.question.maxLength).toBeUndefined();

@@ -3,7 +3,7 @@
  *
  * Permissions follow the hierarchical format `entity:action:scope`, e.g.
  *   - `user:read:all`
- *   - `submission:edit:self`
+ *   - `application:review:all`
  *   - `registration:approve:<uuid>`
  *
  * A permission with `all` in a segment acts as a wildcard that covers any
@@ -17,11 +17,11 @@ export type PermissionEntity =
   | 'permission'
   | 'registration'
   | 'team'
-  | 'submission'
   | 'event'
   | 'participant'
   | 'checkin'
   | 'application'
+  | 'article'
   | 'system';
 
 export type PermissionAction =
@@ -110,14 +110,25 @@ const CORE_PERMISSIONS = [
   },
   { slug: 'participant:read:all', description: 'View participant profiles' },
   { slug: 'participant:write:all', description: 'Edit participant data' },
-  { slug: 'submission:read:all', description: 'View project submissions' },
-  { slug: 'submission:write:all', description: 'Modify project submissions' },
   { slug: 'event:manage:all', description: 'Create and manage events' },
+  { slug: 'team:read:all', description: 'View all formed teams for an event' },
+  {
+    slug: 'team:manage:all',
+    description: 'Remove any team member (moderation override)',
+  },
   { slug: 'checkin:write:all', description: 'Check participants in or out' },
   { slug: 'application:read:all', description: 'View event applications' },
   {
     slug: 'application:review:all',
     description: 'Approve or reject applications',
+  },
+  {
+    slug: 'article:read:all',
+    description: 'View unpublished event wiki articles',
+  },
+  {
+    slug: 'article:write:all',
+    description: 'Create, edit, publish and delete event wiki articles',
   },
   {
     slug: 'system:read:all',

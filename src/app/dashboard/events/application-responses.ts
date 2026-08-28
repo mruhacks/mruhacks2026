@@ -3,64 +3,16 @@
  * Responses are keyed by question UUID (ApplicationQuestion.id).
  */
 
-import { z } from 'zod';
 import type { ApplicationQuestion } from '@/types/application';
-import { resolveMaxLength } from '@/types/application';
 import { isOtherOption, otherTextKey } from '@/lib/other-option';
-
-const otherTextSchema = z
-  .string()
-  .trim()
-  .max(255, 'Keep it under 255 characters.')
-  .optional()
-  .nullable();
+import {
+  applicationOtherTextSchema,
+  createApplicationQuestionSchema,
+} from '@/components/application-form/schema';
 
 export type BuildApplicationResponsesResult =
   | { ok: true; responses: Record<string, unknown> }
   | { ok: false; error: string };
-
-/**
- * Creates a Zod schema for a single question based on its type.
- */
-function createQuestionSchema(question: ApplicationQuestion) {
-  const baseSchema = getBaseSchema(question);
-  // For required boolean fields, must be true (consent checkboxes)
-  if (question.required && question.type === 'boolean') {
-    return z.boolean().refine((val) => val === true, 'Must be checked');
-  }
-  const withRequired = question.required ? baseSchema : baseSchema.optional().nullable();
-  return withRequired;
-}
-
-/**
- * Returns the base Zod schema for each question type.
- */
-function getBaseSchema(question: ApplicationQuestion) {
-  switch (question.type) {
-    case 'short_text':
-    case 'long_text': {
-      let schema = z.string().trim().min(1, 'Cannot be empty');
-      const maxLength = resolveMaxLength(question);
-      if (maxLength != null) {
-        schema = schema.max(maxLength, `Keep it under ${maxLength} characters.`);
-      }
-      return schema;
-    }
-    case 'number':
-      return z.number().or(z.string().pipe(z.coerce.number()));
-    case 'boolean':
-      return z.boolean();
-    case 'single_select':
-      return z.string().min(1, 'Must select an option');
-    case 'multi_select':
-      return z.array(z.string()).min(1, 'Must select at least one option');
-    case 'section_divider':
-      // Section dividers don't have responses
-      return z.unknown().optional().nullable();
-    default:
-      return z.unknown();
-  }
-}
 
 /**
  * Builds and validates the responses object for event_applications.responses.
@@ -80,7 +32,7 @@ export function buildApplicationResponses(
     if (question.type === 'section_divider') continue;
 
     const value = formResponses[question.id];
-    const schema = createQuestionSchema(question);
+    const schema = createApplicationQuestionSchema(question);
 
     // Validate the value against the schema
     const result = schema.safeParse(value);
@@ -105,14 +57,14 @@ export function buildApplicationResponses(
           ? [result.data as string | undefined]
           : ((result.data as string[] | undefined) ?? []);
       const otherSelected = selectedLabels.some((value) =>
-        isOtherOption(
-          question.options?.find((o) => o.value === value)?.label,
-        ),
+        isOtherOption(question.options?.find((o) => o.value === value)?.label),
       );
 
       if (otherSelected) {
         const otherKey = otherTextKey(question.id);
-        const otherResult = otherTextSchema.safeParse(formResponses[otherKey]);
+        const otherResult = applicationOtherTextSchema.safeParse(
+          formResponses[otherKey],
+        );
         if (!otherResult.success) {
           const issue = otherResult.error.issues[0];
           return {

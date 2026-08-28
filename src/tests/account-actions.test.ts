@@ -7,7 +7,9 @@
 import { describe, test, expect, vi } from 'vitest';
 
 vi.mock('@/utils/auth', () => ({ getUser: vi.fn() }));
-vi.mock('@/utils/consent-check', () => ({ userNeedsConsent: vi.fn().mockResolvedValue(false) }));
+vi.mock('@/utils/consent-check', () => ({
+  userNeedsConsent: vi.fn().mockResolvedValue(false),
+}));
 vi.mock('@/lib/consent', () => ({
   CURRENT_TERMS_VERSION: '1.0',
   CURRENT_PRIVACY_VERSION: '1.0',
@@ -31,7 +33,9 @@ function asUnauthed() {
 describe('account actions — unauthenticated', () => {
   test('getAccountOverview fails', async () => {
     asUnauthed();
-    await expect(getAccountOverview()).resolves.toMatchObject({ success: false });
+    await expect(getAccountOverview()).resolves.toMatchObject({
+      success: false,
+    });
   });
 
   test('getConsent fails', async () => {
@@ -46,17 +50,23 @@ describe('account actions — unauthenticated', () => {
 
   test('setMarketingConsent fails', async () => {
     asUnauthed();
-    await expect(setMarketingConsent(true)).resolves.toMatchObject({ success: false });
+    await expect(setMarketingConsent(true)).resolves.toMatchObject({
+      success: false,
+    });
   });
 
   test('recordOnboardingConsent fails', async () => {
     asUnauthed();
-    await expect(recordOnboardingConsent(false)).resolves.toMatchObject({ success: false });
+    await expect(recordOnboardingConsent(false)).resolves.toMatchObject({
+      success: false,
+    });
   });
 
   test('completeWelcomeOnboarding fails', async () => {
     asUnauthed();
-    await expect(completeWelcomeOnboarding()).resolves.toMatchObject({ success: false });
+    await expect(completeWelcomeOnboarding()).resolves.toMatchObject({
+      success: false,
+    });
   });
 
   test('exportMyData fails', async () => {

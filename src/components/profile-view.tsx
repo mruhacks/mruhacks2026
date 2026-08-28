@@ -58,7 +58,9 @@ export function ProfileView({ profile, options }: ProfileViewProps) {
 
       <div className='space-y-3 rounded-lg border p-4'>
         <div className='mb-4 flex items-center justify-between'>
-          <p className='text-xs font-semibold text-muted-foreground'>PROFILE DETAILS</p>
+          <p className='text-muted-foreground text-xs font-semibold'>
+            PROFILE DETAILS
+          </p>
           <Button variant='ghost' size='sm' asChild>
             <Link href='/dashboard/profile'>
               <PencilIcon className='mr-2 size-4' />

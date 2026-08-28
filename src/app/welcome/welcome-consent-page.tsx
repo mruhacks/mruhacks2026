@@ -3,35 +3,52 @@
 import * as React from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Loader2 } from 'lucide-react';
-import { toast } from 'sonner';
+import { useRouter } from 'next/navigation';
 
-import { recordOnboardingConsent } from '@/app/dashboard/account/actions';
+import {
+  recordOnboardingConsent,
+  completeWelcomeOnboarding,
+} from '@/app/dashboard/account/actions';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
   Field,
+  FieldContent,
   FieldError,
   FieldGroup,
+  FieldLabel,
   RequiredAsterisk,
 } from '@/components/ui/field';
-import { Label } from '@/components/ui/label';
+import { Separator } from '@/components/ui/separator';
+import { Spinner } from '@/components/ui/spinner';
 import curtWaving from '@/assets/crt_waving.png';
+import { markCurrentWelcomeStepReviewable } from './welcome-navigation';
 
 export function WelcomeConsentPage({
-  onComplete,
-  onBack,
+  nextHref,
+  isFinalStep,
+  initialAcceptLegal = false,
+  initialMarketing = false,
 }: {
-  onComplete: () => void;
-  onBack?: () => void;
+  nextHref: string;
+  isFinalStep: boolean;
+  initialAcceptLegal?: boolean;
+  initialMarketing?: boolean;
 }) {
-  const [acceptLegal, setAcceptLegal] = React.useState(false);
-  const [marketing, setMarketing] = React.useState(false);
+  const router = useRouter();
+  const [acceptLegal, setAcceptLegal] = React.useState(initialAcceptLegal);
+  const [marketing, setMarketing] = React.useState(initialMarketing);
   const [legalError, setLegalError] = React.useState<string>();
+  const [saveError, setSaveError] = React.useState<string>();
   const [submitting, setSubmitting] = React.useState(false);
+
+  React.useEffect(() => {
+    router.prefetch(nextHref);
+  }, [router, nextHref]);
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    setSaveError(undefined);
     if (!acceptLegal) {
       setLegalError('You must accept the Terms of Use and Privacy Policy.');
       return;
@@ -39,17 +56,28 @@ export function WelcomeConsentPage({
 
     setSubmitting(true);
     const result = await recordOnboardingConsent(marketing);
-    setSubmitting(false);
     if (!result.success) {
-      toast.error(result.error);
+      setSubmitting(false);
+      setSaveError(result.error);
       return;
     }
-    onComplete();
+    if (isFinalStep) {
+      const finishResult = await completeWelcomeOnboarding();
+      setSubmitting(false);
+      if (!finishResult.success) {
+        setSaveError(finishResult.error ?? 'Unable to finish setup.');
+        return;
+      }
+    } else {
+      setSubmitting(false);
+      markCurrentWelcomeStepReviewable();
+    }
+    router.push(nextHref);
   };
 
   return (
     <form onSubmit={submit} noValidate>
-      <div className='space-y-6'>
+      <div className='flex flex-col gap-6'>
         <div>
           <Image
             src={curtWaving}
@@ -63,81 +91,72 @@ export function WelcomeConsentPage({
           </p>
         </div>
         <FieldGroup className='gap-3'>
-          <Field data-invalid={Boolean(legalError)}>
-            <div className='flex items-start gap-3'>
-              <Checkbox
-                id='welcome-legal'
-                checked={acceptLegal}
-                onCheckedChange={(value) => {
-                  setAcceptLegal(value === true);
-                  setLegalError(undefined);
-                }}
-                disabled={submitting}
-                className='mt-0.5'
-              />
-              <Label
+          <Field
+            orientation='horizontal'
+            data-invalid={Boolean(legalError)}
+            data-disabled={submitting}
+          >
+            <Checkbox
+              id='welcome-legal'
+              checked={acceptLegal}
+              onCheckedChange={(value) => {
+                setAcceptLegal(value === true);
+                setLegalError(undefined);
+              }}
+              disabled={submitting}
+              aria-invalid={Boolean(legalError)}
+              required
+            />
+            <FieldContent className='min-w-0'>
+              <FieldLabel
                 htmlFor='welcome-legal'
-                className='text-sm leading-snug font-normal'
+                className='block w-full font-normal'
               >
                 I agree to the{' '}
                 <Link
                   href='/terms'
-                  className='text-primary underline underline-offset-2'
+                  className='text-primary whitespace-nowrap underline underline-offset-2'
                 >
                   Terms of Use
                 </Link>{' '}
                 and{' '}
                 <Link
                   href='/privacy'
-                  className='text-primary underline underline-offset-2'
+                  className='text-primary whitespace-nowrap underline underline-offset-2'
                 >
                   Privacy Policy
                 </Link>
                 <RequiredAsterisk />
-              </Label>
-            </div>
-            {legalError && <FieldError>{legalError}</FieldError>}
+              </FieldLabel>
+              {legalError && <FieldError>{legalError}</FieldError>}
+            </FieldContent>
           </Field>
-          <Field>
-            <div className='flex items-start gap-3'>
-              <Checkbox
-                id='welcome-marketing'
-                checked={marketing}
-                onCheckedChange={(value) => setMarketing(value === true)}
-                disabled={submitting}
-                className='mt-0.5'
-              />
-              <Label
-                htmlFor='welcome-marketing'
-                className='text-muted-foreground text-sm leading-snug font-normal'
-              >
-                Send me newsletters, sponsor offers, and updates about future
-                MRUHacks events.
-              </Label>
-            </div>
+          <Field orientation='horizontal' data-disabled={submitting}>
+            <Checkbox
+              id='welcome-marketing'
+              checked={marketing}
+              onCheckedChange={(value) => setMarketing(value === true)}
+              disabled={submitting}
+            />
+            <FieldLabel htmlFor='welcome-marketing' className='font-normal'>
+              Send me newsletters, sponsor offers, and updates about future
+              MRUHacks events.
+            </FieldLabel>
           </Field>
         </FieldGroup>
       </div>
-      <div className='mt-8 flex gap-3 border-t pt-6'>
-        {onBack && (
-          <Button
-            type='button'
-            variant='outline'
-            onClick={onBack}
-            disabled={submitting}
-          >
-            Back
-          </Button>
-        )}
-        <Button type='submit' disabled={submitting} className='flex-1'>
+      <Separator className='mt-8 mb-6' />
+      <div className='flex flex-col gap-2'>
+        <Button type='submit' disabled={submitting} className='w-full'>
           {submitting ? (
             <>
-              <Loader2 className='mr-2 size-4 animate-spin' /> Saving...
+              <Spinner data-icon='inline-start' /> Saving...
             </>
           ) : (
-            'Finish setup'
+            'Continue'
           )}
         </Button>
+        {saveError && <FieldError>{saveError}</FieldError>}
       </div>
     </form>
   );

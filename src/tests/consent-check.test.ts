@@ -10,14 +10,22 @@ let testUserId: string;
 beforeAll(async () => {
   const [u] = await db
     .insert(user)
-    .values({ name: 'Consent Test User', email: 'consent-check@example.com', emailVerified: true })
+    .values({
+      name: 'Consent Test User',
+      email: 'consent-check@example.com',
+      emailVerified: true,
+    })
     .returning({ id: user.id });
   testUserId = u.id;
 });
 
 afterAll(async () => {
-  await db.delete(termsAcceptances).where(eq(termsAcceptances.userId, testUserId));
-  await db.delete(privacyAcceptances).where(eq(privacyAcceptances.userId, testUserId));
+  await db
+    .delete(termsAcceptances)
+    .where(eq(termsAcceptances.userId, testUserId));
+  await db
+    .delete(privacyAcceptances)
+    .where(eq(privacyAcceptances.userId, testUserId));
   await db.delete(user).where(eq(user.id, testUserId));
 });
 
@@ -30,8 +38,12 @@ async function acceptPrivacy(version = CURRENT_PRIVACY_VERSION) {
 }
 
 async function clearConsent() {
-  await db.delete(termsAcceptances).where(eq(termsAcceptances.userId, testUserId));
-  await db.delete(privacyAcceptances).where(eq(privacyAcceptances.userId, testUserId));
+  await db
+    .delete(termsAcceptances)
+    .where(eq(termsAcceptances.userId, testUserId));
+  await db
+    .delete(privacyAcceptances)
+    .where(eq(privacyAcceptances.userId, testUserId));
 }
 
 describe('userNeedsConsent', () => {

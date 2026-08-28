@@ -11,7 +11,14 @@
 import { describe, test, expect, beforeAll, afterAll, vi } from 'vitest';
 import { db } from '@/utils/db';
 import { eq } from 'drizzle-orm';
-import { user, permission, userPermission, role, rolePermissions, userRole } from '@/db/schema';
+import {
+  user,
+  permission,
+  userPermission,
+  role,
+  rolePermissions,
+  userRole,
+} from '@/db/schema';
 
 vi.mock('@/utils/auth', () => ({ getUser: vi.fn() }));
 
@@ -24,10 +31,15 @@ import {
   getRolesForUsers,
 } from '@/app/actions/authz';
 
-type MockUser = { id: string; email: string; name: string; emailVerified: boolean };
+type MockUser = {
+  id: string;
+  email: string;
+  name: string;
+  emailVerified: boolean;
+};
 
-let userAId: string;   // has no permissions
-let userBId: string;   // has user:read:all
+let userAId: string; // has no permissions
+let userBId: string; // has user:read:all
 let userA: MockUser;
 let userB: MockUser;
 let testRoleId: number;
@@ -35,17 +47,35 @@ let testRoleId: number;
 beforeAll(async () => {
   const [a] = await db
     .insert(user)
-    .values({ name: 'Authz User A', email: 'authz-a@example.com', emailVerified: true })
+    .values({
+      name: 'Authz User A',
+      email: 'authz-a@example.com',
+      emailVerified: true,
+    })
     .returning({ id: user.id });
   const [b] = await db
     .insert(user)
-    .values({ name: 'Authz User B', email: 'authz-b@example.com', emailVerified: true })
+    .values({
+      name: 'Authz User B',
+      email: 'authz-b@example.com',
+      emailVerified: true,
+    })
     .returning({ id: user.id });
 
   userAId = a.id;
   userBId = b.id;
-  userA = { id: userAId, email: 'authz-a@example.com', name: 'Authz User A', emailVerified: true };
-  userB = { id: userBId, email: 'authz-b@example.com', name: 'Authz User B', emailVerified: true };
+  userA = {
+    id: userAId,
+    email: 'authz-a@example.com',
+    name: 'Authz User A',
+    emailVerified: true,
+  };
+  userB = {
+    id: userBId,
+    email: 'authz-b@example.com',
+    name: 'Authz User B',
+    emailVerified: true,
+  };
 
   // Grant userB user:read:all and role:read:all for cross-user inspection tests
   const ensurePerm = async (slug: string) => {
@@ -84,7 +114,9 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await db.delete(rolePermissions).where(eq(rolePermissions.roleId, testRoleId));
+  await db
+    .delete(rolePermissions)
+    .where(eq(rolePermissions.roleId, testRoleId));
   await db.delete(userRole).where(eq(userRole.userId, userBId));
   await db.delete(userPermission).where(eq(userPermission.userId, userBId));
   await db.delete(role).where(eq(role.id, testRoleId));
@@ -99,7 +131,9 @@ afterAll(async () => {
 describe('getUserPermissions', () => {
   test('fails when unauthenticated', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(null as never);
-    await expect(getUserPermissions(userAId)).resolves.toMatchObject({ success: false });
+    await expect(getUserPermissions(userAId)).resolves.toMatchObject({
+      success: false,
+    });
   });
 
   test('allows a user to inspect their own permissions (no admin perm needed)', async () => {
@@ -110,7 +144,9 @@ describe('getUserPermissions', () => {
 
   test('blocks inspection of another user without user:read:all', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(userA as never);
-    await expect(getUserPermissions(userBId)).resolves.toMatchObject({ success: false });
+    await expect(getUserPermissions(userBId)).resolves.toMatchObject({
+      success: false,
+    });
   });
 
   test('allows inspection of another user with user:read:all', async () => {
@@ -125,7 +161,9 @@ describe('getUserPermissions', () => {
 describe('getUserRoles', () => {
   test('fails when unauthenticated', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(null as never);
-    await expect(getUserRoles(userAId)).resolves.toMatchObject({ success: false });
+    await expect(getUserRoles(userAId)).resolves.toMatchObject({
+      success: false,
+    });
   });
 
   test('allows a user to inspect their own roles', async () => {
@@ -136,7 +174,9 @@ describe('getUserRoles', () => {
 
   test('blocks inspection of another user without user:read:all', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(userA as never);
-    await expect(getUserRoles(userBId)).resolves.toMatchObject({ success: false });
+    await expect(getUserRoles(userBId)).resolves.toMatchObject({
+      success: false,
+    });
   });
 
   test('allows inspection of another user with user:read:all', async () => {
@@ -151,7 +191,9 @@ describe('getUserRoles', () => {
 describe('getDirectUserPermissions', () => {
   test('fails when unauthenticated', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(null as never);
-    await expect(getDirectUserPermissions(userAId)).resolves.toMatchObject({ success: false });
+    await expect(getDirectUserPermissions(userAId)).resolves.toMatchObject({
+      success: false,
+    });
   });
 
   test('allows a user to inspect their own direct permissions', async () => {
@@ -162,7 +204,9 @@ describe('getDirectUserPermissions', () => {
 
   test('blocks inspection of another user without user:read:all', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(userA as never);
-    await expect(getDirectUserPermissions(userBId)).resolves.toMatchObject({ success: false });
+    await expect(getDirectUserPermissions(userBId)).resolves.toMatchObject({
+      success: false,
+    });
   });
 });
 
@@ -171,12 +215,16 @@ describe('getDirectUserPermissions', () => {
 describe('getRolePermissions', () => {
   test('fails when unauthenticated', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(null as never);
-    await expect(getRolePermissions(testRoleId)).resolves.toMatchObject({ success: false });
+    await expect(getRolePermissions(testRoleId)).resolves.toMatchObject({
+      success: false,
+    });
   });
 
   test('fails for authenticated user without role:read:all', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(userA as never);
-    await expect(getRolePermissions(testRoleId)).resolves.toMatchObject({ success: false });
+    await expect(getRolePermissions(testRoleId)).resolves.toMatchObject({
+      success: false,
+    });
   });
 
   test('succeeds for user with role:read:all', async () => {
@@ -191,12 +239,16 @@ describe('getRolePermissions', () => {
 describe('getRolesForUsers', () => {
   test('fails when unauthenticated', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(null as never);
-    await expect(getRolesForUsers([userAId])).resolves.toMatchObject({ success: false });
+    await expect(getRolesForUsers([userAId])).resolves.toMatchObject({
+      success: false,
+    });
   });
 
   test('fails for authenticated user without user:read:all', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(userA as never);
-    await expect(getRolesForUsers([userBId])).resolves.toMatchObject({ success: false });
+    await expect(getRolesForUsers([userBId])).resolves.toMatchObject({
+      success: false,
+    });
   });
 
   test('succeeds for user with user:read:all', async () => {

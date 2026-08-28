@@ -19,8 +19,8 @@ import { ResetPasswordEmail } from '@/emails/ResetPasswordEmail';
 import { DeleteAccountEmail } from '@/emails/DeleteAccountEmail';
 import React from 'react';
 import { headers } from 'next/headers';
+import { cacheLife } from 'next/cache';
 import { after } from 'next/server';
-import { cache } from 'react';
 import { writeAuditLog } from '@/utils/audit-log';
 import { deleteObject, parseProfilePictureKey } from '@/utils/object-storage';
 
@@ -144,6 +144,14 @@ export const auth = betterAuth({
     },
   },
   user: {
+    additionalFields: {
+      /**
+       * Written from `mapProfileToUser` below. Must not be `input: false` —
+       * Better Auth drops provider-profile fields marked that way before they
+       * reach the database.
+       */
+      oauthName: { type: 'string', required: false },
+    },
     /**
      * Self-serve account deletion (right to erasure — PIPEDA / Alberta PIPA /
      * GDPR Art. 17). Deletion is confirmed via an emailed verification link so
@@ -202,12 +210,20 @@ export const auth = betterAuth({
       github: {
         clientId: process.env.GITHUB_CLIENT_ID,
         clientSecret: process.env.GITHUB_CLIENT_SECRET!,
+        // Better Auth falls back to the account handle for `name`, so only a
+        // real profile name is recorded as the pre-fillable `oauthName`.
+        mapProfileToUser: (profile) => ({
+          oauthName: profile.name?.trim() || null,
+        }),
       },
     }),
     ...(process.env.GOOGLE_CLIENT_ID && {
       google: {
         clientId: process.env.GOOGLE_CLIENT_ID,
         clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+        mapProfileToUser: (profile) => ({
+          oauthName: profile.name?.trim() || null,
+        }),
       },
     }),
   },
@@ -294,15 +310,22 @@ export const auth = betterAuth({
 /**
  * Retrieves the current session from the request headers
  *
- * This function is cached using React's cache() to avoid redundant
- * database queries within the same render cycle.
+ * The private cache is scoped to the browser session and is never stored in
+ * the shared server cache. Besides deduplicating reads, this gives Next a
+ * request-aware cache boundary it can include in the authenticated App Shell.
  *
  * @returns Promise resolving to the current session or null if not authenticated
  */
-const getSession = cache(async () => {
+async function getSession() {
+  'use cache: private';
+  // Session data is browser-private. Giving it a known lifetime lets Next
+  // include the authenticated App Shell in client navigations without ever
+  // placing the result in the shared server cache.
+  cacheLife('minutes');
+
   const session = await auth.api.getSession({ headers: await headers() });
   return session;
-});
+}
 
 /**
  * Retrieves the currently authenticated user

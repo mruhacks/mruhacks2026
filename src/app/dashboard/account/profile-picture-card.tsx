@@ -19,19 +19,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-
-function initials(name: string) {
-  return (
-    name
-      .trim()
-      .split(/\s+/)
-      .filter(Boolean)
-      .map((part) => part[0])
-      .slice(0, 2)
-      .join('')
-      .toUpperCase() || '?'
-  );
-}
+import { getInitials } from '@/lib/initials';
 
 type ProfilePictureCardProps = {
   image: string | null | undefined;
@@ -79,7 +67,7 @@ export function ProfilePictureCard({ image, name }: ProfilePictureCardProps) {
       <CardContent className='flex items-center gap-3'>
         <Avatar className='size-16'>
           {image && <AvatarImage src={image} alt={name} />}
-          <AvatarFallback>{initials(name)}</AvatarFallback>
+          <AvatarFallback>{getInitials(name)}</AvatarFallback>
         </Avatar>
         <div className='flex flex-wrap gap-2'>
           <Input

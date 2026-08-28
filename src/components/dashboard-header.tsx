@@ -1,5 +1,6 @@
 'use client';
 
+import * as React from 'react';
 import Link from 'next/link';
 import { LogOut, Settings, User } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -14,14 +15,8 @@ import { authClient } from '@/utils/auth-client';
 import { usePathname, useRouter } from 'next/navigation';
 import Chevron from '@/assets/Chevron';
 import { useBreadcrumbContext } from '@/components/breadcrumb-context';
-
-function getInitials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return '?';
-  const first = parts[0][0] ?? '';
-  const last = parts.length > 1 ? (parts[parts.length - 1][0] ?? '') : first;
-  return (first + last).toUpperCase();
-}
+import { getInitials } from '@/lib/initials';
+import { useIsHydrated } from '@/lib/use-is-hydrated';
 
 type Props = {
   user: { name: string; email: string; avatar?: string };
@@ -39,6 +34,8 @@ const SEGMENT_LABELS: Record<string, string> = {
   register: 'Register',
   apply: 'Apply',
 };
+
+const EMPTY_DYNAMIC_SEGMENTS: Record<string, string> = {};
 
 function buildBreadcrumbs(
   pathname: string,
@@ -58,7 +55,13 @@ function buildBreadcrumbs(
 export function DashboardHeader({ user }: Props) {
   const router = useRouter();
   const pathname = usePathname();
-  const { segments: dynamicSegments } = useBreadcrumbContext();
+  const { segments } = useBreadcrumbContext();
+  // The header and page content hydrate in separate Suspense boundaries. A
+  // page can therefore register its dynamic label before this header starts
+  // hydrating. Deferring here as well guarantees the initial header tree
+  // matches its SSR output; labels appear in the next render.
+  const isHydrated = useIsHydrated();
+  const dynamicSegments = isHydrated ? segments : EMPTY_DYNAMIC_SEGMENTS;
 
   async function handleLogout() {
     await authClient.signOut();
@@ -81,7 +84,11 @@ export function DashboardHeader({ user }: Props) {
         style={{ maxWidth: 'var(--content-max)' }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <Link href='/' className='flex items-center gap-2' aria-label='MRUHacks home'>
+          <Link
+            href='/'
+            className='flex items-center gap-2'
+            aria-label='MRUHacks home'
+          >
             <Chevron className='h-7 w-auto' />
             <span
               style={{
@@ -95,54 +102,63 @@ export function DashboardHeader({ user }: Props) {
             </span>
           </Link>
 
-          <nav className='hidden sm:flex' aria-label='Breadcrumb' style={{ alignItems: 'center', gap: '0' }}>
-            {buildBreadcrumbs(pathname, dynamicSegments).map((crumb, i, arr) => {
-              const isLast = i === arr.length - 1;
-              return (
-                <span key={crumb.href} style={{ display: 'flex', alignItems: 'center' }}>
+          <nav
+            className='hidden sm:flex'
+            aria-label='Breadcrumb'
+            style={{ alignItems: 'center', gap: '0' }}
+          >
+            {buildBreadcrumbs(pathname, dynamicSegments).map(
+              (crumb, i, arr) => {
+                const isLast = i === arr.length - 1;
+                return (
                   <span
-                    style={{
-                      fontFamily: 'var(--font-ui)',
-                      fontWeight: 'var(--fw-normal)',
-                      fontSize: '15px',
-                      color: 'var(--ink-400)',
-                      padding: '0 6px',
-                    }}
-                    aria-hidden
+                    key={crumb.href}
+                    style={{ display: 'flex', alignItems: 'center' }}
                   >
-                    /
-                  </span>
-                  {isLast ? (
                     <span
                       style={{
                         fontFamily: 'var(--font-ui)',
-                        fontWeight: 'var(--fw-semibold)',
+                        fontWeight: 'var(--fw-normal)',
                         fontSize: '15px',
-                        letterSpacing: 'var(--track-ui)',
-                        color: 'var(--black)',
+                        color: 'var(--ink-400)',
+                        padding: '0 6px',
                       }}
-                      aria-current='page'
+                      aria-hidden
                     >
-                      {crumb.label}
+                      /
                     </span>
-                  ) : (
-                    <Link
-                      href={crumb.href}
-                      style={{
-                        fontFamily: 'var(--font-ui)',
-                        fontWeight: 'var(--fw-semibold)',
-                        fontSize: '15px',
-                        letterSpacing: 'var(--track-ui)',
-                        color: 'var(--ink-500)',
-                        textDecoration: 'none',
-                      }}
-                    >
-                      {crumb.label}
-                    </Link>
-                  )}
-                </span>
-              );
-            })}
+                    {isLast ? (
+                      <span
+                        style={{
+                          fontFamily: 'var(--font-ui)',
+                          fontWeight: 'var(--fw-semibold)',
+                          fontSize: '15px',
+                          letterSpacing: 'var(--track-ui)',
+                          color: 'var(--black)',
+                        }}
+                        aria-current='page'
+                      >
+                        {crumb.label}
+                      </span>
+                    ) : (
+                      <Link
+                        href={crumb.href}
+                        style={{
+                          fontFamily: 'var(--font-ui)',
+                          fontWeight: 'var(--fw-semibold)',
+                          fontSize: '15px',
+                          letterSpacing: 'var(--track-ui)',
+                          color: 'var(--ink-500)',
+                          textDecoration: 'none',
+                        }}
+                      >
+                        {crumb.label}
+                      </Link>
+                    )}
+                  </span>
+                );
+              },
+            )}
           </nav>
         </div>
 
@@ -187,7 +203,7 @@ export function DashboardHeader({ user }: Props) {
           </DropdownMenuTrigger>
           <DropdownMenuContent align='end' className='w-52'>
             <div className='px-2 py-1.5'>
-              <p className='text-sm leading-tight font-medium'>{user.name}</p>
+              <p className='text-sm/tight font-medium'>{user.name}</p>
               <p className='text-muted-foreground truncate text-xs'>
                 {user.email}
               </p>

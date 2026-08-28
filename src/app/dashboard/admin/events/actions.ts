@@ -1,14 +1,22 @@
 'use server';
 
 import { randomUUID } from 'crypto';
-import { and, count, eq, ne } from 'drizzle-orm';
+import { and, count, eq, inArray, ne, sql } from 'drizzle-orm';
 import { updateTag } from 'next/cache';
 import { db } from '@/utils/db';
 import { FEATURED_EVENT_CACHE_TAG } from '@/lib/featured-event';
-import { events, eventApplications, user, userProfiles } from '@/db/schema';
+import { EVENTS_CACHE_TAG } from '@/lib/events';
+import {
+  events,
+  eventApplications,
+  user,
+  userProfiles,
+  teams,
+  teamMembers,
+} from '@/db/schema';
 import { getUser } from '@/utils/auth';
 import { ok, fail, type ActionResult } from '@/utils/action-result';
-import { requirePermission } from '@/lib/rbac/authorization';
+import { hasPermission, requirePermission } from '@/lib/rbac/authorization';
 import {
   isSummarizableQuestion,
   type ApplicationQuestion,
@@ -384,6 +392,8 @@ export async function createEvent(
       name: input.name,
       hasApplication: input.hasApplication,
       capacity: input.capacity ?? null,
+      teamsEnabled: input.teamsEnabled ?? false,
+      maxTeamSize: input.maxTeamSize ?? null,
       startsAt: parseDateTime(input.startsAt),
       endsAt: parseDateTime(input.endsAt),
       // Keep question configuration independent from the application-process
@@ -393,6 +403,8 @@ export async function createEvent(
       updatedAt: new Date(),
     })
     .returning({ id: events.id });
+
+  updateTag(EVENTS_CACHE_TAG);
 
   await writeAuditLog({
     actorId: user.id,
@@ -406,11 +418,14 @@ export async function createEvent(
 export type EventDetails = {
   id: string;
   name: string;
+  descriptionMarkdown: string;
   hasApplication: boolean;
   capacity: number | null;
   startsAt: Date | null;
   endsAt: Date | null;
   isFeatured: boolean;
+  teamsEnabled: boolean;
+  maxTeamSize: number | null;
   createdAt: Date;
   updatedAt: Date;
   questionsCount: number;
@@ -447,11 +462,14 @@ export async function getEventDetails(
   return ok({
     id: eventRow.id,
     name: eventRow.name,
+    descriptionMarkdown: eventRow.descriptionMarkdown ?? '',
     hasApplication: eventRow.hasApplication,
     capacity: eventRow.capacity ?? null,
     startsAt: eventRow.startsAt ?? null,
     endsAt: eventRow.endsAt ?? null,
     isFeatured: eventRow.isFeatured,
+    teamsEnabled: eventRow.teamsEnabled,
+    maxTeamSize: eventRow.maxTeamSize ?? null,
     createdAt: eventRow.createdAt,
     updatedAt: eventRow.updatedAt,
     questionsCount,
@@ -510,6 +528,11 @@ export async function updateEventSettings(
         name: input.name ?? eventRow.name,
         hasApplication: input.hasApplication ?? eventRow.hasApplication,
         capacity: input.capacity ?? eventRow.capacity,
+        teamsEnabled: input.teamsEnabled ?? eventRow.teamsEnabled,
+        maxTeamSize:
+          input.maxTeamSize !== undefined
+            ? input.maxTeamSize
+            : eventRow.maxTeamSize,
         startsAt:
           input.startsAt !== undefined
             ? parseDateTime(input.startsAt)
@@ -524,8 +547,10 @@ export async function updateEventSettings(
       .where(eq(events.id, eventId));
   });
 
-  // Homepage register-link lookup is cached; bust it so edits show up immediately.
+  // Homepage register-link lookup and the events list are both cached; bust
+  // them so edits show up immediately.
   updateTag(FEATURED_EVENT_CACHE_TAG);
+  updateTag(EVENTS_CACHE_TAG);
 
   await writeAuditLog({
     actorId: user.id,
@@ -578,5 +603,117 @@ export async function getApplicationResponses(
       responses: (row.responses as Record<string, unknown>) ?? {},
       createdAt: row.createdAt,
     })),
+  );
+}
+
+export type FormedTeamMember = {
+  userId: string;
+  name: string;
+  email: string;
+  isOrganizer: boolean;
+};
+
+export type FormedTeamRow = {
+  teamId: string;
+  organizerId: string;
+  organizerName: string;
+  organizerEmail: string;
+  memberCount: number;
+  members: FormedTeamMember[];
+};
+
+/**
+ * Lists all "formed" teams (more than one member) for an event, with their
+ * full roster. Solo teams-of-one are excluded.
+ * Requires team:read:all permission.
+ */
+export async function getFormedTeamsForEvent(
+  eventId: string,
+): Promise<ActionResult<FormedTeamRow[]>> {
+  const authUser = await getUser();
+  if (!authUser) return fail('Not authenticated');
+  await requirePermission(authUser.id, 'team:read:all');
+
+  try {
+    return await listFormedTeams(eventId);
+  } catch (error) {
+    console.error('getFormedTeamsForEvent error:', error);
+    return fail('Failed to load teams.');
+  }
+}
+
+/**
+ * True when the caller may use the moderation override in `removeMember`.
+ * The Teams tab is readable with `team:read:all` alone, so its remove
+ * controls have to be gated on the permission that actually backs them.
+ */
+export async function canModerateTeams(): Promise<boolean> {
+  const authUser = await getUser();
+  if (!authUser) return false;
+  return hasPermission(authUser.id, 'team:manage:all');
+}
+
+async function listFormedTeams(
+  eventId: string,
+): Promise<ActionResult<FormedTeamRow[]>> {
+  const formedTeams = await db
+    .select({ teamId: teamMembers.teamId, memberCount: count() })
+    .from(teamMembers)
+    .where(eq(teamMembers.eventId, eventId))
+    .groupBy(teamMembers.teamId)
+    .having(sql`count(*) > 1`);
+
+  if (formedTeams.length === 0) return ok([]);
+
+  const teamIds = formedTeams.map((t) => t.teamId);
+  const countByTeamId = new Map(
+    formedTeams.map((t) => [t.teamId, t.memberCount]),
+  );
+
+  const [teamRows, memberRows] = await Promise.all([
+    db
+      .select({ id: teams.id, organizerId: teams.organizerId })
+      .from(teams)
+      .where(inArray(teams.id, teamIds)),
+    db
+      .select({
+        teamId: teamMembers.teamId,
+        userId: teamMembers.userId,
+        name: user.name,
+        email: user.email,
+      })
+      .from(teamMembers)
+      .innerJoin(user, eq(teamMembers.userId, user.id))
+      .where(inArray(teamMembers.teamId, teamIds)),
+  ]);
+
+  const membersByTeamId = new Map<string, FormedTeamMember[]>();
+  for (const row of memberRows) {
+    const list = membersByTeamId.get(row.teamId) ?? [];
+    list.push({
+      userId: row.userId,
+      name: row.name,
+      email: row.email,
+      isOrganizer: false,
+    });
+    membersByTeamId.set(row.teamId, list);
+  }
+
+  return ok(
+    teamRows.map((t) => {
+      const members = (membersByTeamId.get(t.id) ?? []).map((m) => ({
+        ...m,
+        isOrganizer: m.userId === t.organizerId,
+      }));
+      const organizer = members.find((m) => m.isOrganizer);
+      return {
+        teamId: t.id,
+        organizerId: t.organizerId,
+        organizerName: organizer?.name ?? 'Unknown',
+        organizerEmail: organizer?.email ?? '',
+        memberCount: countByTeamId.get(t.id) ?? members.length,
+        members,
+      };
+    }),
   );
 }

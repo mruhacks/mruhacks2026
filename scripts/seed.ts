@@ -9,9 +9,11 @@ import {
   session,
   events,
   userProfiles,
+  userProfileAbout,
   userInterests,
   userDietaryRestrictions,
   eventApplications,
+  eventArticles,
   eventAttendees,
   genders,
   universities,
@@ -24,6 +26,7 @@ import {
   userPermission,
 } from '@/db/schema';
 import type { InferInsertModel } from 'drizzle-orm';
+import { eq, isNull, and } from 'drizzle-orm';
 import { seedStaticTables } from './seed-static';
 
 const COUNT = Number(process.env.SEED_COUNT ?? 3e2);
@@ -37,9 +40,6 @@ const Q_HEARD_FROM = '11111111-0000-0000-0000-000000000004';
 const Q_CONSENT_INFO = '11111111-0000-0000-0000-000000000005';
 const Q_CONSENT_SPONSOR = '11111111-0000-0000-0000-000000000006';
 const Q_CONSENT_MEDIA = '11111111-0000-0000-0000-000000000007';
-const Q_WHY_ATTEND = '11111111-0000-0000-0000-000000000008';
-const Q_IDEAS = '11111111-0000-0000-0000-000000000009';
-const Q_SPACE_JOURNEY = '11111111-0000-0000-0000-00000000000a';
 
 // ── Stable option UUIDs for heard_from question ───────────────────────────
 const OPT_POSTER = '22222222-0000-0000-0000-000000000001';
@@ -57,12 +57,18 @@ const HEARD_FROM_OPTIONS = [
   OPT_OTHER,
 ];
 
+// ── Stable article UUIDs (deterministic for seed data consistency) ────────
+const ART_GETTING_STARTED = '33333333-0000-0000-0000-000000000001';
+const ART_SCHEDULE = '33333333-0000-0000-0000-000000000002';
+const ART_JUDGING = '33333333-0000-0000-0000-000000000003';
+
 // ── Types ────────────────────────────────────────────────────────────────
 type UserInsert = InferInsertModel<typeof user>;
 type AccountInsert = InferInsertModel<typeof account>;
 type SessionInsert = InferInsertModel<typeof session>;
 type EventInsert = InferInsertModel<typeof events>;
 type UserProfileInsert = InferInsertModel<typeof userProfiles>;
+type UserProfileAboutInsert = InferInsertModel<typeof userProfileAbout>;
 type UserInterestInsert = InferInsertModel<typeof userInterests>;
 type UserDietaryInsert = InferInsertModel<typeof userDietaryRestrictions>;
 type EventApplicationInsert = InferInsertModel<typeof eventApplications>;
@@ -84,71 +90,15 @@ async function seedEvents() {
       hasApplication: true,
       capacity: null,
       isFeatured: true,
+      teamsEnabled: true,
+      maxTeamSize: 5,
       applicationQuestions: [
-        {
-          id: Q_ATTENDED_BEFORE,
-          label: 'Have you attended MRUHacks before?',
-          type: 'boolean' as const,
-          required: true,
-          order: 1,
-          active: true,
-        },
-        {
-          id: Q_WHY_ATTEND,
-          label: 'Why do you want to attend MRUHacks?',
-          description:
-            'What excites you about the event, and how do you hope it will help you grow? (60 words max)',
-          type: 'long_text' as const,
-          required: true,
-          maxLength: 250,
-          order: 2,
-          active: true,
-        },
-        {
-          id: Q_IDEAS,
-          label:
-            'Do you have any ideas you want to make or areas you’d like to learn about during MRUHacks?',
-          description: '60 words max',
-          type: 'long_text' as const,
-          required: true,
-          maxLength: 250,
-          order: 3,
-          active: true,
-        },
-        {
-          id: Q_SPACE_JOURNEY,
-          label:
-            'If you had to go on a 10-year journey through space all alone, what would you bring to entertain yourself?',
-          description: '20 words max',
-          type: 'long_text' as const,
-          required: true,
-          maxLength: 90,
-          order: 4,
-          active: true,
-        },
-        {
-          id: Q_ACCOMMODATIONS,
-          label: 'Accessibility or accommodations',
-          description: 'Please let us know if you have any special needs.',
-          type: 'long_text' as const,
-          required: false,
-          order: 5,
-          active: true,
-        },
-        {
-          id: Q_NEEDS_PARKING,
-          label: 'I require parking',
-          type: 'boolean' as const,
-          required: false,
-          order: 6,
-          active: true,
-        },
         {
           id: Q_HEARD_FROM,
           label: 'How did you hear about us?',
           type: 'single_select' as const,
           required: true,
-          order: 7,
+          order: 1,
           active: true,
           options: [
             { value: OPT_POSTER, label: 'Poster', active: true },
@@ -163,30 +113,6 @@ async function seedEvents() {
             { value: OPT_OTHER, label: 'Other', active: true },
           ],
         },
-        {
-          id: Q_CONSENT_INFO,
-          label: 'I consent to MRUHacks collecting and using my information',
-          type: 'boolean' as const,
-          required: true,
-          order: 8,
-          active: true,
-        },
-        {
-          id: Q_CONSENT_SPONSOR,
-          label: 'I consent to sharing my information with sponsors',
-          type: 'boolean' as const,
-          required: true,
-          order: 9,
-          active: true,
-        },
-        {
-          id: Q_CONSENT_MEDIA,
-          label: 'I consent to photos and videos being taken at the event',
-          type: 'boolean' as const,
-          required: true,
-          order: 10,
-          active: true,
-        },
       ],
     },
     {
@@ -200,6 +126,263 @@ async function seedEvents() {
   const noAppEvent = inserted[1]!;
   console.log(`✅ Seeded ${inserted.length} events.`);
   return { applicationEvent, noAppEvent };
+}
+
+// ── Seed markdown content (event descriptions + wiki) ────────────────────
+
+// Internal links are built from the event id so the seeded content actually
+// navigates, rather than shipping `#` placeholders that look like a bug.
+const hackathonDescription = (eventId: string) =>
+  `MRUHacks is Mount Royal University's **24-hour hackathon** — one weekend to build
+something with people you have probably not met yet.
+
+You do not need a team, an idea, or prior hackathon experience to apply. Roughly
+half of every cohort is attending their first hackathon, and we run the weekend
+with that in mind.
+
+## What the weekend looks like
+
+- **Friday evening** — check-in, opening ceremony, team formation
+- **Saturday** — workshops, mentor office hours, meals, and a lot of building
+- **Sunday morning** — submissions close, judging, closing ceremony
+
+## What we provide
+
+| | |
+| --- | --- |
+| Food | All meals, snacks and coffee for the full 24 hours |
+| Space | A room to work in, and a quiet room to not work in |
+| Mentors | Industry and senior-student mentors on the floor all weekend |
+| Hardware | A lending library of sensors, microcontrollers and peripherals |
+
+> Bring a laptop, a charger, and something to sleep on if you plan to stay
+> overnight. Everything else is on us.
+
+Applications are reviewed on a rolling basis. Read the
+[event wiki](/dashboard/events/${eventId}/wiki) for schedules, judging criteria,
+and the packing list.`;
+
+const WORKSHOP_DESCRIPTION = `A hands-on **two-hour introduction to React** for students who already know some
+JavaScript but have not built a component-based UI before.
+
+We start from an empty Vite project and finish with a small app that fetches and
+renders live data. You will leave with the project running on your own machine.
+
+### What we cover
+
+1. Components, props, and why the tree matters
+2. State with \`useState\`, and the rules that come with hooks
+3. Effects and data fetching — including when *not* to reach for \`useEffect\`
+4. Composing it into something you would actually ship
+
+### Before you arrive
+
+\`\`\`bash
+node --version   # 20 or newer
+npm create vite@latest my-first-react-app -- --template react
+\`\`\`
+
+No application needed — just register and show up. Laptops required; we do not
+have loaners for this one.`;
+
+const gettingStartedArticle = (eventId: string) =>
+  `Welcome to MRUHacks. This page covers everything you need between now and the
+opening ceremony.
+
+## Before the event
+
+- [ ] Complete your application and watch for the acceptance email
+- [ ] RSVP once you are accepted — unclaimed spots go to the waitlist
+- [ ] Join the Discord (link is in your acceptance email)
+- [ ] Skim the [schedule](/dashboard/events/${eventId}/wiki/schedule) so nothing
+      is a surprise on Sunday
+
+## What to bring
+
+**Essential**
+
+- Laptop and charger
+- Student ID for check-in
+- Water bottle
+
+**If you are staying overnight**
+
+- Sleeping bag or blanket, and a pillow
+- Toiletries and a change of clothes
+- Headphones
+
+> We cannot store valuables. Anything you leave in the venue overnight, you
+> leave at your own risk.
+
+## Finding a team
+
+Teams are **up to 5 people** and you can form one at any point before
+submissions open. If you arrive solo, come to the team formation session right
+after the opening ceremony — most solo attendees leave that session on a team.
+
+You can also create a team in your dashboard and share the join code with people
+you meet during the weekend.
+
+## Getting help
+
+Mentors wear coloured lanyards and are on the floor for the whole event. Flag
+one down, or post in the \`#help\` channel on Discord and someone will come find
+you.`;
+
+const SCHEDULE_ARTICLE = `All times are **Mountain Time** and subject to small changes — we will announce
+any updates in the Discord \`#announcements\` channel.
+
+## Friday
+
+| Time | What | Where |
+| --- | --- | --- |
+| 5:00 PM | Check-in opens | Main entrance |
+| 6:30 PM | Opening ceremony | Auditorium |
+| 7:15 PM | Team formation | Auditorium |
+| 8:00 PM | **Hacking begins** | Everywhere |
+| 9:00 PM | Late dinner | Atrium |
+
+## Saturday
+
+| Time | What | Where |
+| --- | --- | --- |
+| 8:00 AM | Breakfast | Atrium |
+| 10:00 AM | Workshop: intro to Git for teams | Room B105 |
+| 12:00 PM | Lunch | Atrium |
+| 2:00 PM | Workshop: shipping a demo that works | Room B105 |
+| 4:00 PM | Mentor office hours | Main floor |
+| 6:30 PM | Dinner | Atrium |
+| 11:00 PM | Midnight snack | Atrium |
+
+## Sunday
+
+| Time | What | Where |
+| --- | --- | --- |
+| 8:00 AM | Breakfast | Atrium |
+| 10:00 AM | **Submissions close** | Devpost |
+| 10:30 AM | Judging (science-fair format) | Main floor |
+| 12:30 PM | Closing ceremony and prizes | Auditorium |
+
+---
+
+The quiet room is open the entire event. The main floor stays open overnight;
+the auditorium is locked between sessions.`;
+
+const JUDGING_ARTICLE = `> **Draft** — the rubric below is from last year and is still being reviewed by
+> the organizing team. Do not treat the weightings as final.
+
+## Submitting
+
+Submissions close **Sunday at 10:00 AM sharp**. Submit on Devpost with:
+
+1. A public repository link
+2. A demo video, **3 minutes maximum**
+3. A short written description of what you built and what you would do next
+
+A project that misses the deadline can still be demoed, but it cannot be scored.
+
+## How judging works
+
+Judging is science-fair format: judges rotate between tables and you give the
+same short demo several times. Budget about **4 minutes** of talking and leave
+room for questions.
+
+## Rubric
+
+| Criterion | Weight | What judges are asking |
+| --- | --- | --- |
+| Technical execution | 30% | Does it work? Was it hard to build? |
+| Originality | 25% | Have we seen twenty of these already? |
+| Design and usability | 25% | Can a stranger use it without a tour? |
+| Presentation | 20% | Did the demo make the idea land? |
+
+## Rules
+
+- All code must be written **during** the event. Libraries, frameworks and
+  boilerplate generators are fine; a project you started last month is not.
+- Assets you did not make are fine if you have the right to use them — credit
+  them in your description.
+- Teams of up to 5. No swapping members mid-event.
+
+Questions about eligibility go to an organizer *before* you build, not after.`;
+
+/**
+ * Fills in the markdown surfaces: a description on each event, and a small
+ * wiki for the hackathon.
+ *
+ * Additive only. A description is written only when the column is still NULL,
+ * and articles are keyed on their stable UUIDs with `onConflictDoNothing`, so
+ * re-running the seed against a database someone has been editing in never
+ * overwrites their work.
+ */
+async function seedEventContent(
+  applicationEvent: { id: string; name: string },
+  noAppEvent: { id: string; name: string },
+) {
+  const descriptions = [
+    {
+      event: applicationEvent,
+      markdown: hackathonDescription(applicationEvent.id),
+    },
+    { event: noAppEvent, markdown: WORKSHOP_DESCRIPTION },
+  ];
+
+  let described = 0;
+  for (const { event, markdown } of descriptions) {
+    const updated = await db
+      .update(events)
+      .set({ descriptionMarkdown: markdown, updatedAt: new Date() })
+      .where(and(eq(events.id, event.id), isNull(events.descriptionMarkdown)))
+      .returning({ id: events.id });
+    described += updated.length;
+  }
+  console.log(
+    described === descriptions.length
+      ? `✅ Seeded ${described} event descriptions.`
+      : `✅ Seeded ${described} event descriptions (${descriptions.length - described} already had one; left untouched).`,
+  );
+
+  // Two published and one draft, so the seeded database exercises both the
+  // participant-visible path and the organizer-only draft badge.
+  const articles: InferInsertModel<typeof eventArticles>[] = [
+    {
+      id: ART_GETTING_STARTED,
+      eventId: applicationEvent.id,
+      slug: 'getting-started',
+      title: 'Getting started',
+      bodyMarkdown: gettingStartedArticle(applicationEvent.id),
+      published: true,
+      sortOrder: 1,
+    },
+    {
+      id: ART_SCHEDULE,
+      eventId: applicationEvent.id,
+      slug: 'schedule',
+      title: 'Schedule',
+      bodyMarkdown: SCHEDULE_ARTICLE,
+      published: true,
+      sortOrder: 2,
+    },
+    {
+      id: ART_JUDGING,
+      eventId: applicationEvent.id,
+      slug: 'judging-and-submissions',
+      title: 'Judging & submissions',
+      bodyMarkdown: JUDGING_ARTICLE,
+      published: false,
+      sortOrder: 3,
+    },
+  ];
+
+  const inserted = await db
+    .insert(eventArticles)
+    .values(articles)
+    .onConflictDoNothing({ target: eventArticles.id })
+    .returning({ id: eventArticles.id });
+
+  console.log(
+    `✅ Seeded ${inserted.length} of ${articles.length} wiki articles for ${applicationEvent.name} (2 published, 1 draft).`,
+  );
 }
 
 // ── Seed a fixed admin user from env vars ────────────────────────────────
@@ -256,6 +439,7 @@ async function seedEnvAdminUser(
 // ── Main user seeding ───────────────────────────────────────────────────
 async function main() {
   const { applicationEvent, noAppEvent } = await seedEvents();
+  await seedEventContent(applicationEvent, noAppEvent);
 
   console.log(`🌱 Seeding ${COUNT} fake users in chunks of ${CHUNK_SIZE}...`);
 
@@ -296,6 +480,7 @@ async function main() {
     const accounts: AccountInsert[] = [];
     const sessions: SessionInsert[] = [];
     const profiles: UserProfileInsert[] = [];
+    const profilesAbout: UserProfileAboutInsert[] = [];
     const interestLinks: UserInterestInsert[] = [];
     const dietaryLinks: UserDietaryInsert[] = [];
     const applicationData: EventApplicationInsert[] = [];
@@ -351,6 +536,12 @@ async function main() {
         userId: id,
         fullName: name,
         genderId: gender.id,
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      profilesAbout.push({
+        userId: id,
         universityId: university.id,
         majorId: major.id,
         yearOfStudyId: year.id,
@@ -443,6 +634,7 @@ async function main() {
       await tx.insert(account).values(accounts);
       await tx.insert(session).values(sessions);
       await tx.insert(userProfiles).values(profiles);
+      await tx.insert(userProfileAbout).values(profilesAbout);
       if (interestLinks.length > 0)
         await tx.insert(userInterests).values(interestLinks);
       if (dietaryLinks.length > 0)

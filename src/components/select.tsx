@@ -3,6 +3,7 @@
 import * as React from 'react';
 import type { GroupBase, StylesConfig, ThemeConfig } from 'react-select';
 import SelectInner, { Props as SelectProps } from 'react-select';
+import { useIsHydrated } from '@/lib/use-is-hydrated';
 
 // ───────────────────────────────────────────────
 // shadcn-style theming for OKLCH variable system
@@ -125,13 +126,12 @@ export function Select<
   // hydration mismatch. Render a plain placeholder on the server (and on
   // the client's first pass) and swap in the real widget only after mount,
   // once hydration has already settled.
-  const [mounted, setMounted] = React.useState(false);
-  React.useEffect(() => setMounted(true), []);
+  const mounted = useIsHydrated();
 
   if (!mounted) {
     return (
       <div
-        className='border-input bg-background flex min-h-10 items-center rounded-[var(--radius)] border px-3 text-sm text-muted-foreground'
+        className='border-input bg-background text-muted-foreground flex min-h-10 items-center rounded-[var(--radius)] border px-3 text-sm'
         aria-hidden
       >
         {props.placeholder ?? ''}

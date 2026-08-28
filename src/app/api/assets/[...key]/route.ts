@@ -1,10 +1,22 @@
-import { getObject } from '@/utils/object-storage';
+import { getUser } from '@/utils/auth';
+import {
+  eventAttachmentRedirect,
+  isEventAttachmentKey,
+  profilePictureRedirect,
+} from '@/utils/object-storage';
 
 /**
- * Fallback proxy for profile pictures when `S3_PUBLIC_URL` isn't configured
- * (see `profilePictureUrl` in `@/utils/object-storage`). When it is set,
- * avatars are served directly from storage/CDN instead of through here, to
- * avoid paying egress twice (storage → server → client) on every view.
+ * Redirects to a signed URL for two kinds of object-storage assets — the
+ * actual presigning and redirect response live in `@/utils/object-storage`
+ * (`profilePictureRedirect` / `eventAttachmentRedirect`), so this route is
+ * just the access-control decision for each key shape:
+ *
+ * - `profile-pictures/…` — avatars. No session required: these need to be
+ *   visible to other users too (team rosters, admin user lists), not just
+ *   the owner.
+ * - `event-content/…` — attachments embedded in event descriptions and wiki
+ *   articles. Requires a signed-in session, since the wiki lives behind the
+ *   dashboard and so must its images.
  */
 export async function GET(
   _request: Request,
@@ -12,22 +24,17 @@ export async function GET(
 ) {
   const { key } = await params;
   const objectKey = key.join('/');
-  if (!objectKey.startsWith('profile-pictures/')) {
+
+  const isAttachment: boolean = isEventAttachmentKey(objectKey);
+
+  if (isAttachment) {
+    const user = await getUser();
+    if (!user) return new Response('Not found', { status: 404 });
+  } else if (!objectKey.startsWith('profile-pictures/')) {
     return new Response('Not found', { status: 404 });
   }
 
-  try {
-    const object = await getObject(objectKey);
-    if (!object) return new Response('Not found', { status: 404 });
-    const body = object.bytes.slice().buffer as ArrayBuffer;
-    return new Response(body, {
-      headers: {
-        'Content-Type': object.contentType,
-        'Cache-Control': 'public, max-age=31536000, immutable',
-      },
-    });
-  } catch (error) {
-    console.error('[assets] failed to load profile picture', error);
-    return new Response('Not found', { status: 404 });
-  }
+  return isAttachment
+    ? eventAttachmentRedirect(objectKey)
+    : profilePictureRedirect(objectKey);
 }

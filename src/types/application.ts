@@ -51,7 +51,10 @@ export type ApplicationQuestion = {
  * not set an explicit `maxLength`. Kept here so the form UI, the client schema,
  * and the server-side response validator all agree on one number.
  */
-export const DEFAULT_QUESTION_MAX_LENGTH: Record<'short_text' | 'long_text', number> = {
+export const DEFAULT_QUESTION_MAX_LENGTH: Record<
+  'short_text' | 'long_text',
+  number
+> = {
   short_text: 255,
   long_text: 2000,
 };

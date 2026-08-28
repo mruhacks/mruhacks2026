@@ -1,6 +1,6 @@
 /**
- * Auth tests for the six profile actions not covered by profile-actions.test.ts:
- * saveWelcomeProfile, uploadProfilePicture, removeProfilePicture,
+ * Auth tests for the profile actions not covered by profile-actions.test.ts:
+ * saveAboutProfile, uploadProfilePicture, removeProfilePicture,
  * uploadResume, removeResume, getOwnResume.
  *
  * All actions require only authentication (no permission gate), so the only
@@ -11,7 +11,7 @@ import { describe, test, expect, vi } from 'vitest';
 vi.mock('@/utils/auth', () => ({ getUser: vi.fn() }));
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 vi.mock('@/utils/object-storage', () => ({
-  putPrivateObject: vi.fn(),
+  putObject: vi.fn(),
   deleteObject: vi.fn(),
   isObjectStorageKey: vi.fn().mockReturnValue(false),
   parseProfilePictureKey: vi.fn().mockReturnValue(null),
@@ -21,7 +21,7 @@ vi.mock('sharp', () => ({ default: vi.fn() }));
 
 import { getUser } from '@/utils/auth';
 import {
-  saveWelcomeProfile,
+  saveAboutProfile,
   uploadProfilePicture,
   removeProfilePicture,
   uploadResume,
@@ -34,25 +34,32 @@ function asUnauthed() {
 }
 
 describe('profile actions — unauthenticated', () => {
-  test('saveWelcomeProfile fails', async () => {
+  test('saveAboutProfile fails', async () => {
     asUnauthed();
-    // saveWelcomeProfile delegates to saveUserProfile first; saveUserProfile checks auth
-    await expect(saveWelcomeProfile({} as never)).resolves.toMatchObject({ success: false });
+    await expect(saveAboutProfile({} as never)).resolves.toMatchObject({
+      success: false,
+    });
   });
 
   test('uploadProfilePicture fails before reading FormData', async () => {
     asUnauthed();
-    await expect(uploadProfilePicture(new FormData())).resolves.toMatchObject({ success: false });
+    await expect(uploadProfilePicture(new FormData())).resolves.toMatchObject({
+      success: false,
+    });
   });
 
   test('removeProfilePicture fails', async () => {
     asUnauthed();
-    await expect(removeProfilePicture()).resolves.toMatchObject({ success: false });
+    await expect(removeProfilePicture()).resolves.toMatchObject({
+      success: false,
+    });
   });
 
   test('uploadResume fails before reading FormData', async () => {
     asUnauthed();
-    await expect(uploadResume(new FormData())).resolves.toMatchObject({ success: false });
+    await expect(uploadResume(new FormData())).resolves.toMatchObject({
+      success: false,
+    });
   });
 
   test('removeResume fails', async () => {

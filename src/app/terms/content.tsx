@@ -29,7 +29,10 @@ export function TermsContent() {
 
       <h2>Acceptable use</h2>
       <ul>
-        <li>Do not misuse, disrupt, or attempt to gain unauthorized access to the Service.</li>
+        <li>
+          Do not misuse, disrupt, or attempt to gain unauthorized access to the
+          Service.
+        </li>
         <li>Do not impersonate others or submit false information.</li>
         <li>Do not upload unlawful, harmful, or infringing content.</li>
         <li>Follow the event code of conduct at all times.</li>
@@ -47,9 +50,9 @@ export function TermsContent() {
       <h2>Account deletion</h2>
       <p>
         You may delete your account at any time from your{' '}
-        <a href='/dashboard/account'>Account &amp; Privacy</a> settings. Deletion
-        is permanent and removes your account and associated data. We may
-        suspend or terminate accounts that violate these terms.
+        <a href='/dashboard/account'>Account &amp; Privacy</a> settings.
+        Deletion is permanent and removes your account and associated data. We
+        may suspend or terminate accounts that violate these terms.
       </p>
 
       <h2>Disclaimer</h2>

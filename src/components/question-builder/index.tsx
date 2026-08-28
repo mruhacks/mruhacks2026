@@ -57,14 +57,14 @@ export function QuestionBuilder({
   );
 
   const [addOpen, setAddOpen] = React.useState(false);
-  const [editTarget, setEditTarget] = React.useState<ApplicationQuestion | null>(null);
-  const [deleteTarget, setDeleteTarget] = React.useState<ApplicationQuestion | null>(null);
+  const [editTarget, setEditTarget] =
+    React.useState<ApplicationQuestion | null>(null);
+  const [deleteTarget, setDeleteTarget] =
+    React.useState<ApplicationQuestion | null>(null);
   const [deleteLoading, setDeleteLoading] = React.useState(false);
   const [activeDragId, setActiveDragId] = React.useState<string | null>(null);
 
-  const sensors = useSensors(
-    useSensor(PointerSensor),
-  );
+  const sensors = useSensors(useSensor(PointerSensor));
 
   // ── Add ─────────────────────────────────────────────────────────────────
   const handleAdd = async (data: QuestionFormValues) => {
@@ -76,7 +76,9 @@ export function QuestionBuilder({
       maxLength: normalizeMaxLength(data.maxLength),
       showInApplicationReview: data.showInApplicationReview,
       showInReports: data.showInReports,
-      options: data.options?.filter((o) => o.label).map((o) => ({ label: o.label })),
+      options: data.options
+        ?.filter((o) => o.label)
+        .map((o) => ({ label: o.label })),
     });
     if (result.success && result.data) {
       toast.success('Question added.');
@@ -116,11 +118,15 @@ export function QuestionBuilder({
                 maxLength: maxLength ?? undefined,
                 showInApplicationReview: data.showInApplicationReview,
                 showInReports: data.showInReports,
-                options: data.options?.map((o) => ({
-                  value: o.value || q.options?.find((opt) => opt.label === o.label)?.value || crypto.randomUUID(),
-                  label: o.label,
-                  active: o.active ?? true,
-                })) ?? q.options,
+                options:
+                  data.options?.map((o) => ({
+                    value:
+                      o.value ||
+                      q.options?.find((opt) => opt.label === o.label)?.value ||
+                      crypto.randomUUID(),
+                    label: o.label,
+                    active: o.active ?? true,
+                  })) ?? q.options,
               }
             : q,
         ),
@@ -137,7 +143,9 @@ export function QuestionBuilder({
     const result = await removeQuestion(eventId, deleteTarget.id);
     setDeleteLoading(false);
     if (result.success) {
-      toast.success(typeof result.data === 'string' ? result.data : 'Question removed.');
+      toast.success(
+        typeof result.data === 'string' ? result.data : 'Question removed.',
+      );
       setDeleteTarget(null);
       // Update local state: section dividers are always hard-deleted; others are soft-deleted if applications exist
       const isSectionDivider = deleteTarget.type === 'section_divider';
@@ -258,7 +266,9 @@ export function QuestionBuilder({
       {/* Edit dialog */}
       <QuestionDialog
         open={!!editTarget}
-        onOpenChange={(open) => { if (!open) setEditTarget(null); }}
+        onOpenChange={(open) => {
+          if (!open) setEditTarget(null);
+        }}
         question={editTarget ?? undefined}
         hasApplications={hasApplications}
         onSubmit={handleEdit}
@@ -268,7 +278,9 @@ export function QuestionBuilder({
       {deleteTarget && (
         <DeleteQuestionDialog
           open={!!deleteTarget}
-          onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
+          onOpenChange={(open) => {
+            if (!open) setDeleteTarget(null);
+          }}
           questionLabel={deleteTarget.label}
           questionType={deleteTarget.type}
           hasApplications={hasApplications}

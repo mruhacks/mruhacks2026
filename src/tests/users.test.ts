@@ -37,7 +37,7 @@ vi.mock('@/utils/auth', () => ({
   },
 }));
 vi.mock('next/headers', () => ({ headers: vi.fn().mockResolvedValue({}) }));
-vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
+vi.mock('next/cache', () => ({ revalidatePath: vi.fn(), updateTag: vi.fn() }));
 vi.mock('next/navigation', () => ({
   redirect: vi.fn((path: string) => {
     throw new Error(`REDIRECT:${path}`);
@@ -351,7 +351,9 @@ describe('updateUserProfile', () => {
 
   test('fails when no permission', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(noPermUser as never);
-    await expect(updateUserProfile(targetUserId, { name: 'X' })).rejects.toThrow(
+    await expect(
+      updateUserProfile(targetUserId, { name: 'X' }),
+    ).rejects.toThrow(
       'REDIRECT:/forbidden?reason=missing_permission&permission=user:write:all',
     );
   });
@@ -898,7 +900,9 @@ describe('adminSetUserPassword', () => {
 
   test('fails when no permission', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(noPermUser as never);
-    await expect(adminSetUserPassword(targetUserId, 'newpass123')).rejects.toThrow(
+    await expect(
+      adminSetUserPassword(targetUserId, 'newpass123'),
+    ).rejects.toThrow(
       'REDIRECT:/forbidden?reason=missing_permission&permission=user:write:all',
     );
   });
@@ -931,7 +935,9 @@ describe('adminSendPasswordReset', () => {
 
   test('fails when no permission', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(noPermUser as never);
-    await expect(adminSendPasswordReset('users-target@test.com')).rejects.toThrow(
+    await expect(
+      adminSendPasswordReset('users-target@test.com'),
+    ).rejects.toThrow(
       'REDIRECT:/forbidden?reason=missing_permission&permission=user:write:all',
     );
   });

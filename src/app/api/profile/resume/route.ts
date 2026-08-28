@@ -2,7 +2,7 @@ import { getUser } from '@/utils/auth';
 import { db } from '@/utils/db';
 import { userProfiles } from '@/db/schema';
 import { eq } from 'drizzle-orm';
-import { getObject, isObjectStorageKey } from '@/utils/object-storage';
+import { isObjectStorageKey, resumeRedirect } from '@/utils/object-storage';
 
 export async function GET() {
   const user = await getUser();
@@ -20,20 +20,5 @@ export async function GET() {
     return new Response('Not found', { status: 404 });
   }
 
-  try {
-    const object = await getObject(profile.key);
-    if (!object) return new Response('Not found', { status: 404 });
-    const fileName = (profile.fileName ?? 'resume').replace(/["\\]/g, '_');
-    const body = object.bytes.slice().buffer as ArrayBuffer;
-    return new Response(body, {
-      headers: {
-        'Content-Type': object.contentType,
-        'Content-Disposition': `attachment; filename="${fileName}"`,
-        'Cache-Control': 'private, no-store',
-      },
-    });
-  } catch (error) {
-    console.error('[resume] failed to load resume', error);
-    return new Response('Not found', { status: 404 });
-  }
+  return resumeRedirect(profile.key, profile.fileName ?? 'resume');
 }

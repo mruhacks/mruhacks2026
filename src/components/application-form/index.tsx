@@ -27,7 +27,10 @@ import {
   createApplicationFormSchema,
   type EventOnlyFormValues,
 } from './schema';
-import { resolveMaxLength, type ApplicationQuestion } from '@/types/application';
+import {
+  resolveMaxLength,
+  type ApplicationQuestion,
+} from '@/types/application';
 import { isOtherOption, otherTextKey } from '@/lib/other-option';
 import { useRouter } from 'next/navigation';
 import type { Control } from 'react-hook-form';
@@ -84,6 +87,7 @@ function ApplicationQuestionField({
                 id={q.id}
                 checked={Boolean(field.value)}
                 onCheckedChange={field.onChange}
+                aria-invalid={fieldState.invalid}
               />
               <div className='grid flex-1 gap-1'>
                 <Label htmlFor={q.id}>
@@ -114,7 +118,7 @@ function ApplicationQuestionField({
         render={({ field, fieldState }) => {
           const selected = activeOptions.find((o) => o.value === field.value);
           return (
-            <Field>
+            <Field data-invalid={fieldState.invalid}>
               <FieldLabel>
                 {q.label}
                 {q.required && <RequiredAsterisk />}
@@ -126,6 +130,7 @@ function ApplicationQuestionField({
                 id={q.id}
                 instanceId={`app-q-${q.id}`}
                 options={activeOptions}
+                aria-invalid={fieldState.invalid}
                 value={selected ?? null}
                 onChange={(opt) =>
                   field.onChange(
@@ -171,7 +176,7 @@ function ApplicationQuestionField({
             selectedValues.includes(o.value),
           );
           return (
-            <Field>
+            <Field data-invalid={fieldState.invalid}>
               <FieldLabel>
                 {q.label}
                 {q.required && <RequiredAsterisk />}
@@ -184,6 +189,7 @@ function ApplicationQuestionField({
                 instanceId={`app-q-${q.id}`}
                 isMulti
                 options={activeOptions}
+                aria-invalid={fieldState.invalid}
                 value={selected}
                 onChange={(opts) =>
                   field.onChange(
@@ -238,7 +244,9 @@ function ApplicationQuestionField({
                   e.target.value === '' ? null : Number(e.target.value),
                 )
               }
+              aria-invalid={fieldState.invalid}
             />
+            {fieldState.error && <FieldError errors={[fieldState.error]} />}
           </Field>
         )}
       />
@@ -267,8 +275,10 @@ function ApplicationQuestionField({
               onChange={(e) => field.onChange(e.target.value)}
               placeholder={q.label}
               maxLength={max}
+              aria-invalid={fieldState.invalid}
             />
             <CharacterCount value={field.value} max={max} />
+            {fieldState.error && <FieldError errors={[fieldState.error]} />}
           </Field>
         )}
       />
@@ -297,8 +307,10 @@ function ApplicationQuestionField({
             onChange={(e) => field.onChange(e.target.value)}
             placeholder={q.label}
             maxLength={max}
+            aria-invalid={fieldState.invalid}
           />
           <CharacterCount value={field.value} max={max} />
+          {fieldState.error && <FieldError errors={[fieldState.error]} />}
         </Field>
       )}
     />

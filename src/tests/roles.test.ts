@@ -11,6 +11,7 @@ import {
 } from '@/db/schema';
 vi.mock('server-only', () => ({}));
 vi.mock('@/utils/auth', () => ({ getUser: vi.fn() }));
+vi.mock('next/cache', () => ({ updateTag: vi.fn() }));
 import {
   listRoles,
   listPermissions,
@@ -513,9 +514,7 @@ describe('setRolePermissions', () => {
 
   test('clears all role permissions when given empty array', async () => {
     const roleId = unwrap(await createRole('test-set-role-perms-clear'));
-    const permId = unwrap(
-      await addPermission('test:set-role-perms:clear'),
-    );
+    const permId = unwrap(await addPermission('test:set-role-perms:clear'));
 
     await setRolePermissions(roleId!, [permId!]);
     await setRolePermissions(roleId!, []);

@@ -8,10 +8,10 @@
 import {
   events,
   userProfiles,
+  userProfileAbout,
   userDietaryRestrictions,
   eventApplications,
   applicationStatuses,
-  eventAttendees,
   applicationFormView,
   genders,
   universities,
@@ -31,9 +31,14 @@ import {
   type EventOnlyFormValues,
 } from '@/components/application-form/schema';
 import type { ApplicationQuestion } from '@/types/application';
-import { cacheLife } from 'next/cache';
-import { and, desc, eq } from 'drizzle-orm';
+import { cacheLife, revalidatePath, updateTag } from 'next/cache';
+import { and, eq, inArray } from 'drizzle-orm';
 import { getUserProfile } from '@/app/dashboard/profile/actions';
+import {
+  getAllEvents,
+  getUserEventParticipation,
+  userEventsCacheTag,
+} from '@/lib/events';
 import { buildApplicationResponses } from './application-responses';
 import {
   type ApplicationStatusLabel,
@@ -96,7 +101,8 @@ async function registerParticipant(
   if (!eventRow.hasApplication) {
     return fail('This event does not require an application.');
   }
-  const applicationQuestions = eventRow.applicationQuestions as ApplicationQuestion[];
+  const applicationQuestions =
+    eventRow.applicationQuestions as ApplicationQuestion[];
 
   const built = buildApplicationResponses(
     applicationQuestions,
@@ -123,14 +129,7 @@ async function registerParticipant(
           fullName: profile.fullName,
           genderId: profile.genderId,
           genderOtherText: profile.genderOtherText || null,
-          universityId: profile.universityId,
-          universityOtherText: profile.universityOtherText || null,
-          majorId: profile.majorId,
-          majorOtherText: profile.majorOtherText || null,
-          yearOfStudyId: profile.yearOfStudyId,
           dietaryOtherText: profile.dietaryOtherText || null,
-          linkedinUrl: profile.linkedinUrl || null,
-          githubUrl: profile.githubUrl || null,
         })
         .onConflictDoUpdate({
           target: userProfiles.userId,
@@ -138,12 +137,31 @@ async function registerParticipant(
             fullName: profile.fullName,
             genderId: profile.genderId,
             genderOtherText: profile.genderOtherText || null,
+            dietaryOtherText: profile.dietaryOtherText || null,
+            updatedAt: new Date(),
+          },
+        });
+
+      await tx
+        .insert(userProfileAbout)
+        .values({
+          userId: user.id,
+          universityId: profile.universityId,
+          universityOtherText: profile.universityOtherText || null,
+          majorId: profile.majorId,
+          majorOtherText: profile.majorOtherText || null,
+          yearOfStudyId: profile.yearOfStudyId,
+          linkedinUrl: profile.linkedinUrl || null,
+          githubUrl: profile.githubUrl || null,
+        })
+        .onConflictDoUpdate({
+          target: userProfileAbout.userId,
+          set: {
             universityId: profile.universityId,
             universityOtherText: profile.universityOtherText || null,
             majorId: profile.majorId,
             majorOtherText: profile.majorOtherText || null,
             yearOfStudyId: profile.yearOfStudyId,
-            dietaryOtherText: profile.dietaryOtherText || null,
             linkedinUrl: profile.linkedinUrl || null,
             githubUrl: profile.githubUrl || null,
             updatedAt: new Date(),
@@ -153,7 +171,8 @@ async function registerParticipant(
       await tx
         .delete(userDietaryRestrictions)
         .where(eq(userDietaryRestrictions.userId, user.id));
-      const realRestrictions = profile.dietaryRestrictions?.filter((id) => id > 0) ?? [];
+      const realRestrictions =
+        profile.dietaryRestrictions?.filter((id) => id > 0) ?? [];
       if (realRestrictions.length) {
         await tx.insert(userDietaryRestrictions).values(
           realRestrictions.map((restrictionId) => ({
@@ -180,6 +199,8 @@ async function registerParticipant(
         });
     });
 
+    updateTag(userEventsCacheTag(user.id));
+    revalidatePath('/welcome', 'layout');
     return ok('Application saved successfully.');
   } catch (error) {
     console.error('Application save error:', error);
@@ -277,10 +298,25 @@ export async function submitEventApplication(
   if (!profileResult.success)
     return fail(profileResult.error ?? 'Could not load profile');
   const profile = profileResult.data;
-  if (profile == null)
+  if (
+    profile == null ||
+    profile.universityId == null ||
+    profile.majorId == null ||
+    profile.yearOfStudyId == null
+  ) {
     return fail('Complete your profile first before applying to events.');
+  }
 
-  return registerParticipant(profile, eventData, eventId);
+  return registerParticipant(
+    {
+      ...profile,
+      universityId: profile.universityId,
+      majorId: profile.majorId,
+      yearOfStudyId: profile.yearOfStudyId,
+    },
+    eventData,
+    eventId,
+  );
 }
 
 export type ApplicationStatusForUser = {
@@ -345,6 +381,12 @@ export type EventWithUserStatus = {
 /**
  * Returns all events with the current user's application/attendee status.
  * Used by dashboard/events page.
+ *
+ * Everything except the application's review status is cached: the event
+ * list (`getAllEvents`) and which events the user applied to/registered
+ * for (`getUserEventParticipation`) rarely change. The status itself can
+ * change out from under the applicant (an admin review), so it's the one
+ * piece fetched fresh on every call.
  */
 export async function getEventsWithUserStatus(): Promise<
   EventWithUserStatus[]
@@ -352,46 +394,38 @@ export async function getEventsWithUserStatus(): Promise<
   const user = await getUser();
   if (!user) return [];
 
-  const allEvents = await db
-    .select({
-      id: events.id,
-      name: events.name,
-      hasApplication: events.hasApplication,
-      startsAt: events.startsAt,
-      endsAt: events.endsAt,
-    })
-    .from(events)
-    .orderBy(desc(events.createdAt));
-
-  const [applicationRows, attendeeEventIds] = await Promise.all([
-    db
-      .select({
-        eventId: eventApplications.eventId,
-        statusKey: applicationStatuses.label,
-        waitlistPosition: eventApplications.waitlistPosition,
-      })
-      .from(eventApplications)
-      .leftJoin(
-        applicationStatuses,
-        eq(eventApplications.statusId, applicationStatuses.id),
-      )
-      .where(eq(eventApplications.userId, user.id)),
-    db
-      .select({ eventId: eventAttendees.eventId })
-      .from(eventAttendees)
-      .where(eq(eventAttendees.userId, user.id)),
+  const [allEvents, participation] = await Promise.all([
+    getAllEvents(),
+    getUserEventParticipation(user.id),
   ]);
 
-  const registeredSet = new Set(attendeeEventIds.map((r) => r.eventId));
-  const statusByEventId = new Map(
-    applicationRows.map((r) => [r.eventId, r] as const),
-  );
+  const applicationIds = Object.values(participation.applicationIdByEventId);
+  const statusRows = applicationIds.length
+    ? await db
+        .select({
+          id: eventApplications.id,
+          statusKey: applicationStatuses.label,
+          waitlistPosition: eventApplications.waitlistPosition,
+        })
+        .from(eventApplications)
+        .leftJoin(
+          applicationStatuses,
+          eq(eventApplications.statusId, applicationStatuses.id),
+        )
+        .where(inArray(eventApplications.id, applicationIds))
+    : [];
+  const statusByApplicationId = new Map(statusRows.map((r) => [r.id, r]));
+
+  const registeredSet = new Set(participation.registeredEventIds);
   const displayMap = await getApplicationStatusDisplayMap();
 
   return allEvents.map((e) => {
-    const application = statusByEventId.get(e.id);
-    const statusKey = application
-      ? resolveApplicationStatusKey(application.statusKey)
+    const applicationId = participation.applicationIdByEventId[e.id];
+    const status = applicationId
+      ? statusByApplicationId.get(applicationId)
+      : undefined;
+    const statusKey = applicationId
+      ? resolveApplicationStatusKey(status?.statusKey)
       : null;
     return {
       id: e.id,
@@ -400,7 +434,7 @@ export async function getEventsWithUserStatus(): Promise<
       startsAt: e.startsAt,
       endsAt: e.endsAt,
       userStatus: e.hasApplication
-        ? statusByEventId.has(e.id)
+        ? applicationId
           ? ('applied' as const)
           : null
         : registeredSet.has(e.id)
@@ -408,7 +442,7 @@ export async function getEventsWithUserStatus(): Promise<
           : null,
       statusKey,
       statusDisplay: statusKey ? displayMap[statusKey] : null,
-      waitlistPosition: application?.waitlistPosition ?? null,
+      waitlistPosition: status?.waitlistPosition ?? null,
     };
   });
 }

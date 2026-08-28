@@ -44,6 +44,7 @@ vi.mock('next/navigation', () => ({
     throw new Error(`REDIRECT:${path}`);
   }),
 }));
+vi.mock('next/cache', () => ({ updateTag: vi.fn() }));
 
 let userId: string;
 let roleId: number;
@@ -84,9 +85,7 @@ beforeAll(async () => {
   }
   vi.mocked(getUser).mockResolvedValue({ id: userId } as never);
 
-  roleId = unwrap(
-    await createRole('ext-test-role-a', 'Extended test role A'),
-  );
+  roleId = unwrap(await createRole('ext-test-role-a', 'Extended test role A'));
   altRoleId = unwrap(
     await createRole('ext-test-role-b', 'Extended test role B'),
   );
@@ -317,4 +316,3 @@ describe('requireAnyPermission', () => {
     expect(redirectTarget).toContain('missing_permission');
   });
 });
-
