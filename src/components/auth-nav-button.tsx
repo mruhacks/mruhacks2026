@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { authClient } from '@/utils/auth-client';
+import { cn } from '@/lib/utils';
 
 type AuthNavButtonProps = {
   className?: string;
@@ -13,7 +14,21 @@ export function AuthNavButton({ className }: AuthNavButtonProps) {
   const router = useRouter();
   const { data: session, isPending } = authClient.useSession();
 
-  if (isPending) return null;
+  if (isPending) {
+    // Reserve the space "Sign Out" (the longer of the two labels) occupies so
+    // this doesn't pop in and shift surrounding layout once the session check
+    // settles.
+    return (
+      <Button
+        shadow='md'
+        className={cn('invisible', className)}
+        aria-hidden
+        tabIndex={-1}
+      >
+        Sign Out
+      </Button>
+    );
+  }
 
   if (session) {
     return (
