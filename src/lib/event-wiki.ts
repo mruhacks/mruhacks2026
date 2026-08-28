@@ -30,7 +30,10 @@ export async function getPublishedArticleList(eventId: string) {
     })
     .from(eventArticles)
     .where(
-      and(eq(eventArticles.eventId, eventId), eq(eventArticles.published, true)),
+      and(
+        eq(eventArticles.eventId, eventId),
+        eq(eventArticles.published, true),
+      ),
     )
     .orderBy(asc(eventArticles.sortOrder), asc(eventArticles.title));
 }

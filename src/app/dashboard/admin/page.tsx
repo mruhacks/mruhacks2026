@@ -24,7 +24,10 @@ function OverviewSkeleton() {
           />
         ))}
       </div>
-      <div className='bg-muted animate-pulse rounded-xl' style={{ height: 84 }} />
+      <div
+        className='bg-muted animate-pulse rounded-xl'
+        style={{ height: 84 }}
+      />
     </>
   );
 }

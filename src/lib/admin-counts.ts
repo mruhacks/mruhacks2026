@@ -26,13 +26,12 @@ export async function getAdminCounts(): Promise<AdminCounts> {
   // in case any path was missed.
   cacheLife('minutes');
 
-  const [userCount, roleCount, permCount, assignmentCount] =
-    await Promise.all([
-      db.select({ c: sql<number>`COUNT(*)`.mapWith(Number) }).from(user),
-      db.select({ c: sql<number>`COUNT(*)`.mapWith(Number) }).from(role),
-      db.select({ c: sql<number>`COUNT(*)`.mapWith(Number) }).from(permission),
-      db.select({ c: sql<number>`COUNT(*)`.mapWith(Number) }).from(userRole),
-    ]);
+  const [userCount, roleCount, permCount, assignmentCount] = await Promise.all([
+    db.select({ c: sql<number>`COUNT(*)`.mapWith(Number) }).from(user),
+    db.select({ c: sql<number>`COUNT(*)`.mapWith(Number) }).from(role),
+    db.select({ c: sql<number>`COUNT(*)`.mapWith(Number) }).from(permission),
+    db.select({ c: sql<number>`COUNT(*)`.mapWith(Number) }).from(userRole),
+  ]);
 
   return {
     users: userCount[0]?.c ?? 0,

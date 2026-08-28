@@ -27,8 +27,7 @@ const putObject =
 const deleteObject = vi.fn<(key: string) => Promise<void>>();
 vi.mock('@/utils/object-storage', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/utils/object-storage')>()),
-  putObject: (args: { key: string; contentType: string }) =>
-    putObject(args),
+  putObject: (args: { key: string; contentType: string }) => putObject(args),
   deleteObject: (key: string) => deleteObject(key),
 }));
 
