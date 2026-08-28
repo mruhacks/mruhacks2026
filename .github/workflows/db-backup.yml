@@ -49,17 +49,10 @@ jobs:
             exit 1
           fi
 
-      - name: Install PostgreSQL client 18
+      - name: Pull PostgreSQL 18 client image
         run: |
-          sudo install -d /usr/share/postgresql-common/pgdg
-          sudo curl --fail --silent --show-error \
-            -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
-            https://www.postgresql.org/media/keys/ACCC4CF8.asc
-          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
-            | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends postgresql-client-18
-          pg_dump --version
+          docker pull postgres:18
+          docker run --rm postgres:18 pg_dump --version
 
       - name: Dump database
         run: |
@@ -69,15 +62,18 @@ jobs:
           # Custom format (-Fc): compressed, and restorable selectively with
           # pg_restore. --no-owner/--no-privileges so a restore into a database
           # with different roles doesn't fail on GRANT/OWNER statements.
-          pg_dump "$DATABASE_URL" \
-            --format=custom \
-            --compress=9 \
-            --no-owner \
-            --no-privileges \
-            --file="$file"
+          docker run --rm \
+            --env DATABASE_URL \
+            postgres:18 \
+            sh -c 'exec pg_dump "$DATABASE_URL" \
+              --format=custom \
+              --compress=9 \
+              --no-owner \
+              --no-privileges' > "$file"
           # A dump that can't be listed is not a backup — fail loudly here
           # rather than at restore time months from now.
-          pg_restore --list "$file" > /dev/null
+          docker run --rm --interactive postgres:18 \
+            pg_restore --list < "$file" > /dev/null
           echo "DUMP_FILE=$file" >> "$GITHUB_ENV"
           echo "DUMP_PREFIX=postgres/$(date -u +%Y/%m)" >> "$GITHUB_ENV"
           echo "Dump size: $(du -h "$file" | cut -f1)"
