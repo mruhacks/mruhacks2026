@@ -144,6 +144,14 @@ export const auth = betterAuth({
     },
   },
   user: {
+    additionalFields: {
+      /**
+       * Written from `mapProfileToUser` below. Must not be `input: false` —
+       * Better Auth drops provider-profile fields marked that way before they
+       * reach the database.
+       */
+      oauthName: { type: 'string', required: false },
+    },
     /**
      * Self-serve account deletion (right to erasure — PIPEDA / Alberta PIPA /
      * GDPR Art. 17). Deletion is confirmed via an emailed verification link so
@@ -202,12 +210,20 @@ export const auth = betterAuth({
       github: {
         clientId: process.env.GITHUB_CLIENT_ID,
         clientSecret: process.env.GITHUB_CLIENT_SECRET!,
+        // Better Auth falls back to the account handle for `name`, so only a
+        // real profile name is recorded as the pre-fillable `oauthName`.
+        mapProfileToUser: (profile) => ({
+          oauthName: profile.name?.trim() || null,
+        }),
       },
     }),
     ...(process.env.GOOGLE_CLIENT_ID && {
       google: {
         clientId: process.env.GOOGLE_CLIENT_ID,
         clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+        mapProfileToUser: (profile) => ({
+          oauthName: profile.name?.trim() || null,
+        }),
       },
     }),
   },

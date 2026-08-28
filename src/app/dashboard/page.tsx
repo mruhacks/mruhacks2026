@@ -1,11 +1,9 @@
 import { Suspense } from 'react';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { sql } from 'drizzle-orm';
 
 import { getUser } from '@/utils/auth';
-import { db } from '@/utils/db';
-import { user, role, permission, userRole } from '@/db/schema';
+import { getAdminCounts } from '@/lib/admin-counts';
 import { getAuthenticatedUserPermissions } from '@/lib/rbac/guards';
 import { anyPermissionMatches } from '@/lib/rbac/permissions';
 import { getEventsWithUserStatus } from '@/app/dashboard/events/actions';
@@ -75,21 +73,6 @@ const ADMIN_ACTIONS = [
   },
 ];
 
-async function fetchAdminCounts() {
-  const [userCount, roleCount, permCount, assignmentCount] = await Promise.all([
-    db.select({ c: sql<number>`COUNT(*)`.mapWith(Number) }).from(user),
-    db.select({ c: sql<number>`COUNT(*)`.mapWith(Number) }).from(role),
-    db.select({ c: sql<number>`COUNT(*)`.mapWith(Number) }).from(permission),
-    db.select({ c: sql<number>`COUNT(*)`.mapWith(Number) }).from(userRole),
-  ]);
-  return {
-    users: userCount[0]?.c ?? 0,
-    roles: roleCount[0]?.c ?? 0,
-    permissions: permCount[0]?.c ?? 0,
-    assignments: assignmentCount[0]?.c ?? 0,
-  };
-}
-
 function AdminPanelSkeleton() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -137,7 +120,7 @@ async function AdminPanel({ permissions }: { permissions: Set<string> }) {
 
   if (visibleStats.length === 0 && visibleActions.length === 0) return null;
 
-  const counts = visibleStats.length > 0 ? await fetchAdminCounts() : null;
+  const counts = visibleStats.length > 0 ? await getAdminCounts() : null;
 
   return (
     <section className='space-y-3'>
@@ -192,13 +175,40 @@ async function AdminSection() {
   return <AdminPanel permissions={permissions} />;
 }
 
-export default async function Dashboard() {
+// Reads the session — kept out of the page body and behind its own
+// Suspense boundary so the static "Welcome back" heading ships in the
+// shell immediately and only the name streams in behind it.
+async function Greeting() {
   const currentUser = await getUser();
   if (!currentUser) redirect('/signin');
-
   const firstName = currentUser.name?.split(' ')[0] ?? null;
-  const events = await getEventsWithUserStatus();
+  return <>Welcome back{firstName ? `, ${firstName}` : ''}</>;
+}
 
+function EventsSkeleton() {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      {[1, 2, 3].map((i) => (
+        <div
+          key={i}
+          className='animate-pulse'
+          style={{
+            height: 78,
+            borderRadius: 'var(--radius-md)',
+            background: 'var(--ink-100)',
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+async function MyEvents() {
+  const events = await getEventsWithUserStatus();
+  return <EventTileList events={events} />;
+}
+
+export default function Dashboard() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
       {/* Welcome header */}
@@ -214,7 +224,9 @@ export default async function Dashboard() {
             margin: '4px 0 0',
           }}
         >
-          Welcome back{firstName ? `, ${firstName}` : ''}
+          <Suspense fallback='Welcome back'>
+            <Greeting />
+          </Suspense>
         </h1>
         <p
           style={{
@@ -233,7 +245,9 @@ export default async function Dashboard() {
       {/* Events list */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
         <SectionEyebrow color='var(--black)'>My events</SectionEyebrow>
-        <EventTileList events={events} />
+        <Suspense fallback={<EventsSkeleton />}>
+          <MyEvents />
+        </Suspense>
       </div>
 
       {/* Admin panel — only renders for users with admin permissions */}

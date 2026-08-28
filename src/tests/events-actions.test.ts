@@ -13,6 +13,7 @@ vi.mock('@/utils/auth', () => ({ getUser: vi.fn() }));
 vi.mock('next/cache', () => ({
   revalidatePath: vi.fn(),
   cacheLife: vi.fn(),
+  cacheTag: vi.fn(),
 }));
 
 import { getUser } from '@/utils/auth';

@@ -5,6 +5,7 @@ import { and, count, eq, inArray, ne, sql } from 'drizzle-orm';
 import { updateTag } from 'next/cache';
 import { db } from '@/utils/db';
 import { FEATURED_EVENT_CACHE_TAG } from '@/lib/featured-event';
+import { EVENTS_CACHE_TAG } from '@/lib/events';
 import {
   events,
   eventApplications,
@@ -403,6 +404,8 @@ export async function createEvent(
     })
     .returning({ id: events.id });
 
+  updateTag(EVENTS_CACHE_TAG);
+
   await writeAuditLog({
     actorId: user.id,
     action: 'event.created',
@@ -544,8 +547,10 @@ export async function updateEventSettings(
       .where(eq(events.id, eventId));
   });
 
-  // Homepage register-link lookup is cached; bust it so edits show up immediately.
+  // Homepage register-link lookup and the events list are both cached; bust
+  // them so edits show up immediately.
   updateTag(FEATURED_EVENT_CACHE_TAG);
+  updateTag(EVENTS_CACHE_TAG);
 
   await writeAuditLog({
     actorId: user.id,

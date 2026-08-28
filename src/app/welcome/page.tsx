@@ -11,6 +11,7 @@ import {
   user as authUser,
 } from '@/db/schema';
 import { and, eq } from 'drizzle-orm';
+import { oauthPrefillName } from '@/lib/oauth-name';
 import { getConsentStatus } from '@/app/dashboard/account/actions';
 import { getUserProfile } from '@/app/dashboard/profile/actions';
 import { getOptions } from '@/app/dashboard/events/actions';
@@ -29,7 +30,7 @@ async function WelcomeContent({
   const user = await getUser();
   if (!user) redirect('/signin');
 
-  const [res, profileRes, options, [account], [featured]] = await Promise.all([
+  const [res, profileRes, options, [userRow], [featured]] = await Promise.all([
     getConsentStatus(),
     getUserProfile(),
     getOptions(),
@@ -56,6 +57,10 @@ async function WelcomeContent({
   // Fail safe for an unreadable profile too: avoid allowing a partially
   // initialized account through the onboarding gate.
   const needsProfile = !profileRes.success || profileRes.data == null;
+
+  // Seed the name field from Google/GitHub so a first-time social sign-in
+  // doesn't retype what the provider already told us.
+  const prefillName = oauthPrefillName(user.oauthName);
 
   let featuredEvent: FeaturedOnboardingEvent | undefined;
   if (featured) {
@@ -100,10 +105,14 @@ async function WelcomeContent({
     <WelcomeClient
       needsConsent={needsConsent}
       needsProfile={needsProfile}
-      isFirstLogin={account?.onboardingCompletedAt == null}
+      isFirstLogin={userRow?.onboardingCompletedAt == null}
       userEmail={user.email}
       initialProfile={
-        profileRes.success ? (profileRes.data ?? undefined) : undefined
+        profileRes.success && profileRes.data != null
+          ? profileRes.data
+          : prefillName
+            ? { fullName: prefillName }
+            : undefined
       }
       hasResume={profileRes.success && profileRes.data?.hasResume === true}
       resumeFileName={

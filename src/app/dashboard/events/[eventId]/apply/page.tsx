@@ -26,6 +26,7 @@ import ApplicationForm from '@/components/application-form';
 import type { ProfileFormValues } from '@/components/profile-form/schema';
 import type { EventOnlyFormValues } from '@/components/application-form/schema';
 import { ApplicationStatusBanner } from '@/app/dashboard/events/ApplicationStatusBanner';
+import { oauthPrefillName } from '@/lib/oauth-name';
 
 type PreviousSubmission = {
   fullName: string;
@@ -46,7 +47,7 @@ type PreviousSubmission = {
 function buildApplyInitials(
   prev: PreviousSubmission | null,
   profileData: ProfileFormValues | null,
-  user: { name: string | null },
+  user: { oauthName?: string | null },
 ): {
   profileInitial: Partial<ProfileFormValues> & { fullName: string };
   eventInitial: Partial<EventOnlyFormValues>;
@@ -66,7 +67,7 @@ function buildApplyInitials(
         dietaryRestrictions: prev.dietaryRestrictions ?? [],
         dietaryOtherText: prev.dietaryOtherText ?? '',
       }
-    : (profileData ?? { fullName: user.name ?? '' });
+    : (profileData ?? { fullName: oauthPrefillName(user.oauthName) });
 
   const eventInitial = prev
     ? { applicationResponses: prev.applicationResponses ?? {} }

@@ -16,12 +16,7 @@ import { DataExportCard } from './data-export-card';
 import { ConsentCard } from './consent-card';
 import { DeleteAccountCard } from './delete-account-card';
 import { ProfilePictureCard } from './profile-picture-card';
-
-const PROVIDER_LABELS: Record<string, string> = {
-  credential: 'Email & password',
-  google: 'Google',
-  github: 'GitHub',
-};
+import { SIGN_IN_PROVIDER_LABELS } from '@/lib/oauth-name';
 
 export const metadata = {
   title: 'Account & Privacy — MRUHacks',
@@ -102,7 +97,7 @@ export default async function AccountPage() {
                   {overview.providers.length > 0 ? (
                     overview.providers.map((p) => (
                       <Badge key={p} variant='outline'>
-                        {PROVIDER_LABELS[p] ?? p}
+                        {SIGN_IN_PROVIDER_LABELS[p] ?? p}
                       </Badge>
                     ))
                   ) : (

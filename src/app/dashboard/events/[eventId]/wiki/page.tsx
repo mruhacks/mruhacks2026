@@ -1,11 +1,12 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
-import { and, asc, eq } from 'drizzle-orm';
+import { asc, eq } from 'drizzle-orm';
 import { ArrowLeft } from 'lucide-react';
 
 import { getUser } from '@/utils/auth';
 import { db } from '@/utils/db';
 import { hasPermission } from '@/lib/rbac/authorization';
+import { getPublishedArticleList } from '@/lib/event-wiki';
 import { BreadcrumbSegment } from '@/components/breadcrumb-context';
 import { eventArticles, events } from '@/db/schema';
 import { Badge } from '@/components/ui/badge';
@@ -31,23 +32,20 @@ export default async function EventWikiIndexPage({ params }: Props) {
   // a round trip through the admin UI to preview what they are writing.
   const canSeeDrafts = await hasPermission(user.id, 'article:read:all');
 
-  const articles = await db
-    .select({
-      slug: eventArticles.slug,
-      title: eventArticles.title,
-      published: eventArticles.published,
-      updatedAt: eventArticles.updatedAt,
-    })
-    .from(eventArticles)
-    .where(
-      canSeeDrafts
-        ? eq(eventArticles.eventId, eventId)
-        : and(
-            eq(eventArticles.eventId, eventId),
-            eq(eventArticles.published, true),
-          ),
-    )
-    .orderBy(asc(eventArticles.sortOrder), asc(eventArticles.title));
+  // The common case (no draft access) reads the cached, published-only list.
+  // Organizers previewing drafts get a live, uncached query instead.
+  const articles = canSeeDrafts
+    ? await db
+        .select({
+          slug: eventArticles.slug,
+          title: eventArticles.title,
+          published: eventArticles.published,
+          updatedAt: eventArticles.updatedAt,
+        })
+        .from(eventArticles)
+        .where(eq(eventArticles.eventId, eventId))
+        .orderBy(asc(eventArticles.sortOrder), asc(eventArticles.title))
+    : await getPublishedArticleList(eventId);
 
   return (
     <div className='max-w-2xl space-y-6'>

@@ -11,6 +11,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import ProfileForm from '@/components/profile-form';
+import { oauthPrefillName } from '@/lib/oauth-name';
 
 export default async function DashboardProfilePage() {
   const user = await getUser();
@@ -24,7 +25,7 @@ export default async function DashboardProfilePage() {
   const initial =
     profileResult.success && profileResult.data != null
       ? profileResult.data
-      : { fullName: user.name };
+      : { fullName: oauthPrefillName(user.oauthName) };
 
   return (
     <Card className='w-full sm:max-w-2xl'>

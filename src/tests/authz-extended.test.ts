@@ -44,6 +44,7 @@ vi.mock('next/navigation', () => ({
     throw new Error(`REDIRECT:${path}`);
   }),
 }));
+vi.mock('next/cache', () => ({ updateTag: vi.fn() }));
 
 let userId: string;
 let roleId: number;

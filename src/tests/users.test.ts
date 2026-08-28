@@ -37,7 +37,7 @@ vi.mock('@/utils/auth', () => ({
   },
 }));
 vi.mock('next/headers', () => ({ headers: vi.fn().mockResolvedValue({}) }));
-vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
+vi.mock('next/cache', () => ({ revalidatePath: vi.fn(), updateTag: vi.fn() }));
 vi.mock('next/navigation', () => ({
   redirect: vi.fn((path: string) => {
     throw new Error(`REDIRECT:${path}`);

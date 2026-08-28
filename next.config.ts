@@ -102,6 +102,9 @@ const nextConfig: NextConfig = {
     ],
   },
   cacheComponents: true,
+  // Lets `<Link>` prefetch each route's cached/static App Shell instead of
+  // nothing (dynamic routes) or a full uncached render. See AGENTS.md.
+  partialPrefetching: true,
   env: {
     BUILD_INFO: getBuildInfo(),
   },

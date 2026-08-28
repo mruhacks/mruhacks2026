@@ -11,6 +11,7 @@ import {
 } from '@/db/schema';
 vi.mock('server-only', () => ({}));
 vi.mock('@/utils/auth', () => ({ getUser: vi.fn() }));
+vi.mock('next/cache', () => ({ updateTag: vi.fn() }));
 import {
   listRoles,
   listPermissions,

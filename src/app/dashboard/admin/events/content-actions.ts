@@ -13,13 +13,14 @@
 
 import { randomUUID } from 'crypto';
 import { and, asc, eq, ne } from 'drizzle-orm';
-import { revalidatePath } from 'next/cache';
+import { revalidatePath, updateTag } from 'next/cache';
 
 import { db } from '@/utils/db';
 import { events, eventArticles } from '@/db/schema';
 import { getUser } from '@/utils/auth';
 import { ok, fail, type ActionResult } from '@/utils/action-result';
 import { hasPermission, requirePermission } from '@/lib/rbac/authorization';
+import { eventWikiCacheTag } from '@/lib/event-wiki';
 import { writeAuditLog } from '@/utils/audit-log';
 import {
   deleteObject,
@@ -326,6 +327,7 @@ export async function createEventArticle(
 
   revalidatePath(`/dashboard/admin/events/${eventId}`);
   revalidatePath(`/dashboard/events/${eventId}/wiki`);
+  updateTag(eventWikiCacheTag(eventId));
 
   await writeAuditLog({
     actorId: user.id,
@@ -399,6 +401,7 @@ export async function updateEventArticle(
   if (input.slug && input.slug !== existing.slug) {
     revalidatePath(`/dashboard/events/${eventId}/wiki/${existing.slug}`);
   }
+  updateTag(eventWikiCacheTag(eventId));
 
   await writeAuditLog({
     actorId: user.id,
@@ -442,6 +445,7 @@ export async function deleteEventArticle(
   revalidatePath(`/dashboard/admin/events/${eventId}`);
   revalidatePath(`/dashboard/events/${eventId}/wiki`);
   revalidatePath(`/dashboard/events/${eventId}/wiki/${existing.slug}`);
+  updateTag(eventWikiCacheTag(eventId));
 
   await writeAuditLog({
     actorId: user.id,

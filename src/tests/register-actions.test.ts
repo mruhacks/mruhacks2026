@@ -9,7 +9,7 @@ import {
 } from '@/app/register/actions';
 
 vi.mock('@/utils/auth', () => ({ getUser: vi.fn() }));
-vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
+vi.mock('next/cache', () => ({ revalidatePath: vi.fn(), updateTag: vi.fn() }));
 
 import { getUser } from '@/utils/auth';
 

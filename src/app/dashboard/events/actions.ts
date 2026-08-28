@@ -11,7 +11,6 @@ import {
   userDietaryRestrictions,
   eventApplications,
   applicationStatuses,
-  eventAttendees,
   applicationFormView,
   genders,
   universities,
@@ -31,9 +30,14 @@ import {
   type EventOnlyFormValues,
 } from '@/components/application-form/schema';
 import type { ApplicationQuestion } from '@/types/application';
-import { cacheLife } from 'next/cache';
-import { and, desc, eq } from 'drizzle-orm';
+import { cacheLife, updateTag } from 'next/cache';
+import { and, eq, inArray } from 'drizzle-orm';
 import { getUserProfile } from '@/app/dashboard/profile/actions';
+import {
+  getAllEvents,
+  getUserEventParticipation,
+  userEventsCacheTag,
+} from '@/lib/events';
 import { buildApplicationResponses } from './application-responses';
 import {
   type ApplicationStatusLabel,
@@ -182,6 +186,7 @@ async function registerParticipant(
         });
     });
 
+    updateTag(userEventsCacheTag(user.id));
     return ok('Application saved successfully.');
   } catch (error) {
     console.error('Application save error:', error);
@@ -347,6 +352,12 @@ export type EventWithUserStatus = {
 /**
  * Returns all events with the current user's application/attendee status.
  * Used by dashboard/events page.
+ *
+ * Everything except the application's review status is cached: the event
+ * list (`getAllEvents`) and which events the user applied to/registered
+ * for (`getUserEventParticipation`) rarely change. The status itself can
+ * change out from under the applicant (an admin review), so it's the one
+ * piece fetched fresh on every call.
  */
 export async function getEventsWithUserStatus(): Promise<
   EventWithUserStatus[]
@@ -354,46 +365,38 @@ export async function getEventsWithUserStatus(): Promise<
   const user = await getUser();
   if (!user) return [];
 
-  const allEvents = await db
-    .select({
-      id: events.id,
-      name: events.name,
-      hasApplication: events.hasApplication,
-      startsAt: events.startsAt,
-      endsAt: events.endsAt,
-    })
-    .from(events)
-    .orderBy(desc(events.createdAt));
-
-  const [applicationRows, attendeeEventIds] = await Promise.all([
-    db
-      .select({
-        eventId: eventApplications.eventId,
-        statusKey: applicationStatuses.label,
-        waitlistPosition: eventApplications.waitlistPosition,
-      })
-      .from(eventApplications)
-      .leftJoin(
-        applicationStatuses,
-        eq(eventApplications.statusId, applicationStatuses.id),
-      )
-      .where(eq(eventApplications.userId, user.id)),
-    db
-      .select({ eventId: eventAttendees.eventId })
-      .from(eventAttendees)
-      .where(eq(eventAttendees.userId, user.id)),
+  const [allEvents, participation] = await Promise.all([
+    getAllEvents(),
+    getUserEventParticipation(user.id),
   ]);
 
-  const registeredSet = new Set(attendeeEventIds.map((r) => r.eventId));
-  const statusByEventId = new Map(
-    applicationRows.map((r) => [r.eventId, r] as const),
-  );
+  const applicationIds = Object.values(participation.applicationIdByEventId);
+  const statusRows = applicationIds.length
+    ? await db
+        .select({
+          id: eventApplications.id,
+          statusKey: applicationStatuses.label,
+          waitlistPosition: eventApplications.waitlistPosition,
+        })
+        .from(eventApplications)
+        .leftJoin(
+          applicationStatuses,
+          eq(eventApplications.statusId, applicationStatuses.id),
+        )
+        .where(inArray(eventApplications.id, applicationIds))
+    : [];
+  const statusByApplicationId = new Map(statusRows.map((r) => [r.id, r]));
+
+  const registeredSet = new Set(participation.registeredEventIds);
   const displayMap = await getApplicationStatusDisplayMap();
 
   return allEvents.map((e) => {
-    const application = statusByEventId.get(e.id);
-    const statusKey = application
-      ? resolveApplicationStatusKey(application.statusKey)
+    const applicationId = participation.applicationIdByEventId[e.id];
+    const status = applicationId
+      ? statusByApplicationId.get(applicationId)
+      : undefined;
+    const statusKey = applicationId
+      ? resolveApplicationStatusKey(status?.statusKey)
       : null;
     return {
       id: e.id,
@@ -402,7 +405,7 @@ export async function getEventsWithUserStatus(): Promise<
       startsAt: e.startsAt,
       endsAt: e.endsAt,
       userStatus: e.hasApplication
-        ? statusByEventId.has(e.id)
+        ? applicationId
           ? ('applied' as const)
           : null
         : registeredSet.has(e.id)
@@ -410,7 +413,7 @@ export async function getEventsWithUserStatus(): Promise<
           : null,
       statusKey,
       statusDisplay: statusKey ? displayMap[statusKey] : null,
-      waitlistPosition: application?.waitlistPosition ?? null,
+      waitlistPosition: status?.waitlistPosition ?? null,
     };
   });
 }

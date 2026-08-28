@@ -344,6 +344,7 @@ export async function exportMyData(): Promise<ActionResult<unknown>> {
       account: {
         id: user.id,
         name: user.name,
+        oauthName: user.oauthName ?? null,
         email: user.email,
         emailVerified: user.emailVerified,
         image: user.image ?? null,

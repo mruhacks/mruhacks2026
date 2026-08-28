@@ -1,7 +1,6 @@
+import { Suspense } from 'react';
 import Link from 'next/link';
-import { db } from '@/utils/db';
-import { sql } from 'drizzle-orm';
-import { user, role, permission, userRole } from '@/db/schema';
+import { getAdminCounts } from '@/lib/admin-counts';
 import { requireAuthWithPermission } from '@/lib/rbac/guards';
 import {
   Card,
@@ -13,7 +12,26 @@ import {
 import { Button } from '@/components/ui/button';
 import { Users, ShieldCheck, KeyRound, ArrowRight } from 'lucide-react';
 
-async function fetchCounts() {
+function OverviewSkeleton() {
+  return (
+    <>
+      <div className='grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4'>
+        {[...Array(4)].map((_, i) => (
+          <div
+            key={i}
+            className='bg-muted animate-pulse rounded-xl'
+            style={{ height: 92 }}
+          />
+        ))}
+      </div>
+      <div className='bg-muted animate-pulse rounded-xl' style={{ height: 84 }} />
+    </>
+  );
+}
+
+// Permission check + counts read the session and DB — kept out of the page
+// body and behind Suspense so the heading ships in the shell immediately.
+async function OverviewStats() {
   await requireAuthWithPermission([
     'user:read:all',
     'user:all:all',
@@ -21,22 +39,8 @@ async function fetchCounts() {
     'permission:read:all',
     'event:manage:all',
   ]);
-  const [userCount, roleCount, permCount, assignmentCount] = await Promise.all([
-    db.select({ c: sql<number>`COUNT(*)`.mapWith(Number) }).from(user),
-    db.select({ c: sql<number>`COUNT(*)`.mapWith(Number) }).from(role),
-    db.select({ c: sql<number>`COUNT(*)`.mapWith(Number) }).from(permission),
-    db.select({ c: sql<number>`COUNT(*)`.mapWith(Number) }).from(userRole),
-  ]);
-  return {
-    users: userCount[0]?.c ?? 0,
-    roles: roleCount[0]?.c ?? 0,
-    permissions: permCount[0]?.c ?? 0,
-    assignments: assignmentCount[0]?.c ?? 0,
-  };
-}
 
-export default async function AdminOverviewPage() {
-  const counts = await fetchCounts();
+  const counts = await getAdminCounts();
 
   const stats = [
     {
@@ -66,16 +70,7 @@ export default async function AdminOverviewPage() {
   ] as const;
 
   return (
-    <div className='space-y-6'>
-      <div>
-        <h1 className='text-2xl font-semibold tracking-tight'>
-          Admin overview
-        </h1>
-        <p className='text-muted-foreground text-sm'>
-          Manage users, roles, and permissions across the system.
-        </p>
-      </div>
-
+    <>
       <div className='grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4'>
         {stats.map(({ label, value, icon: Icon, href }) => (
           <Link key={label} href={href}>
@@ -117,6 +112,25 @@ export default async function AdminOverviewPage() {
           </Button>
         </CardContent>
       </Card>
+    </>
+  );
+}
+
+export default function AdminOverviewPage() {
+  return (
+    <div className='space-y-6'>
+      <div>
+        <h1 className='text-2xl font-semibold tracking-tight'>
+          Admin overview
+        </h1>
+        <p className='text-muted-foreground text-sm'>
+          Manage users, roles, and permissions across the system.
+        </p>
+      </div>
+
+      <Suspense fallback={<OverviewSkeleton />}>
+        <OverviewStats />
+      </Suspense>
     </div>
   );
 }

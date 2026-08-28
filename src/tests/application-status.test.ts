@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm';
 import { applicationStatuses } from '@/db/schema';
 
 vi.mock('server-only', () => ({}));
+vi.mock('next/cache', () => ({ cacheLife: vi.fn() }));
 
 import {
   resolveApplicationStatusKey,

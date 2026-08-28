@@ -5,7 +5,7 @@
  */
 
 import 'server-only';
-import { cache } from 'react';
+import { cacheLife } from 'next/cache';
 
 import { db } from '@/utils/db';
 import { applicationStatuses } from '@/db/schema';
@@ -40,35 +40,38 @@ export function resolveApplicationStatusKey(
 }
 
 /**
- * Reads all application_statuses display rows and returns them keyed by label.
- * Cached per request so callers can resolve many statuses with one query.
+ * Reads all application_statuses display rows and returns them keyed by
+ * label. This is fixed display config (title/description/badge variant),
+ * never written by app code, so it's cached long-term rather than re-queried
+ * on every render.
  */
-export const getApplicationStatusDisplayMap = cache(
-  async (): Promise<
-    Record<ApplicationStatusLabel, ApplicationStatusDisplay>
-  > => {
-    const rows = await db
-      .select({
-        label: applicationStatuses.label,
-        title: applicationStatuses.title,
-        description: applicationStatuses.description,
-        variant: applicationStatuses.variant,
-        isFinal: applicationStatuses.isFinal,
-      })
-      .from(applicationStatuses);
+export async function getApplicationStatusDisplayMap(): Promise<
+  Record<ApplicationStatusLabel, ApplicationStatusDisplay>
+> {
+  'use cache';
+  cacheLife('max');
 
-    const map = {} as Record<ApplicationStatusLabel, ApplicationStatusDisplay>;
-    for (const row of rows) {
-      map[resolveApplicationStatusKey(row.label)] = {
-        title: row.title,
-        description: row.description,
-        variant: row.variant as ApplicationStatusBadgeVariant,
-        isFinal: row.isFinal,
-      };
-    }
-    return map;
-  },
-);
+  const rows = await db
+    .select({
+      label: applicationStatuses.label,
+      title: applicationStatuses.title,
+      description: applicationStatuses.description,
+      variant: applicationStatuses.variant,
+      isFinal: applicationStatuses.isFinal,
+    })
+    .from(applicationStatuses);
+
+  const map = {} as Record<ApplicationStatusLabel, ApplicationStatusDisplay>;
+  for (const row of rows) {
+    map[resolveApplicationStatusKey(row.label)] = {
+      title: row.title,
+      description: row.description,
+      variant: row.variant as ApplicationStatusBadgeVariant,
+      isFinal: row.isFinal,
+    };
+  }
+  return map;
+}
 
 /** Display config for a single status label, null -> pending_review. */
 export async function getApplicationStatusDisplay(
