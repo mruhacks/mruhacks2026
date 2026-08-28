@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { Button, buttonVariants } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import { authClient } from '@/utils/auth-client';
 import { REGISTRATION_OPEN } from '@/content';
 import { cn } from '@/lib/utils';
@@ -11,6 +12,17 @@ type RegisterOrDashboardButtonProps = {
   registerUrl: string;
   className?: string;
 } & VariantProps<typeof buttonVariants>;
+
+function RegistrationButtonLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <span className='grid place-items-center'>
+      <span className='invisible col-start-1 row-start-1' aria-hidden='true'>
+        Register Now
+      </span>
+      <span className='col-start-1 row-start-1'>{children}</span>
+    </span>
+  );
+}
 
 /**
  * Renders "Register Now" for signed-out visitors and "Dashboard" for signed-in
@@ -26,20 +38,22 @@ export function RegisterOrDashboardButton({
   const { data: session, isPending } = authClient.useSession();
 
   if (isPending) {
-    // Reserve the space the resolved button will occupy so it doesn't pop in
-    // and shift surrounding layout once the session check settles. Sized to
-    // "Register Now", the longer of the two possible labels, unless
-    // registration is closed — then only "Dashboard" can ever appear.
     return (
       <Button
+        type='button'
         variant={variant}
         size={size}
         shadow={shadow}
-        className={cn('invisible', className)}
-        aria-hidden
+        className={cn('pointer-events-none', className)}
+        aria-disabled='true'
         tabIndex={-1}
       >
-        {REGISTRATION_OPEN ? 'Register Now' : 'Dashboard'}
+        <span className='grid place-items-center' aria-hidden='true'>
+          <span className='invisible col-start-1 row-start-1'>
+            Register Now
+          </span>
+          <Skeleton className='col-start-1 row-start-1 h-[0.7em] w-full bg-current/25' />
+        </span>
       </Button>
     );
   }
@@ -53,7 +67,9 @@ export function RegisterOrDashboardButton({
         className={className}
         asChild
       >
-        <Link href='/dashboard'>Dashboard</Link>
+        <Link href='/dashboard'>
+          <RegistrationButtonLabel>Dashboard</RegistrationButtonLabel>
+        </Link>
       </Button>
     );
   }
@@ -68,7 +84,9 @@ export function RegisterOrDashboardButton({
       className={className}
       asChild
     >
-      <Link href={registerUrl}>Register Now</Link>
+      <Link href={registerUrl}>
+        <RegistrationButtonLabel>Register Now</RegistrationButtonLabel>
+      </Link>
     </Button>
   );
 }
