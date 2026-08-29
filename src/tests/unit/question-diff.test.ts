@@ -107,7 +107,11 @@ describe('validateQuestionEdit', () => {
 
     test('updates label', () => {
       const q = makeQuestion();
-      const result = validateQuestionEdit(q, { label: 'New Label' }, noResponses);
+      const result = validateQuestionEdit(
+        q,
+        { label: 'New Label' },
+        noResponses,
+      );
       expect(result.ok).toBe(true);
       if (!result.ok) throw new Error(result.error);
       expect(result.question.label).toBe('New Label');
@@ -162,7 +166,11 @@ describe('validateQuestionEdit', () => {
 
     test('preserves unchanged fields', () => {
       const q = makeQuestion({ description: 'A helpful description' });
-      const result = validateQuestionEdit(q, { label: 'New Label' }, noResponses);
+      const result = validateQuestionEdit(
+        q,
+        { label: 'New Label' },
+        noResponses,
+      );
       expect(result.ok).toBe(true);
       if (!result.ok) throw new Error(result.error);
       expect(result.question.description).toBe('A helpful description');
@@ -281,7 +289,9 @@ describe('validateQuestionEdit', () => {
       expect(result.ok).toBe(true);
       if (!result.ok) throw new Error(result.error);
       expect(result.question.options).toHaveLength(3);
-      const newOpt = result.question.options!.find((o) => o.label === 'Brand New');
+      const newOpt = result.question.options!.find(
+        (o) => o.label === 'Brand New',
+      );
       expect(newOpt).toBeDefined();
       expect(newOpt!.value).toBeTruthy();
     });
@@ -300,5 +310,52 @@ describe('validateQuestionEdit', () => {
       if (!result.ok) throw new Error(result.error);
       expect(result.question.options).toHaveLength(1);
     });
+  });
+});
+
+describe('validateQuestionEdit — maxLength', () => {
+  const base: ApplicationQuestion = {
+    id: 'q1',
+    label: 'Q1',
+    type: 'short_text',
+    required: true,
+    order: 0,
+    active: true,
+  };
+
+  test('an omitted patch leaves the existing cap alone', () => {
+    const result = validateQuestionEdit({ ...base, maxLength: 40 }, {}, []);
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.error);
+    expect(result.question.maxLength).toBe(40);
+  });
+
+  test('a number sets the cap', () => {
+    const result = validateQuestionEdit(base, { maxLength: 120 }, []);
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.error);
+    expect(result.question.maxLength).toBe(120);
+  });
+
+  test('null clears the cap back to the type default', () => {
+    const result = validateQuestionEdit(
+      { ...base, maxLength: 40 },
+      { maxLength: null },
+      [],
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.error);
+    expect(result.question.maxLength).toBeUndefined();
+  });
+
+  test('non-string questions never carry a cap', () => {
+    const result = validateQuestionEdit(
+      { ...base, type: 'single_select', options: [] },
+      { maxLength: 120 },
+      [],
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.error);
+    expect(result.question.maxLength).toBeUndefined();
   });
 });

@@ -18,9 +18,9 @@ function getFromAddress(): string {
   return from;
 }
 
-/** Builds nodemailer SMTP settings from env vars.  
+/** Builds nodemailer SMTP settings from env vars.
  *  SMTP username and password are not required for Mailhog on local dev
-*/
+ */
 function getTransportConfig() {
   const host = process.env.SMTP_HOST?.trim();
   const port = Number(process.env.SMTP_PORT?.trim());
@@ -50,7 +50,7 @@ function getTransporter(): nodemailer.Transporter {
       host,
       port,
       // Port 465 means we are using SSL/TLS from the start. Other ports don't do use SSL/TLS from the start like when we use MailHog.
-      secure: port === 465, 
+      secure: port === 465,
       ...(auth && { auth }),
     });
   }
@@ -61,9 +61,6 @@ function getTransporter(): nodemailer.Transporter {
  * Sends an email via SMTP
  *
  * @param options - Recipients, subject, and optional text and/or html body.
- * TODO: determine if we need to add cc or bcc
- * TODO: determine if we need to add attachments
- * TODO: use the email template marketing provided
  */
 export async function sendMail(options: SendMailOptions): Promise<void> {
   const from = getFromAddress();
@@ -74,4 +71,9 @@ export async function sendMail(options: SendMailOptions): Promise<void> {
     text: options.text,
     html: options.html,
   });
+}
+
+/** Verifies SMTP connectivity and auth without sending an email. */
+export async function verifyMailConnection(): Promise<void> {
+  await getTransporter().verify();
 }

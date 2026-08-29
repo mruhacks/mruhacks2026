@@ -29,8 +29,9 @@ export default async function QuestionsPage({ params }: QuestionsPageProps) {
     <div className='space-y-4'>
       <div>
         <h2 className='text-lg font-semibold'>Application Questions</h2>
-        <p className='text-muted-foreground text-sm mt-1'>
-          Add, edit, and reorder questions for this event&apos;s application form.
+        <p className='text-muted-foreground mt-1 text-sm'>
+          Add, edit, and reorder questions for this event&apos;s application
+          form.
         </p>
       </div>
       <QuestionBuilder

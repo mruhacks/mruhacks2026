@@ -1,4 +1,6 @@
+import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import {
   Card,
   CardContent,
@@ -24,17 +26,21 @@ type Props = {
   application: ApplicationStatusForUser;
   /** Full card layout vs compact banner above the form. */
   standalone?: boolean;
+  /** When set (and the decision isn't final), renders an "Edit application" button inside the banner. */
+  editHref?: string;
 };
 
 /** Application status badge and timeline for the current user. */
 export function ApplicationStatusBanner({
   application,
   standalone = false,
+  editHref,
 }: Props) {
   const { statusDisplay: display, createdAt, reviewedAt } = application;
   const label = display.title;
   const timelineSource = { createdAt, reviewedAt };
   const submitted = formatDate(createdAt);
+  const showEdit = Boolean(editHref) && !display.isFinal;
 
   if (standalone) {
     return (
@@ -67,18 +73,25 @@ export function ApplicationStatusBanner({
   }
 
   return (
-    <div className='bg-muted/40 flex items-start gap-3 rounded-lg border p-4'>
-      <Badge variant={display.variant} className='shrink-0'>
-        {label}
-      </Badge>
-      <div className='space-y-0.5 text-sm'>
-        <p>{display.description}</p>
-        {submitted && (
-          <p className='text-muted-foreground text-xs'>
-            {APPLICATION_TIMELINE_LABELS.submitted} {submitted}
-          </p>
-        )}
+    <div className='bg-muted/40 flex flex-col gap-3 rounded-lg border p-4'>
+      <div className='flex min-w-0 flex-col gap-2'>
+        <Badge variant={display.variant} className='shrink-0'>
+          {label}
+        </Badge>
+        <div className='flex min-w-0 flex-col gap-0.5 text-sm'>
+          <p>{display.description}</p>
+          {submitted && (
+            <p className='text-muted-foreground text-xs'>
+              {APPLICATION_TIMELINE_LABELS.submitted} {submitted}
+            </p>
+          )}
+        </div>
       </div>
+      {showEdit && (
+        <Button asChild size='sm' className='self-start'>
+          <Link href={editHref!}>Edit application</Link>
+        </Button>
+      )}
     </div>
   );
 }

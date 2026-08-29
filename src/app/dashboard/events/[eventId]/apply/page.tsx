@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { redirect, notFound } from 'next/navigation';
+import { BreadcrumbSegment } from '@/components/breadcrumb-context';
 
 import { getUser } from '@/utils/auth';
 import {
@@ -8,7 +9,10 @@ import {
   getUserApplicationStatus,
   submitEventApplication,
 } from '@/app/dashboard/events/actions';
-import { getUserProfile } from '@/app/dashboard/profile/actions';
+import {
+  getUserProfile,
+  type UserProfileData,
+} from '@/app/dashboard/profile/actions';
 import { db } from '@/utils/db';
 import { events } from '@/db/schema';
 import { eq } from 'drizzle-orm';
@@ -25,22 +29,28 @@ import ApplicationForm from '@/components/application-form';
 import type { ProfileFormValues } from '@/components/profile-form/schema';
 import type { EventOnlyFormValues } from '@/components/application-form/schema';
 import { ApplicationStatusBanner } from '@/app/dashboard/events/ApplicationStatusBanner';
+import { oauthPrefillName } from '@/lib/oauth-name';
 
 type PreviousSubmission = {
   fullName: string;
   genderId: number;
+  genderOtherText: string;
   universityId: number;
+  universityOtherText: string;
   majorId: number;
+  majorOtherText: string;
   yearOfStudyId: number;
-  interests: number[];
+  linkedinUrl: string;
+  githubUrl: string;
   dietaryRestrictions: number[];
+  dietaryOtherText: string;
   applicationResponses: Record<string, unknown>;
 };
 
 function buildApplyInitials(
   prev: PreviousSubmission | null,
-  profileData: ProfileFormValues | null,
-  user: { name: string | null },
+  profileData: UserProfileData | null,
+  user: { oauthName?: string | null },
 ): {
   profileInitial: Partial<ProfileFormValues> & { fullName: string };
   eventInitial: Partial<EventOnlyFormValues>;
@@ -49,13 +59,27 @@ function buildApplyInitials(
     ? {
         fullName: prev.fullName,
         genderId: prev.genderId,
+        genderOtherText: prev.genderOtherText ?? '',
         universityId: prev.universityId,
+        universityOtherText: prev.universityOtherText ?? '',
         majorId: prev.majorId,
+        majorOtherText: prev.majorOtherText ?? '',
         yearOfStudyId: prev.yearOfStudyId,
-        interests: prev.interests ?? [],
+        linkedinUrl: prev.linkedinUrl ?? '',
+        githubUrl: prev.githubUrl ?? '',
         dietaryRestrictions: prev.dietaryRestrictions ?? [],
+        dietaryOtherText: prev.dietaryOtherText ?? '',
       }
-    : (profileData ?? { fullName: user.name ?? '' });
+    : profileData
+      ? {
+          ...profileData,
+          // This page is only reachable with a fully-onboarded profile, so
+          // these are never actually null here — just normalizing the type.
+          universityId: profileData.universityId ?? undefined,
+          majorId: profileData.majorId ?? undefined,
+          yearOfStudyId: profileData.yearOfStudyId ?? undefined,
+        }
+      : { fullName: oauthPrefillName(user.oauthName) };
 
   const eventInitial = prev
     ? { applicationResponses: prev.applicationResponses ?? {} }
@@ -137,6 +161,7 @@ export default async function ApplyEventPage({ params }: Props) {
 
   return (
     <Card className='w-full sm:max-w-2xl'>
+      <BreadcrumbSegment id={eventId} label={event.name} />
       <CardHeader>
         <CardTitle>Application: {event.name}</CardTitle>
         <CardDescription>

@@ -11,7 +11,13 @@ vi.mock('next/navigation', () => ({
   redirect: vi.fn((path: string) => {
     throw new Error(`REDIRECT:${path}`);
   }),
-  unstable_rethrow: vi.fn(),
+  // Mirror real unstable_rethrow: re-throw redirect errors so they escape
+  // try/catch blocks in actions, matching production control-flow behaviour.
+  unstable_rethrow: vi.fn((error: unknown) => {
+    if (error instanceof Error && error.message.startsWith('REDIRECT:')) {
+      throw error;
+    }
+  }),
 }));
 vi.mock('server-only', () => ({}));
 

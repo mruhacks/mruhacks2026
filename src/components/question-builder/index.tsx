@@ -20,7 +20,11 @@ import {
 import { Button } from '@/components/ui/button';
 import type { ApplicationQuestion } from '@/types/application';
 import { QuestionCard } from './question-card';
-import { QuestionDialog } from './question-dialog';
+import {
+  QuestionDialog,
+  normalizeMaxLength,
+  type QuestionFormValues,
+} from './question-dialog';
 import { DeleteQuestionDialog } from './delete-question-dialog';
 import {
   addQuestion,
@@ -29,7 +33,6 @@ import {
   reorderQuestions,
   reactivateQuestion,
 } from '@/app/dashboard/admin/events/actions';
-import type { AddQuestionInput, EditQuestionInput } from '@/app/dashboard/admin/events/schemas';
 
 type QuestionBuilderProps = {
   eventId: string;
@@ -44,33 +47,38 @@ export function QuestionBuilder({
 }: QuestionBuilderProps) {
   // TODO: Disable edit/delete buttons if current user lacks event-specific 'event:manage' permission
   // TODO: Show read-only view if user has 'event:read' but not 'event:manage' for this event
-  const [isMounted, setIsMounted] = React.useState(false);
+  const isMounted = React.useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
   const [questions, setQuestions] = React.useState(
     [...initialQuestions].sort((a, b) => a.order - b.order),
   );
 
   const [addOpen, setAddOpen] = React.useState(false);
-  const [editTarget, setEditTarget] = React.useState<ApplicationQuestion | null>(null);
-  const [deleteTarget, setDeleteTarget] = React.useState<ApplicationQuestion | null>(null);
+  const [editTarget, setEditTarget] =
+    React.useState<ApplicationQuestion | null>(null);
+  const [deleteTarget, setDeleteTarget] =
+    React.useState<ApplicationQuestion | null>(null);
   const [deleteLoading, setDeleteLoading] = React.useState(false);
   const [activeDragId, setActiveDragId] = React.useState<string | null>(null);
 
-  React.useEffect(() => {
-    setIsMounted(true);
-  }, []);
-
-  const sensors = useSensors(
-    useSensor(PointerSensor),
-  );
+  const sensors = useSensors(useSensor(PointerSensor));
 
   // ── Add ─────────────────────────────────────────────────────────────────
-  const handleAdd = async (data: AddQuestionInput & { options: { label: string; value?: string; active: boolean }[] }) => {
+  const handleAdd = async (data: QuestionFormValues) => {
     const result = await addQuestion(eventId, {
       label: data.label,
       type: data.type,
       description: data.description,
       required: data.required,
-      options: data.options?.filter((o) => o.label).map((o) => ({ label: o.label })),
+      maxLength: normalizeMaxLength(data.maxLength),
+      showInApplicationReview: data.showInApplicationReview,
+      showInReports: data.showInReports,
+      options: data.options
+        ?.filter((o) => o.label)
+        .map((o) => ({ label: o.label })),
     });
     if (result.success && result.data) {
       toast.success('Question added.');
@@ -83,14 +91,16 @@ export function QuestionBuilder({
   };
 
   // ── Edit ─────────────────────────────────────────────────────────────────
-  const handleEdit = async (
-    data: EditQuestionInput & { options: { label: string; value?: string; active: boolean }[] },
-  ) => {
+  const handleEdit = async (data: QuestionFormValues) => {
     if (!editTarget) return;
+    const maxLength = normalizeMaxLength(data.maxLength);
     const result = await editQuestion(eventId, editTarget.id, {
       label: data.label,
       description: data.description,
       required: data.required,
+      maxLength,
+      showInApplicationReview: data.showInApplicationReview,
+      showInReports: data.showInReports,
       options: data.options,
     });
     if (result.success) {
@@ -105,11 +115,18 @@ export function QuestionBuilder({
                 label: data.label ?? q.label,
                 description: data.description ?? q.description,
                 required: data.required ?? q.required,
-                options: data.options?.map((o) => ({
-                  value: o.value || q.options?.find((opt) => opt.label === o.label)?.value || crypto.randomUUID(),
-                  label: o.label,
-                  active: o.active ?? true,
-                })) ?? q.options,
+                maxLength: maxLength ?? undefined,
+                showInApplicationReview: data.showInApplicationReview,
+                showInReports: data.showInReports,
+                options:
+                  data.options?.map((o) => ({
+                    value:
+                      o.value ||
+                      q.options?.find((opt) => opt.label === o.label)?.value ||
+                      crypto.randomUUID(),
+                    label: o.label,
+                    active: o.active ?? true,
+                  })) ?? q.options,
               }
             : q,
         ),
@@ -126,7 +143,9 @@ export function QuestionBuilder({
     const result = await removeQuestion(eventId, deleteTarget.id);
     setDeleteLoading(false);
     if (result.success) {
-      toast.success(typeof result.data === 'string' ? result.data : 'Question removed.');
+      toast.success(
+        typeof result.data === 'string' ? result.data : 'Question removed.',
+      );
       setDeleteTarget(null);
       // Update local state: section dividers are always hard-deleted; others are soft-deleted if applications exist
       const isSectionDivider = deleteTarget.type === 'section_divider';
@@ -247,7 +266,9 @@ export function QuestionBuilder({
       {/* Edit dialog */}
       <QuestionDialog
         open={!!editTarget}
-        onOpenChange={(open) => { if (!open) setEditTarget(null); }}
+        onOpenChange={(open) => {
+          if (!open) setEditTarget(null);
+        }}
         question={editTarget ?? undefined}
         hasApplications={hasApplications}
         onSubmit={handleEdit}
@@ -257,7 +278,9 @@ export function QuestionBuilder({
       {deleteTarget && (
         <DeleteQuestionDialog
           open={!!deleteTarget}
-          onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
+          onOpenChange={(open) => {
+            if (!open) setDeleteTarget(null);
+          }}
           questionLabel={deleteTarget.label}
           questionType={deleteTarget.type}
           hasApplications={hasApplications}

@@ -19,6 +19,13 @@ export const user = pgTable(
     email: text('email').notNull().unique(),
     emailVerified: boolean('email_verified').default(false).notNull(),
     image: text('image'),
+    /**
+     * Display name from the OAuth provider, kept only when the provider
+     * actually supplied one — GitHub falls back to the account handle for
+     * `name`, which is fine to display but wrong to pre-fill into a profile's
+     * Full Name. Unlike `name`, this is never overwritten by a profile save.
+     */
+    oauthName: text('oauth_name'),
     /** Set after the user has completed every required welcome step. */
     onboardingCompletedAt: timestamp('onboarding_completed_at'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -99,6 +106,18 @@ export const verification = pgTable('verification', {
     .defaultNow()
     .$onUpdate(() => new Date())
     .notNull(),
+});
+
+/**
+ * Tracks the last time a magic-link sign-in email was sent to an address, so
+ * a burst of requests (double submit, multiple tabs, retries) doesn't flood
+ * the same inbox — see the 60s cooldown check in `auth.ts`. This table is
+ * UNLOGGED (see its migration): losing a row on crash just lets one extra
+ * email through, which isn't worth paying WAL overhead to prevent.
+ */
+export const magicLinkCooldown = pgTable('magic_link_cooldown', {
+  email: text('email').primaryKey(),
+  lastSentAt: timestamp('last_sent_at').defaultNow().notNull(),
 });
 
 /**

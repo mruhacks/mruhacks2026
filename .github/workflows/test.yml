@@ -5,10 +5,12 @@ on:
     branches:
       - main
       - master
+      - test
   pull_request:
     branches:
       - main
       - master
+      - test
   workflow_dispatch:
 
 jobs:
@@ -33,6 +35,12 @@ jobs:
         ports:
           - 5432:5432
 
+      mailhog:
+        image: mailhog/mailhog
+        ports:
+          - 1025:1025
+          - 8025:8025
+
     env:
       NODE_ENV: test
       TEST_POSTGRES_USER: postgres
@@ -40,6 +48,11 @@ jobs:
       TEST_POSTGRES_DB: mruhacks_test
       TEST_POSTGRES_HOST: localhost
       TEST_POSTGRES_PORT: 5432
+      # Fake credentials for CI only — Better Auth instantiates at import time,
+      # so these must be present even for tests that never exercise auth.
+      BETTER_AUTH_SECRET: ci-test-fake-secret-do-not-use-in-production
+      BETTER_AUTH_URL: http://localhost:3000
+      TURNSTILE_SECRET_KEY: 1x0000000000000000000000000000000AA
 
     steps:
       - name: Checkout code

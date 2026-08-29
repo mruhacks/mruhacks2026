@@ -1,12 +1,13 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { INTRO_BLURB, REGISTRATION_OPEN } from '../content';
+import { RegisterOrDashboardButton } from '@/components/register-or-dashboard-button';
+import { INTRO_BLURB } from '../content';
 
 /**
  *About
  *
  * An introductory section for MRUHacks 2026 with a pre-title, main title, description,
- * and two action buttons: "Register Now" and "Become a sponsor".
+ * and two action buttons: "Register Now" (or "Dashboard" when signed in) and "Become a sponsor".
  *
  * This component is intended to be used only once on the homepage.
  *
@@ -36,13 +37,13 @@ export function About({ registerUrl }: AboutProps) {
 
       {/* buttons */}
       <div className='flex flex-row flex-wrap justify-start gap-3'>
-        {/* register button */}
+        {/* register / dashboard button */}
 
-        {REGISTRATION_OPEN && (
-          <Button variant='gradient' size='lg' asChild>
-            <Link href={registerUrl}>Register Now</Link>
-          </Button>
-        )}
+        <RegisterOrDashboardButton
+          registerUrl={registerUrl}
+          variant='gradient'
+          size='lg'
+        />
 
         {/* sponsor button */}
 

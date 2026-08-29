@@ -1,21 +1,14 @@
-import { dirname } from 'path';
-import { fileURLToPath } from 'url';
-import { FlatCompat } from '@eslint/eslintrc';
+import eslintConfigNextCoreWebVitals from 'eslint-config-next/core-web-vitals';
+import eslintConfigNextTypescript from 'eslint-config-next/typescript';
 import eslintConfigPrettier from 'eslint-config-prettier';
 import eslintPluginBetterTailwindcss from 'eslint-plugin-better-tailwindcss';
 import noNestedInteractive from './eslint-rules/no-nested-interactive.mjs';
 import noRouterRefresh from './eslint-rules/no-router-refresh.mjs';
 import enforceMRUHacksNaming from './eslint-rules/enforce-mruhacks-naming.mjs';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-const compat = new FlatCompat({
-  baseDirectory: __dirname,
-});
-
 const eslintConfig = [
-  ...compat.extends('next/core-web-vitals', 'next/typescript'),
+  ...eslintConfigNextCoreWebVitals,
+  ...eslintConfigNextTypescript,
   {
     ignores: [
       'node_modules/**',

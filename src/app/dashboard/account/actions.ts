@@ -15,6 +15,7 @@
 'use server';
 
 import { desc, eq } from 'drizzle-orm';
+import { revalidatePath } from 'next/cache';
 
 import { db } from '@/utils/db';
 import { getUser } from '@/utils/auth';
@@ -27,14 +28,16 @@ import {
   privacyAcceptances,
   marketingConsents,
   userProfiles,
+  userProfileAbout,
   userInterests,
   userDietaryRestrictions,
   eventApplications,
-  eventInterestRegistrations,
   eventAttendees,
   checkIns,
   eventRsvpResponses,
-  groupMembers,
+  teamMembers,
+  teams,
+  events,
   user as authUser,
 } from '@/db/schema';
 
@@ -207,6 +210,7 @@ export async function recordOnboardingConsent(
       );
     }
     await Promise.all(writes);
+    revalidatePath('/welcome', 'layout');
 
     return getConsent();
   } catch (error) {
@@ -229,7 +233,12 @@ export async function completeWelcomeOnboarding(): Promise<ActionResult> {
     .from(userProfiles)
     .where(eq(userProfiles.userId, currentUser.id))
     .limit(1);
-  if (!profile || (await userNeedsConsent(currentUser.id))) {
+  const [about] = await db
+    .select({ userId: userProfileAbout.userId })
+    .from(userProfileAbout)
+    .where(eq(userProfileAbout.userId, currentUser.id))
+    .limit(1);
+  if (!profile || !about || (await userNeedsConsent(currentUser.id))) {
     return fail('Finish your profile and accept the required policies first.');
   }
 
@@ -238,6 +247,7 @@ export async function completeWelcomeOnboarding(): Promise<ActionResult> {
       .update(authUser)
       .set({ onboardingCompletedAt: new Date() })
       .where(eq(authUser.id, currentUser.id));
+    revalidatePath('/welcome', 'layout');
     return ok();
   } catch (error) {
     console.error('completeWelcomeOnboarding error:', error);
@@ -273,20 +283,24 @@ export async function exportMyData(): Promise<ActionResult<unknown>> {
   try {
     const [
       profile,
+      profileAbout,
       interests,
       dietaryRestrictions,
       applications,
-      interestRegistrations,
       attendance,
       checkInRows,
       rsvpResponses,
-      groupMemberships,
+      teamMemberships,
       termsHistory,
       privacyHistory,
       marketingConsent,
       linkedAccounts,
     ] = await Promise.all([
       db.select().from(userProfiles).where(eq(userProfiles.userId, uid)),
+      db
+        .select()
+        .from(userProfileAbout)
+        .where(eq(userProfileAbout.userId, uid)),
       db.select().from(userInterests).where(eq(userInterests.userId, uid)),
       db
         .select()
@@ -296,17 +310,25 @@ export async function exportMyData(): Promise<ActionResult<unknown>> {
         .select()
         .from(eventApplications)
         .where(eq(eventApplications.userId, uid)),
-      db
-        .select()
-        .from(eventInterestRegistrations)
-        .where(eq(eventInterestRegistrations.userId, uid)),
       db.select().from(eventAttendees).where(eq(eventAttendees.userId, uid)),
       db.select().from(checkIns).where(eq(checkIns.userId, uid)),
       db
         .select()
         .from(eventRsvpResponses)
         .where(eq(eventRsvpResponses.userId, uid)),
-      db.select().from(groupMembers).where(eq(groupMembers.userId, uid)),
+      db
+        .select({
+          eventId: teams.eventId,
+          eventName: events.name,
+          teamId: teams.id,
+          teamCode: teams.code,
+          isOrganizer: eq(teams.organizerId, uid),
+          joinedAt: teamMembers.joinedAt,
+        })
+        .from(teamMembers)
+        .innerJoin(teams, eq(teamMembers.teamId, teams.id))
+        .innerJoin(events, eq(teams.eventId, events.id))
+        .where(eq(teamMembers.userId, uid)),
       db
         .select()
         .from(termsAcceptances)
@@ -336,6 +358,7 @@ export async function exportMyData(): Promise<ActionResult<unknown>> {
       account: {
         id: user.id,
         name: user.name,
+        oauthName: user.oauthName ?? null,
         email: user.email,
         emailVerified: user.emailVerified,
         image: user.image ?? null,
@@ -348,15 +371,18 @@ export async function exportMyData(): Promise<ActionResult<unknown>> {
         privacyAcceptances: privacyHistory,
         marketing: marketingConsent[0] ?? null,
       },
-      profile: profile[0] ?? null,
+      // Merged so the export's shape doesn't reveal the internal Personal/About
+      // table split.
+      profile: profile[0]
+        ? { ...profile[0], ...(profileAbout[0] ?? {}) }
+        : null,
       interests,
       dietaryRestrictions,
       eventApplications: applications,
-      eventInterestRegistrations: interestRegistrations,
       eventAttendance: attendance,
       checkIns: checkInRows,
       rsvpResponses,
-      groupMemberships,
+      teamMemberships,
     };
 
     return ok(exportPayload);

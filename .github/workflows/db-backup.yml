@@ -1,0 +1,96 @@
+name: Database Backup
+
+on:
+  schedule:
+    # 00:00 UTC every day. GitHub cron is UTC-only — for midnight in Calgary
+    # use '0 6 * * *' (MDT) or '0 7 * * *' (MST) instead.
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+  # Called by migrate-and-seed.yml so a production deploy always has a fresh
+  # dump behind it before any migration touches the schema.
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: db-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    name: Dump Postgres and upload to S3
+    runs-on: ubuntu-24.04
+    environment: production
+    timeout-minutes: 30
+
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      # S3 credentials, named to match the app's own storage config.
+      AWS_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: ${{ vars.S3_REGION || 'us-east-1' }}
+      # Bucket the dumps land in. Keep it separate from the assets bucket so a
+      # bad lifecycle rule on one can't reach the other.
+      S3_BACKUP_BUCKET: ${{ vars.S3_BACKUP_BUCKET }}
+      # Only set for S3-compatible stores (R2, MinIO); leave unset for AWS S3.
+      S3_ENDPOINT: ${{ vars.S3_ENDPOINT }}
+
+    steps:
+      - name: Check required configuration
+        run: |
+          missing=()
+          [ -n "$DATABASE_URL" ] || missing+=("secrets.DATABASE_URL")
+          [ -n "$AWS_ACCESS_KEY_ID" ] || missing+=("secrets.S3_ACCESS_KEY_ID")
+          [ -n "$AWS_SECRET_ACCESS_KEY" ] || missing+=("secrets.S3_SECRET_ACCESS_KEY")
+          [ -n "$S3_BACKUP_BUCKET" ] || missing+=("vars.S3_BACKUP_BUCKET")
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "Missing required configuration: ${missing[*]}" >&2
+            exit 1
+          fi
+
+      - name: Pull PostgreSQL 18 client image
+        run: |
+          docker pull postgres:18
+          docker run --rm postgres:18 pg_dump --version
+
+      - name: Dump database
+        run: |
+          set -euo pipefail
+          stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+          file="mruhacks-${stamp}.dump"
+          # Custom format (-Fc): compressed, and restorable selectively with
+          # pg_restore. --no-owner/--no-privileges so a restore into a database
+          # with different roles doesn't fail on GRANT/OWNER statements.
+          docker run --rm \
+            --env DATABASE_URL \
+            postgres:18 \
+            sh -c 'exec pg_dump "$DATABASE_URL" \
+              --format=custom \
+              --compress=9 \
+              --no-owner \
+              --no-privileges' > "$file"
+          # A dump that can't be listed is not a backup — fail loudly here
+          # rather than at restore time months from now.
+          docker run --rm --interactive postgres:18 \
+            pg_restore --list < "$file" > /dev/null
+          echo "DUMP_FILE=$file" >> "$GITHUB_ENV"
+          echo "DUMP_PREFIX=postgres/$(date -u +%Y/%m)" >> "$GITHUB_ENV"
+          echo "Dump size: $(du -h "$file" | cut -f1)"
+
+      - name: Upload to S3
+        run: |
+          set -euo pipefail
+          endpoint_args=()
+          if [ -n "${S3_ENDPOINT:-}" ]; then
+            endpoint_args=(--endpoint-url "$S3_ENDPOINT")
+          fi
+          aws s3 cp "$DUMP_FILE" \
+            "s3://${S3_BACKUP_BUCKET}/${DUMP_PREFIX}/${DUMP_FILE}" \
+            "${endpoint_args[@]}" \
+            --only-show-errors
+          echo "Uploaded s3://${S3_BACKUP_BUCKET}/${DUMP_PREFIX}/${DUMP_FILE}" >> "$GITHUB_STEP_SUMMARY"
+
+      # Retention is intentionally not handled here: the bucket's lifecycle rule
+      # (infra/s3-backup-lifecycle.json) expires old dumps, so nothing in CI
+      # ever holds delete permission on the backups.

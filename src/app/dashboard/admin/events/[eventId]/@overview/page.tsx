@@ -4,7 +4,11 @@ import * as React from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
-import { getEventDetails, updateEventSettings } from '@/app/dashboard/admin/events/actions';
+import {
+  getEventDetails,
+  updateEventSettings,
+} from '@/app/dashboard/admin/events/actions';
+import { useBreadcrumbSegment } from '@/components/breadcrumb-context';
 import { updateEventSettingsSchema } from '@/app/dashboard/admin/events/schemas';
 import type { EventDetails } from '@/app/dashboard/admin/events/actions';
 import type { UpdateEventSettingsInput } from '@/app/dashboard/admin/events/schemas';
@@ -26,6 +30,7 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
+import { EventDescriptionCard } from './event-description-card';
 
 type EventOverviewPageProps = {
   params: Promise<{ eventId: string }>;
@@ -36,6 +41,7 @@ export default function EventOverviewPage({ params }: EventOverviewPageProps) {
   const [event, setEvent] = React.useState<EventDetails | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [isEditing, setIsEditing] = React.useState(false);
+  useBreadcrumbSegment(eventId, event?.name);
 
   const {
     register,
@@ -63,9 +69,15 @@ export default function EventOverviewPage({ params }: EventOverviewPageProps) {
           name: result.data.name,
           hasApplication: result.data.hasApplication,
           capacity: result.data.capacity ?? undefined,
-          startsAt: result.data.startsAt ? result.data.startsAt.toISOString().slice(0, 16) : undefined,
-          endsAt: result.data.endsAt ? result.data.endsAt.toISOString().slice(0, 16) : undefined,
+          startsAt: result.data.startsAt
+            ? result.data.startsAt.toISOString().slice(0, 16)
+            : undefined,
+          endsAt: result.data.endsAt
+            ? result.data.endsAt.toISOString().slice(0, 16)
+            : undefined,
           isFeatured: result.data.isFeatured,
+          teamsEnabled: result.data.teamsEnabled,
+          maxTeamSize: result.data.maxTeamSize ?? undefined,
         });
       } else if (!result.success) {
         toast.error(result.error || 'Failed to load event');
@@ -76,6 +88,7 @@ export default function EventOverviewPage({ params }: EventOverviewPageProps) {
   }, [eventId, reset]);
 
   const hasApplication = watch('hasApplication');
+  const teamsEnabled = watch('teamsEnabled');
 
   const onSubmit = async (data: UpdateEventSettingsInput) => {
     if (!eventId) return;
@@ -94,53 +107,65 @@ export default function EventOverviewPage({ params }: EventOverviewPageProps) {
   };
 
   if (loading) {
-    return <div className='text-center text-muted-foreground py-8'>Loading...</div>;
+    return (
+      <div className='text-muted-foreground py-8 text-center'>Loading...</div>
+    );
   }
 
   if (!event) {
-    return <div className='text-center text-destructive py-8'>Event not found</div>;
+    return (
+      <div className='text-destructive py-8 text-center'>Event not found</div>
+    );
   }
 
   return (
     <div className='space-y-6'>
       {/* Stats Overview */}
-      <div className='grid gap-4 grid-cols-1 sm:grid-cols-3'>
+      <div className='grid grid-cols-1 gap-4 sm:grid-cols-3'>
         <Card>
           <CardHeader className='pb-2'>
-            <CardTitle className='text-sm font-medium text-muted-foreground'>
+            <CardTitle className='text-muted-foreground text-sm font-medium'>
               Applications
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className='text-2xl font-bold'>{event.applicationsCount}</div>
-            <p className='text-xs text-muted-foreground mt-1'>submitted</p>
+            <p className='text-muted-foreground mt-1 text-xs'>submitted</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className='pb-2'>
-            <CardTitle className='text-sm font-medium text-muted-foreground'>
+            <CardTitle className='text-muted-foreground text-sm font-medium'>
               Questions
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className='text-2xl font-bold'>{event.questionsCount}</div>
-            <p className='text-xs text-muted-foreground mt-1'>active</p>
+            <p className='text-muted-foreground mt-1 text-xs'>active</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className='pb-2'>
-            <CardTitle className='text-sm font-medium text-muted-foreground'>
+            <CardTitle className='text-muted-foreground text-sm font-medium'>
               Capacity
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className='text-2xl font-bold'>{event.capacity ?? '—'}</div>
-            <p className='text-xs text-muted-foreground mt-1'>max attendees</p>
+            <p className='text-muted-foreground mt-1 text-xs'>max attendees</p>
           </CardContent>
         </Card>
       </div>
+
+      {/* Participant-facing description. Remounted on event load so the
+          editor picks up the saved markdown rather than an empty draft. */}
+      <EventDescriptionCard
+        key={event.id}
+        eventId={event.id}
+        initialMarkdown={event.descriptionMarkdown}
+      />
 
       {/* Event Settings Card */}
       <Card>
@@ -148,10 +173,16 @@ export default function EventOverviewPage({ params }: EventOverviewPageProps) {
           <div className='flex items-center justify-between'>
             <div>
               <CardTitle>Event Settings</CardTitle>
-              <CardDescription>Configure event details and requirements</CardDescription>
+              <CardDescription>
+                Configure event details and requirements
+              </CardDescription>
             </div>
             {!isEditing && (
-              <Button variant='outline' size='sm' onClick={() => setIsEditing(true)}>
+              <Button
+                variant='outline'
+                size='sm'
+                onClick={() => setIsEditing(true)}
+              >
                 Edit
               </Button>
             )}
@@ -161,42 +192,56 @@ export default function EventOverviewPage({ params }: EventOverviewPageProps) {
           {!isEditing ? (
             <div className='space-y-4'>
               <div>
-                <p className='text-xs font-semibold text-muted-foreground uppercase'>Name</p>
-                <p className='text-sm mt-1'>{event.name}</p>
+                <p className='text-muted-foreground text-xs font-semibold uppercase'>
+                  Name
+                </p>
+                <p className='mt-1 text-sm'>{event.name}</p>
               </div>
               <div>
-                <p className='text-xs font-semibold text-muted-foreground uppercase'>
+                <p className='text-muted-foreground text-xs font-semibold uppercase'>
                   Application Form
                 </p>
-                <p className='text-sm mt-1'>
+                <p className='mt-1 text-sm'>
                   {event.hasApplication ? 'Required' : 'Not required'}
                 </p>
               </div>
               {event.startsAt && (
                 <div>
-                  <p className='text-xs font-semibold text-muted-foreground uppercase'>
+                  <p className='text-muted-foreground text-xs font-semibold uppercase'>
                     Starts At
                   </p>
-                  <p className='text-sm mt-1'>
+                  <p className='mt-1 text-sm'>
                     {new Date(event.startsAt).toLocaleString()}
                   </p>
                 </div>
               )}
               {event.endsAt && (
                 <div>
-                  <p className='text-xs font-semibold text-muted-foreground uppercase'>
+                  <p className='text-muted-foreground text-xs font-semibold uppercase'>
                     Ends At
                   </p>
-                  <p className='text-sm mt-1'>
+                  <p className='mt-1 text-sm'>
                     {new Date(event.endsAt).toLocaleString()}
                   </p>
                 </div>
               )}
               <div>
-                <p className='text-xs font-semibold text-muted-foreground uppercase'>
+                <p className='text-muted-foreground text-xs font-semibold uppercase'>
                   Featured on Homepage
                 </p>
-                <p className='text-sm mt-1'>{event.isFeatured ? 'Yes' : 'No'}</p>
+                <p className='mt-1 text-sm'>
+                  {event.isFeatured ? 'Yes' : 'No'}
+                </p>
+              </div>
+              <div>
+                <p className='text-muted-foreground text-xs font-semibold uppercase'>
+                  Teams
+                </p>
+                <p className='mt-1 text-sm'>
+                  {event.teamsEnabled
+                    ? `Enabled (max team size: ${event.maxTeamSize ?? 'uncapped'})`
+                    : 'Disabled'}
+                </p>
               </div>
             </div>
           ) : (
@@ -228,18 +273,25 @@ export default function EventOverviewPage({ params }: EventOverviewPageProps) {
                       />
                     )}
                   />
-                  <Label htmlFor='hasApplication'>Requires application form</Label>
+                  <Label htmlFor='hasApplication'>
+                    Requires application form
+                  </Label>
                 </div>
 
                 {/* Capacity */}
                 <Field>
-                  <FieldLabel htmlFor='capacity'>Capacity (optional)</FieldLabel>
-                  <FieldDescription>Maximum number of attendees</FieldDescription>
+                  <FieldLabel htmlFor='capacity'>
+                    Capacity (optional)
+                  </FieldLabel>
+                  <FieldDescription>
+                    Maximum number of attendees
+                  </FieldDescription>
                   <Input
                     id='capacity'
                     type='number'
                     {...register('capacity', {
-                      setValueAs: (value) => (value === '' ? undefined : Number(value)),
+                      setValueAs: (value) =>
+                        value === '' ? undefined : Number(value),
                     })}
                     placeholder='e.g. 100'
                   />
@@ -248,7 +300,9 @@ export default function EventOverviewPage({ params }: EventOverviewPageProps) {
 
                 {/* Starts At */}
                 <Field>
-                  <FieldLabel htmlFor='startsAt'>Starts At (optional)</FieldLabel>
+                  <FieldLabel htmlFor='startsAt'>
+                    Starts At (optional)
+                  </FieldLabel>
                   <Input
                     id='startsAt'
                     type='datetime-local'
@@ -285,9 +339,49 @@ export default function EventOverviewPage({ params }: EventOverviewPageProps) {
                     Featured on homepage (its Register URL is used site-wide)
                   </Label>
                 </div>
+
+                {/* Teams enabled */}
+                <div className='flex items-center gap-3'>
+                  <Controller
+                    name='teamsEnabled'
+                    control={control}
+                    render={({ field }) => (
+                      <Switch
+                        id='teamsEnabled'
+                        checked={field.value ?? false}
+                        onCheckedChange={field.onChange}
+                      />
+                    )}
+                  />
+                  <Label htmlFor='teamsEnabled'>
+                    Allow participants to form teams
+                  </Label>
+                </div>
+
+                {/* Max team size */}
+                {teamsEnabled && (
+                  <Field>
+                    <FieldLabel htmlFor='maxTeamSize'>
+                      Max team size (optional)
+                    </FieldLabel>
+                    <FieldDescription>Leave blank for no cap.</FieldDescription>
+                    <Input
+                      id='maxTeamSize'
+                      type='number'
+                      {...register('maxTeamSize', {
+                        setValueAs: (value) =>
+                          value === '' ? null : Number(value),
+                      })}
+                      placeholder='e.g. 4'
+                    />
+                    {errors.maxTeamSize && (
+                      <FieldError errors={[errors.maxTeamSize]} />
+                    )}
+                  </Field>
+                )}
               </FieldGroup>
 
-              <div className='flex gap-2 justify-end pt-2'>
+              <div className='flex justify-end gap-2 pt-2'>
                 <Button
                   type='button'
                   variant='outline'

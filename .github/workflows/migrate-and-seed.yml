@@ -7,7 +7,20 @@ on:
       - main
 
 jobs:
+  # Production only: capture a restorable dump before the schema changes under
+  # us. If this fails, the migration below never runs.
+  backup:
+    if: github.ref_name == 'main'
+    uses: ./.github/workflows/db-backup.yml
+    secrets: inherit
+
   migrate-and-seed:
+    needs: backup
+    # `needs` alone would skip this job on the test branch, where backup itself
+    # is skipped — so accept 'skipped' explicitly and block only on failure.
+    if: >-
+      ${{ !cancelled()
+      && (needs.backup.result == 'success' || needs.backup.result == 'skipped') }}
     runs-on: ubuntu-latest
     environment: ${{ github.ref_name == 'main' && 'production' || 'Test' }}
     env:

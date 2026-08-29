@@ -48,8 +48,8 @@ export function DataExportCard() {
       <CardHeader>
         <CardTitle>Export your data</CardTitle>
         <CardDescription>
-          Download a copy of all the personal data we hold about you —
-          your profile, applications, event history, and preferences — as a
+          Download a copy of all the personal data we hold about you — your
+          profile, applications, event history, and preferences — as a
           machine-readable JSON file.
         </CardDescription>
       </CardHeader>

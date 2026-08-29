@@ -5,9 +5,9 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { unregisterFromEvent } from '@/app/register/actions';
 
-type Props = { eventId: string };
+type Props = { eventId: string; className?: string };
 
-export function UnregisterEventButton({ eventId }: Props) {
+export function UnregisterEventButton({ eventId, className }: Props) {
   const [isPending, startTransition] = useTransition();
 
   function handleClick() {
@@ -23,6 +23,7 @@ export function UnregisterEventButton({ eventId }: Props) {
 
   return (
     <Button
+      className={className}
       onClick={handleClick}
       disabled={isPending}
       size='sm'

@@ -109,13 +109,11 @@ async function closeDatabase(): Promise<void> {
 // Register shutdown handlers
 if (typeof process !== 'undefined') {
   process.on('SIGINT', async () => {
-    console.log('SIGINT received, closing database...');
     await closeDatabase();
     process.exit(0);
   });
 
   process.on('SIGTERM', async () => {
-    console.log('SIGTERM received, closing database...');
     await closeDatabase();
     process.exit(0);
   });

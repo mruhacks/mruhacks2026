@@ -54,7 +54,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import type { ApplicationQuestion } from '@/types/application';
+import {
+  DEFAULT_QUESTION_MAX_LENGTH,
+  QUESTION_MAX_LENGTH_LIMIT,
+  isStringQuestion,
+  isSummarizableQuestion,
+  type ApplicationQuestion,
+} from '@/types/application';
 
 const QUESTION_TYPES = [
   { value: 'short_text', label: 'Short Text' },
@@ -69,8 +75,32 @@ const QUESTION_TYPES = [
 const formSchema = z.object({
   label: z.string().trim().min(1, 'Label is required'),
   description: z.string().trim().optional(),
-  type: z.enum(['short_text', 'long_text', 'single_select', 'multi_select', 'number', 'boolean', 'section_divider']),
+  type: z.enum([
+    'short_text',
+    'long_text',
+    'single_select',
+    'multi_select',
+    'number',
+    'boolean',
+    'section_divider',
+  ]),
   required: z.boolean().default(false),
+  // Empty input means "use the type default", which the action stores as null.
+  maxLength: z
+    .union([
+      z.literal(''),
+      z.coerce
+        .number()
+        .int()
+        .min(1, 'Max length must be at least 1')
+        .max(
+          QUESTION_MAX_LENGTH_LIMIT,
+          `Max length cannot exceed ${QUESTION_MAX_LENGTH_LIMIT}`,
+        ),
+    ])
+    .optional(),
+  showInApplicationReview: z.boolean().default(false),
+  showInReports: z.boolean().default(false),
   options: z.array(
     z.object({
       value: z.string().optional(),
@@ -80,7 +110,15 @@ const formSchema = z.object({
   ),
 });
 
-type FormValues = z.infer<typeof formSchema>;
+export type QuestionFormValues = z.infer<typeof formSchema>;
+type FormValues = QuestionFormValues;
+
+/** Blank input → `null`, meaning "fall back to the per-type default". */
+export function normalizeMaxLength(
+  value: QuestionFormValues['maxLength'],
+): number | null {
+  return value === '' || value === undefined ? null : value;
+}
 
 type QuestionDialogProps = {
   open: boolean;
@@ -121,13 +159,8 @@ function OptionItem({
   control,
   errors,
 }: OptionItemProps) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-  } = useSortable({ id: fieldId });
+  const { attributes, listeners, setNodeRef, transform, transition } =
+    useSortable({ id: fieldId });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -136,19 +169,17 @@ function OptionItem({
   };
 
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className='flex items-center gap-2'
-    >
+    <div ref={setNodeRef} style={style} className='flex items-center gap-2'>
       <button
         {...attributes}
         {...listeners}
-        className='cursor-grab active:cursor-grabbing pt-0.5'
+        className='cursor-grab pt-0.5 active:cursor-grabbing'
         aria-label='Drag to reorder'
         type='button'
       >
-        <div className='size-4 text-muted-foreground flex items-center justify-center text-xs'>⋮⋮</div>
+        <div className='text-muted-foreground flex size-4 items-center justify-center text-xs'>
+          ⋮⋮
+        </div>
       </button>
       <Input
         {...register(`options.${index}.label`)}
@@ -210,9 +241,7 @@ function OptionItem({
           </Button>
         </div>
       )}
-      {errors && (
-        <FieldError errors={[errors]} />
-      )}
+      {errors && <FieldError errors={[errors]} />}
     </div>
   );
 }
@@ -234,9 +263,7 @@ export function QuestionDialog({
     }
   }, [open]);
 
-  const sensors = useSensors(
-    useSensor(PointerSensor),
-  );
+  const sensors = useSensors(useSensor(PointerSensor));
 
   const {
     control,
@@ -253,25 +280,38 @@ export function QuestionDialog({
           description: question.description ?? '',
           type: question.type,
           required: question.required,
-          options: question.options?.map((o) => ({
-            value: o.value,
-            label: o.label,
-            active: o.active,
-          })) ?? [],
+          maxLength: question.maxLength ?? '',
+          showInApplicationReview: question.showInApplicationReview ?? false,
+          showInReports: question.showInReports ?? false,
+          options:
+            question.options?.map((o) => ({
+              value: o.value,
+              label: o.label,
+              active: o.active,
+            })) ?? [],
         }
       : {
           label: '',
           description: '',
           type: 'short_text',
           required: false,
+          maxLength: '',
+          showInApplicationReview: false,
+          showInReports: false,
           options: [],
         },
   });
 
-  const { fields, append, remove, move } = useFieldArray({ control, name: 'options' });
+  const { fields, append, remove, move } = useFieldArray({
+    control,
+    name: 'options',
+  });
   const questionType = watch('type');
   const options = watch('options');
-  const showOptions = questionType === 'single_select' || questionType === 'multi_select';
+  const showOptions =
+    questionType === 'single_select' || questionType === 'multi_select';
+  const showMaxLength = isStringQuestion(questionType);
+  const showInReportsSwitch = isSummarizableQuestion(questionType);
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
@@ -305,7 +345,9 @@ export function QuestionDialog({
     const currentFields = [...fields];
     for (let targetIdx = 0; targetIdx < indexed.length; targetIdx++) {
       const itemToMove = indexed[targetIdx];
-      const currentIdx = currentFields.findIndex(f => f.id === fields[itemToMove.currentIndex].id);
+      const currentIdx = currentFields.findIndex(
+        (f) => f.id === fields[itemToMove.currentIndex].id,
+      );
 
       if (currentIdx !== targetIdx) {
         move(currentIdx, targetIdx);
@@ -326,17 +368,25 @@ export function QuestionDialog({
               description: question.description ?? '',
               type: question.type,
               required: question.required,
-              options: question.options?.map((o) => ({
-                value: o.value,
-                label: o.label,
-                active: o.active,
-              })) ?? [],
+              maxLength: question.maxLength ?? '',
+              showInApplicationReview:
+                question.showInApplicationReview ?? false,
+              showInReports: question.showInReports ?? false,
+              options:
+                question.options?.map((o) => ({
+                  value: o.value,
+                  label: o.label,
+                  active: o.active,
+                })) ?? [],
             }
           : {
               label: '',
               description: '',
               type: 'short_text',
               required: false,
+              maxLength: '',
+              showInApplicationReview: false,
+              showInReports: false,
               options: [],
             },
       );
@@ -373,7 +423,9 @@ export function QuestionDialog({
             {/* Description */}
             <Field>
               <FieldLabel htmlFor='q-description'>Description</FieldLabel>
-              <FieldDescription>Optional helper text shown below the label.</FieldDescription>
+              <FieldDescription>
+                Optional helper text shown below the label.
+              </FieldDescription>
               <Textarea
                 id='q-description'
                 {...register('description')}
@@ -435,6 +487,67 @@ export function QuestionDialog({
               </div>
             )}
 
+            {/* Show in Application Review */}
+            {questionType !== 'section_divider' && (
+              <div className='flex items-center gap-3'>
+                <Controller
+                  name='showInApplicationReview'
+                  control={control}
+                  render={({ field }) => (
+                    <Switch
+                      id='q-show-in-review'
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  )}
+                />
+                <Label htmlFor='q-show-in-review'>
+                  Show in Application Review
+                </Label>
+              </div>
+            )}
+
+            {/* Show in Reports (summarizable types only) */}
+            {showInReportsSwitch && (
+              <div className='flex items-center gap-3'>
+                <Controller
+                  name='showInReports'
+                  control={control}
+                  render={({ field }) => (
+                    <Switch
+                      id='q-show-in-reports'
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  )}
+                />
+                <Label htmlFor='q-show-in-reports'>Show in Reports</Label>
+              </div>
+            )}
+
+            {/* Max length (free-text types only) */}
+            {showMaxLength && (
+              <Field>
+                <FieldLabel htmlFor='q-max-length'>Max characters</FieldLabel>
+                <FieldDescription>
+                  Leave blank to use the default of{' '}
+                  {DEFAULT_QUESTION_MAX_LENGTH[questionType]} characters.
+                  Applicants cannot type past this limit.
+                </FieldDescription>
+                <Input
+                  id='q-max-length'
+                  type='number'
+                  min={1}
+                  max={QUESTION_MAX_LENGTH_LIMIT}
+                  {...register('maxLength')}
+                  placeholder={String(
+                    DEFAULT_QUESTION_MAX_LENGTH[questionType],
+                  )}
+                />
+                {errors.maxLength && <FieldError errors={[errors.maxLength]} />}
+              </Field>
+            )}
+
             {/* Options (for select types) */}
             {showOptions && (
               <Field>
@@ -455,7 +568,9 @@ export function QuestionDialog({
                   <DndContext
                     sensors={sensors}
                     collisionDetection={closestCenter}
-                    onDragStart={(event) => setActiveDragId(event.active.id as string)}
+                    onDragStart={(event) =>
+                      setActiveDragId(event.active.id as string)
+                    }
                     onDragEnd={handleDragEnd}
                     onDragCancel={() => setActiveDragId(null)}
                   >
@@ -522,11 +637,19 @@ export function QuestionDialog({
           </FieldGroup>
 
           <DialogFooter className='mt-6'>
-            <Button type='button' variant='outline' onClick={() => onOpenChange(false)}>
+            <Button
+              type='button'
+              variant='outline'
+              onClick={() => onOpenChange(false)}
+            >
               Cancel
             </Button>
             <Button type='submit' disabled={isSubmitting}>
-              {isSubmitting ? 'Saving…' : isEdit ? 'Save Changes' : 'Add Question'}
+              {isSubmitting
+                ? 'Saving…'
+                : isEdit
+                  ? 'Save Changes'
+                  : 'Add Question'}
             </Button>
           </DialogFooter>
         </form>
