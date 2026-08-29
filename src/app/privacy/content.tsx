@@ -4,7 +4,7 @@
 const CONTACT_EMAIL = 'privacy@mruhacks.ca';
 
 export const PRIVACY_TITLE = 'Privacy Policy';
-export const PRIVACY_UPDATED = 'July 10, 2026';
+export const PRIVACY_UPDATED = 'Aug 28, 2026';
 
 /** Shared with the full /privacy page and the welcome-flow modal. */
 export function PrivacyContent() {
@@ -14,10 +14,7 @@ export function PrivacyContent() {
         MRUHacks (&ldquo;we,&rdquo; &ldquo;us,&rdquo; or &ldquo;our&rdquo;)
         respects your privacy. This policy explains what personal information we
         collect, why we collect it, how we use and protect it, and the rights
-        you have over it. We handle personal information in accordance with
-        Canada&apos;s Personal Information Protection and Electronic Documents
-        Act (PIPEDA) and Alberta&apos;s Personal Information Protection Act
-        (PIPA).
+        you have over it.
       </p>
 
       <h2>Information we collect</h2>
