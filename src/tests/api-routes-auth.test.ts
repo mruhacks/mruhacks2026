@@ -12,7 +12,15 @@
  *    {status, buildInfo}; the full per-service report requires
  *    system:read:all or a matching x-health-access-key header.
  */
-import { describe, test, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
+import {
+  describe,
+  test,
+  expect,
+  beforeAll,
+  afterAll,
+  beforeEach,
+  vi,
+} from 'vitest';
 import { eq } from 'drizzle-orm';
 import { db } from '@/utils/db';
 import {
