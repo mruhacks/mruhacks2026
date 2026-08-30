@@ -5,6 +5,7 @@ import { getUser } from '@/utils/auth';
 import { hasPermission } from '@/lib/rbac/authorization';
 import { verifyMailConnection } from '@/utils/mail';
 import { checkObjectStorageConnection } from '@/utils/object-storage';
+import { MRUHACKS_LOGO_URL } from '@/content';
 
 /** Dedicated permission for the full health report — unrelated to any other admin permission. */
 const HEALTH_PERMISSION = 'system:read:all';
@@ -21,6 +22,13 @@ const REQUIRED_ENV_VARS = [
   'SMTP_PORT',
   'EMAIL_FROM',
   'S3_BUCKET',
+  'GOOGLE_WALLET_ISSUER_ID',
+  'GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL',
+  'GOOGLE_WALLET_SERVICE_ACCOUNT_PRIVATE_KEY',
+  'APPLE_WALLET_WWDR_CERT',
+  'APPLE_WALLET_SIGNER_CERT',
+  'APPLE_WALLET_SIGNER_KEY',
+  'CHECK_IN_SIGNING_PRIVATE_KEY',
 ] as const;
 
 type CheckResult = { ok: boolean; latencyMs: number; detail?: string };
@@ -99,6 +107,73 @@ async function checkTurnstile(): Promise<CheckResult> {
   }
 }
 
+/**
+ * Google Wallet needs both its issuer credentials (checked here, since a
+ * missing/invalid one fails silently until someone actually clicks "Add to
+ * Google Wallet") and its externally-hosted logo — Google's servers fetch
+ * that URL directly when rendering the pass, so a dead link breaks every
+ * pass without ever touching our own error logs.
+ */
+async function checkGoogleWallet(): Promise<CheckResult> {
+  const start = Date.now();
+  const missing = [
+    'GOOGLE_WALLET_ISSUER_ID',
+    'GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL',
+    'GOOGLE_WALLET_SERVICE_ACCOUNT_PRIVATE_KEY',
+  ].filter((name) => !process.env[name]?.trim());
+  if (missing.length > 0) {
+    return { ok: false, latencyMs: 0, detail: 'not configured' };
+  }
+  try {
+    const res = await fetch(MRUHACKS_LOGO_URL, {
+      method: 'HEAD',
+      signal: AbortSignal.timeout(CHECK_TIMEOUT_MS),
+    });
+    if (!res.ok) {
+      return {
+        ok: false,
+        latencyMs: Date.now() - start,
+        detail: `logo unreachable (${res.status})`,
+      };
+    }
+    return { ok: true, latencyMs: Date.now() - start };
+  } catch {
+    return {
+      ok: false,
+      latencyMs: Date.now() - start,
+      detail: 'logo unreachable',
+    };
+  }
+}
+
+/**
+ * Presence-only, deliberately: these env vars hold private key material,
+ * and this route has no business ever decoding or loading them into memory
+ * just to answer a health probe.
+ */
+async function checkAppleWallet(): Promise<CheckResult> {
+  const missing = [
+    'APPLE_WALLET_WWDR_CERT',
+    'APPLE_WALLET_SIGNER_CERT',
+    'APPLE_WALLET_SIGNER_KEY',
+  ].filter((name) => !process.env[name]?.trim());
+  return missing.length > 0
+    ? { ok: false, latencyMs: 0, detail: 'not configured' }
+    : { ok: true, latencyMs: 0 };
+}
+
+/**
+ * Signs every check-in QR code (Apple pass barcode, Google Wallet barcode,
+ * and the standalone QR) — shared across all three, not Apple-specific, so
+ * it gets its own check rather than living inside `checkAppleWallet`.
+ * Presence-only for the same reason: it's a private signing key.
+ */
+async function checkCheckInSigning(): Promise<CheckResult> {
+  return process.env.CHECK_IN_SIGNING_PRIVATE_KEY?.trim()
+    ? { ok: true, latencyMs: 0 }
+    : { ok: false, latencyMs: 0, detail: 'not configured' };
+}
+
 function missingEnvVars(): string[] {
   return REQUIRED_ENV_VARS.filter((name) => !process.env[name]?.trim());
 }
@@ -110,6 +185,9 @@ type HealthReport = {
     mail: CheckResult;
     objectStorage: CheckResult;
     turnstile: CheckResult;
+    googleWallet: CheckResult;
+    appleWallet: CheckResult;
+    checkInSigning: CheckResult;
   };
   missingEnv: string[];
   checkedAt: string;
@@ -124,23 +202,48 @@ let cached: { report: HealthReport; expiresAt: number } | null = null;
 async function buildReport(): Promise<HealthReport> {
   if (cached && cached.expiresAt > Date.now()) return cached.report;
 
-  const [database, mail, objectStorage, turnstile] = await Promise.all([
+  const [
+    database,
+    mail,
+    objectStorage,
+    turnstile,
+    googleWallet,
+    appleWallet,
+    checkInSigning,
+  ] = await Promise.all([
     checkDatabase(),
     checkMail(),
     checkObjectStorage(),
     checkTurnstile(),
+    checkGoogleWallet(),
+    checkAppleWallet(),
+    checkCheckInSigning(),
   ]);
   const missingEnv = missingEnvVars();
 
   const status: HealthReport['status'] = !database.ok
     ? 'down'
-    : mail.ok && objectStorage.ok && turnstile.ok && missingEnv.length === 0
+    : mail.ok &&
+        objectStorage.ok &&
+        turnstile.ok &&
+        googleWallet.ok &&
+        appleWallet.ok &&
+        checkInSigning.ok &&
+        missingEnv.length === 0
       ? 'ok'
       : 'degraded';
 
   const report: HealthReport = {
     status,
-    checks: { database, mail, objectStorage, turnstile },
+    checks: {
+      database,
+      mail,
+      objectStorage,
+      turnstile,
+      googleWallet,
+      appleWallet,
+      checkInSigning,
+    },
     missingEnv,
     checkedAt: new Date().toISOString(),
     buildInfo: process.env.BUILD_INFO ?? 'unknown',

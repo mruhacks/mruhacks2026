@@ -111,6 +111,7 @@ const nextConfig: NextConfig = {
   env: {
     BUILD_INFO: getBuildInfo(),
   },
+  allowedDevOrigins: ['thomas-desktop.local'],
 };
 
 export default nextConfig;

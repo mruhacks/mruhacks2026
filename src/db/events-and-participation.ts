@@ -27,6 +27,7 @@ import {
   jsonb,
   uniqueIndex,
   primaryKey,
+  doublePrecision,
 } from 'drizzle-orm/pg-core';
 import { relations, sql } from 'drizzle-orm';
 
@@ -76,6 +77,15 @@ export const events = pgTable(
       .default(sql`'[]'::jsonb`),
     startsAt: timestamp('starts_at'),
     endsAt: timestamp('ends_at'),
+    /** Free-text venue/location, shown on the event page and Apple Wallet pass. */
+    location: text('location'),
+    /**
+     * Geofence center for the Apple Wallet pass's location-based relevance.
+     * All three are set together or not at all (enforced in actions.ts).
+     */
+    latitude: doublePrecision('latitude'),
+    longitude: doublePrecision('longitude'),
+    radiusMeters: integer('radius_meters'),
     capacity: integer('capacity'),
     // Marks the single event whose registerUrl the public site links to.
     isFeatured: boolean('is_featured').notNull().default(false),

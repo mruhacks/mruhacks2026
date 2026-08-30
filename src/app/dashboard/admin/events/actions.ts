@@ -396,6 +396,10 @@ export async function createEvent(
       maxTeamSize: input.maxTeamSize ?? null,
       startsAt: parseDateTime(input.startsAt),
       endsAt: parseDateTime(input.endsAt),
+      location: input.location || null,
+      latitude: input.latitude ?? null,
+      longitude: input.longitude ?? null,
+      radiusMeters: input.radiusMeters ?? null,
       // Keep question configuration independent from the application-process
       // toggle. Events may require an application with no custom questions.
       applicationQuestions: [],
@@ -423,6 +427,10 @@ export type EventDetails = {
   capacity: number | null;
   startsAt: Date | null;
   endsAt: Date | null;
+  location: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  radiusMeters: number | null;
   isFeatured: boolean;
   teamsEnabled: boolean;
   maxTeamSize: number | null;
@@ -467,6 +475,10 @@ export async function getEventDetails(
     capacity: eventRow.capacity ?? null,
     startsAt: eventRow.startsAt ?? null,
     endsAt: eventRow.endsAt ?? null,
+    location: eventRow.location ?? null,
+    latitude: eventRow.latitude ?? null,
+    longitude: eventRow.longitude ?? null,
+    radiusMeters: eventRow.radiusMeters ?? null,
     isFeatured: eventRow.isFeatured,
     teamsEnabled: eventRow.teamsEnabled,
     maxTeamSize: eventRow.maxTeamSize ?? null,
@@ -513,6 +525,27 @@ export async function updateEventSettings(
     }
   };
 
+  const latitude =
+    input.latitude !== undefined ? input.latitude : eventRow.latitude;
+  const longitude =
+    input.longitude !== undefined ? input.longitude : eventRow.longitude;
+  const radiusMeters =
+    input.radiusMeters !== undefined
+      ? input.radiusMeters
+      : eventRow.radiusMeters;
+
+  // latitude/longitude/radiusMeters must all be set or all unset. The Zod
+  // schema can't enforce this for a partial update (a payload touching only
+  // one field doesn't know the other two's current DB values), so re-check
+  // against the merged (existing + incoming) result before writing.
+  const geofenceValues = [latitude, longitude, radiusMeters];
+  const geofenceCount = geofenceValues.filter((v) => v != null).length;
+  if (geofenceCount !== 0 && geofenceCount !== 3) {
+    return fail(
+      'Latitude, longitude, and radius must all be set together for the pass geofence',
+    );
+  }
+
   await db.transaction(async (tx) => {
     // Only one event may be featured at a time (enforced by idx_events_featured_unique).
     if (input.isFeatured === true) {
@@ -541,6 +574,13 @@ export async function updateEventSettings(
           input.endsAt !== undefined
             ? parseDateTime(input.endsAt)
             : eventRow.endsAt,
+        location:
+          input.location !== undefined
+            ? input.location || null
+            : eventRow.location,
+        latitude,
+        longitude,
+        radiusMeters,
         isFeatured: input.isFeatured ?? eventRow.isFeatured,
         updatedAt: new Date(),
       })

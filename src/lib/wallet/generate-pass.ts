@@ -1,9 +1,13 @@
 import 'server-only';
 
-import { createHmac } from 'node:crypto';
 import path from 'node:path';
 
 import { PKPass } from 'passkit-generator';
+
+import { buildCheckInPayload, DEFAULT_QR_TTL_MS } from './check-in-token';
+import { formatDateRange } from './format';
+
+export { formatDateRange } from './format';
 
 const MODEL_PATH = path.join(
   process.cwd(),
@@ -13,13 +17,19 @@ const MODEL_PATH = path.join(
   'mruhacks.pass',
 );
 
-const DEFAULT_QR_TTL_MS = 24 * 60 * 60 * 1000;
-
 export type PassParticipant = {
   eventId: string;
   userId: string;
   name: string;
   role: string;
+  eventName: string;
+  startsAt: Date | null;
+  endsAt: Date | null;
+  location: string | null;
+  /** Geofence center; all three are set together or not at all. */
+  latitude: number | null;
+  longitude: number | null;
+  radiusMeters: number | null;
   expiresAt: Date | null;
 };
 
@@ -45,23 +55,20 @@ function getCertificates() {
   };
 }
 
-function buildCheckInPayload(
-  eventId: string,
-  userId: string,
-  expiresAt: Date,
-): string {
-  const secret = process.env.APPLE_WALLET_QR_SECRET?.trim();
-  if (!secret) {
-    throw new Error(
-      'APPLE_WALLET_QR_SECRET is required to sign check-in QR codes; see .env.example',
-    );
+/** Overwrites a field's value by key, or removes it if `value` is null. */
+export function setFieldByKey<T extends { key: string; value: unknown }>(
+  fields: T[],
+  key: string,
+  value: string | null,
+): void {
+  const index = fields.findIndex((field) => field.key === key);
+  if (value === null) {
+    if (index !== -1) fields.splice(index, 1);
+    return;
   }
-
-  const body = `${eventId}.${userId}.${Date.now()}.${expiresAt.getTime()}`;
-  const signature = createHmac('sha256', secret)
-    .update(body)
-    .digest('base64url');
-  return `${body}.${signature}`;
+  if (index !== -1) {
+    fields[index].value = value;
+  }
 }
 
 export async function generateParticipantPass(
@@ -71,9 +78,24 @@ export async function generateParticipantPass(
     participant.expiresAt ?? new Date(Date.now() + DEFAULT_QR_TTL_MS);
   const serialNumber = `${participant.eventId}:${participant.userId}`;
 
+  const geofence =
+    participant.latitude != null &&
+    participant.longitude != null &&
+    participant.radiusMeters != null
+      ? {
+          latitude: participant.latitude,
+          longitude: participant.longitude,
+          radiusMeters: participant.radiusMeters,
+        }
+      : null;
+
   const pass = await PKPass.from(
     { model: MODEL_PATH, certificates: getCertificates() },
-    { serialNumber },
+    {
+      serialNumber,
+      description: `${participant.eventName} Participant Pass`,
+      ...(geofence ? { maxDistance: geofence.radiusMeters } : {}),
+    },
   );
 
   if (pass.props.serialNumber !== serialNumber) {
@@ -81,6 +103,14 @@ export async function generateParticipantPass(
       `Pass serial number was not applied for event ${participant.eventId}`,
     );
   }
+
+  setFieldByKey(pass.primaryFields, 'event', participant.eventName);
+  setFieldByKey(
+    pass.auxiliaryFields,
+    'dates',
+    formatDateRange(participant.startsAt, participant.endsAt),
+  );
+  setFieldByKey(pass.auxiliaryFields, 'venue', participant.location);
 
   pass.secondaryFields.push(
     { key: 'name', label: 'NAME', value: participant.name },
@@ -93,8 +123,30 @@ export async function generateParticipantPass(
     value: serialNumber,
   });
 
+  if (geofence) {
+    pass.setLocations({
+      latitude: geofence.latitude,
+      longitude: geofence.longitude,
+      relevantText: `Show this pass at check-in for ${participant.eventName}.`,
+    });
+  }
+
+  const relevantDate = participant.startsAt ?? participant.endsAt;
+  if (participant.startsAt && participant.endsAt) {
+    pass.setRelevantDates([
+      { startDate: participant.startsAt, endDate: participant.endsAt },
+    ]);
+  } else if (relevantDate) {
+    pass.setRelevantDate(relevantDate);
+  }
+
   pass.setBarcodes(
-    buildCheckInPayload(participant.eventId, participant.userId, expiresAt),
+    buildCheckInPayload(
+      participant.eventId,
+      participant.userId,
+      participant.name,
+      expiresAt,
+    ),
   );
   pass.setExpirationDate(expiresAt);
 

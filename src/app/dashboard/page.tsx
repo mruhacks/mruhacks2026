@@ -18,7 +18,6 @@ import {
   CardHeader,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { AddToWalletButton } from '@/components/add-to-wallet-button';
 import { ArrowRight, KeyRound, ShieldCheck, Users } from 'lucide-react';
 
 /**
@@ -236,15 +235,10 @@ function EventsSkeleton() {
 }
 
 // Fetches events once and renders both the "My events" list and the rail
-// (event pass / quick links / resources) that depends on it, all behind one
-// Suspense boundary so the page shell above ships immediately.
+// (quick links / resources) that depends on it, all behind one Suspense
+// boundary so the page shell above ships immediately.
 async function DashboardEvents() {
   const events = await getEventsWithUserStatus();
-  const ticketedEvents = events.filter(
-    (e) =>
-      e.parentEventId === null &&
-      (e.statusKey === 'approved' || e.userStatus === 'registered'),
-  );
 
   return (
     <div className='grid gap-6 lg:grid-cols-[1.55fr_1fr]'>
@@ -256,56 +250,6 @@ async function DashboardEvents() {
 
       {/* Rail */}
       <aside style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-        {/* Event pass */}
-        {ticketedEvents.length > 0 && (
-          <div style={tile}>
-            <SectionEyebrow color='var(--green)'>Event pass</SectionEyebrow>
-            <p
-              style={{
-                fontSize: '14px',
-                color: 'var(--ink-500)',
-                margin: 0,
-              }}
-            >
-              Add your ticket to Apple Wallet and show its QR code at
-              check-in.
-            </p>
-            <div
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '12px',
-              }}
-            >
-              {ticketedEvents.map((event) => (
-                <div
-                  key={event.id}
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'flex-start',
-                    gap: '7px',
-                  }}
-                >
-                  {ticketedEvents.length > 1 && (
-                    <span
-                      style={{
-                        fontFamily: 'var(--font-ui)',
-                        fontWeight: 'var(--fw-semibold)',
-                        fontSize: '14px',
-                        color: 'var(--black)',
-                      }}
-                    >
-                      {event.name}
-                    </span>
-                  )}
-                  <AddToWalletButton eventId={event.id} />
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
         {/* Quick links */}
         <div style={tile}>
           <SectionEyebrow color='var(--pink)'>Quick links</SectionEyebrow>

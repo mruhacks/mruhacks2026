@@ -67,6 +67,32 @@ export type EditQuestionInput = z.infer<typeof editQuestionSchema>;
 
 // ── Event schemas ────────────────────────────────────────────────────────
 
+/** latitude/longitude/radiusMeters must all be present together, or all absent. */
+const geofenceFields = {
+  latitude: z.number().min(-90).max(90).nullish(),
+  longitude: z.number().min(-180).max(180).nullish(),
+  radiusMeters: z.number().int().positive().max(100_000).nullish(),
+};
+
+function refineGeofence<
+  T extends {
+    latitude?: number | null;
+    longitude?: number | null;
+    radiusMeters?: number | null;
+  },
+>(data: T) {
+  const hasLat = data.latitude != null;
+  const hasLng = data.longitude != null;
+  const hasRadius = data.radiusMeters != null;
+  return hasLat === hasLng && hasLat === hasRadius;
+}
+
+const GEOFENCE_ISSUE = {
+  message:
+    'Latitude, longitude, and radius must all be set together for the pass geofence',
+  path: ['latitude'],
+};
+
 export const createEventSchema = z
   .object({
     name: z.string().trim().min(1, 'Event name is required'),
@@ -74,6 +100,8 @@ export const createEventSchema = z
     capacity: z.number().int().positive().nullish(),
     startsAt: z.string().nullish(),
     endsAt: z.string().nullish(),
+    location: z.string().trim().max(255).nullish(),
+    ...geofenceFields,
     isFeatured: z.boolean().optional(),
     teamsEnabled: z.boolean().optional(),
     maxTeamSize: z.number().int().positive().nullish(),
@@ -87,7 +115,8 @@ export const createEventSchema = z
       message: 'Start date must be before end date',
       path: ['startsAt'],
     },
-  );
+  )
+  .refine(refineGeofence, GEOFENCE_ISSUE);
 
 export type CreateEventInput = z.infer<typeof createEventSchema>;
 
@@ -98,6 +127,8 @@ export const updateEventSettingsSchema = z
     capacity: z.number().int().positive().nullish(),
     startsAt: z.string().nullish(),
     endsAt: z.string().nullish(),
+    location: z.string().trim().max(255).nullish(),
+    ...geofenceFields,
     isFeatured: z.boolean().optional(),
     teamsEnabled: z.boolean().optional(),
     maxTeamSize: z.number().int().positive().nullish(),
@@ -112,6 +143,10 @@ export const updateEventSettingsSchema = z
       path: ['startsAt'],
     },
   );
+// Note: this is a partial update, so latitude/longitude/radiusMeters pairing
+// can't be fully validated here — a payload touching only `radiusMeters`
+// doesn't know today's lat/long. `updateEventSettings` re-checks the
+// invariant against the merged (existing + incoming) row before writing.
 
 export type UpdateEventSettingsInput = z.infer<
   typeof updateEventSettingsSchema

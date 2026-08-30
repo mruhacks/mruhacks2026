@@ -1,8 +1,12 @@
-import { Wallet } from 'lucide-react';
-
-import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
+/**
+ * Apple's official "Add to Apple Wallet" badge (US/UK English), used as-is
+ * per Apple's Add to Apple Wallet Guidelines: fixed artwork, no recoloring,
+ * no stretching — only size and clear space may change. Loaded via a plain
+ * <img> from /public rather than next/image's static-import pipeline, which
+ * mishandles this SVG under Turbopack.
+ */
 export function AddToWalletButton({
   eventId,
   className,
@@ -11,15 +15,19 @@ export function AddToWalletButton({
   className?: string;
 }) {
   return (
-    <Button
-      asChild
-      size='sm'
-      className={cn('bg-black text-white hover:bg-black/85', className)}
+    <a
+      href={`/api/wallet/pass/${eventId}`}
+      className={cn(
+        'inline-flex w-fit items-center justify-center rounded-lg transition-opacity hover:opacity-85',
+        className,
+      )}
     >
-      <a href={`/api/wallet/pass/${eventId}`}>
-        <Wallet className='size-4' />
-        Add to Apple Wallet
-      </a>
-    </Button>
+      {/* eslint-disable-next-line @next/next/no-img-element -- fixed-size official brand asset, not a content image */}
+      <img
+        src='/wallet/add-to-apple-wallet.svg'
+        alt='Add to Apple Wallet'
+        className='h-10 w-auto'
+      />
+    </a>
   );
 }

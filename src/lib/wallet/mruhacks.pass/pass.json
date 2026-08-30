@@ -3,45 +3,31 @@
     "passTypeIdentifier": "pass.ca.mruhacks",
     "teamIdentifier": "KSKN8644YV",
     "organizationName": "MRUHacks",
-    "description": "MRUHacks 2026 Participant Pass",
-    "serialNumber": "mruhacks-2026-000001",
+    "description": "MRUHacks Participant Pass",
+    "serialNumber": "mruhacks-000001",
     "logoText": "MRUHacks",
-    "sharingProhibited": true, 
+    "sharingProhibited": true,
     "backgroundColor": "rgb(255,255,255)",
     "foregroundColor": "rgb(0,0,0)",
     "labelColor": "rgb(37,176,251)",
-    "locations": [
-        {
-            "latitude": 51.0122171,
-            "longitude": -114.1302919,
-            "relevantText": "Welcome to MRUHacks! Show this pass at check-in."
-        }
-    ],
-    "relevantDates": [
-        {
-            "startDate": "2026-10-23T09:00:00-06:00",
-            "endDate": "2026-10-25T23:59:59-06:00"
-        }
-    ],
-    "maxDistance": 150,
     "generic": {
         "primaryFields": [
             {
                 "key": "event",
                 "label": "EVENT",
-                "value": "MRUHacks 2026"
+                "value": "MRUHacks"
             }
         ],
         "auxiliaryFields": [
             {
                 "key": "dates",
                 "label": "DATES",
-                "value": "Oct 23–25, 2026"
+                "value": ""
             },
             {
                 "key": "venue",
                 "label": "VENUE",
-                "value": "Riddell Library & Learning Centre"
+                "value": ""
             }
         ],
         "backFields": [

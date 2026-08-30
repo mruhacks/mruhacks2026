@@ -23,3 +23,11 @@ Never surface a form submission's validation/error result as a toast (`sonner`'s
 Toasts are still fine for things that aren't form-submission errors: success confirmations (registered, joined, copied), and simple non-form action failures (e.g. a button-only action like "leave team" or "remove member" that has no input to attach an inline error to).
 
 Why: a toast disappears and doesn't stay anchored to the field that caused the problem, so the user has to remember what went wrong and where to fix it — bad UX for anything the user is actively trying to fill in and resubmit. Inline errors stay visible exactly where the user is looking and next to the control they need to correct.
+
+# New external config gets a health check
+
+Whenever you add a new external dependency — a secret/env var for a third-party service, or a URL the app relies on at runtime (a hosted asset, an API endpoint) — wire it into `src/app/api/health/route.ts`, not just `.env.example`. At minimum, add its env var(s) to `REQUIRED_ENV_VARS` so a missing one shows up in `missingEnv`. Where it's possible to actually verify the thing works (not just that the env var is non-empty), add a dedicated `checkX()` function and a `checks.x` entry too — e.g. `checkTurnstile` posts a bogus token to Cloudflare's siteverify endpoint, `checkGoogleWallet` does a `HEAD` request against the externally-hosted logo URL Google's servers fetch directly.
+
+Never decode, parse, or otherwise load a secret's actual contents (a private key, a certificate) into memory just to answer a health probe — `checkAppleWallet` is presence-only for exactly this reason, since the signer key env var holds private key material and this route has no other reason to ever touch it. A live check is only appropriate when it exercises a public endpoint or a value that isn't sensitive on its own (a public logo URL, an issuer ID).
+
+Why: these are exactly the failure modes that go unnoticed until someone tries the feature — an expired secret, a typo'd env var, a dead CDN link — because nothing else in the app proactively checks them. The health endpoint is the one place already designed to surface that (cached, permission-gated, already polled by uptime tooling), so a new integration that skips it silently breaks with no signal until a user hits it.

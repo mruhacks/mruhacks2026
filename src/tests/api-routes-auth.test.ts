@@ -11,6 +11,11 @@
  *  - /api/health: unauthenticated/under-permissioned callers get only
  *    {status, buildInfo}; the full per-service report requires
  *    system:read:all or a matching x-health-access-key header.
+ *  - /api/wallet/pass/[eventId], /api/wallet/qr/[eventId], and
+ *    /api/wallet/google/[eventId]: session-gated, and only issue a
+ *    pass/code/save-link to a caller who is an approved applicant or a
+ *    registered attendee of that specific (top-level) event — all three
+ *    share the same authorization lookup (src/lib/wallet/participation.ts).
  */
 import {
   describe,
@@ -29,6 +34,10 @@ import {
   genders,
   permission,
   userPermission,
+  events,
+  eventAttendees,
+  eventApplications,
+  applicationStatuses,
 } from '@/db/schema';
 
 vi.mock('@/utils/auth', () => ({ getUser: vi.fn() }));
@@ -50,10 +59,39 @@ vi.mock('@/utils/object-storage', async (importOriginal) => ({
   checkObjectStorageConnection: () => checkObjectStorageConnection(),
 }));
 
+// Pass signing needs real Apple certs (not present in CI), and pass *content*
+// is covered separately in wallet-pass.test.ts — here we only care whether
+// the route decides to call this at all.
+const generateParticipantPass = vi.fn();
+vi.mock('@/lib/wallet/generate-pass', () => ({
+  generateParticipantPass: (...args: unknown[]) =>
+    generateParticipantPass(...args),
+}));
+
+// Check-in signing needs a real secret (not present in CI); same reasoning
+// as generateParticipantPass above.
+const buildCheckInPayload = vi.fn();
+const buildCheckInToken = vi.fn();
+vi.mock('@/lib/wallet/check-in-token', () => ({
+  buildCheckInPayload: (...args: unknown[]) => buildCheckInPayload(...args),
+  buildCheckInToken: (...args: unknown[]) => buildCheckInToken(...args),
+  DEFAULT_QR_TTL_MS: 24 * 60 * 60 * 1000,
+}));
+
+// Needs real Google Wallet Issuer credentials (not present in CI).
+const buildGoogleWalletSaveUrl = vi.fn();
+vi.mock('@/lib/wallet/google/event-ticket', () => ({
+  buildGoogleWalletSaveUrl: (...args: unknown[]) =>
+    buildGoogleWalletSaveUrl(...args),
+}));
+
 import { getUser } from '@/utils/auth';
 import { GET as getAsset } from '@/app/api/assets/[...key]/route';
 import { GET as getResume } from '@/app/api/profile/resume/route';
 import { GET as getHealth } from '@/app/api/health/route';
+import { GET as getWalletPass } from '@/app/api/wallet/pass/[eventId]/route';
+import { GET as getWalletQr } from '@/app/api/wallet/qr/[eventId]/route';
+import { GET as getWalletGoogle } from '@/app/api/wallet/google/[eventId]/route';
 
 const NIL_UUID = '00000000-0000-0000-0000-000000000000';
 const ATTACHMENT_KEY = `event-content/${NIL_UUID}/${NIL_UUID}.png`;
@@ -322,5 +360,420 @@ describe('/api/health GET', () => {
     const body = (await res.json()) as Record<string, unknown>;
     expect(body).toHaveProperty('checks');
     expect(body).toHaveProperty('missingEnv');
+  });
+});
+
+// ─── /api/wallet/pass/[eventId] ─────────────────────────────────────────────
+
+describe('/api/wallet/pass/[eventId] GET', () => {
+  let openEventId: string;
+  let appEventId: string;
+  let childEventId: string;
+  let registeredUserId: string;
+  let unregisteredUserId: string;
+  let approvedUserId: string;
+  let pendingUserId: string;
+  let approvedStatusId: number;
+  let pendingStatusId: number;
+
+  async function statusIdFor(label: string) {
+    const [existing] = await db
+      .select({ id: applicationStatuses.id })
+      .from(applicationStatuses)
+      .where(eq(applicationStatuses.label, label))
+      .limit(1);
+    if (existing) return existing.id;
+    const [inserted] = await db
+      .insert(applicationStatuses)
+      .values({
+        label,
+        title: label,
+        description: label,
+        variant: 'default',
+        isFinal: label !== 'pending_review',
+      })
+      .returning({ id: applicationStatuses.id });
+    return inserted.id;
+  }
+
+  function callRoute(eventId: string) {
+    return getWalletPass(new Request('http://x'), {
+      params: Promise.resolve({ eventId }),
+    });
+  }
+
+  beforeAll(async () => {
+    const [open] = await db
+      .insert(events)
+      .values({ name: 'Wallet Open Event', hasApplication: false })
+      .returning({ id: events.id });
+    openEventId = open.id;
+
+    const [child] = await db
+      .insert(events)
+      .values({
+        name: 'Wallet Open Event Sub-event',
+        hasApplication: false,
+        parentEventId: openEventId,
+      })
+      .returning({ id: events.id });
+    childEventId = child.id;
+
+    const [app] = await db
+      .insert(events)
+      .values({
+        name: 'Wallet Application Event',
+        hasApplication: true,
+        applicationQuestions: [],
+      })
+      .returning({ id: events.id });
+    appEventId = app.id;
+
+    approvedStatusId = await statusIdFor('approved');
+    pendingStatusId = await statusIdFor('pending_review');
+
+    const [registered, unregistered, approved, pending] = await db
+      .insert(user)
+      .values([
+        {
+          name: 'Wallet Registered',
+          email: 'wallet-registered@example.com',
+          emailVerified: true,
+        },
+        {
+          name: 'Wallet Unregistered',
+          email: 'wallet-unregistered@example.com',
+          emailVerified: true,
+        },
+        {
+          name: 'Wallet Approved',
+          email: 'wallet-approved@example.com',
+          emailVerified: true,
+        },
+        {
+          name: 'Wallet Pending',
+          email: 'wallet-pending@example.com',
+          emailVerified: true,
+        },
+      ])
+      .returning({ id: user.id });
+    registeredUserId = registered.id;
+    unregisteredUserId = unregistered.id;
+    approvedUserId = approved.id;
+    pendingUserId = pending.id;
+
+    await db
+      .insert(eventAttendees)
+      .values({ eventId: openEventId, userId: registeredUserId });
+    await db.insert(eventApplications).values([
+      {
+        eventId: appEventId,
+        userId: approvedUserId,
+        statusId: approvedStatusId,
+        responses: {},
+      },
+      {
+        eventId: appEventId,
+        userId: pendingUserId,
+        statusId: pendingStatusId,
+        responses: {},
+      },
+    ]);
+  });
+
+  afterAll(async () => {
+    await db
+      .delete(eventAttendees)
+      .where(eq(eventAttendees.eventId, openEventId));
+    await db
+      .delete(eventApplications)
+      .where(eq(eventApplications.eventId, appEventId));
+    await db.delete(events).where(eq(events.id, childEventId));
+    await db.delete(events).where(eq(events.id, openEventId));
+    await db.delete(events).where(eq(events.id, appEventId));
+    for (const id of [
+      registeredUserId,
+      unregisteredUserId,
+      approvedUserId,
+      pendingUserId,
+    ]) {
+      await db.delete(user).where(eq(user.id, id));
+    }
+  });
+
+  beforeEach(() => {
+    vi.mocked(getUser).mockReset();
+    generateParticipantPass.mockReset();
+    generateParticipantPass.mockResolvedValue(Buffer.from('fake pkpass'));
+  });
+
+  test('rejects an unauthenticated request', async () => {
+    vi.mocked(getUser).mockResolvedValue(null as never);
+    const res = await callRoute(openEventId);
+    expect(res.status).toBe(401);
+    expect(generateParticipantPass).not.toHaveBeenCalled();
+  });
+
+  test('rejects a non-UUID eventId', async () => {
+    vi.mocked(getUser).mockResolvedValue({ id: registeredUserId } as never);
+    const res = await callRoute('not-a-uuid');
+    expect(res.status).toBe(404);
+    expect(generateParticipantPass).not.toHaveBeenCalled();
+  });
+
+  test('rejects a nonexistent event', async () => {
+    vi.mocked(getUser).mockResolvedValue({ id: registeredUserId } as never);
+    const res = await callRoute('00000000-0000-0000-0000-000000000000');
+    expect(res.status).toBe(404);
+    expect(generateParticipantPass).not.toHaveBeenCalled();
+  });
+
+  test('rejects a sub-event (only top-level events issue passes)', async () => {
+    vi.mocked(getUser).mockResolvedValue({ id: registeredUserId } as never);
+    const res = await callRoute(childEventId);
+    expect(res.status).toBe(404);
+    expect(generateParticipantPass).not.toHaveBeenCalled();
+  });
+
+  test('rejects a caller who never registered or applied', async () => {
+    vi.mocked(getUser).mockResolvedValue({ id: unregisteredUserId } as never);
+    const res = await callRoute(openEventId);
+    expect(res.status).toBe(403);
+    expect(generateParticipantPass).not.toHaveBeenCalled();
+  });
+
+  test('rejects a caller with only a pending (not approved) application', async () => {
+    vi.mocked(getUser).mockResolvedValue({ id: pendingUserId } as never);
+    const res = await callRoute(appEventId);
+    expect(res.status).toBe(403);
+    expect(generateParticipantPass).not.toHaveBeenCalled();
+  });
+
+  test('rejects a registered attendee of one event requesting a different event', async () => {
+    vi.mocked(getUser).mockResolvedValue({ id: registeredUserId } as never);
+    const res = await callRoute(appEventId);
+    expect(res.status).toBe(403);
+    expect(generateParticipantPass).not.toHaveBeenCalled();
+  });
+
+  test('issues a pass to a registered attendee', async () => {
+    vi.mocked(getUser).mockResolvedValue({
+      id: registeredUserId,
+      name: 'Wallet Registered',
+    } as never);
+    const res = await callRoute(openEventId);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toBe(
+      'application/vnd.apple.pkpass',
+    );
+    expect(generateParticipantPass).toHaveBeenCalledTimes(1);
+    expect(generateParticipantPass).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventId: openEventId,
+        userId: registeredUserId,
+      }),
+    );
+  });
+
+  test('issues a pass to an approved applicant', async () => {
+    vi.mocked(getUser).mockResolvedValue({
+      id: approvedUserId,
+      name: 'Wallet Approved',
+    } as never);
+    const res = await callRoute(appEventId);
+    expect(res.status).toBe(200);
+    expect(generateParticipantPass).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ─── /api/wallet/qr/[eventId] ───────────────────────────────────────────────
+
+describe('/api/wallet/qr/[eventId] GET', () => {
+  let openEventId: string;
+  let registeredUserId: string;
+  let unregisteredUserId: string;
+
+  function callRoute(eventId: string) {
+    return getWalletQr(new Request('http://x'), {
+      params: Promise.resolve({ eventId }),
+    });
+  }
+
+  beforeAll(async () => {
+    const [open] = await db
+      .insert(events)
+      .values({ name: 'Wallet QR Open Event', hasApplication: false })
+      .returning({ id: events.id });
+    openEventId = open.id;
+
+    const [registered, unregistered] = await db
+      .insert(user)
+      .values([
+        {
+          name: 'Wallet QR Registered',
+          email: 'wallet-qr-registered@example.com',
+          emailVerified: true,
+        },
+        {
+          name: 'Wallet QR Unregistered',
+          email: 'wallet-qr-unregistered@example.com',
+          emailVerified: true,
+        },
+      ])
+      .returning({ id: user.id });
+    registeredUserId = registered.id;
+    unregisteredUserId = unregistered.id;
+
+    await db
+      .insert(eventAttendees)
+      .values({ eventId: openEventId, userId: registeredUserId });
+  });
+
+  afterAll(async () => {
+    await db
+      .delete(eventAttendees)
+      .where(eq(eventAttendees.eventId, openEventId));
+    await db.delete(events).where(eq(events.id, openEventId));
+    await db.delete(user).where(eq(user.id, registeredUserId));
+    await db.delete(user).where(eq(user.id, unregisteredUserId));
+  });
+
+  beforeEach(() => {
+    vi.mocked(getUser).mockReset();
+    buildCheckInToken.mockReset();
+    buildCheckInToken.mockReturnValue(Buffer.from('fake-check-in-token'));
+  });
+
+  test('rejects an unauthenticated request', async () => {
+    vi.mocked(getUser).mockResolvedValue(null as never);
+    const res = await callRoute(openEventId);
+    expect(res.status).toBe(401);
+    expect(buildCheckInToken).not.toHaveBeenCalled();
+  });
+
+  test('rejects a caller who never registered', async () => {
+    vi.mocked(getUser).mockResolvedValue({ id: unregisteredUserId } as never);
+    const res = await callRoute(openEventId);
+    expect(res.status).toBe(403);
+    expect(buildCheckInToken).not.toHaveBeenCalled();
+  });
+
+  test('rejects a nonexistent event', async () => {
+    vi.mocked(getUser).mockResolvedValue({ id: registeredUserId } as never);
+    const res = await callRoute('00000000-0000-0000-0000-000000000000');
+    expect(res.status).toBe(404);
+    expect(buildCheckInToken).not.toHaveBeenCalled();
+  });
+
+  test('returns an SVG QR code for a registered attendee, using the same token as the pass', async () => {
+    vi.mocked(getUser).mockResolvedValue({ id: registeredUserId } as never);
+    const res = await callRoute(openEventId);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toBe('image/svg+xml');
+    expect(buildCheckInToken).toHaveBeenCalledWith(
+      openEventId,
+      registeredUserId,
+      undefined,
+      expect.any(Date),
+    );
+    const body = await res.text();
+    expect(body).toContain('<svg');
+  });
+});
+
+// ─── /api/wallet/google/[eventId] ───────────────────────────────────────────
+
+describe('/api/wallet/google/[eventId] GET', () => {
+  let openEventId: string;
+  let registeredUserId: string;
+  let unregisteredUserId: string;
+
+  function callRoute(eventId: string) {
+    return getWalletGoogle(new Request('http://x'), {
+      params: Promise.resolve({ eventId }),
+    });
+  }
+
+  beforeAll(async () => {
+    const [open] = await db
+      .insert(events)
+      .values({ name: 'Wallet Google Open Event', hasApplication: false })
+      .returning({ id: events.id });
+    openEventId = open.id;
+
+    const [registered, unregistered] = await db
+      .insert(user)
+      .values([
+        {
+          name: 'Wallet Google Registered',
+          email: 'wallet-google-registered@example.com',
+          emailVerified: true,
+        },
+        {
+          name: 'Wallet Google Unregistered',
+          email: 'wallet-google-unregistered@example.com',
+          emailVerified: true,
+        },
+      ])
+      .returning({ id: user.id });
+    registeredUserId = registered.id;
+    unregisteredUserId = unregistered.id;
+
+    await db
+      .insert(eventAttendees)
+      .values({ eventId: openEventId, userId: registeredUserId });
+  });
+
+  afterAll(async () => {
+    await db
+      .delete(eventAttendees)
+      .where(eq(eventAttendees.eventId, openEventId));
+    await db.delete(events).where(eq(events.id, openEventId));
+    await db.delete(user).where(eq(user.id, registeredUserId));
+    await db.delete(user).where(eq(user.id, unregisteredUserId));
+  });
+
+  beforeEach(() => {
+    vi.mocked(getUser).mockReset();
+    buildGoogleWalletSaveUrl.mockReset();
+    buildGoogleWalletSaveUrl.mockResolvedValue(
+      'https://pay.google.com/gp/v/save/fake-jwt',
+    );
+  });
+
+  test('rejects an unauthenticated request', async () => {
+    vi.mocked(getUser).mockResolvedValue(null as never);
+    const res = await callRoute(openEventId);
+    expect(res.status).toBe(401);
+    expect(buildGoogleWalletSaveUrl).not.toHaveBeenCalled();
+  });
+
+  test('rejects a caller who never registered', async () => {
+    vi.mocked(getUser).mockResolvedValue({ id: unregisteredUserId } as never);
+    const res = await callRoute(openEventId);
+    expect(res.status).toBe(403);
+    expect(buildGoogleWalletSaveUrl).not.toHaveBeenCalled();
+  });
+
+  test('rejects a nonexistent event', async () => {
+    vi.mocked(getUser).mockResolvedValue({ id: registeredUserId } as never);
+    const res = await callRoute('00000000-0000-0000-0000-000000000000');
+    expect(res.status).toBe(404);
+    expect(buildGoogleWalletSaveUrl).not.toHaveBeenCalled();
+  });
+
+  test('redirects a registered attendee to the Google Wallet save link', async () => {
+    vi.mocked(getUser).mockResolvedValue({ id: registeredUserId } as never);
+    const res = await callRoute(openEventId);
+    expect(res.status).toBe(302);
+    expect(res.headers.get('location')).toBe(
+      'https://pay.google.com/gp/v/save/fake-jwt',
+    );
+    expect(buildGoogleWalletSaveUrl).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventId: openEventId,
+        userId: registeredUserId,
+      }),
+    );
   });
 });

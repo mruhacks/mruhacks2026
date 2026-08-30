@@ -152,6 +152,43 @@ describe('createEvent', () => {
     });
     expect(result.success).toBe(false);
   });
+
+  test('rejects a partial geofence (latitude without longitude/radius)', async () => {
+    const result = await createEvent({
+      name: 'Partial Geofence Event',
+      hasApplication: false,
+      latitude: 51.0122171,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  test('accepts a full geofence and persists it', async () => {
+    const result = await createEvent({
+      name: 'Full Geofence Event',
+      hasApplication: false,
+      latitude: 51.0122171,
+      longitude: -114.1302919,
+      radiusMeters: 150,
+    });
+    expect(result.success).toBe(true);
+    if (!result.success) throw new Error((result as { error: string }).error);
+
+    const [row] = await db
+      .select({
+        latitude: events.latitude,
+        longitude: events.longitude,
+        radiusMeters: events.radiusMeters,
+      })
+      .from(events)
+      .where(eq(events.id, result.data!.id));
+    expect(row).toEqual({
+      latitude: 51.0122171,
+      longitude: -114.1302919,
+      radiusMeters: 150,
+    });
+
+    await db.delete(events).where(eq(events.id, result.data!.id));
+  });
 });
 describe('getEventWithQuestions', () => {
   test('returns error when not authenticated', async () => {
@@ -546,6 +583,41 @@ describe('updateEventSettings', () => {
       endsAt: '2026-01-01T12:00',
     });
     expect(result.success).toBe(false);
+  });
+
+  test('rejects setting only radiusMeters when lat/long are unset', async () => {
+    const result = await updateEventSettings(testEventId, {
+      radiusMeters: 150,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  test('sets a full geofence, then allows a partial update touching only radius', async () => {
+    const full = await updateEventSettings(testEventId, {
+      latitude: 51.0122171,
+      longitude: -114.1302919,
+      radiusMeters: 150,
+    });
+    expect(full.success).toBe(true);
+
+    const partial = await updateEventSettings(testEventId, {
+      radiusMeters: 200,
+    });
+    expect(partial.success).toBe(true);
+
+    const [row] = await db
+      .select({
+        latitude: events.latitude,
+        longitude: events.longitude,
+        radiusMeters: events.radiusMeters,
+      })
+      .from(events)
+      .where(eq(events.id, testEventId));
+    expect(row).toEqual({
+      latitude: 51.0122171,
+      longitude: -114.1302919,
+      radiusMeters: 200,
+    });
   });
 });
 
