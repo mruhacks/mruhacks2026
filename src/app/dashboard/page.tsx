@@ -185,37 +185,6 @@ async function Greeting() {
   return <>Welcome back{firstName ? `, ${firstName}` : ''}</>;
 }
 
-const QUICK_LINKS = ['Discord', 'Venue map', 'Schedule', 'Help desk'];
-
-const RESOURCES = [
-  {
-    title: 'Getting started guide',
-    sub: 'Setup, accounts & the basics',
-    color: 'var(--tint-cyan)',
-  },
-  {
-    title: 'Rules & judging criteria',
-    sub: 'How projects are scored',
-    color: 'var(--tint-orange)',
-  },
-  {
-    title: 'Code of conduct',
-    sub: 'Keeping MRUHacks safe & kind',
-    color: 'var(--tint-lavender)',
-  },
-];
-
-const tile: React.CSSProperties = {
-  background: 'var(--white)',
-  border: 'var(--border-hairline)',
-  borderRadius: 'var(--radius-md)',
-  padding: '18px 20px',
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '14px',
-  boxShadow: 'var(--shadow-card)',
-};
-
 function EventsSkeleton() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -234,109 +203,15 @@ function EventsSkeleton() {
   );
 }
 
-// Fetches events once and renders both the "My events" list and the rail
-// (quick links / resources) that depends on it, all behind one Suspense
+// Fetches events and renders the "My events" list behind its own Suspense
 // boundary so the page shell above ships immediately.
 async function DashboardEvents() {
   const events = await getEventsWithUserStatus();
 
   return (
-    <div className='grid gap-6 lg:grid-cols-[1.55fr_1fr]'>
-      {/* Events list */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-        <SectionEyebrow color='var(--black)'>My events</SectionEyebrow>
-        <EventTileList events={events} />
-      </div>
-
-      {/* Rail */}
-      <aside style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-        {/* Quick links */}
-        <div style={tile}>
-          <SectionEyebrow color='var(--pink)'>Quick links</SectionEyebrow>
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
-              gap: '10px',
-            }}
-          >
-            {QUICK_LINKS.map((l) => (
-              <a
-                key={l}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  padding: '13px 14px',
-                  borderRadius: 'var(--radius-card)',
-                  background: 'var(--ink-050)',
-                  fontFamily: 'var(--font-ui)',
-                  fontWeight: 'var(--fw-semibold)',
-                  fontSize: '14px',
-                  color: 'var(--black)',
-                  textDecoration: 'none',
-                  cursor: 'pointer',
-                }}
-              >
-                {l}
-              </a>
-            ))}
-          </div>
-        </div>
-
-        {/* Resources / wiki */}
-        <div style={tile}>
-          <SectionEyebrow color='var(--ultramarine)'>
-            Wiki &amp; resources
-          </SectionEyebrow>
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            {RESOURCES.map((w, i) => (
-              <div
-                key={w.title}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '12px',
-                  padding: '11px 0',
-                  borderTop: i === 0 ? 'none' : 'var(--border-hairline)',
-                  cursor: 'pointer',
-                }}
-              >
-                <span
-                  style={{
-                    width: '30px',
-                    height: '30px',
-                    borderRadius: '8px',
-                    background: w.color,
-                    flexShrink: 0,
-                  }}
-                />
-                <div>
-                  <p
-                    style={{
-                      fontFamily: 'var(--font-ui)',
-                      fontWeight: 'var(--fw-semibold)',
-                      fontSize: '14px',
-                      color: 'var(--black)',
-                      margin: 0,
-                    }}
-                  >
-                    {w.title}
-                  </p>
-                  <p
-                    style={{
-                      fontSize: '12px',
-                      color: 'var(--ink-500)',
-                      margin: 0,
-                    }}
-                  >
-                    {w.sub}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </aside>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      <SectionEyebrow color='var(--black)'>My events</SectionEyebrow>
+      <EventTileList events={events} />
     </div>
   );
 }
