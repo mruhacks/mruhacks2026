@@ -358,9 +358,7 @@ export default function EventOverviewPage({ params }: EventOverviewPageProps) {
                     {...register('location')}
                     placeholder='e.g. Riddell Library & Learning Centre'
                   />
-                  {errors.location && (
-                    <FieldError errors={[errors.location]} />
-                  )}
+                  {errors.location && <FieldError errors={[errors.location]} />}
                 </Field>
 
                 {/* Geofence (lat/long/radius) */}
@@ -369,8 +367,8 @@ export default function EventOverviewPage({ params }: EventOverviewPageProps) {
                     Pass geofence (optional)
                   </FieldLabel>
                   <FieldDescription>
-                    Triggers the Apple Wallet pass when nearby. Set all
-                    three, or leave all blank.
+                    Triggers the Apple Wallet pass when nearby. Set all three,
+                    or leave all blank.
                   </FieldDescription>
                   <div className='grid grid-cols-3 gap-2'>
                     <Input
@@ -403,9 +401,7 @@ export default function EventOverviewPage({ params }: EventOverviewPageProps) {
                       placeholder='Radius (m)'
                     />
                   </div>
-                  {errors.latitude && (
-                    <FieldError errors={[errors.latitude]} />
-                  )}
+                  {errors.latitude && <FieldError errors={[errors.latitude]} />}
                   {errors.longitude && (
                     <FieldError errors={[errors.longitude]} />
                   )}

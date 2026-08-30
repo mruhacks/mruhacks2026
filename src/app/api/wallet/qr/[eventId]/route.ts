@@ -4,7 +4,11 @@ import {
   buildCheckInToken,
   DEFAULT_QR_TTL_MS,
 } from '@/lib/wallet/check-in-token';
-import { getEventParticipation } from '@/lib/wallet/participation';
+import {
+  getEventParticipation,
+  resolveParticipantName,
+} from '@/lib/wallet/participation';
+import { checkWalletRateLimit } from '@/lib/wallet/rate-limit';
 import { getUser } from '@/utils/auth';
 
 /**
@@ -21,12 +25,14 @@ export async function GET(
 ) {
   const user = await getUser();
   if (!user) return new Response('Unauthorized', { status: 401 });
+  if (!(await checkWalletRateLimit(user.id))) {
+    return new Response('Too Many Requests', { status: 429 });
+  }
 
   const { eventId } = await params;
   const participation = await getEventParticipation(eventId, user.id);
-  if (!participation) return new Response('Not found', { status: 404 });
-  if (!participation.isParticipant) {
-    return new Response('Forbidden', { status: 403 });
+  if (!participation || !participation.isParticipant) {
+    return new Response('Not found', { status: 404 });
   }
 
   try {
@@ -35,7 +41,7 @@ export async function GET(
     const token = buildCheckInToken(
       eventId,
       user.id,
-      participation.fullName ?? user.name,
+      resolveParticipantName(participation.fullName, user.name),
       expiresAt,
     );
     const svg = await QRCode.toString([{ data: token, mode: 'byte' }], {

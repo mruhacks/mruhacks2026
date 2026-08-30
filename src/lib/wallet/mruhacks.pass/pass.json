@@ -1,41 +1,41 @@
 {
-    "formatVersion": 1,
-    "passTypeIdentifier": "pass.ca.mruhacks",
-    "teamIdentifier": "KSKN8644YV",
-    "organizationName": "MRUHacks",
-    "description": "MRUHacks Participant Pass",
-    "serialNumber": "mruhacks-000001",
-    "logoText": "MRUHacks",
-    "sharingProhibited": true,
-    "backgroundColor": "rgb(255,255,255)",
-    "foregroundColor": "rgb(0,0,0)",
-    "labelColor": "rgb(37,176,251)",
-    "generic": {
-        "primaryFields": [
-            {
-                "key": "event",
-                "label": "EVENT",
-                "value": "MRUHacks"
-            }
-        ],
-        "auxiliaryFields": [
-            {
-                "key": "dates",
-                "label": "DATES",
-                "value": ""
-            },
-            {
-                "key": "venue",
-                "label": "VENUE",
-                "value": ""
-            }
-        ],
-        "backFields": [
-            {
-                "key": "terms",
-                "label": "TERMS",
-                "value": "This pass is non-transferable and must be presented with valid photo ID at check-in. Powered by MRUHacks, sponsored by Arcurve."
-            }
-        ]
-    }
+  "formatVersion": 1,
+  "passTypeIdentifier": "pass.ca.mruhacks",
+  "teamIdentifier": "KSKN8644YV",
+  "organizationName": "MRUHacks",
+  "description": "MRUHacks Participant Pass",
+  "serialNumber": "mruhacks-000001",
+  "logoText": "MRUHacks",
+  "sharingProhibited": true,
+  "backgroundColor": "rgb(255,255,255)",
+  "foregroundColor": "rgb(0,0,0)",
+  "labelColor": "rgb(37,176,251)",
+  "generic": {
+    "primaryFields": [
+      {
+        "key": "event",
+        "label": "EVENT",
+        "value": "MRUHacks"
+      }
+    ],
+    "auxiliaryFields": [
+      {
+        "key": "dates",
+        "label": "DATES",
+        "value": ""
+      },
+      {
+        "key": "venue",
+        "label": "VENUE",
+        "value": ""
+      }
+    ],
+    "backFields": [
+      {
+        "key": "terms",
+        "label": "TERMS",
+        "value": "This pass is non-transferable and must be presented with valid photo ID at check-in. Powered by MRUHacks, sponsored by Arcurve."
+      }
+    ]
+  }
 }

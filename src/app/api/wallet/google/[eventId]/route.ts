@@ -3,7 +3,11 @@ import {
   DEFAULT_QR_TTL_MS,
 } from '@/lib/wallet/check-in-token';
 import { buildGoogleWalletSaveUrl } from '@/lib/wallet/google/event-ticket';
-import { getEventParticipation } from '@/lib/wallet/participation';
+import {
+  getEventParticipation,
+  resolveParticipantName,
+} from '@/lib/wallet/participation';
+import { checkWalletRateLimit } from '@/lib/wallet/rate-limit';
 import { getUser } from '@/utils/auth';
 
 /**
@@ -16,18 +20,20 @@ export async function GET(
 ) {
   const user = await getUser();
   if (!user) return new Response('Unauthorized', { status: 401 });
+  if (!(await checkWalletRateLimit(user.id))) {
+    return new Response('Too Many Requests', { status: 429 });
+  }
 
   const { eventId } = await params;
   const participation = await getEventParticipation(eventId, user.id);
-  if (!participation) return new Response('Not found', { status: 404 });
-  if (!participation.isParticipant) {
-    return new Response('Forbidden', { status: 403 });
+  if (!participation || !participation.isParticipant) {
+    return new Response('Not found', { status: 404 });
   }
 
   try {
     const expiresAt =
       participation.endsAt ?? new Date(Date.now() + DEFAULT_QR_TTL_MS);
-    const name = participation.fullName ?? user.name;
+    const name = resolveParticipantName(participation.fullName, user.name);
     const checkInPayload = buildCheckInPayload(
       eventId,
       user.id,

@@ -1,8 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import {
-  formatDateRange,
-  setFieldByKey,
-} from '@/lib/wallet/generate-pass';
+import { formatDateRange, setFieldByKey } from '@/lib/wallet/generate-pass';
+import { resolveParticipantName } from '@/lib/wallet/participation';
 
 describe('formatDateRange', () => {
   it('returns null when neither date is set', () => {
@@ -66,5 +64,23 @@ describe('setFieldByKey', () => {
     expect(fields).toEqual([
       { key: 'dates', label: 'DATES', value: 'placeholder' },
     ]);
+  });
+});
+
+describe('resolveParticipantName', () => {
+  it('prefers the profile full name when set', () => {
+    expect(resolveParticipantName('Jane Doe', 'jdoe')).toBe('Jane Doe');
+  });
+
+  it('falls back to the account name when there is no profile', () => {
+    expect(resolveParticipantName(null, 'jdoe')).toBe('jdoe');
+  });
+
+  it('falls back to the account name when the profile name is empty', () => {
+    expect(resolveParticipantName('', 'jdoe')).toBe('jdoe');
+  });
+
+  it('falls back to a generic label when neither name is set', () => {
+    expect(resolveParticipantName(null, '')).toBe('Participant');
   });
 });

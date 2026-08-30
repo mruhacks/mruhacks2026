@@ -9,7 +9,11 @@ import {
   events,
   userProfiles,
 } from '@/db/schema';
+import type { ApplicationStatus } from '@/types/lookups';
 import { db } from '@/utils/db';
+
+/** Typed against the same enum the dashboard uses, rather than a bare string. */
+const APPROVED_STATUS: ApplicationStatus = 'approved';
 
 export const EVENT_ID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -88,6 +92,14 @@ export async function getEventParticipation(
     radiusMeters: row.radiusMeters,
     fullName: row.fullName,
     isParticipant:
-      row.statusLabel === 'approved' || row.attendeeUserId !== null,
+      row.statusLabel === APPROVED_STATUS || row.attendeeUserId !== null,
   };
+}
+
+/** The wallet routes' shared name fallback: profile name, then account name, then a generic label — never undefined. */
+export function resolveParticipantName(
+  fullName: string | null,
+  accountName: string,
+): string {
+  return fullName || accountName || 'Participant';
 }

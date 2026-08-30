@@ -101,6 +101,12 @@ const nextConfig: NextConfig = {
       { protocol: 'https', hostname: 'lh3.googleusercontent.com' },
     ],
   },
+  // `generate-pass.ts` loads the .pass model directory via `process.cwd()`
+  // at runtime rather than a static import, so the build's file tracer has
+  // no `import`/`require` to see and won't bundle it on its own. This is
+  // the mechanism Next's own docs recommend for exactly that case (see
+  // node_modules/next/dist/docs/.../output.md's outputFileTracingIncludes
+  // section) — not a workaround for a missing feature.
   outputFileTracingIncludes: {
     '/api/wallet/pass/[eventId]': ['./src/lib/wallet/mruhacks.pass/**'],
   },
