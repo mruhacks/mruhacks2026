@@ -538,21 +538,21 @@ describe('/api/wallet/pass/[eventId] GET', () => {
   test('rejects a caller who never registered or applied', async () => {
     vi.mocked(getUser).mockResolvedValue({ id: unregisteredUserId } as never);
     const res = await callRoute(openEventId);
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(404);
     expect(generateParticipantPass).not.toHaveBeenCalled();
   });
 
   test('rejects a caller with only a pending (not approved) application', async () => {
     vi.mocked(getUser).mockResolvedValue({ id: pendingUserId } as never);
     const res = await callRoute(appEventId);
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(404);
     expect(generateParticipantPass).not.toHaveBeenCalled();
   });
 
   test('rejects a registered attendee of one event requesting a different event', async () => {
     vi.mocked(getUser).mockResolvedValue({ id: registeredUserId } as never);
     const res = await callRoute(appEventId);
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(404);
     expect(generateParticipantPass).not.toHaveBeenCalled();
   });
 
@@ -654,7 +654,7 @@ describe('/api/wallet/qr/[eventId] GET', () => {
   test('rejects a caller who never registered', async () => {
     vi.mocked(getUser).mockResolvedValue({ id: unregisteredUserId } as never);
     const res = await callRoute(openEventId);
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(404);
     expect(buildCheckInToken).not.toHaveBeenCalled();
   });
 
@@ -673,7 +673,7 @@ describe('/api/wallet/qr/[eventId] GET', () => {
     expect(buildCheckInToken).toHaveBeenCalledWith(
       openEventId,
       registeredUserId,
-      undefined,
+      'Participant',
       expect.any(Date),
     );
     const body = await res.text();
@@ -751,7 +751,7 @@ describe('/api/wallet/google/[eventId] GET', () => {
   test('rejects a caller who never registered', async () => {
     vi.mocked(getUser).mockResolvedValue({ id: unregisteredUserId } as never);
     const res = await callRoute(openEventId);
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(404);
     expect(buildGoogleWalletSaveUrl).not.toHaveBeenCalled();
   });
 

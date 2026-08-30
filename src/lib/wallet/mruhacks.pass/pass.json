@@ -29,13 +29,6 @@
         "label": "VENUE",
         "value": ""
       }
-    ],
-    "backFields": [
-      {
-        "key": "terms",
-        "label": "TERMS",
-        "value": "This pass is non-transferable and must be presented with valid photo ID at check-in. Powered by MRUHacks, sponsored by Arcurve."
-      }
     ]
   }
 }
