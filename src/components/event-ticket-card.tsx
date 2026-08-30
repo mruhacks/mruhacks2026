@@ -13,15 +13,12 @@ export function EventTicketCard({
   dateRangeLabel,
   location,
   participantName,
-  cacheBust,
 }: {
   eventId: string;
   eventName: string;
   dateRangeLabel: string | null;
   location: string | null;
   participantName: string;
-  /** A per-view unique value (e.g. Date.now() from the caller) to bust any client-side caching of the QR image. */
-  cacheBust: number;
 }) {
   const subtitle = [dateRangeLabel, location].filter(Boolean).join(' · ');
 
@@ -42,7 +39,7 @@ export function EventTicketCard({
 
       {/* eslint-disable-next-line @next/next/no-img-element -- dynamically generated, uncacheable SVG; not eligible for next/image optimization */}
       <img
-        src={`/api/wallet/qr/${eventId}?t=${cacheBust}`}
+        src={`/api/wallet/qr/${eventId}`}
         alt='Check-in QR code'
         className='size-64'
       />
