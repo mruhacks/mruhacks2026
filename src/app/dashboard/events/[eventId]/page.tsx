@@ -294,7 +294,6 @@ function WalletAction({
     return <AddToWalletButton eventId={eventId} />;
   if (walletPlatform === 'google')
     return <AddToGoogleWalletButton eventId={eventId} />;
-  return <EventTicketButton eventId={eventId} />;
 }
 
 function ApplicationParticipationPanel({
@@ -319,8 +318,9 @@ function ApplicationParticipationPanel({
           />
         </CardContent>
         {applicationStatus.statusKey === 'approved' && (
-          <CardFooter>
+          <CardFooter className='flex flex-row gap-2'>
             <WalletAction eventId={eventId} walletPlatform={walletPlatform} />
+            <EventTicketButton eventId={eventId} />
           </CardFooter>
         )}
       </Card>
@@ -369,7 +369,10 @@ function RegistrationParticipationPanel({
           </CardDescription>
         </CardHeader>
         <CardFooter className='flex-col gap-2'>
-          <WalletAction eventId={eventId} walletPlatform={walletPlatform} />
+          <div className='flex flex-row gap-2'>
+            <WalletAction eventId={eventId} walletPlatform={walletPlatform} />
+            <EventTicketButton eventId={eventId} />
+          </div>
           <p className='text-muted-foreground text-center text-xs'>
             Tip: add your pass on your phone for faster check-in.
           </p>
