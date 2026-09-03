@@ -225,6 +225,13 @@
       "when": 1787936015171,
       "tag": "0031_split_user_profile_about",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1788460371813,
+      "tag": "0032_chubby_doctor_strange",
+      "breakpoints": true
     }
   ]
 }
