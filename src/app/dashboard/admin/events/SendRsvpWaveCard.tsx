@@ -36,17 +36,23 @@ export function SendRsvpWaveCard({ eventId, hasApplication }: Props) {
         toast.error(result.error || 'Failed to send RSVP wave');
         return;
       }
+      if (!result.data) {
+        toast.error('Failed to send RSVP wave');
+        return;
+      }
 
       const data = result.data;
       const failureNote =
-        data.emailFailures.length > 0
-          ? ` (${data.emailFailures.length} email failure${data.emailFailures.length === 1 ? '' : 's'})`
+        data.queueFailures.length > 0
+          ? ` (${data.queueFailures.length} queue failure${data.queueFailures.length === 1 ? '' : 's'})`
           : '';
 
       toast.success(
-        `Wave ${data.waveNumber}: ${data.responsesCreated} invite${data.responsesCreated === 1 ? '' : 's'} created, ${data.emailsSent} email${data.emailsSent === 1 ? '' : 's'} sent${failureNote}.`,
+        `Wave ${data.waveNumber} created, ${data.invitationsQueued} invitation${data.invitationsQueued === 1 ? '' : 's'} queued${failureNote}.`,
       );
       setRespondBy('');
+    } catch {
+      toast.error('Failed to send RSVP wave');
     } finally {
       setIsSubmitting(false);
     }

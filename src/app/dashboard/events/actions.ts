@@ -15,7 +15,6 @@ import {
   eventAttendees,
   eventInterestRegistrations,
   applicationFormView,
-  eventRsvpWaves,
   eventRsvpResponses,
   rsvpStatuses,
   genders,
@@ -41,6 +40,7 @@ import { cacheLife, revalidatePath } from 'next/cache';
 import { and, count, desc, eq, isNotNull } from 'drizzle-orm';
 import { getUserProfile } from '@/app/dashboard/profile/actions';
 import { resolveEffectiveRsvpStatus } from '@/lib/rsvp/effective-rsvp-status';
+import { findLatestRsvpResponse, findLatestRsvpResponses } from '@/lib/rsvp/latest-rsvp-response';
 import { buildApplicationResponses } from './application-responses';
 import {
   type ApplicationStatusLabel,
@@ -390,27 +390,10 @@ export async function getUserRsvpStatus(
   const user = await getUser();
   if (!user) return null;
 
-  const [row] = await db
-    .select({
-      responseId: eventRsvpResponses.id,
-      statusLabel: rsvpStatuses.label,
-      respondBy: eventRsvpWaves.respondBy,
-      respondedAt: eventRsvpResponses.respondedAt,
-    })
-    .from(eventRsvpResponses)
-    .innerJoin(
-      eventRsvpWaves,
-      eq(eventRsvpResponses.rsvpWaveId, eventRsvpWaves.id),
-    )
-    .leftJoin(rsvpStatuses, eq(eventRsvpResponses.statusId, rsvpStatuses.id))
-    .where(
-      and(
-        eq(eventRsvpResponses.userId, user.id),
-        eq(eventRsvpWaves.eventId, eventId),
-      ),
-    )
-    .orderBy(desc(eventRsvpWaves.wave))
-    .limit(1);
+  const row = await findLatestRsvpResponse({
+    userId: user.id,
+    eventId,
+  });
   if (!row) return null;
   const statusLabel = resolveEffectiveRsvpStatus(
     row.statusLabel,
@@ -425,6 +408,13 @@ export async function getUserRsvpStatus(
 
 const EVENT_AT_CAPACITY_MESSAGE =
   'This event is at capacity. Your RSVP could not be accepted.';
+
+const RSVP_USER_DECISIONS = ['accepted', 'declined'] as const;
+type RsvpUserDecision = (typeof RSVP_USER_DECISIONS)[number];
+
+function isRsvpUserDecision(value: string): value is RsvpUserDecision {
+  return (RSVP_USER_DECISIONS as readonly string[]).includes(value);
+}
 
 class RsvpAcceptError extends Error {
   constructor(message: string) {
@@ -451,28 +441,14 @@ export async function submitRsvpResponse(
 ): Promise<ActionResult> {
   const user = await getUser();
   if (!user) return fail('User not authenticated');
+  if (!isRsvpUserDecision(decision)) {
+    return fail('Invalid RSVP decision.');
+  }
 
-  const [row] = await db
-    .select({
-      responseId: eventRsvpResponses.id,
-      statusId: eventRsvpResponses.statusId,
-      statusLabel: rsvpStatuses.label,
-      respondBy: eventRsvpWaves.respondBy,
-    })
-    .from(eventRsvpResponses)
-    .innerJoin(
-      eventRsvpWaves,
-      eq(eventRsvpResponses.rsvpWaveId, eventRsvpWaves.id),
-    )
-    .leftJoin(rsvpStatuses, eq(eventRsvpResponses.statusId, rsvpStatuses.id))
-    .where(
-      and(
-        eq(eventRsvpResponses.userId, user.id),
-        eq(eventRsvpWaves.eventId, eventId),
-      ),
-    )
-    .orderBy(desc(eventRsvpWaves.wave))
-    .limit(1);
+  const row = await findLatestRsvpResponse({
+    userId: user.id,
+    eventId,
+  });
 
   if (!row) return fail('No RSVP invitation found.');
   if (row.statusId == null) return fail('RSVP statuses are not configured.');
@@ -644,38 +620,16 @@ export async function getEventsWithUserStatus(): Promise<
       .select({ eventId: eventAttendees.eventId })
       .from(eventAttendees)
       .where(eq(eventAttendees.userId, user.id)),
-    db
-      .select({
-        eventId: eventRsvpWaves.eventId,
-        statusLabel: rsvpStatuses.label,
-        respondBy: eventRsvpWaves.respondBy,
-      })
-      .from(eventRsvpResponses)
-      .innerJoin(
-        eventRsvpWaves,
-        eq(eventRsvpResponses.rsvpWaveId, eventRsvpWaves.id),
-      )
-      .leftJoin(rsvpStatuses, eq(eventRsvpResponses.statusId, rsvpStatuses.id))
-      .where(eq(eventRsvpResponses.userId, user.id))
-      .orderBy(desc(eventRsvpWaves.wave)),
+    findLatestRsvpResponses({ userId: user.id }),
   ]);
 
   const registeredSet = new Set(attendeeEventIds.map((r) => r.eventId));
   const statusByEventId = new Map(
     applicationRows.map((r) => [r.eventId, r] as const),
   );
-  const rsvpByEventId = new Map<
-    string,
-    { statusLabel: string | null; respondBy: Date | null }
-  >();
-  for (const row of rsvpRows) {
-    if (!rsvpByEventId.has(row.eventId)) {
-      rsvpByEventId.set(row.eventId, {
-        statusLabel: row.statusLabel,
-        respondBy: row.respondBy,
-      });
-    }
-  }
+  const rsvpByEventId = new Map(
+    rsvpRows.map((row) => [row.eventId, row] as const),
+  );
   const [displayMap, rsvpDisplayMap] = await Promise.all([
     getApplicationStatusDisplayMap(),
     getRsvpStatusDisplayMap(),

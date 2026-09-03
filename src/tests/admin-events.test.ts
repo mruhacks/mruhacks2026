@@ -612,8 +612,8 @@ describe('sendEventRsvpWave', () => {
       },
       eligibleApplicantCount: 3,
       responsesCreated: 3,
-      emailsSent: 2,
-      emailFailures: [
+      invitationsQueued: 2,
+      queueFailures: [
         {
           userId: 'u1',
           email: 'fail@example.com',
@@ -631,8 +631,8 @@ describe('sendEventRsvpWave', () => {
       waveNumber: 1,
       eligibleApplicantCount: 3,
       responsesCreated: 3,
-      emailsSent: 2,
-      emailFailures: [
+      invitationsQueued: 2,
+      queueFailures: [
         {
           userId: 'u1',
           email: 'fail@example.com',

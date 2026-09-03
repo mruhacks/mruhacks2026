@@ -162,6 +162,20 @@
       "when": 1784060400000,
       "tag": "0022_hard_madame_hydra",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1788293254763,
+      "tag": "0023_rsvp_invitation_email_status",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1788295920096,
+      "tag": "0024_rsvp_invitation_email_status_default_unsent",
+      "breakpoints": true
     }
   ]
 }

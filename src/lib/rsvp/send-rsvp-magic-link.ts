@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { runWithRsvpMagicLinkMailContext } from '@/lib/rsvp/rsvp-magic-link-context';
 import { auth } from '@/utils/auth';
 
 /**
@@ -26,22 +27,31 @@ export function getRsvpMagicLinkCallbackURL(eventId: string): string {
 /**
  * Sends a Better Auth magic link with the RSVP callback. Does not create
  * waves or response rows — a pending response must already exist.
+ *
+ * Invitation copy is passed via request-scoped context so the public
+ * `sendMagicLink` hook never infers RSVP intent from `callbackURL`.
  */
 export async function sendRsvpMagicLink(options: {
   email: string;
   eventId: string;
+  eventName: string;
+  respondBy: Date;
   /** Optional pre-built headers; otherwise uses background auth headers. */
   headers?: Headers;
 }): Promise<void> {
   const callbackURL = getRsvpMagicLinkCallbackURL(options.eventId);
   const headers = options.headers ?? getBackgroundAuthHeaders();
 
-  await auth.api.signInMagicLink({
-    body: {
-      email: options.email,
-      callbackURL,
-      errorCallbackURL: callbackURL,
-    },
-    headers,
-  });
+  await runWithRsvpMagicLinkMailContext(
+    { eventName: options.eventName, respondBy: options.respondBy },
+    () =>
+      auth.api.signInMagicLink({
+        body: {
+          email: options.email,
+          callbackURL,
+          errorCallbackURL: callbackURL,
+        },
+        headers,
+      }),
+  );
 }

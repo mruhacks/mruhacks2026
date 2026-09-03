@@ -85,13 +85,13 @@ function printResult(result: SendRsvpWaveResult, eventId: string): void {
   console.log('Wave created at:     ', result.wave.createdAt.toISOString());
   console.log('Eligible applicants: ', result.eligibleApplicantCount);
   console.log('Responses created:   ', result.responsesCreated);
-  console.log('Emails sent:         ', result.emailsSent);
+  console.log('Invitations queued:  ', result.invitationsQueued);
 
-  if (result.emailFailures.length === 0) {
-    console.log('Email failures:      none');
+  if (result.queueFailures.length === 0) {
+    console.log('Queue failures:      none');
   } else {
-    console.log('Email failures:      ', result.emailFailures.length);
-    for (const failure of result.emailFailures) {
+    console.log('Queue failures:      ', result.queueFailures.length);
+    for (const failure of result.queueFailures) {
       console.log(`  - userId: ${failure.userId}`);
       console.log(`    email:  ${failure.email}`);
       console.log(`    error:  ${failure.error}`);
@@ -125,7 +125,7 @@ async function main(): Promise<void> {
   console.warn('⚠️  WARNING: This script performs real actions:');
   console.warn('   • Creates a new event_rsvp_waves row');
   console.warn('   • Creates event_rsvp_responses rows for approved applicants');
-  console.warn('   • Requests Better Auth magic links and sends RSVP emails via SMTP');
+  console.warn('   • Publishes one RSVP invitation message per response to the queue');
   console.warn('');
   console.warn(`   Event ID:   ${eventId}`);
   console.warn(`   Respond by: ${respondBy.toISOString()}`);
@@ -141,9 +141,9 @@ async function main(): Promise<void> {
       return;
     }
 
-    if (result.emailFailures.length > 0) {
+    if (result.queueFailures.length > 0) {
       console.error(
-        'Completed with email failures. RSVP records were kept in the database.',
+        'Completed with queue failures. RSVP records were kept in the database.',
       );
       process.exitCode = 1;
     }

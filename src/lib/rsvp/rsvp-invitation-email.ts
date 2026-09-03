@@ -1,3 +1,4 @@
+import { escapeHtml } from '@/lib/html-escape';
 import type { SendMailOptions } from '@/utils/mail';
 import { formatRsvpDeadline } from '@/lib/rsvp/rsvp-datetime';
 
@@ -20,7 +21,7 @@ export function buildRsvpInvitationEmail(options: {
       `Please respond by ${deadline}.\n\n` +
       `View RSVP (signs you in automatically):\n${magicLinkUrl}\n`,
     html:
-      `<p>You've been invited to RSVP for <strong>${eventName}</strong>.</p>` +
+      `<p>You've been invited to RSVP for <strong>${escapeHtml(eventName)}</strong>.</p>` +
       `<p>Please respond by <strong>${deadline}</strong>.</p>` +
       `<p><a href="${magicLinkUrl}">View RSVP</a></p>`,
   };

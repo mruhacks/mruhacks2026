@@ -81,6 +81,21 @@ describe('RSVP deadline formatting', () => {
     expect(email.html).toContain(formatted);
   });
 
+  test('escapes event names in HTML and leaves plaintext unescaped', () => {
+    const email = buildRsvpInvitationEmail({
+      eventName: `MRUHacks & Friends <img src=x onerror=alert(1)>`,
+      respondBy: instant,
+      magicLinkUrl: 'https://example.com/rsvp',
+    });
+
+    expect(email.subject).toContain('MRUHacks & Friends');
+    expect(email.text).toContain('MRUHacks & Friends <img src=x onerror=alert(1)>');
+    expect(email.html).toContain(
+      'MRUHacks &amp; Friends &lt;img src=x onerror=alert(1)&gt;',
+    );
+    expect(email.html).not.toContain('<img');
+  });
+
   test('UI formatting uses the same Calgary instant', () => {
     const formatted = formatRsvpDateTime(instant);
     expect(formatted).toMatch(/Aug(ust)?\.? 20, 2026/i);

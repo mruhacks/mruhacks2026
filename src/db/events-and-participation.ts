@@ -313,6 +313,17 @@ export const eventRsvpResponses = pgTable(
       .references(() => user.id, { onDelete: 'cascade' }),
     statusId: integer('status_id').references(() => rsvpStatuses.id),
     respondedAt: timestamp('responded_at'),
+    // Invitation email delivery state (separate from statusId, the RSVP
+    // decision): 'legacy' | 'unsent' | 'queued' | 'sent' | 'failed'.
+    invitationEmailStatus: text('invitation_email_status')
+      .notNull()
+      .default('unsent'),
+    invitationEmailAttempts: smallint('invitation_email_attempts')
+      .notNull()
+      .default(0),
+    invitationEmailLastError: text('invitation_email_last_error'),
+    invitationEmailQueuedAt: timestamp('invitation_email_queued_at'),
+    invitationEmailSentAt: timestamp('invitation_email_sent_at'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at')
       .defaultNow()
@@ -323,6 +334,9 @@ export const eventRsvpResponses = pgTable(
     waveUserUnique: uniqueIndex(
       'event_rsvp_responses_rsvp_wave_id_user_id_unique',
     ).on(table.rsvpWaveId, table.userId),
+    idxInvitationEmailStatus: index(
+      'idx_event_rsvp_responses_invitation_email_status',
+    ).on(table.invitationEmailStatus),
   }),
 );
 

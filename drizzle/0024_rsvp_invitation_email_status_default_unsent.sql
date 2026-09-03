@@ -1,0 +1,1 @@
+ALTER TABLE "event_rsvp_responses" ALTER COLUMN "invitation_email_status" SET DEFAULT 'unsent';

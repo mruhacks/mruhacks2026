@@ -1,4 +1,12 @@
-import { describe, test, expect, beforeAll, afterAll, vi } from 'vitest';
+import {
+  describe,
+  test,
+  expect,
+  beforeAll,
+  beforeEach,
+  afterAll,
+  vi,
+} from 'vitest';
 import { count, eq } from 'drizzle-orm';
 
 import { db } from '@/utils/db';
@@ -17,11 +25,12 @@ import {
   runScheduledRsvpWaves,
 } from '@/lib/rsvp/run-scheduled-rsvp-waves';
 
-vi.mock('@/utils/mail', () => ({
-  sendMail: vi.fn().mockResolvedValue(undefined),
+const { publishRsvpInvitation } = vi.hoisted(() => ({
+  publishRsvpInvitation: vi.fn(),
 }));
-
-import { sendMail } from '@/utils/mail';
+vi.mock('@/lib/rsvp/rsvp-invitation-queue', () => ({
+  publishRsvpInvitation,
+}));
 
 let approvedStatusId: number;
 let pendingRsvpStatusId: number;
@@ -76,6 +85,11 @@ beforeAll(async () => {
   approvedStatusId = await ensureApplicationStatus('approved');
   pendingRsvpStatusId = await ensureRsvpStatus('pending', false);
   await ensureRsvpStatus('timed_out', true);
+});
+
+beforeEach(() => {
+  publishRsvpInvitation.mockReset();
+  publishRsvpInvitation.mockResolvedValue({ messageId: 'msg-id' });
 });
 
 describe('computeScheduledRespondBy', () => {
@@ -170,8 +184,6 @@ describe('runScheduledRsvpWaves', () => {
       statusId: pendingRsvpStatusId,
     });
 
-    vi.mocked(sendMail).mockClear();
-
     try {
       const first = await runScheduledRsvpWaves({ now });
       const firstMatch = first.results.find((r) => r.eventId === eventRow.id);
@@ -179,7 +191,7 @@ describe('runScheduledRsvpWaves', () => {
       expect(firstMatch?.action).toBe('sent');
       expect(firstMatch?.waveNumber).toBe(2);
       expect(firstMatch?.responsesCreated).toBe(1);
-      expect(firstMatch?.emailsSent).toBe(1);
+      expect(firstMatch?.invitationsQueued).toBe(1);
 
       const [{ value: waveCount }] = await db
         .select({ value: count() })

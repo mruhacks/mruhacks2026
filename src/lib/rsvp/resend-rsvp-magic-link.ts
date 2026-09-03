@@ -3,6 +3,7 @@ import 'server-only';
 import { and, desc, eq } from 'drizzle-orm';
 
 import {
+  events,
   eventRsvpResponses,
   eventRsvpWaves,
   rsvpStatuses,
@@ -92,6 +93,7 @@ export async function resendRsvpMagicLink(
       waveId: eventRsvpWaves.id,
       userId: eventRsvpResponses.userId,
       email: user.email,
+      eventName: events.name,
       respondBy: eventRsvpWaves.respondBy,
     })
     .from(eventRsvpResponses)
@@ -99,6 +101,7 @@ export async function resendRsvpMagicLink(
       eventRsvpWaves,
       eq(eventRsvpResponses.rsvpWaveId, eventRsvpWaves.id),
     )
+    .innerJoin(events, eq(eventRsvpWaves.eventId, events.id))
     .innerJoin(user, eq(eventRsvpResponses.userId, user.id))
     .where(whereClause)
     .orderBy(desc(eventRsvpWaves.wave))
@@ -106,6 +109,7 @@ export async function resendRsvpMagicLink(
 
   if (
     !pending ||
+    !pending.respondBy ||
     !isEffectivePendingRsvp(PENDING_RSVP_STATUS_LABEL, pending.respondBy)
   ) {
     return {
@@ -118,6 +122,8 @@ export async function resendRsvpMagicLink(
     await sendRsvpMagicLink({
       email: pending.email,
       eventId,
+      eventName: pending.eventName,
+      respondBy: pending.respondBy,
     });
   } catch (error) {
     const message =

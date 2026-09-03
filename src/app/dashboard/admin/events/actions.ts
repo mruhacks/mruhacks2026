@@ -579,8 +579,8 @@ export type SendEventRsvpWaveResult = {
   waveNumber: number;
   eligibleApplicantCount: number;
   responsesCreated: number;
-  emailsSent: number;
-  emailFailures: Array<{
+  invitationsQueued: number;
+  queueFailures: Array<{
     userId: string;
     email: string;
     error: string;
@@ -624,8 +624,8 @@ export async function sendEventRsvpWave(
       waveNumber: result.wave.wave,
       eligibleApplicantCount: result.eligibleApplicantCount,
       responsesCreated: result.responsesCreated,
-      emailsSent: result.emailsSent,
-      emailFailureCount: result.emailFailures.length,
+      invitationsQueued: result.invitationsQueued,
+      queueFailureCount: result.queueFailures.length,
     },
   });
 
@@ -633,7 +633,7 @@ export async function sendEventRsvpWave(
     waveNumber: result.wave.wave,
     eligibleApplicantCount: result.eligibleApplicantCount,
     responsesCreated: result.responsesCreated,
-    emailsSent: result.emailsSent,
-    emailFailures: result.emailFailures,
+    invitationsQueued: result.invitationsQueued,
+    queueFailures: result.queueFailures,
   });
 }

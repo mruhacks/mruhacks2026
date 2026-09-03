@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { desc, eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 
 import {
   events,
@@ -12,10 +12,7 @@ import {
   getEligibleRsvpApplicants,
   type EligibleRsvpApplicant,
 } from '@/lib/rsvp/eligible-rsvp-applicants';
-import {
-  getBackgroundAuthHeaders,
-  sendRsvpMagicLink,
-} from '@/lib/rsvp/send-rsvp-magic-link';
+import { publishRsvpInvitation } from '@/lib/rsvp/rsvp-invitation-queue';
 import { timeoutExpiredRsvpResponses } from '@/lib/rsvp/timeout-expired-rsvp-responses';
 import { db } from '@/utils/db';
 
@@ -29,7 +26,7 @@ export type RsvpWaveRecord = {
   createdAt: Date;
 };
 
-export type RsvpWaveEmailFailure = {
+export type RsvpWaveQueueFailure = {
   userId: string;
   email: string;
   error: string;
@@ -40,8 +37,8 @@ export type SendRsvpWaveSuccess = {
   wave: RsvpWaveRecord;
   eligibleApplicantCount: number;
   responsesCreated: number;
-  emailsSent: number;
-  emailFailures: RsvpWaveEmailFailure[];
+  invitationsQueued: number;
+  queueFailures: RsvpWaveQueueFailure[];
 };
 
 export type SendRsvpWaveFailure = {
@@ -52,10 +49,11 @@ export type SendRsvpWaveFailure = {
 export type SendRsvpWaveResult = SendRsvpWaveSuccess | SendRsvpWaveFailure;
 
 /**
- * Creates the next RSVP wave, pending responses for eligible applicants, and
- * RSVP magic-link emails. Refuses the wave when eligible count exceeds
- * remaining capacity (no invite ranking). Used by the admin action and
- * `runScheduledRsvpWaves`.
+ * Creates the next RSVP wave and pending responses for eligible applicants,
+ * then queues one RSVP invitation message per response (delivery happens
+ * asynchronously via `processRsvpInvitation`). Refuses the wave when eligible
+ * count exceeds remaining capacity (no invite ranking). Used by the admin
+ * action and `runScheduledRsvpWaves`.
  */
 export async function sendRsvpWave(
   eventId: string,
@@ -69,7 +67,7 @@ export async function sendRsvpWave(
   }
 
   const [eventRow] = await db
-    .select({ id: events.id, name: events.name })
+    .select({ id: events.id })
     .from(events)
     .where(eq(events.id, eventId))
     .limit(1);
@@ -105,6 +103,13 @@ export async function sendRsvpWave(
     };
   }
 
+  if (eligibility.applicants.length === 0) {
+    return {
+      success: false,
+      error: 'No eligible applicants for the next RSVP wave.',
+    };
+  }
+
   if (
     eligibility.availableSpots !== null &&
     eligibility.applicants.length > eligibility.availableSpots
@@ -131,6 +136,7 @@ export async function sendRsvpWave(
 
   let waveRecord: RsvpWaveRecord;
   let invitedApplicants: EligibleRsvpApplicant[];
+  let insertedResponses: { id: string; userId: string }[];
 
   try {
     const created = await db.transaction(async (tx) => {
@@ -149,14 +155,6 @@ export async function sendRsvpWave(
           createdAt: eventRsvpWaves.createdAt,
         });
 
-      if (applicants.length === 0) {
-        return {
-          wave,
-          responsesCreated: 0,
-          invitedApplicants: [] as EligibleRsvpApplicant[],
-        };
-      }
-
       const insertedResponses = await tx
         .insert(eventRsvpResponses)
         .values(
@@ -166,18 +164,15 @@ export async function sendRsvpWave(
             statusId: pendingRsvpStatus.id,
           })),
         )
-        .returning({ userId: eventRsvpResponses.userId });
-
-      const invitedUserIds = new Set(
-        insertedResponses.map((response) => response.userId),
-      );
+        .returning({
+          id: eventRsvpResponses.id,
+          userId: eventRsvpResponses.userId,
+        });
 
       return {
         wave,
-        responsesCreated: insertedResponses.length,
-        invitedApplicants: applicants.filter((applicant) =>
-          invitedUserIds.has(applicant.userId),
-        ),
+        insertedResponses,
+        invitedApplicants: applicants,
       };
     });
 
@@ -189,6 +184,7 @@ export async function sendRsvpWave(
       createdAt: created.wave.createdAt,
     };
     invitedApplicants = created.invitedApplicants;
+    insertedResponses = created.insertedResponses;
   } catch (error) {
     console.error('[sendRsvpWave] database error:', error);
     return {
@@ -197,50 +193,40 @@ export async function sendRsvpWave(
     };
   }
 
-  const emailFailures: RsvpWaveEmailFailure[] = [];
-  let emailsSent = 0;
+  const emailByUserId = new Map(
+    invitedApplicants.map((applicant) => [applicant.userId, applicant.email]),
+  );
+  const queueFailures: RsvpWaveQueueFailure[] = [];
+  let invitationsQueued = 0;
 
-  let authHeaders: Headers;
-  try {
-    authHeaders = getBackgroundAuthHeaders();
-  } catch (error) {
-    const message =
-      error instanceof Error ? error.message : 'Missing BETTER_AUTH_URL';
-    for (const applicant of invitedApplicants) {
-      emailFailures.push({
-        userId: applicant.userId,
-        email: applicant.email,
-        error: message,
-      });
-    }
-    return {
-      success: true,
-      wave: waveRecord,
-      eligibleApplicantCount: applicants.length,
-      responsesCreated: invitedApplicants.length,
-      emailsSent: 0,
-      emailFailures,
-    };
-  }
-
-  for (const applicant of invitedApplicants) {
+  for (const response of insertedResponses) {
     try {
-      await sendRsvpMagicLink({
-        email: applicant.email,
-        eventId,
-        headers: authHeaders,
-      });
-      emailsSent += 1;
+      await publishRsvpInvitation(response.id);
+      // Consumer may already have processed and marked this 'sent' by the
+      // time this update runs — never regress it back to 'queued'.
+      await db
+        .update(eventRsvpResponses)
+        .set({
+          invitationEmailStatus: 'queued',
+          invitationEmailQueuedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(eventRsvpResponses.id, response.id),
+            eq(eventRsvpResponses.invitationEmailStatus, 'unsent'),
+          ),
+        );
+      invitationsQueued += 1;
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : 'Unknown magic-link error';
+        error instanceof Error ? error.message : 'Unknown queue publish error';
       console.error(
-        `[sendRsvpWave] magic link failed for user ${applicant.userId}:`,
+        `[sendRsvpWave] failed to queue invitation for user ${response.userId}:`,
         error,
       );
-      emailFailures.push({
-        userId: applicant.userId,
-        email: applicant.email,
+      queueFailures.push({
+        userId: response.userId,
+        email: emailByUserId.get(response.userId) ?? '',
         error: message,
       });
     }
@@ -251,7 +237,7 @@ export async function sendRsvpWave(
     wave: waveRecord,
     eligibleApplicantCount: applicants.length,
     responsesCreated: invitedApplicants.length,
-    emailsSent,
-    emailFailures,
+    invitationsQueued,
+    queueFailures,
   };
 }

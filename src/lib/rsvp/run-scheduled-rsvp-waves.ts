@@ -26,7 +26,7 @@ export type ScheduledEventWaveResult = {
   waveNumber?: number;
   eligibleApplicantCount?: number;
   responsesCreated?: number;
-  emailsSent?: number;
+  invitationsQueued?: number;
 };
 
 export type RunScheduledRsvpWavesResult = {
@@ -229,6 +229,6 @@ async function processEventScheduledWave(
     waveNumber: sendResult.wave.wave,
     eligibleApplicantCount: sendResult.eligibleApplicantCount,
     responsesCreated: sendResult.responsesCreated,
-    emailsSent: sendResult.emailsSent,
+    invitationsQueued: sendResult.invitationsQueued,
   };
 }
