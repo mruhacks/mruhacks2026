@@ -375,16 +375,6 @@ export async function createEvent(
 
   const input = parsed.data;
 
-  // Convert datetime-local string to Date (datetime-local gives us "2026-05-13T14:30" format)
-  const parseDateTime = (dateStr: string | null | undefined) => {
-    if (!dateStr) return null;
-    try {
-      return new Date(dateStr);
-    } catch {
-      return null;
-    }
-  };
-
   const [newEvent] = await db
     .insert(events)
     .values({
@@ -394,8 +384,8 @@ export async function createEvent(
       capacity: input.capacity ?? null,
       teamsEnabled: input.teamsEnabled ?? false,
       maxTeamSize: input.maxTeamSize ?? null,
-      startsAt: parseDateTime(input.startsAt),
-      endsAt: parseDateTime(input.endsAt),
+      startsAt: input.startsAt ? new Date(input.startsAt) : null,
+      endsAt: input.endsAt ? new Date(input.endsAt) : null,
       // Keep question configuration independent from the application-process
       // toggle. Events may require an application with no custom questions.
       applicationQuestions: [],
@@ -502,17 +492,6 @@ export async function updateEventSettings(
 
   const input = parsed.data;
 
-  // Convert datetime-local string to Date (datetime-local gives us "2026-05-13T14:30" format)
-  const parseDateTime = (dateStr: string | null | undefined) => {
-    if (dateStr === undefined) return undefined;
-    if (!dateStr) return null;
-    try {
-      return new Date(dateStr);
-    } catch {
-      return null;
-    }
-  };
-
   await db.transaction(async (tx) => {
     // Only one event may be featured at a time (enforced by idx_events_featured_unique).
     if (input.isFeatured === true) {
@@ -535,11 +514,15 @@ export async function updateEventSettings(
             : eventRow.maxTeamSize,
         startsAt:
           input.startsAt !== undefined
-            ? parseDateTime(input.startsAt)
+            ? input.startsAt
+              ? new Date(input.startsAt)
+              : null
             : eventRow.startsAt,
         endsAt:
           input.endsAt !== undefined
-            ? parseDateTime(input.endsAt)
+            ? input.endsAt
+              ? new Date(input.endsAt)
+              : null
             : eventRow.endsAt,
         isFeatured: input.isFeatured ?? eventRow.isFeatured,
         updatedAt: new Date(),

@@ -13,11 +13,7 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { setMarketingConsent, type ConsentData } from './actions';
-
-function formatDate(iso: string | null): string | null {
-  if (!iso) return null;
-  return new Date(iso).toLocaleString();
-}
+import { LocalDateTime } from '@/components/local-date-time';
 
 export function ConsentCard({ initial }: { initial: ConsentData }) {
   const [consent, setConsent] = React.useState(initial);
@@ -43,8 +39,6 @@ export function ConsentCard({ initial }: { initial: ConsentData }) {
     );
   }
 
-  const consentedAt = formatDate(consent.marketingConsentAt);
-
   return (
     <Card>
       <CardHeader>
@@ -65,9 +59,10 @@ export function ConsentCard({ initial }: { initial: ConsentData }) {
               Newsletters, sponsor offers, and updates about future MRUHacks
               events.
             </p>
-            {consent.marketingEmails && consentedAt && (
+            {consent.marketingEmails && consent.marketingConsentAt && (
               <p className='text-muted-foreground text-xs'>
-                Consent recorded {consentedAt}
+                Consent recorded{' '}
+                <LocalDateTime value={consent.marketingConsentAt} />
               </p>
             )}
           </div>

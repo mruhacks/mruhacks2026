@@ -4,6 +4,10 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
+    // Deliberately non-UTC: code that accidentally depends on the ambient
+    // process timezone (rather than an explicit one) should fail here
+    // instead of only in local dev. See AGENTS.md.
+    env: { TZ: 'America/Edmonton' },
     alias: {
       '@': new URL('./src', import.meta.url).pathname,
     },
