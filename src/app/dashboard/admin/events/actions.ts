@@ -492,6 +492,28 @@ export async function updateEventSettings(
 
   const input = parsed.data;
 
+  // The schema's start-before-end refine only fires when a single request
+  // supplies both fields. A partial update (e.g. startsAt alone) has to be
+  // checked again here against whichever value — new or already-stored —
+  // each field will actually end up with, or a lone edit can push
+  // startsAt past the untouched stored endsAt.
+  const finalStartsAt =
+    input.startsAt !== undefined
+      ? input.startsAt
+        ? new Date(input.startsAt)
+        : null
+      : eventRow.startsAt;
+  const finalEndsAt =
+    input.endsAt !== undefined
+      ? input.endsAt
+        ? new Date(input.endsAt)
+        : null
+      : eventRow.endsAt;
+
+  if (finalStartsAt && finalEndsAt && finalStartsAt >= finalEndsAt) {
+    return fail('Start date must be before end date');
+  }
+
   await db.transaction(async (tx) => {
     // Only one event may be featured at a time (enforced by idx_events_featured_unique).
     if (input.isFeatured === true) {
@@ -512,18 +534,8 @@ export async function updateEventSettings(
           input.maxTeamSize !== undefined
             ? input.maxTeamSize
             : eventRow.maxTeamSize,
-        startsAt:
-          input.startsAt !== undefined
-            ? input.startsAt
-              ? new Date(input.startsAt)
-              : null
-            : eventRow.startsAt,
-        endsAt:
-          input.endsAt !== undefined
-            ? input.endsAt
-              ? new Date(input.endsAt)
-              : null
-            : eventRow.endsAt,
+        startsAt: finalStartsAt,
+        endsAt: finalEndsAt,
         isFeatured: input.isFeatured ?? eventRow.isFeatured,
         updatedAt: new Date(),
       })

@@ -137,6 +137,7 @@ export function CreateEventDialog() {
                 control={control}
                 render={({ field }) => (
                   <Input
+                    {...field}
                     id='startsAt'
                     type='datetime-local'
                     value={
@@ -166,6 +167,7 @@ export function CreateEventDialog() {
                 control={control}
                 render={({ field }) => (
                   <Input
+                    {...field}
                     id='endsAt'
                     type='datetime-local'
                     value={

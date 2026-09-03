@@ -6,16 +6,22 @@
  */
 export const EVENT_TIME_ZONE = 'America/Edmonton';
 
-/** Format an instant in an explicit zone. There is deliberately no
- *  ambient-zone overload — formatting without a `timeZone` resolves to
+/** Deterministic SSR/pre-hydration locale fallback for date formatting —
+ *  same rationale as EVENT_TIME_ZONE: first paint must be identical for
+ *  every viewer, so the real viewer locale can only be used post-hydration. */
+export const DEFAULT_LOCALE = 'en-US';
+
+/** Format an instant in an explicit zone and locale. There is deliberately
+ *  no ambient overload for either — formatting without them resolves to
  *  whatever process renders the component (server or browser), which is
  *  exactly the bug this module exists to prevent. */
 export function formatInstant(
   value: Date,
   timeZone: string,
+  locale: string | string[],
   options?: Intl.DateTimeFormatOptions,
 ): string {
-  return new Intl.DateTimeFormat('en-US', { ...options, timeZone }).format(
+  return new Intl.DateTimeFormat(locale, { ...options, timeZone }).format(
     value,
   );
 }

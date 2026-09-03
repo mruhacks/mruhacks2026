@@ -323,6 +323,7 @@ export default function EventOverviewPage({ params }: EventOverviewPageProps) {
                     control={control}
                     render={({ field }) => (
                       <Input
+                        {...field}
                         id='startsAt'
                         type='datetime-local'
                         value={
@@ -353,6 +354,7 @@ export default function EventOverviewPage({ params }: EventOverviewPageProps) {
                     control={control}
                     render={({ field }) => (
                       <Input
+                        {...field}
                         id='endsAt'
                         type='datetime-local'
                         value={

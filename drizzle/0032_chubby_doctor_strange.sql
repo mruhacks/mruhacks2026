@@ -3,6 +3,20 @@
 -- TimeZone when casting to `timestamp with time zone`; pinning the session
 -- to UTC first makes that cast a no-op, since every value on disk is
 -- already a UTC wall-clock (see AGENTS.md).
+--
+-- That assumption only holds if this server's default TimeZone GUC has
+-- always been UTC — rows written via a column DEFAULT now() (nothing
+-- pinned the connection's session TimeZone before this migration's
+-- accompanying src/utils/db.ts change) are naive wall-clock values in
+-- whatever zone the server was configured with at insert time. Blindly
+-- forcing UTC here would silently shift every such row instead of failing
+-- loudly, so refuse to proceed on a server whose default isn't already UTC.
+DO $$
+BEGIN
+  IF current_setting('TimeZone') NOT IN ('UTC', 'Etc/UTC') THEN
+    RAISE EXCEPTION 'Refusing to migrate: server default TimeZone is %, not UTC. Existing naive timestamp columns (created_at/registered_at/expires_at/etc.) may hold wall-clock values in that zone, not UTC — casting them straight to timestamptz would silently shift them. Verify the actual zone those rows were written in and add an explicit `USING col AT TIME ZONE ''<that zone>''` per column before re-running.', current_setting('TimeZone');
+  END IF;
+END $$;--> statement-breakpoint
 SET TIME ZONE 'UTC';--> statement-breakpoint
 -- application_view / application_form_view both select event_applications.created_at
 -- directly, so Postgres blocks ALTER COLUMN TYPE on it while they depend on it.

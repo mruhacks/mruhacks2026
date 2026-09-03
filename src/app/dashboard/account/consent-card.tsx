@@ -62,7 +62,10 @@ export function ConsentCard({ initial }: { initial: ConsentData }) {
             {consent.marketingEmails && consent.marketingConsentAt && (
               <p className='text-muted-foreground text-xs'>
                 Consent recorded{' '}
-                <LocalDateTime value={consent.marketingConsentAt} />
+                <LocalDateTime
+                  value={consent.marketingConsentAt}
+                  timeStyle='short'
+                />
               </p>
             )}
           </div>

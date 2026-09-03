@@ -4,10 +4,12 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
-    // Deliberately non-UTC: code that accidentally depends on the ambient
-    // process timezone (rather than an explicit one) should fail here
-    // instead of only in local dev. See AGENTS.md.
-    env: { TZ: 'America/Edmonton' },
+    // Deliberately non-UTC, and deliberately not EVENT_TIME_ZONE
+    // (America/Edmonton) either: a formatter that dropped its timeZone arg
+    // and fell back to the ambient zone would render identically under
+    // America/Edmonton and go undetected. Asia/Kolkata's half-hour offset
+    // also catches bugs a whole-hour mismatch would hide. See AGENTS.md.
+    env: { TZ: 'Asia/Kolkata' },
     alias: {
       '@': new URL('./src', import.meta.url).pathname,
     },

@@ -2,6 +2,7 @@
 
 import { useIsHydrated } from '@/lib/use-is-hydrated';
 import {
+  DEFAULT_LOCALE,
   EVENT_TIME_ZONE,
   formatInstant,
   timeZoneAbbreviation,
@@ -19,6 +20,16 @@ export function useDisplayTimeZone(): string {
   return isHydrated
     ? Intl.DateTimeFormat().resolvedOptions().timeZone
     : EVENT_TIME_ZONE;
+}
+
+/**
+ * Same SSR/hydration split as useDisplayTimeZone, but for locale: en-US
+ * during SSR and the hydration render, then the viewer's own browser
+ * locale from the first post-hydration render onward.
+ */
+export function useDisplayLocale(): string {
+  const isHydrated = useIsHydrated();
+  return isHydrated ? navigator.language : DEFAULT_LOCALE;
 }
 
 /** Short zone abbreviation ("MDT", "MST") for a `datetime-local` field's
@@ -52,12 +63,13 @@ export function LocalDateTime({
   className?: string;
 }) {
   const timeZone = useDisplayTimeZone();
+  const locale = useDisplayLocale();
   const date = toDate(value);
   if (!date) return null;
 
   return (
     <time dateTime={date.toISOString()} className={className}>
-      {formatInstant(date, timeZone, { dateStyle, timeStyle })}
+      {formatInstant(date, timeZone, locale, { dateStyle, timeStyle })}
     </time>
   );
 }
@@ -83,17 +95,18 @@ export function LocalDateRange({
   className?: string;
 }) {
   const timeZone = useDisplayTimeZone();
+  const locale = useDisplayLocale();
   const startDate = toDate(start);
   if (!startDate) return <span className={className}>Date TBA</span>;
 
   const endDate = toDate(end);
-  const startText = formatInstant(startDate, timeZone, { dateStyle });
+  const startText = formatInstant(startDate, timeZone, locale, { dateStyle });
   const endText = endDate
-    ? formatInstant(endDate, timeZone, { dateStyle })
+    ? formatInstant(endDate, timeZone, locale, { dateStyle })
     : null;
 
   if (!endText || endText === startText) {
-    const singleText = formatInstant(startDate, timeZone, {
+    const singleText = formatInstant(startDate, timeZone, locale, {
       dateStyle: singleDateStyle ?? dateStyle,
       timeStyle: singleTimeStyle,
     });
