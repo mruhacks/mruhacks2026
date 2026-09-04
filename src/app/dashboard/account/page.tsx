@@ -17,7 +17,6 @@ import { ConsentCard } from './consent-card';
 import { DeleteAccountCard } from './delete-account-card';
 import { ProfilePictureCard } from './profile-picture-card';
 import { SIGN_IN_PROVIDER_LABELS } from '@/lib/oauth-name';
-import { LocalDateTime } from '@/components/local-date-time';
 
 export const metadata = {
   title: 'Account & Privacy — MRUHacks',
@@ -109,10 +108,7 @@ export default async function AccountPage() {
               <div className='flex items-center justify-between gap-4'>
                 <span className='text-muted-foreground'>Member since</span>
                 <span className='font-medium'>
-                  <LocalDateTime
-                    value={overview.createdAt}
-                    dateStyle='medium'
-                  />
+                  {new Date(overview.createdAt).toLocaleDateString()}
                 </span>
               </div>
             </>

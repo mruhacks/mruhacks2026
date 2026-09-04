@@ -13,7 +13,14 @@ import {
   APPLICATION_TIMELINE_FIELDS,
   APPLICATION_TIMELINE_LABELS,
 } from '@/app/dashboard/events/application-status';
-import { LocalDateTime } from '@/components/local-date-time';
+
+function formatDate(d: Date | null) {
+  if (!d) return null;
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(d);
+}
 
 type Props = {
   application: ApplicationStatusForUser;
@@ -32,6 +39,7 @@ export function ApplicationStatusBanner({
   const { statusDisplay: display, createdAt, reviewedAt } = application;
   const label = display.title;
   const timelineSource = { createdAt, reviewedAt };
+  const submitted = formatDate(createdAt);
   const showEdit = Boolean(editHref) && !display.isFinal;
 
   if (standalone) {
@@ -48,18 +56,12 @@ export function ApplicationStatusBanner({
           <dl className='grid gap-2 text-sm sm:grid-cols-2'>
             {APPLICATION_TIMELINE_FIELDS.map(
               ({ key, label: fieldLabel, getDate }) => {
-                const date = getDate(timelineSource);
-                if (!date) return null;
+                const formatted = formatDate(getDate(timelineSource));
+                if (!formatted) return null;
                 return (
                   <div key={key}>
                     <dt className='text-muted-foreground'>{fieldLabel}</dt>
-                    <dd>
-                      <LocalDateTime
-                        value={date}
-                        dateStyle='medium'
-                        timeStyle='short'
-                      />
-                    </dd>
+                    <dd>{formatted}</dd>
                   </div>
                 );
               },
@@ -78,14 +80,9 @@ export function ApplicationStatusBanner({
         </Badge>
         <div className='flex min-w-0 flex-col gap-0.5 text-sm'>
           <p>{display.description}</p>
-          {createdAt && (
+          {submitted && (
             <p className='text-muted-foreground text-xs'>
-              {APPLICATION_TIMELINE_LABELS.submitted}{' '}
-              <LocalDateTime
-                value={createdAt}
-                dateStyle='medium'
-                timeStyle='short'
-              />
+              {APPLICATION_TIMELINE_LABELS.submitted} {submitted}
             </p>
           )}
         </div>

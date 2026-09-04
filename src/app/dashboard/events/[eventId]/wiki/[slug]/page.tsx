@@ -12,7 +12,6 @@ import { MarkdownContent } from '@/components/markdown/markdown-content';
 import { eventArticles, events } from '@/db/schema';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { LocalDateTime } from '@/components/local-date-time';
 
 type Props = {
   params: Promise<{ eventId: string; slug: string }>;
@@ -76,7 +75,10 @@ export default async function EventWikiArticlePage({ params }: Props) {
           {!article.published && <Badge variant='outline'>Draft</Badge>}
         </div>
         <p className='text-muted-foreground mt-2 text-sm'>
-          Updated <LocalDateTime value={article.updatedAt} dateStyle='long' />
+          Updated{' '}
+          {new Intl.DateTimeFormat(undefined, { dateStyle: 'long' }).format(
+            article.updatedAt,
+          )}
         </p>
       </div>
 

@@ -8,8 +8,6 @@ import { toast } from 'sonner';
 import { createEvent } from '@/app/dashboard/admin/events/actions';
 import { createEventSchema } from '@/app/dashboard/admin/events/schemas';
 import type { CreateEventInput } from '@/app/dashboard/admin/events/schemas';
-import { fromDateTimeLocalValue, toDateTimeLocalValue } from '@/lib/datetime';
-import { useZoneAbbreviation } from '@/components/local-date-time';
 import {
   Dialog,
   DialogContent,
@@ -39,7 +37,6 @@ export function CreateEventDialog() {
     control,
     handleSubmit,
     reset,
-    watch,
     formState: { errors, isSubmitting },
   } = useForm<CreateEventInput>({
     resolver: zodResolver(createEventSchema) as Resolver<CreateEventInput>,
@@ -48,9 +45,6 @@ export function CreateEventDialog() {
       hasApplication: false,
     },
   });
-
-  const startsAtAbbr = useZoneAbbreviation(watch('startsAt') ?? undefined);
-  const endsAtAbbr = useZoneAbbreviation(watch('endsAt') ?? undefined);
 
   const onSubmit = async (data: CreateEventInput) => {
     const result = await createEvent(data);
@@ -129,60 +123,22 @@ export function CreateEventDialog() {
 
             {/* Starts At */}
             <Field>
-              <FieldLabel htmlFor='startsAt'>
-                Starts At ({startsAtAbbr}, optional)
-              </FieldLabel>
-              <Controller
-                name='startsAt'
-                control={control}
-                render={({ field }) => (
-                  <Input
-                    {...field}
-                    id='startsAt'
-                    type='datetime-local'
-                    value={
-                      field.value
-                        ? toDateTimeLocalValue(new Date(field.value))
-                        : ''
-                    }
-                    onChange={(e) =>
-                      field.onChange(
-                        fromDateTimeLocalValue(e.target.value)?.toISOString() ??
-                          null,
-                      )
-                    }
-                  />
-                )}
+              <FieldLabel htmlFor='startsAt'>Starts At (optional)</FieldLabel>
+              <Input
+                id='startsAt'
+                type='datetime-local'
+                {...register('startsAt')}
               />
               {errors.startsAt && <FieldError errors={[errors.startsAt]} />}
             </Field>
 
             {/* Ends At */}
             <Field>
-              <FieldLabel htmlFor='endsAt'>
-                Ends At ({endsAtAbbr}, optional)
-              </FieldLabel>
-              <Controller
-                name='endsAt'
-                control={control}
-                render={({ field }) => (
-                  <Input
-                    {...field}
-                    id='endsAt'
-                    type='datetime-local'
-                    value={
-                      field.value
-                        ? toDateTimeLocalValue(new Date(field.value))
-                        : ''
-                    }
-                    onChange={(e) =>
-                      field.onChange(
-                        fromDateTimeLocalValue(e.target.value)?.toISOString() ??
-                          null,
-                      )
-                    }
-                  />
-                )}
+              <FieldLabel htmlFor='endsAt'>Ends At (optional)</FieldLabel>
+              <Input
+                id='endsAt'
+                type='datetime-local'
+                {...register('endsAt')}
               />
               {errors.endsAt && <FieldError errors={[errors.endsAt]} />}
             </Field>

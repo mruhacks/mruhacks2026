@@ -23,13 +23,3 @@ Never surface a form submission's validation/error result as a toast (`sonner`'s
 Toasts are still fine for things that aren't form-submission errors: success confirmations (registered, joined, copied), and simple non-form action failures (e.g. a button-only action like "leave team" or "remove member" that has no input to attach an inline error to).
 
 Why: a toast disappears and doesn't stay anchored to the field that caused the problem, so the user has to remember what went wrong and where to fix it — bad UX for anything the user is actively trying to fill in and resubmit. Inline errors stay visible exactly where the user is looking and next to the control they need to correct.
-
-# Datetimes: backend speaks UTC instants only, frontend localizes
-
-The backend — DB columns, server actions, server components — only ever handles UTC instants. It never parses a bare wall-clock string (`new Date("2026-05-13T14:30")` has no zone and silently binds to whatever process runs it) and never formats a date without an explicit `timeZone`. Every `timestamp` column is `timestamp with time zone` (`{ withTimezone: true }` in Drizzle); a naive column can't tell UTC apart from any other zone, which is exactly what caused this rule to be written.
-
-Client-supplied dates (currently the two `datetime-local` event fields) are converted to an ISO instant with `fromDateTimeLocalValue`/`toDateTimeLocalValue` (`src/lib/datetime.ts`) in the browser, validated server-side as `z.iso.datetime({ offset: true })`, and never touched with a bare `new Date(inputString)` on the server.
-
-All date/time **display** goes through `LocalDateTime` / `LocalDateRange` (`src/components/local-date-time.tsx`), never a one-off `Intl.DateTimeFormat` or `.toLocaleString()`. These render `EVENT_TIME_ZONE` during SSR (so first paint is identical for every viewer, required for anything inside a `'use cache'` boundary) and swap to the viewer's detected zone after hydration.
-
-Why: `Intl.DateTimeFormat(undefined, …)` resolves to whichever _process_ is rendering — the server's zone for a server component, the viewer's for a client component — so the same instant rendered two ways showed two different times, and an event's own edit form drifted by the server's UTC offset every time it was opened and saved. Pinning the data layer to instants and pushing all zone conversion to the one shared frontend module removes the ambiguity at its source instead of re-deriving the correct zone at every call site.

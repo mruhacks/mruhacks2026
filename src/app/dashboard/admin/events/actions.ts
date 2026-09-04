@@ -375,6 +375,16 @@ export async function createEvent(
 
   const input = parsed.data;
 
+  // Convert datetime-local string to Date (datetime-local gives us "2026-05-13T14:30" format)
+  const parseDateTime = (dateStr: string | null | undefined) => {
+    if (!dateStr) return null;
+    try {
+      return new Date(dateStr);
+    } catch {
+      return null;
+    }
+  };
+
   const [newEvent] = await db
     .insert(events)
     .values({
@@ -384,8 +394,8 @@ export async function createEvent(
       capacity: input.capacity ?? null,
       teamsEnabled: input.teamsEnabled ?? false,
       maxTeamSize: input.maxTeamSize ?? null,
-      startsAt: input.startsAt ? new Date(input.startsAt) : null,
-      endsAt: input.endsAt ? new Date(input.endsAt) : null,
+      startsAt: parseDateTime(input.startsAt),
+      endsAt: parseDateTime(input.endsAt),
       // Keep question configuration independent from the application-process
       // toggle. Events may require an application with no custom questions.
       applicationQuestions: [],
@@ -492,27 +502,16 @@ export async function updateEventSettings(
 
   const input = parsed.data;
 
-  // The schema's start-before-end refine only fires when a single request
-  // supplies both fields. A partial update (e.g. startsAt alone) has to be
-  // checked again here against whichever value — new or already-stored —
-  // each field will actually end up with, or a lone edit can push
-  // startsAt past the untouched stored endsAt.
-  const finalStartsAt =
-    input.startsAt !== undefined
-      ? input.startsAt
-        ? new Date(input.startsAt)
-        : null
-      : eventRow.startsAt;
-  const finalEndsAt =
-    input.endsAt !== undefined
-      ? input.endsAt
-        ? new Date(input.endsAt)
-        : null
-      : eventRow.endsAt;
-
-  if (finalStartsAt && finalEndsAt && finalStartsAt >= finalEndsAt) {
-    return fail('Start date must be before end date');
-  }
+  // Convert datetime-local string to Date (datetime-local gives us "2026-05-13T14:30" format)
+  const parseDateTime = (dateStr: string | null | undefined) => {
+    if (dateStr === undefined) return undefined;
+    if (!dateStr) return null;
+    try {
+      return new Date(dateStr);
+    } catch {
+      return null;
+    }
+  };
 
   await db.transaction(async (tx) => {
     // Only one event may be featured at a time (enforced by idx_events_featured_unique).
@@ -534,8 +533,14 @@ export async function updateEventSettings(
           input.maxTeamSize !== undefined
             ? input.maxTeamSize
             : eventRow.maxTeamSize,
-        startsAt: finalStartsAt,
-        endsAt: finalEndsAt,
+        startsAt:
+          input.startsAt !== undefined
+            ? parseDateTime(input.startsAt)
+            : eventRow.startsAt,
+        endsAt:
+          input.endsAt !== undefined
+            ? parseDateTime(input.endsAt)
+            : eventRow.endsAt,
         isFeatured: input.isFeatured ?? eventRow.isFeatured,
         updatedAt: new Date(),
       })

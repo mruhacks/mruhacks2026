@@ -13,7 +13,6 @@ import {
 } from '@/app/dashboard/events/actions';
 import { ApplicationStatusBanner } from '@/app/dashboard/events/ApplicationStatusBanner';
 import { EventWikiDialog } from '@/app/dashboard/events/event-wiki-dialog';
-import { LocalDateRange } from '@/components/local-date-time';
 import { RegisterEventButton } from '@/app/dashboard/events/RegisterEventButton';
 import { UnregisterEventButton } from '@/app/dashboard/events/UnregisterEventButton';
 import { TeamPanel } from '@/app/dashboard/events/team/TeamPanel';
@@ -54,6 +53,28 @@ type EventDetails = {
 };
 
 type PublishedArticle = { slug: string; title: string };
+
+function formatDate(d: Date | null) {
+  if (!d) return null;
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: 'long',
+    timeStyle: 'short',
+  }).format(d);
+}
+
+function formatDateShort(d: Date | null) {
+  if (!d) return null;
+  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(d);
+}
+
+function dateRange(startsAt: Date | null, endsAt: Date | null) {
+  if (!startsAt) return 'Date TBA';
+  const start = formatDateShort(startsAt);
+  const end = endsAt ? formatDateShort(endsAt) : null;
+  return end && end !== start
+    ? `${start} – ${end}`
+    : (formatDate(startsAt) ?? start);
+}
 
 export default async function EventEntryPage({ params, searchParams }: Props) {
   const { eventId } = await params;
@@ -421,12 +442,7 @@ function EventMeta({
       {(startsAt || endsAt) && (
         <span className='flex items-center gap-1.5'>
           <CalendarDays className='size-4 shrink-0' aria-hidden />
-          <LocalDateRange
-            start={startsAt}
-            end={endsAt}
-            singleDateStyle='long'
-            singleTimeStyle='short'
-          />
+          {dateRange(startsAt, endsAt)}
         </span>
       )}
       {capacity != null && (

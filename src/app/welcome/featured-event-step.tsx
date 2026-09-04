@@ -18,7 +18,6 @@ import {
 import { submitEventApplication } from '@/app/dashboard/events/actions';
 import { joinTeamByCode } from '@/app/dashboard/events/team-actions';
 import { registerForEvent } from '@/app/register/actions';
-import { LocalDateTime } from '@/components/local-date-time';
 import { completeWelcomeOnboarding } from '@/app/dashboard/account/actions';
 import { Spinner } from '@/components/ui/spinner';
 
@@ -119,11 +118,10 @@ export function FeaturedEventStep({
         {event.startsAt && (
           <p className='text-muted-foreground flex items-center gap-1.5 text-sm'>
             <CalendarDays className='size-4' />
-            <LocalDateTime
-              value={event.startsAt}
-              dateStyle='medium'
-              timeStyle='short'
-            />
+            {new Intl.DateTimeFormat(undefined, {
+              dateStyle: 'medium',
+              timeStyle: 'short',
+            }).format(new Date(event.startsAt))}
           </p>
         )}
         <p className='text-muted-foreground text-sm'>

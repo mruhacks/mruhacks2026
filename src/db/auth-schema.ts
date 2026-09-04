@@ -27,13 +27,9 @@ export const user = pgTable(
      */
     oauthName: text('oauth_name'),
     /** Set after the user has completed every required welcome step. */
-    onboardingCompletedAt: timestamp('onboarding_completed_at', {
-      withTimezone: true,
-    }),
-    createdAt: timestamp('created_at', { withTimezone: true })
-      .defaultNow()
-      .notNull(),
-    updatedAt: timestamp('updated_at', { withTimezone: true })
+    onboardingCompletedAt: timestamp('onboarding_completed_at'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at')
       .defaultNow()
       .$onUpdate(() => new Date())
       .notNull(),
@@ -41,7 +37,7 @@ export const user = pgTable(
     role: text('role'),
     banned: boolean('banned').default(false),
     banReason: text('ban_reason'),
-    banExpires: timestamp('ban_expires', { withTimezone: true }),
+    banExpires: timestamp('ban_expires'),
   },
   (table) => [
     index('user_name_idx').on(table.name),
@@ -54,13 +50,11 @@ export const user = pgTable(
 export const session = pgTable('session', {
   id: uuid('id').defaultRandom().primaryKey(),
   token: text('token').notNull().unique(),
-  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  expiresAt: timestamp('expires_at').notNull(),
   ipAddress: text('ip_address'),
   userAgent: text('user_agent'),
-  createdAt: timestamp('created_at', { withTimezone: true })
-    .defaultNow()
-    .notNull(),
-  updatedAt: timestamp('updated_at', { withTimezone: true })
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at')
     .defaultNow()
     .$onUpdate(() => new Date())
     .notNull(),
@@ -91,16 +85,10 @@ export const account = pgTable(
     idToken: text('id_token'),
     scope: text('scope'),
     password: text('password'),
-    accessTokenExpiresAt: timestamp('access_token_expires_at', {
-      withTimezone: true,
-    }),
-    refreshTokenExpiresAt: timestamp('refresh_token_expires_at', {
-      withTimezone: true,
-    }),
-    createdAt: timestamp('created_at', { withTimezone: true })
-      .defaultNow()
-      .notNull(),
-    updatedAt: timestamp('updated_at', { withTimezone: true })
+    accessTokenExpiresAt: timestamp('access_token_expires_at'),
+    refreshTokenExpiresAt: timestamp('refresh_token_expires_at'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at')
       .defaultNow()
       .$onUpdate(() => new Date())
       .notNull(),
@@ -112,11 +100,9 @@ export const verification = pgTable('verification', {
   id: uuid('id').defaultRandom().primaryKey(),
   identifier: text('identifier').notNull(),
   value: text('value').notNull(),
-  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
-  createdAt: timestamp('created_at', { withTimezone: true })
-    .defaultNow()
-    .notNull(),
-  updatedAt: timestamp('updated_at', { withTimezone: true })
+  expiresAt: timestamp('expires_at').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at')
     .defaultNow()
     .$onUpdate(() => new Date())
     .notNull(),
@@ -131,9 +117,7 @@ export const verification = pgTable('verification', {
  */
 export const magicLinkCooldown = pgTable('magic_link_cooldown', {
   email: text('email').primaryKey(),
-  lastSentAt: timestamp('last_sent_at', { withTimezone: true })
-    .defaultNow()
-    .notNull(),
+  lastSentAt: timestamp('last_sent_at').defaultNow().notNull(),
 });
 
 /**
@@ -156,9 +140,7 @@ export const termsAcceptances = pgTable(
       .references(() => user.id, { onDelete: 'cascade' }),
     /** Version identifier of the Terms document the user accepted. */
     version: text('version').notNull(),
-    acceptedAt: timestamp('accepted_at', { withTimezone: true })
-      .defaultNow()
-      .notNull(),
+    acceptedAt: timestamp('accepted_at').defaultNow().notNull(),
   },
   (table) => [index('terms_acceptances_user_id_idx').on(table.userId)],
 );
@@ -173,9 +155,7 @@ export const privacyAcceptances = pgTable(
       .references(() => user.id, { onDelete: 'cascade' }),
     /** Version identifier of the Privacy Policy the user accepted. */
     version: text('version').notNull(),
-    acceptedAt: timestamp('accepted_at', { withTimezone: true })
-      .defaultNow()
-      .notNull(),
+    acceptedAt: timestamp('accepted_at').defaultNow().notNull(),
   },
   (table) => [index('privacy_acceptances_user_id_idx').on(table.userId)],
 );
@@ -191,9 +171,7 @@ export const marketingConsents = pgTable('marketing_consents', {
   /** Whether the user has opted in to non-essential / marketing email. */
   optedIn: boolean('opted_in').default(false).notNull(),
   /** When `optedIn` was last changed. */
-  changedAt: timestamp('changed_at', { withTimezone: true })
-    .defaultNow()
-    .notNull(),
+  changedAt: timestamp('changed_at').defaultNow().notNull(),
 });
 
 /**
@@ -209,11 +187,9 @@ export const invite = pgTable('invite', {
   invitedBy: uuid('invited_by').references(() => user.id, {
     onDelete: 'set null',
   }),
-  createdAt: timestamp('created_at', { withTimezone: true })
-    .defaultNow()
-    .notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
   /** Invites are short-lived so a recycled email address cannot inherit roles. */
-  expiresAt: timestamp('expires_at', { withTimezone: true })
+  expiresAt: timestamp('expires_at')
     .default(sql`now() + interval '7 days'`)
     .notNull(),
 });
@@ -237,9 +213,7 @@ export const auditLog = pgTable(
     targetType: text('target_type').notNull(),
     targetId: text('target_id'),
     metadata: jsonb('metadata').$type<Record<string, unknown>>(),
-    createdAt: timestamp('created_at', { withTimezone: true })
-      .defaultNow()
-      .notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
   },
   (table) => [
     index('audit_log_actor_id_idx').on(table.actorId),

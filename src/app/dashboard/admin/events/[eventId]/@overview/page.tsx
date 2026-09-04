@@ -31,11 +31,6 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { EventDescriptionCard } from './event-description-card';
-import { fromDateTimeLocalValue, toDateTimeLocalValue } from '@/lib/datetime';
-import {
-  LocalDateTime,
-  useZoneAbbreviation,
-} from '@/components/local-date-time';
 
 type EventOverviewPageProps = {
   params: Promise<{ eventId: string }>;
@@ -75,10 +70,10 @@ export default function EventOverviewPage({ params }: EventOverviewPageProps) {
           hasApplication: result.data.hasApplication,
           capacity: result.data.capacity ?? undefined,
           startsAt: result.data.startsAt
-            ? result.data.startsAt.toISOString()
+            ? result.data.startsAt.toISOString().slice(0, 16)
             : undefined,
           endsAt: result.data.endsAt
-            ? result.data.endsAt.toISOString()
+            ? result.data.endsAt.toISOString().slice(0, 16)
             : undefined,
           isFeatured: result.data.isFeatured,
           teamsEnabled: result.data.teamsEnabled,
@@ -94,8 +89,6 @@ export default function EventOverviewPage({ params }: EventOverviewPageProps) {
 
   const hasApplication = watch('hasApplication');
   const teamsEnabled = watch('teamsEnabled');
-  const startsAtAbbr = useZoneAbbreviation(watch('startsAt') ?? undefined);
-  const endsAtAbbr = useZoneAbbreviation(watch('endsAt') ?? undefined);
 
   const onSubmit = async (data: UpdateEventSettingsInput) => {
     if (!eventId) return;
@@ -218,11 +211,7 @@ export default function EventOverviewPage({ params }: EventOverviewPageProps) {
                     Starts At
                   </p>
                   <p className='mt-1 text-sm'>
-                    <LocalDateTime
-                      value={event.startsAt}
-                      dateStyle='medium'
-                      timeStyle='short'
-                    />
+                    {new Date(event.startsAt).toLocaleString()}
                   </p>
                 </div>
               )}
@@ -232,11 +221,7 @@ export default function EventOverviewPage({ params }: EventOverviewPageProps) {
                     Ends At
                   </p>
                   <p className='mt-1 text-sm'>
-                    <LocalDateTime
-                      value={event.endsAt}
-                      dateStyle='medium'
-                      timeStyle='short'
-                    />
+                    {new Date(event.endsAt).toLocaleString()}
                   </p>
                 </div>
               )}
@@ -316,61 +301,23 @@ export default function EventOverviewPage({ params }: EventOverviewPageProps) {
                 {/* Starts At */}
                 <Field>
                   <FieldLabel htmlFor='startsAt'>
-                    Starts At ({startsAtAbbr}, optional)
+                    Starts At (optional)
                   </FieldLabel>
-                  <Controller
-                    name='startsAt'
-                    control={control}
-                    render={({ field }) => (
-                      <Input
-                        {...field}
-                        id='startsAt'
-                        type='datetime-local'
-                        value={
-                          field.value
-                            ? toDateTimeLocalValue(new Date(field.value))
-                            : ''
-                        }
-                        onChange={(e) =>
-                          field.onChange(
-                            fromDateTimeLocalValue(
-                              e.target.value,
-                            )?.toISOString() ?? null,
-                          )
-                        }
-                      />
-                    )}
+                  <Input
+                    id='startsAt'
+                    type='datetime-local'
+                    {...register('startsAt')}
                   />
                   {errors.startsAt && <FieldError errors={[errors.startsAt]} />}
                 </Field>
 
                 {/* Ends At */}
                 <Field>
-                  <FieldLabel htmlFor='endsAt'>
-                    Ends At ({endsAtAbbr}, optional)
-                  </FieldLabel>
-                  <Controller
-                    name='endsAt'
-                    control={control}
-                    render={({ field }) => (
-                      <Input
-                        {...field}
-                        id='endsAt'
-                        type='datetime-local'
-                        value={
-                          field.value
-                            ? toDateTimeLocalValue(new Date(field.value))
-                            : ''
-                        }
-                        onChange={(e) =>
-                          field.onChange(
-                            fromDateTimeLocalValue(
-                              e.target.value,
-                            )?.toISOString() ?? null,
-                          )
-                        }
-                      />
-                    )}
+                  <FieldLabel htmlFor='endsAt'>Ends At (optional)</FieldLabel>
+                  <Input
+                    id='endsAt'
+                    type='datetime-local'
+                    {...register('endsAt')}
                   />
                   {errors.endsAt && <FieldError errors={[errors.endsAt]} />}
                 </Field>
