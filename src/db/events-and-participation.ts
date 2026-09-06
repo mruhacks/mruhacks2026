@@ -75,8 +75,8 @@ export const events = pgTable(
       .$type<ApplicationQuestion[]>()
       .notNull()
       .default(sql`'[]'::jsonb`),
-    startsAt: timestamp('starts_at'),
-    endsAt: timestamp('ends_at'),
+    startsAt: timestamp('starts_at', { withTimezone: true }),
+    endsAt: timestamp('ends_at', { withTimezone: true }),
     /** Free-text venue/location, shown on the event page and Apple Wallet pass. */
     location: text('location'),
     /**
@@ -92,8 +92,10 @@ export const events = pgTable(
     teamsEnabled: boolean('teams_enabled').notNull().default(false),
     // Nullable = uncapped team size.
     maxTeamSize: integer('max_team_size'),
-    createdAt: timestamp('created_at').defaultNow().notNull(),
-    updatedAt: timestamp('updated_at')
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
       .defaultNow()
       .$onUpdate(() => new Date())
       .notNull(),
@@ -128,8 +130,10 @@ export const userProfiles = pgTable('user_profiles', {
   resumeFile: text('resume_file'),
   resumeFileName: varchar('resume_file_name', { length: 255 }),
   resumeFileType: varchar('resume_file_type', { length: 100 }),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at')
+  createdAt: timestamp('created_at', { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true })
     .defaultNow()
     .$onUpdate(() => new Date())
     .notNull(),
@@ -164,8 +168,10 @@ export const userProfileAbout = pgTable('user_profile_about', {
   /** Optional social links, shown to organizers/sponsors reviewing applications. */
   linkedinUrl: varchar('linkedin_url', { length: 255 }),
   githubUrl: varchar('github_url', { length: 255 }),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at')
+  createdAt: timestamp('created_at', { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true })
     .defaultNow()
     .$onUpdate(() => new Date())
     .notNull(),
@@ -186,13 +192,15 @@ export const eventApplications = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
     statusId: integer('status_id').references(() => applicationStatuses.id),
-    reviewedAt: timestamp('reviewed_at'),
+    reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
     reviewedBy: uuid('reviewed_by').references(() => user.id, {
       onDelete: 'set null',
     }),
     waitlistPosition: integer('waitlist_position'),
-    createdAt: timestamp('created_at').defaultNow().notNull(),
-    updatedAt: timestamp('updated_at')
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
       .defaultNow()
       .$onUpdate(() => new Date())
       .notNull(),
@@ -265,7 +273,9 @@ export const eventAttendees = pgTable(
     userId: uuid('user_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
-    registeredAt: timestamp('registered_at').defaultNow().notNull(),
+    registeredAt: timestamp('registered_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
   },
   (table) => ({
     pk: primaryKey({ columns: [table.eventId, table.userId] }),
@@ -285,7 +295,9 @@ export const checkIns = pgTable(
     eventId: uuid('event_id')
       .notNull()
       .references(() => events.id, { onDelete: 'cascade' }),
-    checkedInAt: timestamp('checked_in_at').defaultNow().notNull(),
+    checkedInAt: timestamp('checked_in_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
   },
   (table) => ({
     userEventUnique: uniqueIndex('check_ins_user_id_event_id_unique').on(
@@ -312,8 +324,10 @@ export const eventRsvpWaves = pgTable(
       .notNull()
       .references(() => events.id, { onDelete: 'cascade' }),
     wave: smallint('wave').notNull(),
-    respondBy: timestamp('respond_by'),
-    createdAt: timestamp('created_at').defaultNow().notNull(),
+    respondBy: timestamp('respond_by', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
   },
   (table) => ({
     eventWaveUnique: uniqueIndex('event_rsvp_waves_event_id_wave_unique').on(
@@ -338,9 +352,11 @@ export const eventRsvpResponses = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
     statusId: integer('status_id').references(() => rsvpStatuses.id),
-    respondedAt: timestamp('responded_at'),
-    createdAt: timestamp('created_at').defaultNow().notNull(),
-    updatedAt: timestamp('updated_at')
+    respondedAt: timestamp('responded_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
       .defaultNow()
       .$onUpdate(() => new Date())
       .notNull(),
@@ -368,8 +384,10 @@ export const teams = pgTable(
       .references(() => user.id, { onDelete: 'cascade' }),
     // 8-char alphanumeric join code, unique per event (not globally).
     code: varchar('code', { length: 8 }).notNull(),
-    createdAt: timestamp('created_at').defaultNow().notNull(),
-    updatedAt: timestamp('updated_at')
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
       .defaultNow()
       .$onUpdate(() => new Date())
       .notNull(),
@@ -402,7 +420,9 @@ export const teamMembers = pgTable(
     eventId: uuid('event_id')
       .notNull()
       .references(() => events.id, { onDelete: 'cascade' }),
-    joinedAt: timestamp('joined_at').defaultNow().notNull(),
+    joinedAt: timestamp('joined_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
   },
   (table) => ({
     userEventUnique: uniqueIndex('team_members_user_id_event_id_unique').on(
@@ -440,8 +460,10 @@ export const eventArticles = pgTable(
     updatedBy: uuid('updated_by').references(() => user.id, {
       onDelete: 'set null',
     }),
-    createdAt: timestamp('created_at').defaultNow().notNull(),
-    updatedAt: timestamp('updated_at')
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
       .defaultNow()
       .$onUpdate(() => new Date())
       .notNull(),
@@ -667,7 +689,7 @@ export const applicationView = pgView('application_view', {
   interests: text().array(),
   dietaryRestrictions: text('dietary_restrictions').array(),
   responses: jsonb('responses').$type<Record<string, unknown>>(),
-  createdAt: timestamp('created_at', { mode: 'string' }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
   linkedinUrl: varchar('linkedin_url', { length: 255 }),
   githubUrl: varchar('github_url', { length: 255 }),
   genderOtherText: varchar('gender_other_text', { length: 255 }),
@@ -741,7 +763,7 @@ export const applicationFormView = pgView('application_form_view', {
   interests: integer('interests').array().notNull(),
   dietaryRestrictions: integer('dietary_restrictions').array().notNull(),
   responses: jsonb('responses').$type<Record<string, unknown>>(),
-  createdAt: timestamp('created_at', { mode: 'string' }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
   linkedinUrl: varchar('linkedin_url', { length: 255 }),
   githubUrl: varchar('github_url', { length: 255 }),
   genderOtherText: varchar('gender_other_text', { length: 255 }),

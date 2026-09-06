@@ -253,6 +253,13 @@
       "when": 1788021401197,
       "tag": "0035_restore_event_location",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1788460371813,
+      "tag": "0036_chubby_doctor_strange",
+      "breakpoints": true
     }
   ]
 }

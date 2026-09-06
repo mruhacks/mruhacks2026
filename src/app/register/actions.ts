@@ -1,6 +1,7 @@
 /**
  * Server actions for simple event signup (register/unregister for events without application).
- * This directory contains no page, so `/register` is not a public route.
+ * The public `/register` route (page.tsx in this directory) redirects to the
+ * featured event and does not use these actions directly.
  */
 
 'use server';

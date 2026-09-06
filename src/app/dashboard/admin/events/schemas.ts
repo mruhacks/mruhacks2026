@@ -93,13 +93,21 @@ const GEOFENCE_ISSUE = {
   path: ['latitude'],
 };
 
+/**
+ * Backend only ever speaks UTC instants (see AGENTS.md) — an event's
+ * start/end must arrive as a real ISO instant, not a bare wall-clock
+ * string. The frontend converts a `datetime-local` input's value to an
+ * instant before it ever reaches a server action.
+ */
+const eventInstantSchema = z.iso.datetime({ offset: true });
+
 export const createEventSchema = z
   .object({
     name: z.string().trim().min(1, 'Event name is required'),
     hasApplication: z.boolean().default(false),
     capacity: z.number().int().positive().nullish(),
-    startsAt: z.string().nullish(),
-    endsAt: z.string().nullish(),
+    startsAt: eventInstantSchema.nullish(),
+    endsAt: eventInstantSchema.nullish(),
     location: z.string().trim().max(255).nullish(),
     ...geofenceFields,
     isFeatured: z.boolean().optional(),
@@ -125,8 +133,8 @@ export const updateEventSettingsSchema = z
     name: z.string().trim().min(1, 'Event name is required').optional(),
     hasApplication: z.boolean().optional(),
     capacity: z.number().int().positive().nullish(),
-    startsAt: z.string().nullish(),
-    endsAt: z.string().nullish(),
+    startsAt: eventInstantSchema.nullish(),
+    endsAt: eventInstantSchema.nullish(),
     location: z.string().trim().max(255).nullish(),
     ...geofenceFields,
     isFeatured: z.boolean().optional(),
