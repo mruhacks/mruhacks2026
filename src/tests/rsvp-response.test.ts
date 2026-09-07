@@ -34,7 +34,8 @@ let timedOutStatusId: number;
 let wave1Id: string;
 let wave2Id: string;
 
-const respondBy = new Date('2026-09-01T23:59:59.000Z');
+// Always in the future relative to whenever the suite runs.
+const respondBy = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
 
 async function ensureRsvpStatus(
   label: string,
