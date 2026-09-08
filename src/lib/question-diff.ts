@@ -13,8 +13,7 @@ import {
 import type { EditQuestionInput } from '@/app/dashboard/admin/events/schemas';
 
 export type QuestionEditResult =
-  | { ok: true; question: ApplicationQuestion }
-  | { ok: false; error: string };
+  { ok: true; question: ApplicationQuestion } | { ok: false; error: string };
 
 /**
  * Returns true if any response in the set references the given question ID

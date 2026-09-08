@@ -79,12 +79,7 @@ export const applicationStatusesList = [
 export type ApplicationStatus = (typeof applicationStatusesList)[number];
 
 export type ApplicationStatusBadgeVariant =
-  | 'default'
-  | 'secondary'
-  | 'success'
-  | 'warning'
-  | 'destructive'
-  | 'outline';
+  'default' | 'secondary' | 'success' | 'warning' | 'destructive' | 'outline';
 
 /**
  * Display config for each application status, seeded into the

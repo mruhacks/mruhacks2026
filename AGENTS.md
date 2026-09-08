@@ -23,6 +23,7 @@ Never surface a form submission's validation/error result as a toast (`sonner`'s
 Toasts are still fine for things that aren't form-submission errors: success confirmations (registered, joined, copied), and simple non-form action failures (e.g. a button-only action like "leave team" or "remove member" that has no input to attach an inline error to).
 
 Why: a toast disappears and doesn't stay anchored to the field that caused the problem, so the user has to remember what went wrong and where to fix it — bad UX for anything the user is actively trying to fill in and resubmit. Inline errors stay visible exactly where the user is looking and next to the control they need to correct.
+
 # New external config gets a health check
 
 Whenever you add a new external dependency — a secret/env var for a third-party service, or a URL the app relies on at runtime (a hosted asset, an API endpoint) — wire it into `src/app/api/health/route.ts`, not just `.env.example`. At minimum, add its env var(s) to `REQUIRED_ENV_VARS` so a missing one shows up in `missingEnv`. Where it's possible to actually verify the thing works (not just that the env var is non-empty), add a dedicated `checkX()` function and a `checks.x` entry too — e.g. `checkTurnstile` posts a bogus token to Cloudflare's siteverify endpoint, `checkGoogleWallet` does a `HEAD` request against the externally-hosted logo URL Google's servers fetch directly.
