@@ -7,12 +7,13 @@ import {
   afterAll,
   vi,
 } from 'vitest';
-import { desc, eq } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 import { db } from '@/utils/db';
 import {
   user,
   events,
   eventApplications,
+  eventAttendees,
   applicationStatuses,
   rsvpStatuses,
   eventRsvpWaves,
@@ -690,4 +691,231 @@ describe('sendRsvpWave with no approved applicants', () => {
       signInSpy.mockRestore();
     }
   });
+});
+
+const VOLUME_ELIGIBLE_COUNT = 1000;
+const VOLUME_PENDING_REVIEW_COUNT = 5;
+const VOLUME_ATTENDEE_COUNT = 5;
+const VOLUME_INSERT_CHUNK = 250;
+const VOLUME_TEST_TIMEOUT_MS = 60_000;
+
+async function insertUsersInChunks(
+  values: { name: string; email: string; emailVerified: boolean }[],
+): Promise<string[]> {
+  const ids: string[] = [];
+  for (let i = 0; i < values.length; i += VOLUME_INSERT_CHUNK) {
+    const inserted = await db
+      .insert(user)
+      .values(values.slice(i, i + VOLUME_INSERT_CHUNK))
+      .returning({ id: user.id });
+    ids.push(...inserted.map((row) => row.id));
+  }
+  return ids;
+}
+
+async function insertApplicationsInChunks(
+  values: { eventId: string; userId: string; statusId: number }[],
+): Promise<void> {
+  for (let i = 0; i < values.length; i += VOLUME_INSERT_CHUNK) {
+    await db
+      .insert(eventApplications)
+      .values(values.slice(i, i + VOLUME_INSERT_CHUNK));
+  }
+}
+
+describe('sendRsvpWave volume', () => {
+  const suiteId = crypto.randomUUID();
+  let stressEventId: string;
+  let eligibleUserIds: string[] = [];
+  let pendingReviewUserIds: string[] = [];
+  let attendeeUserIds: string[] = [];
+  let allUserIds: string[] = [];
+
+  beforeAll(async () => {
+    const [eventRow] = await db
+      .insert(events)
+      .values({
+        name: 'RSVP Wave Volume Event',
+        hasApplication: true,
+      })
+      .returning({ id: events.id });
+    stressEventId = eventRow.id;
+
+    eligibleUserIds = await insertUsersInChunks(
+      Array.from({ length: VOLUME_ELIGIBLE_COUNT }, (_, i) => ({
+        name: `Stress Eligible ${i}`,
+        email: `rsvp-stress-${suiteId}-${i}@example.com`,
+        emailVerified: true,
+      })),
+    );
+
+    pendingReviewUserIds = await insertUsersInChunks(
+      Array.from({ length: VOLUME_PENDING_REVIEW_COUNT }, (_, i) => ({
+        name: `Stress Pending Review ${i}`,
+        email: `rsvp-stress-pending-${suiteId}-${i}@example.com`,
+        emailVerified: true,
+      })),
+    );
+
+    attendeeUserIds = await insertUsersInChunks(
+      Array.from({ length: VOLUME_ATTENDEE_COUNT }, (_, i) => ({
+        name: `Stress Attendee ${i}`,
+        email: `rsvp-stress-attendee-${suiteId}-${i}@example.com`,
+        emailVerified: true,
+      })),
+    );
+
+    allUserIds = [
+      ...eligibleUserIds,
+      ...pendingReviewUserIds,
+      ...attendeeUserIds,
+    ];
+
+    await insertApplicationsInChunks([
+      ...eligibleUserIds.map((userId) => ({
+        eventId: stressEventId,
+        userId,
+        statusId: approvedStatusId,
+      })),
+      ...pendingReviewUserIds.map((userId) => ({
+        eventId: stressEventId,
+        userId,
+        statusId: pendingReviewStatusId,
+      })),
+      ...attendeeUserIds.map((userId) => ({
+        eventId: stressEventId,
+        userId,
+        statusId: approvedStatusId,
+      })),
+    ]);
+
+    await db.insert(eventAttendees).values(
+      attendeeUserIds.map((userId) => ({
+        eventId: stressEventId,
+        userId,
+      })),
+    );
+  }, VOLUME_TEST_TIMEOUT_MS);
+
+  afterAll(async () => {
+    if (stressEventId) {
+      await db.delete(events).where(eq(events.id, stressEventId));
+    }
+    if (allUserIds.length > 0) {
+      await db.delete(user).where(inArray(user.id, allUserIds));
+    }
+  }, VOLUME_TEST_TIMEOUT_MS);
+
+  test(
+    'queues exactly one invitation per eligible applicant and skips ineligible ones',
+    async () => {
+      const result = await sendRsvpWave(stressEventId, respondBy);
+
+      expect(result.success).toBe(true);
+      if (!result.success) return;
+
+      expect(result.wave.wave).toBe(1);
+      expect(result.wave.respondBy).toEqual(respondBy);
+      expect(result.eligibleApplicantCount).toBe(VOLUME_ELIGIBLE_COUNT);
+      expect(result.responsesCreated).toBe(VOLUME_ELIGIBLE_COUNT);
+      expect(result.invitationsQueued).toBe(VOLUME_ELIGIBLE_COUNT);
+      expect(result.queueFailures).toHaveLength(0);
+
+      expect(publishRsvpInvitation).toHaveBeenCalledTimes(VOLUME_ELIGIBLE_COUNT);
+      const publishedIds = publishRsvpInvitation.mock.calls.map(
+        (call) => call[0] as string,
+      );
+      expect(new Set(publishedIds).size).toBe(VOLUME_ELIGIBLE_COUNT);
+
+      const responses = await db
+        .select({
+          id: eventRsvpResponses.id,
+          userId: eventRsvpResponses.userId,
+          statusId: eventRsvpResponses.statusId,
+          invitationEmailStatus: eventRsvpResponses.invitationEmailStatus,
+          invitationEmailQueuedAt: eventRsvpResponses.invitationEmailQueuedAt,
+        })
+        .from(eventRsvpResponses)
+        .innerJoin(
+          eventRsvpWaves,
+          eq(eventRsvpResponses.rsvpWaveId, eventRsvpWaves.id),
+        )
+        .where(eq(eventRsvpWaves.eventId, stressEventId));
+
+      expect(responses).toHaveLength(VOLUME_ELIGIBLE_COUNT);
+      expect(new Set(responses.map((row) => row.userId))).toEqual(
+        new Set(eligibleUserIds),
+      );
+      expect(new Set(publishedIds)).toEqual(
+        new Set(responses.map((row) => row.id)),
+      );
+
+      for (const row of responses) {
+        expect(row.statusId).toBe(pendingRsvpStatusId);
+        expect(row.invitationEmailStatus).toBe('queued');
+        expect(row.invitationEmailQueuedAt).not.toBeNull();
+      }
+
+      const ineligibleIds = new Set([
+        ...pendingReviewUserIds,
+        ...attendeeUserIds,
+      ]);
+      for (const row of responses) {
+        expect(ineligibleIds.has(row.userId)).toBe(false);
+      }
+      for (const publishedId of publishedIds) {
+        const match = responses.find((row) => row.id === publishedId);
+        expect(match).toBeDefined();
+        expect(ineligibleIds.has(match!.userId)).toBe(false);
+      }
+
+      const applications = await db
+        .select({
+          userId: eventApplications.userId,
+          statusId: eventApplications.statusId,
+        })
+        .from(eventApplications)
+        .where(
+          and(
+            eq(eventApplications.eventId, stressEventId),
+            inArray(eventApplications.userId, eligibleUserIds),
+          ),
+        );
+      expect(applications).toHaveLength(VOLUME_ELIGIBLE_COUNT);
+      for (const application of applications) {
+        expect(application.statusId).toBe(approvedStatusId);
+      }
+    },
+    VOLUME_TEST_TIMEOUT_MS,
+  );
+
+  test(
+    'does not create a second wave or duplicate jobs for the same applicants',
+    async () => {
+      const result = await sendRsvpWave(stressEventId, respondBy);
+
+      expect(result.success).toBe(false);
+      if (result.success) return;
+      expect(result.error).toMatch(/no eligible applicants/i);
+      expect(publishRsvpInvitation).not.toHaveBeenCalled();
+
+      const waves = await db
+        .select({ id: eventRsvpWaves.id, wave: eventRsvpWaves.wave })
+        .from(eventRsvpWaves)
+        .where(eq(eventRsvpWaves.eventId, stressEventId));
+      expect(waves).toHaveLength(1);
+      expect(waves[0]?.wave).toBe(1);
+
+      const responses = await db
+        .select({ id: eventRsvpResponses.id })
+        .from(eventRsvpResponses)
+        .innerJoin(
+          eventRsvpWaves,
+          eq(eventRsvpResponses.rsvpWaveId, eventRsvpWaves.id),
+        )
+        .where(eq(eventRsvpWaves.eventId, stressEventId));
+      expect(responses).toHaveLength(VOLUME_ELIGIBLE_COUNT);
+    },
+    VOLUME_TEST_TIMEOUT_MS,
+  );
 });
