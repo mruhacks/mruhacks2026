@@ -30,7 +30,7 @@ export function EventWikiDialog({ eventId, articles }: Props) {
       </DialogTrigger>
       <DialogContent className='max-h-[85vh] overflow-y-auto sm:max-w-lg'>
         <DialogHeader>
-          <DialogTitle>Event wiki</DialogTitle>
+          <DialogTitle>Hackerpack</DialogTitle>
         </DialogHeader>
         <div className='flex flex-col overflow-hidden rounded-lg border'>
           {articles.map((article, index) => (
