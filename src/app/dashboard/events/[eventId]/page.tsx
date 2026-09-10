@@ -363,7 +363,7 @@ function WikiArticles({
         <div className='flex items-center gap-2'>
           <BookOpen className='size-4' aria-hidden />
           <h2 id='event-wiki-heading' className='text-xl font-semibold'>
-            Event wiki
+            Hackerpack
           </h2>
         </div>
         <EventWikiDialog eventId={eventId} articles={articles} />

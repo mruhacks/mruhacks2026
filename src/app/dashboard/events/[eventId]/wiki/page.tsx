@@ -62,7 +62,7 @@ export default async function EventWikiIndexPage({ params }: Props) {
             {event.name}
           </Link>
         </Button>
-        <h1 className='text-3xl font-semibold'>Event wiki</h1>
+        <h1 className='text-3xl font-semibold'>Hackerpack</h1>
       </div>
 
       {articles.length === 0 ? (
