@@ -68,7 +68,7 @@ export default async function EventWikiArticlePage({ params }: Props) {
         >
           <Link href={`/dashboard/events/${eventId}/wiki`}>
             <ArrowLeft className='mr-1.5 size-4' />
-            Event wiki
+            Hackerpack
           </Link>
         </Button>
         <div className='flex flex-wrap items-center gap-2'>
