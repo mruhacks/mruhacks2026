@@ -1,4 +1,4 @@
-import { EVENT_TIMEZONE } from '@/content';
+import { EVENT_TIME_ZONE } from '@/lib/datetime';
 
 const DATETIME_LOCAL_RE =
   /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?$/;
@@ -41,7 +41,7 @@ function zonedPartsAsUtcMillis(date: Date, timeZone: string): number {
  */
 export function parseDateTimeLocalInTimeZone(
   value: string,
-  timeZone: string = EVENT_TIMEZONE,
+  timeZone: string = EVENT_TIME_ZONE,
 ): Date {
   const match = DATETIME_LOCAL_RE.exec(value.trim());
   if (!match) return new Date(Number.NaN);
@@ -63,12 +63,12 @@ export function parseDateTimeLocalInTimeZone(
 
 /**
  * Parse an RSVP deadline from the admin form or an ISO instant.
- * Timezone-less `datetime-local` strings are Calgary (`EVENT_TIMEZONE`) wall
+ * Timezone-less `datetime-local` strings are Calgary (`EVENT_TIME_ZONE`) wall
  * time. Strings with `Z` or an offset are absolute instants.
  */
 export function parseRsvpDeadline(
   raw: string,
-  timeZone: string = EVENT_TIMEZONE,
+  timeZone: string = EVENT_TIME_ZONE,
 ): Date {
   const trimmed = raw.trim();
   if (HAS_EXPLICIT_OFFSET_RE.test(trimmed)) {
@@ -82,7 +82,7 @@ export function parseRsvpDeadline(
 
 export function formatRsvpDateTime(
   date: Date,
-  timeZone: string = EVENT_TIMEZONE,
+  timeZone: string = EVENT_TIME_ZONE,
 ): string {
   return new Intl.DateTimeFormat('en-CA', {
     timeZone,
@@ -97,7 +97,7 @@ export function formatRsvpDateTime(
 
 export function formatRsvpDeadline(
   date: Date,
-  timeZone: string = EVENT_TIMEZONE,
+  timeZone: string = EVENT_TIME_ZONE,
 ): string {
   return new Intl.DateTimeFormat('en-CA', {
     timeZone,

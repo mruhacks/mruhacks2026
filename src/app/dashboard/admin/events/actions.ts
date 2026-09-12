@@ -1,17 +1,28 @@
 'use server';
 
 import { randomUUID } from 'crypto';
-import { and, count, eq, ne } from 'drizzle-orm';
+import { and, count, eq, inArray, ne, sql } from 'drizzle-orm';
 import { revalidatePath, updateTag } from 'next/cache';
 import { db } from '@/utils/db';
 import { FEATURED_EVENT_CACHE_TAG } from '@/lib/featured-event';
-import { events, eventApplications, user, userProfiles } from '@/db/schema';
+import { EVENTS_CACHE_TAG } from '@/lib/events';
+import {
+  events,
+  eventApplications,
+  user,
+  userProfiles,
+  teams,
+  teamMembers,
+} from '@/db/schema';
 import { getUser } from '@/utils/auth';
 import { ok, fail, type ActionResult } from '@/utils/action-result';
-import { requirePermission } from '@/lib/rbac/authorization';
+import { hasPermission, requirePermission } from '@/lib/rbac/authorization';
 import { sendRsvpWave } from '@/lib/rsvp/send-rsvp-wave';
 import { parseRsvpDeadline } from '@/lib/rsvp/rsvp-datetime';
-import type { ApplicationQuestion } from '@/types/application';
+import {
+  isSummarizableQuestion,
+  type ApplicationQuestion,
+} from '@/types/application';
 import {
   addQuestionSchema,
   editQuestionSchema,
@@ -153,6 +164,11 @@ export async function addQuestion(
     description: input.description,
     type: input.type,
     required: input.required,
+    maxLength: input.maxLength ?? undefined,
+    showInApplicationReview: input.showInApplicationReview,
+    showInReports: isSummarizableQuestion(input.type)
+      ? input.showInReports
+      : undefined,
     order: maxOrder + 1,
     active: true,
     options: needsOptions
@@ -361,16 +377,6 @@ export async function createEvent(
 
   const input = parsed.data;
 
-  // Convert datetime-local string to Date (datetime-local gives us "2026-05-13T14:30" format)
-  const parseDateTime = (dateStr: string | null | undefined) => {
-    if (!dateStr) return null;
-    try {
-      return new Date(dateStr);
-    } catch {
-      return null;
-    }
-  };
-
   const [newEvent] = await db
     .insert(events)
     .values({
@@ -378,8 +384,14 @@ export async function createEvent(
       name: input.name,
       hasApplication: input.hasApplication,
       capacity: input.capacity ?? null,
-      startsAt: parseDateTime(input.startsAt),
-      endsAt: parseDateTime(input.endsAt),
+      teamsEnabled: input.teamsEnabled ?? false,
+      maxTeamSize: input.maxTeamSize ?? null,
+      startsAt: input.startsAt ? new Date(input.startsAt) : null,
+      endsAt: input.endsAt ? new Date(input.endsAt) : null,
+      location: input.location || null,
+      latitude: input.latitude ?? null,
+      longitude: input.longitude ?? null,
+      radiusMeters: input.radiusMeters ?? null,
       // Keep question configuration independent from the application-process
       // toggle. Events may require an application with no custom questions.
       applicationQuestions: [],
@@ -387,6 +399,8 @@ export async function createEvent(
       updatedAt: new Date(),
     })
     .returning({ id: events.id });
+
+  updateTag(EVENTS_CACHE_TAG);
 
   await writeAuditLog({
     actorId: user.id,
@@ -400,11 +414,18 @@ export async function createEvent(
 export type EventDetails = {
   id: string;
   name: string;
+  descriptionMarkdown: string;
   hasApplication: boolean;
   capacity: number | null;
   startsAt: Date | null;
   endsAt: Date | null;
+  location: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  radiusMeters: number | null;
   isFeatured: boolean;
+  teamsEnabled: boolean;
+  maxTeamSize: number | null;
   createdAt: Date;
   updatedAt: Date;
   questionsCount: number;
@@ -441,11 +462,18 @@ export async function getEventDetails(
   return ok({
     id: eventRow.id,
     name: eventRow.name,
+    descriptionMarkdown: eventRow.descriptionMarkdown ?? '',
     hasApplication: eventRow.hasApplication,
     capacity: eventRow.capacity ?? null,
     startsAt: eventRow.startsAt ?? null,
     endsAt: eventRow.endsAt ?? null,
+    location: eventRow.location ?? null,
+    latitude: eventRow.latitude ?? null,
+    longitude: eventRow.longitude ?? null,
+    radiusMeters: eventRow.radiusMeters ?? null,
     isFeatured: eventRow.isFeatured,
+    teamsEnabled: eventRow.teamsEnabled,
+    maxTeamSize: eventRow.maxTeamSize ?? null,
     createdAt: eventRow.createdAt,
     updatedAt: eventRow.updatedAt,
     questionsCount,
@@ -478,16 +506,48 @@ export async function updateEventSettings(
 
   const input = parsed.data;
 
-  // Convert datetime-local string to Date (datetime-local gives us "2026-05-13T14:30" format)
-  const parseDateTime = (dateStr: string | null | undefined) => {
-    if (dateStr === undefined) return undefined;
-    if (!dateStr) return null;
-    try {
-      return new Date(dateStr);
-    } catch {
-      return null;
-    }
-  };
+  // The schema's start-before-end refine only fires when a single request
+  // supplies both fields. A partial update (e.g. startsAt alone) has to be
+  // checked again here against whichever value — new or already-stored —
+  // each field will actually end up with, or a lone edit can push
+  // startsAt past the untouched stored endsAt.
+  const finalStartsAt =
+    input.startsAt !== undefined
+      ? input.startsAt
+        ? new Date(input.startsAt)
+        : null
+      : eventRow.startsAt;
+  const finalEndsAt =
+    input.endsAt !== undefined
+      ? input.endsAt
+        ? new Date(input.endsAt)
+        : null
+      : eventRow.endsAt;
+
+  if (finalStartsAt && finalEndsAt && finalStartsAt >= finalEndsAt) {
+    return fail('Start date must be before end date');
+  }
+
+  const latitude =
+    input.latitude !== undefined ? input.latitude : eventRow.latitude;
+  const longitude =
+    input.longitude !== undefined ? input.longitude : eventRow.longitude;
+  const radiusMeters =
+    input.radiusMeters !== undefined
+      ? input.radiusMeters
+      : eventRow.radiusMeters;
+
+  // latitude/longitude/radiusMeters must all be set or all unset. The Zod
+  // schema can't enforce this for a partial update (a payload touching only
+  // one field doesn't know the other two's current DB values), so re-check
+  // against the merged (existing + incoming) result before writing.
+  const geofenceValues = [latitude, longitude, radiusMeters];
+  const geofenceCount = geofenceValues.filter((v) => v != null).length;
+  if (geofenceCount !== 0 && geofenceCount !== 3) {
+    return fail(
+      'Latitude, longitude, and radius must all be set together for the pass geofence',
+    );
+  }
 
   await db.transaction(async (tx) => {
     // Only one event may be featured at a time (enforced by idx_events_featured_unique).
@@ -504,22 +564,30 @@ export async function updateEventSettings(
         name: input.name ?? eventRow.name,
         hasApplication: input.hasApplication ?? eventRow.hasApplication,
         capacity: input.capacity ?? eventRow.capacity,
-        startsAt:
-          input.startsAt !== undefined
-            ? parseDateTime(input.startsAt)
-            : eventRow.startsAt,
-        endsAt:
-          input.endsAt !== undefined
-            ? parseDateTime(input.endsAt)
-            : eventRow.endsAt,
+        teamsEnabled: input.teamsEnabled ?? eventRow.teamsEnabled,
+        maxTeamSize:
+          input.maxTeamSize !== undefined
+            ? input.maxTeamSize
+            : eventRow.maxTeamSize,
+        startsAt: finalStartsAt,
+        endsAt: finalEndsAt,
+        location:
+          input.location !== undefined
+            ? input.location || null
+            : eventRow.location,
+        latitude,
+        longitude,
+        radiusMeters,
         isFeatured: input.isFeatured ?? eventRow.isFeatured,
         updatedAt: new Date(),
       })
       .where(eq(events.id, eventId));
   });
 
-  // Homepage register-link lookup is cached; bust it so edits show up immediately.
+  // Homepage register-link lookup and the events list are both cached; bust
+  // them so edits show up immediately.
   updateTag(FEATURED_EVENT_CACHE_TAG);
+  updateTag(EVENTS_CACHE_TAG);
 
   await writeAuditLog({
     actorId: user.id,
@@ -636,4 +704,116 @@ export async function sendEventRsvpWave(
     invitationsQueued: result.invitationsQueued,
     queueFailures: result.queueFailures,
   });
+}
+
+export type FormedTeamMember = {
+  userId: string;
+  name: string;
+  email: string;
+  isOrganizer: boolean;
+};
+
+export type FormedTeamRow = {
+  teamId: string;
+  organizerId: string;
+  organizerName: string;
+  organizerEmail: string;
+  memberCount: number;
+  members: FormedTeamMember[];
+};
+
+/**
+ * Lists all "formed" teams (more than one member) for an event, with their
+ * full roster. Solo teams-of-one are excluded.
+ * Requires team:read:all permission.
+ */
+export async function getFormedTeamsForEvent(
+  eventId: string,
+): Promise<ActionResult<FormedTeamRow[]>> {
+  const authUser = await getUser();
+  if (!authUser) return fail('Not authenticated');
+  await requirePermission(authUser.id, 'team:read:all');
+
+  try {
+    return await listFormedTeams(eventId);
+  } catch (error) {
+    console.error('getFormedTeamsForEvent error:', error);
+    return fail('Failed to load teams.');
+  }
+}
+
+/**
+ * True when the caller may use the moderation override in `removeMember`.
+ * The Teams tab is readable with `team:read:all` alone, so its remove
+ * controls have to be gated on the permission that actually backs them.
+ */
+export async function canModerateTeams(): Promise<boolean> {
+  const authUser = await getUser();
+  if (!authUser) return false;
+  return hasPermission(authUser.id, 'team:manage:all');
+}
+
+async function listFormedTeams(
+  eventId: string,
+): Promise<ActionResult<FormedTeamRow[]>> {
+  const formedTeams = await db
+    .select({ teamId: teamMembers.teamId, memberCount: count() })
+    .from(teamMembers)
+    .where(eq(teamMembers.eventId, eventId))
+    .groupBy(teamMembers.teamId)
+    .having(sql`count(*) > 1`);
+
+  if (formedTeams.length === 0) return ok([]);
+
+  const teamIds = formedTeams.map((t) => t.teamId);
+  const countByTeamId = new Map(
+    formedTeams.map((t) => [t.teamId, t.memberCount]),
+  );
+
+  const [teamRows, memberRows] = await Promise.all([
+    db
+      .select({ id: teams.id, organizerId: teams.organizerId })
+      .from(teams)
+      .where(inArray(teams.id, teamIds)),
+    db
+      .select({
+        teamId: teamMembers.teamId,
+        userId: teamMembers.userId,
+        name: user.name,
+        email: user.email,
+      })
+      .from(teamMembers)
+      .innerJoin(user, eq(teamMembers.userId, user.id))
+      .where(inArray(teamMembers.teamId, teamIds)),
+  ]);
+
+  const membersByTeamId = new Map<string, FormedTeamMember[]>();
+  for (const row of memberRows) {
+    const list = membersByTeamId.get(row.teamId) ?? [];
+    list.push({
+      userId: row.userId,
+      name: row.name,
+      email: row.email,
+      isOrganizer: false,
+    });
+    membersByTeamId.set(row.teamId, list);
+  }
+
+  return ok(
+    teamRows.map((t) => {
+      const members = (membersByTeamId.get(t.id) ?? []).map((m) => ({
+        ...m,
+        isOrganizer: m.userId === t.organizerId,
+      }));
+      const organizer = members.find((m) => m.isOrganizer);
+      return {
+        teamId: t.id,
+        organizerId: t.organizerId,
+        organizerName: organizer?.name ?? 'Unknown',
+        organizerEmail: organizer?.email ?? '',
+        memberCount: countByTeamId.get(t.id) ?? members.length,
+        members,
+      };
+    }),
+  );
 }

@@ -35,7 +35,12 @@ export function EditUserModalClient({
   };
 
   return (
-    <Dialog open onOpenChange={(open) => { if (!open) close(); }}>
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) close();
+      }}
+    >
       <DialogContent className='sm:max-w-2xl'>
         <DialogHeader>
           <DialogTitle>Edit user</DialogTitle>

@@ -52,7 +52,8 @@ export function BanUserDialog({
     const preset =
       durationKey === 'permanent'
         ? null
-        : DURATION_PRESETS.find((p) => p.label === durationKey)?.seconds ?? null;
+        : (DURATION_PRESETS.find((p) => p.label === durationKey)?.seconds ??
+          null);
     setSubmitting(true);
     const res = await adminBanUser(user.id, reason, preset ?? undefined);
     setSubmitting(false);

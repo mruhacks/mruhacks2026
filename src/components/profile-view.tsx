@@ -5,6 +5,7 @@ import type {
   ProfileFormValues,
   ProfileFormOptions,
 } from '@/components/profile-form/schema';
+import { isOtherOption } from '@/lib/other-option';
 
 type ProfileViewProps = {
   profile: Partial<ProfileFormValues>;
@@ -16,24 +17,33 @@ export function ProfileView({ profile, options }: ProfileViewProps) {
     return list.find((item) => item.value === id)?.label || 'Unknown';
   };
 
+  const withOtherText = (label: string, otherText: string | undefined) =>
+    isOtherOption(label) && otherText ? `${label} (${otherText})` : label;
+
   const genderLabel = profile.genderId
-    ? getLabel(profile.genderId, options.genders)
+    ? withOtherText(
+        getLabel(profile.genderId, options.genders),
+        profile.genderOtherText,
+      )
     : '—';
   const universityLabel = profile.universityId
-    ? getLabel(profile.universityId, options.universities)
+    ? withOtherText(
+        getLabel(profile.universityId, options.universities),
+        profile.universityOtherText,
+      )
     : '—';
   const majorLabel = profile.majorId
-    ? getLabel(profile.majorId, options.majors)
+    ? withOtherText(
+        getLabel(profile.majorId, options.majors),
+        profile.majorOtherText,
+      )
     : '—';
   const yearLabel = profile.yearOfStudyId
     ? getLabel(profile.yearOfStudyId, options.years)
     : '—';
 
-  const interestLabels = (profile.interests ?? []).map((id) =>
-    getLabel(id, options.interests),
-  );
   const dietaryLabels = (profile.dietaryRestrictions ?? []).map((id) =>
-    getLabel(id, options.dietary),
+    withOtherText(getLabel(id, options.dietary), profile.dietaryOtherText),
   );
 
   return (
@@ -48,7 +58,9 @@ export function ProfileView({ profile, options }: ProfileViewProps) {
 
       <div className='space-y-3 rounded-lg border p-4'>
         <div className='mb-4 flex items-center justify-between'>
-          <p className='text-xs font-semibold text-muted-foreground'>PROFILE DETAILS</p>
+          <p className='text-muted-foreground text-xs font-semibold'>
+            PROFILE DETAILS
+          </p>
           <Button variant='ghost' size='sm' asChild>
             <Link href='/dashboard/profile'>
               <PencilIcon className='mr-2 size-4' />
@@ -85,25 +97,37 @@ export function ProfileView({ profile, options }: ProfileViewProps) {
             </p>
             <p className='text-sm'>{yearLabel}</p>
           </div>
-        </div>
-
-        {interestLabels.length > 0 && (
-          <div>
-            <p className='text-muted-foreground text-xs font-semibold'>
-              Interests
-            </p>
-            <div className='mt-1 flex flex-wrap gap-1'>
-              {interestLabels.map((label) => (
-                <span
-                  key={label}
-                  className='bg-muted inline-block rounded-full px-2 py-0.5 text-xs'
-                >
-                  {label}
-                </span>
-              ))}
+          {profile.linkedinUrl && (
+            <div>
+              <p className='text-muted-foreground text-xs font-semibold'>
+                LinkedIn
+              </p>
+              <a
+                href={profile.linkedinUrl}
+                target='_blank'
+                rel='noreferrer noopener'
+                className='text-primary text-sm break-all hover:underline'
+              >
+                {profile.linkedinUrl}
+              </a>
             </div>
-          </div>
-        )}
+          )}
+          {profile.githubUrl && (
+            <div>
+              <p className='text-muted-foreground text-xs font-semibold'>
+                GitHub
+              </p>
+              <a
+                href={profile.githubUrl}
+                target='_blank'
+                rel='noreferrer noopener'
+                className='text-primary text-sm break-all hover:underline'
+              >
+                {profile.githubUrl}
+              </a>
+            </div>
+          )}
+        </div>
 
         {dietaryLabels.length > 0 && (
           <div>

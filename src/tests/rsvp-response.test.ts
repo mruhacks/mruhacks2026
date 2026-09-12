@@ -14,10 +14,13 @@ vi.mock('@/utils/auth', () => ({ getUser: vi.fn() }));
 vi.mock('next/cache', () => ({
   revalidatePath: vi.fn(),
   cacheLife: vi.fn(),
+  cacheTag: vi.fn(),
+  updateTag: vi.fn(),
 }));
 
 import { getUser } from '@/utils/auth';
-import { revalidatePath } from 'next/cache';
+import { revalidatePath, updateTag } from 'next/cache';
+import { userEventsCacheTag } from '@/lib/events';
 import {
   getUserRsvpStatus,
   getEventsWithUserStatus,
@@ -60,7 +63,10 @@ async function ensureRsvpStatus(
   return existing.id;
 }
 
-async function countAttendees(eventId: string, userId: string): Promise<number> {
+async function countAttendees(
+  eventId: string,
+  userId: string,
+): Promise<number> {
   const rows = await db
     .select({ eventId: eventAttendees.eventId })
     .from(eventAttendees)
@@ -181,9 +187,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await db
-    .delete(eventAttendees)
-    .where(eq(eventAttendees.userId, testUserId));
+  await db.delete(eventAttendees).where(eq(eventAttendees.userId, testUserId));
   await db
     .delete(eventRsvpWaves)
     .where(eq(eventRsvpWaves.eventId, testEventId));
@@ -367,7 +371,8 @@ describe('submitRsvpResponse', () => {
       `/dashboard/events/${testEventId}`,
     );
     expect(revalidatePath).toHaveBeenCalledWith('/dashboard');
-    expect(revalidatePath).toHaveBeenCalledWith('/dashboard/events');
+    // Accepting adds an attendee row, which getUserEventParticipation caches.
+    expect(updateTag).toHaveBeenCalledWith(userEventsCacheTag(testUserId));
 
     // Older wave stays accepted — submit must not rewrite wave 1.
     const [wave1Row] = await db

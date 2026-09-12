@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 
-import { EVENT_TIMEZONE } from '@/content';
+import { EVENT_TIME_ZONE } from '@/lib/datetime';
 import { resolveEffectiveRsvpStatus } from '@/lib/rsvp/effective-rsvp-status';
 import { buildRsvpInvitationEmail } from '@/lib/rsvp/rsvp-invitation-email';
 import {
@@ -21,7 +21,7 @@ describe('parseRsvpDeadline', () => {
     // 23:59 on 1 Dec 2026 in Calgary is UTC-7 (MST).
     const stored = parseDateTimeLocalInTimeZone(
       '2026-12-01T23:59',
-      EVENT_TIMEZONE,
+      EVENT_TIME_ZONE,
     );
     expect(stored.toISOString()).toBe('2026-12-02T06:59:00.000Z');
   });
@@ -31,10 +31,10 @@ describe('parseRsvpDeadline', () => {
     expect(stored.toISOString()).toBe('2026-08-21T05:59:00.000Z');
   });
 
-  test('datetime-local is interpreted in EVENT_TIMEZONE, not as UTC', () => {
+  test('datetime-local is interpreted in EVENT_TIME_ZONE, not as UTC', () => {
     const stored = parseDateTimeLocalInTimeZone(
       '2026-08-20T23:59',
-      EVENT_TIMEZONE,
+      EVENT_TIME_ZONE,
     );
     const asUtc = new Date('2026-08-20T23:59:00.000Z');
     const asNewYork = parseDateTimeLocalInTimeZone(
@@ -52,14 +52,14 @@ describe('deadline comparison', () => {
     const deadline = parseRsvpDeadline('2026-08-20T23:59');
 
     const stillOpen = new Date('2026-08-21T05:58:59.000Z');
-    expect(
-      resolveEffectiveRsvpStatus('pending', deadline, stillOpen),
-    ).toBe('pending');
+    expect(resolveEffectiveRsvpStatus('pending', deadline, stillOpen)).toBe(
+      'pending',
+    );
 
     const justExpired = new Date('2026-08-21T05:59:00.001Z');
-    expect(
-      resolveEffectiveRsvpStatus('pending', deadline, justExpired),
-    ).toBe('timed_out');
+    expect(resolveEffectiveRsvpStatus('pending', deadline, justExpired)).toBe(
+      'timed_out',
+    );
   });
 });
 
@@ -89,7 +89,9 @@ describe('RSVP deadline formatting', () => {
     });
 
     expect(email.subject).toContain('MRUHacks & Friends');
-    expect(email.text).toContain('MRUHacks & Friends <img src=x onerror=alert(1)>');
+    expect(email.text).toContain(
+      'MRUHacks & Friends <img src=x onerror=alert(1)>',
+    );
     expect(email.html).toContain(
       'MRUHacks &amp; Friends &lt;img src=x onerror=alert(1)&gt;',
     );
@@ -104,7 +106,7 @@ describe('RSVP deadline formatting', () => {
   });
 
   test('formatting does not depend on the server process timezone', () => {
-    const calgary = formatRsvpDeadline(instant, EVENT_TIMEZONE);
+    const calgary = formatRsvpDeadline(instant, EVENT_TIME_ZONE);
     const tokyo = formatRsvpDeadline(instant, 'Asia/Tokyo');
     expect(calgary).toBe(formatRsvpDeadline(instant));
     expect(calgary).not.toBe(tokyo);

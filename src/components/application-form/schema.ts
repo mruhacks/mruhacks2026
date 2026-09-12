@@ -1,8 +1,16 @@
 import { z } from 'zod';
-import type { ApplicationQuestion } from '@/types/application';
+import {
+  resolveMaxLength,
+  type ApplicationQuestion,
+} from '@/types/application';
+import { otherTextKey } from '@/lib/other-option';
 
-/** Event-specific answers keyed by question UUID. Validated server-side against event.applicationQuestions. */
-const applicationResponsesSchema = z.record(z.string(), z.unknown());
+export const applicationOtherTextSchema = z
+  .string({ error: 'Please enter text.' })
+  .trim()
+  .max(255, 'Keep it under 255 characters.')
+  .optional()
+  .nullable();
 
 /** Event-only form: applicationResponses keyed by question UUID. */
 export const eventOnlySchema = z.object({
@@ -12,6 +20,78 @@ export const eventOnlySchema = z.object({
 export type EventOnlyFormValues = z.infer<typeof eventOnlySchema>;
 
 export type ApplicationSelectOption = { value: string; label: string };
+
+/** Builds the client/server validation rule for one active event question. */
+export function createApplicationQuestionSchema(
+  question: ApplicationQuestion,
+): z.ZodTypeAny {
+  let fieldSchema: z.ZodTypeAny;
+
+  switch (question.type) {
+    case 'short_text':
+    case 'long_text': {
+      const max = resolveMaxLength(question)!;
+      const answerRequired = 'Please enter an answer.';
+      fieldSchema = z
+        .string({ error: answerRequired })
+        .trim()
+        .min(1, answerRequired)
+        .max(max, `Keep it under ${max} characters.`);
+      break;
+    }
+
+    case 'number': {
+      const validNumber = 'Please enter a valid number.';
+      fieldSchema = z.union(
+        [
+          z.number({ error: validNumber }),
+          z
+            .string({ error: validNumber })
+            .trim()
+            .min(1, validNumber)
+            .pipe(z.coerce.number({ error: validNumber })),
+        ],
+        { error: validNumber },
+      );
+      break;
+    }
+
+    case 'boolean': {
+      const booleanError = question.required
+        ? 'Please check this box to continue.'
+        : 'Please choose yes or no.';
+      fieldSchema = z.boolean({ error: booleanError });
+      if (question.required) {
+        return fieldSchema.refine((value) => value === true, {
+          message: booleanError,
+        });
+      }
+      return fieldSchema.optional().nullable();
+    }
+
+    case 'single_select': {
+      const selectOption = 'Please select an option.';
+      fieldSchema = z.string({ error: selectOption }).min(1, selectOption);
+      break;
+    }
+
+    case 'multi_select': {
+      const selectOptions = 'Please select at least one option.';
+      fieldSchema = z
+        .array(z.string(), { error: selectOptions })
+        .min(1, selectOptions);
+      break;
+    }
+
+    case 'section_divider':
+      return z.unknown().optional().nullable();
+
+    default:
+      fieldSchema = z.unknown();
+  }
+
+  return question.required ? fieldSchema : fieldSchema.optional().nullable();
+}
 
 /**
  * Generates a Zod schema for validation based on application questions.
@@ -34,57 +114,9 @@ export function createApplicationFormSchema(
     // Section dividers don't need validation
     if (question.type === 'section_divider') continue;
 
-    const questionId = question.id;
-    let fieldSchema: z.ZodTypeAny;
-
-    switch (question.type) {
-      case 'short_text':
-      case 'long_text':
-        fieldSchema = z
-          .string()
-          .trim()
-          .min(1, `At least one option must be selected`);
-        break;
-
-      case 'number':
-        fieldSchema = z
-          .number('Must be a number')
-          .or(z.string().pipe(z.coerce.number('Must be a number')));
-        break;
-
-      case 'boolean':
-        if (question.required) {
-          fieldSchema = z.boolean().refine((val) => val === true, {
-            message: `Must be checked`,
-          });
-        } else {
-          fieldSchema = z.boolean().optional().nullable();
-        }
-        break;
-
-      case 'single_select':
-        fieldSchema = z
-          .string()
-          .min(1, `Please select an option for ${question.label}`);
-        break;
-
-      case 'multi_select':
-        fieldSchema = z
-          .array(z.string())
-          .min(1, `Please select at least one option for ${question.label}`);
-        break;
-
-      default:
-        fieldSchema = z.unknown();
-    }
-
-    // Apply required/optional logic
-    if (question.required && question.type !== 'boolean') {
-      responsesSchema[questionId] = fieldSchema;
-    } else if (question.type !== 'boolean') {
-      responsesSchema[questionId] = fieldSchema.optional().nullable();
-    } else {
-      responsesSchema[questionId] = fieldSchema;
+    responsesSchema[question.id] = createApplicationQuestionSchema(question);
+    if (question.type === 'single_select' || question.type === 'multi_select') {
+      responsesSchema[otherTextKey(question.id)] = applicationOtherTextSchema;
     }
   }
 

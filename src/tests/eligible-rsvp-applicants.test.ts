@@ -95,7 +95,11 @@ beforeAll(async () => {
     false,
   );
 
-  pendingRsvpStatusId = await ensureRsvpStatus('pending', 'RSVP Invited', false);
+  pendingRsvpStatusId = await ensureRsvpStatus(
+    'pending',
+    'RSVP Invited',
+    false,
+  );
   acceptedRsvpStatusId = await ensureRsvpStatus('accepted', 'Accepted', true);
   declinedRsvpStatusId = await ensureRsvpStatus('declined', 'Declined', true);
   timedOutRsvpStatusId = await ensureRsvpStatus(

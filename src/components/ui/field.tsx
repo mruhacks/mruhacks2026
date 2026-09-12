@@ -125,6 +125,19 @@ function FieldLabel({
   );
 }
 
+/** Marks a field label as required. Place right after the label text. */
+function RequiredAsterisk({ className, ...props }: React.ComponentProps<"span">) {
+  return (
+    <span
+      aria-hidden="true"
+      className={cn("text-destructive ml-0.5", className)}
+      {...props}
+    >
+      *
+    </span>
+  );
+}
+
 function FieldTitle({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
@@ -240,5 +253,6 @@ export {
   FieldSeparator,
   FieldSet,
   FieldContent,
+  RequiredAsterisk,
   FieldTitle,
 };

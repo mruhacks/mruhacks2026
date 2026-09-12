@@ -32,9 +32,8 @@ describe('publishRsvpInvitation', () => {
   test('surfaces a null messageId when the server defers processing', async () => {
     send.mockResolvedValue({ messageId: null });
 
-    const { publishRsvpInvitation } = await import(
-      '@/lib/rsvp/rsvp-invitation-queue'
-    );
+    const { publishRsvpInvitation } =
+      await import('@/lib/rsvp/rsvp-invitation-queue');
 
     const result = await publishRsvpInvitation('response-3');
 
@@ -55,9 +54,8 @@ describe('publishRsvpInvitation', () => {
         .mockRejectedValueOnce(new Error('transient'))
         .mockResolvedValueOnce({ messageId: 'msg-2' });
 
-      const { publishRsvpInvitation } = await import(
-        '@/lib/rsvp/rsvp-invitation-queue'
-      );
+      const { publishRsvpInvitation } =
+        await import('@/lib/rsvp/rsvp-invitation-queue');
 
       const promise = publishRsvpInvitation('response-1');
       await vi.advanceTimersByTimeAsync(250);
@@ -73,9 +71,8 @@ describe('publishRsvpInvitation', () => {
         .mockRejectedValueOnce(new Error('transient 2'))
         .mockResolvedValueOnce({ messageId: 'msg-3' });
 
-      const { publishRsvpInvitation } = await import(
-        '@/lib/rsvp/rsvp-invitation-queue'
-      );
+      const { publishRsvpInvitation } =
+        await import('@/lib/rsvp/rsvp-invitation-queue');
 
       const promise = publishRsvpInvitation('response-1');
       await vi.advanceTimersByTimeAsync(250);
@@ -92,9 +89,8 @@ describe('publishRsvpInvitation', () => {
         .mockRejectedValueOnce(new Error('transient 2'))
         .mockRejectedValueOnce(new Error('final failure'));
 
-      const { publishRsvpInvitation } = await import(
-        '@/lib/rsvp/rsvp-invitation-queue'
-      );
+      const { publishRsvpInvitation } =
+        await import('@/lib/rsvp/rsvp-invitation-queue');
 
       const promise = publishRsvpInvitation('response-1');
       // Attach a rejection handler immediately so the pending rejection
@@ -110,9 +106,8 @@ describe('publishRsvpInvitation', () => {
     test('never exceeds three total publish attempts', async () => {
       send.mockRejectedValue(new Error('always fails'));
 
-      const { publishRsvpInvitation } = await import(
-        '@/lib/rsvp/rsvp-invitation-queue'
-      );
+      const { publishRsvpInvitation } =
+        await import('@/lib/rsvp/rsvp-invitation-queue');
 
       const promise = publishRsvpInvitation('response-1');
       const expectation = expect(promise).rejects.toThrow('always fails');
@@ -130,9 +125,8 @@ describe('publishRsvpInvitation', () => {
         .mockRejectedValueOnce(new Error('transient 2'))
         .mockResolvedValueOnce({ messageId: 'msg-4' });
 
-      const { publishRsvpInvitation } = await import(
-        '@/lib/rsvp/rsvp-invitation-queue'
-      );
+      const { publishRsvpInvitation } =
+        await import('@/lib/rsvp/rsvp-invitation-queue');
 
       const promise = publishRsvpInvitation('response-42');
       await vi.advanceTimersByTimeAsync(250);

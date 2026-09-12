@@ -6,10 +6,10 @@ import gloveSticker from '@/assets/mruhacks-2026-stickers-glove.png';
 import logoSticker from '@/assets/mruhacks-2026-stickers-logo.png';
 import { HeroArtwork } from '@/components/hero-artwork';
 import { AuthNavButton } from '@/components/auth-nav-button';
+import { RegisterOrDashboardButton } from '@/components/register-or-dashboard-button';
 import {
   EVENT_DATE_DISPLAY,
   EVENT_LOCATION_DISPLAY,
-  REGISTRATION_OPEN,
   LOGIN_ENABLED,
   DISCORD_LINK,
 } from '@/content';
@@ -34,27 +34,19 @@ export function HeroSection({ registerUrl }: HeroSectionProps) {
             />
           </div>
           <div className='hidden items-center gap-6 lg:flex'>
-            {REGISTRATION_OPEN && (
-              <Button
-                variant='gradient'
-                className='rounded-full border border-[#5e5e5e] py-5 text-xl font-semibold tracking-[-0.02em] text-white hover:opacity-90'
-                asChild
-              >
-                <Link href={registerUrl}>Register Now</Link>
-              </Button>
-            )}
+            <RegisterOrDashboardButton
+              registerUrl={registerUrl}
+              variant='gradient'
+              className='rounded-full border border-[#5e5e5e] py-5 text-xl font-semibold tracking-[-0.02em] text-white hover:opacity-90'
+            />
             {LOGIN_ENABLED && (
               <AuthNavButton className='rounded-full border border-[#5e5e5e] bg-black py-5 text-xl font-semibold tracking-[-0.02em] text-white hover:bg-neutral-800' />
             )}
           </div>
-          {REGISTRATION_OPEN && (
-            <Button
-              className='h-auto shrink-0 rounded-full bg-black px-4 py-2 text-xs font-semibold tracking-tight text-white hover:bg-neutral-800 lg:hidden'
-              asChild
-            >
-              <Link href={registerUrl}>Register Now</Link>
-            </Button>
-          )}
+          <RegisterOrDashboardButton
+            registerUrl={registerUrl}
+            className='h-auto shrink-0 rounded-full bg-black px-4 py-2 text-xs font-semibold tracking-tight text-white hover:bg-neutral-800 lg:hidden'
+          />
         </div>
 
         <div className='mx-auto mt-16 flex w-full max-w-sm flex-col items-center lg:mt-20 lg:max-w-2xl xl:mt-28 xl:max-w-none xl:flex-row xl:items-start xl:justify-center xl:gap-16'>
@@ -108,15 +100,11 @@ export function HeroSection({ registerUrl }: HeroSectionProps) {
             </div>
 
             <div className='mb-8 flex w-full flex-wrap items-center justify-center gap-2 lg:mb-10 lg:gap-4'>
-              {REGISTRATION_OPEN && (
-                <Button
-                  variant='gradient'
-                  className='rounded-full px-5 py-2.5 text-sm font-semibold tracking-[-0.02em] sm:px-6 sm:py-3 sm:text-base lg:p-5 lg:text-xl'
-                  asChild
-                >
-                  <Link href={registerUrl}>Register Now</Link>
-                </Button>
-              )}
+              <RegisterOrDashboardButton
+                registerUrl={registerUrl}
+                variant='gradient'
+                className='rounded-full px-5 py-2.5 text-sm font-semibold tracking-[-0.02em] sm:px-6 sm:py-3 sm:text-base lg:p-5 lg:text-xl'
+              />
               <Button
                 variant='discord'
                 className='rounded-full px-5 py-2.5 text-sm font-semibold tracking-[-0.02em] sm:px-6 sm:py-3 sm:text-base lg:p-5 lg:text-xl'

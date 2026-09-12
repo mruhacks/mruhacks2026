@@ -26,14 +26,13 @@ export const universitiesList = [
 export type University = (typeof universitiesList)[number];
 
 export const majorsList = [
+  'Bachelor of Computer Information Systems',
   'Computer Science',
-  'Software Engineering',
-  'Information Systems',
   'Data Science',
-  'Cybersecurity',
   'Computer Engineering',
-  'UX / UI Design',
-  'Game Development',
+  'Cybersecurity',
+  'Information Systems',
+  'Software Engineering',
   'Other / Custom',
 ] as const;
 export type Major = (typeof majorsList)[number];

@@ -45,9 +45,10 @@ let testEventId: string;
 let approvedUserId: string;
 let pendingUserId: string;
 const respondBy = new Date('2099-08-01T23:59:59.000Z');
+const testBaseUrl = 'http://localhost:3000';
 
 function magicLinkUrlFor(callbackURL: string): string {
-  const url = new URL('http://localhost:3000/api/auth/magic-link/verify');
+  const url = new URL(`${testBaseUrl}/api/auth/magic-link/verify`);
   url.searchParams.set('token', 'test-token-not-logged');
   url.searchParams.set('callbackURL', callbackURL);
   return url.toString();
@@ -144,6 +145,19 @@ beforeAll(async () => {
     pendingRsvpStatusId = existing.id;
   }
 
+  // sendRsvpWave sweeps expired invitations first, which needs `timed_out`
+  // present — otherwise the very first wave throws on a freshly created DB.
+  await db
+    .insert(rsvpStatuses)
+    .values({
+      label: 'timed_out',
+      title: 'RSVP Expired',
+      description: 'RSVP Expired',
+      variant: 'secondary',
+      isFinal: true,
+    })
+    .onConflictDoNothing();
+
   const [eventRow] = await db
     .insert(events)
     .values({ name: 'RSVP Wave Test Event', hasApplication: true })
@@ -215,37 +229,41 @@ describe('getRsvpMagicLinkCallbackURL', () => {
 });
 
 describe('resolveMagicLinkMailOptions', () => {
-  test('uses generic sign-in copy for normal and invite callbacks', () => {
-    const signIn = resolveMagicLinkMailOptions({
+  test('uses generic sign-in copy for normal and invite callbacks', async () => {
+    const signIn = await resolveMagicLinkMailOptions({
       email: 'anyone@example.com',
       magicLinkUrl: magicLinkUrlFor('/welcome'),
+      baseUrl: testBaseUrl,
     });
     expect(signIn.subject).toBe('Sign in to MRUHacks');
 
-    const invite = resolveMagicLinkMailOptions({
+    const invite = await resolveMagicLinkMailOptions({
       email: 'anyone@example.com',
       magicLinkUrl: magicLinkUrlFor('/welcome?invited=1'),
+      baseUrl: testBaseUrl,
     });
     expect(invite.subject).toBe('Sign in to MRUHacks');
   });
 
-  test('does not treat caller-controlled source=rsvp as RSVP mail intent', () => {
-    const result = resolveMagicLinkMailOptions({
+  test('does not treat caller-controlled source=rsvp as RSVP mail intent', async () => {
+    const result = await resolveMagicLinkMailOptions({
       email: 'approved-rsvp@example.com',
       magicLinkUrl: magicLinkUrlFor(
         `/dashboard/events/${testEventId}?source=rsvp`,
       ),
+      baseUrl: testBaseUrl,
     });
     expect(result.subject).toBe('Sign in to MRUHacks');
   });
 
-  test('uses RSVP invitation copy only when trusted mail context is set', () => {
-    const result = runWithRsvpMagicLinkMailContext(
+  test('uses RSVP invitation copy only when trusted mail context is set', async () => {
+    const result = await runWithRsvpMagicLinkMailContext(
       { eventName: 'Hackathon', respondBy },
       () =>
         resolveMagicLinkMailOptions({
           email: 'anyone@example.com',
           magicLinkUrl: magicLinkUrlFor('/welcome'),
+          baseUrl: testBaseUrl,
         }),
     );
     expect(result.subject).toBe('RSVP invitation — Hackathon');
@@ -437,9 +455,7 @@ describe('sendRsvpWave', () => {
       statusId: approvedStatusId,
     });
 
-    publishRsvpInvitation.mockRejectedValueOnce(
-      new Error('queue unavailable'),
-    );
+    publishRsvpInvitation.mockRejectedValueOnce(new Error('queue unavailable'));
 
     try {
       const result = await sendRsvpWave(testEventId, respondBy);
@@ -482,7 +498,10 @@ describe('sendRsvpWave', () => {
     publishRsvpInvitation.mockImplementationOnce(async (responseId: string) => {
       await db
         .update(eventRsvpResponses)
-        .set({ invitationEmailStatus: 'sent', invitationEmailSentAt: new Date() })
+        .set({
+          invitationEmailStatus: 'sent',
+          invitationEmailSentAt: new Date(),
+        })
         .where(eq(eventRsvpResponses.id, responseId));
       return { messageId: 'msg-race' };
     });
@@ -821,7 +840,9 @@ describe('sendRsvpWave volume', () => {
       expect(result.invitationsQueued).toBe(VOLUME_ELIGIBLE_COUNT);
       expect(result.queueFailures).toHaveLength(0);
 
-      expect(publishRsvpInvitation).toHaveBeenCalledTimes(VOLUME_ELIGIBLE_COUNT);
+      expect(publishRsvpInvitation).toHaveBeenCalledTimes(
+        VOLUME_ELIGIBLE_COUNT,
+      );
       const publishedIds = publishRsvpInvitation.mock.calls.map(
         (call) => call[0] as string,
       );

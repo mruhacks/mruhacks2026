@@ -4,7 +4,7 @@ import { StaticImageData } from 'next/image';
 import Seila from './development/seila.png';
 import Sunny from './development/sunny.png';
 import Thomas from './development/thomas.png';
-import Noah from './development/noah.png';
+import Noah from './development/luqman.png';
 
 // MKT
 import Soul from './marketing/soul.png';

@@ -4,7 +4,12 @@
  */
 
 import { randomUUID } from 'crypto';
-import type { ApplicationQuestion, ApplicationQuestionOption } from '@/types/application';
+import {
+  isStringQuestion,
+  isSummarizableQuestion,
+  type ApplicationQuestion,
+  type ApplicationQuestionOption,
+} from '@/types/application';
 import type { EditQuestionInput } from '@/app/dashboard/admin/events/schemas';
 
 export type QuestionEditResult =
@@ -88,7 +93,11 @@ export function validateQuestionEdit(
               error: `Option "${orig.label}" has existing responses and cannot be removed.`,
             };
           }
-          result.push({ value: p.value, label: p.label, active: p.active ?? orig.active });
+          result.push({
+            value: p.value,
+            label: p.label,
+            active: p.active ?? orig.active,
+          });
         } else {
           // New option — assign a fresh UUID
           result.push({ value: randomUUID(), label: p.label, active: true });
@@ -98,7 +107,9 @@ export function validateQuestionEdit(
       // Any existing option not in the patch that has responses must be kept (active)
       for (const existing_opt of existing.options ?? []) {
         if (!seenValues.has(existing_opt.value)) {
-          if (hasResponsesForOption(allResponses, existing.id, existing_opt.value)) {
+          if (
+            hasResponsesForOption(allResponses, existing.id, existing_opt.value)
+          ) {
             return {
               ok: false,
               error: `Option "${existing_opt.label}" has existing responses and cannot be removed. Mark it inactive instead.`,
@@ -122,8 +133,29 @@ export function validateQuestionEdit(
   const merged: ApplicationQuestion = {
     ...existing,
     label: patch.label ?? existing.label,
-    description: patch.description !== undefined ? patch.description : existing.description,
+    description:
+      patch.description !== undefined
+        ? patch.description
+        : existing.description,
     required: patch.required !== undefined ? patch.required : existing.required,
+    // `null` clears the cap back to the type default; `undefined` leaves it alone.
+    // Non-string questions never carry a cap, whatever the patch says.
+    maxLength: !isStringQuestion(existing.type)
+      ? undefined
+      : patch.maxLength === undefined
+        ? existing.maxLength
+        : (patch.maxLength ?? undefined),
+    showInApplicationReview:
+      patch.showInApplicationReview !== undefined
+        ? patch.showInApplicationReview
+        : existing.showInApplicationReview,
+    // Non-summarizable questions (free text, section dividers) never carry
+    // this flag, whatever the patch says.
+    showInReports: !isSummarizableQuestion(existing.type)
+      ? undefined
+      : patch.showInReports !== undefined
+        ? patch.showInReports
+        : existing.showInReports,
     options: mergedOptions,
   };
 

@@ -29,9 +29,7 @@ export function LegalPage({ title, updated, children }: LegalPageProps) {
           Last updated: {updated}
         </p>
 
-        <div
-          className='mt-8 space-y-6 text-sm/relaxed  [&_a]:text-primary [&_a]:underline [&_h2]:mt-8 [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:tracking-tight [&_li]:ml-1 [&_p]:text-foreground/90 [&_ul]:list-disc [&_ul]:space-y-1 [&_ul]:pl-6'
-        >
+        <div className='[&_a]:text-primary [&_p]:text-foreground/90 mt-8 space-y-6 text-sm/relaxed [&_a]:underline [&_h2]:mt-8 [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:tracking-tight [&_li]:ml-1 [&_ul]:list-disc [&_ul]:space-y-1 [&_ul]:pl-6'>
           {children}
         </div>
       </div>

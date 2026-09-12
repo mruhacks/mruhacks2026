@@ -90,6 +90,11 @@ export const client = postgres(connectionString, {
   idle_timeout: 30, // Close idle connections after 30 seconds
   connect_timeout: 10, // Connection timeout
   onnotice: () => {}, // Suppress PostgreSQL notices
+  // Backend only ever speaks UTC (see AGENTS.md) — pin the session so
+  // `now()` and other server-side time functions can't silently drift from
+  // the UTC values the app writes, regardless of the Postgres server's own
+  // configured timezone.
+  connection: { TimeZone: 'UTC' },
 });
 
 export const db = drizzle(client, { schema, casing: 'snake_case' });
@@ -109,13 +114,11 @@ async function closeDatabase(): Promise<void> {
 // Register shutdown handlers
 if (typeof process !== 'undefined') {
   process.on('SIGINT', async () => {
-    console.log('SIGINT received, closing database...');
     await closeDatabase();
     process.exit(0);
   });
 
   process.on('SIGTERM', async () => {
-    console.log('SIGTERM received, closing database...');
     await closeDatabase();
     process.exit(0);
   });

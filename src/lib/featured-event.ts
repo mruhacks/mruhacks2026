@@ -24,7 +24,8 @@ export async function getFeaturedEventRegisterUrl(): Promise<string> {
     .limit(1);
 
   if (featured) {
-    return `http://localhost:3000/dashboard/events/${featured.id}`;
+    return `/dashboard/events/${featured.id}`;
   }
+
   return DEFAULT_REGISTER_URL;
 }

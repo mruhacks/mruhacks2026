@@ -30,7 +30,9 @@ describe('GET /api/cron/rsvp-waves', () => {
 
   test('rejects unauthorized requests', async () => {
     const { GET } = await import('@/app/api/cron/rsvp-waves/route');
-    const response = await GET(new Request('http://localhost/api/cron/rsvp-waves'));
+    const response = await GET(
+      new Request('http://localhost/api/cron/rsvp-waves'),
+    );
     expect(response.status).toBe(401);
     expect(runScheduledRsvpWaves).not.toHaveBeenCalled();
   });

@@ -170,7 +170,9 @@ function PermissionEditorDialog({
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Edit permission &ldquo;{permission.slug}&rdquo;</DialogTitle>
+          <DialogTitle>
+            Edit permission &ldquo;{permission.slug}&rdquo;
+          </DialogTitle>
           <DialogDescription>
             Permissions follow the <code>entity:action:scope</code> pattern. Use{' '}
             <code>all</code> in any segment as a wildcard.

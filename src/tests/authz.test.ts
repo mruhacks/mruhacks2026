@@ -42,6 +42,7 @@ vi.mock('next/navigation', () => ({
     throw new Error(`REDIRECT:${path}`);
   }),
 }));
+vi.mock('next/cache', () => ({ updateTag: vi.fn() }));
 
 describe('Authorization system', () => {
   let userId: string;

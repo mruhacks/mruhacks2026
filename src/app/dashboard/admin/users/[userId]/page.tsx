@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { ChevronLeft } from 'lucide-react';
+import { BreadcrumbSegment } from '@/components/breadcrumb-context';
 
 import { requireAuthWithPermission } from '@/lib/rbac/guards';
 import { getUserDetails } from '@/app/actions/users';
@@ -39,11 +40,11 @@ export default async function UserEditPage({
     rolesRes.success && rolesRes.data
       ? rolesRes.data.map((r) => ({ id: r.id, slug: r.slug }))
       : [];
-  const allPermissions =
-    permsRes.success && permsRes.data ? permsRes.data : [];
+  const allPermissions = permsRes.success && permsRes.data ? permsRes.data : [];
 
   return (
     <div className='space-y-4'>
+      <BreadcrumbSegment id={userId} label={name ?? email} />
       <div className='flex items-center gap-2'>
         <Button variant='ghost' size='sm' asChild>
           <Link href='/dashboard/admin/users'>

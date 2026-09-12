@@ -1,16 +1,22 @@
+import React from 'react';
+import { render } from 'react-email';
+import { MagicLinkEmail } from '@/emails/MagicLinkEmail';
 import { getRsvpMagicLinkMailContext } from '@/lib/rsvp/rsvp-magic-link-context';
 import { buildRsvpInvitationEmail } from '@/lib/rsvp/rsvp-invitation-email';
 import type { SendMailOptions } from '@/utils/mail';
 
-function buildGenericSignInMail(
+async function buildGenericSignInMail(
   email: string,
   magicLinkUrl: string,
-): SendMailOptions {
+  baseUrl: string,
+): Promise<SendMailOptions> {
   return {
     to: email,
     subject: 'Sign in to MRUHacks',
     text: `Sign in by opening this link:\n\n${magicLinkUrl}\n`,
-    html: `<p>Sign in by clicking <a href="${magicLinkUrl}">this link</a>.</p>`,
+    html: await render(
+      React.createElement(MagicLinkEmail, { url: magicLinkUrl, baseUrl }),
+    ),
   };
 }
 
@@ -21,11 +27,12 @@ function buildGenericSignInMail(
  * context. `callbackURL` / `source=rsvp` are caller-controlled on the public
  * sign-in endpoint and must not change mail routing or throw.
  */
-export function resolveMagicLinkMailOptions(options: {
+export async function resolveMagicLinkMailOptions(options: {
   email: string;
   magicLinkUrl: string;
-}): SendMailOptions {
-  const { email, magicLinkUrl } = options;
+  baseUrl: string;
+}): Promise<SendMailOptions> {
+  const { email, magicLinkUrl, baseUrl } = options;
   const rsvp = getRsvpMagicLinkMailContext();
 
   if (rsvp) {
@@ -39,5 +46,5 @@ export function resolveMagicLinkMailOptions(options: {
     };
   }
 
-  return buildGenericSignInMail(email, magicLinkUrl);
+  return buildGenericSignInMail(email, magicLinkUrl, baseUrl);
 }

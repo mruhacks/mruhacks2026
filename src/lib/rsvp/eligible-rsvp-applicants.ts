@@ -63,7 +63,10 @@ export async function getEligibleRsvpApplicants(
   const availableSpots =
     capacity === null ? null : Math.max(0, capacity - Number(attendeeCount));
 
-  const blockingResponses = alias(eventRsvpResponses, 'blocking_rsvp_responses');
+  const blockingResponses = alias(
+    eventRsvpResponses,
+    'blocking_rsvp_responses',
+  );
   const blockingWaves = alias(eventRsvpWaves, 'blocking_rsvp_waves');
   const blockingStatuses = alias(rsvpStatuses, 'blocking_rsvp_statuses');
 

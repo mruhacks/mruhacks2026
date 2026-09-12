@@ -46,7 +46,9 @@ function parseArgs(): ParsedArgs | null {
 
   const respondBy = new Date(respondByRaw);
   if (Number.isNaN(respondBy.getTime())) {
-    printUsage(`Invalid deadline: "${respondByRaw}". Use an ISO 8601 date/time.`);
+    printUsage(
+      `Invalid deadline: "${respondByRaw}". Use an ISO 8601 date/time.`,
+    );
     return null;
   }
 
@@ -124,8 +126,12 @@ async function main(): Promise<void> {
   console.warn('');
   console.warn('⚠️  WARNING: This script performs real actions:');
   console.warn('   • Creates a new event_rsvp_waves row');
-  console.warn('   • Creates event_rsvp_responses rows for approved applicants');
-  console.warn('   • Publishes one RSVP invitation message per response to the queue');
+  console.warn(
+    '   • Creates event_rsvp_responses rows for approved applicants',
+  );
+  console.warn(
+    '   • Publishes one RSVP invitation message per response to the queue',
+  );
   console.warn('');
   console.warn(`   Event ID:   ${eventId}`);
   console.warn(`   Respond by: ${respondBy.toISOString()}`);

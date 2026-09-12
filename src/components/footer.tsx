@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { Linkedin, Instagram } from 'lucide-react';
 import { FOOTER_LINKS } from '@/content';
 
-function DiscordIcon({ className }: { className?: string }) {
+export function DiscordIcon({ className }: { className?: string }) {
   return (
     <svg
       className={className}
@@ -15,7 +15,7 @@ function DiscordIcon({ className }: { className?: string }) {
   );
 }
 
-const ICONS: Record<string, React.ReactNode> = {
+export const FOOTER_ICONS: Record<string, React.ReactNode> = {
   'Discord Server': <DiscordIcon className='size-5' />,
   LinkedIn: <Linkedin className='size-5' />,
   Instagram: <Instagram className='size-5' />,
@@ -34,7 +34,7 @@ export default function Footer() {
                 rel='noopener noreferrer'
                 className='flex items-center gap-3 text-zinc-300 transition-colors hover:text-white'
               >
-                {ICONS[link.label]}
+                {FOOTER_ICONS[link.label]}
                 {link.label}
               </Link>
             </li>

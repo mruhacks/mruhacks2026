@@ -8,6 +8,8 @@ import { toast } from 'sonner';
 import { createEvent } from '@/app/dashboard/admin/events/actions';
 import { createEventSchema } from '@/app/dashboard/admin/events/schemas';
 import type { CreateEventInput } from '@/app/dashboard/admin/events/schemas';
+import { fromDateTimeLocalValue, toDateTimeLocalValue } from '@/lib/datetime';
+import { useZoneAbbreviation } from '@/components/local-date-time';
 import {
   Dialog,
   DialogContent,
@@ -37,6 +39,7 @@ export function CreateEventDialog() {
     control,
     handleSubmit,
     reset,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<CreateEventInput>({
     resolver: zodResolver(createEventSchema) as Resolver<CreateEventInput>,
@@ -45,6 +48,9 @@ export function CreateEventDialog() {
       hasApplication: false,
     },
   });
+
+  const startsAtAbbr = useZoneAbbreviation(watch('startsAt') ?? undefined);
+  const endsAtAbbr = useZoneAbbreviation(watch('endsAt') ?? undefined);
 
   const onSubmit = async (data: CreateEventInput) => {
     const result = await createEvent(data);
@@ -69,7 +75,9 @@ export function CreateEventDialog() {
       <DialogContent className='sm:max-w-md'>
         <DialogHeader>
           <DialogTitle>Create New Event</DialogTitle>
-          <DialogDescription>Add a new event to your organization.</DialogDescription>
+          <DialogDescription>
+            Add a new event to your organization.
+          </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className='space-y-4'>
@@ -111,7 +119,8 @@ export function CreateEventDialog() {
                 id='capacity'
                 type='number'
                 {...register('capacity', {
-                  setValueAs: (value) => (value === '' ? undefined : Number(value)),
+                  setValueAs: (value) =>
+                    value === '' ? undefined : Number(value),
                 })}
                 placeholder='e.g. 100'
               />
@@ -120,24 +129,123 @@ export function CreateEventDialog() {
 
             {/* Starts At */}
             <Field>
-              <FieldLabel htmlFor='startsAt'>Starts At (optional)</FieldLabel>
-              <Input
-                id='startsAt'
-                type='datetime-local'
-                {...register('startsAt')}
+              <FieldLabel htmlFor='startsAt'>
+                Starts At ({startsAtAbbr}, optional)
+              </FieldLabel>
+              <Controller
+                name='startsAt'
+                control={control}
+                render={({ field }) => (
+                  <Input
+                    {...field}
+                    id='startsAt'
+                    type='datetime-local'
+                    value={
+                      field.value
+                        ? toDateTimeLocalValue(new Date(field.value))
+                        : ''
+                    }
+                    onChange={(e) =>
+                      field.onChange(
+                        fromDateTimeLocalValue(e.target.value)?.toISOString() ??
+                          null,
+                      )
+                    }
+                  />
+                )}
               />
               {errors.startsAt && <FieldError errors={[errors.startsAt]} />}
             </Field>
 
             {/* Ends At */}
             <Field>
-              <FieldLabel htmlFor='endsAt'>Ends At (optional)</FieldLabel>
-              <Input
-                id='endsAt'
-                type='datetime-local'
-                {...register('endsAt')}
+              <FieldLabel htmlFor='endsAt'>
+                Ends At ({endsAtAbbr}, optional)
+              </FieldLabel>
+              <Controller
+                name='endsAt'
+                control={control}
+                render={({ field }) => (
+                  <Input
+                    {...field}
+                    id='endsAt'
+                    type='datetime-local'
+                    value={
+                      field.value
+                        ? toDateTimeLocalValue(new Date(field.value))
+                        : ''
+                    }
+                    onChange={(e) =>
+                      field.onChange(
+                        fromDateTimeLocalValue(e.target.value)?.toISOString() ??
+                          null,
+                      )
+                    }
+                  />
+                )}
               />
               {errors.endsAt && <FieldError errors={[errors.endsAt]} />}
+            </Field>
+
+            {/* Location */}
+            <Field>
+              <FieldLabel htmlFor='location'>Location (optional)</FieldLabel>
+              <FieldDescription>
+                Shown on the event page and Apple Wallet pass
+              </FieldDescription>
+              <Input
+                id='location'
+                {...register('location')}
+                placeholder='e.g. Riddell Library & Learning Centre'
+              />
+              {errors.location && <FieldError errors={[errors.location]} />}
+            </Field>
+
+            {/* Geofence (lat/long/radius) */}
+            <Field>
+              <FieldLabel htmlFor='latitude'>
+                Pass geofence (optional)
+              </FieldLabel>
+              <FieldDescription>
+                Triggers the Apple Wallet pass when nearby. Set all three, or
+                leave all blank.
+              </FieldDescription>
+              <div className='grid grid-cols-3 gap-2'>
+                <Input
+                  id='latitude'
+                  type='number'
+                  step='any'
+                  {...register('latitude', {
+                    setValueAs: (value) =>
+                      value === '' ? undefined : Number(value),
+                  })}
+                  placeholder='Latitude'
+                />
+                <Input
+                  id='longitude'
+                  type='number'
+                  step='any'
+                  {...register('longitude', {
+                    setValueAs: (value) =>
+                      value === '' ? undefined : Number(value),
+                  })}
+                  placeholder='Longitude'
+                />
+                <Input
+                  id='radiusMeters'
+                  type='number'
+                  {...register('radiusMeters', {
+                    setValueAs: (value) =>
+                      value === '' ? undefined : Number(value),
+                  })}
+                  placeholder='Radius (m)'
+                />
+              </div>
+              {errors.latitude && <FieldError errors={[errors.latitude]} />}
+              {errors.longitude && <FieldError errors={[errors.longitude]} />}
+              {errors.radiusMeters && (
+                <FieldError errors={[errors.radiusMeters]} />
+              )}
             </Field>
           </FieldGroup>
 

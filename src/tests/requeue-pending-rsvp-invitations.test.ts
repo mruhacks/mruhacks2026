@@ -1,4 +1,12 @@
-import { describe, test, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
+import {
+  describe,
+  test,
+  expect,
+  beforeAll,
+  afterAll,
+  beforeEach,
+  vi,
+} from 'vitest';
 import { eq } from 'drizzle-orm';
 
 import { db } from '@/utils/db';

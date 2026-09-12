@@ -84,7 +84,11 @@ export function InviteUserDialog({ roles, onInvited }: InviteUserDialogProps) {
           </DialogDescription>
         </DialogHeader>
 
-        <form id='form-invite-user' onSubmit={handleSubmit} className='space-y-4'>
+        <form
+          id='form-invite-user'
+          onSubmit={handleSubmit}
+          className='space-y-4'
+        >
           <div className='space-y-2'>
             <Label htmlFor='invite-email'>Email</Label>
             <Input

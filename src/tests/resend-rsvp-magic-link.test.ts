@@ -162,9 +162,7 @@ describe('RSVP magic-link expiration / resend', () => {
       expect(result.email).toBe('resend-rsvp@example.com');
 
       const callbackURL = getRsvpMagicLinkCallbackURL(testEventId);
-      expect(callbackURL).toBe(
-        `/dashboard/events/${testEventId}?source=rsvp`,
-      );
+      expect(callbackURL).toBe(`/dashboard/events/${testEventId}?source=rsvp`);
       expect(signInSpy).toHaveBeenCalledWith(
         expect.objectContaining({
           body: {

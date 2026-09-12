@@ -17,11 +17,18 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Loader2 } from 'lucide-react';
+import { Turnstile, type TurnstileHandle } from '@/components/turnstile';
+
+const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? '';
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = React.useState('');
   const [submitting, setSubmitting] = React.useState(false);
   const [sent, setSent] = React.useState(false);
+  const [turnstileToken, setTurnstileToken] = React.useState<string | null>(
+    null,
+  );
+  const turnstileRef = React.useRef<TurnstileHandle>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,12 +36,18 @@ export default function ForgotPasswordPage() {
       toast.error('Enter your email');
       return;
     }
+    if (!turnstileToken) {
+      toast.error('Please complete the verification challenge.');
+      return;
+    }
     setSubmitting(true);
-    const res = await authClient.requestPasswordReset({
-      email,
-      redirectTo: '/reset-password',
-    });
+    const res = await authClient.requestPasswordReset(
+      { email, redirectTo: '/reset-password' },
+      { headers: { 'x-captcha-response': turnstileToken } },
+    );
     setSubmitting(false);
+    turnstileRef.current?.reset();
+    setTurnstileToken(null);
     if (res.error) {
       toast.error(res.error.message ?? 'Failed to send reset email');
       return;
@@ -74,6 +87,14 @@ export default function ForgotPasswordPage() {
                 />
               </div>
             </form>
+
+            <Turnstile
+              ref={turnstileRef}
+              siteKey={TURNSTILE_SITE_KEY}
+              onVerify={setTurnstileToken}
+              onExpire={() => setTurnstileToken(null)}
+              className='mt-4 flex justify-center'
+            />
           </CardContent>
         )}
 
@@ -82,7 +103,7 @@ export default function ForgotPasswordPage() {
             <Button
               type='submit'
               form='form-forgot-password'
-              disabled={submitting}
+              disabled={submitting || !turnstileToken}
             >
               {submitting ? (
                 <>

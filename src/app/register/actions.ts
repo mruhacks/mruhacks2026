@@ -1,6 +1,7 @@
 /**
  * Server actions for simple event signup (register/unregister for events without application).
- * This directory contains no page, so `/register` is not a public route.
+ * The public `/register` route (page.tsx in this directory) redirects to the
+ * featured event and does not use these actions directly.
  */
 
 'use server';
@@ -10,7 +11,8 @@ import { getUser } from '@/utils/auth';
 import { ActionResult, fail, ok } from '@/utils/action-result';
 import { db } from '@/utils/db';
 import { and, eq } from 'drizzle-orm';
-import { revalidatePath } from 'next/cache';
+import { revalidatePath, updateTag } from 'next/cache';
+import { userEventsCacheTag } from '@/lib/events';
 
 /**
  * Registers the current user for an event that has no application (simple signup).
@@ -32,6 +34,8 @@ export async function registerForEvent(eventId: string): Promise<ActionResult> {
     revalidatePath('/dashboard/events');
     revalidatePath('/dashboard');
     revalidatePath(`/dashboard/events/${eventId}`);
+    revalidatePath('/welcome', 'layout');
+    updateTag(userEventsCacheTag(user.id));
     return ok('Registered for event.');
   } catch (error) {
     console.error('Register for event error:', error);
@@ -72,6 +76,7 @@ export async function unregisterFromEvent(
     revalidatePath('/dashboard/events');
     revalidatePath('/dashboard');
     revalidatePath(`/dashboard/events/${eventId}`);
+    updateTag(userEventsCacheTag(user.id));
     return ok('Unregistered from event.');
   } catch (error) {
     console.error('Unregister from event error:', error);

@@ -1,11 +1,12 @@
 export const EVENT_START_DATE = new Date('2026-10-23T00:00:00-06:00'); // October 23, 2026 (MDT — DST ends Nov 1, 2026)
-/** IANA timezone for MRUHacks (Calgary). Used for organizer-entered datetimes. */
-export const EVENT_TIMEZONE = 'America/Edmonton';
 export const EVENT_DATE_DISPLAY = 'October 23-25, 2026';
 export const EVENT_LOCATION_DISPLAY = 'In-Person Event @ Riddell Library';
 
 export const REGISTRATION_OPEN = true;
 export const LOGIN_ENABLED = true;
+
+/** Publicly hosted (not build-bundled) so external services like Google Wallet can fetch it directly. */
+export const MRUHACKS_LOGO_URL = 'https://static.mruhacks.ca/color_chevron.png';
 
 export const INTRO_BLURB: string = `
 MRUHacks is Mount Royal University’s largest hackathon, bringing
@@ -23,7 +24,7 @@ export const FAQs: FAQItem[] = [
   {
     question: 'What is a Hackathon?',
     answer:
-      'You can think of a hackathon as a software science fair. Anyone with an interest in technology attends a hackathon to learn, build & share their creations over the course of a weekend, in a relaxed and welcoming atmosphere. You will bring your ideas to life through technology over the course of 24 hours before showcasing them to a team of judges.',
+      'You can think of a hackathon as a software science fair. Anyone with an interest in technology attends a hackathon to learn, build & share their creations over the course of a weekend, in a relaxed and welcoming atmosphere. You will bring your ideas to life through technology over the course of 36 hours before showcasing them to a team of judges.',
   },
   {
     question: 'When is MRUHacks?',

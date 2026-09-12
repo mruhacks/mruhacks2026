@@ -33,6 +33,8 @@ describe('resolveEffectiveRsvpStatus', () => {
   });
 
   test('already timed_out stays timed_out', () => {
-    expect(resolveEffectiveRsvpStatus('timed_out', past, now)).toBe('timed_out');
+    expect(resolveEffectiveRsvpStatus('timed_out', past, now)).toBe(
+      'timed_out',
+    );
   });
 });

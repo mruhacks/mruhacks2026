@@ -7,6 +7,7 @@
  * - user_interests / user_dietary_restrictions: User-level many-to-many with lookups
  * - event_applications: Apply flow (one per user per event with has_application); minimal + responses JSONB
  * - event_attendees: Register-for-event flow (simple signup for events without application)
+ * - event_articles: Per-event wiki pages authored in markdown by organizers
  * - application_view / application_form_view: Denormalized views for display and form pre-fill
  *
  * Event participation: events with application use event_applications; events without use event_attendees (we call the latter "register for event").
@@ -26,6 +27,7 @@ import {
   jsonb,
   uniqueIndex,
   primaryKey,
+  doublePrecision,
 } from 'drizzle-orm/pg-core';
 import { relations, sql } from 'drizzle-orm';
 
@@ -60,6 +62,12 @@ export const events = pgTable(
       onDelete: 'set null',
     }),
     name: text('name').notNull(),
+    /**
+     * Organizer-authored blurb shown on the participant event page, stored as
+     * markdown (authored in the MDX editor). Attachments referenced from it
+     * live in object storage under `event-content/`.
+     */
+    descriptionMarkdown: text('description_markdown'),
     hasApplication: boolean('has_application').notNull().default(false),
     // Questions are configured independently from whether an application is
     // required. An empty list is a valid application configuration.
@@ -67,13 +75,27 @@ export const events = pgTable(
       .$type<ApplicationQuestion[]>()
       .notNull()
       .default(sql`'[]'::jsonb`),
-    startsAt: timestamp('starts_at'),
-    endsAt: timestamp('ends_at'),
+    startsAt: timestamp('starts_at', { withTimezone: true }),
+    endsAt: timestamp('ends_at', { withTimezone: true }),
+    /** Free-text venue/location, shown on the event page and Apple Wallet pass. */
+    location: text('location'),
+    /**
+     * Geofence center for the Apple Wallet pass's location-based relevance.
+     * All three are set together or not at all (enforced in actions.ts).
+     */
+    latitude: doublePrecision('latitude'),
+    longitude: doublePrecision('longitude'),
+    radiusMeters: integer('radius_meters'),
     capacity: integer('capacity'),
     // Marks the single event whose registerUrl the public site links to.
     isFeatured: boolean('is_featured').notNull().default(false),
-    createdAt: timestamp('created_at').defaultNow().notNull(),
-    updatedAt: timestamp('updated_at')
+    teamsEnabled: boolean('teams_enabled').notNull().default(false),
+    // Nullable = uncapped team size.
+    maxTeamSize: integer('max_team_size'),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
       .defaultNow()
       .$onUpdate(() => new Date())
       .notNull(),
@@ -100,24 +122,56 @@ export const userProfiles = pgTable('user_profiles', {
   genderId: integer('gender_id')
     .notNull()
     .references(() => genders.id),
+  /** Free-text answer when genderId points at the "Other" option. */
+  genderOtherText: varchar('gender_other_text', { length: 255 }),
+  /** Free-text answer when dietaryRestrictions includes the "Other" option. */
+  dietaryOtherText: varchar('dietary_other_text', { length: 255 }),
+  /** Optional resume, stored as a validated data URL with its original name. */
+  resumeFile: text('resume_file'),
+  resumeFileName: varchar('resume_file_name', { length: 255 }),
+  resumeFileType: varchar('resume_file_type', { length: 100 }),
+  createdAt: timestamp('created_at', { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true })
+    .defaultNow()
+    .$onUpdate(() => new Date())
+    .notNull(),
+});
+
+/**
+ * Academic/optional profile info, split from user_profiles so the welcome
+ * wizard's About step can persist independently of the Personal step: a row
+ * existing here (not a nullable column on user_profiles) is what "About step
+ * done" means, so no column here is ever required-but-not-yet-known.
+ */
+export const userProfileAbout = pgTable('user_profile_about', {
+  userId: uuid('user_id')
+    .primaryKey()
+    .references(() => user.id, { onDelete: 'cascade' }),
   universityId: integer('university_id')
     .notNull()
     .references(() => universities.id),
+  /** Free-text answer when universityId points at the "Other" option. */
+  universityOtherText: varchar('university_other_text', { length: 255 }),
   majorId: integer('major_id')
     .notNull()
     .references(() => majors.id),
+  /** Free-text answer when majorId points at the "Other" option. */
+  majorOtherText: varchar('major_other_text', { length: 255 }),
   yearOfStudyId: integer('year_of_study_id')
     .notNull()
     .references(() => yearsOfStudy.id),
   attendedHackathonBefore: boolean('attended_hackathon_before')
     .notNull()
     .default(false),
-  /** Optional resume, stored as a validated data URL with its original name. */
-  resumeFile: text('resume_file'),
-  resumeFileName: varchar('resume_file_name', { length: 255 }),
-  resumeFileType: varchar('resume_file_type', { length: 100 }),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at')
+  /** Optional social links, shown to organizers/sponsors reviewing applications. */
+  linkedinUrl: varchar('linkedin_url', { length: 255 }),
+  githubUrl: varchar('github_url', { length: 255 }),
+  createdAt: timestamp('created_at', { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true })
     .defaultNow()
     .$onUpdate(() => new Date())
     .notNull(),
@@ -138,13 +192,15 @@ export const eventApplications = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
     statusId: integer('status_id').references(() => applicationStatuses.id),
-    reviewedAt: timestamp('reviewed_at'),
+    reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
     reviewedBy: uuid('reviewed_by').references(() => user.id, {
       onDelete: 'set null',
     }),
     waitlistPosition: integer('waitlist_position'),
-    createdAt: timestamp('created_at').defaultNow().notNull(),
-    updatedAt: timestamp('updated_at')
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
       .defaultNow()
       .$onUpdate(() => new Date())
       .notNull(),
@@ -159,28 +215,6 @@ export const eventApplications = pgTable(
       table.createdAt.desc(),
     ),
     idxUserId: index('idx_event_applications_user_id').on(table.userId),
-  }),
-);
-
-// ---------------------------------------------------------------------------
-// User event interest ()
-// ---------------------------------------------------------------------------
-
-export const eventInterestRegistrations = pgTable(
-  'event_interest_registrations',
-  {
-    userId: uuid('user_id')
-      .notNull()
-      .references(() => user.id, { onDelete: 'cascade' }),
-    eventId: uuid('event_id')
-      .notNull()
-      .references(() => events.id, { onDelete: 'cascade' }),
-    createdAt: timestamp('created_at').defaultNow().notNull(),
-  },
-  (table) => ({
-    eventUserUnique: uniqueIndex(
-      'event_interest_registrations_user_id_event_id_unique',
-    ).on(table.userId, table.eventId),
   }),
 );
 
@@ -239,7 +273,9 @@ export const eventAttendees = pgTable(
     userId: uuid('user_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
-    registeredAt: timestamp('registered_at').defaultNow().notNull(),
+    registeredAt: timestamp('registered_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
   },
   (table) => ({
     pk: primaryKey({ columns: [table.eventId, table.userId] }),
@@ -259,7 +295,9 @@ export const checkIns = pgTable(
     eventId: uuid('event_id')
       .notNull()
       .references(() => events.id, { onDelete: 'cascade' }),
-    checkedInAt: timestamp('checked_in_at').defaultNow().notNull(),
+    checkedInAt: timestamp('checked_in_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
   },
   (table) => ({
     userEventUnique: uniqueIndex('check_ins_user_id_event_id_unique').on(
@@ -286,8 +324,10 @@ export const eventRsvpWaves = pgTable(
       .notNull()
       .references(() => events.id, { onDelete: 'cascade' }),
     wave: smallint('wave').notNull(),
-    respondBy: timestamp('respond_by'),
-    createdAt: timestamp('created_at').defaultNow().notNull(),
+    respondBy: timestamp('respond_by', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
   },
   (table) => ({
     eventWaveUnique: uniqueIndex('event_rsvp_waves_event_id_wave_unique').on(
@@ -312,7 +352,7 @@ export const eventRsvpResponses = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
     statusId: integer('status_id').references(() => rsvpStatuses.id),
-    respondedAt: timestamp('responded_at'),
+    respondedAt: timestamp('responded_at', { withTimezone: true }),
     // Invitation email delivery state (separate from statusId, the RSVP
     // decision): 'legacy' | 'unsent' | 'queued' | 'sent' | 'failed'.
     invitationEmailStatus: text('invitation_email_status')
@@ -322,10 +362,16 @@ export const eventRsvpResponses = pgTable(
       .notNull()
       .default(0),
     invitationEmailLastError: text('invitation_email_last_error'),
-    invitationEmailQueuedAt: timestamp('invitation_email_queued_at'),
-    invitationEmailSentAt: timestamp('invitation_email_sent_at'),
-    createdAt: timestamp('created_at').defaultNow().notNull(),
-    updatedAt: timestamp('updated_at')
+    invitationEmailQueuedAt: timestamp('invitation_email_queued_at', {
+      withTimezone: true,
+    }),
+    invitationEmailSentAt: timestamp('invitation_email_sent_at', {
+      withTimezone: true,
+    }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
       .defaultNow()
       .$onUpdate(() => new Date())
       .notNull(),
@@ -341,61 +387,113 @@ export const eventRsvpResponses = pgTable(
 );
 
 // ---------------------------------------------------------------------------
-// Groups (event hosts groups)
+// Teams (event-scoped groups participants form to attend together)
 // ---------------------------------------------------------------------------
 
-export const groups = pgTable('groups', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  eventId: uuid('event_id')
-    .notNull()
-    .references(() => events.id, { onDelete: 'cascade' }),
-  name: text('name').notNull(),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at')
-    .defaultNow()
-    .$onUpdate(() => new Date())
-    .notNull(),
-});
-
-// ---------------------------------------------------------------------------
-// Group membership (groups contain users)
-// ---------------------------------------------------------------------------
-
-export const groupMembers = pgTable(
-  'group_members',
+export const teams = pgTable(
+  'teams',
   {
-    groupId: uuid('group_id')
+    id: uuid('id').defaultRandom().primaryKey(),
+    eventId: uuid('event_id')
       .notNull()
-      .references(() => groups.id, { onDelete: 'cascade' }),
-    userId: uuid('user_id')
+      .references(() => events.id, { onDelete: 'cascade' }),
+    organizerId: uuid('organizer_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
+    // 8-char alphanumeric join code, unique per event (not globally).
+    code: varchar('code', { length: 8 }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
   },
   (table) => ({
-    pk: primaryKey({ columns: [table.groupId, table.userId] }),
+    eventCodeUnique: uniqueIndex('teams_event_id_code_unique').on(
+      table.eventId,
+      table.code,
+    ),
+    idxEventId: index('idx_teams_event_id').on(table.eventId),
   }),
 );
 
 // ---------------------------------------------------------------------------
-// Submissions (groups submit to events)
+// Team membership (a user belongs to at most one team per event)
 // ---------------------------------------------------------------------------
 
-export const submissions = pgTable(
-  'submissions',
+export const teamMembers = pgTable(
+  'team_members',
   {
     id: uuid('id').defaultRandom().primaryKey(),
-    groupId: uuid('group_id')
+    teamId: uuid('team_id')
       .notNull()
-      .references(() => groups.id, { onDelete: 'cascade' }),
+      .references(() => teams.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    // Denormalized for fast per-event lookups and to enforce "one active
+    // team per user per event" via the unique index below.
     eventId: uuid('event_id')
       .notNull()
       .references(() => events.id, { onDelete: 'cascade' }),
-    submittedAt: timestamp('submitted_at').defaultNow().notNull(),
+    joinedAt: timestamp('joined_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
   },
   (table) => ({
-    groupEventUnique: uniqueIndex('submissions_group_id_event_id_unique').on(
-      table.groupId,
+    userEventUnique: uniqueIndex('team_members_user_id_event_id_unique').on(
+      table.userId,
       table.eventId,
+    ),
+    idxTeamId: index('idx_team_members_team_id').on(table.teamId),
+    idxEventId: index('idx_team_members_event_id').on(table.eventId),
+  }),
+);
+
+// ---------------------------------------------------------------------------
+// Event articles (per-event wiki pages, authored in markdown by organizers)
+// ---------------------------------------------------------------------------
+
+export const eventArticles = pgTable(
+  'event_articles',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    eventId: uuid('event_id')
+      .notNull()
+      .references(() => events.id, { onDelete: 'cascade' }),
+    /** URL segment, unique per event — articles are addressed by it, not by id. */
+    slug: varchar('slug', { length: 120 }).notNull(),
+    title: text('title').notNull(),
+    /** Markdown body produced by the MDX editor; rendered read-only elsewhere. */
+    bodyMarkdown: text('body_markdown').notNull().default(''),
+    /** Drafts stay organizer-only until this flips. */
+    published: boolean('published').notNull().default(false),
+    /** Manual ordering within an event's wiki index; ties break on title. */
+    sortOrder: integer('sort_order').notNull().default(0),
+    createdBy: uuid('created_by').references(() => user.id, {
+      onDelete: 'set null',
+    }),
+    updatedBy: uuid('updated_by').references(() => user.id, {
+      onDelete: 'set null',
+    }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => ({
+    eventSlugUnique: uniqueIndex('event_articles_event_id_slug_unique').on(
+      table.eventId,
+      table.slug,
+    ),
+    idxEventPublished: index('idx_event_articles_event_id_published').on(
+      table.eventId,
+      table.published,
     ),
   }),
 );
@@ -419,8 +517,26 @@ export const eventsRelations = relations(events, ({ one, many }) => ({
   attendees: many(eventAttendees),
   checkIns: many(checkIns),
   rsvpWaves: many(eventRsvpWaves),
-  groups: many(groups),
-  submissions: many(submissions),
+  teams: many(teams),
+  teamMembers: many(teamMembers),
+  articles: many(eventArticles),
+}));
+
+export const eventArticlesRelations = relations(eventArticles, ({ one }) => ({
+  event: one(events, {
+    fields: [eventArticles.eventId],
+    references: [events.id],
+  }),
+  createdByUser: one(user, {
+    fields: [eventArticles.createdBy],
+    references: [user.id],
+    relationName: 'eventArticleAuthor',
+  }),
+  updatedByUser: one(user, {
+    fields: [eventArticles.updatedBy],
+    references: [user.id],
+    relationName: 'eventArticleEditor',
+  }),
 }));
 
 export const userProfilesRelations = relations(userProfiles, ({ one }) => ({
@@ -429,19 +545,29 @@ export const userProfilesRelations = relations(userProfiles, ({ one }) => ({
     fields: [userProfiles.genderId],
     references: [genders.id],
   }),
-  university: one(universities, {
-    fields: [userProfiles.universityId],
-    references: [universities.id],
-  }),
-  major: one(majors, {
-    fields: [userProfiles.majorId],
-    references: [majors.id],
-  }),
-  yearOfStudy: one(yearsOfStudy, {
-    fields: [userProfiles.yearOfStudyId],
-    references: [yearsOfStudy.id],
-  }),
 }));
+
+export const userProfileAboutRelations = relations(
+  userProfileAbout,
+  ({ one }) => ({
+    user: one(user, {
+      fields: [userProfileAbout.userId],
+      references: [user.id],
+    }),
+    university: one(universities, {
+      fields: [userProfileAbout.universityId],
+      references: [universities.id],
+    }),
+    major: one(majors, {
+      fields: [userProfileAbout.majorId],
+      references: [majors.id],
+    }),
+    yearOfStudy: one(yearsOfStudy, {
+      fields: [userProfileAbout.yearOfStudyId],
+      references: [yearsOfStudy.id],
+    }),
+  }),
+);
 
 export const eventApplicationsRelations = relations(
   eventApplications,
@@ -534,33 +660,29 @@ export const eventRsvpResponsesRelations = relations(
   }),
 );
 
-export const groupsRelations = relations(groups, ({ one, many }) => ({
+export const teamsRelations = relations(teams, ({ one, many }) => ({
   event: one(events, {
-    fields: [groups.eventId],
+    fields: [teams.eventId],
     references: [events.id],
   }),
-  members: many(groupMembers),
-  submissions: many(submissions),
-}));
-
-export const groupMembersRelations = relations(groupMembers, ({ one }) => ({
-  group: one(groups, {
-    fields: [groupMembers.groupId],
-    references: [groups.id],
-  }),
-  user: one(user, {
-    fields: [groupMembers.userId],
+  organizer: one(user, {
+    fields: [teams.organizerId],
     references: [user.id],
   }),
+  members: many(teamMembers),
 }));
 
-export const submissionsRelations = relations(submissions, ({ one }) => ({
-  group: one(groups, {
-    fields: [submissions.groupId],
-    references: [groups.id],
+export const teamMembersRelations = relations(teamMembers, ({ one }) => ({
+  team: one(teams, {
+    fields: [teamMembers.teamId],
+    references: [teams.id],
+  }),
+  user: one(user, {
+    fields: [teamMembers.userId],
+    references: [user.id],
   }),
   event: one(events, {
-    fields: [submissions.eventId],
+    fields: [teamMembers.eventId],
     references: [events.id],
   }),
 }));
@@ -585,7 +707,13 @@ export const applicationView = pgView('application_view', {
   interests: text().array(),
   dietaryRestrictions: text('dietary_restrictions').array(),
   responses: jsonb('responses').$type<Record<string, unknown>>(),
-  createdAt: timestamp('created_at', { mode: 'string' }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
+  linkedinUrl: varchar('linkedin_url', { length: 255 }),
+  githubUrl: varchar('github_url', { length: 255 }),
+  genderOtherText: varchar('gender_other_text', { length: 255 }),
+  universityOtherText: varchar('university_other_text', { length: 255 }),
+  majorOtherText: varchar('major_other_text', { length: 255 }),
+  dietaryOtherText: varchar('dietary_other_text', { length: 255 }),
 }).as(
   sql`
 WITH
@@ -618,15 +746,22 @@ SELECT
   ints.interests,
   dr.dietary_restrictions,
   a.responses,
-  a.created_at
+  a.created_at,
+  pa.linkedin_url,
+  pa.github_url,
+  p.gender_other_text,
+  pa.university_other_text,
+  pa.major_other_text,
+  p.dietary_other_text
 FROM event_applications a
 JOIN events e ON e.id = a.event_id
 JOIN "user" u ON u.id = a.user_id
 LEFT JOIN user_profiles p ON p.user_id = a.user_id
+LEFT JOIN user_profile_about pa ON pa.user_id = a.user_id
 LEFT JOIN genders g ON g.id = p.gender_id
-LEFT JOIN universities un ON un.id = p.university_id
-LEFT JOIN majors m ON m.id = p.major_id
-LEFT JOIN years_of_study y ON y.id = p.year_of_study_id
+LEFT JOIN universities un ON un.id = pa.university_id
+LEFT JOIN majors m ON m.id = pa.major_id
+LEFT JOIN years_of_study y ON y.id = pa.year_of_study_id
 LEFT JOIN ints ON ints.user_id = a.user_id
 LEFT JOIN dr ON dr.user_id = a.user_id
 `,
@@ -646,7 +781,13 @@ export const applicationFormView = pgView('application_form_view', {
   interests: integer('interests').array().notNull(),
   dietaryRestrictions: integer('dietary_restrictions').array().notNull(),
   responses: jsonb('responses').$type<Record<string, unknown>>(),
-  createdAt: timestamp('created_at', { mode: 'string' }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
+  linkedinUrl: varchar('linkedin_url', { length: 255 }),
+  githubUrl: varchar('github_url', { length: 255 }),
+  genderOtherText: varchar('gender_other_text', { length: 255 }),
+  universityOtherText: varchar('university_other_text', { length: 255 }),
+  majorOtherText: varchar('major_other_text', { length: 255 }),
+  dietaryOtherText: varchar('dietary_other_text', { length: 255 }),
 }).as(
   sql`
 WITH
@@ -671,15 +812,22 @@ SELECT
   a.user_id,
   p.full_name,
   p.gender_id,
-  p.university_id,
-  p.major_id,
-  p.year_of_study_id,
+  pa.university_id,
+  pa.major_id,
+  pa.year_of_study_id,
   COALESCE(i.interests, '{}'::integer[]) AS interests,
   COALESCE(d.dietary_restrictions, '{}'::integer[]) AS dietary_restrictions,
   a.responses,
-  a.created_at
+  a.created_at,
+  pa.linkedin_url,
+  pa.github_url,
+  p.gender_other_text,
+  pa.university_other_text,
+  pa.major_other_text,
+  p.dietary_other_text
 FROM event_applications a
 JOIN user_profiles p ON p.user_id = a.user_id
+LEFT JOIN user_profile_about pa ON pa.user_id = a.user_id
 LEFT JOIN interests_agg i ON i.user_id = a.user_id
 LEFT JOIN dietary_agg d ON d.user_id = a.user_id
 `,

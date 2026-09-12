@@ -1,7 +1,14 @@
 'use client';
 
 import * as React from 'react';
-import { ChevronUp, ChevronDown, Pencil, Trash2, Eye, EyeOff } from 'lucide-react';
+import {
+  ChevronUp,
+  ChevronDown,
+  Pencil,
+  Trash2,
+  Eye,
+  EyeOff,
+} from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import type { ApplicationQuestion } from '@/types/application';
@@ -42,13 +49,8 @@ export function QuestionCard({
   onReactivate,
   isDragging,
 }: QuestionCardProps) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-  } = useSortable({ id: q.id });
+  const { attributes, listeners, setNodeRef, transform, transition } =
+    useSortable({ id: q.id });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -67,31 +69,33 @@ export function QuestionCard({
         <button
           {...attributes}
           {...listeners}
-          className='cursor-grab active:cursor-grabbing pt-0.5'
+          className='cursor-grab pt-0.5 active:cursor-grabbing'
           aria-label='Drag to reorder'
         >
-          <GripVertical className='size-4 text-muted-foreground' />
+          <GripVertical className='text-muted-foreground size-4' />
         </button>
 
         {/* Content */}
-        <div className='flex-1 min-w-0'>
-          <div className='flex items-center gap-2 flex-wrap'>
-            <span className='font-medium text-sm'>{q.label}</span>
+        <div className='min-w-0 flex-1'>
+          <div className='flex flex-wrap items-center gap-2'>
+            <span className='text-sm font-medium'>{q.label}</span>
             {q.required && (
               <span className='text-destructive text-xs'>Required</span>
             )}
             {!q.active && (
-              <span className='text-muted-foreground rounded bg-muted px-1.5 py-0.5 text-xs'>
+              <span className='text-muted-foreground bg-muted rounded px-1.5 py-0.5 text-xs'>
                 Hidden
               </span>
             )}
-            <span className='rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground'>
+            <span className='bg-muted text-muted-foreground rounded px-1.5 py-0.5 text-xs'>
               {TYPE_LABELS[q.type] ?? q.type}
             </span>
           </div>
 
           {q.description && (
-            <p className='text-muted-foreground mt-0.5 text-xs'>{q.description}</p>
+            <p className='text-muted-foreground mt-0.5 text-xs'>
+              {q.description}
+            </p>
           )}
 
           {q.options && q.options.length > 0 && (
@@ -109,12 +113,12 @@ export function QuestionCard({
         </div>
 
         {/* Actions */}
-        <div className='flex gap-1 shrink-0'>
+        <div className='flex shrink-0 gap-1'>
           {!q.active && onReactivate && (
             <Button
               variant='ghost'
               size='icon'
-              className='size-8 text-muted-foreground hover:text-foreground'
+              className='text-muted-foreground hover:text-foreground size-8'
               onClick={onReactivate}
               aria-label='Reactivate'
             >
@@ -123,13 +127,19 @@ export function QuestionCard({
           )}
           {q.active && (
             <>
-              <Button variant='ghost' size='icon' className='size-8' onClick={onEdit} aria-label='Edit'>
+              <Button
+                variant='ghost'
+                size='icon'
+                className='size-8'
+                onClick={onEdit}
+                aria-label='Edit'
+              >
                 <Pencil className='size-4' />
               </Button>
               <Button
                 variant='ghost'
                 size='icon'
-                className='size-8 text-destructive hover:text-destructive'
+                className='text-destructive hover:text-destructive size-8'
                 onClick={onDelete}
                 aria-label='Delete'
               >

@@ -14,14 +14,10 @@ import { Badge } from '@/components/ui/badge';
 import { getAccountOverview, getConsent } from './actions';
 import { DataExportCard } from './data-export-card';
 import { ConsentCard } from './consent-card';
-import { SessionsCard } from './sessions-card';
 import { DeleteAccountCard } from './delete-account-card';
-
-const PROVIDER_LABELS: Record<string, string> = {
-  credential: 'Email & password',
-  google: 'Google',
-  github: 'GitHub',
-};
+import { ProfilePictureCard } from './profile-picture-card';
+import { SIGN_IN_PROVIDER_LABELS } from '@/lib/oauth-name';
+import { LocalDateTime } from '@/components/local-date-time';
 
 export const metadata = {
   title: 'Account & Privacy — MRUHacks',
@@ -61,6 +57,11 @@ export default async function AccountPage() {
         </p>
       </div>
 
+      <ProfilePictureCard
+        image={user.image}
+        name={overview?.name ?? user.name ?? user.email}
+      />
+
       {/* Account overview */}
       <Card>
         <CardHeader>
@@ -97,7 +98,7 @@ export default async function AccountPage() {
                   {overview.providers.length > 0 ? (
                     overview.providers.map((p) => (
                       <Badge key={p} variant='outline'>
-                        {PROVIDER_LABELS[p] ?? p}
+                        {SIGN_IN_PROVIDER_LABELS[p] ?? p}
                       </Badge>
                     ))
                   ) : (
@@ -108,7 +109,10 @@ export default async function AccountPage() {
               <div className='flex items-center justify-between gap-4'>
                 <span className='text-muted-foreground'>Member since</span>
                 <span className='font-medium'>
-                  {new Date(overview.createdAt).toLocaleDateString()}
+                  <LocalDateTime
+                    value={overview.createdAt}
+                    dateStyle='medium'
+                  />
                 </span>
               </div>
             </>
@@ -117,8 +121,6 @@ export default async function AccountPage() {
       </Card>
 
       <ConsentCard initial={consent} />
-
-      <SessionsCard />
 
       <DataExportCard />
 

@@ -10,7 +10,7 @@ import type { RsvpStatusForUser } from '@/app/dashboard/events/actions';
 import { RsvpResponseButtons } from '@/app/dashboard/events/RsvpResponseButtons';
 import { RSVP_TIMELINE_LABELS } from '@/app/dashboard/events/rsvp-status';
 import { RSVP_DASHBOARD_LABELS } from '@/app/dashboard/events/event-display-status';
-import { formatRsvpDateTime } from '@/lib/rsvp/rsvp-datetime';
+import { LocalDateTime } from '@/components/local-date-time';
 
 type Props = {
   eventId: string;
@@ -24,23 +24,16 @@ type Props = {
 export function RsvpStatusCard({ eventId, rsvp }: Props) {
   const { statusLabel, statusDisplay, respondBy, respondedAt } = rsvp;
   const isPending = statusLabel === 'pending';
-  const respondByFormatted = respondBy ? formatRsvpDateTime(respondBy) : null;
-  const respondedAtFormatted = respondedAt
-    ? formatRsvpDateTime(respondedAt)
-    : null;
 
   const title = RSVP_DASHBOARD_LABELS[statusLabel];
   const description = isPending
     ? 'Your application was accepted. Please confirm whether you will attend.'
     : statusDisplay.description;
 
-  const metaLine = isPending
-    ? respondByFormatted
-      ? `${RSVP_TIMELINE_LABELS.respondBy} ${respondByFormatted}`
-      : null
-    : respondedAtFormatted
-      ? `${RSVP_TIMELINE_LABELS.respondedAt} ${respondedAtFormatted}`
-      : null;
+  const metaDate = isPending ? respondBy : respondedAt;
+  const metaLabel = isPending
+    ? RSVP_TIMELINE_LABELS.respondBy
+    : RSVP_TIMELINE_LABELS.respondedAt;
 
   return (
     <Card>
@@ -53,10 +46,17 @@ export function RsvpStatusCard({ eventId, rsvp }: Props) {
         </div>
         <CardDescription>{description}</CardDescription>
       </CardHeader>
-      {(metaLine || isPending) && (
+      {(metaDate || isPending) && (
         <CardContent className='space-y-4'>
-          {metaLine && (
-            <p className='text-muted-foreground text-sm'>{metaLine}</p>
+          {metaDate && (
+            <p className='text-muted-foreground text-sm'>
+              {metaLabel}{' '}
+              <LocalDateTime
+                value={metaDate}
+                dateStyle='medium'
+                timeStyle='short'
+              />
+            </p>
           )}
           {isPending && <RsvpResponseButtons eventId={eventId} />}
         </CardContent>

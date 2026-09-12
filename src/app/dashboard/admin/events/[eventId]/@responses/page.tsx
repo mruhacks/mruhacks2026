@@ -24,6 +24,8 @@ import type {
   ApplicationQuestion,
   ApplicationQuestionOption,
 } from '@/types/application';
+import { isOtherOption, otherTextKey } from '@/lib/other-option';
+import { LocalDateTime } from '@/components/local-date-time';
 
 type ResponsesPageProps = {
   params: Promise<{ eventId: string }>;
@@ -33,19 +35,25 @@ function getDisplayValue(
   value: unknown,
   type: ApplicationQuestion['type'],
   options: ApplicationQuestionOption[] = [],
+  otherText?: unknown,
 ) {
   if (value === null || value === undefined) return '—';
 
+  const withOtherText = (label: string) =>
+    isOtherOption(label) && typeof otherText === 'string' && otherText
+      ? `${label} (${otherText})`
+      : label;
+
   if (type === 'single_select') {
     const option = options.find((item) => item.value === value);
-    return option ? option.label : String(value);
+    return withOtherText(option ? option.label : String(value));
   }
 
   if (type === 'multi_select' && Array.isArray(value)) {
     return value
       .map((item) => {
         const option = options.find((optionItem) => optionItem.value === item);
-        return option ? option.label : String(item);
+        return withOtherText(option ? option.label : String(item));
       })
       .join(', ');
   }
@@ -86,11 +94,13 @@ export default function ResponsesPage({ params }: ResponsesPageProps) {
       {
         accessorKey: 'createdAt',
         header: 'Submitted',
-        cell: ({ row }) =>
-          new Intl.DateTimeFormat(undefined, {
-            dateStyle: 'medium',
-            timeStyle: 'short',
-          }).format(new Date(row.original.createdAt)),
+        cell: ({ row }) => (
+          <LocalDateTime
+            value={row.original.createdAt}
+            dateStyle='medium'
+            timeStyle='short'
+          />
+        ),
       },
       {
         id: 'actions',
@@ -201,7 +211,11 @@ export default function ResponsesPage({ params }: ResponsesPageProps) {
                   Submitted
                 </p>
                 <p className='mt-1 text-sm'>
-                  {new Date(selectedResponse.createdAt).toLocaleString()}
+                  <LocalDateTime
+                    value={selectedResponse.createdAt}
+                    dateStyle='medium'
+                    timeStyle='short'
+                  />
                 </p>
               </div>
 
@@ -224,6 +238,9 @@ export default function ResponsesPage({ params }: ResponsesPageProps) {
                               response,
                               question.type,
                               question.options,
+                              selectedResponse.responses[
+                                otherTextKey(question.id)
+                              ],
                             )}
                           </p>
                         </div>

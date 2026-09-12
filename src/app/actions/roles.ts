@@ -19,6 +19,8 @@ import {
 } from '@/lib/rbac/role-mutations';
 import { writeAuditLog } from '@/utils/audit-log';
 import { serverActionError } from '@/utils/server-action-error';
+import { updateTag } from 'next/cache';
+import { ADMIN_COUNTS_CACHE_TAG } from '@/lib/admin-counts';
 
 async function authorize(permission: string) {
   const caller = await getUser();
@@ -142,6 +144,7 @@ export async function createRole(
       .onConflictDoNothing()
       .returning({ id: role.id });
     await audit('role.created', 'role', result?.id, { slug });
+    updateTag(ADMIN_COUNTS_CACHE_TAG);
     return ok(result?.id);
   } catch (e) {
     return serverActionError('create role', e);
@@ -156,6 +159,7 @@ export async function deleteRole(roleId: RoleId): Promise<ActionResult> {
   try {
     await db.delete(role).where(eq(role.id, roleId));
     await audit('role.deleted', 'role', roleId);
+    updateTag(ADMIN_COUNTS_CACHE_TAG);
     return ok();
   } catch (e) {
     return serverActionError('delete role', e);
@@ -199,6 +203,7 @@ export async function assignRoleToUser(
   try {
     await db.insert(userRole).values({ userId, roleId }).onConflictDoNothing();
     await audit('role.assigned', 'user', userId, { roleId });
+    updateTag(ADMIN_COUNTS_CACHE_TAG);
     return ok();
   } catch (e) {
     return serverActionError('assign role', e);
@@ -218,6 +223,7 @@ export async function revokeRoleFromUser(
       .delete(userRole)
       .where(and(eq(userRole.userId, userId), eq(userRole.roleId, roleId)));
     await audit('role.revoked', 'user', userId, { roleId });
+    updateTag(ADMIN_COUNTS_CACHE_TAG);
     return ok();
   } catch (e) {
     return serverActionError('revoke role', e);
@@ -246,6 +252,7 @@ export async function addPermission(
       .onConflictDoNothing()
       .returning({ id: permission.id });
     await audit('permission.created', 'permission', perm?.id, { slug: key });
+    updateTag(ADMIN_COUNTS_CACHE_TAG);
     return ok(perm?.id);
   } catch (e) {
     return serverActionError('add permission', e);
@@ -263,6 +270,7 @@ export async function deletePermission(
   try {
     await db.delete(permission).where(eq(permission.id, permissionId));
     await audit('permission.deleted', 'permission', permissionId);
+    updateTag(ADMIN_COUNTS_CACHE_TAG);
     return ok();
   } catch (e) {
     return serverActionError('delete permission', e);
@@ -402,6 +410,7 @@ export async function setUserRoles(
   try {
     await replaceUserRoles(userId, roleIds);
     await audit('user.roles.replaced', 'user', userId, { roleIds });
+    updateTag(ADMIN_COUNTS_CACHE_TAG);
     return ok();
   } catch (e) {
     return serverActionError('set user roles', e);

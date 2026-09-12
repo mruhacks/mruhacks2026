@@ -5,7 +5,11 @@ vi.mock('next/navigation', () => ({
   redirect: vi.fn((path: string) => {
     throw new Error(`REDIRECT:${path}`);
   }),
-  unstable_rethrow: vi.fn(),
+  unstable_rethrow: vi.fn((error: unknown) => {
+    if (error instanceof Error && error.message.startsWith('REDIRECT:')) {
+      throw error;
+    }
+  }),
 }));
 
 import { getUser } from '@/utils/auth';

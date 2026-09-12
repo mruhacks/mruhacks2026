@@ -1,4 +1,12 @@
-import { describe, test, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
+import {
+  describe,
+  test,
+  expect,
+  beforeAll,
+  afterAll,
+  beforeEach,
+  vi,
+} from 'vitest';
 import { eq } from 'drizzle-orm';
 
 // Mock only the underlying Vercel Queue SDK call, not the wrapper — this
@@ -38,7 +46,13 @@ async function ensureStatus(
 ): Promise<number> {
   const [inserted] = await db
     .insert(table)
-    .values({ label, title: label, description: label, variant: 'default', isFinal })
+    .values({
+      label,
+      title: label,
+      description: label,
+      variant: 'default',
+      isFinal,
+    })
     .onConflictDoNothing()
     .returning({ id: table.id });
   if (inserted) return inserted.id;

@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 
 import { getUser } from '@/utils/auth';
-import { getUserProfile, saveUserProfile } from './actions';
+import { getUserProfile, saveFullProfile } from './actions';
 import { getOptions } from '@/app/dashboard/events/actions';
 import {
   Card,
@@ -11,29 +11,30 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import ProfileForm from '@/components/profile-form';
-import { ProfileAssets } from './profile-assets';
+import { oauthPrefillName } from '@/lib/oauth-name';
 
-type DashboardProfilePageProps = {
-  searchParams: Promise<{ next?: string }>;
-};
-
-export default async function DashboardProfilePage({
-  searchParams,
-}: DashboardProfilePageProps) {
+export default async function DashboardProfilePage() {
   const user = await getUser();
   if (!user) redirect('/signin');
-
-  const { next } = await searchParams;
 
   const [profileResult, options] = await Promise.all([
     getUserProfile(),
     getOptions(),
   ]);
 
+  // This page is only reachable once onboarding (including the About step)
+  // is fully complete, so these are never actually null here in practice —
+  // still, the type is nullable at the source, so normalize to `undefined`
+  // for ProfileForm's Partial<ProfileFormValues> initial values.
   const initial =
     profileResult.success && profileResult.data != null
-      ? profileResult.data
-      : { fullName: user.name };
+      ? {
+          ...profileResult.data,
+          universityId: profileResult.data.universityId ?? undefined,
+          majorId: profileResult.data.majorId ?? undefined,
+          yearOfStudyId: profileResult.data.yearOfStudyId ?? undefined,
+        }
+      : { fullName: oauthPrefillName(user.oauthName) };
 
   return (
     <Card className='w-full sm:max-w-2xl'>
@@ -45,9 +46,10 @@ export default async function DashboardProfilePage({
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <ProfileAssets
-          image={user.image}
-          name={initial.fullName ?? user.name}
+        <ProfileForm
+          initial={initial}
+          options={options}
+          onSubmit={saveFullProfile}
           hasResume={
             profileResult.success && profileResult.data?.hasResume === true
           }
@@ -56,12 +58,6 @@ export default async function DashboardProfilePage({
               ? (profileResult.data?.resumeFileName ?? null)
               : null
           }
-        />
-        <ProfileForm
-          initial={initial}
-          options={options}
-          onSubmit={saveUserProfile}
-          nextUrl={next}
         />
       </CardContent>
     </Card>

@@ -2,11 +2,7 @@ import 'server-only';
 
 import { and, eq, max } from 'drizzle-orm';
 
-import {
-  eventRsvpResponses,
-  eventRsvpWaves,
-  rsvpStatuses,
-} from '@/db/schema';
+import { eventRsvpResponses, eventRsvpWaves, rsvpStatuses } from '@/db/schema';
 import { db } from '@/utils/db';
 
 export type LatestRsvpResponse = {

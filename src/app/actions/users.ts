@@ -42,9 +42,10 @@ import {
   replaceUserDirectPermissions,
   replaceUserRoles,
 } from '@/lib/rbac/role-mutations';
-import { revalidatePath } from 'next/cache';
+import { revalidatePath, updateTag } from 'next/cache';
 import { serverActionError } from '@/utils/server-action-error';
 import { writeAuditLog } from '@/utils/audit-log';
+import { ADMIN_COUNTS_CACHE_TAG } from '@/lib/admin-counts';
 
 // ─────────────────────────────────────────────
 // TYPES
@@ -303,6 +304,7 @@ export async function updateUserRoles(
       metadata: { roleIds },
     });
     revalidatePath('/dashboard/admin/users');
+    updateTag(ADMIN_COUNTS_CACHE_TAG);
     return ok();
   } catch (e) {
     return serverActionError('update user roles', e);
@@ -364,6 +366,7 @@ export async function deleteUser(userId: string): Promise<ActionResult> {
       targetId: userId,
     });
     revalidatePath('/dashboard/admin/users');
+    updateTag(ADMIN_COUNTS_CACHE_TAG);
     return ok();
   } catch (e) {
     return serverActionError('delete user', e);
@@ -595,6 +598,7 @@ export async function consumeInvite(): Promise<
     }
     await db.delete(invite).where(eq(invite.email, email));
     revalidatePath('/dashboard/admin/users');
+    updateTag(ADMIN_COUNTS_CACHE_TAG);
     return ok({ consumed: true });
   } catch (e) {
     return serverActionError('consume invite', e);

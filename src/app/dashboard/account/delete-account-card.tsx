@@ -103,8 +103,8 @@ export function DeleteAccountCard() {
                   </DialogTitle>
                   <DialogDescription>
                     This permanently erases your account and every piece of data
-                    tied to it. For your security, we&apos;ll email you a link to
-                    confirm before anything is deleted.
+                    tied to it. For your security, we&apos;ll email you a link
+                    to confirm before anything is deleted.
                   </DialogDescription>
                 </DialogHeader>
 

@@ -1,14 +1,14 @@
+import eslintConfigNextCoreWebVitals from 'eslint-config-next/core-web-vitals';
+import eslintConfigNextTypescript from 'eslint-config-next/typescript';
 import eslintConfigPrettier from 'eslint-config-prettier';
 import eslintPluginBetterTailwindcss from 'eslint-plugin-better-tailwindcss';
-import nextVitals from 'eslint-config-next/core-web-vitals';
-import nextTs from 'eslint-config-next/typescript';
 import noNestedInteractive from './eslint-rules/no-nested-interactive.mjs';
 import noRouterRefresh from './eslint-rules/no-router-refresh.mjs';
 import enforceMRUHacksNaming from './eslint-rules/enforce-mruhacks-naming.mjs';
 
 const eslintConfig = [
-  ...nextVitals,
-  ...nextTs,
+  ...eslintConfigNextCoreWebVitals,
+  ...eslintConfigNextTypescript,
   {
     ignores: [
       'node_modules/**',
@@ -19,6 +19,14 @@ const eslintConfig = [
       'src/components/ui/**',
       'eslint-rules/**',
     ],
+  },
+  {
+    // CommonJS-only tooling (e.g. a tsx `--require` preload hook) has no ESM
+    // import available to it.
+    files: ['**/*.cjs'],
+    rules: {
+      '@typescript-eslint/no-require-imports': 'off',
+    },
   },
   {
     plugins: {

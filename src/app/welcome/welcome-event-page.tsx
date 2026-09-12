@@ -7,10 +7,21 @@ import {
 
 export function WelcomeEventPage({
   event,
-  onComplete,
+  backHref,
+  nextHref,
+  isFinalStep,
 }: {
   event: FeaturedOnboardingEvent;
-  onComplete: () => void;
+  backHref: string;
+  nextHref: string;
+  isFinalStep: boolean;
 }) {
-  return <FeaturedEventStep event={event} onComplete={onComplete} />;
+  return (
+    <FeaturedEventStep
+      event={event}
+      backHref={backHref}
+      nextHref={nextHref}
+      isFinalStep={isFinalStep}
+    />
+  );
 }
