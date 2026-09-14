@@ -12,12 +12,6 @@ type RosterFilter = 'all' | 'waiting' | 'arrived';
 
 const PAGE_SIZE = 40;
 
-function formatTime(value: Date) {
-  return new Intl.DateTimeFormat(undefined, {
-    timeStyle: 'short',
-  }).format(new Date(value));
-}
-
 type CheckInRosterProps = {
   rows: CheckInRosterRow[];
   pendingUserId: string | null;
@@ -146,7 +140,7 @@ function RosterRow({ row, pending, onCheckIn, onUndo }: RosterRowProps) {
         {row.checkedInAt ? (
           <div className='flex min-w-0 flex-col gap-0.5'>
             <Badge variant='default' className='w-fit'>
-              In at {formatTime(row.checkedInAt)}
+              In at {row.checkedInAtLabel}
             </Badge>
             {row.checkedInByName && (
               <span className='text-muted-foreground truncate text-xs'>

@@ -325,9 +325,9 @@ describe('scanCheckIn', () => {
       alreadyCheckedIn: true,
       checkedInByName: SCANNER_NAME,
     });
-    expect(second.success && second.data?.checkedInAt.getTime()).toBe(
-      first.success && first.data?.checkedInAt.getTime(),
-    );
+    expect(
+      Date.parse(second.success ? (second.data?.checkedInAt ?? '') : ''),
+    ).toBe(Date.parse(first.success ? (first.data?.checkedInAt ?? '') : ''));
   });
 
   test('leaves exactly one row behind after repeated scans', async () => {
@@ -468,7 +468,8 @@ describe('getCheckInRoster', () => {
       ? result.data?.find((entry) => entry.userId === participantId)
       : undefined;
 
-    expect(row?.checkedInAt).toBeInstanceOf(Date);
+    expect(row?.checkedInAt).toMatch(/^\d{4}-\d{2}-\d{2}T.*Z$/);
+    expect(row?.checkedInAtLabel).toMatch(/[AP]M MT/);
     expect(row?.checkedInByName).toBe(SCANNER_NAME);
   });
 

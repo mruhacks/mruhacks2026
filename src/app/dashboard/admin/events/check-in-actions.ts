@@ -1,6 +1,6 @@
 'use server';
 
-import { and, eq, isNotNull, isNull, or } from 'drizzle-orm';
+import { and, eq, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 
 import {
@@ -37,7 +37,10 @@ export type CheckInOutcome = {
   userId: string;
   name: string;
   alreadyCheckedIn: boolean;
-  checkedInAt: Date;
+  /** ISO instant with `Z`. Never send a Date across the action boundary. */
+  checkedInAt: string;
+  /** America/Edmonton wall clock, formatted on the server. */
+  checkedInAtLabel: string;
   checkedInByName: string | null;
 };
 
@@ -45,9 +48,15 @@ export type CheckInRosterRow = {
   userId: string;
   name: string;
   email: string;
-  checkedInAt: Date | null;
+  /** ISO instant with `Z`, or null if they have not checked in. */
+  checkedInAt: string | null;
+  checkedInAtLabel: string | null;
   checkedInByName: string | null;
 };
+
+/** Wall clock in America/Edmonton, computed by Postgres — never by JS Date. */
+const checkedInAtIsoSql = sql<string>`to_char(${checkIns.checkedInAt} AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`;
+const checkedInAtLabelSql = sql<string>`trim(to_char(${checkIns.checkedInAt} AT TIME ZONE 'America/Edmonton', 'Mon FMDD, YYYY, FMHH12:MI AM')) || ' MT'`;
 
 /**
  * Wallet passes encode the token as base64url text; the in-app QR encodes the
@@ -94,12 +103,16 @@ async function recordCheckIn(
     .insert(checkIns)
     .values({ eventId, userId, checkedInBy: actorId })
     .onConflictDoNothing({ target: [checkIns.userId, checkIns.eventId] })
-    .returning({ checkedInAt: checkIns.checkedInAt });
+    .returning({
+      checkedInAt: checkedInAtIsoSql,
+      checkedInAtLabel: checkedInAtLabelSql,
+    });
 
   if (inserted) {
     return {
       alreadyCheckedIn: false,
       checkedInAt: inserted.checkedInAt,
+      checkedInAtLabel: inserted.checkedInAtLabel,
       checkedInByName: null,
     };
   }
@@ -107,7 +120,8 @@ async function recordCheckIn(
   const scanner = alias(user, 'scanner');
   const [existing] = await db
     .select({
-      checkedInAt: checkIns.checkedInAt,
+      checkedInAt: checkedInAtIsoSql,
+      checkedInAtLabel: checkedInAtLabelSql,
       scannerName: scanner.name,
     })
     .from(checkIns)
@@ -120,6 +134,7 @@ async function recordCheckIn(
   return {
     alreadyCheckedIn: true,
     checkedInAt: existing.checkedInAt,
+    checkedInAtLabel: existing.checkedInAtLabel,
     checkedInByName: existing.scannerName,
   };
 }
@@ -257,7 +272,8 @@ export async function getCheckInRoster(
       email: user.email,
       accountName: user.name,
       fullName: userProfiles.fullName,
-      checkedInAt: checkIns.checkedInAt,
+      checkedInAt: checkedInAtIsoSql,
+      checkedInAtLabel: checkedInAtLabelSql,
       scannerName: scanner.name,
     })
     .from(user)
@@ -298,6 +314,7 @@ export async function getCheckInRoster(
       name: resolveParticipantName(row.fullName, row.accountName),
       email: row.email,
       checkedInAt: row.checkedInAt,
+      checkedInAtLabel: row.checkedInAtLabel,
       checkedInByName: row.scannerName,
     })),
   );

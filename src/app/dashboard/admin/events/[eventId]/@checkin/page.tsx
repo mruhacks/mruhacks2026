@@ -28,12 +28,6 @@ type ScanFeedback =
   | { kind: 'duplicate'; outcome: CheckInOutcome }
   | { kind: 'rejected'; message: string };
 
-function formatTime(value: Date) {
-  return new Intl.DateTimeFormat(undefined, {
-    timeStyle: 'short',
-  }).format(new Date(value));
-}
-
 const FEEDBACK_STYLES = {
   accepted: {
     icon: CheckCircle2,
@@ -52,35 +46,40 @@ const FEEDBACK_STYLES = {
   },
 };
 
-function describeFeedback(feedback: ScanFeedback) {
-  if (feedback.kind === 'rejected') {
-    return { title: 'Not checked in', detail: feedback.message };
-  }
-
-  const { name, checkedInAt, checkedInByName } = feedback.outcome;
-  const at = formatTime(checkedInAt);
-
-  if (feedback.kind === 'duplicate') {
-    const by = checkedInByName ? ` by ${checkedInByName}` : '';
-    return {
-      title: `${name} was already checked in`,
-      detail: `At ${at}${by}. This pass has already been used.`,
-    };
-  }
-
-  return { title: `${name} is checked in`, detail: `At ${at}.` };
-}
-
 function ScanFeedbackPanel({ feedback }: { feedback: ScanFeedback }) {
   const { icon: Icon, box, iconColor } = FEEDBACK_STYLES[feedback.kind];
-  const { title, detail } = describeFeedback(feedback);
+
+  if (feedback.kind === 'rejected') {
+    return (
+      <div className={cn('flex items-start gap-3 rounded-xl border p-4', box)}>
+        <Icon className={cn('mt-0.5 size-6 shrink-0', iconColor)} />
+        <div className='min-w-0'>
+          <p className='text-lg font-semibold sm:text-base'>Not checked in</p>
+          <p className='text-muted-foreground text-sm'>{feedback.message}</p>
+        </div>
+      </div>
+    );
+  }
+
+  const { outcome } = feedback;
+  const duplicate = feedback.kind === 'duplicate';
 
   return (
     <div className={cn('flex items-start gap-3 rounded-xl border p-4', box)}>
       <Icon className={cn('mt-0.5 size-6 shrink-0', iconColor)} />
       <div className='min-w-0'>
-        <p className='text-lg font-semibold sm:text-base'>{title}</p>
-        <p className='text-muted-foreground text-sm'>{detail}</p>
+        <p className='text-lg font-semibold sm:text-base'>
+          {duplicate
+            ? `${outcome.name} was already checked in`
+            : `${outcome.name} is checked in`}
+        </p>
+        <p className='text-muted-foreground text-sm'>
+          At {outcome.checkedInAtLabel}
+          {duplicate && outcome.checkedInByName
+            ? ` by ${outcome.checkedInByName}`
+            : ''}
+          {duplicate ? '. This pass has already been used.' : '.'}
+        </p>
       </div>
     </div>
   );
