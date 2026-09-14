@@ -8,9 +8,11 @@ vi.mock('@/lib/rsvp/requeue-pending-rsvp-invitations', () => ({
 
 describe('GET /api/cron/rsvp-invitation-sweep', () => {
   const originalSecret = process.env.CRON_SECRET;
+  const originalManualSecret = process.env.CRON_MANUAL_SECRET;
 
   beforeEach(() => {
     process.env.CRON_SECRET = 'test-cron-secret';
+    delete process.env.CRON_MANUAL_SECRET;
     requeuePendingRsvpInvitations.mockReset();
     requeuePendingRsvpInvitations.mockResolvedValue({
       inspected: 0,
@@ -25,6 +27,11 @@ describe('GET /api/cron/rsvp-invitation-sweep', () => {
       delete process.env.CRON_SECRET;
     } else {
       process.env.CRON_SECRET = originalSecret;
+    }
+    if (originalManualSecret === undefined) {
+      delete process.env.CRON_MANUAL_SECRET;
+    } else {
+      process.env.CRON_MANUAL_SECRET = originalManualSecret;
     }
   });
 
@@ -46,6 +53,20 @@ describe('GET /api/cron/rsvp-invitation-sweep', () => {
     );
     expect(response.status).toBe(401);
     expect(requeuePendingRsvpInvitations).not.toHaveBeenCalled();
+  });
+
+  test('invokes the sweep when authorized with CRON_MANUAL_SECRET', async () => {
+    process.env.CRON_MANUAL_SECRET = 'test-manual-secret';
+
+    const { GET } = await import('@/app/api/cron/rsvp-invitation-sweep/route');
+    const response = await GET(
+      new Request('http://localhost/api/cron/rsvp-invitation-sweep', {
+        headers: { authorization: 'Bearer test-manual-secret' },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(requeuePendingRsvpInvitations).toHaveBeenCalledTimes(1);
   });
 
   test('invokes the sweep and returns its result when authorized', async () => {

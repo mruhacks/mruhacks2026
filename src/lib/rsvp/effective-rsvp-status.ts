@@ -23,15 +23,11 @@ export function resolveStoredRsvpStatus(
  */
 export function resolveEffectiveRsvpStatus(
   storedLabel: string | null | undefined,
-  respondBy: Date | null | undefined,
+  respondBy: Date,
   now: Date = new Date(),
 ): RsvpStatus {
   const stored = resolveStoredRsvpStatus(storedLabel);
-  if (
-    stored === 'pending' &&
-    respondBy != null &&
-    respondBy.getTime() < now.getTime()
-  ) {
+  if (stored === 'pending' && respondBy.getTime() < now.getTime()) {
     return 'timed_out';
   }
   return stored;
@@ -40,7 +36,7 @@ export function resolveEffectiveRsvpStatus(
 /** True when the invite is still open to accept/decline/resend. */
 export function isEffectivePendingRsvp(
   storedLabel: string | null | undefined,
-  respondBy: Date | null | undefined,
+  respondBy: Date,
   now: Date = new Date(),
 ): boolean {
   return resolveEffectiveRsvpStatus(storedLabel, respondBy, now) === 'pending';

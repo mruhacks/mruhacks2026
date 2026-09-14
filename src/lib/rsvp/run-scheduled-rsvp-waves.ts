@@ -54,15 +54,13 @@ function sameUtcCalendarDay(a: Date, b: Date): boolean {
  * invitation window (respondBy - createdAt), or fall back to 48 hours.
  */
 export function computeScheduledRespondBy(
-  previousWave: { respondBy: Date | null; createdAt: Date },
+  previousWave: { respondBy: Date; createdAt: Date },
   now: Date = new Date(),
 ): Date {
-  if (previousWave.respondBy) {
-    const windowMs =
-      previousWave.respondBy.getTime() - previousWave.createdAt.getTime();
-    if (windowMs > 0) {
-      return new Date(now.getTime() + windowMs);
-    }
+  const windowMs =
+    previousWave.respondBy.getTime() - previousWave.createdAt.getTime();
+  if (windowMs > 0) {
+    return new Date(now.getTime() + windowMs);
   }
   return new Date(now.getTime() + DEFAULT_RESPOND_BY_MS);
 }

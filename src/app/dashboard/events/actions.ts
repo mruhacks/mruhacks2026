@@ -15,7 +15,6 @@ import {
   eventAttendees,
   applicationFormView,
   eventRsvpResponses,
-  rsvpStatuses,
   genders,
   universities,
   majors,
@@ -35,11 +34,17 @@ import {
 } from '@/components/application-form/schema';
 import type { ApplicationQuestion } from '@/types/application';
 import { cacheLife, revalidatePath, updateTag } from 'next/cache';
-import { and, count, eq, inArray } from 'drizzle-orm';
+import { and, eq, exists, inArray, sql } from 'drizzle-orm';
 import { getUserProfile } from '@/app/dashboard/profile/actions';
+import {
+  EVENT_AT_CAPACITY_MESSAGE,
+  isRsvpUserDecision,
+  type RsvpUserDecision,
+} from '@/lib/rsvp/constants';
 import { resolveEffectiveRsvpStatus } from '@/lib/rsvp/effective-rsvp-status';
 import {
   findLatestRsvpResponse,
+  findLatestRsvpResponseForDecision,
   findLatestRsvpResponses,
 } from '@/lib/rsvp/latest-rsvp-response';
 import {
@@ -389,7 +394,7 @@ export type RsvpStatusForUser = {
   responseId: string;
   statusLabel: RsvpStatusLabel;
   statusDisplay: RsvpStatusDisplay;
-  respondBy: Date | null;
+  respondBy: Date;
   respondedAt: Date | null;
 };
 
@@ -420,20 +425,10 @@ export async function getUserRsvpStatus(
   };
 }
 
-const EVENT_AT_CAPACITY_MESSAGE =
-  'This event is at capacity. Your RSVP could not be accepted.';
-
-const RSVP_USER_DECISIONS = ['accepted', 'declined'] as const;
-type RsvpUserDecision = (typeof RSVP_USER_DECISIONS)[number];
-
-function isRsvpUserDecision(value: string): value is RsvpUserDecision {
-  return (RSVP_USER_DECISIONS as readonly string[]).includes(value);
-}
-
-class RsvpAcceptError extends Error {
+class RsvpResponseError extends Error {
   constructor(message: string) {
     super(message);
-    this.name = 'RsvpAcceptError';
+    this.name = 'RsvpResponseError';
   }
 }
 
@@ -451,7 +446,7 @@ class RsvpAcceptError extends Error {
  */
 export async function submitRsvpResponse(
   eventId: string,
-  decision: 'accepted' | 'declined',
+  decision: RsvpUserDecision,
 ): Promise<ActionResult> {
   const user = await getUser();
   if (!user) return fail('User not authenticated');
@@ -459,13 +454,16 @@ export async function submitRsvpResponse(
     return fail('Invalid RSVP decision.');
   }
 
-  const row = await findLatestRsvpResponse({
+  const row = await findLatestRsvpResponseForDecision({
     userId: user.id,
     eventId,
+    decision,
   });
 
   if (!row) return fail('No RSVP invitation found.');
-  if (row.statusId == null) return fail('RSVP statuses are not configured.');
+  if (row.statusId == null || row.decisionStatusId == null) {
+    return fail('RSVP statuses are not configured.');
+  }
 
   const currentStatus = resolveEffectiveRsvpStatus(
     row.statusLabel,
@@ -478,52 +476,48 @@ export async function submitRsvpResponse(
     return fail('Already responded to RSVP.');
   }
 
-  const [decisionStatus] = await db
-    .select({ id: rsvpStatuses.id })
-    .from(rsvpStatuses)
-    .where(eq(rsvpStatuses.label, decision))
-    .limit(1);
-
-  if (!decisionStatus) return fail('RSVP statuses are not configured.');
-
   const pendingResponseStatusId = row.statusId;
+  const decisionStatusId = row.decisionStatusId;
 
   try {
     await db.transaction(async (tx) => {
       if (decision === 'accepted') {
         const [eventRow] = await tx
-          .select({ id: events.id, capacity: events.capacity })
+          .select({
+            id: events.id,
+            capacity: events.capacity,
+            attendeeCount: sql<number>`(
+              SELECT count(*)::int
+              FROM ${eventAttendees}
+              WHERE ${eventAttendees.eventId} = ${events.id}
+            )`.mapWith(Number),
+            isExistingAttendee: exists(
+              tx
+                .select({ one: sql`1` })
+                .from(eventAttendees)
+                .where(
+                  and(
+                    eq(eventAttendees.eventId, events.id),
+                    eq(eventAttendees.userId, user.id),
+                  ),
+                ),
+            ),
+          })
           .from(events)
           .where(eq(events.id, eventId))
           .for('update')
           .limit(1);
 
         if (!eventRow) {
-          throw new RsvpAcceptError('Event not found.');
+          throw new RsvpResponseError('Event not found.');
         }
 
-        if (eventRow.capacity !== null) {
-          const [existingAttendee] = await tx
-            .select({ userId: eventAttendees.userId })
-            .from(eventAttendees)
-            .where(
-              and(
-                eq(eventAttendees.eventId, eventId),
-                eq(eventAttendees.userId, user.id),
-              ),
-            )
-            .limit(1);
-
-          if (!existingAttendee) {
-            const [{ value: attendeeCount }] = await tx
-              .select({ value: count() })
-              .from(eventAttendees)
-              .where(eq(eventAttendees.eventId, eventId));
-
-            if (Number(attendeeCount) >= eventRow.capacity) {
-              throw new RsvpAcceptError(EVENT_AT_CAPACITY_MESSAGE);
-            }
-          }
+        if (
+          eventRow.capacity !== null &&
+          !eventRow.isExistingAttendee &&
+          eventRow.attendeeCount >= eventRow.capacity
+        ) {
+          throw new RsvpResponseError(EVENT_AT_CAPACITY_MESSAGE);
         }
 
         await tx
@@ -540,7 +534,7 @@ export async function submitRsvpResponse(
       const updated = await tx
         .update(eventRsvpResponses)
         .set({
-          statusId: decisionStatus.id,
+          statusId: decisionStatusId,
           respondedAt: new Date(),
         })
         .where(
@@ -552,7 +546,7 @@ export async function submitRsvpResponse(
         .returning({ id: eventRsvpResponses.id });
 
       if (updated.length === 0) {
-        throw new RsvpAcceptError('Already responded to RSVP.');
+        throw new RsvpResponseError('Already responded to RSVP.');
       }
     });
 
@@ -565,7 +559,7 @@ export async function submitRsvpResponse(
     revalidatePath('/dashboard');
     return ok(decision === 'accepted' ? 'RSVP accepted.' : 'RSVP declined.');
   } catch (error) {
-    if (error instanceof RsvpAcceptError) {
+    if (error instanceof RsvpResponseError) {
       return fail(error.message);
     }
     console.error('RSVP response error:', error);

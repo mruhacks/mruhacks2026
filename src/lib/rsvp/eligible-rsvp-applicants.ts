@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { and, count, eq, gte, isNull, notExists, or } from 'drizzle-orm';
+import { and, count, eq, gte, notExists, or } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 
 import {
@@ -37,7 +37,7 @@ export type RsvpEligibilityResult = {
  * Approved applicants eligible for the next RSVP wave.
  *
  * Expired pending invites do not block eligibility (`pending` only blocks
- * while `respondBy` is null or still in the future). Does not truncate by
+ * while `respondBy` is still in the future). Does not truncate by
  * capacity — callers must refuse when `applicants.length` exceeds
  * `availableSpots` (no invite ranking yet; `waitlist_position` applies only
  * to waitlisted applications).
@@ -117,10 +117,7 @@ export async function getEligibleRsvpApplicants(
                   eq(blockingStatuses.label, 'declined'),
                   and(
                     eq(blockingStatuses.label, 'pending'),
-                    or(
-                      isNull(blockingWaves.respondBy),
-                      gte(blockingWaves.respondBy, now),
-                    ),
+                    gte(blockingWaves.respondBy, now),
                   ),
                 ),
               ),

@@ -63,10 +63,7 @@ export async function processRsvpInvitation(
     return 'already_sent';
   }
 
-  if (
-    !row.respondBy ||
-    !isEffectivePendingRsvp(row.statusLabel, row.respondBy)
-  ) {
+  if (!isEffectivePendingRsvp(row.statusLabel, row.respondBy)) {
     return 'not_pending';
   }
 

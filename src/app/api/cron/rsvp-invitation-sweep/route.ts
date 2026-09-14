@@ -1,45 +1,26 @@
+import { fail } from '@/utils/action-result';
 import { requeuePendingRsvpInvitations } from '@/lib/rsvp/requeue-pending-rsvp-invitations';
+import { handleCronRequest } from '@/app/api/cron/handle-cron-request';
 
 /**
  * Cron entrypoint for the RSVP invitation reconciliation sweep. Requires
- * `Authorization: Bearer <CRON_SECRET>`. Schedule: `vercel.json`.
+ * `Authorization: Bearer <CRON_SECRET>` or, optionally,
+ * `Authorization: Bearer <CRON_MANUAL_SECRET>`. Schedule: `vercel.json`.
  */
-function authorizeCronRequest(request: Request): boolean {
-  const secret = process.env.CRON_SECRET?.trim();
-  if (!secret) {
-    console.error('[cron/rsvp-invitation-sweep] CRON_SECRET is not configured');
-    return false;
-  }
-
-  const authorization = request.headers.get('authorization');
-  if (!authorization) return false;
-
-  const [scheme, token] = authorization.split(' ');
-  return scheme?.toLowerCase() === 'bearer' && token === secret;
+async function handle(request: Request): Promise<Response> {
+  return handleCronRequest(request, {
+    logLabel: '[cron/rsvp-invitation-sweep]',
+    extraSecrets: [process.env.CRON_MANUAL_SECRET?.trim()].filter(
+      (value): value is string => Boolean(value),
+    ),
+    failureBody: fail('RSVP invitation reconciliation sweep failed.'),
+    run: async () => {
+      const result = await requeuePendingRsvpInvitations();
+      console.info('[cron/rsvp-invitation-sweep] completed', result);
+      return result;
+    },
+  });
 }
 
-async function handleCron(request: Request): Promise<Response> {
-  if (!authorizeCronRequest(request)) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  try {
-    const result = await requeuePendingRsvpInvitations();
-    console.info('[cron/rsvp-invitation-sweep] completed', result);
-    return Response.json(result);
-  } catch (error) {
-    console.error('[cron/rsvp-invitation-sweep] failed', error);
-    return Response.json(
-      { error: 'RSVP invitation reconciliation sweep failed.' },
-      { status: 500 },
-    );
-  }
-}
-
-export async function GET(request: Request): Promise<Response> {
-  return handleCron(request);
-}
-
-export async function POST(request: Request): Promise<Response> {
-  return handleCron(request);
-}
+export const GET = handle;
+export const POST = handle;

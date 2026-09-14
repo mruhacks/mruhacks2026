@@ -17,4 +17,7 @@ UPDATE "rsvp_statuses" SET "title" = 'RSVP Expired', "description" = 'The RSVP d
 ALTER TABLE "rsvp_statuses" ALTER COLUMN "title" SET NOT NULL;--> statement-breakpoint
 ALTER TABLE "rsvp_statuses" ALTER COLUMN "description" SET NOT NULL;--> statement-breakpoint
 ALTER TABLE "rsvp_statuses" ALTER COLUMN "variant" SET NOT NULL;--> statement-breakpoint
-ALTER TABLE "rsvp_statuses" ALTER COLUMN "is_final" SET NOT NULL;
+ALTER TABLE "rsvp_statuses" ALTER COLUMN "is_final" SET NOT NULL;--> statement-breakpoint
+-- Every wave must have a deadline. Fails if any respond_by is NULL (no
+-- backfill — inspect those rows by hand).
+ALTER TABLE "event_rsvp_waves" ALTER COLUMN "respond_by" SET NOT NULL;

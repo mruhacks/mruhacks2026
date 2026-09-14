@@ -180,7 +180,7 @@ export async function sendRsvpWave(
       id: created.wave.id,
       eventId: created.wave.eventId,
       wave: created.wave.wave,
-      respondBy: created.wave.respondBy!,
+      respondBy: created.wave.respondBy,
       createdAt: created.wave.createdAt,
     };
     invitedApplicants = created.invitedApplicants;

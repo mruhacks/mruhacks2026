@@ -26,6 +26,7 @@ import {
   getEventsWithUserStatus,
   submitRsvpResponse,
 } from '@/app/dashboard/events/actions';
+import { EVENT_AT_CAPACITY_MESSAGE } from '@/lib/rsvp/constants';
 import { timeoutExpiredRsvpResponses } from '@/lib/rsvp/timeout-expired-rsvp-responses';
 
 let testUserId: string;
@@ -734,7 +735,7 @@ describe('submitRsvpResponse', () => {
       const result = await submitRsvpResponse(capEvent.id, 'accepted');
       expect(result.success).toBe(false);
       if (!result.success) {
-        expect(result.error).toMatch(/at capacity/i);
+        expect(result.error).toBe(EVENT_AT_CAPACITY_MESSAGE);
       }
 
       const [response] = await db
@@ -852,7 +853,7 @@ describe('submitRsvpResponse', () => {
       expect(successes).toHaveLength(1);
       expect(failures).toHaveLength(1);
       if (!failures[0].success) {
-        expect(failures[0].error).toMatch(/at capacity/i);
+        expect(failures[0].error).toBe(EVENT_AT_CAPACITY_MESSAGE);
       }
       expect(await countEventAttendees(capEvent.id)).toBe(1);
 

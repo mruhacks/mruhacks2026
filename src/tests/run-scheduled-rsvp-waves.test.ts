@@ -105,12 +105,12 @@ describe('computeScheduledRespondBy', () => {
     expect(respondBy).toEqual(new Date('2026-08-12T00:00:00.000Z'));
   });
 
-  test('falls back to 48 hours when prior window is missing', () => {
+  test('falls back to 48 hours when prior window is not positive', () => {
     const now = new Date('2026-08-10T00:00:00.000Z');
     const respondBy = computeScheduledRespondBy(
       {
         createdAt: new Date('2026-08-01T00:00:00.000Z'),
-        respondBy: null,
+        respondBy: new Date('2026-08-01T00:00:00.000Z'),
       },
       now,
     );

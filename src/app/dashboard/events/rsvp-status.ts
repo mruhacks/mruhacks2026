@@ -76,7 +76,7 @@ export const RSVP_TIMELINE_LABELS = {
 } as const;
 
 type RsvpTimelineSource = {
-  respondBy: Date | null;
+  respondBy: Date;
   respondedAt: Date | null;
 };
 

@@ -11,6 +11,14 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Field, FieldDescription, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -24,9 +32,15 @@ type Props = {
 export function SendRsvpWaveCard({ eventId, hasApplication }: Props) {
   const [respondBy, setRespondBy] = React.useState('');
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [confirmOpen, setConfirmOpen] = React.useState(false);
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (isSubmitting || !respondBy) return;
+    setConfirmOpen(true);
+  }
+
+  async function handleConfirm() {
     if (isSubmitting) return;
 
     setIsSubmitting(true);
@@ -51,6 +65,7 @@ export function SendRsvpWaveCard({ eventId, hasApplication }: Props) {
         `Wave ${data.waveNumber} created, ${data.invitationsQueued} invitation${data.invitationsQueued === 1 ? '' : 's'} queued${failureNote}.`,
       );
       setRespondBy('');
+      setConfirmOpen(false);
     } catch {
       toast.error('Failed to send RSVP wave');
     } finally {
@@ -88,11 +103,46 @@ export function SendRsvpWaveCard({ eventId, hasApplication }: Props) {
           </Field>
           <div className='flex justify-end'>
             <Button type='submit' disabled={isSubmitting || !respondBy}>
-              {isSubmitting ? 'Sending…' : 'Send RSVP Wave'}
+              Send RSVP Wave
             </Button>
           </div>
         </form>
       </CardContent>
+
+      <Dialog
+        open={confirmOpen}
+        onOpenChange={(open) => {
+          if (!open && isSubmitting) return;
+          setConfirmOpen(open);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Send RSVP wave?</DialogTitle>
+            <DialogDescription>
+              This will invite eligible accepted applicants to confirm their
+              spot. This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type='button'
+              variant='outline'
+              onClick={() => setConfirmOpen(false)}
+              disabled={isSubmitting}
+            >
+              Cancel
+            </Button>
+            <Button
+              type='button'
+              onClick={handleConfirm}
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? 'Sending…' : 'Confirm'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

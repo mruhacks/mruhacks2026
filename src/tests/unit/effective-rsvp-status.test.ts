@@ -20,10 +20,6 @@ describe('resolveEffectiveRsvpStatus', () => {
     expect(isEffectivePendingRsvp('pending', past, now)).toBe(false);
   });
 
-  test('pending with no deadline stays pending', () => {
-    expect(resolveEffectiveRsvpStatus('pending', null, now)).toBe('pending');
-  });
-
   test('accepted + expired respondBy remains accepted', () => {
     expect(resolveEffectiveRsvpStatus('accepted', past, now)).toBe('accepted');
   });

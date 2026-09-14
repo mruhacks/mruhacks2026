@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 
 import { Button } from '@/components/ui/button';
 import { submitRsvpResponse } from '@/app/dashboard/events/actions';
+import type { RsvpUserDecision } from '@/lib/rsvp/constants';
 
 type Props = {
   eventId: string;
@@ -17,11 +18,10 @@ type Props = {
 export function RsvpResponseButtons({ eventId }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [activeDecision, setActiveDecision] = useState<
-    'accepted' | 'declined' | null
-  >(null);
+  const [activeDecision, setActiveDecision] =
+    useState<RsvpUserDecision | null>(null);
 
-  function handleDecision(decision: 'accepted' | 'declined') {
+  function handleDecision(decision: RsvpUserDecision) {
     if (isPending) return;
 
     setActiveDecision(decision);

@@ -324,7 +324,7 @@ export const eventRsvpWaves = pgTable(
       .notNull()
       .references(() => events.id, { onDelete: 'cascade' }),
     wave: smallint('wave').notNull(),
-    respondBy: timestamp('respond_by', { withTimezone: true }),
+    respondBy: timestamp('respond_by', { withTimezone: true }).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
       .notNull(),

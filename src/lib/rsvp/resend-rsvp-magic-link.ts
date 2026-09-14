@@ -109,7 +109,6 @@ export async function resendRsvpMagicLink(
 
   if (
     !pending ||
-    !pending.respondBy ||
     !isEffectivePendingRsvp(PENDING_RSVP_STATUS_LABEL, pending.respondBy)
   ) {
     return {

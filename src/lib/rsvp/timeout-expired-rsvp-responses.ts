@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { and, eq, inArray, isNotNull, lt } from 'drizzle-orm';
+import { and, eq, inArray, lt } from 'drizzle-orm';
 
 import { eventRsvpResponses, eventRsvpWaves, rsvpStatuses } from '@/db/schema';
 import { db } from '@/utils/db';
@@ -60,7 +60,6 @@ export async function timeoutExpiredRsvpResponses(
 
   const filters = [
     eq(eventRsvpResponses.statusId, pendingStatus.id),
-    isNotNull(eventRsvpWaves.respondBy),
     lt(eventRsvpWaves.respondBy, now),
   ];
 
