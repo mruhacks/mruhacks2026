@@ -21,7 +21,8 @@
     "db:seed": "echo 'Running migrations…' && drizzle-kit migrate && echo 'Seeding Database' && tsx scripts/seed.ts",
     "db:wait": "echo 'Waiting for Postgres to be ready…' &&        until docker exec mruhacks-db-dev pg_isready >/dev/null 2>&1; do          printf '.';          sleep 1;        done &&        echo ' Postgres is ready.'",
     "knip": "knip",
-    "check-health": "tsx scripts/check-health.ts"
+    "check-health": "tsx scripts/check-health.ts",
+    "test:rsvp-wave": "tsx --require ./scripts/preload-server-only-mock.cjs scripts/test-send-rsvp-wave.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1116.0",
@@ -45,6 +46,7 @@
     "@tanstack/react-query": "^5.99.0",
     "@tanstack/react-table": "^8.21.3",
     "@vercel/analytics": "^2.0.1",
+    "@vercel/queue": "^0.5.1",
     "@vercel/speed-insights": "^2.0.0",
     "better-auth": "^1.4.17",
     "class-variance-authority": "^0.7.1",

@@ -1,6 +1,10 @@
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
 import type { EventWithUserStatus } from '@/app/dashboard/events/actions';
+import {
+  getApplicationDisplayStatus,
+  type EventDisplayPill,
+} from '@/app/dashboard/events/event-display-status';
 import { LocalDateRange } from '@/components/local-date-time';
 
 // ── Design tokens ──────────────────────────────────────────────────────────────
@@ -70,35 +74,24 @@ function StatusPill({
   );
 }
 
-const STATUS_COLORS: Record<string, { bg: string; fg: string }> = {
+const STATUS_COLORS: Record<EventDisplayPill, { bg: string; fg: string }> = {
   approved: { bg: 'var(--green)', fg: 'var(--white)' },
   denied: { bg: 'var(--pink)', fg: 'var(--white)' },
   waitlisted: { bg: 'var(--orange)', fg: 'var(--white)' },
   pending_review: { bg: 'var(--yellow)', fg: 'var(--black)' },
+  rsvp_pending: { bg: 'var(--purple)', fg: 'var(--white)' },
+  rsvp_accepted: { bg: 'var(--green)', fg: 'var(--white)' },
+  rsvp_declined: { bg: 'var(--ink-500)', fg: 'var(--white)' },
+  rsvp_expired: { bg: 'var(--ink-500)', fg: 'var(--white)' },
+  registered: { bg: 'var(--blue)', fg: 'var(--white)' },
+  open_to_apply: { bg: 'var(--green)', fg: 'var(--white)' },
+  registration_open: { bg: 'var(--green)', fg: 'var(--white)' },
 };
 
 function EventStatusPill({ e }: { e: EventWithUserStatus }) {
-  if (e.statusKey && STATUS_COLORS[e.statusKey]) {
-    const { bg, fg } = STATUS_COLORS[e.statusKey]!;
-    return (
-      <StatusPill
-        bg={bg}
-        fg={fg}
-        label={e.statusDisplay?.title ?? e.statusKey}
-      />
-    );
-  }
-  if (e.userStatus === 'registered') {
-    return <StatusPill bg='var(--blue)' fg='var(--white)' label='Registered' />;
-  }
-  if (e.hasApplication) {
-    return (
-      <StatusPill bg='var(--green)' fg='var(--white)' label='Open to apply' />
-    );
-  }
-  return (
-    <StatusPill bg='var(--green)' fg='var(--white)' label='Registration open' />
-  );
+  const display = getApplicationDisplayStatus(e);
+  const { bg, fg } = STATUS_COLORS[display.pill];
+  return <StatusPill bg={bg} fg={fg} label={display.label} />;
 }
 
 // ── Component ──────────────────────────────────────────────────────────────────

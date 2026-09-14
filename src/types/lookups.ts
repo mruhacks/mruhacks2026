@@ -79,7 +79,12 @@ export const applicationStatusesList = [
 export type ApplicationStatus = (typeof applicationStatusesList)[number];
 
 export type ApplicationStatusBadgeVariant =
-  'default' | 'secondary' | 'success' | 'warning' | 'destructive' | 'outline';
+  | 'default'
+  | 'secondary'
+  | 'success'
+  | 'warning'
+  | 'destructive'
+  | 'outline';
 
 /**
  * Display config for each application status, seeded into the
@@ -131,6 +136,48 @@ export const rsvpStatusesList = [
   'timed_out',
 ] as const;
 export type RsvpStatus = (typeof rsvpStatusesList)[number];
+
+/**
+ * Display config for each RSVP status, seeded into the
+ * `rsvp_statuses` table (title, description, badge variant, isFinal).
+ */
+export const rsvpStatusDisplayList = [
+  {
+    label: 'pending',
+    title: 'RSVP Invited',
+    description:
+      "You've been invited to attend! Please respond before the deadline.",
+    variant: 'default',
+    isFinal: false,
+  },
+  {
+    label: 'accepted',
+    title: 'RSVP Accepted',
+    description: "You've confirmed your attendance. See you there!",
+    variant: 'success',
+    isFinal: true,
+  },
+  {
+    label: 'declined',
+    title: 'RSVP Declined',
+    description: "You've declined the invitation.",
+    variant: 'destructive',
+    isFinal: true,
+  },
+  {
+    label: 'timed_out',
+    title: 'RSVP Expired',
+    description: 'The RSVP deadline has passed without a response.',
+    variant: 'secondary',
+    isFinal: true,
+  },
+] as const satisfies readonly {
+  label: RsvpStatus;
+  title: string;
+  description: string;
+  variant: ApplicationStatusBadgeVariant;
+  isFinal: boolean;
+}[];
 
 export const eventTypesList = ['meal', 'workshop', 'hackathon'] as const;
 export type EventType = (typeof eventTypesList)[number];

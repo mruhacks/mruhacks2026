@@ -260,6 +260,13 @@
       "when": 1788460371813,
       "tag": "0036_chubby_doctor_strange",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1788900844866,
+      "tag": "0037_rsvp_status_display_and_invitation_email",
+      "breakpoints": true
     }
   ]
 }

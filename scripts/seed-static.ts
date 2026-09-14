@@ -33,6 +33,7 @@ import {
   applicationStatusesList,
   applicationStatusDisplayList,
   rsvpStatusesList,
+  rsvpStatusDisplayList,
   eventTypesList,
 } from '@/types/lookups';
 
@@ -81,6 +82,21 @@ function defineApplicationStatusSeedTable(): SeedTable<
   };
 }
 
+function defineRsvpStatusSeedTable(): SeedTable<typeof rsvpStatuses> {
+  return {
+    table: rsvpStatuses,
+    validLabels: rsvpStatusesList as readonly string[],
+    values: rsvpStatusDisplayList.map((s) => ({
+      label: s.label,
+      title: s.title,
+      description: s.description,
+      variant: s.variant,
+      isFinal: s.isFinal,
+    })),
+    updatableColumns: ['title', 'description', 'variant', 'isFinal'],
+  };
+}
+
 // ---------- Table registry ----------
 const tables = [
   defineSeedTable(genders, gendersList),
@@ -91,7 +107,7 @@ const tables = [
   defineSeedTable(dietaryRestrictions, dietaryRestrictionsList),
   defineSeedTable(heardFromSources, heardFromSourcesList),
   defineApplicationStatusSeedTable(),
-  defineSeedTable(rsvpStatuses, rsvpStatusesList),
+  defineRsvpStatusSeedTable(),
   defineSeedTable(eventTypes, eventTypesList),
 ] satisfies SeedTable<Table>[];
 

@@ -9,11 +9,12 @@ import { betterAuth, APIError } from 'better-auth';
 import { admin, captcha, magicLink } from 'better-auth/plugins';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { eq, lt, sql } from 'drizzle-orm';
+import { resolveMagicLinkMailOptions } from '@/lib/auth/resolve-magic-link-email';
+import { getRsvpMagicLinkMailContext } from '@/lib/rsvp/rsvp-magic-link-context';
 import { db } from '@/utils/db';
 import * as schema from '@/db/schema';
 import { sendMail } from '@/utils/mail';
 import { render } from 'react-email';
-import { MagicLinkEmail } from '@/emails/MagicLinkEmail';
 import { VerifyEmailEmail } from '@/emails/VerifyEmailEmail';
 import { ResetPasswordEmail } from '@/emails/ResetPasswordEmail';
 import { DeleteAccountEmail } from '@/emails/DeleteAccountEmail';
@@ -26,6 +27,14 @@ import { deleteObject, parseProfilePictureKey } from '@/utils/object-storage';
 
 /** Verification links expire after this many seconds (24 hours). */
 const EMAIL_VERIFICATION_EXPIRES_IN = 86400;
+
+/**
+ * Magic-link token lifetime (seconds). Shared by sign-in, invites, and RSVP.
+ * Kept at 24h for security; when an RSVP link expires before `respondBy`,
+ * use `resendRsvpMagicLink` (no new wave/response).
+ */
+export const MAGIC_LINK_EXPIRES_IN_SECONDS = 86400;
+const MAGIC_LINK_EXPIRES_IN = MAGIC_LINK_EXPIRES_IN_SECONDS;
 
 function getAuthBaseUrl(): string {
   const v = process.env.BETTER_AUTH_URL?.trim();
@@ -230,7 +239,28 @@ export const auth = betterAuth({
   plugins: [
     admin(),
     magicLink({
+      /**
+       * Leave sign-up enabled: admin `inviteUser` creates accounts via magic
+       * link. RSVP waves only email existing approved applicants.
+       */
+      expiresIn: MAGIC_LINK_EXPIRES_IN,
       sendMagicLink: async ({ email, url }) => {
+        const mail = await resolveMagicLinkMailOptions({
+          email,
+          magicLinkUrl: url,
+          baseUrl: getAuthBaseUrl(),
+        });
+
+        // An RSVP invitation is system-initiated — one per approved applicant,
+        // already deduplicated by `invitation_email_status` — so the sign-in
+        // cooldown below, which exists to absorb a human double-submitting the
+        // public form, must not reject it. A user who signed in moments before
+        // a wave goes out would otherwise silently never get invited.
+        if (getRsvpMagicLinkMailContext()) {
+          await sendMail(mail);
+          return;
+        }
+
         // De-dup: skip sending if we already emailed this address within the
         // last 60s (double submit, multiple tabs, retries). Better Auth has
         // already minted the verification token by this point, so the
@@ -271,17 +301,7 @@ export const auth = betterAuth({
           });
         }
 
-        await sendMail({
-          to: email,
-          subject: 'Sign in to MRUHacks',
-          text: `Sign in by opening this link:\n\n${url}\n`,
-          html: await render(
-            React.createElement(MagicLinkEmail, {
-              url,
-              baseUrl: getAuthBaseUrl(),
-            }),
-          ),
-        }).catch((err) => {
+        await sendMail(mail).catch((err) => {
           console.error('[auth] sendMagicLink failed', err);
         });
       },

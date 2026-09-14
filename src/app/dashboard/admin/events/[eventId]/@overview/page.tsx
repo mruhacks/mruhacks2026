@@ -30,6 +30,7 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
+import { SendRsvpWaveCard } from '@/app/dashboard/admin/events/SendRsvpWaveCard';
 import { EventDescriptionCard } from './event-description-card';
 import { fromDateTimeLocalValue, toDateTimeLocalValue } from '@/lib/datetime';
 import {
@@ -541,6 +542,11 @@ export default function EventOverviewPage({ params }: EventOverviewPageProps) {
           )}
         </CardContent>
       </Card>
+
+      <SendRsvpWaveCard
+        eventId={event.id}
+        hasApplication={event.hasApplication}
+      />
     </div>
   );
 }
