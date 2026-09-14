@@ -25,6 +25,7 @@ import type {
   ApplicationQuestionOption,
 } from '@/types/application';
 import { isOtherOption, otherTextKey } from '@/lib/other-option';
+import { LocalDateTime } from '@/components/local-date-time';
 
 type ResponsesPageProps = {
   params: Promise<{ eventId: string }>;
@@ -93,11 +94,13 @@ export default function ResponsesPage({ params }: ResponsesPageProps) {
       {
         accessorKey: 'createdAt',
         header: 'Submitted',
-        cell: ({ row }) =>
-          new Intl.DateTimeFormat(undefined, {
-            dateStyle: 'medium',
-            timeStyle: 'short',
-          }).format(new Date(row.original.createdAt)),
+        cell: ({ row }) => (
+          <LocalDateTime
+            value={row.original.createdAt}
+            dateStyle='medium'
+            timeStyle='short'
+          />
+        ),
       },
       {
         id: 'actions',
@@ -208,7 +211,11 @@ export default function ResponsesPage({ params }: ResponsesPageProps) {
                   Submitted
                 </p>
                 <p className='mt-1 text-sm'>
-                  {new Date(selectedResponse.createdAt).toLocaleString()}
+                  <LocalDateTime
+                    value={selectedResponse.createdAt}
+                    dateStyle='medium'
+                    timeStyle='short'
+                  />
                 </p>
               </div>
 

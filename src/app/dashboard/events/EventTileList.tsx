@@ -1,17 +1,7 @@
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
 import type { EventWithUserStatus } from '@/app/dashboard/events/actions';
-
-// ── Helpers ────────────────────────────────────────────────────────────────────
-
-export function formatDateRange(startsAt: Date | null, endsAt: Date | null) {
-  if (!startsAt) return 'Date TBA';
-  const fmt = (d: Date) =>
-    new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(d);
-  const start = fmt(startsAt);
-  const end = endsAt ? fmt(endsAt) : null;
-  return end && end !== start ? `${start} – ${end}` : start;
-}
+import { LocalDateRange } from '@/components/local-date-time';
 
 // ── Design tokens ──────────────────────────────────────────────────────────────
 
@@ -196,7 +186,7 @@ export function EventTileList({ events }: { events: EventWithUserStatus[] }) {
                 }}
               >
                 {event.hasApplication ? 'Application · ' : ''}
-                {formatDateRange(event.startsAt, event.endsAt)}
+                <LocalDateRange start={event.startsAt} end={event.endsAt} />
               </p>
             </div>
 

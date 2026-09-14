@@ -1,5 +1,5 @@
 {
-  "id": "579009f9-6fbe-4bd8-b1e4-1d70331e6072",
+  "id": "9fabc10a-ff40-449e-8e14-b63665ff7b4c",
   "prevId": "17d81764-578e-4cff-b5fc-c439c60f14a2",
   "version": "7",
   "dialect": "postgresql",
@@ -65,26 +65,26 @@
         },
         "access_token_expires_at": {
           "name": "access_token_expires_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         },
         "refresh_token_expires_at": {
           "name": "refresh_token_expires_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         },
         "created_at": {
           "name": "created_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
         },
         "updated_at": {
           "name": "updated_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
@@ -112,12 +112,8 @@
           "name": "account_user_id_user_id_fk",
           "tableFrom": "account",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -171,7 +167,7 @@
         },
         "created_at": {
           "name": "created_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
@@ -214,12 +210,8 @@
           "name": "audit_log_actor_id_user_id_fk",
           "tableFrom": "audit_log",
           "tableTo": "user",
-          "columnsFrom": [
-            "actor_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["actor_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -262,14 +254,14 @@
         },
         "created_at": {
           "name": "created_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
         },
         "expires_at": {
           "name": "expires_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now() + interval '7 days'"
@@ -281,12 +273,8 @@
           "name": "invite_invited_by_user_id_fk",
           "tableFrom": "invite",
           "tableTo": "user",
-          "columnsFrom": [
-            "invited_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["invited_by"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -296,9 +284,7 @@
         "invite_email_unique": {
           "name": "invite_email_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "email"
-          ]
+          "columns": ["email"]
         }
       },
       "policies": {},
@@ -317,7 +303,7 @@
         },
         "last_sent_at": {
           "name": "last_sent_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
@@ -350,7 +336,7 @@
         },
         "changed_at": {
           "name": "changed_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
@@ -362,12 +348,8 @@
           "name": "marketing_consents_user_id_user_id_fk",
           "tableFrom": "marketing_consents",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -403,7 +385,7 @@
         },
         "accepted_at": {
           "name": "accepted_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
@@ -431,12 +413,8 @@
           "name": "privacy_acceptances_user_id_user_id_fk",
           "tableFrom": "privacy_acceptances",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -504,7 +482,7 @@
         },
         "expires_at": {
           "name": "expires_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true
         },
@@ -522,14 +500,14 @@
         },
         "created_at": {
           "name": "created_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
         },
         "updated_at": {
           "name": "updated_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
@@ -553,12 +531,8 @@
           "name": "session_user_id_user_id_fk",
           "tableFrom": "session",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -568,9 +542,7 @@
         "session_token_unique": {
           "name": "session_token_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "token"
-          ]
+          "columns": ["token"]
         }
       },
       "policies": {},
@@ -602,7 +574,7 @@
         },
         "accepted_at": {
           "name": "accepted_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
@@ -630,12 +602,8 @@
           "name": "terms_acceptances_user_id_user_id_fk",
           "tableFrom": "terms_acceptances",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -690,20 +658,20 @@
         },
         "onboarding_completed_at": {
           "name": "onboarding_completed_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         },
         "created_at": {
           "name": "created_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
         },
         "updated_at": {
           "name": "updated_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
@@ -729,7 +697,7 @@
         },
         "ban_expires": {
           "name": "ban_expires",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         }
@@ -804,9 +772,7 @@
         "user_email_unique": {
           "name": "user_email_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "email"
-          ]
+          "columns": ["email"]
         }
       },
       "policies": {},
@@ -838,20 +804,20 @@
         },
         "expires_at": {
           "name": "expires_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true
         },
         "created_at": {
           "name": "created_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
         },
         "updated_at": {
           "name": "updated_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
@@ -883,16 +849,10 @@
         },
         "checked_in_at": {
           "name": "checked_in_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
-        },
-        "checked_in_by": {
-          "name": "checked_in_by",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
         }
       },
       "indexes": {
@@ -959,12 +919,8 @@
           "name": "check_ins_user_id_user_id_fk",
           "tableFrom": "check_ins",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -972,26 +928,9 @@
           "name": "check_ins_event_id_events_id_fk",
           "tableFrom": "check_ins",
           "tableTo": "events",
-          "columnsFrom": [
-            "event_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["event_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "check_ins_checked_in_by_user_id_fk": {
-          "name": "check_ins_checked_in_by_user_id_fk",
-          "tableFrom": "check_ins",
-          "tableTo": "user",
-          "columnsFrom": [
-            "checked_in_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },
@@ -1032,7 +971,7 @@
         },
         "reviewed_at": {
           "name": "reviewed_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         },
@@ -1050,14 +989,14 @@
         },
         "created_at": {
           "name": "created_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
         },
         "updated_at": {
           "name": "updated_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
@@ -1133,12 +1072,8 @@
           "name": "event_applications_event_id_events_id_fk",
           "tableFrom": "event_applications",
           "tableTo": "events",
-          "columnsFrom": [
-            "event_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["event_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1146,12 +1081,8 @@
           "name": "event_applications_user_id_user_id_fk",
           "tableFrom": "event_applications",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1159,12 +1090,8 @@
           "name": "event_applications_status_id_application_statuses_id_fk",
           "tableFrom": "event_applications",
           "tableTo": "application_statuses",
-          "columnsFrom": [
-            "status_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["status_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1172,12 +1099,8 @@
           "name": "event_applications_reviewed_by_user_id_fk",
           "tableFrom": "event_applications",
           "tableTo": "user",
-          "columnsFrom": [
-            "reviewed_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["reviewed_by"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -1252,14 +1175,14 @@
         },
         "created_at": {
           "name": "created_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
         },
         "updated_at": {
           "name": "updated_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
@@ -1314,12 +1237,8 @@
           "name": "event_articles_event_id_events_id_fk",
           "tableFrom": "event_articles",
           "tableTo": "events",
-          "columnsFrom": [
-            "event_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["event_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1327,12 +1246,8 @@
           "name": "event_articles_created_by_user_id_fk",
           "tableFrom": "event_articles",
           "tableTo": "user",
-          "columnsFrom": [
-            "created_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["created_by"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -1340,12 +1255,8 @@
           "name": "event_articles_updated_by_user_id_fk",
           "tableFrom": "event_articles",
           "tableTo": "user",
-          "columnsFrom": [
-            "updated_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["updated_by"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -1374,7 +1285,7 @@
         },
         "registered_at": {
           "name": "registered_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
@@ -1386,12 +1297,8 @@
           "name": "event_attendees_event_id_events_id_fk",
           "tableFrom": "event_attendees",
           "tableTo": "events",
-          "columnsFrom": [
-            "event_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["event_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1399,12 +1306,8 @@
           "name": "event_attendees_user_id_user_id_fk",
           "tableFrom": "event_attendees",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1412,10 +1315,7 @@
       "compositePrimaryKeys": {
         "event_attendees_event_id_user_id_pk": {
           "name": "event_attendees_event_id_user_id_pk",
-          "columns": [
-            "event_id",
-            "user_id"
-          ]
+          "columns": ["event_id", "user_id"]
         }
       },
       "uniqueConstraints": {},
@@ -1454,20 +1354,20 @@
         },
         "responded_at": {
           "name": "responded_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         },
         "created_at": {
           "name": "created_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
         },
         "updated_at": {
           "name": "updated_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
@@ -1501,12 +1401,8 @@
           "name": "event_rsvp_responses_rsvp_wave_id_event_rsvp_waves_id_fk",
           "tableFrom": "event_rsvp_responses",
           "tableTo": "event_rsvp_waves",
-          "columnsFrom": [
-            "rsvp_wave_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["rsvp_wave_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1514,12 +1410,8 @@
           "name": "event_rsvp_responses_user_id_user_id_fk",
           "tableFrom": "event_rsvp_responses",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1527,12 +1419,8 @@
           "name": "event_rsvp_responses_status_id_rsvp_statuses_id_fk",
           "tableFrom": "event_rsvp_responses",
           "tableTo": "rsvp_statuses",
-          "columnsFrom": [
-            "status_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["status_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1568,13 +1456,13 @@
         },
         "respond_by": {
           "name": "respond_by",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         },
         "created_at": {
           "name": "created_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
@@ -1608,12 +1496,8 @@
           "name": "event_rsvp_waves_event_id_events_id_fk",
           "tableFrom": "event_rsvp_waves",
           "tableTo": "events",
-          "columnsFrom": [
-            "event_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["event_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1675,13 +1559,13 @@
         },
         "starts_at": {
           "name": "starts_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         },
         "ends_at": {
           "name": "ends_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         },
@@ -1737,14 +1621,14 @@
         },
         "created_at": {
           "name": "created_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
         },
         "updated_at": {
           "name": "updated_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
@@ -1788,12 +1672,8 @@
           "name": "events_parent_event_id_events_id_fk",
           "tableFrom": "events",
           "tableTo": "events",
-          "columnsFrom": [
-            "parent_event_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["parent_event_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -1801,12 +1681,8 @@
           "name": "events_event_type_id_event_types_id_fk",
           "tableFrom": "events",
           "tableTo": "event_types",
-          "columnsFrom": [
-            "event_type_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["event_type_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -1848,7 +1724,7 @@
         },
         "joined_at": {
           "name": "joined_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
@@ -1912,12 +1788,8 @@
           "name": "team_members_team_id_teams_id_fk",
           "tableFrom": "team_members",
           "tableTo": "teams",
-          "columnsFrom": [
-            "team_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["team_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1925,12 +1797,8 @@
           "name": "team_members_user_id_user_id_fk",
           "tableFrom": "team_members",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1938,12 +1806,8 @@
           "name": "team_members_event_id_events_id_fk",
           "tableFrom": "team_members",
           "tableTo": "events",
-          "columnsFrom": [
-            "event_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["event_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1985,14 +1849,14 @@
         },
         "created_at": {
           "name": "created_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
         },
         "updated_at": {
           "name": "updated_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
@@ -2041,12 +1905,8 @@
           "name": "teams_event_id_events_id_fk",
           "tableFrom": "teams",
           "tableTo": "events",
-          "columnsFrom": [
-            "event_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["event_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -2054,12 +1914,8 @@
           "name": "teams_organizer_id_user_id_fk",
           "tableFrom": "teams",
           "tableTo": "user",
-          "columnsFrom": [
-            "organizer_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["organizer_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2115,12 +1971,8 @@
           "name": "user_dietary_restrictions_user_id_user_id_fk",
           "tableFrom": "user_dietary_restrictions",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -2128,12 +1980,8 @@
           "name": "user_dietary_restrictions_restriction_id_dietary_restrictions_id_fk",
           "tableFrom": "user_dietary_restrictions",
           "tableTo": "dietary_restrictions",
-          "columnsFrom": [
-            "restriction_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["restriction_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -2189,12 +2037,8 @@
           "name": "user_interests_user_id_user_id_fk",
           "tableFrom": "user_interests",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -2202,12 +2046,8 @@
           "name": "user_interests_interest_id_interests_id_fk",
           "tableFrom": "user_interests",
           "tableTo": "interests",
-          "columnsFrom": [
-            "interest_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["interest_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -2279,14 +2119,14 @@
         },
         "created_at": {
           "name": "created_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
         },
         "updated_at": {
           "name": "updated_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
@@ -2298,12 +2138,8 @@
           "name": "user_profile_about_user_id_user_id_fk",
           "tableFrom": "user_profile_about",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -2311,12 +2147,8 @@
           "name": "user_profile_about_university_id_universities_id_fk",
           "tableFrom": "user_profile_about",
           "tableTo": "universities",
-          "columnsFrom": [
-            "university_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["university_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -2324,12 +2156,8 @@
           "name": "user_profile_about_major_id_majors_id_fk",
           "tableFrom": "user_profile_about",
           "tableTo": "majors",
-          "columnsFrom": [
-            "major_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["major_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -2337,12 +2165,8 @@
           "name": "user_profile_about_year_of_study_id_years_of_study_id_fk",
           "tableFrom": "user_profile_about",
           "tableTo": "years_of_study",
-          "columnsFrom": [
-            "year_of_study_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["year_of_study_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -2407,14 +2231,14 @@
         },
         "created_at": {
           "name": "created_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
         },
         "updated_at": {
           "name": "updated_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
@@ -2426,12 +2250,8 @@
           "name": "user_profiles_user_id_user_id_fk",
           "tableFrom": "user_profiles",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -2439,12 +2259,8 @@
           "name": "user_profiles_gender_id_genders_id_fk",
           "tableFrom": "user_profiles",
           "tableTo": "genders",
-          "columnsFrom": [
-            "gender_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["gender_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -2503,9 +2319,7 @@
         "application_statuses_label_unique": {
           "name": "application_statuses_label_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "label"
-          ]
+          "columns": ["label"]
         }
       },
       "policies": {},
@@ -2536,9 +2350,7 @@
         "dietary_restrictions_label_unique": {
           "name": "dietary_restrictions_label_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "label"
-          ]
+          "columns": ["label"]
         }
       },
       "policies": {},
@@ -2569,9 +2381,7 @@
         "event_types_label_unique": {
           "name": "event_types_label_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "label"
-          ]
+          "columns": ["label"]
         }
       },
       "policies": {},
@@ -2602,9 +2412,7 @@
         "genders_label_unique": {
           "name": "genders_label_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "label"
-          ]
+          "columns": ["label"]
         }
       },
       "policies": {},
@@ -2635,9 +2443,7 @@
         "heard_from_sources_label_unique": {
           "name": "heard_from_sources_label_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "label"
-          ]
+          "columns": ["label"]
         }
       },
       "policies": {},
@@ -2668,9 +2474,7 @@
         "interests_label_unique": {
           "name": "interests_label_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "label"
-          ]
+          "columns": ["label"]
         }
       },
       "policies": {},
@@ -2701,9 +2505,7 @@
         "majors_label_unique": {
           "name": "majors_label_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "label"
-          ]
+          "columns": ["label"]
         }
       },
       "policies": {},
@@ -2734,9 +2536,7 @@
         "rsvp_statuses_label_unique": {
           "name": "rsvp_statuses_label_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "label"
-          ]
+          "columns": ["label"]
         }
       },
       "policies": {},
@@ -2767,9 +2567,7 @@
         "universities_label_unique": {
           "name": "universities_label_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "label"
-          ]
+          "columns": ["label"]
         }
       },
       "policies": {},
@@ -2800,9 +2598,7 @@
         "years_of_study_label_unique": {
           "name": "years_of_study_label_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "label"
-          ]
+          "columns": ["label"]
         }
       },
       "policies": {},
@@ -2839,9 +2635,7 @@
         "permission_slug_unique": {
           "name": "permission_slug_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "slug"
-          ]
+          "columns": ["slug"]
         }
       },
       "policies": {},
@@ -2883,9 +2677,7 @@
         "role_slug_unique": {
           "name": "role_slug_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "slug"
-          ]
+          "columns": ["slug"]
         }
       },
       "policies": {},
@@ -2937,12 +2729,8 @@
           "tableFrom": "role_permission",
           "tableTo": "role",
           "schemaTo": "authz",
-          "columnsFrom": [
-            "role_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["role_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -2951,12 +2739,8 @@
           "tableFrom": "role_permission",
           "tableTo": "permission",
           "schemaTo": "authz",
-          "columnsFrom": [
-            "permission_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["permission_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2964,10 +2748,7 @@
       "compositePrimaryKeys": {
         "role_permission_role_id_permission_id_pk": {
           "name": "role_permission_role_id_permission_id_pk",
-          "columns": [
-            "role_id",
-            "permission_id"
-          ]
+          "columns": ["role_id", "permission_id"]
         }
       },
       "uniqueConstraints": {},
@@ -3014,12 +2795,8 @@
           "name": "user_permission_user_id_user_id_fk",
           "tableFrom": "user_permission",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -3028,12 +2805,8 @@
           "tableFrom": "user_permission",
           "tableTo": "permission",
           "schemaTo": "authz",
-          "columnsFrom": [
-            "permission_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["permission_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -3041,10 +2814,7 @@
       "compositePrimaryKeys": {
         "user_permission_user_id_permission_id_pk": {
           "name": "user_permission_user_id_permission_id_pk",
-          "columns": [
-            "user_id",
-            "permission_id"
-          ]
+          "columns": ["user_id", "permission_id"]
         }
       },
       "uniqueConstraints": {},
@@ -3091,12 +2861,8 @@
           "name": "user_role_user_id_user_id_fk",
           "tableFrom": "user_role",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -3105,12 +2871,8 @@
           "tableFrom": "user_role",
           "tableTo": "role",
           "schemaTo": "authz",
-          "columnsFrom": [
-            "role_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["role_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -3118,10 +2880,7 @@
       "compositePrimaryKeys": {
         "user_role_user_id_role_id_pk": {
           "name": "user_role_user_id_role_id_pk",
-          "columns": [
-            "user_id",
-            "role_id"
-          ]
+          "columns": ["user_id", "role_id"]
         }
       },
       "uniqueConstraints": {},
@@ -3202,7 +2961,7 @@
         },
         "created_at": {
           "name": "created_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true
         },
@@ -3325,7 +3084,7 @@
         },
         "created_at": {
           "name": "created_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true
         },

@@ -49,11 +49,14 @@ const nextConfig: NextConfig = {
               "default-src 'self'",
               // 'unsafe-eval' is dev-only: Turbopack/React use eval() for HMR and
               // debugging call stacks. Never present in production builds.
-              `script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com${isDev ? " 'unsafe-eval'" : ''}`,
+              // static.cloudflareinsights.com is Cloudflare's own edge-injected
+              // Web Analytics beacon (present whenever the zone is proxied through
+              // Cloudflare with that feature on) — not something this app loads itself.
+              `script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://static.cloudflareinsights.com${isDev ? " 'unsafe-eval'" : ''}`,
               "style-src 'self' 'unsafe-inline'",
               `img-src 'self' data: https://avatars.githubusercontent.com https://cdn.jsdelivr.net https://lh3.googleusercontent.com${s3Origin ? ` ${s3Origin}` : ''}`,
               "font-src 'self' data:",
-              `connect-src 'self' https://challenges.cloudflare.com${s3Origin ? ` ${s3Origin}` : ''}`,
+              `connect-src 'self' https://challenges.cloudflare.com https://cloudflareinsights.com${s3Origin ? ` ${s3Origin}` : ''}`,
               // Cloudflare Turnstile renders its challenge in an iframe from this origin.
               'frame-src https://challenges.cloudflare.com',
               "frame-ancestors 'none'",

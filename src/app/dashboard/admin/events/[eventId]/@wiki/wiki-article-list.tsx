@@ -31,6 +31,7 @@ import {
   FieldLabel,
 } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
+import { LocalDateTime } from '@/components/local-date-time';
 
 type Props = {
   eventId: string;
@@ -186,7 +187,7 @@ export function WikiArticleList({ eventId, articles, canWrite }: Props) {
                 </div>
                 <p className='text-muted-foreground mt-1 truncate text-xs'>
                   /{article.slug} · updated{' '}
-                  {new Date(article.updatedAt).toLocaleDateString()}
+                  <LocalDateTime value={article.updatedAt} dateStyle='medium' />
                 </p>
               </div>
               <div className='flex items-center gap-2'>

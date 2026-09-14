@@ -117,6 +117,8 @@ Our database schema is split across multiple files to be more manageable.
 - `scripts/seed-static.ts`: Seeds static lookup/reference data (including `application_statuses`, `rsvp_statuses`) into the lookup tables defined in `src/db/lookups.ts`.
 - `src/types/lookups.ts`: Defines the TypeScript types and source lists of valid values for the reference/lookup tables used by `scripts/seed-static.ts`.
 
+Every `timestamp` column is declared `timestamp('col_name', { withTimezone: true })` — a naive `timestamp without time zone` can't tell UTC apart from any other zone, which caused real bugs (see the "Datetimes" section in `AGENTS.md`). New timestamp columns must follow the same pattern.
+
 ## Schema diagram
 
 The following diagram shows all tables and their relationships. Auth tables live in `public`; authorization tables live in the `authz` schema.

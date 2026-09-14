@@ -24,7 +24,7 @@ export const FAQs: FAQItem[] = [
   {
     question: 'What is a Hackathon?',
     answer:
-      'You can think of a hackathon as a software science fair. Anyone with an interest in technology attends a hackathon to learn, build & share their creations over the course of a weekend, in a relaxed and welcoming atmosphere. You will bring your ideas to life through technology over the course of 24 hours before showcasing them to a team of judges.',
+      'You can think of a hackathon as a software science fair. Anyone with an interest in technology attends a hackathon to learn, build & share their creations over the course of a weekend, in a relaxed and welcoming atmosphere. You will bring your ideas to life through technology over the course of 36 hours before showcasing them to a team of judges.',
   },
   {
     question: 'When is MRUHacks?',
