@@ -286,6 +286,9 @@ export const checkIns = pgTable(
       .notNull()
       .references(() => events.id, { onDelete: 'cascade' }),
     checkedInAt: timestamp('checked_in_at').defaultNow().notNull(),
+    checkedInBy: uuid('checked_in_by').references(() => user.id, {
+      onDelete: 'set null',
+    }),
   },
   (table) => ({
     userEventUnique: uniqueIndex('check_ins_user_id_event_id_unique').on(

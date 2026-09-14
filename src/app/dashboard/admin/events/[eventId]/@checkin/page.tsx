@@ -1,0 +1,243 @@
+'use client';
+
+import * as React from 'react';
+import { toast } from 'sonner';
+import { CheckCircle2, CircleAlert, Clock } from 'lucide-react';
+
+import {
+  checkInParticipant,
+  getCheckInRoster,
+  scanCheckIn,
+  undoCheckIn,
+} from '@/app/dashboard/admin/events/check-in-actions';
+import type {
+  CheckInOutcome,
+  CheckInRosterRow,
+} from '@/app/dashboard/admin/events/check-in-actions';
+import { cn } from '@/lib/utils';
+import { CheckInRoster } from './check-in-roster';
+import { CheckInScanner } from './check-in-scanner';
+import { playScanCue } from './scan-cue';
+
+type CheckInPageProps = {
+  params: Promise<{ eventId: string }>;
+};
+
+type ScanFeedback =
+  | { kind: 'accepted'; outcome: CheckInOutcome }
+  | { kind: 'duplicate'; outcome: CheckInOutcome }
+  | { kind: 'rejected'; message: string };
+
+function formatTime(value: Date) {
+  return new Intl.DateTimeFormat(undefined, {
+    timeStyle: 'short',
+  }).format(new Date(value));
+}
+
+const FEEDBACK_STYLES = {
+  accepted: {
+    icon: CheckCircle2,
+    box: 'border-emerald-500/40 bg-emerald-500/10',
+    iconColor: 'text-emerald-600',
+  },
+  duplicate: {
+    icon: Clock,
+    box: 'border-amber-500/40 bg-amber-500/10',
+    iconColor: 'text-amber-600',
+  },
+  rejected: {
+    icon: CircleAlert,
+    box: 'border-destructive/40 bg-destructive/10',
+    iconColor: 'text-destructive',
+  },
+};
+
+function describeFeedback(feedback: ScanFeedback) {
+  if (feedback.kind === 'rejected') {
+    return { title: 'Not checked in', detail: feedback.message };
+  }
+
+  const { name, checkedInAt, checkedInByName } = feedback.outcome;
+  const at = formatTime(checkedInAt);
+
+  if (feedback.kind === 'duplicate') {
+    const by = checkedInByName ? ` by ${checkedInByName}` : '';
+    return {
+      title: `${name} was already checked in`,
+      detail: `At ${at}${by}. This pass has already been used.`,
+    };
+  }
+
+  return { title: `${name} is checked in`, detail: `At ${at}.` };
+}
+
+function ScanFeedbackPanel({ feedback }: { feedback: ScanFeedback }) {
+  const { icon: Icon, box, iconColor } = FEEDBACK_STYLES[feedback.kind];
+  const { title, detail } = describeFeedback(feedback);
+
+  return (
+    <div className={cn('flex items-start gap-3 rounded-xl border p-4', box)}>
+      <Icon className={cn('mt-0.5 size-6 shrink-0', iconColor)} />
+      <div className='min-w-0'>
+        <p className='text-lg font-semibold sm:text-base'>{title}</p>
+        <p className='text-muted-foreground text-sm'>{detail}</p>
+      </div>
+    </div>
+  );
+}
+
+export default function CheckInPage({ params }: CheckInPageProps) {
+  const [eventId, setEventId] = React.useState<string | null>(null);
+  const [roster, setRoster] = React.useState<CheckInRosterRow[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [loadError, setLoadError] = React.useState<string | null>(null);
+  const [reloadToken, setReloadToken] = React.useState(0);
+  const [feedback, setFeedback] = React.useState<ScanFeedback | null>(null);
+  const [pendingUserId, setPendingUserId] = React.useState<string | null>(null);
+
+  const scanBusyRef = React.useRef(false);
+
+  React.useEffect(() => {
+    params.then((p) => setEventId(p.eventId));
+  }, [params]);
+
+  React.useEffect(() => {
+    if (!eventId) return;
+    let cancelled = false;
+
+    async function fetchRoster(currentEventId: string) {
+      const result = await getCheckInRoster(currentEventId);
+      if (cancelled) return;
+
+      if (result.success && result.data) {
+        setRoster(result.data);
+        setLoadError(null);
+      } else if (!result.success) {
+        setLoadError(result.error);
+      }
+      setLoading(false);
+    }
+
+    fetchRoster(eventId);
+    return () => {
+      cancelled = true;
+    };
+  }, [eventId, reloadToken]);
+
+  const handlePayload = React.useCallback(
+    async (payload: string) => {
+      if (!eventId || scanBusyRef.current) return;
+      scanBusyRef.current = true;
+
+      try {
+        const result = await scanCheckIn(eventId, payload);
+        if (result.success && result.data) {
+          const outcome = result.data;
+          const kind = outcome.alreadyCheckedIn ? 'duplicate' : 'accepted';
+          setFeedback({ kind, outcome });
+          playScanCue(kind);
+          if (!outcome.alreadyCheckedIn) {
+            setReloadToken((token) => token + 1);
+          }
+        } else if (!result.success) {
+          setFeedback({ kind: 'rejected', message: result.error });
+          playScanCue('rejected');
+        }
+      } finally {
+        scanBusyRef.current = false;
+      }
+    },
+    [eventId],
+  );
+
+  const handleManualCheckIn = React.useCallback(
+    async (row: CheckInRosterRow) => {
+      if (!eventId) return;
+      setPendingUserId(row.userId);
+      try {
+        const result = await checkInParticipant(eventId, row.userId);
+        if (result.success && result.data) {
+          const { name, alreadyCheckedIn } = result.data;
+          toast.success(
+            alreadyCheckedIn
+              ? `${name} was already checked in.`
+              : `${name} is checked in.`,
+          );
+          setReloadToken((token) => token + 1);
+        } else if (!result.success) {
+          toast.error(result.error);
+        }
+      } finally {
+        setPendingUserId(null);
+      }
+    },
+    [eventId],
+  );
+
+  const handleUndo = React.useCallback(
+    async (row: CheckInRosterRow) => {
+      if (!eventId) return;
+      setPendingUserId(row.userId);
+      try {
+        const result = await undoCheckIn(eventId, row.userId);
+        if (!result.success) {
+          toast.error(result.error);
+          return;
+        }
+        toast.success(`Check-in for ${row.name} was undone.`);
+        setReloadToken((token) => token + 1);
+      } finally {
+        setPendingUserId(null);
+      }
+    },
+    [eventId],
+  );
+
+  if (loading) {
+    return (
+      <div className='text-muted-foreground py-8 text-center'>Loading...</div>
+    );
+  }
+
+  if (loadError) {
+    return <p className='text-destructive py-8 text-center'>{loadError}</p>;
+  }
+
+  const checkedInCount = roster.filter((row) => row.checkedInAt).length;
+  const progress = roster.length
+    ? Math.round((checkedInCount / roster.length) * 100)
+    : 0;
+
+  return (
+    <div className='space-y-6'>
+      <div className='space-y-2'>
+        <div>
+          <h2 className='text-lg font-semibold'>Check-in</h2>
+          <p className='text-muted-foreground mt-1 text-sm'>
+            {checkedInCount} of {roster.length} checked in
+          </p>
+        </div>
+        <div className='bg-muted h-2 w-full overflow-hidden rounded-full'>
+          <div
+            className='bg-primary h-full rounded-full transition-[width]'
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+      </div>
+
+      <div className='grid gap-6 lg:grid-cols-[minmax(0,400px)_1fr] lg:items-start'>
+        <div className='space-y-3 lg:sticky lg:top-6'>
+          <CheckInScanner onPayload={handlePayload} />
+          {feedback && <ScanFeedbackPanel feedback={feedback} />}
+        </div>
+
+        <CheckInRoster
+          rows={roster}
+          pendingUserId={pendingUserId}
+          onCheckIn={handleManualCheckIn}
+          onUndo={handleUndo}
+        />
+      </div>
+    </div>
+  );
+}

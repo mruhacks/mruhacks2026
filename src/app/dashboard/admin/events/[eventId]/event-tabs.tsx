@@ -9,6 +9,7 @@ export type EventTabId =
   | 'overview'
   | 'questions'
   | 'responses'
+  | 'checkin'
   | 'teams'
   | 'wiki';
 
@@ -22,10 +23,18 @@ export function EventTabs({ eventId, tabs }: Props) {
   const activeTab =
     tabs.find((tab) => tab.id === requestedTab)?.id ?? tabs[0]?.id;
 
+  const activeTabRef = React.useRef<HTMLAnchorElement>(null);
+  React.useEffect(() => {
+    activeTabRef.current?.scrollIntoView({
+      block: 'nearest',
+      inline: 'center',
+    });
+  }, [activeTab]);
+
   return (
     <div className='space-y-6'>
       {/* Tab Navigation */}
-      <div className='flex gap-2 border-b'>
+      <div className='no-scrollbar flex gap-2 overflow-x-auto border-b'>
         {tabs.map((tab) => (
           <Button
             key={tab.id}
@@ -34,7 +43,10 @@ export function EventTabs({ eventId, tabs }: Props) {
             className='data-[active=true]:border-primary rounded-none border-b-2 border-transparent'
             data-active={activeTab === tab.id}
           >
-            <Link href={`/dashboard/admin/events/${eventId}?tab=${tab.id}`}>
+            <Link
+              ref={activeTab === tab.id ? activeTabRef : undefined}
+              href={`/dashboard/admin/events/${eventId}?tab=${tab.id}`}
+            >
               {tab.label}
             </Link>
           </Button>
