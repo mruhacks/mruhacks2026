@@ -26,6 +26,61 @@ export function formatInstant(
   );
 }
 
+/**
+ * Revive an instant from a Date or a serialized string.
+ *
+ * ISO values with `Z` or an offset are used as-is. A naive
+ * `YYYY-MM-DDTHH:mm[:ss]` (what server actions sometimes send for a UTC
+ * Date) is UTC — `new Date("2026-05-13T14:30")` would otherwise bind to
+ * the viewer's zone and shift the clock.
+ */
+export function parseInstant(value: Date | string | null): Date | null {
+  if (value == null) return null;
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  // Postgres often emits a space instead of `T`. Treat a zone-less value as
+  // UTC — `new Date("2026-09-14 22:00:00")` would otherwise bind to the
+  // viewer's zone and show 10pm MDT for a 4pm check-in.
+  const normalized = trimmed.includes('T')
+    ? trimmed
+    : trimmed.replace(' ', 'T');
+  const naive = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?$/.test(
+    normalized,
+  );
+  const date = new Date(naive ? `${normalized}Z` : normalized);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+/** Instant -> ISO string with `Z`, for anything that crosses to the client. */
+export function serializeInstant(value: Date): string;
+export function serializeInstant(value: Date | null): string | null;
+export function serializeInstant(value: Date | null): string | null {
+  if (value == null || Number.isNaN(value.getTime())) return null;
+  return value.toISOString();
+}
+
+/**
+ * Venue wall-clock for display. Formatted here (UTC instant + explicit
+ * America/Edmonton) so a client that revives the ISO string as local 22:00
+ * cannot show 10pm for a 4pm check-in.
+ */
+export function formatEventDateTime(value: Date): string {
+  const text = formatInstant(value, EVENT_TIME_ZONE, DEFAULT_LOCALE, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+  return `${text} ${timeZoneAbbreviation(EVENT_TIME_ZONE, value)}`;
+}
+
 /** "MDT" | "EST" | "GMT+5:30" — evaluated *at* the given instant, so a
  *  December date correctly reads MST while an October one reads MDT. */
 export function timeZoneAbbreviation(timeZone: string, at: Date): string {
