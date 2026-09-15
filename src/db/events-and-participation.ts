@@ -87,6 +87,14 @@ export const events = pgTable(
     longitude: doublePrecision('longitude'),
     radiusMeters: integer('radius_meters'),
     capacity: integer('capacity'),
+    /**
+     * Hours invited applicants have to accept or decline. Applied at wave
+     * creation: `respond_by = created_at + rsvp_response_window_hours`.
+     * Changing this only affects waves created afterwards.
+     */
+    rsvpResponseWindowHours: integer('rsvp_response_window_hours')
+      .notNull()
+      .default(48),
     // Marks the single event whose registerUrl the public site links to.
     isFeatured: boolean('is_featured').notNull().default(false),
     teamsEnabled: boolean('teams_enabled').notNull().default(false),

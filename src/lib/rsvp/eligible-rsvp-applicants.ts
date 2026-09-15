@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { and, count, eq, gte, notExists, or } from 'drizzle-orm';
+import { and, count, eq, notExists } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 
 import {
@@ -10,7 +10,6 @@ import {
   eventRsvpResponses,
   eventRsvpWaves,
   events,
-  rsvpStatuses,
   user,
 } from '@/db/schema';
 import { db } from '@/utils/db';
@@ -21,6 +20,10 @@ const APPROVED_APPLICATION_STATUS_LABEL = 'approved';
 export type EligibleRsvpApplicant = {
   userId: string;
   email: string;
+  /** `event_applications.id` — unique; used only as a sort tie-break. */
+  applicationId: string;
+  /** `event_applications.created_at` — original application submission. */
+  applicationCreatedAt: Date;
 };
 
 export type RsvpEligibilityResult = {
@@ -36,15 +39,14 @@ export type RsvpEligibilityResult = {
 /**
  * Approved applicants eligible for the next RSVP wave.
  *
- * Expired pending invites do not block eligibility (`pending` only blocks
- * while `respondBy` is still in the future). Does not truncate by
- * capacity — callers must refuse when `applicants.length` exceeds
- * `availableSpots` (no invite ranking yet; `waitlist_position` applies only
- * to waitlisted applications).
+ * Anyone who already has an RSVP response for this event is ineligible —
+ * including `accepted`, `declined`, `timed_out`, and `pending`. A timed-out
+ * (or expired unanswered) invitation is a used RSVP opportunity and is not
+ * offered again. Callers must not assume the returned set is the wave: use
+ * `selectRsvpWaveInvitees` to cap by remaining capacity.
  */
 export async function getEligibleRsvpApplicants(
   eventId: string,
-  now: Date = new Date(),
 ): Promise<RsvpEligibilityResult | null> {
   const [eventRow] = await db
     .select({ id: events.id, capacity: events.capacity })
@@ -68,12 +70,13 @@ export async function getEligibleRsvpApplicants(
     'blocking_rsvp_responses',
   );
   const blockingWaves = alias(eventRsvpWaves, 'blocking_rsvp_waves');
-  const blockingStatuses = alias(rsvpStatuses, 'blocking_rsvp_statuses');
 
   const applicants = await db
     .select({
       userId: eventApplications.userId,
       email: user.email,
+      applicationId: eventApplications.id,
+      applicationCreatedAt: eventApplications.createdAt,
     })
     .from(eventApplications)
     .innerJoin(
@@ -104,22 +107,10 @@ export async function getEligibleRsvpApplicants(
               blockingWaves,
               eq(blockingResponses.rsvpWaveId, blockingWaves.id),
             )
-            .innerJoin(
-              blockingStatuses,
-              eq(blockingResponses.statusId, blockingStatuses.id),
-            )
             .where(
               and(
                 eq(blockingWaves.eventId, eventId),
                 eq(blockingResponses.userId, eventApplications.userId),
-                or(
-                  eq(blockingStatuses.label, 'accepted'),
-                  eq(blockingStatuses.label, 'declined'),
-                  and(
-                    eq(blockingStatuses.label, 'pending'),
-                    gte(blockingWaves.respondBy, now),
-                  ),
-                ),
               ),
             ),
         ),

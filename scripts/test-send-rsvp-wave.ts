@@ -8,20 +8,17 @@ import {
 
 const USAGE = `
 Usage:
-  pnpm test:rsvp-wave -- <eventId> <respondBy>
+  pnpm test:rsvp-wave -- <eventId>
 
 Arguments:
   eventId    UUID of the event to send RSVP invitations for
-  respondBy  RSVP deadline (ISO 8601, must be in the future)
+
+The RSVP deadline is created_at plus the event's rsvp_response_window_hours
+(default 48).
 
 Example:
-  pnpm test:rsvp-wave -- 123e4567-e89b-12d3-a456-426614174000 2026-08-15T23:59:59Z
+  pnpm test:rsvp-wave -- 123e4567-e89b-12d3-a456-426614174000
 `.trim();
-
-type ParsedArgs = {
-  eventId: string;
-  respondBy: Date;
-};
 
 function printUsage(error?: string): void {
   if (error) {
@@ -30,36 +27,15 @@ function printUsage(error?: string): void {
   console.error(USAGE);
 }
 
-function parseArgs(): ParsedArgs | null {
+function parseArgs(): { eventId: string } | null {
   const eventId = process.argv[2]?.trim();
-  const respondByRaw = process.argv[3]?.trim();
 
   if (!eventId) {
     printUsage('An event ID is required.');
     return null;
   }
 
-  if (!respondByRaw) {
-    printUsage('An RSVP deadline (respondBy) is required.');
-    return null;
-  }
-
-  const respondBy = new Date(respondByRaw);
-  if (Number.isNaN(respondBy.getTime())) {
-    printUsage(
-      `Invalid deadline: "${respondByRaw}". Use an ISO 8601 date/time.`,
-    );
-    return null;
-  }
-
-  if (respondBy.getTime() <= Date.now()) {
-    printUsage(
-      `Deadline must be in the future. Received: ${respondBy.toISOString()}`,
-    );
-    return null;
-  }
-
-  return { eventId, respondBy };
+  return { eventId };
 }
 
 function printDivider(): void {
@@ -121,7 +97,7 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const { eventId, respondBy } = parsed;
+  const { eventId } = parsed;
 
   console.warn('');
   console.warn('⚠️  WARNING: This script performs real actions:');
@@ -134,12 +110,11 @@ async function main(): Promise<void> {
   );
   console.warn('');
   console.warn(`   Event ID:   ${eventId}`);
-  console.warn(`   Respond by: ${respondBy.toISOString()}`);
   console.warn('   MailHog UI: http://localhost:8025');
   console.warn('');
 
   try {
-    const result = await sendRsvpWave(eventId, respondBy);
+    const result = await sendRsvpWave(eventId);
     printResult(result, eventId);
 
     if (!result.success) {

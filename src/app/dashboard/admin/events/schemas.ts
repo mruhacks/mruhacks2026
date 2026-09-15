@@ -106,6 +106,12 @@ export const createEventSchema = z
     name: z.string().trim().min(1, 'Event name is required'),
     hasApplication: z.boolean().default(false),
     capacity: z.number().int().positive().nullish(),
+    rsvpResponseWindowHours: z
+      .number()
+      .int()
+      .min(1, 'RSVP response window must be at least 1 hour')
+      .max(720, 'RSVP response window cannot exceed 720 hours')
+      .optional(),
     startsAt: eventInstantSchema.nullish(),
     endsAt: eventInstantSchema.nullish(),
     location: z.string().trim().max(255).nullish(),
@@ -133,6 +139,12 @@ export const updateEventSettingsSchema = z
     name: z.string().trim().min(1, 'Event name is required').optional(),
     hasApplication: z.boolean().optional(),
     capacity: z.number().int().positive().nullish(),
+    rsvpResponseWindowHours: z
+      .number()
+      .int()
+      .min(1, 'RSVP response window must be at least 1 hour')
+      .max(720, 'RSVP response window cannot exceed 720 hours')
+      .optional(),
     startsAt: eventInstantSchema.nullish(),
     endsAt: eventInstantSchema.nullish(),
     location: z.string().trim().max(255).nullish(),

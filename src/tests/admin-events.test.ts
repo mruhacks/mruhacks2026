@@ -42,7 +42,6 @@ vi.mock('@/lib/rsvp/send-rsvp-wave', () => ({
 import { getUser } from '@/utils/auth';
 import { revalidatePath } from 'next/cache';
 import { sendRsvpWave } from '@/lib/rsvp/send-rsvp-wave';
-import { parseRsvpDeadline } from '@/lib/rsvp/rsvp-datetime';
 
 let adminUserId: string;
 let eventManagePermId: number;
@@ -590,6 +589,18 @@ describe('updateEventSettings', () => {
     expect(row.name).toBe('Renamed Event');
   });
 
+  test('updates rsvp response window hours', async () => {
+    const result = await updateEventSettings(testEventId, {
+      rsvpResponseWindowHours: 24,
+    });
+    expect(result.success).toBe(true);
+
+    const details = await getEventDetails(testEventId);
+    expect(details.success).toBe(true);
+    if (!details.success) return;
+    expect(details.data.rsvpResponseWindowHours).toBe(24);
+  });
+
   test('returns validation error when startsAt is after endsAt', async () => {
     const result = await updateEventSettings(testEventId, {
       startsAt: '2026-12-31T12:00',
@@ -656,20 +667,10 @@ describe('getApplicationResponses', () => {
 });
 
 describe('sendEventRsvpWave', () => {
-  const futureDeadline = '2099-08-01T23:59';
-
   test('returns error when not authenticated', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(null as never);
-    const result = await sendEventRsvpWave(testEventId, futureDeadline);
+    const result = await sendEventRsvpWave(testEventId);
     expect(result.success).toBe(false);
-  });
-
-  test('rejects an invalid or past deadline', async () => {
-    const invalid = await sendEventRsvpWave(testEventId, 'not-a-date');
-    expect(invalid.success).toBe(false);
-
-    const past = await sendEventRsvpWave(testEventId, '2020-01-01T00:00');
-    expect(past.success).toBe(false);
   });
 
   test('forwards wave results and revalidates the admin event page', async () => {
@@ -695,7 +696,7 @@ describe('sendEventRsvpWave', () => {
     });
     vi.mocked(revalidatePath).mockClear();
 
-    const result = await sendEventRsvpWave(testEventId, futureDeadline);
+    const result = await sendEventRsvpWave(testEventId);
     expect(result.success).toBe(true);
     if (!result.success) return;
 
@@ -715,10 +716,7 @@ describe('sendEventRsvpWave', () => {
     expect(revalidatePath).toHaveBeenCalledWith(
       `/dashboard/admin/events/${testEventId}`,
     );
-    expect(sendRsvpWave).toHaveBeenCalledWith(
-      testEventId,
-      parseRsvpDeadline(futureDeadline),
-    );
+    expect(sendRsvpWave).toHaveBeenCalledWith(testEventId);
   });
 
   test('surfaces sendRsvpWave errors', async () => {
@@ -727,7 +725,7 @@ describe('sendEventRsvpWave', () => {
       error: 'No available spots remaining for this event.',
     });
 
-    const result = await sendEventRsvpWave(testEventId, futureDeadline);
+    const result = await sendEventRsvpWave(testEventId);
     expect(result.success).toBe(false);
     if (result.success) return;
     expect(result.error).toContain('No available spots');

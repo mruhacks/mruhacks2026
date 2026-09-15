@@ -161,12 +161,27 @@ describe('runScheduledRsvpWaves', () => {
         emailVerified: true,
       })
       .returning({ id: user.id });
+    const [nextApplicant] = await db
+      .insert(user)
+      .values({
+        name: 'Scheduled Next Applicant',
+        email: 'scheduled-rsvp-next@example.com',
+        emailVerified: true,
+      })
+      .returning({ id: user.id });
 
-    await db.insert(eventApplications).values({
-      eventId: eventRow.id,
-      userId: applicant.id,
-      statusId: approvedStatusId,
-    });
+    await db.insert(eventApplications).values([
+      {
+        eventId: eventRow.id,
+        userId: applicant.id,
+        statusId: approvedStatusId,
+      },
+      {
+        eventId: eventRow.id,
+        userId: nextApplicant.id,
+        statusId: approvedStatusId,
+      },
+    ]);
 
     const [priorWave] = await db
       .insert(eventRsvpWaves)
@@ -220,6 +235,7 @@ describe('runScheduledRsvpWaves', () => {
         .where(eq(eventApplications.eventId, eventRow.id));
       await db.delete(events).where(eq(events.id, eventRow.id));
       await db.delete(user).where(eq(user.id, applicant.id));
+      await db.delete(user).where(eq(user.id, nextApplicant.id));
     }
   });
 
@@ -344,7 +360,7 @@ describe('runScheduledRsvpWaves', () => {
     }
   });
 
-  test('skips when eligible applicants exceed remaining spots (no ranking)', async () => {
+  test('invites the earliest applicants up to remaining capacity', async () => {
     const [eventRow] = await db
       .insert(events)
       .values({
@@ -376,11 +392,13 @@ describe('runScheduledRsvpWaves', () => {
         eventId: eventRow.id,
         userId: userA.id,
         statusId: approvedStatusId,
+        createdAt: new Date('2026-07-01T00:00:00.000Z'),
       },
       {
         eventId: eventRow.id,
         userId: userB.id,
         statusId: approvedStatusId,
+        createdAt: new Date('2026-07-02T00:00:00.000Z'),
       },
     ]);
     await db.insert(eventRsvpWaves).values({
@@ -395,8 +413,20 @@ describe('runScheduledRsvpWaves', () => {
         now: new Date('2026-08-10T00:00:00.000Z'),
       });
       const match = result.results.find((r) => r.eventId === eventRow.id);
-      expect(match?.action).toBe('skipped_exceeds_capacity');
-      expect(match?.detail).toMatch(/no ranking/i);
+      expect(match?.action).toBe('sent');
+      expect(match?.eligibleApplicantCount).toBe(2);
+      expect(match?.responsesCreated).toBe(1);
+
+      const invited = await db
+        .select({ userId: eventRsvpResponses.userId })
+        .from(eventRsvpResponses)
+        .innerJoin(
+          eventRsvpWaves,
+          eq(eventRsvpResponses.rsvpWaveId, eventRsvpWaves.id),
+        )
+        .where(eq(eventRsvpWaves.eventId, eventRow.id));
+      expect(invited.map((row) => row.userId)).toContain(userA.id);
+      expect(invited.map((row) => row.userId)).not.toContain(userB.id);
     } finally {
       await db
         .delete(eventRsvpWaves)

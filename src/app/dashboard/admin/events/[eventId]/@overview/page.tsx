@@ -75,6 +75,7 @@ export default function EventOverviewPage({ params }: EventOverviewPageProps) {
           name: result.data.name,
           hasApplication: result.data.hasApplication,
           capacity: result.data.capacity ?? undefined,
+          rsvpResponseWindowHours: result.data.rsvpResponseWindowHours,
           startsAt: result.data.startsAt
             ? result.data.startsAt.toISOString()
             : undefined,
@@ -217,6 +218,17 @@ export default function EventOverviewPage({ params }: EventOverviewPageProps) {
                   {event.hasApplication ? 'Required' : 'Not required'}
                 </p>
               </div>
+              {event.hasApplication && (
+                <div>
+                  <p className='text-muted-foreground text-xs font-semibold uppercase'>
+                    RSVP response window
+                  </p>
+                  <p className='mt-1 text-sm'>
+                    {event.rsvpResponseWindowHours} hour
+                    {event.rsvpResponseWindowHours === 1 ? '' : 's'}
+                  </p>
+                </div>
+              )}
               {event.startsAt && (
                 <div>
                   <p className='text-muted-foreground text-xs font-semibold uppercase'>
@@ -336,6 +348,30 @@ export default function EventOverviewPage({ params }: EventOverviewPageProps) {
                   />
                   {errors.capacity && <FieldError errors={[errors.capacity]} />}
                 </Field>
+
+                {hasApplication && (
+                  <Field>
+                    <FieldLabel htmlFor='rsvpResponseWindowHours'>
+                      RSVP response window (hours)
+                    </FieldLabel>
+                    <FieldDescription>
+                      Time invited applicants have to accept or decline. Default
+                      is 48. Applies to the next wave sent.
+                    </FieldDescription>
+                    <Input
+                      id='rsvpResponseWindowHours'
+                      type='number'
+                      {...register('rsvpResponseWindowHours', {
+                        setValueAs: (value) =>
+                          value === '' ? undefined : Number(value),
+                      })}
+                      placeholder='48'
+                    />
+                    {errors.rsvpResponseWindowHours && (
+                      <FieldError errors={[errors.rsvpResponseWindowHours]} />
+                    )}
+                  </Field>
+                )}
 
                 {/* Starts At */}
                 <Field>
@@ -546,6 +582,7 @@ export default function EventOverviewPage({ params }: EventOverviewPageProps) {
       <SendRsvpWaveCard
         eventId={event.id}
         hasApplication={event.hasApplication}
+        rsvpResponseWindowHours={event.rsvpResponseWindowHours}
       />
     </div>
   );

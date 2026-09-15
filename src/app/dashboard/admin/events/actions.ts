@@ -18,7 +18,7 @@ import { getUser } from '@/utils/auth';
 import { ok, fail, type ActionResult } from '@/utils/action-result';
 import { hasPermission, requirePermission } from '@/lib/rbac/authorization';
 import { sendRsvpWave } from '@/lib/rsvp/send-rsvp-wave';
-import { parseRsvpDeadline } from '@/lib/rsvp/rsvp-datetime';
+import { DEFAULT_RSVP_RESPONSE_WINDOW_HOURS } from '@/lib/rsvp/constants';
 import {
   isSummarizableQuestion,
   type ApplicationQuestion,
@@ -384,6 +384,8 @@ export async function createEvent(
       name: input.name,
       hasApplication: input.hasApplication,
       capacity: input.capacity ?? null,
+      rsvpResponseWindowHours:
+        input.rsvpResponseWindowHours ?? DEFAULT_RSVP_RESPONSE_WINDOW_HOURS,
       teamsEnabled: input.teamsEnabled ?? false,
       maxTeamSize: input.maxTeamSize ?? null,
       startsAt: input.startsAt ? new Date(input.startsAt) : null,
@@ -417,6 +419,7 @@ export type EventDetails = {
   descriptionMarkdown: string;
   hasApplication: boolean;
   capacity: number | null;
+  rsvpResponseWindowHours: number;
   startsAt: Date | null;
   endsAt: Date | null;
   location: string | null;
@@ -465,6 +468,7 @@ export async function getEventDetails(
     descriptionMarkdown: eventRow.descriptionMarkdown ?? '',
     hasApplication: eventRow.hasApplication,
     capacity: eventRow.capacity ?? null,
+    rsvpResponseWindowHours: eventRow.rsvpResponseWindowHours,
     startsAt: eventRow.startsAt ?? null,
     endsAt: eventRow.endsAt ?? null,
     location: eventRow.location ?? null,
@@ -564,6 +568,8 @@ export async function updateEventSettings(
         name: input.name ?? eventRow.name,
         hasApplication: input.hasApplication ?? eventRow.hasApplication,
         capacity: input.capacity ?? eventRow.capacity,
+        rsvpResponseWindowHours:
+          input.rsvpResponseWindowHours ?? eventRow.rsvpResponseWindowHours,
         teamsEnabled: input.teamsEnabled ?? eventRow.teamsEnabled,
         maxTeamSize:
           input.maxTeamSize !== undefined
@@ -658,25 +664,17 @@ export type SendEventRsvpWaveResult = {
 /**
  * Admin: start the next RSVP wave for an event.
  * Requires event:manage permission (satisfied by event:manage:all).
+ * Deadline is `now + events.rsvp_response_window_hours`.
  */
 export async function sendEventRsvpWave(
   eventId: string,
-  respondByRaw: string,
 ): Promise<ActionResult<SendEventRsvpWaveResult>> {
   const user = await getAuthorizedUser();
   if (!user) return fail('Not authenticated');
 
   if (!eventId.trim()) return fail('Event ID is required.');
 
-  const respondBy = parseRsvpDeadline(respondByRaw);
-  if (Number.isNaN(respondBy.getTime())) {
-    return fail('Enter a valid RSVP deadline.');
-  }
-  if (respondBy.getTime() <= Date.now()) {
-    return fail('RSVP deadline must be in the future.');
-  }
-
-  const result = await sendRsvpWave(eventId, respondBy);
+  const result = await sendRsvpWave(eventId);
   if (!result.success) {
     return fail(result.error);
   }

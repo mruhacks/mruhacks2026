@@ -19,24 +19,29 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Field, FieldDescription, FieldLabel } from '@/components/ui/field';
-import { Input } from '@/components/ui/input';
+import { Field, FieldDescription, FieldError } from '@/components/ui/field';
 import { Button } from '@/components/ui/button';
 
 type Props = {
   eventId: string;
   hasApplication: boolean;
+  rsvpResponseWindowHours: number;
 };
 
 /** Admin control to start the next RSVP wave for an application event. */
-export function SendRsvpWaveCard({ eventId, hasApplication }: Props) {
-  const [respondBy, setRespondBy] = React.useState('');
+export function SendRsvpWaveCard({
+  eventId,
+  hasApplication,
+  rsvpResponseWindowHours,
+}: Props) {
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [confirmOpen, setConfirmOpen] = React.useState(false);
+  const [submitError, setSubmitError] = React.useState<string | null>(null);
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (isSubmitting || !respondBy) return;
+    if (isSubmitting) return;
+    setSubmitError(null);
     setConfirmOpen(true);
   }
 
@@ -44,14 +49,17 @@ export function SendRsvpWaveCard({ eventId, hasApplication }: Props) {
     if (isSubmitting) return;
 
     setIsSubmitting(true);
+    setSubmitError(null);
     try {
-      const result = await sendEventRsvpWave(eventId, respondBy);
+      const result = await sendEventRsvpWave(eventId);
       if (!result.success) {
-        toast.error(result.error || 'Failed to send RSVP wave');
+        setSubmitError(result.error || 'Failed to send RSVP wave');
+        setConfirmOpen(false);
         return;
       }
       if (!result.data) {
-        toast.error('Failed to send RSVP wave');
+        setSubmitError('Failed to send RSVP wave');
+        setConfirmOpen(false);
         return;
       }
 
@@ -64,10 +72,10 @@ export function SendRsvpWaveCard({ eventId, hasApplication }: Props) {
       toast.success(
         `Wave ${data.waveNumber} created, ${data.invitationsQueued} invitation${data.invitationsQueued === 1 ? '' : 's'} queued${failureNote}.`,
       );
-      setRespondBy('');
       setConfirmOpen(false);
     } catch {
-      toast.error('Failed to send RSVP wave');
+      setSubmitError('Failed to send RSVP wave');
+      setConfirmOpen(false);
     } finally {
       setIsSubmitting(false);
     }
@@ -82,27 +90,22 @@ export function SendRsvpWaveCard({ eventId, hasApplication }: Props) {
       <CardHeader>
         <CardTitle>RSVP Wave</CardTitle>
         <CardDescription>
-          Invite eligible accepted applicants to confirm their spot.
+          Invite eligible accepted applicants to confirm their spot. They will
+          have {rsvpResponseWindowHours} hour
+          {rsvpResponseWindowHours === 1 ? '' : 's'} to respond.
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSubmit} className='space-y-4'>
+        <form onSubmit={handleSubmit} className='flex flex-col gap-4'>
           <Field>
-            <FieldLabel htmlFor='rsvpRespondBy'>RSVP deadline</FieldLabel>
             <FieldDescription>
-              Applicants must respond by this date and time in Calgary (Mountain
-              Time).
+              The response window is configured in Event Settings. Changing it
+              applies to the next wave, not an already-active one.
             </FieldDescription>
-            <Input
-              id='rsvpRespondBy'
-              type='datetime-local'
-              value={respondBy}
-              onChange={(e) => setRespondBy(e.target.value)}
-              required
-            />
+            {submitError && <FieldError errors={[{ message: submitError }]} />}
           </Field>
           <div className='flex justify-end'>
-            <Button type='submit' disabled={isSubmitting || !respondBy}>
+            <Button type='submit' disabled={isSubmitting}>
               Send RSVP Wave
             </Button>
           </div>
@@ -121,7 +124,8 @@ export function SendRsvpWaveCard({ eventId, hasApplication }: Props) {
             <DialogTitle>Send RSVP wave?</DialogTitle>
             <DialogDescription>
               This will invite eligible accepted applicants to confirm their
-              spot. This cannot be undone.
+              spot. They must respond within {rsvpResponseWindowHours} hour
+              {rsvpResponseWindowHours === 1 ? '' : 's'}. This cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

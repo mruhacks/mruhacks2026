@@ -20,7 +20,6 @@ export type ScheduledEventWaveResult = {
     | 'skipped_already_ran_today'
     | 'skipped_no_eligible'
     | 'skipped_no_capacity'
-    | 'skipped_exceeds_capacity'
     | 'failed';
   detail?: string;
   waveNumber?: number;
@@ -140,7 +139,7 @@ async function processEventScheduledWave(
     };
   }
 
-  const eligibility = await getEligibleRsvpApplicants(eventId, now);
+  const eligibility = await getEligibleRsvpApplicants(eventId);
   if (!eligibility) {
     return {
       eventId,
@@ -170,25 +169,7 @@ async function processEventScheduledWave(
     };
   }
 
-  if (
-    eligibility.availableSpots !== null &&
-    eligibility.applicants.length > eligibility.availableSpots
-  ) {
-    // No invite ranking for approved applicants yet — skip rather than pick a subset.
-    return {
-      eventId,
-      eventName,
-      action: 'skipped_exceeds_capacity',
-      detail:
-        `${eligibility.applicants.length} eligible applicants exceed ` +
-        `${eligibility.availableSpots} available spots; no ranking/waitlist ` +
-        `order exists to choose a subset.`,
-      eligibleApplicantCount: eligibility.applicants.length,
-    };
-  }
-
-  const respondBy = computeScheduledRespondBy(latestWave, now);
-  const sendResult = await sendRsvpWave(eventId, respondBy);
+  const sendResult = await sendRsvpWave(eventId, { now });
 
   if (!sendResult.success) {
     const [afterWave] = await db

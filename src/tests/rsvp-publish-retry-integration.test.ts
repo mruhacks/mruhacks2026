@@ -121,7 +121,7 @@ describe('sendRsvpWave + publish retry integration', () => {
       .mockRejectedValueOnce(new Error('queue unavailable'))
       .mockResolvedValueOnce({ messageId: 'msg-1' });
 
-    const result = await sendRsvpWave(testEventId, FUTURE_RESPOND_BY);
+    const result = await sendRsvpWave(testEventId);
 
     expect(result.success).toBe(true);
     if (!result.success) return;
@@ -138,7 +138,7 @@ describe('sendRsvpWave + publish retry integration', () => {
 
     send.mockRejectedValue(new Error('queue down'));
 
-    const result = await sendRsvpWave(testEventId, FUTURE_RESPOND_BY);
+    const result = await sendRsvpWave(testEventId);
 
     expect(result.success).toBe(true);
     if (!result.success) return;

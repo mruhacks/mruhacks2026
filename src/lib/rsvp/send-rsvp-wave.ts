@@ -9,10 +9,19 @@ import {
   rsvpStatuses,
 } from '@/db/schema';
 import {
+  RSVP_WAVE_ALREADY_ACTIVE_MESSAGE,
+  RSVP_WAVE_EVENT_STARTED_MESSAGE,
+} from '@/lib/rsvp/constants';
+import {
+  computeRsvpRespondBy,
+  isRsvpWaveActive,
+} from '@/lib/rsvp/compute-rsvp-respond-by';
+import {
   getEligibleRsvpApplicants,
   type EligibleRsvpApplicant,
 } from '@/lib/rsvp/eligible-rsvp-applicants';
 import { publishRsvpInvitation } from '@/lib/rsvp/rsvp-invitation-queue';
+import { selectRsvpWaveInvitees } from '@/lib/rsvp/select-rsvp-wave-invitees';
 import { timeoutExpiredRsvpResponses } from '@/lib/rsvp/timeout-expired-rsvp-responses';
 import { db } from '@/utils/db';
 
@@ -48,32 +57,59 @@ export type SendRsvpWaveFailure = {
 
 export type SendRsvpWaveResult = SendRsvpWaveSuccess | SendRsvpWaveFailure;
 
+export type SendRsvpWaveOptions = {
+  /** Clock override for tests. Defaults to now. */
+  now?: Date;
+};
+
+class SendRsvpWaveError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'SendRsvpWaveError';
+  }
+}
+
 /**
- * Creates the next RSVP wave and pending responses for eligible applicants,
+ * Creates the next RSVP wave and pending responses for selected invitees,
  * then queues one RSVP invitation message per response (delivery happens
- * asynchronously via `processRsvpInvitation`). Refuses the wave when eligible
- * count exceeds remaining capacity (no invite ranking). Used by the admin
- * action and `runScheduledRsvpWaves`.
+ * asynchronously via `processRsvpInvitation`).
+ *
+ * `respond_by` is `created_at + events.rsvp_response_window_hours`. Refuses
+ * when a wave is still active, the event has started, remaining spots are 0,
+ * nobody is eligible, or invite ranking is required to pick a subset.
  */
 export async function sendRsvpWave(
   eventId: string,
-  respondBy: Date,
+  options: SendRsvpWaveOptions = {},
 ): Promise<SendRsvpWaveResult> {
-  if (Number.isNaN(respondBy.getTime()) || respondBy.getTime() <= Date.now()) {
-    return {
-      success: false,
-      error: 'RSVP deadline must be a valid future date.',
-    };
-  }
+  const now = options.now ?? new Date();
 
   const [eventRow] = await db
-    .select({ id: events.id })
+    .select({
+      id: events.id,
+      startsAt: events.startsAt,
+      rsvpResponseWindowHours: events.rsvpResponseWindowHours,
+    })
     .from(events)
     .where(eq(events.id, eventId))
     .limit(1);
 
   if (!eventRow) {
     return { success: false, error: 'Event not found.' };
+  }
+
+  if (eventRow.startsAt && now.getTime() >= eventRow.startsAt.getTime()) {
+    return { success: false, error: RSVP_WAVE_EVENT_STARTED_MESSAGE };
+  }
+
+  if (
+    !Number.isInteger(eventRow.rsvpResponseWindowHours) ||
+    eventRow.rsvpResponseWindowHours < 1
+  ) {
+    return {
+      success: false,
+      error: 'RSVP response window hours are not configured.',
+    };
   }
 
   const [pendingRsvpStatus] = await db
@@ -89,7 +125,21 @@ export async function sendRsvpWave(
     };
   }
 
-  await timeoutExpiredRsvpResponses({ eventId });
+  await timeoutExpiredRsvpResponses({ eventId, now });
+
+  const [latestWave] = await db
+    .select({
+      wave: eventRsvpWaves.wave,
+      respondBy: eventRsvpWaves.respondBy,
+    })
+    .from(eventRsvpWaves)
+    .where(eq(eventRsvpWaves.eventId, eventId))
+    .orderBy(desc(eventRsvpWaves.wave))
+    .limit(1);
+
+  if (latestWave && isRsvpWaveActive(latestWave.respondBy, now)) {
+    return { success: false, error: RSVP_WAVE_ALREADY_ACTIVE_MESSAGE };
+  }
 
   const eligibility = await getEligibleRsvpApplicants(eventId);
   if (!eligibility) {
@@ -110,29 +160,18 @@ export async function sendRsvpWave(
     };
   }
 
-  if (
-    eligibility.availableSpots !== null &&
-    eligibility.applicants.length > eligibility.availableSpots
-  ) {
+  const invitees = selectRsvpWaveInvitees(
+    eligibility.applicants,
+    eligibility.availableSpots,
+  );
+  if (invitees.length === 0) {
     return {
       success: false,
-      error:
-        `Cannot send RSVP wave: ${eligibility.applicants.length} eligible ` +
-        `applicants exceed ${eligibility.availableSpots} available spots, and ` +
-        `no ranking or waitlist order exists to choose a subset.`,
+      error: 'No eligible applicants for the next RSVP wave.',
     };
   }
 
-  const [latestWave] = await db
-    .select({ wave: eventRsvpWaves.wave })
-    .from(eventRsvpWaves)
-    .where(eq(eventRsvpWaves.eventId, eventId))
-    .orderBy(desc(eventRsvpWaves.wave))
-    .limit(1);
-
-  const nextWaveNumber = (latestWave?.wave ?? 0) + 1;
-
-  const { applicants } = eligibility;
+  const respondBy = computeRsvpRespondBy(now, eventRow.rsvpResponseWindowHours);
 
   let waveRecord: RsvpWaveRecord;
   let invitedApplicants: EligibleRsvpApplicant[];
@@ -140,12 +179,53 @@ export async function sendRsvpWave(
 
   try {
     const created = await db.transaction(async (tx) => {
+      const [lockedEvent] = await tx
+        .select({
+          id: events.id,
+          startsAt: events.startsAt,
+        })
+        .from(events)
+        .where(eq(events.id, eventId))
+        .for('update')
+        .limit(1);
+
+      if (!lockedEvent) {
+        throw new SendRsvpWaveError('Event not found.');
+      }
+
+      if (
+        lockedEvent.startsAt &&
+        now.getTime() >= lockedEvent.startsAt.getTime()
+      ) {
+        throw new SendRsvpWaveError(RSVP_WAVE_EVENT_STARTED_MESSAGE);
+      }
+
+      const [lockedLatestWave] = await tx
+        .select({
+          wave: eventRsvpWaves.wave,
+          respondBy: eventRsvpWaves.respondBy,
+        })
+        .from(eventRsvpWaves)
+        .where(eq(eventRsvpWaves.eventId, eventId))
+        .orderBy(desc(eventRsvpWaves.wave))
+        .limit(1);
+
+      if (
+        lockedLatestWave &&
+        isRsvpWaveActive(lockedLatestWave.respondBy, now)
+      ) {
+        throw new SendRsvpWaveError(RSVP_WAVE_ALREADY_ACTIVE_MESSAGE);
+      }
+
+      const lockedNextWaveNumber = (lockedLatestWave?.wave ?? 0) + 1;
+
       const [wave] = await tx
         .insert(eventRsvpWaves)
         .values({
           eventId,
-          wave: nextWaveNumber,
+          wave: lockedNextWaveNumber,
           respondBy,
+          createdAt: now,
         })
         .returning({
           id: eventRsvpWaves.id,
@@ -158,7 +238,7 @@ export async function sendRsvpWave(
       const insertedResponses = await tx
         .insert(eventRsvpResponses)
         .values(
-          applicants.map((applicant) => ({
+          invitees.map((applicant) => ({
             rsvpWaveId: wave.id,
             userId: applicant.userId,
             statusId: pendingRsvpStatus.id,
@@ -172,7 +252,7 @@ export async function sendRsvpWave(
       return {
         wave,
         insertedResponses,
-        invitedApplicants: applicants,
+        invitedApplicants: invitees,
       };
     });
 
@@ -186,6 +266,9 @@ export async function sendRsvpWave(
     invitedApplicants = created.invitedApplicants;
     insertedResponses = created.insertedResponses;
   } catch (error) {
+    if (error instanceof SendRsvpWaveError) {
+      return { success: false, error: error.message };
+    }
     console.error('[sendRsvpWave] database error:', error);
     return {
       success: false,
@@ -235,7 +318,7 @@ export async function sendRsvpWave(
   return {
     success: true,
     wave: waveRecord,
-    eligibleApplicantCount: applicants.length,
+    eligibleApplicantCount: eligibility.applicants.length,
     responsesCreated: invitedApplicants.length,
     invitationsQueued,
     queueFailures,

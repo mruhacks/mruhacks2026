@@ -272,21 +272,35 @@ describe('getEligibleRsvpApplicants', () => {
     expect(result).toBeNull();
   });
 
-  test('includes never-invited and timed-out approved applicants only', async () => {
+  test('includes never-invited approved applicants only', async () => {
     const result = await getEligibleRsvpApplicants(testEventId);
     expect(result).not.toBeNull();
     if (!result) return;
 
-    const ids = result.applicants.map((a) => a.userId).sort();
-    expect(ids).toEqual([neverInvitedUserId, timedOutUserId].sort());
+    const ids = result.applicants.map((a) => a.userId);
+    expect(ids).toEqual([neverInvitedUserId]);
 
     expect(result.capacity).toBe(10);
     expect(result.attendeeCount).toBe(1);
     expect(result.availableSpots).toBe(9);
   });
 
-  test('treats expired pending deadlines as non-blocking when already timed out', async () => {
-    // After marking timed_out, the previously pending user becomes eligible.
+  test('keeps timed_out, declined, accepted, and pending applicants ineligible', async () => {
+    const result = await getEligibleRsvpApplicants(testEventId);
+    expect(result).not.toBeNull();
+    if (!result) return;
+
+    const ids = new Set(result.applicants.map((a) => a.userId));
+    expect(ids.has(neverInvitedUserId)).toBe(true);
+    expect(ids.has(pendingUserId)).toBe(false);
+    expect(ids.has(timedOutUserId)).toBe(false);
+    expect(ids.has(acceptedUserId)).toBe(false);
+    expect(ids.has(declinedUserId)).toBe(false);
+    expect(ids.has(attendeeUserId)).toBe(false);
+    expect(ids.has(pendingReviewUserId)).toBe(false);
+  });
+
+  test('does not re-invite after a pending invite is marked timed_out', async () => {
     await db
       .update(eventRsvpResponses)
       .set({ statusId: timedOutRsvpStatusId })
@@ -297,15 +311,9 @@ describe('getEligibleRsvpApplicants', () => {
     if (!result) return;
 
     const ids = new Set(result.applicants.map((a) => a.userId));
-    expect(ids.has(pendingUserId)).toBe(true);
+    expect(ids.has(pendingUserId)).toBe(false);
     expect(ids.has(neverInvitedUserId)).toBe(true);
-    expect(ids.has(timedOutUserId)).toBe(true);
-    expect(ids.has(acceptedUserId)).toBe(false);
-    expect(ids.has(declinedUserId)).toBe(false);
-    expect(ids.has(attendeeUserId)).toBe(false);
-    expect(ids.has(pendingReviewUserId)).toBe(false);
 
-    // Restore pending for isolation of any later assertions.
     await db
       .update(eventRsvpResponses)
       .set({ statusId: pendingRsvpStatusId })
