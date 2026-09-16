@@ -1,7 +1,8 @@
 'use server';
 
-import { and, eq, isNotNull, isNull, or, sql } from 'drizzle-orm';
+import { and, eq, gt, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
+import { z } from 'zod';
 
 import {
   applicationStatuses,
@@ -12,6 +13,7 @@ import {
   user,
   userProfiles,
 } from '@/db/schema';
+import { parseInstant } from '@/lib/datetime';
 import { requirePermission } from '@/lib/rbac/authorization';
 import {
   verifyCheckInPayload,
@@ -52,6 +54,24 @@ export type CheckInRosterRow = {
   checkedInAt: string | null;
   checkedInAtLabel: string | null;
   checkedInByName: string | null;
+};
+
+/** The check-in half of a roster row — everything a poll can change. */
+export type CheckInPatch = {
+  userId: string;
+  /** ISO instant with `Z`. */
+  checkedInAt: string;
+  checkedInAtLabel: string;
+  checkedInByName: string | null;
+};
+
+export type CheckInUpdates = {
+  /** Check-ins recorded after the caller's watermark. */
+  changed: CheckInPatch[];
+  /** Every check-in the event has right now. The caller compares this to
+   *  what it holds after applying `changed`: a shortfall means a row was
+   *  undone, which no watermark can describe, so it reloads in full. */
+  checkedInCount: number;
 };
 
 /** Wall clock in America/Edmonton, computed by Postgres — never by JS Date. */
@@ -189,7 +209,10 @@ export async function scanCheckIn(
   const claims = readScannedToken(payload);
   if (!claims) return fail('This is not a valid MRUHacks pass.');
 
-  if (claims.eventId !== eventId) {
+  // The token's id comes back lowercase from bytesToUuid, while the route
+  // param keeps whatever case the URL used — UUID_PATTERN accepts either, so
+  // a mixed-case event URL would otherwise reject every valid pass.
+  if (claims.eventId.toLowerCase() !== eventId.toLowerCase()) {
     return fail('This pass was issued for a different event.');
   }
   if (claims.expiresAt.getTime() < Date.now()) {
@@ -224,6 +247,10 @@ export async function undoCheckIn(
 ): Promise<ActionResult> {
   const actor = await getScanner();
   if (!actor) return fail('Not authenticated');
+  // Both ids go straight into the delete's where clause, so a non-UUID would
+  // reach Postgres and raise `invalid input syntax for type uuid` as an
+  // unhandled action error rather than a fail() result.
+  if (!UUID_PATTERN.test(eventId)) return fail('Event not found.');
   if (!UUID_PATTERN.test(userId)) return fail('Unknown participant.');
 
   const [removed] = await db
@@ -318,4 +345,69 @@ export async function getCheckInRoster(
       checkedInByName: row.scannerName,
     })),
   );
+}
+
+/** The watermark a poller echoes back: an ISO instant with `Z`, as minted by
+ *  `checkedInAtIsoSql`. Anything else is treated as having no watermark. */
+const watermarkSchema = z.iso.datetime();
+
+/**
+ * Reports check-ins recorded since `since` so a roster already on screen can
+ * be patched instead of refetched. `since` is the newest `checkedInAt` the
+ * caller holds; pass null to get every check-in.
+ *
+ * Deliberately narrower than `getCheckInRoster`: it touches only `check_ins`
+ * (plus the scanner's name), so polling it every few seconds costs an index
+ * scan rather than the roster's five-table join.
+ *
+ * Requires checkin:write:all permission.
+ */
+export async function getCheckInUpdates(
+  eventId: string,
+  since: string | null,
+): Promise<ActionResult<CheckInUpdates>> {
+  const actor = await getScanner();
+  if (!actor) return fail('Not authenticated');
+  if (!UUID_PATTERN.test(eventId)) return fail('Event not found.');
+
+  // A malformed watermark degrades to a full patch rather than an error: the
+  // caller reconciles against checkedInCount either way, so the worst case is
+  // one oversized poll instead of a roster stuck on stale data.
+  const parsed = watermarkSchema.safeParse(since);
+  const watermark = parsed.success ? parseInstant(parsed.data) : null;
+
+  const scanner = alias(user, 'scanner');
+  const [changed, [totals]] = await Promise.all([
+    db
+      .select({
+        userId: checkIns.userId,
+        checkedInAt: checkedInAtIsoSql,
+        checkedInAtLabel: checkedInAtLabelSql,
+        scannerName: scanner.name,
+      })
+      .from(checkIns)
+      .leftJoin(scanner, eq(scanner.id, checkIns.checkedInBy))
+      .where(
+        watermark
+          ? and(
+              eq(checkIns.eventId, eventId),
+              gt(checkIns.checkedInAt, watermark),
+            )
+          : eq(checkIns.eventId, eventId),
+      ),
+    db
+      .select({ checkedInCount: sql<number>`count(*)::int` })
+      .from(checkIns)
+      .where(eq(checkIns.eventId, eventId)),
+  ]);
+
+  return ok({
+    changed: changed.map((row) => ({
+      userId: row.userId,
+      checkedInAt: row.checkedInAt,
+      checkedInAtLabel: row.checkedInAtLabel,
+      checkedInByName: row.scannerName,
+    })),
+    checkedInCount: totals?.checkedInCount ?? 0,
+  });
 }

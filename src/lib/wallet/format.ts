@@ -18,9 +18,17 @@ export function formatDateRange(
     day: 'numeric',
     year: 'numeric',
   });
+  const yearFormat = new Intl.DateTimeFormat('en-CA', {
+    timeZone: PASS_TIME_ZONE,
+    year: 'numeric',
+  });
 
   if (startsAt && endsAt) {
-    const sameYear = startsAt.getFullYear() === endsAt.getFullYear();
+    // Both years must be read in PASS_TIME_ZONE, not via getFullYear() —
+    // that resolves in the server process's zone, so on a UTC host an event
+    // starting Dec 31 18:00 MST reads as the following year and the omitted
+    // year contradicts the Edmonton date printed beside it.
+    const sameYear = yearFormat.format(startsAt) === yearFormat.format(endsAt);
     const start = sameYear
       ? dayFormat.format(startsAt)
       : dayYearFormat.format(startsAt);

@@ -7,6 +7,7 @@ import { CheckCircle2, CircleAlert, Clock } from 'lucide-react';
 import {
   checkInParticipant,
   getCheckInRoster,
+  getCheckInUpdates,
   scanCheckIn,
   undoCheckIn,
 } from '@/app/dashboard/admin/events/check-in-actions';
@@ -17,6 +18,13 @@ import type {
 import { cn } from '@/lib/utils';
 import { CheckInRoster } from './check-in-roster';
 import { CheckInScanner } from './check-in-scanner';
+import {
+  applyCheckIn,
+  clearCheckIn,
+  mergeCheckInUpdates,
+  rosterWatermark,
+  ROSTER_POLL_INTERVAL_MS,
+} from './roster-sync';
 import { playScanCue } from './scan-cue';
 
 type CheckInPageProps = {
@@ -95,6 +103,15 @@ export default function CheckInPage({ params }: CheckInPageProps) {
   const [pendingUserId, setPendingUserId] = React.useState<string | null>(null);
 
   const scanBusyRef = React.useRef(false);
+  const rosterRef = React.useRef<CheckInRosterRow[]>(roster);
+  /** Bumped by every check-in or undo, so a poll that was already in flight
+   *  when one landed discards its now-stale answer instead of replaying it. */
+  const mutationSeqRef = React.useRef(0);
+  const staleReloadRef = React.useRef<string | null>(null);
+
+  React.useEffect(() => {
+    rosterRef.current = roster;
+  }, [roster]);
 
   React.useEffect(() => {
     params.then((p) => setEventId(p.eventId));
@@ -123,6 +140,79 @@ export default function CheckInPage({ params }: CheckInPageProps) {
     };
   }, [eventId, reloadToken]);
 
+  // Someone else on a second scanner is checking people in too, so the list
+  // on screen goes quietly out of date. Ask only what changed and patch it in.
+  React.useEffect(() => {
+    if (!eventId || loading || loadError) return;
+
+    let cancelled = false;
+    let inFlight = false;
+
+    async function poll(currentEventId: string) {
+      if (inFlight || document.hidden) return;
+      inFlight = true;
+      const seq = mutationSeqRef.current;
+
+      try {
+        const result = await getCheckInUpdates(
+          currentEventId,
+          rosterWatermark(rosterRef.current),
+        );
+        if (cancelled || seq !== mutationSeqRef.current) return;
+        if (!result.success || !result.data) return;
+
+        const merge = mergeCheckInUpdates(rosterRef.current, result.data);
+        if (merge.kind === 'patched') {
+          setRoster(merge.rows);
+          staleReloadRef.current = null;
+        } else if (merge.kind === 'stale') {
+          // A check-in can belong to someone the roster query no longer
+          // returns — their approval was revoked after they arrived — and no
+          // refetch will ever reconcile that. Reload once per distinct
+          // mismatch rather than every fifteen seconds forever.
+          const signature = `${result.data.checkedInCount}:${rosterRef.current.length}`;
+          if (staleReloadRef.current !== signature) {
+            staleReloadRef.current = signature;
+            setReloadToken((token) => token + 1);
+          }
+        }
+      } catch {
+        // A dropped request is expected on venue wifi; the next tick retries.
+      } finally {
+        inFlight = false;
+      }
+    }
+
+    const tick = () => void poll(eventId);
+    const timer = setInterval(tick, ROSTER_POLL_INTERVAL_MS);
+    // A phone that was asleep in a pocket wakes with a stale list; waiting out
+    // the interval makes it look frozen at exactly the wrong moment.
+    document.addEventListener('visibilitychange', tick);
+
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', tick);
+    };
+  }, [eventId, loading, loadError]);
+
+  /** Writes a mutation's own result straight into the roster. Falls back to a
+   *  full reload only when the roster has no row to patch. */
+  const applyLocalPatch = React.useCallback(
+    (patched: CheckInRosterRow[] | null) => {
+      mutationSeqRef.current += 1;
+      if (!patched) {
+        setReloadToken((token) => token + 1);
+        return;
+      }
+      // Written eagerly as well as through state so back-to-back scans each
+      // build on the previous one rather than on the last committed render.
+      rosterRef.current = patched;
+      setRoster(patched);
+    },
+    [],
+  );
+
   const handlePayload = React.useCallback(
     async (payload: string) => {
       if (!eventId || scanBusyRef.current) return;
@@ -136,7 +226,7 @@ export default function CheckInPage({ params }: CheckInPageProps) {
           setFeedback({ kind, outcome });
           playScanCue(kind);
           if (!outcome.alreadyCheckedIn) {
-            setReloadToken((token) => token + 1);
+            applyLocalPatch(applyCheckIn(rosterRef.current, outcome));
           }
         } else if (!result.success) {
           setFeedback({ kind: 'rejected', message: result.error });
@@ -146,7 +236,7 @@ export default function CheckInPage({ params }: CheckInPageProps) {
         scanBusyRef.current = false;
       }
     },
-    [eventId],
+    [eventId, applyLocalPatch],
   );
 
   const handleManualCheckIn = React.useCallback(
@@ -162,7 +252,7 @@ export default function CheckInPage({ params }: CheckInPageProps) {
               ? `${name} was already checked in.`
               : `${name} is checked in.`,
           );
-          setReloadToken((token) => token + 1);
+          applyLocalPatch(applyCheckIn(rosterRef.current, result.data));
         } else if (!result.success) {
           toast.error(result.error);
         }
@@ -170,7 +260,7 @@ export default function CheckInPage({ params }: CheckInPageProps) {
         setPendingUserId(null);
       }
     },
-    [eventId],
+    [eventId, applyLocalPatch],
   );
 
   const handleUndo = React.useCallback(
@@ -184,12 +274,12 @@ export default function CheckInPage({ params }: CheckInPageProps) {
           return;
         }
         toast.success(`Check-in for ${row.name} was undone.`);
-        setReloadToken((token) => token + 1);
+        applyLocalPatch(clearCheckIn(rosterRef.current, row.userId));
       } finally {
         setPendingUserId(null);
       }
     },
-    [eventId],
+    [eventId, applyLocalPatch],
   );
 
   if (loading) {

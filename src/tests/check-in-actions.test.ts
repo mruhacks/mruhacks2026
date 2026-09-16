@@ -29,6 +29,7 @@ import {
 import {
   checkInParticipant,
   getCheckInRoster,
+  getCheckInUpdates,
   scanCheckIn,
   undoCheckIn,
 } from '@/app/dashboard/admin/events/check-in-actions';
@@ -223,6 +224,9 @@ describe('authorization', () => {
       await expect(getCheckInRoster(eventId)).resolves.toMatchObject({
         success: false,
       });
+      await expect(getCheckInUpdates(eventId, null)).resolves.toMatchObject({
+        success: false,
+      });
     } finally {
       vi.mocked(getUser).mockResolvedValue(scanner as never);
     }
@@ -240,6 +244,7 @@ describe('authorization', () => {
         FORBIDDEN,
       );
       await expect(getCheckInRoster(eventId)).rejects.toThrow(FORBIDDEN);
+      await expect(getCheckInUpdates(eventId, null)).rejects.toThrow(FORBIDDEN);
     } finally {
       vi.mocked(getUser).mockResolvedValue(scanner as never);
     }
@@ -475,6 +480,70 @@ describe('getCheckInRoster', () => {
 
   test('refuses a sub-event', async () => {
     await expect(getCheckInRoster(childEventId)).resolves.toMatchObject({
+      success: false,
+    });
+  });
+});
+
+// ─── Incremental updates ───────────────────────────────────────────────────────
+
+describe('getCheckInUpdates', () => {
+  async function updatesSince(since: string | null) {
+    const result = await getCheckInUpdates(eventId, since);
+    expect(result.success).toBe(true);
+    return result.success ? result.data! : null!;
+  }
+
+  test('reports every check-in when there is no watermark', async () => {
+    await clearCheckIns();
+    await scanCheckIn(eventId, passFor(eventId, participantId));
+
+    const updates = await updatesSince(null);
+    expect(updates.checkedInCount).toBe(1);
+    expect(updates.changed).toHaveLength(1);
+    expect(updates.changed[0]).toMatchObject({
+      userId: participantId,
+      checkedInByName: SCANNER_NAME,
+    });
+    expect(updates.changed[0].checkedInAt).toMatch(/^\d{4}-\d{2}-\d{2}T.*Z$/);
+  });
+
+  test('sends nothing new once the watermark is past the last check-in', async () => {
+    await clearCheckIns();
+    await scanCheckIn(eventId, passFor(eventId, participantId));
+
+    // A second past the newest row, so the millisecond-truncated watermark
+    // the page actually sends cannot re-include it.
+    const updates = await updatesSince(
+      new Date(Date.now() + 1000).toISOString(),
+    );
+    expect(updates.changed).toHaveLength(0);
+    expect(updates.checkedInCount).toBe(1);
+  });
+
+  test('keeps counting check-ins an undo removed from the changed set', async () => {
+    await clearCheckIns();
+    await scanCheckIn(eventId, passFor(eventId, participantId));
+    await undoCheckIn(eventId, participantId);
+
+    // Nothing to send and nothing to count — the caller sees its own tally
+    // overshoot and knows to reload rather than sit on a phantom check-in.
+    const updates = await updatesSince(null);
+    expect(updates.changed).toHaveLength(0);
+    expect(updates.checkedInCount).toBe(0);
+  });
+
+  test('falls back to the full set when the watermark is not an instant', async () => {
+    await clearCheckIns();
+    await scanCheckIn(eventId, passFor(eventId, participantId));
+
+    const updates = await updatesSince('last tuesday');
+    expect(updates.changed).toHaveLength(1);
+    expect(updates.checkedInCount).toBe(1);
+  });
+
+  test('refuses an id that is not a uuid', async () => {
+    await expect(getCheckInUpdates('not-a-uuid', null)).resolves.toMatchObject({
       success: false,
     });
   });

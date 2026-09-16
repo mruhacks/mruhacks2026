@@ -329,7 +329,7 @@ export default function EventOverviewPage({ params }: EventOverviewPageProps) {
                     type='number'
                     {...register('capacity', {
                       setValueAs: (value) =>
-                        value === '' ? undefined : Number(value),
+                        value === '' ? null : Number(value),
                     })}
                     placeholder='e.g. 100'
                   />
@@ -430,7 +430,7 @@ export default function EventOverviewPage({ params }: EventOverviewPageProps) {
                       step='any'
                       {...register('latitude', {
                         setValueAs: (value) =>
-                          value === '' ? undefined : Number(value),
+                          value === '' ? null : Number(value),
                       })}
                       placeholder='Latitude'
                     />
@@ -440,7 +440,7 @@ export default function EventOverviewPage({ params }: EventOverviewPageProps) {
                       step='any'
                       {...register('longitude', {
                         setValueAs: (value) =>
-                          value === '' ? undefined : Number(value),
+                          value === '' ? null : Number(value),
                       })}
                       placeholder='Longitude'
                     />
@@ -449,7 +449,7 @@ export default function EventOverviewPage({ params }: EventOverviewPageProps) {
                       type='number'
                       {...register('radiusMeters', {
                         setValueAs: (value) =>
-                          value === '' ? undefined : Number(value),
+                          value === '' ? null : Number(value),
                       })}
                       placeholder='Radius (m)'
                     />

@@ -561,7 +561,8 @@ export async function updateEventSettings(
       .set({
         name: input.name ?? eventRow.name,
         hasApplication: input.hasApplication ?? eventRow.hasApplication,
-        capacity: input.capacity ?? eventRow.capacity,
+        capacity:
+          input.capacity !== undefined ? input.capacity : eventRow.capacity,
         teamsEnabled: input.teamsEnabled ?? eventRow.teamsEnabled,
         maxTeamSize:
           input.maxTeamSize !== undefined
