@@ -17,6 +17,7 @@ import {
   reactivateQuestion,
   getEventWithQuestions,
   getEventDetails,
+  getEventRsvpSummary,
   updateEventSettings,
   getApplicationResponses,
   sendEventRsvpWave,
@@ -242,6 +243,25 @@ describe('getEventDetails', () => {
     if (!result.success) throw new Error((result as { error: string }).error);
     expect(result.data?.applicationsCount).toBe(0);
     expect(result.data?.questionsCount).toBe(0);
+  });
+});
+
+describe('getEventRsvpSummary', () => {
+  test('returns error for nonexistent event', async () => {
+    const result = await getEventRsvpSummary(
+      '00000000-0000-0000-0000-000000000000',
+    );
+    expect(result.success).toBe(false);
+    expect((result as { error: string }).error).toContain('not found');
+  });
+
+  test('returns a no_waves summary when RSVP has not started', async () => {
+    const result = await getEventRsvpSummary(testEventId);
+    expect(result.success).toBe(true);
+    if (!result.success) throw new Error(result.error);
+    expect(result.data?.hasApplication).toBe(true);
+    expect(result.data?.lifecycle).toBe('no_waves');
+    expect(result.data?.latestWave).toBeNull();
   });
 });
 
@@ -597,7 +617,7 @@ describe('updateEventSettings', () => {
 
     const details = await getEventDetails(testEventId);
     expect(details.success).toBe(true);
-    if (!details.success) return;
+    if (!details.success || !details.data) return;
     expect(details.data.rsvpResponseWindowHours).toBe(24);
   });
 

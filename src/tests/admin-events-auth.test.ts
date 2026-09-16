@@ -27,6 +27,7 @@ import {
   getEventDetails,
   updateEventSettings,
   getApplicationResponses,
+  getEventRsvpSummary,
 } from '@/app/dashboard/admin/events/actions';
 
 type MockUser = {
@@ -122,6 +123,21 @@ describe('getEventDetails', () => {
 
   test('redirects to /forbidden without event:manage', async () => {
     await expect(getEventDetails(testEventId)).rejects.toThrow(FORBIDDEN);
+  });
+});
+
+// ─── getEventRsvpSummary ─────────────────────────────────────────────────────
+
+describe('getEventRsvpSummary', () => {
+  test('fails when unauthenticated', async () => {
+    vi.mocked(getUser).mockResolvedValueOnce(null as never);
+    await expect(getEventRsvpSummary(testEventId)).resolves.toMatchObject({
+      success: false,
+    });
+  });
+
+  test('redirects to /forbidden without event:manage', async () => {
+    await expect(getEventRsvpSummary(testEventId)).rejects.toThrow(FORBIDDEN);
   });
 });
 

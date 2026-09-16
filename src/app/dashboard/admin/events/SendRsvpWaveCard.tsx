@@ -19,13 +19,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Field, FieldDescription, FieldError } from '@/components/ui/field';
+import { FieldError } from '@/components/ui/field';
 import { Button } from '@/components/ui/button';
 
 type Props = {
   eventId: string;
   hasApplication: boolean;
   rsvpResponseWindowHours: number;
+  onWaveSent?: () => void;
 };
 
 /** Admin control to start the next RSVP wave for an application event. */
@@ -33,6 +34,7 @@ export function SendRsvpWaveCard({
   eventId,
   hasApplication,
   rsvpResponseWindowHours,
+  onWaveSent,
 }: Props) {
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [confirmOpen, setConfirmOpen] = React.useState(false);
@@ -73,6 +75,7 @@ export function SendRsvpWaveCard({
         `Wave ${data.waveNumber} created, ${data.invitationsQueued} invitation${data.invitationsQueued === 1 ? '' : 's'} queued${failureNote}.`,
       );
       setConfirmOpen(false);
+      onWaveSent?.();
     } catch {
       setSubmitError('Failed to send RSVP wave');
       setConfirmOpen(false);
@@ -88,22 +91,16 @@ export function SendRsvpWaveCard({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>RSVP Wave</CardTitle>
+        <CardTitle>Send RSVP Wave</CardTitle>
         <CardDescription>
-          Invite eligible accepted applicants to confirm their spot. They will
-          have {rsvpResponseWindowHours} hour
+          Invite accepted applicants who still need a spot. They will have{' '}
+          {rsvpResponseWindowHours} hour
           {rsvpResponseWindowHours === 1 ? '' : 's'} to respond.
         </CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className='flex flex-col gap-4'>
-          <Field>
-            <FieldDescription>
-              The response window is configured in Event Settings. Changing it
-              applies to the next wave, not an already-active one.
-            </FieldDescription>
-            {submitError && <FieldError errors={[{ message: submitError }]} />}
-          </Field>
+          {submitError && <FieldError errors={[{ message: submitError }]} />}
           <div className='flex justify-end'>
             <Button type='submit' disabled={isSubmitting}>
               Send RSVP Wave
@@ -123,8 +120,8 @@ export function SendRsvpWaveCard({
           <DialogHeader>
             <DialogTitle>Send RSVP wave?</DialogTitle>
             <DialogDescription>
-              This will invite eligible accepted applicants to confirm their
-              spot. They must respond within {rsvpResponseWindowHours} hour
+              This will invite accepted applicants who still need a spot. They
+              must respond within {rsvpResponseWindowHours} hour
               {rsvpResponseWindowHours === 1 ? '' : 's'}. This cannot be undone.
             </DialogDescription>
           </DialogHeader>

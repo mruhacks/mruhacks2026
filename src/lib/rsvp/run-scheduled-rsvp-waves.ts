@@ -48,10 +48,11 @@ export type RunScheduledRsvpWavesOptions = {
 /**
  * Follow-up RSVP waves for events that already have an admin-started wave.
  *
- * Thin scheduler: skip when there is no prior wave or the latest wave is still
- * active (`respond_by > now`). Expired pending rows are resolved with
- * `timeoutExpiredRsvpResponses`, then `sendRsvpWave` owns selection, window,
- * locking, and invitations. Does not create a first wave.
+ * Thin scheduler, invoked once daily. Skip when there is no prior wave or the
+ * latest wave is still active (`respond_by > now`). Expired pending rows are
+ * resolved with `timeoutExpiredRsvpResponses`, then `sendRsvpWave` owns
+ * selection, window, locking, and invitations. Does not create a first wave.
+ * A gap between `respond_by` and the next daily run is expected.
  */
 export async function runScheduledRsvpWaves(
   options: RunScheduledRsvpWavesOptions = {},

@@ -18,6 +18,8 @@ import { getUser } from '@/utils/auth';
 import { ok, fail, type ActionResult } from '@/utils/action-result';
 import { hasPermission, requirePermission } from '@/lib/rbac/authorization';
 import { sendRsvpWave } from '@/lib/rsvp/send-rsvp-wave';
+import { getAdminRsvpSummary } from '@/lib/rsvp/get-admin-rsvp-summary';
+import type { AdminRsvpSummary } from '@/lib/rsvp/get-admin-rsvp-summary';
 import { DEFAULT_RSVP_RESPONSE_WINDOW_HOURS } from '@/lib/rsvp/constants';
 import {
   isSummarizableQuestion,
@@ -660,6 +662,31 @@ export type SendEventRsvpWaveResult = {
     error: string;
   }>;
 };
+
+/**
+ * Read-only RSVP wave/capacity summary for the admin event overview.
+ * Requires event:manage permission (satisfied by event:manage:all).
+ */
+export async function getEventRsvpSummary(
+  eventId: string,
+): Promise<ActionResult<AdminRsvpSummary>> {
+  const user = await getAuthorizedUser();
+  if (!user) return fail('Not authenticated');
+
+  if (!eventId.trim()) return fail('Event ID is required.');
+
+  const summary = await getAdminRsvpSummary(eventId);
+  if (!summary) return fail('Event not found');
+
+  return ok(summary);
+}
+
+export type {
+  AdminRsvpLifecycle,
+  AdminRsvpParticipant,
+  AdminRsvpSummary,
+  AdminRsvpWaveSummary,
+} from '@/lib/rsvp/get-admin-rsvp-summary';
 
 /**
  * Admin: start the next RSVP wave for an event.

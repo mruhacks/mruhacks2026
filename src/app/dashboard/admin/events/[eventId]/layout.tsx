@@ -9,6 +9,7 @@ type EventLayoutProps = {
   overview: React.ReactNode;
   questions: React.ReactNode;
   responses: React.ReactNode;
+  rsvp: React.ReactNode;
   teams: React.ReactNode;
   wiki: React.ReactNode;
   params: Promise<{ eventId: string }>;
@@ -18,6 +19,7 @@ export default async function EventLayout({
   overview,
   questions,
   responses,
+  rsvp,
   teams,
   wiki,
   params,
@@ -44,6 +46,7 @@ export default async function EventLayout({
     },
     { id: 'questions' as const, label: 'Questions', content: questions },
     { id: 'responses' as const, label: 'Responses', content: responses },
+    { id: 'rsvp' as const, label: 'RSVP', content: rsvp },
     ...(canReadTeams
       ? [{ id: 'teams' as const, label: 'Teams', content: teams }]
       : []),

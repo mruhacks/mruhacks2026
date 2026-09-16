@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest';
 
 const runScheduledRsvpWaves = vi.fn();
@@ -48,5 +50,19 @@ describe('GET /api/cron/rsvp-waves', () => {
     expect(runScheduledRsvpWaves).toHaveBeenCalledTimes(1);
     const body = await response.json();
     expect(body.wavesSent).toBe(0);
+  });
+});
+
+describe('RSVP waves cron schedule', () => {
+  test('is configured once daily in vercel.json', () => {
+    const vercel = JSON.parse(
+      readFileSync(path.join(process.cwd(), 'vercel.json'), 'utf8'),
+    ) as {
+      crons: Array<{ path: string; schedule: string }>;
+    };
+    const cron = vercel.crons.find(
+      (entry) => entry.path === '/api/cron/rsvp-waves',
+    );
+    expect(cron?.schedule).toBe('0 0 * * *');
   });
 });
