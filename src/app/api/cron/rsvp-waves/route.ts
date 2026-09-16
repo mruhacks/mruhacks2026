@@ -4,7 +4,7 @@ import { fail } from '@/utils/action-result';
 
 /**
  * Cron entrypoint for follow-up RSVP waves. Requires
- * `Authorization: Bearer <CRON_SECRET>`. Schedule: `vercel.json` (UTC midnight).
+ * `Authorization: Bearer <CRON_SECRET>`. Schedule: `vercel.json` (hourly).
  */
 async function handle(request: Request): Promise<Response> {
   return handleCronRequest(request, {

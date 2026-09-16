@@ -76,7 +76,8 @@ class SendRsvpWaveError extends Error {
  *
  * `respond_by` is `created_at + events.rsvp_response_window_hours`. Refuses
  * when a wave is still active, the event has started, remaining spots are 0,
- * nobody is eligible, or invite ranking is required to pick a subset.
+ * or nobody is eligible. Invitee ranking (oldest application first) lives in
+ * `selectRsvpWaveInvitees`.
  */
 export async function sendRsvpWave(
   eventId: string,

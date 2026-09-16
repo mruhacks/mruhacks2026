@@ -10,6 +10,7 @@ import { admin, captcha, magicLink } from 'better-auth/plugins';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { eq, lt, sql } from 'drizzle-orm';
 import { resolveMagicLinkMailOptions } from '@/lib/auth/resolve-magic-link-email';
+import { remainingMagicLinkExpiresInSeconds } from '@/lib/rsvp/rsvp-magic-link-expires-in';
 import { getRsvpMagicLinkMailContext } from '@/lib/rsvp/rsvp-magic-link-context';
 import { db } from '@/utils/db';
 import * as schema from '@/db/schema';
@@ -29,12 +30,29 @@ import { deleteObject, parseProfilePictureKey } from '@/utils/object-storage';
 const EMAIL_VERIFICATION_EXPIRES_IN = 86400;
 
 /**
- * Magic-link token lifetime (seconds). Shared by sign-in, invites, and RSVP.
- * Kept at 24h for security; when an RSVP link expires before `respondBy`,
- * use `resendRsvpMagicLink` (no new wave/response).
+ * Default magic-link token lifetime (seconds) for sign-in and admin invites.
+ * RSVP invitations override this per send via remaining time until `respondBy`.
  */
 export const MAGIC_LINK_EXPIRES_IN_SECONDS = 86400;
-const MAGIC_LINK_EXPIRES_IN = MAGIC_LINK_EXPIRES_IN_SECONDS;
+
+function resolveMagicLinkExpiresInSeconds(): number {
+  const rsvp = getRsvpMagicLinkMailContext();
+  if (!rsvp) {
+    return MAGIC_LINK_EXPIRES_IN_SECONDS;
+  }
+  return remainingMagicLinkExpiresInSeconds(rsvp.respondBy);
+}
+
+/**
+ * Better Auth copies `expiresIn` once at plugin init and only reads it as a
+ * duration (`Date.now() + expiresIn * 1000`). A boxed number is coerced on
+ * each `signInMagicLink` call so RSVP sends can use remaining time until
+ * `respondBy` without changing the 24h lifetime of unrelated magic links.
+ */
+const MAGIC_LINK_EXPIRES_IN = {
+  valueOf: resolveMagicLinkExpiresInSeconds,
+  [Symbol.toPrimitive]: resolveMagicLinkExpiresInSeconds,
+} as unknown as number;
 
 function getAuthBaseUrl(): string {
   const v = process.env.BETTER_AUTH_URL?.trim();

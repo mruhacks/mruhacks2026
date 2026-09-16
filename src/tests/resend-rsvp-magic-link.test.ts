@@ -10,6 +10,7 @@ import {
   events,
   rsvpStatuses,
   user,
+  verification,
 } from '@/db/schema';
 import { MAGIC_LINK_EXPIRES_IN_SECONDS } from '@/utils/auth';
 import { resendRsvpMagicLink } from '@/lib/rsvp/resend-rsvp-magic-link';
@@ -21,6 +22,31 @@ vi.mock('@/utils/mail', () => ({
 
 import { sendMail } from '@/utils/mail';
 import { auth } from '@/utils/auth';
+
+function magicLinkTokenFromLastMail(): string {
+  const mail = vi.mocked(sendMail).mock.calls.at(-1)?.[0];
+  const match = mail?.text?.match(/token=([A-Za-z]+)/);
+  if (!match?.[1]) {
+    throw new Error('magic-link token missing from mail');
+  }
+  return match[1];
+}
+
+async function getVerificationExpiresAt(token: string): Promise<Date> {
+  const [row] = await db
+    .select({ expiresAt: verification.expiresAt })
+    .from(verification)
+    .where(eq(verification.identifier, token))
+    .limit(1);
+  if (!row) {
+    throw new Error('verification row missing');
+  }
+  return row.expiresAt;
+}
+
+async function deleteVerification(token: string): Promise<void> {
+  await db.delete(verification).where(eq(verification.identifier, token));
+}
 
 let approvedStatusId: number;
 let pendingRsvpStatusId: number;
@@ -131,8 +157,34 @@ afterAll(async () => {
 });
 
 describe('RSVP magic-link expiration / resend', () => {
-  test('documents the shared Better Auth magic-link lifetime (24h)', () => {
+  test('keeps the default sign-in magic-link lifetime at 24h', () => {
     expect(MAGIC_LINK_EXPIRES_IN_SECONDS).toBe(86400);
+  });
+
+  test('sign-in magic links still expire after 24h when no RSVP context is set', async () => {
+    vi.mocked(sendMail).mockClear();
+    const email = `login-lifetime-${Date.now()}@example.com`;
+
+    let token: string | undefined;
+    try {
+      await auth.api.signInMagicLink({
+        body: {
+          email,
+          callbackURL: '/dashboard',
+        },
+        headers: new Headers({ origin: 'http://localhost:3000' }),
+      });
+
+      token = magicLinkTokenFromLastMail();
+      const expiresAt = await getVerificationExpiresAt(token);
+      const expected = Date.now() + MAGIC_LINK_EXPIRES_IN_SECONDS * 1000;
+      expect(Math.abs(expiresAt.getTime() - expected)).toBeLessThan(5000);
+      expect(vi.mocked(sendMail).mock.calls[0]?.[0]?.subject).toBe(
+        'Sign in to MRUHacks',
+      );
+    } finally {
+      if (token) await deleteVerification(token);
+    }
   });
 
   test('resends a fresh magic link without creating a wave or response', async () => {
@@ -182,6 +234,15 @@ describe('RSVP magic-link expiration / resend', () => {
       );
       expect(mailCall?.subject).not.toBe('Sign in to MRUHacks');
       expect(mailCall?.html).toContain('View RSVP');
+
+      const token = magicLinkTokenFromLastMail();
+      const expiresAt = await getVerificationExpiresAt(token);
+      expect(
+        Math.abs(
+          expiresAt.getTime() - new Date('2099-12-01T00:00:00.000Z').getTime(),
+        ),
+      ).toBeLessThan(5000);
+      await deleteVerification(token);
 
       const [{ value: wavesAfter }] = await db
         .select({ value: count() })

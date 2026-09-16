@@ -8,6 +8,7 @@ import {
   eventRsvpWaves,
   rsvpStatuses,
   user,
+  verification,
 } from '@/db/schema';
 import {
   MAX_INVITATION_DELIVERY_ATTEMPTS,
@@ -94,6 +95,31 @@ async function deleteResponse(waveId: string): Promise<void> {
   await db.delete(eventRsvpWaves).where(eq(eventRsvpWaves.id, waveId));
 }
 
+function magicLinkTokenFromLastMail(): string {
+  const mail = vi.mocked(sendMail).mock.calls.at(-1)?.[0];
+  const match = mail?.text?.match(/token=([A-Za-z]+)/);
+  if (!match?.[1]) {
+    throw new Error('magic-link token missing from mail');
+  }
+  return match[1];
+}
+
+async function getVerificationExpiresAt(token: string): Promise<Date> {
+  const [row] = await db
+    .select({ expiresAt: verification.expiresAt })
+    .from(verification)
+    .where(eq(verification.identifier, token))
+    .limit(1);
+  if (!row) {
+    throw new Error('verification row missing');
+  }
+  return row.expiresAt;
+}
+
+async function deleteVerification(token: string): Promise<void> {
+  await db.delete(verification).where(eq(verification.identifier, token));
+}
+
 beforeAll(async () => {
   process.env.BETTER_AUTH_URL = 'http://localhost:3000';
 
@@ -133,11 +159,13 @@ describe('processRsvpInvitation', () => {
   test('sends the invitation and marks the response sent', async () => {
     vi.mocked(sendMail).mockClear();
     const signInSpy = vi.spyOn(auth.api, 'signInMagicLink');
+    const respondBy = new Date(Date.now() + 48 * 60 * 60 * 1000);
 
     const { responseId, waveId } = await createResponse({
-      respondBy: new Date('2099-08-01T23:59:59.000Z'),
+      respondBy,
     });
 
+    let token: string | undefined;
     try {
       const outcome = await processRsvpInvitation(responseId, 1);
       expect(outcome).toBe('sent');
@@ -148,8 +176,40 @@ describe('processRsvpInvitation', () => {
       expect(row.invitationEmailStatus).toBe('sent');
       expect(row.invitationEmailSentAt).not.toBeNull();
       expect(row.invitationEmailLastError).toBeNull();
+
+      token = magicLinkTokenFromLastMail();
+      const expiresAt = await getVerificationExpiresAt(token);
+      expect(Math.abs(expiresAt.getTime() - respondBy.getTime())).toBeLessThan(
+        5000,
+      );
     } finally {
       signInSpy.mockRestore();
+      if (token) await deleteVerification(token);
+      await deleteResponse(waveId);
+    }
+  });
+
+  test('magic-link lifetime uses remaining time until respondBy after delayed processing', async () => {
+    vi.mocked(sendMail).mockClear();
+    const respondBy = new Date(Date.now() + 90 * 60 * 1000);
+
+    const { responseId, waveId } = await createResponse({ respondBy });
+
+    let token: string | undefined;
+    try {
+      const outcome = await processRsvpInvitation(responseId, 1);
+      expect(outcome).toBe('sent');
+
+      token = magicLinkTokenFromLastMail();
+      const expiresAt = await getVerificationExpiresAt(token);
+      expect(Math.abs(expiresAt.getTime() - respondBy.getTime())).toBeLessThan(
+        5000,
+      );
+      expect(expiresAt.getTime()).toBeLessThan(
+        Date.now() + 48 * 60 * 60 * 1000,
+      );
+    } finally {
+      if (token) await deleteVerification(token);
       await deleteResponse(waveId);
     }
   });

@@ -3,13 +3,17 @@ import 'server-only';
 import { desc, eq } from 'drizzle-orm';
 
 import { eventRsvpWaves, events } from '@/db/schema';
-import { getEligibleRsvpApplicants } from '@/lib/rsvp/eligible-rsvp-applicants';
+import {
+  RSVP_WAVE_ALREADY_ACTIVE_MESSAGE,
+  RSVP_WAVE_EVENT_STARTED_MESSAGE,
+} from '@/lib/rsvp/constants';
+import { isRsvpWaveActive } from '@/lib/rsvp/compute-rsvp-respond-by';
 import { sendRsvpWave } from '@/lib/rsvp/send-rsvp-wave';
 import { timeoutExpiredRsvpResponses } from '@/lib/rsvp/timeout-expired-rsvp-responses';
 import { db } from '@/utils/db';
 
-/** Fallback RSVP window when a prior wave has no usable duration. */
-const DEFAULT_RESPOND_BY_MS = 48 * 60 * 60 * 1000;
+const NO_SPOTS_MESSAGE = 'No available spots remaining for this event.';
+const NO_ELIGIBLE_MESSAGE = 'No eligible applicants for the next RSVP wave.';
 
 export type ScheduledEventWaveResult = {
   eventId: string;
@@ -17,9 +21,10 @@ export type ScheduledEventWaveResult = {
   action:
     | 'sent'
     | 'skipped_no_prior_wave'
-    | 'skipped_already_ran_today'
+    | 'skipped_active_wave'
     | 'skipped_no_eligible'
     | 'skipped_no_capacity'
+    | 'skipped_event_started'
     | 'failed';
   detail?: string;
   waveNumber?: number;
@@ -40,34 +45,13 @@ export type RunScheduledRsvpWavesOptions = {
   now?: Date;
 };
 
-function sameUtcCalendarDay(a: Date, b: Date): boolean {
-  return (
-    a.getUTCFullYear() === b.getUTCFullYear() &&
-    a.getUTCMonth() === b.getUTCMonth() &&
-    a.getUTCDate() === b.getUTCDate()
-  );
-}
-
 /**
- * Next respond-by deadline for an automatic wave: reuse the previous wave's
- * invitation window (respondBy - createdAt), or fall back to 48 hours.
- */
-export function computeScheduledRespondBy(
-  previousWave: { respondBy: Date; createdAt: Date },
-  now: Date = new Date(),
-): Date {
-  const windowMs =
-    previousWave.respondBy.getTime() - previousWave.createdAt.getTime();
-  if (windowMs > 0) {
-    return new Date(now.getTime() + windowMs);
-  }
-  return new Date(now.getTime() + DEFAULT_RESPOND_BY_MS);
-}
-
-/**
- * Daily follow-up waves for events that already have an admin-started wave.
- * Does not create a first wave. Idempotent via same-UTC-day skip and
- * post-send pending responses clearing eligibility.
+ * Follow-up RSVP waves for events that already have an admin-started wave.
+ *
+ * Thin scheduler: skip when there is no prior wave or the latest wave is still
+ * active (`respond_by > now`). Expired pending rows are resolved with
+ * `timeoutExpiredRsvpResponses`, then `sendRsvpWave` owns selection, window,
+ * locking, and invitations. Does not create a first wave.
  */
 export async function runScheduledRsvpWaves(
   options: RunScheduledRsvpWavesOptions = {},
@@ -110,10 +94,8 @@ async function processEventScheduledWave(
 ): Promise<ScheduledEventWaveResult> {
   const [latestWave] = await db
     .select({
-      id: eventRsvpWaves.id,
       wave: eventRsvpWaves.wave,
       respondBy: eventRsvpWaves.respondBy,
-      createdAt: eventRsvpWaves.createdAt,
     })
     .from(eventRsvpWaves)
     .where(eq(eventRsvpWaves.eventId, eventId))
@@ -129,76 +111,19 @@ async function processEventScheduledWave(
     };
   }
 
-  if (sameUtcCalendarDay(latestWave.createdAt, now)) {
+  if (isRsvpWaveActive(latestWave.respondBy, now)) {
     return {
       eventId,
       eventName,
-      action: 'skipped_already_ran_today',
-      detail: 'A wave was already created for this event today (UTC).',
+      action: 'skipped_active_wave',
+      detail: 'The latest RSVP wave is still collecting responses.',
       waveNumber: latestWave.wave,
     };
   }
 
-  const eligibility = await getEligibleRsvpApplicants(eventId);
-  if (!eligibility) {
-    return {
-      eventId,
-      eventName,
-      action: 'failed',
-      detail: 'Event not found during eligibility check.',
-    };
-  }
-
-  if (eligibility.availableSpots === 0) {
-    return {
-      eventId,
-      eventName,
-      action: 'skipped_no_capacity',
-      detail: 'No available spots remaining.',
-      eligibleApplicantCount: eligibility.applicants.length,
-    };
-  }
-
-  if (eligibility.applicants.length === 0) {
-    return {
-      eventId,
-      eventName,
-      action: 'skipped_no_eligible',
-      detail: 'No eligible applicants for the next wave.',
-      eligibleApplicantCount: 0,
-    };
-  }
-
   const sendResult = await sendRsvpWave(eventId, { now });
-
   if (!sendResult.success) {
-    const [afterWave] = await db
-      .select({
-        wave: eventRsvpWaves.wave,
-        createdAt: eventRsvpWaves.createdAt,
-      })
-      .from(eventRsvpWaves)
-      .where(eq(eventRsvpWaves.eventId, eventId))
-      .orderBy(desc(eventRsvpWaves.wave))
-      .limit(1);
-
-    if (afterWave && sameUtcCalendarDay(afterWave.createdAt, now)) {
-      return {
-        eventId,
-        eventName,
-        action: 'skipped_already_ran_today',
-        detail: sendResult.error,
-        waveNumber: afterWave.wave,
-      };
-    }
-
-    return {
-      eventId,
-      eventName,
-      action: 'failed',
-      detail: sendResult.error,
-      eligibleApplicantCount: eligibility.applicants.length,
-    };
+    return mapSendFailure(eventId, eventName, sendResult.error);
   }
 
   return {
@@ -209,5 +134,50 @@ async function processEventScheduledWave(
     eligibleApplicantCount: sendResult.eligibleApplicantCount,
     responsesCreated: sendResult.responsesCreated,
     invitationsQueued: sendResult.invitationsQueued,
+  };
+}
+
+function mapSendFailure(
+  eventId: string,
+  eventName: string,
+  error: string,
+): ScheduledEventWaveResult {
+  if (error === RSVP_WAVE_ALREADY_ACTIVE_MESSAGE) {
+    return {
+      eventId,
+      eventName,
+      action: 'skipped_active_wave',
+      detail: error,
+    };
+  }
+  if (error === RSVP_WAVE_EVENT_STARTED_MESSAGE) {
+    return {
+      eventId,
+      eventName,
+      action: 'skipped_event_started',
+      detail: error,
+    };
+  }
+  if (error === NO_SPOTS_MESSAGE) {
+    return {
+      eventId,
+      eventName,
+      action: 'skipped_no_capacity',
+      detail: error,
+    };
+  }
+  if (error === NO_ELIGIBLE_MESSAGE) {
+    return {
+      eventId,
+      eventName,
+      action: 'skipped_no_eligible',
+      detail: error,
+    };
+  }
+  return {
+    eventId,
+    eventName,
+    action: 'failed',
+    detail: error,
   };
 }

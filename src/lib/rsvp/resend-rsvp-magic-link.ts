@@ -42,8 +42,8 @@ export type ResendRsvpMagicLinkOptions = {
 };
 
 /**
- * Sends a fresh magic link for an existing pending RSVP (e.g. when the 24h
- * auth token expired before `respondBy`). Does not create a wave or response.
+ * Sends a fresh magic link for an existing pending RSVP. Token lifetime is
+ * remaining time until the wave `respondBy`. Does not create a wave or response.
  */
 export async function resendRsvpMagicLink(
   options: ResendRsvpMagicLinkOptions,
