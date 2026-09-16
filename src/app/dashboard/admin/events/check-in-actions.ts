@@ -15,11 +15,7 @@ import {
 } from '@/db/schema';
 import { parseInstant } from '@/lib/datetime';
 import { requirePermission } from '@/lib/rbac/authorization';
-import {
-  verifyCheckInPayload,
-  verifyCheckInToken,
-  type CheckInClaims,
-} from '@/lib/wallet/check-in-token';
+import { readScannedToken } from '@/lib/wallet/scanned-token';
 import {
   getEventParticipation,
   resolveParticipantName,
@@ -77,21 +73,6 @@ export type CheckInUpdates = {
 /** Wall clock in America/Edmonton, computed by Postgres — never by JS Date. */
 const checkedInAtIsoSql = sql<string>`to_char(${checkIns.checkedInAt} AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`;
 const checkedInAtLabelSql = sql<string>`trim(to_char(${checkIns.checkedInAt} AT TIME ZONE 'America/Edmonton', 'Mon FMDD, YYYY, FMHH12:MI AM')) || ' MT'`;
-
-/**
- * Wallet passes encode the token as base64url text; the in-app QR encodes the
- * raw bytes. Both arrive base64url-encoded, so try the raw form first and then
- * the text form. Either way the Ed25519 check rejects a wrong guess.
- */
-function readScannedToken(payload: string): CheckInClaims | null {
-  const bytes = Buffer.from(payload, 'base64url');
-  if (bytes.length === 0) return null;
-
-  return (
-    verifyCheckInToken(bytes) ??
-    verifyCheckInPayload(bytes.toString('latin1').trim())
-  );
-}
 
 async function getScanner() {
   const actor = await getUser();

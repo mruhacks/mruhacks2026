@@ -2,37 +2,14 @@
 
 import * as React from 'react';
 import { BrowserQRCodeReader, type IScannerControls } from '@zxing/browser';
-import { ResultMetadataType, type Result } from '@zxing/library';
+import { type Result } from '@zxing/library';
 import { Camera, CameraOff } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { primeScanCue } from './scan-cue';
+import { payloadFromResult } from './scan-payload';
 
 const REPEAT_SCAN_COOLDOWN_MS = 5000;
-
-function toBase64Url(bytes: number[]): string {
-  return btoa(String.fromCharCode(...bytes))
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=+$/, '');
-}
-
-/**
- * Byte segments are the only lossless view of a byte-mode QR: `getText()`
- * runs it through a charset guess that mangles the signature. Wallet passes
- * carry plain base64url ASCII and survive either path.
- */
-function payloadFromResult(result: Result): string {
-  const segments = result
-    .getResultMetadata()
-    ?.get(ResultMetadataType.BYTE_SEGMENTS) as ArrayLike<number>[] | undefined;
-
-  const bytes = segments?.length
-    ? segments.flatMap((segment) => Array.from(segment, (byte) => byte & 0xff))
-    : Array.from(result.getText(), (char) => char.charCodeAt(0) & 0xff);
-
-  return toBase64Url(bytes);
-}
 
 /**
  * A bare `facingMode: 'environment'` is only advisory, so a phone may still
