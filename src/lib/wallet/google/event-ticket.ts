@@ -3,6 +3,7 @@ import 'server-only';
 import jwt from 'jsonwebtoken';
 
 import { MRUHACKS_LOGO_URL } from '@/content';
+import { EVENT_TIME_ZONE, toZonedOffsetString } from '@/lib/datetime';
 import { walletApiRequest } from './client';
 import { getGoogleWalletConfig } from './config';
 
@@ -72,9 +73,16 @@ function buildClassBody(
       : {}),
     ...(startsAt || endsAt
       ? {
+          // Venue wall clock, not UTC: Google prints the offset-less portion
+          // of these verbatim rather than converting it to the viewer's or
+          // the venue's zone.
           dateTime: {
-            ...(startsAt ? { start: startsAt.toISOString() } : {}),
-            ...(endsAt ? { end: endsAt.toISOString() } : {}),
+            ...(startsAt
+              ? { start: toZonedOffsetString(startsAt, EVENT_TIME_ZONE) }
+              : {}),
+            ...(endsAt
+              ? { end: toZonedOffsetString(endsAt, EVENT_TIME_ZONE) }
+              : {}),
           },
         }
       : {}),
@@ -121,7 +129,14 @@ function buildObjectBody(
         body: participant.name,
       },
     ],
-    barcode: { type: 'QR_CODE', value: participant.checkInPayload },
+    barcode: {
+      type: 'QR_CODE',
+      value: participant.checkInPayload,
+      // Without this, the Android app prints the raw signed payload under the
+      // QR code (Apple only shows an `altText` when one is set, so the .pkpass
+      // needs no equivalent).
+      alternateText: `${participant.name} · ${participant.eventName}`,
+    },
   };
 }
 
