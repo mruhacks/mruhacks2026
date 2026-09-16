@@ -119,8 +119,7 @@ export function CreateEventDialog() {
                 id='capacity'
                 type='number'
                 {...register('capacity', {
-                  setValueAs: (value) =>
-                    value === '' ? undefined : Number(value),
+                  setValueAs: (value) => (value === '' ? null : Number(value)),
                 })}
                 placeholder='e.g. 100'
               />
@@ -217,7 +216,7 @@ export function CreateEventDialog() {
                   step='any'
                   {...register('latitude', {
                     setValueAs: (value) =>
-                      value === '' ? undefined : Number(value),
+                      value === '' ? null : Number(value),
                   })}
                   placeholder='Latitude'
                 />
@@ -227,7 +226,7 @@ export function CreateEventDialog() {
                   step='any'
                   {...register('longitude', {
                     setValueAs: (value) =>
-                      value === '' ? undefined : Number(value),
+                      value === '' ? null : Number(value),
                   })}
                   placeholder='Longitude'
                 />
@@ -236,7 +235,7 @@ export function CreateEventDialog() {
                   type='number'
                   {...register('radiusMeters', {
                     setValueAs: (value) =>
-                      value === '' ? undefined : Number(value),
+                      value === '' ? null : Number(value),
                   })}
                   placeholder='Radius (m)'
                 />

@@ -6,7 +6,12 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 
 export type EventTabId =
-  'overview' | 'questions' | 'responses' | 'teams' | 'wiki';
+  | 'overview'
+  | 'questions'
+  | 'responses'
+  | 'checkin'
+  | 'teams'
+  | 'wiki';
 
 type Tab = { id: EventTabId; label: string; content: React.ReactNode };
 
@@ -21,7 +26,7 @@ export function EventTabs({ eventId, tabs }: Props) {
   return (
     <div className='space-y-6'>
       {/* Tab Navigation */}
-      <div className='flex gap-2 border-b'>
+      <div className='no-scrollbar flex gap-2 overflow-x-auto border-b'>
         {tabs.map((tab) => (
           <Button
             key={tab.id}

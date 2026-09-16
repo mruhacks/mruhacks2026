@@ -5,6 +5,7 @@ import {
   DEFAULT_LOCALE,
   EVENT_TIME_ZONE,
   formatInstant,
+  parseInstant,
   timeZoneAbbreviation,
 } from '@/lib/datetime';
 
@@ -46,30 +47,41 @@ export function useZoneAbbreviation(datetimeLocalValue?: string): string {
 }
 
 function toDate(value: Date | string | null): Date | null {
-  if (value === null) return null;
-  const date = value instanceof Date ? value : new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date;
+  return parseInstant(value);
 }
 
 export function LocalDateTime({
   value,
   dateStyle = 'medium',
   timeStyle,
+  timeZone: timeZoneProp,
+  timeZoneName,
   className,
 }: {
   value: Date | string | null;
   dateStyle?: Intl.DateTimeFormatOptions['dateStyle'];
   timeStyle?: Intl.DateTimeFormatOptions['timeStyle'];
+  /** Defaults to the event venue (America/Edmonton). Do not fall back to
+   *  the browser zone — a laptop set to UTC otherwise shows 10pm for 4pm MDT. */
+  timeZone?: string;
+  timeZoneName?: Intl.DateTimeFormatOptions['timeZoneName'];
   className?: string;
 }) {
-  const timeZone = useDisplayTimeZone();
-  const locale = useDisplayLocale();
+  const locale = DEFAULT_LOCALE;
+  const timeZone = timeZoneProp ?? EVENT_TIME_ZONE;
   const date = toDate(value);
   if (!date) return null;
 
+  const text = formatInstant(date, timeZone, locale, { dateStyle, timeStyle });
+  // dateStyle/timeStyle cannot be mixed with timeZoneName in Intl.
+  const labeled =
+    timeZoneName === 'short'
+      ? `${text} ${timeZoneAbbreviation(timeZone, date)}`
+      : text;
+
   return (
     <time dateTime={date.toISOString()} className={className}>
-      {formatInstant(date, timeZone, locale, { dateStyle, timeStyle })}
+      {labeled}
     </time>
   );
 }
@@ -94,8 +106,8 @@ export function LocalDateRange({
   singleTimeStyle?: Intl.DateTimeFormatOptions['timeStyle'];
   className?: string;
 }) {
-  const timeZone = useDisplayTimeZone();
-  const locale = useDisplayLocale();
+  const locale = DEFAULT_LOCALE;
+  const timeZone = EVENT_TIME_ZONE;
   const startDate = toDate(start);
   if (!startDate) return <span className={className}>Date TBA</span>;
 
