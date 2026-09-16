@@ -20,10 +20,11 @@ import { CheckInRoster } from './check-in-roster';
 import { CheckInScanner } from './check-in-scanner';
 import {
   applyCheckIn,
+  browserPollingHost,
   clearCheckIn,
   mergeCheckInUpdates,
   rosterWatermark,
-  ROSTER_POLL_INTERVAL_MS,
+  startRosterPolling,
 } from './roster-sync';
 import { playScanCue } from './scan-cue';
 
@@ -149,7 +150,7 @@ export default function CheckInPage({ params }: CheckInPageProps) {
     let inFlight = false;
 
     async function poll(currentEventId: string) {
-      if (inFlight || document.hidden) return;
+      if (inFlight) return;
       inFlight = true;
       const seq = mutationSeqRef.current;
 
@@ -183,16 +184,17 @@ export default function CheckInPage({ params }: CheckInPageProps) {
       }
     }
 
-    const tick = () => void poll(eventId);
-    const timer = setInterval(tick, ROSTER_POLL_INTERVAL_MS);
-    // A phone that was asleep in a pocket wakes with a stale list; waiting out
-    // the interval makes it look frozen at exactly the wrong moment.
-    document.addEventListener('visibilitychange', tick);
+    // The scheduler owns when a poll may run — it stops the interval outright
+    // while the page is backgrounded or unfocused, and polls the moment it
+    // comes back.
+    const stopPolling = startRosterPolling(
+      () => void poll(eventId),
+      browserPollingHost(),
+    );
 
     return () => {
       cancelled = true;
-      clearInterval(timer);
-      document.removeEventListener('visibilitychange', tick);
+      stopPolling();
     };
   }, [eventId, loading, loadError]);
 

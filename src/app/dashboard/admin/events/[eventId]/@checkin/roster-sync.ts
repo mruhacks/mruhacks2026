@@ -138,3 +138,86 @@ function patchRow(
   patched[index] = { ...rows[index], ...fields };
   return patched;
 }
+
+export type PollingHost = {
+  /** Whether the page is in front of somebody right now. */
+  isActive: () => boolean;
+  /** Announces every change to that answer. Returns an unsubscribe. */
+  subscribe: (onChange: () => void) => () => void;
+};
+
+/**
+ * Two ways for this page to be nobody's problem: the tab is backgrounded, or
+ * the tab is visible but its window sits behind another one. `document.hidden`
+ * answers the first and `document.hasFocus()` the second, and a given
+ * transition may fire only one of the two events, so both are watched.
+ */
+export function browserPollingHost(): PollingHost {
+  return {
+    isActive: () => !document.hidden && document.hasFocus(),
+    subscribe: (onChange) => {
+      document.addEventListener('visibilitychange', onChange);
+      window.addEventListener('focus', onChange);
+      window.addEventListener('blur', onChange);
+      return () => {
+        document.removeEventListener('visibilitychange', onChange);
+        window.removeEventListener('focus', onChange);
+        window.removeEventListener('blur', onChange);
+      };
+    },
+  };
+}
+
+/**
+ * Polls while the page is active and not a moment longer — a check-in desk
+ * left open on a spare laptop all weekend should cost nothing.
+ *
+ * Coming back always polls immediately: however long they were away is
+ * exactly how stale the list is, and making somebody watch a wrong roster
+ * for another fifteen seconds is the moment they stop trusting it.
+ *
+ * Returns a function that stops everything.
+ */
+export function startRosterPolling(
+  poll: () => void,
+  host: PollingHost,
+  intervalMs: number = ROSTER_POLL_INTERVAL_MS,
+): () => void {
+  let timer: ReturnType<typeof setInterval> | null = null;
+
+  const start = () => {
+    if (timer === null) timer = setInterval(poll, intervalMs);
+  };
+  const stop = () => {
+    if (timer !== null) {
+      clearInterval(timer);
+      timer = null;
+    }
+  };
+
+  // Seeded from the current state rather than from `false`, so starting out
+  // active is not mistaken for a return and does not poll a roster the
+  // caller has only just finished loading.
+  let active = host.isActive();
+  if (active) start();
+
+  const unsubscribe = host.subscribe(() => {
+    const nowActive = host.isActive();
+    // Switching tabs fires both a blur and a visibilitychange; the second one
+    // is not a second transition.
+    if (nowActive === active) return;
+    active = nowActive;
+
+    if (!active) {
+      stop();
+      return;
+    }
+    poll();
+    start();
+  });
+
+  return () => {
+    unsubscribe();
+    stop();
+  };
+}
