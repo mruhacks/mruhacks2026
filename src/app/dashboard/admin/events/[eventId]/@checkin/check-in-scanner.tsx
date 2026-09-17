@@ -117,7 +117,9 @@ export function CheckInScanner({ onPayload }: CheckInScannerProps) {
           <Scanner
             onScan={handleScan}
             onError={handleError}
-            formats={['qr_code']}
+            // Google Wallet and the standalone in-app QR use qr_code; the
+            // Apple Wallet pass uses aztec (see generate-pass.ts).
+            formats={['qr_code', 'aztec']}
             constraints={{ facingMode: 'environment' }}
             sound={false}
             allowMultiple

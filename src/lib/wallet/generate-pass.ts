@@ -141,7 +141,7 @@ export async function generateParticipantPass(
   }
 
   pass.setBarcodes({
-    format: 'PKBarcodeFormatQR',
+    format: 'PKBarcodeFormatAztec',
     message: buildCheckInPayload(participant.eventId, participant.userId),
     // Deterministic encoding across scanners, rather than leaving passkit-generator's default unstated.
     messageEncoding: 'iso-8859-1',
