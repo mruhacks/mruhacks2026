@@ -210,7 +210,9 @@ export function DataTable<TData, TValue>({
                         checked={c.getIsVisible()}
                         onCheckedChange={(v) => c.toggleVisibility(!!v)}
                       >
-                        {c.id}
+                        {typeof c.columnDef.header === 'string'
+                          ? c.columnDef.header
+                          : c.id}
                       </DropdownMenuCheckboxItem>
                     ))}
                 </DropdownMenuContent>

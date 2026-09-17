@@ -9,6 +9,7 @@ import { EVENTS_CACHE_TAG } from '@/lib/events';
 import {
   events,
   eventApplications,
+  eventAttendees,
   user,
   userProfiles,
   teams,
@@ -428,6 +429,7 @@ export type EventDetails = {
   updatedAt: Date;
   questionsCount: number;
   applicationsCount: number;
+  attendeesCount: number;
 };
 
 /**
@@ -454,6 +456,11 @@ export async function getEventDetails(
     .from(eventApplications)
     .where(eq(eventApplications.eventId, eventId));
 
+  const [{ total: attendeesCount }] = await db
+    .select({ total: count() })
+    .from(eventAttendees)
+    .where(eq(eventAttendees.eventId, eventId));
+
   const questions = await fetchQuestions(eventId);
   const questionsCount = (questions ?? []).filter((q) => q.active).length;
 
@@ -476,6 +483,7 @@ export async function getEventDetails(
     updatedAt: eventRow.updatedAt,
     questionsCount,
     applicationsCount,
+    attendeesCount,
   });
 }
 
@@ -638,6 +646,48 @@ export async function getApplicationResponses(
       fullName: row.fullName || 'Unknown',
       responses: (row.responses as Record<string, unknown>) ?? {},
       createdAt: row.createdAt,
+    })),
+  );
+}
+
+export type EventAttendeeRow = {
+  userId: string;
+  email: string;
+  fullName: string;
+  registeredAt: Date;
+};
+
+/**
+ * Fetches all registered attendees for an event (the simple signup path used
+ * by events without an application flow).
+ * Requires event:manage permission.
+ */
+export async function getEventAttendees(
+  eventId: string,
+): Promise<ActionResult<EventAttendeeRow[]>> {
+  const authUser = await getUser();
+  if (!authUser) return fail('Not authenticated');
+  await requirePermission(authUser.id, 'event:manage');
+
+  const rows = await db
+    .select({
+      userId: eventAttendees.userId,
+      email: user.email,
+      fullName: userProfiles.fullName,
+      registeredAt: eventAttendees.registeredAt,
+    })
+    .from(eventAttendees)
+    .innerJoin(user, eq(eventAttendees.userId, user.id))
+    .leftJoin(userProfiles, eq(eventAttendees.userId, userProfiles.userId))
+    .where(eq(eventAttendees.eventId, eventId))
+    .orderBy(eventAttendees.registeredAt);
+
+  return ok(
+    rows.map((row) => ({
+      userId: row.userId,
+      email: row.email,
+      fullName: row.fullName || 'Unknown',
+      registeredAt: row.registeredAt,
     })),
   );
 }
