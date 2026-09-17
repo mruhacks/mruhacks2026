@@ -27,6 +27,7 @@ import {
   jsonb,
   uniqueIndex,
   primaryKey,
+  doublePrecision,
 } from 'drizzle-orm/pg-core';
 import { relations, sql } from 'drizzle-orm';
 
@@ -76,6 +77,15 @@ export const events = pgTable(
       .default(sql`'[]'::jsonb`),
     startsAt: timestamp('starts_at', { withTimezone: true }),
     endsAt: timestamp('ends_at', { withTimezone: true }),
+    /** Free-text venue/location, shown on the event page and Apple Wallet pass. */
+    location: text('location'),
+    /**
+     * Geofence center for the Apple Wallet pass's location-based relevance.
+     * All three are set together or not at all (enforced in actions.ts).
+     */
+    latitude: doublePrecision('latitude'),
+    longitude: doublePrecision('longitude'),
+    radiusMeters: integer('radius_meters'),
     capacity: integer('capacity'),
     // Marks the single event whose registerUrl the public site links to.
     isFeatured: boolean('is_featured').notNull().default(false),
@@ -288,6 +298,9 @@ export const checkIns = pgTable(
     checkedInAt: timestamp('checked_in_at', { withTimezone: true })
       .defaultNow()
       .notNull(),
+    checkedInBy: uuid('checked_in_by').references(() => user.id, {
+      onDelete: 'set null',
+    }),
   },
   (table) => ({
     userEventUnique: uniqueIndex('check_ins_user_id_event_id_unique').on(

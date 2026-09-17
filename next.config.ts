@@ -49,14 +49,22 @@ const nextConfig: NextConfig = {
               "default-src 'self'",
               // 'unsafe-eval' is dev-only: Turbopack/React use eval() for HMR and
               // debugging call stacks. Never present in production builds.
+              // 'wasm-unsafe-eval' is the narrow counterpart for compiling/
+              // instantiating WebAssembly — needed in every build, since the
+              // check-in scanner's QR decoder (@yudiel/react-qr-scanner, via
+              // barcode-detector/zxing-wasm) does that at runtime. Unlike
+              // 'unsafe-eval', it does not allow string-to-code eval()/Function().
               // static.cloudflareinsights.com is Cloudflare's own edge-injected
               // Web Analytics beacon (present whenever the zone is proxied through
               // Cloudflare with that feature on) — not something this app loads itself.
-              `script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://static.cloudflareinsights.com${isDev ? " 'unsafe-eval'" : ''}`,
+              `script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://challenges.cloudflare.com https://static.cloudflareinsights.com${isDev ? " 'unsafe-eval'" : ''}`,
               "style-src 'self' 'unsafe-inline'",
               `img-src 'self' data: https://avatars.githubusercontent.com https://cdn.jsdelivr.net https://lh3.googleusercontent.com${s3Origin ? ` ${s3Origin}` : ''}`,
               "font-src 'self' data:",
-              `connect-src 'self' https://challenges.cloudflare.com https://cloudflareinsights.com${s3Origin ? ` ${s3Origin}` : ''}`,
+              // fastly.jsdelivr.net: the check-in scanner's QR decoder
+              // (@yudiel/react-qr-scanner, via barcode-detector/zxing-wasm)
+              // fetches its wasm binary from there by default.
+              `connect-src 'self' https://challenges.cloudflare.com https://cloudflareinsights.com https://fastly.jsdelivr.net${s3Origin ? ` ${s3Origin}` : ''}`,
               // Cloudflare Turnstile renders its challenge in an iframe from this origin.
               'frame-src https://challenges.cloudflare.com',
               "frame-ancestors 'none'",
@@ -72,9 +80,14 @@ const nextConfig: NextConfig = {
           { key: 'X-Content-Type-Options', value: 'nosniff' },
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
           {
+            // `camera=(self)` rather than `()`: the check-in scanner calls
+            // getUserMedia, and an empty allowlist blocks it on our own
+            // origin too — getUserMedia then throws NotAllowedError no
+            // matter what the user has granted. `self` still keeps the
+            // camera away from any embedded third-party frame.
             key: 'Permissions-Policy',
             value:
-              'camera=(), microphone=(), geolocation=(), payment=(), usb=()',
+              'camera=(self), microphone=(), geolocation=(), payment=(), usb=()',
           },
         ],
       },
@@ -104,6 +117,15 @@ const nextConfig: NextConfig = {
       { protocol: 'https', hostname: 'lh3.googleusercontent.com' },
     ],
   },
+  // `generate-pass.ts` loads the .pass model directory via `process.cwd()`
+  // at runtime rather than a static import, so the build's file tracer has
+  // no `import`/`require` to see and won't bundle it on its own. This is
+  // the mechanism Next's own docs recommend for exactly that case (see
+  // node_modules/next/dist/docs/.../output.md's outputFileTracingIncludes
+  // section) — not a workaround for a missing feature.
+  outputFileTracingIncludes: {
+    '/api/wallet/pass/[eventId]': ['./src/lib/wallet/mruhacks.pass/**'],
+  },
   cacheComponents: true,
   // Lets `<Link>` prefetch each route's cached/static App Shell instead of
   // nothing (dynamic routes) or a full uncached render. See AGENTS.md.
@@ -111,6 +133,7 @@ const nextConfig: NextConfig = {
   env: {
     BUILD_INFO: getBuildInfo(),
   },
+  allowedDevOrigins: ['thomas-desktop.local'],
 };
 
 export default nextConfig;

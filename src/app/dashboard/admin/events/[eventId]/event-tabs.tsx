@@ -9,6 +9,7 @@ export type EventTabId =
   | 'overview'
   | 'questions'
   | 'responses'
+  | 'checkin'
   | 'teams'
   | 'wiki';
 
@@ -25,7 +26,7 @@ export function EventTabs({ eventId, tabs }: Props) {
   return (
     <div className='space-y-6'>
       {/* Tab Navigation */}
-      <div className='flex gap-2 border-b'>
+      <div className='no-scrollbar flex gap-2 overflow-x-auto border-b'>
         {tabs.map((tab) => (
           <Button
             key={tab.id}

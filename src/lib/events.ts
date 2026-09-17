@@ -22,6 +22,7 @@ export async function getAllEvents() {
     .select({
       id: events.id,
       name: events.name,
+      parentEventId: events.parentEventId,
       hasApplication: events.hasApplication,
       startsAt: events.startsAt,
       endsAt: events.endsAt,

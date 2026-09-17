@@ -229,8 +229,43 @@
     {
       "idx": 32,
       "version": "7",
+      "when": 1788020968755,
+      "tag": "0032_add_event_location",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1788021367756,
+      "tag": "0033_drop_event_location",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1788021374279,
+      "tag": "0034_add_event_geofence",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1788021401197,
+      "tag": "0035_restore_event_location",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
       "when": 1788460371813,
-      "tag": "0032_chubby_doctor_strange",
+      "tag": "0036_chubby_doctor_strange",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1789371869814,
+      "tag": "0037_sharp_hellion",
       "breakpoints": true
     }
   ]

@@ -17,6 +17,13 @@ import { LocalDateRange } from '@/components/local-date-time';
 import { RegisterEventButton } from '@/app/dashboard/events/RegisterEventButton';
 import { UnregisterEventButton } from '@/app/dashboard/events/UnregisterEventButton';
 import { TeamPanel } from '@/app/dashboard/events/team/TeamPanel';
+import { AddToWalletButton } from '@/components/add-to-wallet-button';
+import { AddToGoogleWalletButton } from '@/components/add-to-google-wallet-button';
+import { EventTicketButton } from '@/components/event-ticket-button';
+import {
+  detectWalletPlatform,
+  type WalletPlatform,
+} from '@/lib/wallet/detect-platform';
 import {
   Card,
   CardContent,
@@ -63,6 +70,8 @@ export default async function EventEntryPage({ params, searchParams }: Props) {
   const joinCode = Array.isArray(rawJoinCode) ? rawJoinCode[0] : rawJoinCode;
   const user = await getUser();
   if (!user) redirect('/signin');
+
+  const walletPlatform = await detectWalletPlatform();
 
   const [row] = await db
     .select({
@@ -122,6 +131,7 @@ export default async function EventEntryPage({ params, searchParams }: Props) {
           <ApplicationParticipationPanel
             eventId={eventId}
             applicationStatus={applicationStatus}
+            walletPlatform={walletPlatform}
           />
         }
         team={
@@ -164,6 +174,7 @@ export default async function EventEntryPage({ params, searchParams }: Props) {
         <RegistrationParticipationPanel
           eventId={eventId}
           isRegistered={isRegistered}
+          walletPlatform={walletPlatform}
         />
       }
       team={
@@ -250,12 +261,28 @@ function EventPageLayout({
   );
 }
 
+/** Shows exactly one wallet action, picked by the visitor's detected platform. */
+function WalletAction({
+  eventId,
+  walletPlatform,
+}: {
+  eventId: string;
+  walletPlatform: WalletPlatform;
+}) {
+  if (walletPlatform === 'apple')
+    return <AddToWalletButton eventId={eventId} />;
+  if (walletPlatform === 'google')
+    return <AddToGoogleWalletButton eventId={eventId} />;
+}
+
 function ApplicationParticipationPanel({
   eventId,
   applicationStatus,
+  walletPlatform,
 }: {
   eventId: string;
   applicationStatus: ApplicationStatusForUser | null;
+  walletPlatform: WalletPlatform;
 }) {
   if (applicationStatus) {
     return (
@@ -269,6 +296,12 @@ function ApplicationParticipationPanel({
             editHref={`/dashboard/events/${eventId}/apply`}
           />
         </CardContent>
+        {applicationStatus.statusKey === 'approved' && (
+          <CardFooter className='flex flex-row gap-2'>
+            <WalletAction eventId={eventId} walletPlatform={walletPlatform} />
+            <EventTicketButton eventId={eventId} />
+          </CardFooter>
+        )}
       </Card>
     );
   }
@@ -296,9 +329,11 @@ function ApplicationParticipationPanel({
 function RegistrationParticipationPanel({
   eventId,
   isRegistered,
+  walletPlatform,
 }: {
   eventId: string;
   isRegistered: boolean;
+  walletPlatform: WalletPlatform;
 }) {
   if (isRegistered) {
     return (
@@ -312,7 +347,14 @@ function RegistrationParticipationPanel({
             Your spot is confirmed. We&apos;ll see you there!
           </CardDescription>
         </CardHeader>
-        <CardFooter>
+        <CardFooter className='flex-col gap-2'>
+          <div className='flex flex-row gap-2'>
+            <WalletAction eventId={eventId} walletPlatform={walletPlatform} />
+            <EventTicketButton eventId={eventId} />
+          </div>
+          <p className='text-muted-foreground text-center text-xs'>
+            Tip: add your pass on your phone for faster check-in.
+          </p>
           <UnregisterEventButton eventId={eventId} className='w-full' />
         </CardFooter>
       </Card>

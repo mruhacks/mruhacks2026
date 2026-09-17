@@ -5,6 +5,9 @@ export const EVENT_LOCATION_DISPLAY = 'In-Person Event @ Riddell Library';
 export const REGISTRATION_OPEN = true;
 export const LOGIN_ENABLED = true;
 
+/** Publicly hosted (not build-bundled) so external services like Google Wallet can fetch it directly. */
+export const MRUHACKS_LOGO_URL = 'https://static.mruhacks.ca/color_chevron.png';
+
 export const INTRO_BLURB: string = `
 MRUHacks is Mount Royal University’s largest hackathon, bringing
 students together for an immersive three-day experience focused on

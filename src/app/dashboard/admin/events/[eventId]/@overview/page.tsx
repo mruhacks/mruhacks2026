@@ -80,6 +80,10 @@ export default function EventOverviewPage({ params }: EventOverviewPageProps) {
           endsAt: result.data.endsAt
             ? result.data.endsAt.toISOString()
             : undefined,
+          location: result.data.location ?? undefined,
+          latitude: result.data.latitude ?? undefined,
+          longitude: result.data.longitude ?? undefined,
+          radiusMeters: result.data.radiusMeters ?? undefined,
           isFeatured: result.data.isFeatured,
           teamsEnabled: result.data.teamsEnabled,
           maxTeamSize: result.data.maxTeamSize ?? undefined,
@@ -240,6 +244,25 @@ export default function EventOverviewPage({ params }: EventOverviewPageProps) {
                   </p>
                 </div>
               )}
+              {event.location && (
+                <div>
+                  <p className='text-muted-foreground text-xs font-semibold uppercase'>
+                    Location
+                  </p>
+                  <p className='mt-1 text-sm'>{event.location}</p>
+                </div>
+              )}
+              {event.latitude != null && event.longitude != null && (
+                <div>
+                  <p className='text-muted-foreground text-xs font-semibold uppercase'>
+                    Pass Geofence
+                  </p>
+                  <p className='mt-1 text-sm'>
+                    {event.latitude.toFixed(5)}, {event.longitude.toFixed(5)}{' '}
+                    (radius {event.radiusMeters}m)
+                  </p>
+                </div>
+              )}
               <div>
                 <p className='text-muted-foreground text-xs font-semibold uppercase'>
                   Featured on Homepage
@@ -306,7 +329,7 @@ export default function EventOverviewPage({ params }: EventOverviewPageProps) {
                     type='number'
                     {...register('capacity', {
                       setValueAs: (value) =>
-                        value === '' ? undefined : Number(value),
+                        value === '' ? null : Number(value),
                     })}
                     placeholder='e.g. 100'
                   />
@@ -373,6 +396,71 @@ export default function EventOverviewPage({ params }: EventOverviewPageProps) {
                     )}
                   />
                   {errors.endsAt && <FieldError errors={[errors.endsAt]} />}
+                </Field>
+
+                {/* Location */}
+                <Field>
+                  <FieldLabel htmlFor='location'>
+                    Location (optional)
+                  </FieldLabel>
+                  <FieldDescription>
+                    Shown on the event page and Apple Wallet pass
+                  </FieldDescription>
+                  <Input
+                    id='location'
+                    {...register('location')}
+                    placeholder='e.g. Riddell Library & Learning Centre'
+                  />
+                  {errors.location && <FieldError errors={[errors.location]} />}
+                </Field>
+
+                {/* Geofence (lat/long/radius) */}
+                <Field>
+                  <FieldLabel htmlFor='latitude'>
+                    Pass geofence (optional)
+                  </FieldLabel>
+                  <FieldDescription>
+                    Triggers the Apple Wallet pass when nearby. Set all three,
+                    or leave all blank.
+                  </FieldDescription>
+                  <div className='grid grid-cols-3 gap-2'>
+                    <Input
+                      id='latitude'
+                      type='number'
+                      step='any'
+                      {...register('latitude', {
+                        setValueAs: (value) =>
+                          value === '' ? null : Number(value),
+                      })}
+                      placeholder='Latitude'
+                    />
+                    <Input
+                      id='longitude'
+                      type='number'
+                      step='any'
+                      {...register('longitude', {
+                        setValueAs: (value) =>
+                          value === '' ? null : Number(value),
+                      })}
+                      placeholder='Longitude'
+                    />
+                    <Input
+                      id='radiusMeters'
+                      type='number'
+                      {...register('radiusMeters', {
+                        setValueAs: (value) =>
+                          value === '' ? null : Number(value),
+                      })}
+                      placeholder='Radius (m)'
+                    />
+                  </div>
+                  {errors.latitude && <FieldError errors={[errors.latitude]} />}
+                  {errors.longitude && (
+                    <FieldError errors={[errors.longitude]} />
+                  )}
+                  {errors.radiusMeters && (
+                    <FieldError errors={[errors.radiusMeters]} />
+                  )}
                 </Field>
 
                 {/* Featured on homepage */}

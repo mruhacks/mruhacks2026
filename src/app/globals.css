@@ -458,3 +458,15 @@
     font-weight: var(--fw-semibold);
   }
 }
+
+/* ── Horizontal scrollers ─────────────────────────────────────────
+   Tab strips and filter rows that scroll sideways on narrow screens,
+   where a visible scrollbar reads as a stray rule under the row. */
+@utility no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}

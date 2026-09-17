@@ -369,6 +369,7 @@ export async function getUserApplicationStatus(
 export type EventWithUserStatus = {
   id: string;
   name: string;
+  parentEventId: string | null;
   hasApplication: boolean;
   startsAt: Date | null;
   endsAt: Date | null;
@@ -430,6 +431,7 @@ export async function getEventsWithUserStatus(): Promise<
     return {
       id: e.id,
       name: e.name,
+      parentEventId: e.parentEventId,
       hasApplication: e.hasApplication,
       startsAt: e.startsAt,
       endsAt: e.endsAt,

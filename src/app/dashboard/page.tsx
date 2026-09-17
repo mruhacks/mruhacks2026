@@ -203,9 +203,17 @@ function EventsSkeleton() {
   );
 }
 
-async function MyEvents() {
+// Fetches events and renders the "My events" list behind its own Suspense
+// boundary so the page shell above ships immediately.
+async function DashboardEvents() {
   const events = await getEventsWithUserStatus();
-  return <EventTileList events={events} />;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      <SectionEyebrow color='var(--black)'>My events</SectionEyebrow>
+      <EventTileList events={events} />
+    </div>
+  );
 }
 
 export default function Dashboard() {
@@ -242,13 +250,9 @@ export default function Dashboard() {
         </p>
       </div>
 
-      {/* Events list */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-        <SectionEyebrow color='var(--black)'>My events</SectionEyebrow>
-        <Suspense fallback={<EventsSkeleton />}>
-          <MyEvents />
-        </Suspense>
-      </div>
+      <Suspense fallback={<EventsSkeleton />}>
+        <DashboardEvents />
+      </Suspense>
 
       {/* Admin panel — only renders for users with admin permissions */}
       <Suspense fallback={<AdminPanelSkeleton />}>
