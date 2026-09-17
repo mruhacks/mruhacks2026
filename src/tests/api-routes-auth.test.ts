@@ -673,8 +673,6 @@ describe('/api/wallet/qr/[eventId] GET', () => {
     expect(buildCheckInToken).toHaveBeenCalledWith(
       openEventId,
       registeredUserId,
-      'Participant',
-      expect.any(Date),
     );
     const body = await res.text();
     expect(body).toContain('<svg');

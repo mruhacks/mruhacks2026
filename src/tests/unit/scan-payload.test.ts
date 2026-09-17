@@ -20,8 +20,6 @@ import { readScannedToken } from '@/lib/wallet/scanned-token';
 
 const EVENT_ID = '12fb1fbc-df26-4693-9172-ab75a6b25952';
 const USER_ID = '8a21582f-4fbe-4959-a5b8-3db8ddff1535';
-const NAME = 'Thomas Kapocsi';
-const EXPIRES_AT = new Date('2026-09-17T00:00:00Z');
 
 const { privateKey } = generateKeyPairSync('ed25519', {
   privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
@@ -77,13 +75,25 @@ function scan(qr: QRCode.QRCode): Result {
 describe('payloadFromResult', () => {
   // Built per test, not once at collection time: the signing key only exists
   // from `beforeAll` onwards.
-  const buildPayload = () =>
-    buildCheckInPayload(EVENT_ID, USER_ID, NAME, EXPIRES_AT);
+  const buildPayload = () => buildCheckInPayload(EVENT_ID, USER_ID);
 
   it('reads a pass whose encoder split the payload across QR modes', () => {
-    // Apple Wallet's encoder does this: the payload's leading characters fit
-    // alphanumeric mode, so they land outside BYTE_SEGMENTS entirely.
-    const qr = QRCode.create(buildPayload(), { errorCorrectionLevel: 'M' });
+    // Apple Wallet's encoder does this: whenever the payload's leading
+    // characters fit alphanumeric mode, it segments them separately, so
+    // BYTE_SEGMENTS alone comes back missing them. The token always starts
+    // with 'A' (base64url of the fixed version byte), which is alphanumeric
+    // -safe, so split there explicitly — the auto-segmenter only bothers
+    // with this split when it judges it worth the overhead, which a token
+    // this short doesn't always meet, but a real encoder can still choose to
+    // split it and `payloadFromResult` must handle that either way.
+    const payload = buildPayload();
+    const qr = QRCode.create(
+      [
+        { data: payload.slice(0, 1), mode: 'alphanumeric' },
+        { data: Buffer.from(payload.slice(1)), mode: 'byte' },
+      ],
+      { errorCorrectionLevel: 'M' },
+    );
     expect(qr.segments.map((segment) => segment.mode.id)).toEqual([
       'Alphanumeric',
       'Byte',
@@ -91,7 +101,6 @@ describe('payloadFromResult', () => {
 
     const claims = readScannedToken(payloadFromResult(scan(qr)));
     expect(claims?.userId).toBe(USER_ID);
-    expect(claims?.name).toBe(NAME);
   });
 
   it('reads a pass encoded as a single byte segment', () => {
@@ -108,17 +117,15 @@ describe('payloadFromResult', () => {
 
     const claims = readScannedToken(payloadFromResult(scan(qr)));
     expect(claims?.userId).toBe(USER_ID);
-    expect(claims?.name).toBe(NAME);
   });
 
   it('reads the in-app QR, which encodes the raw token bytes rather than text', () => {
-    const token = buildCheckInToken(EVENT_ID, USER_ID, NAME, EXPIRES_AT);
+    const token = buildCheckInToken(EVENT_ID, USER_ID);
     const qr = QRCode.create([{ data: token, mode: 'byte' }], {
       errorCorrectionLevel: 'M',
     });
 
     const claims = readScannedToken(payloadFromResult(scan(qr)));
     expect(claims?.userId).toBe(USER_ID);
-    expect(claims?.name).toBe(NAME);
   });
 });

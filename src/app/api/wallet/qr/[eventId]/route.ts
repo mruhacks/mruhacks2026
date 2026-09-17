@@ -1,13 +1,7 @@
 import QRCode from 'qrcode';
 
-import {
-  buildCheckInToken,
-  DEFAULT_QR_TTL_MS,
-} from '@/lib/wallet/check-in-token';
-import {
-  getEventParticipation,
-  resolveParticipantName,
-} from '@/lib/wallet/participation';
+import { buildCheckInToken } from '@/lib/wallet/check-in-token';
+import { getEventParticipation } from '@/lib/wallet/participation';
 import { checkWalletRateLimit } from '@/lib/wallet/rate-limit';
 import { getUser } from '@/utils/auth';
 
@@ -15,7 +9,7 @@ import { getUser } from '@/utils/auth';
  * Standalone check-in QR code for participants who can't add the Apple
  * Wallet pass — same signed token as the pass's barcode, same authorization
  * (see /api/wallet/pass), just rendered as an SVG instead of embedded in a
- * .pkpass file. Encodes the raw 52-byte token directly in QR byte mode
+ * .pkpass file. Encodes the raw 97-byte token directly in QR byte mode
  * (rather than a base64/hex text form of it), which keeps the resulting
  * code noticeably smaller/denser for the same error-correction level.
  */
@@ -36,14 +30,7 @@ export async function GET(
   }
 
   try {
-    const expiresAt =
-      participation.endsAt ?? new Date(Date.now() + DEFAULT_QR_TTL_MS);
-    const token = buildCheckInToken(
-      eventId,
-      user.id,
-      resolveParticipantName(participation.fullName, user.name),
-      expiresAt,
-    );
+    const token = buildCheckInToken(eventId, user.id);
     const svg = await QRCode.toString([{ data: token, mode: 'byte' }], {
       type: 'svg',
       errorCorrectionLevel: 'medium',

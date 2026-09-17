@@ -144,6 +144,11 @@ async function checkInUser(
   eventId: string,
   userId: string,
   actorId: string,
+  /** True only for a QR scan: the pass carries no expiry of its own (see
+   *  `check-in-token.ts`), so a scan checks the event's own end date instead.
+   *  Hand check-in skips this — it's the fallback for an already-expired
+   *  pass, so it must still work after the event ends. */
+  enforceEventEnded: boolean,
 ): Promise<ActionResult<CheckInOutcome>> {
   const participation = await getEventParticipation(eventId, userId);
   if (!participation) {
@@ -151,6 +156,13 @@ async function checkInUser(
   }
   if (!participation.isParticipant) {
     return fail('This person is not registered for this event.');
+  }
+  if (
+    enforceEventEnded &&
+    participation.endsAt &&
+    participation.endsAt.getTime() < Date.now()
+  ) {
+    return fail('This pass has expired. Check them in by name instead.');
   }
 
   const name = resolveParticipantName(
@@ -196,11 +208,8 @@ export async function scanCheckIn(
   if (claims.eventId.toLowerCase() !== eventId.toLowerCase()) {
     return fail('This pass was issued for a different event.');
   }
-  if (claims.expiresAt.getTime() < Date.now()) {
-    return fail('This pass has expired. Check them in by name instead.');
-  }
 
-  return checkInUser(eventId, claims.userId, actor.id);
+  return checkInUser(eventId, claims.userId, actor.id, true);
 }
 
 /**
@@ -215,7 +224,7 @@ export async function checkInParticipant(
   if (!actor) return fail('Not authenticated');
   if (!UUID_PATTERN.test(userId)) return fail('Unknown participant.');
 
-  return checkInUser(eventId, userId, actor.id);
+  return checkInUser(eventId, userId, actor.id, false);
 }
 
 /**

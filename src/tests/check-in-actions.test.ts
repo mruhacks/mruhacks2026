@@ -54,6 +54,7 @@ let strangerId: string;
 let eventId: string;
 let otherEventId: string;
 let childEventId: string;
+let expiredEventId: string;
 let permissionId: number;
 
 const originalKey = process.env.CHECK_IN_SIGNING_PRIVATE_KEY;
@@ -69,6 +70,7 @@ async function createUser(name: string, email: string): Promise<string> {
 async function createEvent(
   name: string,
   parentEventId?: string,
+  endsAt?: Date,
 ): Promise<string> {
   const [row] = await db
     .insert(events)
@@ -77,38 +79,21 @@ async function createEvent(
       hasApplication: false,
       applicationQuestions: [],
       ...(parentEventId ? { parentEventId } : {}),
+      ...(endsAt ? { endsAt } : {}),
     })
     .returning({ id: events.id });
   return row.id;
 }
 
 /** What a scanner sends after reading a wallet pass: base64url of ASCII text. */
-function passFor(
-  targetEventId: string,
-  targetUserId: string,
-  expiresAt = new Date(Date.now() + 60_000),
-): string {
-  const text = buildCheckInPayload(
-    targetEventId,
-    targetUserId,
-    PARTICIPANT_NAME,
-    expiresAt,
-  );
+function passFor(targetEventId: string, targetUserId: string): string {
+  const text = buildCheckInPayload(targetEventId, targetUserId);
   return Buffer.from(text, 'ascii').toString('base64url');
 }
 
 /** What a scanner sends after reading the in-app QR: base64url of raw bytes. */
-function inAppQrFor(
-  targetEventId: string,
-  targetUserId: string,
-  expiresAt = new Date(Date.now() + 60_000),
-): string {
-  return buildCheckInToken(
-    targetEventId,
-    targetUserId,
-    PARTICIPANT_NAME,
-    expiresAt,
-  ).toString('base64url');
+function inAppQrFor(targetEventId: string, targetUserId: string): string {
+  return buildCheckInToken(targetEventId, targetUserId).toString('base64url');
 }
 
 beforeAll(async () => {
@@ -143,6 +128,11 @@ beforeAll(async () => {
   eventId = await createEvent('Check-in Test Event');
   otherEventId = await createEvent('Check-in Other Event');
   childEventId = await createEvent('Check-in Lunch', eventId);
+  expiredEventId = await createEvent(
+    'Check-in Ended Event',
+    undefined,
+    new Date(Date.now() - 60_000),
+  );
 
   await db
     .insert(eventAttendees)
@@ -150,6 +140,7 @@ beforeAll(async () => {
       { eventId, userId: participantId },
       { eventId: otherEventId, userId: participantId },
       { eventId: childEventId, userId: participantId },
+      { eventId: expiredEventId, userId: participantId },
     ])
     .onConflictDoNothing();
 
@@ -178,6 +169,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await db.delete(checkIns).where(eq(checkIns.eventId, eventId));
+  await db.delete(checkIns).where(eq(checkIns.eventId, expiredEventId));
   await db.delete(eventAttendees).where(eq(eventAttendees.eventId, eventId));
   await db
     .delete(eventAttendees)
@@ -185,8 +177,12 @@ afterAll(async () => {
   await db
     .delete(eventAttendees)
     .where(eq(eventAttendees.eventId, childEventId));
+  await db
+    .delete(eventAttendees)
+    .where(eq(eventAttendees.eventId, expiredEventId));
   await db.delete(events).where(eq(events.id, childEventId));
   await db.delete(events).where(eq(events.id, otherEventId));
+  await db.delete(events).where(eq(events.id, expiredEventId));
   await db.delete(events).where(eq(events.id, eventId));
   await db.delete(userPermission).where(eq(userPermission.userId, scanner.id));
   await db.delete(permission).where(eq(permission.id, permissionId));
@@ -365,11 +361,10 @@ describe('scanCheckIn', () => {
     });
   });
 
-  test('rejects an expired pass', async () => {
-    await clearCheckIns();
+  test('rejects a scan for an event that has already ended', async () => {
     const result = await scanCheckIn(
-      eventId,
-      passFor(eventId, participantId, new Date(Date.now() - 60_000)),
+      expiredEventId,
+      passFor(expiredEventId, participantId),
     );
     expect(result).toMatchObject({
       success: false,
@@ -443,6 +438,16 @@ describe('checkInParticipant and undoCheckIn', () => {
   test('rejects a malformed participant id', async () => {
     await expect(checkInParticipant(eventId, 'nope')).resolves.toMatchObject({
       success: false,
+    });
+  });
+
+  test('still allows a hand check-in after the event has ended, unlike a scan', async () => {
+    await db
+      .delete(checkIns)
+      .where(eq(checkIns.eventId, expiredEventId));
+    const result = await checkInParticipant(expiredEventId, participantId);
+    expect(result.success && result.data).toMatchObject({
+      alreadyCheckedIn: false,
     });
   });
 });
