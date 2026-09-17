@@ -49,10 +49,15 @@ const nextConfig: NextConfig = {
               "default-src 'self'",
               // 'unsafe-eval' is dev-only: Turbopack/React use eval() for HMR and
               // debugging call stacks. Never present in production builds.
+              // 'wasm-unsafe-eval' is the narrow counterpart for compiling/
+              // instantiating WebAssembly — needed in every build, since the
+              // check-in scanner's QR decoder (@yudiel/react-qr-scanner, via
+              // barcode-detector/zxing-wasm) does that at runtime. Unlike
+              // 'unsafe-eval', it does not allow string-to-code eval()/Function().
               // static.cloudflareinsights.com is Cloudflare's own edge-injected
               // Web Analytics beacon (present whenever the zone is proxied through
               // Cloudflare with that feature on) — not something this app loads itself.
-              `script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://static.cloudflareinsights.com${isDev ? " 'unsafe-eval'" : ''}`,
+              `script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://challenges.cloudflare.com https://static.cloudflareinsights.com${isDev ? " 'unsafe-eval'" : ''}`,
               "style-src 'self' 'unsafe-inline'",
               `img-src 'self' data: https://avatars.githubusercontent.com https://cdn.jsdelivr.net https://lh3.googleusercontent.com${s3Origin ? ` ${s3Origin}` : ''}`,
               "font-src 'self' data:",
