@@ -15,7 +15,7 @@ import {
 } from '@/db/schema';
 import { parseInstant } from '@/lib/datetime';
 import { requirePermission } from '@/lib/rbac/authorization';
-import { readScannedToken } from '@/lib/wallet/scanned-token';
+import { verifyCheckInPayload } from '@/lib/wallet/check-in-token';
 import {
   getEventParticipation,
   resolveParticipantName,
@@ -199,7 +199,7 @@ export async function scanCheckIn(
   const actor = await getScanner();
   if (!actor) return fail('Not authenticated');
 
-  const claims = readScannedToken(payload);
+  const claims = verifyCheckInPayload(payload);
   if (!claims) return fail('This is not a valid MRUHacks pass.');
 
   // The token's id comes back lowercase from bytesToUuid, while the route

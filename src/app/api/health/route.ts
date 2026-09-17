@@ -174,6 +174,34 @@ async function checkCheckInSigning(): Promise<CheckResult> {
     : { ok: false, latencyMs: 0, detail: 'not configured' };
 }
 
+/**
+ * The check-in scanner (`@yudiel/react-qr-scanner`, via `barcode-detector`'s
+ * zxing-wasm) fetches its decoder's wasm binary from jsDelivr at runtime —
+ * see next.config.ts's CSP `connect-src` for the matching allowlist entry.
+ * A dead CDN would silently break every scan without ever touching our own
+ * error logs, the same failure mode `checkGoogleWallet`'s logo check guards
+ * against.
+ */
+async function checkQrScannerWasm(): Promise<CheckResult> {
+  const start = Date.now();
+  try {
+    const res = await fetch(
+      'https://fastly.jsdelivr.net/npm/zxing-wasm/dist/reader/zxing_reader.wasm',
+      { method: 'HEAD', signal: AbortSignal.timeout(CHECK_TIMEOUT_MS) },
+    );
+    if (!res.ok) {
+      return {
+        ok: false,
+        latencyMs: Date.now() - start,
+        detail: `unreachable (${res.status})`,
+      };
+    }
+    return { ok: true, latencyMs: Date.now() - start };
+  } catch {
+    return { ok: false, latencyMs: Date.now() - start, detail: 'unreachable' };
+  }
+}
+
 function missingEnvVars(): string[] {
   return REQUIRED_ENV_VARS.filter((name) => !process.env[name]?.trim());
 }
@@ -188,6 +216,7 @@ type HealthReport = {
     googleWallet: CheckResult;
     appleWallet: CheckResult;
     checkInSigning: CheckResult;
+    qrScannerWasm: CheckResult;
   };
   missingEnv: string[];
   checkedAt: string;
@@ -210,6 +239,7 @@ async function buildReport(): Promise<HealthReport> {
     googleWallet,
     appleWallet,
     checkInSigning,
+    qrScannerWasm,
   ] = await Promise.all([
     checkDatabase(),
     checkMail(),
@@ -218,6 +248,7 @@ async function buildReport(): Promise<HealthReport> {
     checkGoogleWallet(),
     checkAppleWallet(),
     checkCheckInSigning(),
+    checkQrScannerWasm(),
   ]);
   const missingEnv = missingEnvVars();
 
@@ -229,6 +260,7 @@ async function buildReport(): Promise<HealthReport> {
         googleWallet.ok &&
         appleWallet.ok &&
         checkInSigning.ok &&
+        qrScannerWasm.ok &&
         missingEnv.length === 0
       ? 'ok'
       : 'degraded';
@@ -243,6 +275,7 @@ async function buildReport(): Promise<HealthReport> {
       googleWallet,
       appleWallet,
       checkInSigning,
+      qrScannerWasm,
     },
     missingEnv,
     checkedAt: new Date().toISOString(),

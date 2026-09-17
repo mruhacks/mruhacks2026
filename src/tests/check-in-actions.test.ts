@@ -22,10 +22,7 @@ import { db } from '@/utils/db';
 vi.mock('@/utils/auth', () => ({ getUser: vi.fn() }));
 
 import { getUser } from '@/utils/auth';
-import {
-  buildCheckInPayload,
-  buildCheckInToken,
-} from '@/lib/wallet/check-in-token';
+import { buildCheckInPayload } from '@/lib/wallet/check-in-token';
 import {
   checkInParticipant,
   getCheckInRoster,
@@ -85,15 +82,10 @@ async function createEvent(
   return row.id;
 }
 
-/** What a scanner sends after reading a wallet pass: base64url of ASCII text. */
+/** What the scanner reports after reading a pass — the wallet passes and the
+ *  in-app QR all encode the same base64url token text (see check-in-token.ts). */
 function passFor(targetEventId: string, targetUserId: string): string {
-  const text = buildCheckInPayload(targetEventId, targetUserId);
-  return Buffer.from(text, 'ascii').toString('base64url');
-}
-
-/** What a scanner sends after reading the in-app QR: base64url of raw bytes. */
-function inAppQrFor(targetEventId: string, targetUserId: string): string {
-  return buildCheckInToken(targetEventId, targetUserId).toString('base64url');
+  return buildCheckInPayload(targetEventId, targetUserId);
 }
 
 beforeAll(async () => {
@@ -262,44 +254,6 @@ describe('scanCheckIn', () => {
     });
   });
 
-  test('accepts the in-app QR, whose token is raw bytes rather than text', async () => {
-    await clearCheckIns();
-    const result = await scanCheckIn(
-      eventId,
-      inAppQrFor(eventId, participantId),
-    );
-
-    expect(result).toMatchObject({ success: true });
-    expect(result.success && result.data).toMatchObject({
-      userId: participantId,
-      alreadyCheckedIn: false,
-    });
-  });
-
-  test('treats the wallet pass and the in-app QR as the same check-in', async () => {
-    await clearCheckIns();
-    const first = await scanCheckIn(eventId, passFor(eventId, participantId));
-    const second = await scanCheckIn(
-      eventId,
-      inAppQrFor(eventId, participantId),
-    );
-
-    expect(first.success && first.data?.alreadyCheckedIn).toBe(false);
-    expect(second.success && second.data?.alreadyCheckedIn).toBe(true);
-  });
-
-  test('rejects an in-app QR issued for a different event', async () => {
-    await clearCheckIns();
-    const result = await scanCheckIn(
-      eventId,
-      inAppQrFor(otherEventId, participantId),
-    );
-    expect(result).toMatchObject({
-      success: false,
-      error: expect.stringContaining('different event'),
-    });
-  });
-
   test('records who scanned the pass', async () => {
     await clearCheckIns();
     await scanCheckIn(eventId, passFor(eventId, participantId));
@@ -442,9 +396,7 @@ describe('checkInParticipant and undoCheckIn', () => {
   });
 
   test('still allows a hand check-in after the event has ended, unlike a scan', async () => {
-    await db
-      .delete(checkIns)
-      .where(eq(checkIns.eventId, expiredEventId));
+    await db.delete(checkIns).where(eq(checkIns.eventId, expiredEventId));
     const result = await checkInParticipant(expiredEventId, participantId);
     expect(result.success && result.data).toMatchObject({
       alreadyCheckedIn: false,

@@ -1,57 +1,48 @@
 'use client';
 
 import * as React from 'react';
-import { BrowserQRCodeReader, type IScannerControls } from '@zxing/browser';
-import { type Result } from '@zxing/library';
+import dynamic from 'next/dynamic';
 import { Camera, CameraOff } from 'lucide-react';
+import type { IDetectedBarcode, IScannerError } from '@yudiel/react-qr-scanner';
 
 import { Button } from '@/components/ui/button';
 import { primeScanCue } from './scan-cue';
 import { payloadFromResult } from './scan-payload';
 
-const REPEAT_SCAN_COOLDOWN_MS = 5000;
+// The library needs browser-only APIs at import time, so it can't run
+// during SSR — see its README's "Next.js / SSR errors at build time".
+const Scanner = dynamic(
+  () => import('@yudiel/react-qr-scanner').then((mod) => mod.Scanner),
+  { ssr: false },
+);
 
 /**
- * A bare `facingMode: 'environment'` is only advisory, so a phone may still
- * hand back the selfie camera. Demand the rear one, then retry without the
- * constraint for laptops, which have no camera that can satisfy it.
+ * Without `allowMultiple`, the library suppresses a repeat `onScan` for a
+ * code only until a *different* code (or none at all) is seen — so a
+ * participant whose scan failed and re-presents the same pass a few seconds
+ * later, with nothing else scanned in between, would never trigger `onScan`
+ * again. `allowMultiple` + `scanDelay` instead throttles to at most one
+ * `onScan` per this many ms regardless of which code it is — global rather
+ * than per-code, but with one phone scanning one pass at a time that's the
+ * behavior we actually want: it still lets the same pass be retried.
  */
-function startCamera(
-  video: HTMLVideoElement,
-  onResult: (result?: Result) => void,
-): Promise<IScannerControls> {
-  const reader = new BrowserQRCodeReader();
+const REPEAT_SCAN_COOLDOWN_MS = 5000;
 
-  return reader
-    .decodeFromConstraints(
-      { video: { facingMode: { exact: 'environment' } } },
-      video,
-      onResult,
-    )
-    .catch((error: unknown) => {
-      if (error instanceof Error && error.name !== 'OverconstrainedError') {
-        throw error;
-      }
-      return reader.decodeFromConstraints(
-        { video: { facingMode: 'environment' } },
-        video,
-        onResult,
-      );
-    });
-}
-
-function describeCameraError(error: unknown): string {
-  const name = error instanceof Error ? error.name : '';
-  if (name === 'NotAllowedError' || name === 'SecurityError') {
-    return 'Camera access was blocked. Allow it in your browser settings, then start the camera again.';
+function describeCameraError(error: IScannerError): string {
+  switch (error.kind) {
+    case 'permission-denied':
+    case 'security':
+      return 'Camera access was blocked. Allow it in your browser settings, then start the camera again.';
+    case 'no-camera':
+    case 'overconstrained':
+      return 'No camera was found on this device.';
+    case 'in-use':
+      return 'The camera is already in use by another app.';
+    case 'insecure-context':
+      return 'Cameras only work over HTTPS. Open this page over https://, or on the machine itself at localhost.';
+    default:
+      return 'The camera could not be started on this device.';
   }
-  if (name === 'NotFoundError' || name === 'OverconstrainedError') {
-    return 'No camera was found on this device.';
-  }
-  if (name === 'NotReadableError') {
-    return 'The camera is already in use by another app.';
-  }
-  return 'The camera could not be started on this device.';
 }
 
 type CheckInScannerProps = {
@@ -59,12 +50,9 @@ type CheckInScannerProps = {
 };
 
 export function CheckInScanner({ onPayload }: CheckInScannerProps) {
-  const videoRef = React.useRef<HTMLVideoElement>(null);
-  const lastScanRef = React.useRef<{ payload: string; at: number } | null>(
-    null,
-  );
   const [active, setActive] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const wakeLockRef = React.useRef<WakeLockSentinel | null>(null);
 
   const onPayloadRef = React.useRef(onPayload);
   React.useEffect(() => {
@@ -87,13 +75,11 @@ export function CheckInScanner({ onPayload }: CheckInScannerProps) {
     };
   }, []);
 
+  // Not something the scanner itself manages — hold it independently of
+  // whether the camera is starting, running, or has errored out.
   React.useEffect(() => {
-    const video = videoRef.current;
-    if (!active || !video) return;
-
+    if (!active) return;
     let cancelled = false;
-    let controls: IScannerControls | null = null;
-    let wakeLock: WakeLockSentinel | null = null;
 
     navigator.wakeLock
       ?.request('screen')
@@ -102,63 +88,55 @@ export function CheckInScanner({ onPayload }: CheckInScannerProps) {
           void sentinel.release();
           return;
         }
-        wakeLock = sentinel;
+        wakeLockRef.current = sentinel;
       })
       .catch(() => {});
 
-    startCamera(video, (result) => {
-      if (!result) return;
-      const payload = payloadFromResult(result);
-      const last = lastScanRef.current;
-      if (
-        last &&
-        last.payload === payload &&
-        Date.now() - last.at < REPEAT_SCAN_COOLDOWN_MS
-      ) {
-        return;
-      }
-      lastScanRef.current = { payload, at: Date.now() };
-      onPayloadRef.current(payload);
-    })
-      .then((started) => {
-        if (cancelled) {
-          started.stop();
-          return;
-        }
-        controls = started;
-      })
-      .catch((cameraError) => {
-        if (cancelled) return;
-        setActive(false);
-        setError(describeCameraError(cameraError));
-      });
-
     return () => {
       cancelled = true;
-      controls?.stop();
-      void wakeLock?.release();
+      void wakeLockRef.current?.release();
+      wakeLockRef.current = null;
     };
   }, [active]);
+
+  const handleScan = React.useCallback((codes: IDetectedBarcode[]) => {
+    const [result] = codes;
+    if (!result) return;
+    onPayloadRef.current(payloadFromResult(result));
+  }, []);
+
+  const handleError = React.useCallback((scanError: IScannerError) => {
+    setActive(false);
+    setError(describeCameraError(scanError));
+  }, []);
 
   return (
     <div className='space-y-3' onPointerDown={primeScanCue}>
       <div className='bg-muted relative h-[42vh] max-h-96 min-h-56 w-full overflow-hidden rounded-xl border sm:aspect-video sm:h-auto sm:max-h-none'>
-        <video
-          ref={videoRef}
-          className='size-full object-cover'
-          playsInline
-          muted
-        />
-
         {active ? (
-          <>
-            <div className='pointer-events-none absolute inset-0 flex items-center justify-center'>
-              <div className='aspect-square w-48 max-w-[70%] rounded-2xl border-4 border-white/90 shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]' />
-            </div>
+          <Scanner
+            onScan={handleScan}
+            onError={handleError}
+            formats={['qr_code']}
+            constraints={{ facingMode: 'environment' }}
+            sound={false}
+            allowMultiple
+            scanDelay={REPEAT_SCAN_COOLDOWN_MS}
+            components={{
+              finder: true,
+              onOff: false,
+              torch: false,
+              zoom: false,
+            }}
+            styles={{
+              container: { width: '100%', height: '100%' },
+              video: { objectFit: 'cover' },
+            }}
+          >
             <p className='absolute inset-x-0 bottom-0 bg-black/55 py-2 text-center text-sm font-medium text-white'>
               Point at a participant&apos;s pass
             </p>
-          </>
+          </Scanner>
         ) : (
           <div className='text-muted-foreground absolute inset-0 flex flex-col items-center justify-center gap-2 text-sm'>
             <CameraOff className='size-6' />

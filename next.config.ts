@@ -56,7 +56,10 @@ const nextConfig: NextConfig = {
               "style-src 'self' 'unsafe-inline'",
               `img-src 'self' data: https://avatars.githubusercontent.com https://cdn.jsdelivr.net https://lh3.googleusercontent.com${s3Origin ? ` ${s3Origin}` : ''}`,
               "font-src 'self' data:",
-              `connect-src 'self' https://challenges.cloudflare.com https://cloudflareinsights.com${s3Origin ? ` ${s3Origin}` : ''}`,
+              // fastly.jsdelivr.net: the check-in scanner's QR decoder
+              // (@yudiel/react-qr-scanner, via barcode-detector/zxing-wasm)
+              // fetches its wasm binary from there by default.
+              `connect-src 'self' https://challenges.cloudflare.com https://cloudflareinsights.com https://fastly.jsdelivr.net${s3Origin ? ` ${s3Origin}` : ''}`,
               // Cloudflare Turnstile renders its challenge in an iframe from this origin.
               'frame-src https://challenges.cloudflare.com',
               "frame-ancestors 'none'",
