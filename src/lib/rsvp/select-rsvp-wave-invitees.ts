@@ -9,17 +9,17 @@ import type { EligibleRsvpApplicant } from '@/lib/rsvp/eligible-rsvp-applicants'
  * When a subset is required, eligible applicants are ordered by original
  * application submission time (`event_applications.created_at`) ascending —
  * oldest application first. `event_applications.id` is a tie-break only so
- * equal timestamps stay deterministic; it is not a ranking rule.
+ * equal timestamps stay deterministic.
  */
 export function selectRsvpWaveInvitees(
   applicants: EligibleRsvpApplicant[],
   availableSpots: number | null,
 ): EligibleRsvpApplicant[] {
-  const ranked = [...applicants].sort(compareEligibleRsvpApplicants);
+  const ordered = [...applicants].sort(compareEligibleRsvpApplicants);
   if (availableSpots === null) {
-    return ranked;
+    return ordered;
   }
-  return ranked.slice(0, Math.max(0, availableSpots));
+  return ordered.slice(0, Math.max(0, availableSpots));
 }
 
 function compareEligibleRsvpApplicants(

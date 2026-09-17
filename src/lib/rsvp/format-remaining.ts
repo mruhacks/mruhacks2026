@@ -1,4 +1,3 @@
-/** Compact remaining duration until a deadline. Returns null if already past. */
 export function formatRemaining(respondBy: Date, now: Date): string | null {
   const remainingMs = respondBy.getTime() - now.getTime();
   if (remainingMs <= 0) return null;

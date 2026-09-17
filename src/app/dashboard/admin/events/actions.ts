@@ -672,7 +672,7 @@ export type SendEventRsvpWaveResult = {
 };
 
 /**
- * Read-only RSVP wave/capacity summary for the admin event overview.
+ * Read-only RSVP wave/capacity summary for admin RSVP surfaces.
  * Requires event:manage permission (satisfied by event:manage:all).
  */
 export async function getEventRsvpSummary(

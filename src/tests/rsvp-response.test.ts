@@ -916,7 +916,6 @@ describe('timeoutExpiredRsvpResponses', () => {
     try {
       const timeoutResult = await timeoutExpiredRsvpResponses({
         eventId: otherEvent.id,
-        userId: testUserId,
       });
       expect(timeoutResult.timedOutCount).toBe(1);
 
@@ -1052,13 +1051,11 @@ describe('timeoutExpiredRsvpResponses', () => {
     try {
       const first = await timeoutExpiredRsvpResponses({
         eventId: otherEvent.id,
-        userId: testUserId,
       });
       expect(first.timedOutCount).toBe(1);
 
       const second = await timeoutExpiredRsvpResponses({
         eventId: otherEvent.id,
-        userId: testUserId,
       });
       expect(second.timedOutCount).toBe(0);
 

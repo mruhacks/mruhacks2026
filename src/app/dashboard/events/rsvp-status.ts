@@ -17,8 +17,6 @@ import { resolveStoredRsvpStatus } from '@/lib/rsvp/effective-rsvp-status';
 
 export type RsvpStatusLabel = RsvpStatus;
 
-export const DEFAULT_RSVP_STATUS: RsvpStatusLabel = 'pending';
-
 export type RsvpStatusDisplay = {
   title: string;
   description: string;
@@ -26,7 +24,6 @@ export type RsvpStatusDisplay = {
   isFinal: boolean;
 };
 
-/** Normalize DB label, null → pending. */
 export function resolveRsvpStatusKey(
   statusKey: string | null | undefined,
 ): RsvpStatusLabel {
@@ -62,7 +59,6 @@ export const getRsvpStatusDisplayMap = cache(
   },
 );
 
-/** Display config for a single RSVP status label, null → pending. */
 export async function getRsvpStatusDisplay(
   statusKey: RsvpStatusLabel | null | undefined,
 ): Promise<RsvpStatusDisplay> {
@@ -74,21 +70,3 @@ export const RSVP_TIMELINE_LABELS = {
   respondBy: 'Respond by',
   respondedAt: 'Responded',
 } as const;
-
-type RsvpTimelineSource = {
-  respondBy: Date;
-  respondedAt: Date | null;
-};
-
-export const RSVP_TIMELINE_FIELDS = [
-  {
-    key: 'respondBy',
-    label: RSVP_TIMELINE_LABELS.respondBy,
-    getDate: (source: RsvpTimelineSource) => source.respondBy,
-  },
-  {
-    key: 'respondedAt',
-    label: RSVP_TIMELINE_LABELS.respondedAt,
-    getDate: (source: RsvpTimelineSource) => source.respondedAt,
-  },
-] as const;

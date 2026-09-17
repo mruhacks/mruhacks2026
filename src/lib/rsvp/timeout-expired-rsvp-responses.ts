@@ -9,10 +9,8 @@ const PENDING_RSVP_STATUS_LABEL = 'pending';
 const TIMED_OUT_RSVP_STATUS_LABEL = 'timed_out';
 
 export type TimeoutExpiredRsvpOptions = {
-  /** Limit to one event (display / submit path). */
+  /** Limit to one event (wave send). */
   eventId?: string;
-  /** Limit to one user (display / submit path). */
-  userId?: string;
   /** Clock override for tests. Defaults to now. */
   now?: Date;
 };
@@ -23,15 +21,12 @@ export type TimeoutExpiredRsvpResult = {
 
 /**
  * Marks pending RSVP responses as `timed_out` when their wave `respond_by`
- * is in the past. Persistence/audit helper for cron and wave send — reads
- * must not depend on this. Effective status is derived in
+ * is in the past. Persistence helper for cron and wave send — reads must
+ * not depend on this. Effective status is derived in
  * `resolveEffectiveRsvpStatus`.
  *
- * Idempotent: already-timed-out rows are not selected again, so running the
- * sweep twice does not write duplicate timeout transitions.
- *
- * Does not touch accepted/declined rows and does not set `responded_at`
- * (that field is reserved for an explicit user response).
+ * Idempotent: already-timed-out rows are not selected again.
+ * Does not touch accepted/declined rows and does not set `responded_at`.
  */
 export async function timeoutExpiredRsvpResponses(
   options: TimeoutExpiredRsvpOptions = {},
@@ -65,9 +60,6 @@ export async function timeoutExpiredRsvpResponses(
 
   if (options.eventId) {
     filters.push(eq(eventRsvpWaves.eventId, options.eventId));
-  }
-  if (options.userId) {
-    filters.push(eq(eventRsvpResponses.userId, options.userId));
   }
 
   const expired = await db

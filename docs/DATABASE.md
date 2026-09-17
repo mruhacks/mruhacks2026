@@ -249,7 +249,7 @@ erDiagram
         uuid id PK
         uuid event_id FK
         smallint wave
-        timestamp respond_by "nullable"
+        timestamp respond_by
         timestamp created_at
     }
 

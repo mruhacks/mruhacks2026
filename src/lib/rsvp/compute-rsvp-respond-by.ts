@@ -1,7 +1,4 @@
-/**
- * Wave deadline from creation time plus the event's response window.
- * `windowHours` is the event-level setting (`rsvp_response_window_hours`).
- */
+/** `respond_by = createdAt + events.rsvp_response_window_hours`. */
 export function computeRsvpRespondBy(
   createdAt: Date,
   windowHours: number,
@@ -9,7 +6,6 @@ export function computeRsvpRespondBy(
   return new Date(createdAt.getTime() + windowHours * 60 * 60 * 1000);
 }
 
-/** Latest wave is still collecting responses. */
 export function isRsvpWaveActive(
   respondBy: Date,
   now: Date = new Date(),
