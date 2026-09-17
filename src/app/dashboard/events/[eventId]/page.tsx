@@ -16,6 +16,7 @@ import {
 } from '@/app/dashboard/events/actions';
 import { ApplicationStatusBanner } from '@/app/dashboard/events/ApplicationStatusBanner';
 import { RsvpStatusCard } from '@/app/dashboard/events/RsvpStatusCard';
+import { RsvpPendingPrompt } from '@/app/dashboard/events/RsvpPendingPrompt';
 import { EventWikiDialog } from '@/app/dashboard/events/event-wiki-dialog';
 import { LocalDateRange } from '@/components/local-date-time';
 import { RegisterEventButton } from '@/app/dashboard/events/RegisterEventButton';
@@ -168,6 +169,7 @@ async function EventEntryContent({ params, searchParams }: Props) {
         participation={
           <ApplicationParticipationPanel
             eventId={eventId}
+            eventName={row.name}
             applicationStatus={applicationStatus}
             rsvpStatus={rsvpStatus}
             walletPlatform={walletPlatform}
@@ -316,11 +318,13 @@ function WalletAction({
 
 function ApplicationParticipationPanel({
   eventId,
+  eventName,
   applicationStatus,
   rsvpStatus,
   walletPlatform,
 }: {
   eventId: string;
+  eventName: string;
   applicationStatus: ApplicationStatusForUser | null;
   rsvpStatus: RsvpStatusForUser | null;
   walletPlatform: WalletPlatform;
@@ -330,7 +334,18 @@ function ApplicationParticipationPanel({
   if (rsvpStatus) {
     return (
       <>
-        <RsvpStatusCard eventId={eventId} rsvp={rsvpStatus} />
+        {rsvpStatus.statusLabel === 'pending' && (
+          <RsvpPendingPrompt
+            eventId={eventId}
+            eventName={eventName}
+            respondBy={rsvpStatus.respondBy}
+          />
+        )}
+        <RsvpStatusCard
+          eventId={eventId}
+          eventName={eventName}
+          rsvp={rsvpStatus}
+        />
         {rsvpStatus.statusLabel === 'accepted' && (
           <Card>
             <CardHeader>

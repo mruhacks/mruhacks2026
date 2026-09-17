@@ -20,6 +20,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { useIsHydrated } from '@/lib/use-is-hydrated';
+import { formatRemaining, toDate } from '@/lib/rsvp/format-remaining';
 
 const LIFECYCLE_COPY: Record<AdminRsvpLifecycle, string> = {
   no_application: '',
@@ -31,24 +32,6 @@ const LIFECYCLE_COPY: Record<AdminRsvpLifecycle, string> = {
   no_eligible_applicants: 'No more applicants are waiting to be invited.',
   event_started: 'The event has started. Waves can no longer be sent.',
 };
-
-function toDate(value: Date | string): Date {
-  return value instanceof Date ? value : new Date(value);
-}
-
-function formatRemaining(respondBy: Date, now: Date): string | null {
-  const remainingMs = respondBy.getTime() - now.getTime();
-  if (remainingMs <= 0) return null;
-  const totalMinutes = Math.max(1, Math.ceil(remainingMs / 60_000));
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  if (hours >= 48) {
-    const days = Math.floor(hours / 24);
-    return `${days} day${days === 1 ? '' : 's'}`;
-  }
-  if (hours >= 1) return `${hours}h ${minutes}m`;
-  return `${minutes}m`;
-}
 
 function CapacityLine({ summary }: { summary: AdminRsvpSummary }) {
   if (summary.capacity == null) {

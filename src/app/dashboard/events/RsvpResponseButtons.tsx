@@ -1,12 +1,19 @@
 'use client';
 
-import { useState, useTransition } from 'react';
-import { toast } from 'sonner';
-import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 
+import { useRsvpDecision } from '@/app/dashboard/events/use-rsvp-decision';
 import { Button } from '@/components/ui/button';
-import { submitRsvpResponse } from '@/app/dashboard/events/actions';
-import type { RsvpUserDecision } from '@/lib/rsvp/constants';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { FieldError } from '@/components/ui/field';
+import { Spinner } from '@/components/ui/spinner';
 
 type Props = {
   eventId: string;
@@ -16,53 +23,81 @@ type Props = {
  * Accept / Decline controls for a pending RSVP invitation.
  */
 export function RsvpResponseButtons({ eventId }: Props) {
-  const router = useRouter();
-  const [isPending, startTransition] = useTransition();
-  const [activeDecision, setActiveDecision] =
-    useState<RsvpUserDecision | null>(null);
-
-  function handleDecision(decision: RsvpUserDecision) {
-    if (isPending) return;
-
-    setActiveDecision(decision);
-    startTransition(async () => {
-      const result = await submitRsvpResponse(eventId, decision);
-      if (result.success) {
-        toast.success(
-          typeof result.data === 'string'
-            ? result.data
-            : decision === 'accepted'
-              ? 'RSVP accepted.'
-              : 'RSVP declined.',
-        );
-        router.refresh();
-      } else {
-        toast.error(result.error);
-        setActiveDecision(null);
-      }
-    });
-  }
+  const { isPending, activeDecision, error, submit } = useRsvpDecision(eventId);
+  const [confirmDecline, setConfirmDecline] = useState(false);
 
   return (
-    <div className='flex flex-wrap gap-3'>
-      <Button
-        onClick={() => handleDecision('accepted')}
-        disabled={isPending}
-        variant='purple'
-        size='lg'
+    <div className='flex flex-col gap-3'>
+      {error && <FieldError errors={[{ message: error }]} />}
+      <div className='flex flex-wrap gap-3'>
+        <Button
+          onClick={() => submit('accepted')}
+          disabled={isPending}
+          variant='purple'
+          size='lg'
+        >
+          {activeDecision === 'accepted' && isPending ? (
+            <>
+              <Spinner data-icon='inline-start' />
+              Accepting…
+            </>
+          ) : (
+            'Accept my spot'
+          )}
+        </Button>
+        <Button
+          onClick={() => setConfirmDecline(true)}
+          disabled={isPending}
+          variant='outline'
+          size='lg'
+        >
+          Decline
+        </Button>
+      </div>
+
+      <Dialog
+        open={confirmDecline}
+        onOpenChange={(open) => {
+          if (!open && isPending) return;
+          setConfirmDecline(open);
+        }}
       >
-        {activeDecision === 'accepted' && isPending
-          ? 'Accepting…'
-          : 'Accept my spot'}
-      </Button>
-      <Button
-        onClick={() => handleDecision('declined')}
-        disabled={isPending}
-        variant='outline'
-        size='lg'
-      >
-        {activeDecision === 'declined' && isPending ? 'Declining…' : 'Decline'}
-      </Button>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Decline your spot?</DialogTitle>
+            <DialogDescription>
+              You will give up your spot and cannot accept this invitation
+              later.
+            </DialogDescription>
+          </DialogHeader>
+          {error && <FieldError errors={[{ message: error }]} />}
+          <DialogFooter>
+            <Button
+              type='button'
+              variant='outline'
+              onClick={() => setConfirmDecline(false)}
+              disabled={isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              type='button'
+              variant='destructive'
+              onClick={() => submit('declined')}
+              disabled={isPending}
+            >
+              {activeDecision === 'declined' && isPending ? (
+                <>
+                  <Spinner data-icon='inline-start' />
+                  Declining…
+                </>
+              ) : (
+                'Decline spot'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

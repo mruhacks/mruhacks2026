@@ -9,6 +9,7 @@ import { EVENTS_CACHE_TAG } from '@/lib/events';
 import {
   events,
   eventApplications,
+  eventAttendees,
   user,
   userProfiles,
   teams,
@@ -435,6 +436,7 @@ export type EventDetails = {
   updatedAt: Date;
   questionsCount: number;
   applicationsCount: number;
+  attendeeCount: number;
 };
 
 /**
@@ -461,6 +463,11 @@ export async function getEventDetails(
     .from(eventApplications)
     .where(eq(eventApplications.eventId, eventId));
 
+  const [{ total: attendeeCount }] = await db
+    .select({ total: count() })
+    .from(eventAttendees)
+    .where(eq(eventAttendees.eventId, eventId));
+
   const questions = await fetchQuestions(eventId);
   const questionsCount = (questions ?? []).filter((q) => q.active).length;
 
@@ -484,6 +491,7 @@ export async function getEventDetails(
     updatedAt: eventRow.updatedAt,
     questionsCount,
     applicationsCount,
+    attendeeCount: Number(attendeeCount),
   });
 }
 

@@ -243,6 +243,7 @@ describe('getEventDetails', () => {
     if (!result.success) throw new Error((result as { error: string }).error);
     expect(result.data?.applicationsCount).toBe(0);
     expect(result.data?.questionsCount).toBe(0);
+    expect(result.data?.attendeeCount).toBe(0);
   });
 });
 

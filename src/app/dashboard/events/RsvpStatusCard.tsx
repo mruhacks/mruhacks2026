@@ -8,12 +8,14 @@ import {
 } from '@/components/ui/card';
 import type { RsvpStatusForUser } from '@/app/dashboard/events/actions';
 import { RsvpResponseButtons } from '@/app/dashboard/events/RsvpResponseButtons';
+import { getAttendeeRsvpCardDescription } from '@/app/dashboard/events/attendee-rsvp-copy';
 import { RSVP_TIMELINE_LABELS } from '@/app/dashboard/events/rsvp-status';
 import { RSVP_DASHBOARD_LABELS } from '@/app/dashboard/events/event-display-status';
 import { LocalDateTime } from '@/components/local-date-time';
 
 type Props = {
   eventId: string;
+  eventName: string;
   rsvp: RsvpStatusForUser;
 };
 
@@ -21,14 +23,12 @@ type Props = {
  * RSVP status card for the event page. Pending shows Accept/Decline;
  * final statuses show a message only.
  */
-export function RsvpStatusCard({ eventId, rsvp }: Props) {
+export function RsvpStatusCard({ eventId, eventName, rsvp }: Props) {
   const { statusLabel, statusDisplay, respondBy, respondedAt } = rsvp;
   const isPending = statusLabel === 'pending';
 
   const title = RSVP_DASHBOARD_LABELS[statusLabel];
-  const description = isPending
-    ? 'Your application was accepted. Please confirm whether you will attend.'
-    : statusDisplay.description;
+  const description = getAttendeeRsvpCardDescription(statusLabel, eventName);
 
   const metaDate = isPending ? respondBy : respondedAt;
   const metaLabel = isPending

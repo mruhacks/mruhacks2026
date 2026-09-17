@@ -6,11 +6,16 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
 import {
   getEventDetails,
+  getEventRsvpSummary,
   updateEventSettings,
 } from '@/app/dashboard/admin/events/actions';
 import { useBreadcrumbSegment } from '@/components/breadcrumb-context';
 import { updateEventSettingsSchema } from '@/app/dashboard/admin/events/schemas';
-import type { EventDetails } from '@/app/dashboard/admin/events/actions';
+import type {
+  AdminRsvpSummary,
+  EventDetails,
+} from '@/app/dashboard/admin/events/actions';
+import { OverviewRsvpStatCard } from './overview-rsvp-stat-card';
 import type { UpdateEventSettingsInput } from '@/app/dashboard/admin/events/schemas';
 import {
   Card,
@@ -44,6 +49,10 @@ type EventOverviewPageProps = {
 export default function EventOverviewPage({ params }: EventOverviewPageProps) {
   const [eventId, setEventId] = React.useState<string | null>(null);
   const [event, setEvent] = React.useState<EventDetails | null>(null);
+  const [rsvpSummary, setRsvpSummary] = React.useState<AdminRsvpSummary | null>(
+    null,
+  );
+  const [rsvpSummaryLoading, setRsvpSummaryLoading] = React.useState(false);
   const [loading, setLoading] = React.useState(true);
   const [isEditing, setIsEditing] = React.useState(false);
   useBreadcrumbSegment(eventId, event?.name);
@@ -92,6 +101,20 @@ export default function EventOverviewPage({ params }: EventOverviewPageProps) {
         toast.error(result.error || 'Failed to load event');
       }
       setLoading(false);
+
+      if (result.success && result.data?.hasApplication) {
+        setRsvpSummaryLoading(true);
+        const summaryResult = await getEventRsvpSummary(eventId as string);
+        if (summaryResult.success && summaryResult.data) {
+          setRsvpSummary(summaryResult.data);
+        } else {
+          setRsvpSummary(null);
+        }
+        setRsvpSummaryLoading(false);
+      } else {
+        setRsvpSummary(null);
+        setRsvpSummaryLoading(false);
+      }
     }
     fetchEvent();
   }, [eventId, reset]);
@@ -110,6 +133,18 @@ export default function EventOverviewPage({ params }: EventOverviewPageProps) {
       const detailResult = await getEventDetails(eventId);
       if (detailResult.success && detailResult.data) {
         setEvent(detailResult.data);
+        if (detailResult.data.hasApplication) {
+          setRsvpSummaryLoading(true);
+          const summaryResult = await getEventRsvpSummary(eventId);
+          if (summaryResult.success && summaryResult.data) {
+            setRsvpSummary(summaryResult.data);
+          } else {
+            setRsvpSummary(null);
+          }
+          setRsvpSummaryLoading(false);
+        } else {
+          setRsvpSummary(null);
+        }
       }
     } else {
       toast.error(result.error || 'Failed to update event');
@@ -131,7 +166,7 @@ export default function EventOverviewPage({ params }: EventOverviewPageProps) {
   return (
     <div className='space-y-6'>
       {/* Stats Overview */}
-      <div className='grid grid-cols-1 gap-4 sm:grid-cols-3'>
+      <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4'>
         <Card>
           <CardHeader className='pb-2'>
             <CardTitle className='text-muted-foreground text-sm font-medium'>
@@ -163,10 +198,30 @@ export default function EventOverviewPage({ params }: EventOverviewPageProps) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className='text-2xl font-bold'>{event.capacity ?? '—'}</div>
-            <p className='text-muted-foreground mt-1 text-xs'>max attendees</p>
+            {event.capacity != null ? (
+              <>
+                <div className='text-2xl font-bold'>
+                  {event.attendeeCount} / {event.capacity}
+                </div>
+                <p className='text-muted-foreground mt-1 text-xs'>attendees</p>
+              </>
+            ) : (
+              <>
+                <div className='text-2xl font-bold'>{event.attendeeCount}</div>
+                <p className='text-muted-foreground mt-1 text-xs'>
+                  attendees · unlimited
+                </p>
+              </>
+            )}
           </CardContent>
         </Card>
+
+        {event.hasApplication && (
+          <OverviewRsvpStatCard
+            summary={rsvpSummary}
+            loading={rsvpSummaryLoading}
+          />
+        )}
       </div>
 
       {/* Participant-facing description. Remounted on event load so the
