@@ -7,17 +7,23 @@ describe('remainingMagicLinkExpiresInSeconds', () => {
 
   test('covers a 48-hour RSVP window', () => {
     const respondBy = new Date('2026-09-18T12:00:00.000Z');
-    expect(remainingMagicLinkExpiresInSeconds(respondBy, now)).toBe(48 * 60 * 60);
+    expect(remainingMagicLinkExpiresInSeconds(respondBy, now)).toBe(
+      48 * 60 * 60,
+    );
   });
 
   test('covers a custom 24-hour RSVP window', () => {
     const respondBy = new Date('2026-09-17T12:00:00.000Z');
-    expect(remainingMagicLinkExpiresInSeconds(respondBy, now)).toBe(24 * 60 * 60);
+    expect(remainingMagicLinkExpiresInSeconds(respondBy, now)).toBe(
+      24 * 60 * 60,
+    );
   });
 
   test('covers a custom longer RSVP window', () => {
     const respondBy = new Date('2026-09-19T18:00:00.000Z');
-    expect(remainingMagicLinkExpiresInSeconds(respondBy, now)).toBe(78 * 60 * 60);
+    expect(remainingMagicLinkExpiresInSeconds(respondBy, now)).toBe(
+      78 * 60 * 60,
+    );
   });
 
   test('uses remaining time until respondBy after delayed processing', () => {

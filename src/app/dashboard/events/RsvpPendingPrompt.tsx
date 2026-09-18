@@ -172,7 +172,7 @@ export function RsvpPendingPrompt({ eventId, eventName, respondBy }: Props) {
             src={curtPointing}
             alt=''
             aria-hidden
-            className='pointer-events-none absolute -bottom-36 right-0 hidden h-auto w-md translate-x-[52%] md:block lg:w-xl lg:translate-x-[55%]'
+            className='pointer-events-none absolute right-0 -bottom-36 hidden h-auto w-md translate-x-[52%] md:block lg:w-xl lg:translate-x-[55%]'
           />
         )}
       </DialogContent>
