@@ -1,0 +1,2 @@
+ALTER TABLE "check_ins" ADD COLUMN "checked_in_by" uuid;--> statement-breakpoint
+ALTER TABLE "check_ins" ADD CONSTRAINT "check_ins_checked_in_by_user_id_fk" FOREIGN KEY ("checked_in_by") REFERENCES "public"."user"("id") ON DELETE set null ON UPDATE no action;

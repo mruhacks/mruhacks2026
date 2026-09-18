@@ -71,10 +71,8 @@ vi.mock('@/lib/wallet/generate-pass', () => ({
 // Check-in signing needs a real secret (not present in CI); same reasoning
 // as generateParticipantPass above.
 const buildCheckInPayload = vi.fn();
-const buildCheckInToken = vi.fn();
 vi.mock('@/lib/wallet/check-in-token', () => ({
   buildCheckInPayload: (...args: unknown[]) => buildCheckInPayload(...args),
-  buildCheckInToken: (...args: unknown[]) => buildCheckInToken(...args),
   DEFAULT_QR_TTL_MS: 24 * 60 * 60 * 1000,
 }));
 
@@ -640,29 +638,29 @@ describe('/api/wallet/qr/[eventId] GET', () => {
 
   beforeEach(() => {
     vi.mocked(getUser).mockReset();
-    buildCheckInToken.mockReset();
-    buildCheckInToken.mockReturnValue(Buffer.from('fake-check-in-token'));
+    buildCheckInPayload.mockReset();
+    buildCheckInPayload.mockReturnValue('fake-check-in-payload');
   });
 
   test('rejects an unauthenticated request', async () => {
     vi.mocked(getUser).mockResolvedValue(null as never);
     const res = await callRoute(openEventId);
     expect(res.status).toBe(401);
-    expect(buildCheckInToken).not.toHaveBeenCalled();
+    expect(buildCheckInPayload).not.toHaveBeenCalled();
   });
 
   test('rejects a caller who never registered', async () => {
     vi.mocked(getUser).mockResolvedValue({ id: unregisteredUserId } as never);
     const res = await callRoute(openEventId);
     expect(res.status).toBe(404);
-    expect(buildCheckInToken).not.toHaveBeenCalled();
+    expect(buildCheckInPayload).not.toHaveBeenCalled();
   });
 
   test('rejects a nonexistent event', async () => {
     vi.mocked(getUser).mockResolvedValue({ id: registeredUserId } as never);
     const res = await callRoute('00000000-0000-0000-0000-000000000000');
     expect(res.status).toBe(404);
-    expect(buildCheckInToken).not.toHaveBeenCalled();
+    expect(buildCheckInPayload).not.toHaveBeenCalled();
   });
 
   test('returns an SVG QR code for a registered attendee, using the same token as the pass', async () => {
@@ -670,11 +668,9 @@ describe('/api/wallet/qr/[eventId] GET', () => {
     const res = await callRoute(openEventId);
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toBe('image/svg+xml');
-    expect(buildCheckInToken).toHaveBeenCalledWith(
+    expect(buildCheckInPayload).toHaveBeenCalledWith(
       openEventId,
       registeredUserId,
-      'Participant',
-      expect.any(Date),
     );
     const body = await res.text();
     expect(body).toContain('<svg');

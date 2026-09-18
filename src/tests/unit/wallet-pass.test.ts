@@ -13,6 +13,24 @@ describe('formatDateRange', () => {
     expect(formatDateRange(startsAt, endsAt)).toBe('Oct 23–Oct 25, 2026');
   });
 
+  it('formats a same-day event as a time range rather than a repeated date', () => {
+    const startsAt = new Date('2026-09-16T09:00:00-06:00');
+    const endsAt = new Date('2026-09-16T17:00:00-06:00');
+    expect(formatDateRange(startsAt, endsAt)).toBe('Sep 16, 9:00 AM–5:00 PM');
+  });
+
+  it('treats the venue day, not the UTC day, as the same day', () => {
+    // 6pm-11pm MDT is already the next day in UTC.
+    const startsAt = new Date('2026-09-16T18:00:00-06:00');
+    const endsAt = new Date('2026-09-16T23:00:00-06:00');
+    expect(formatDateRange(startsAt, endsAt)).toBe('Sep 16, 6:00 PM–11:00 PM');
+  });
+
+  it('prints one time when a same-day event starts and ends at the same instant', () => {
+    const at = new Date('2026-09-16T09:00:00-06:00');
+    expect(formatDateRange(at, at)).toBe('Sep 16, 9:00 AM');
+  });
+
   it('includes the year on both ends of a cross-year range', () => {
     const startsAt = new Date('2026-12-31T09:00:00-07:00');
     const endsAt = new Date('2027-01-02T23:59:59-07:00');

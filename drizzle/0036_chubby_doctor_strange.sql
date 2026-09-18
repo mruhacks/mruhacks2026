@@ -13,7 +13,7 @@
 -- loudly, so refuse to proceed on a server whose default isn't already UTC.
 DO $$
 BEGIN
-  IF current_setting('TimeZone') NOT IN ('UTC', 'Etc/UTC') THEN
+  IF current_setting('TimeZone') NOT IN ('UTC', 'Etc/UTC', 'GMT') THEN
     RAISE EXCEPTION 'Refusing to migrate: server default TimeZone is %, not UTC. Existing naive timestamp columns (created_at/registered_at/expires_at/etc.) may hold wall-clock values in that zone, not UTC — casting them straight to timestamptz would silently shift them. Verify the actual zone those rows were written in and add an explicit `USING col AT TIME ZONE ''<that zone>''` per column before re-running.', current_setting('TimeZone');
   END IF;
 END $$;--> statement-breakpoint

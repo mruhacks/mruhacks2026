@@ -1,7 +1,4 @@
-import {
-  buildCheckInPayload,
-  DEFAULT_QR_TTL_MS,
-} from '@/lib/wallet/check-in-token';
+import { buildCheckInPayload } from '@/lib/wallet/check-in-token';
 import { buildGoogleWalletSaveUrl } from '@/lib/wallet/google/event-ticket';
 import {
   getEventParticipation,
@@ -31,15 +28,8 @@ export async function GET(
   }
 
   try {
-    const expiresAt =
-      participation.endsAt ?? new Date(Date.now() + DEFAULT_QR_TTL_MS);
     const name = resolveParticipantName(participation.fullName, user.name);
-    const checkInPayload = buildCheckInPayload(
-      eventId,
-      user.id,
-      name,
-      expiresAt,
-    );
+    const checkInPayload = buildCheckInPayload(eventId, user.id);
 
     const saveUrl = await buildGoogleWalletSaveUrl({
       eventId,

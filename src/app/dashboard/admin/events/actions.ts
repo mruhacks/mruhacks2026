@@ -577,7 +577,8 @@ export async function updateEventSettings(
       .set({
         name: input.name ?? eventRow.name,
         hasApplication: input.hasApplication ?? eventRow.hasApplication,
-        capacity: input.capacity ?? eventRow.capacity,
+        capacity:
+          input.capacity !== undefined ? input.capacity : eventRow.capacity,
         rsvpResponseWindowHours:
           input.rsvpResponseWindowHours ?? eventRow.rsvpResponseWindowHours,
         teamsEnabled: input.teamsEnabled ?? eventRow.teamsEnabled,
@@ -737,6 +738,48 @@ export async function sendEventRsvpWave(
     invitationsQueued: result.invitationsQueued,
     queueFailures: result.queueFailures,
   });
+}
+
+export type EventAttendeeRow = {
+  userId: string;
+  email: string;
+  fullName: string;
+  registeredAt: Date;
+};
+
+/**
+ * Fetches all registered attendees for an event (the simple signup path used
+ * by events without an application flow).
+ * Requires event:manage permission.
+ */
+export async function getEventAttendees(
+  eventId: string,
+): Promise<ActionResult<EventAttendeeRow[]>> {
+  const authUser = await getUser();
+  if (!authUser) return fail('Not authenticated');
+  await requirePermission(authUser.id, 'event:manage');
+
+  const rows = await db
+    .select({
+      userId: eventAttendees.userId,
+      email: user.email,
+      fullName: userProfiles.fullName,
+      registeredAt: eventAttendees.registeredAt,
+    })
+    .from(eventAttendees)
+    .innerJoin(user, eq(eventAttendees.userId, user.id))
+    .leftJoin(userProfiles, eq(eventAttendees.userId, userProfiles.userId))
+    .where(eq(eventAttendees.eventId, eventId))
+    .orderBy(eventAttendees.registeredAt);
+
+  return ok(
+    rows.map((row) => ({
+      userId: row.userId,
+      email: row.email,
+      fullName: row.fullName || 'Unknown',
+      registeredAt: row.registeredAt,
+    })),
+  );
 }
 
 export type FormedTeamMember = {

@@ -664,6 +664,53 @@ describe('updateEventSettings', () => {
       radiusMeters: 200,
     });
   });
+
+  test('clears a geofence when all three fields are sent as null', async () => {
+    const full = await updateEventSettings(testEventId, {
+      latitude: 51.0122171,
+      longitude: -114.1302919,
+      radiusMeters: 150,
+    });
+    expect(full.success).toBe(true);
+
+    // What the form sends once an admin blanks all three inputs. A merge that
+    // treats "emptied" as "untouched" silently keeps the old geofence on the
+    // pass while still reporting success.
+    const cleared = await updateEventSettings(testEventId, {
+      latitude: null,
+      longitude: null,
+      radiusMeters: null,
+    });
+    expect(cleared.success).toBe(true);
+
+    const [row] = await db
+      .select({
+        latitude: events.latitude,
+        longitude: events.longitude,
+        radiusMeters: events.radiusMeters,
+      })
+      .from(events)
+      .where(eq(events.id, testEventId));
+    expect(row).toEqual({
+      latitude: null,
+      longitude: null,
+      radiusMeters: null,
+    });
+  });
+
+  test('clears capacity when it is sent as null', async () => {
+    const set = await updateEventSettings(testEventId, { capacity: 100 });
+    expect(set.success).toBe(true);
+
+    const cleared = await updateEventSettings(testEventId, { capacity: null });
+    expect(cleared.success).toBe(true);
+
+    const [row] = await db
+      .select({ capacity: events.capacity })
+      .from(events)
+      .where(eq(events.id, testEventId));
+    expect(row.capacity).toBeNull();
+  });
 });
 
 describe('getApplicationResponses', () => {

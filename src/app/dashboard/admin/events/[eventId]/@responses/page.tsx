@@ -4,10 +4,12 @@ import * as React from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
 import {
   getApplicationResponses,
+  getEventAttendees,
   getEventWithQuestions,
 } from '@/app/dashboard/admin/events/actions';
 import type {
   ApplicationResponseRow,
+  EventAttendeeRow,
   EventWithQuestions,
 } from '@/app/dashboard/admin/events/actions';
 import { toast } from 'sonner';
@@ -70,6 +72,7 @@ export default function ResponsesPage({ params }: ResponsesPageProps) {
   const [responses, setResponses] = React.useState<ApplicationResponseRow[]>(
     [],
   );
+  const [attendees, setAttendees] = React.useState<EventAttendeeRow[]>([]);
   const [eventData, setEventData] = React.useState<EventWithQuestions | null>(
     null,
   );
@@ -77,6 +80,14 @@ export default function ResponsesPage({ params }: ResponsesPageProps) {
   const [selectedResponse, setSelectedResponse] =
     React.useState<ApplicationResponseRow | null>(null);
   const [showDetails, setShowDetails] = React.useState(false);
+
+  const responseQuestions = React.useMemo(
+    () =>
+      (eventData?.questions ?? []).filter(
+        (question) => question.active && question.type !== 'section_divider',
+      ),
+    [eventData?.questions],
+  );
 
   const columns = React.useMemo<ColumnDef<ApplicationResponseRow>[]>(
     () => [
@@ -91,6 +102,20 @@ export default function ResponsesPage({ params }: ResponsesPageProps) {
         accessorKey: 'email',
         header: 'Email',
       },
+      ...responseQuestions.map(
+        (question): ColumnDef<ApplicationResponseRow> => ({
+          id: question.id,
+          header: question.label,
+          accessorFn: (row) => row.responses[question.id],
+          cell: ({ row }) =>
+            getDisplayValue(
+              row.original.responses[question.id],
+              question.type,
+              question.options,
+              row.original.responses[otherTextKey(question.id)],
+            ),
+        }),
+      ),
       {
         accessorKey: 'createdAt',
         header: 'Submitted',
@@ -122,10 +147,35 @@ export default function ResponsesPage({ params }: ResponsesPageProps) {
         ),
       },
     ],
-    [],
+    [responseQuestions],
   );
-  const responseQuestions = (eventData?.questions ?? []).filter(
-    (question) => question.active && question.type !== 'section_divider',
+
+  const attendeeColumns = React.useMemo<ColumnDef<EventAttendeeRow>[]>(
+    () => [
+      {
+        accessorKey: 'fullName',
+        header: 'Name',
+        cell: ({ row }) => (
+          <span className='font-medium'>{row.original.fullName}</span>
+        ),
+      },
+      {
+        accessorKey: 'email',
+        header: 'Email',
+      },
+      {
+        accessorKey: 'registeredAt',
+        header: 'Registered',
+        cell: ({ row }) => (
+          <LocalDateTime
+            value={row.original.registeredAt}
+            dateStyle='medium'
+            timeStyle='short'
+          />
+        ),
+      },
+    ],
+    [],
   );
 
   React.useEffect(() => {
@@ -136,21 +186,30 @@ export default function ResponsesPage({ params }: ResponsesPageProps) {
     if (!eventId) return;
 
     async function fetchData() {
-      const [responsesResult, eventResult] = await Promise.all([
-        getApplicationResponses(eventId as string),
-        getEventWithQuestions(eventId as string),
-      ]);
-
-      if (responsesResult.success && responsesResult.data) {
-        setResponses(responsesResult.data);
-      } else if (!responsesResult.success) {
-        toast.error(responsesResult.error || 'Failed to load responses');
-      }
+      const eventResult = await getEventWithQuestions(eventId as string);
 
       if (eventResult.success && eventResult.data) {
         setEventData(eventResult.data);
       } else if (!eventResult.success) {
         toast.error(eventResult.error || 'Failed to load event data');
+      }
+
+      if (eventResult.success && eventResult.data?.hasApplication) {
+        const responsesResult = await getApplicationResponses(
+          eventId as string,
+        );
+        if (responsesResult.success && responsesResult.data) {
+          setResponses(responsesResult.data);
+        } else if (!responsesResult.success) {
+          toast.error(responsesResult.error || 'Failed to load responses');
+        }
+      } else {
+        const attendeesResult = await getEventAttendees(eventId as string);
+        if (attendeesResult.success && attendeesResult.data) {
+          setAttendees(attendeesResult.data);
+        } else if (!attendeesResult.success) {
+          toast.error(attendeesResult.error || 'Failed to load attendees');
+        }
       }
 
       setLoading(false);
@@ -165,23 +224,46 @@ export default function ResponsesPage({ params }: ResponsesPageProps) {
     );
   }
 
+  const hasApplication = eventData?.hasApplication ?? false;
+
   return (
     <div className='space-y-4'>
-      <div>
-        <h2 className='text-lg font-semibold'>Application Responses</h2>
-        <p className='text-muted-foreground mt-1 text-sm'>
-          {responses.length} application{responses.length !== 1 ? 's' : ''}{' '}
-          submitted
-        </p>
-      </div>
+      {hasApplication ? (
+        <>
+          <div>
+            <h2 className='text-lg font-semibold'>Application Responses</h2>
+            <p className='text-muted-foreground mt-1 text-sm'>
+              {responses.length} application
+              {responses.length !== 1 ? 's' : ''} submitted
+            </p>
+          </div>
 
-      <DataTable
-        columns={columns}
-        data={responses}
-        searchPlaceholder='Search applicants...'
-        emptyMessage='No applications yet.'
-        initialSorting={[{ id: 'createdAt', desc: true }]}
-      />
+          <DataTable
+            columns={columns}
+            data={responses}
+            searchPlaceholder='Search applicants...'
+            emptyMessage='No applications yet.'
+            initialSorting={[{ id: 'createdAt', desc: true }]}
+          />
+        </>
+      ) : (
+        <>
+          <div>
+            <h2 className='text-lg font-semibold'>Registered Attendees</h2>
+            <p className='text-muted-foreground mt-1 text-sm'>
+              {attendees.length} registered
+            </p>
+          </div>
+
+          <DataTable
+            columns={attendeeColumns}
+            data={attendees}
+            searchPlaceholder='Search attendees...'
+            emptyMessage='No one has registered yet.'
+            initialSorting={[{ id: 'registeredAt', desc: true }]}
+          />
+        </>
+      )}
 
       {/* Response Details Dialog */}
       <Dialog open={showDetails} onOpenChange={setShowDetails}>

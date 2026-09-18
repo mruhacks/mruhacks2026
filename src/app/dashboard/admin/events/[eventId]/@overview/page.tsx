@@ -170,12 +170,18 @@ export default function EventOverviewPage({ params }: EventOverviewPageProps) {
         <Card>
           <CardHeader className='pb-2'>
             <CardTitle className='text-muted-foreground text-sm font-medium'>
-              Applications
+              {event.hasApplication ? 'Applications' : 'Registered'}
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className='text-2xl font-bold'>{event.applicationsCount}</div>
-            <p className='text-muted-foreground mt-1 text-xs'>submitted</p>
+            <div className='text-2xl font-bold'>
+              {event.hasApplication
+                ? event.applicationsCount
+                : event.attendeeCount}
+            </div>
+            <p className='text-muted-foreground mt-1 text-xs'>
+              {event.hasApplication ? 'submitted' : 'signed up'}
+            </p>
           </CardContent>
         </Card>
 
@@ -383,7 +389,7 @@ export default function EventOverviewPage({ params }: EventOverviewPageProps) {
                     type='number'
                     {...register('capacity', {
                       setValueAs: (value) =>
-                        value === '' ? undefined : Number(value),
+                        value === '' ? null : Number(value),
                     })}
                     placeholder='e.g. 100'
                   />
@@ -484,7 +490,7 @@ export default function EventOverviewPage({ params }: EventOverviewPageProps) {
                       step='any'
                       {...register('latitude', {
                         setValueAs: (value) =>
-                          value === '' ? undefined : Number(value),
+                          value === '' ? null : Number(value),
                       })}
                       placeholder='Latitude'
                     />
@@ -494,7 +500,7 @@ export default function EventOverviewPage({ params }: EventOverviewPageProps) {
                       step='any'
                       {...register('longitude', {
                         setValueAs: (value) =>
-                          value === '' ? undefined : Number(value),
+                          value === '' ? null : Number(value),
                       })}
                       placeholder='Longitude'
                     />
@@ -503,7 +509,7 @@ export default function EventOverviewPage({ params }: EventOverviewPageProps) {
                       type='number'
                       {...register('radiusMeters', {
                         setValueAs: (value) =>
-                          value === '' ? undefined : Number(value),
+                          value === '' ? null : Number(value),
                       })}
                       placeholder='Radius (m)'
                     />
