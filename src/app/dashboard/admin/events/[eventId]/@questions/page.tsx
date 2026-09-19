@@ -8,6 +8,14 @@ type QuestionsPageProps = {
   params: Promise<{ eventId: string }>;
 };
 
+/**
+ * Parallel-route slot pages are their own instant-navigation segment. This
+ * one reads the session and event questions from the DB, so it must be
+ * allowed to block. It does not inherit `instant = false` from the event
+ * layout.
+ */
+export const instant = false;
+
 export default async function QuestionsPage({ params }: QuestionsPageProps) {
   const { eventId } = await params;
   const user = await getUser();

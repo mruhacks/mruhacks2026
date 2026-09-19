@@ -1,0 +1,1 @@
+ALTER TABLE "events" ADD COLUMN "rsvp_response_window_hours" integer DEFAULT 48 NOT NULL;

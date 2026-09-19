@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
 import { and, asc, eq } from 'drizzle-orm';
@@ -9,9 +10,13 @@ import { MarkdownContent } from '@/components/markdown/markdown-content';
 import { events, eventTypes, eventAttendees, eventArticles } from '@/db/schema';
 import {
   getUserApplicationStatus,
+  getUserRsvpStatus,
   type ApplicationStatusForUser,
+  type RsvpStatusForUser,
 } from '@/app/dashboard/events/actions';
 import { ApplicationStatusBanner } from '@/app/dashboard/events/ApplicationStatusBanner';
+import { RsvpStatusCard } from '@/app/dashboard/events/RsvpStatusCard';
+import { RsvpPendingPrompt } from '@/app/dashboard/events/RsvpPendingPrompt';
 import { EventWikiDialog } from '@/app/dashboard/events/event-wiki-dialog';
 import { LocalDateRange } from '@/components/local-date-time';
 import { RegisterEventButton } from '@/app/dashboard/events/RegisterEventButton';
@@ -62,7 +67,36 @@ type EventDetails = {
 
 type PublishedArticle = { slug: string; title: string };
 
-export default async function EventEntryPage({ params, searchParams }: Props) {
+function EventPageSkeleton() {
+  return (
+    <div className='flex flex-col gap-8'>
+      <div className='flex flex-col gap-3'>
+        <div className='bg-muted h-4 w-24 animate-pulse rounded' />
+        <div className='bg-muted h-10 w-2/3 animate-pulse rounded' />
+        <div className='bg-muted h-4 w-40 animate-pulse rounded' />
+      </div>
+      <div className='bg-muted h-48 animate-pulse rounded-lg' />
+    </div>
+  );
+}
+
+/**
+ * Sync shell so Cache Components can serve the App Shell immediately.
+ * Session, headers, and DB reads live in `EventEntryContent` behind Suspense
+ * — same pattern as `dashboard/page.tsx`. An async page default export is
+ * what triggered the blocking-prerender error on this route.
+ */
+export const instant = false;
+
+export default function EventEntryPage(props: Props) {
+  return (
+    <Suspense fallback={<EventPageSkeleton />}>
+      <EventEntryContent {...props} />
+    </Suspense>
+  );
+}
+
+async function EventEntryContent({ params, searchParams }: Props) {
   const { eventId } = await params;
   const { joinCode: rawJoinCode } = await searchParams;
   // A repeated `?joinCode=` (a double-appended share link) arrives as an
@@ -104,7 +138,10 @@ export default async function EventEntryPage({ params, searchParams }: Props) {
     .orderBy(asc(eventArticles.sortOrder), asc(eventArticles.title));
 
   if (row.hasApplication) {
-    const applicationStatus = await getUserApplicationStatus(eventId);
+    const [applicationStatus, rsvpStatus] = await Promise.all([
+      getUserApplicationStatus(eventId),
+      getUserRsvpStatus(eventId),
+    ]);
     const canManageTeam =
       row.teamsEnabled &&
       applicationStatus != null &&
@@ -115,7 +152,9 @@ export default async function EventEntryPage({ params, searchParams }: Props) {
         event={row}
         articles={publishedArticles}
         mobileAction={
-          applicationStatus?.statusDisplay.isFinal
+          // An outstanding RSVP is the one thing we want a phone visitor to
+          // act on, and its buttons live in the panel — so no sticky bar.
+          rsvpStatus || applicationStatus?.statusDisplay.isFinal
             ? null
             : applicationStatus
               ? {
@@ -130,7 +169,9 @@ export default async function EventEntryPage({ params, searchParams }: Props) {
         participation={
           <ApplicationParticipationPanel
             eventId={eventId}
+            eventName={row.name}
             applicationStatus={applicationStatus}
+            rsvpStatus={rsvpStatus}
             walletPlatform={walletPlatform}
           />
         }
@@ -277,13 +318,52 @@ function WalletAction({
 
 function ApplicationParticipationPanel({
   eventId,
+  eventName,
   applicationStatus,
+  rsvpStatus,
   walletPlatform,
 }: {
   eventId: string;
+  eventName: string;
   applicationStatus: ApplicationStatusForUser | null;
+  rsvpStatus: RsvpStatusForUser | null;
   walletPlatform: WalletPlatform;
 }) {
+  // Any latest-wave RSVP (pending, accepted, declined, timed_out) is the
+  // status of record — same precedence as the dashboard listing badges.
+  if (rsvpStatus) {
+    return (
+      <>
+        {rsvpStatus.statusLabel === 'pending' && (
+          <RsvpPendingPrompt
+            eventId={eventId}
+            eventName={eventName}
+            respondBy={rsvpStatus.respondBy}
+          />
+        )}
+        <RsvpStatusCard
+          eventId={eventId}
+          eventName={eventName}
+          rsvp={rsvpStatus}
+        />
+        {rsvpStatus.statusLabel === 'accepted' && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Your pass</CardTitle>
+              <CardDescription>
+                Add it to your phone for faster check-in.
+              </CardDescription>
+            </CardHeader>
+            <CardFooter className='flex flex-row gap-2'>
+              <WalletAction eventId={eventId} walletPlatform={walletPlatform} />
+              <EventTicketButton eventId={eventId} />
+            </CardFooter>
+          </Card>
+        )}
+      </>
+    );
+  }
+
   if (applicationStatus) {
     return (
       <Card>

@@ -21,6 +21,14 @@ const eslintConfig = [
     ],
   },
   {
+    // CommonJS-only tooling (e.g. a tsx `--require` preload hook) has no ESM
+    // import available to it.
+    files: ['**/*.cjs'],
+    rules: {
+      '@typescript-eslint/no-require-imports': 'off',
+    },
+  },
+  {
     plugins: {
       'better-tailwindcss': eslintPluginBetterTailwindcss,
       custom: {

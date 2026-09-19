@@ -1,0 +1,19 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/rsvp-waves",
+      "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/rsvp-invitation-sweep",
+      "schedule": "0 6 * * *"
+    }
+  ],
+  "functions": {
+    "src/app/api/queues/rsvp-invitation/route.ts": {
+      "experimentalTriggers": [
+        { "type": "queue/v2beta", "topic": "rsvp-invitations" }
+      ]
+    }
+  }
+}

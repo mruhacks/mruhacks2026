@@ -12,7 +12,9 @@ import {
   userDietaryRestrictions,
   eventApplications,
   applicationStatuses,
+  eventAttendees,
   applicationFormView,
+  eventRsvpResponses,
   genders,
   universities,
   majors,
@@ -32,8 +34,19 @@ import {
 } from '@/components/application-form/schema';
 import type { ApplicationQuestion } from '@/types/application';
 import { cacheLife, revalidatePath, updateTag } from 'next/cache';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, exists, inArray, sql } from 'drizzle-orm';
 import { getUserProfile } from '@/app/dashboard/profile/actions';
+import {
+  EVENT_AT_CAPACITY_MESSAGE,
+  isRsvpUserDecision,
+  type RsvpUserDecision,
+} from '@/lib/rsvp/constants';
+import { resolveEffectiveRsvpStatus } from '@/lib/rsvp/effective-rsvp-status';
+import {
+  findLatestRsvpResponse,
+  findLatestRsvpResponseForDecision,
+  findLatestRsvpResponses,
+} from '@/lib/rsvp/latest-rsvp-response';
 import {
   getAllEvents,
   getUserEventParticipation,
@@ -47,6 +60,13 @@ import {
   getApplicationStatusDisplayMap,
   resolveApplicationStatusKey,
 } from './application-status';
+import {
+  type RsvpStatusLabel,
+  type RsvpStatusDisplay,
+  getRsvpStatusDisplay,
+  getRsvpStatusDisplayMap,
+  resolveRsvpStatusKey,
+} from './rsvp-status';
 
 /**
  * Returns the first event with has_application = true (e.g. default hackathon).
@@ -366,6 +386,191 @@ export async function getUserApplicationStatus(
   };
 }
 
+// ---------------------------------------------------------------------------
+// RSVP
+// ---------------------------------------------------------------------------
+
+export type RsvpStatusForUser = {
+  responseId: string;
+  statusLabel: RsvpStatusLabel;
+  statusDisplay: RsvpStatusDisplay;
+  respondBy: Date;
+  respondedAt: Date | null;
+};
+
+/**
+ * Current user's RSVP response for an event (latest wave).
+ * Effective status treats expired pending invites as timed_out without a
+ * write sweep. Returns null if the user has no RSVP invitation for this event.
+ */
+export async function getUserRsvpStatus(
+  eventId: string,
+): Promise<RsvpStatusForUser | null> {
+  const user = await getUser();
+  if (!user) return null;
+
+  const row = await findLatestRsvpResponse({
+    userId: user.id,
+    eventId,
+  });
+  if (!row) return null;
+  const statusLabel = resolveEffectiveRsvpStatus(
+    row.statusLabel,
+    row.respondBy,
+  );
+  return {
+    ...row,
+    statusLabel,
+    statusDisplay: await getRsvpStatusDisplay(statusLabel),
+  };
+}
+
+class RsvpResponseError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'RsvpResponseError';
+  }
+}
+
+/**
+ * Accept or decline an RSVP invitation on the latest wave.
+ *
+ * Accept updates the RSVP row and creates an `event_attendees` record in one
+ * transaction. Decline only updates the RSVP row.
+ *
+ * Capacity is enforced here — not at wave send — by locking the event row,
+ * counting attendees, and refusing the accept when the event is already full.
+ * Duplicate attendee rows are prevented by the (event_id, user_id) primary key
+ * with ON CONFLICT DO NOTHING; a user who is already an attendee may still
+ * accept without consuming an extra spot.
+ */
+export async function submitRsvpResponse(
+  eventId: string,
+  decision: RsvpUserDecision,
+): Promise<ActionResult> {
+  const user = await getUser();
+  if (!user) return fail('User not authenticated');
+  if (!isRsvpUserDecision(decision)) {
+    return fail('Invalid RSVP decision.');
+  }
+
+  const row = await findLatestRsvpResponseForDecision({
+    userId: user.id,
+    eventId,
+    decision,
+  });
+
+  if (!row) return fail('No RSVP invitation found.');
+  if (row.statusId == null || row.decisionStatusId == null) {
+    return fail('RSVP statuses are not configured.');
+  }
+
+  const currentStatus = resolveEffectiveRsvpStatus(
+    row.statusLabel,
+    row.respondBy,
+  );
+  if (currentStatus === 'timed_out') {
+    return fail('RSVP deadline has passed.');
+  }
+  if (currentStatus !== 'pending') {
+    return fail('Already responded to RSVP.');
+  }
+
+  const pendingResponseStatusId = row.statusId;
+  const decisionStatusId = row.decisionStatusId;
+
+  try {
+    await db.transaction(async (tx) => {
+      if (decision === 'accepted') {
+        const [eventRow] = await tx
+          .select({
+            id: events.id,
+            capacity: events.capacity,
+            attendeeCount: sql<number>`(
+              SELECT count(*)::int
+              FROM ${eventAttendees}
+              WHERE ${eventAttendees.eventId} = ${events.id}
+            )`.mapWith(Number),
+            isExistingAttendee: exists(
+              tx
+                .select({ one: sql`1` })
+                .from(eventAttendees)
+                .where(
+                  and(
+                    eq(eventAttendees.eventId, events.id),
+                    eq(eventAttendees.userId, user.id),
+                  ),
+                ),
+            ),
+          })
+          .from(events)
+          .where(eq(events.id, eventId))
+          .for('update')
+          .limit(1);
+
+        if (!eventRow) {
+          throw new RsvpResponseError('Event not found.');
+        }
+
+        if (
+          eventRow.capacity !== null &&
+          !eventRow.isExistingAttendee &&
+          eventRow.attendeeCount >= eventRow.capacity
+        ) {
+          throw new RsvpResponseError(EVENT_AT_CAPACITY_MESSAGE);
+        }
+
+        await tx
+          .insert(eventAttendees)
+          .values({
+            eventId,
+            userId: user.id,
+          })
+          .onConflictDoNothing({
+            target: [eventAttendees.eventId, eventAttendees.userId],
+          });
+      }
+
+      const updated = await tx
+        .update(eventRsvpResponses)
+        .set({
+          statusId: decisionStatusId,
+          respondedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(eventRsvpResponses.id, row.responseId),
+            eq(eventRsvpResponses.statusId, pendingResponseStatusId),
+          ),
+        )
+        .returning({ id: eventRsvpResponses.id });
+
+      if (updated.length === 0) {
+        throw new RsvpResponseError('Already responded to RSVP.');
+      }
+    });
+
+    // Accepting inserts an event_attendees row, which is what
+    // getUserEventParticipation caches per user.
+    if (decision === 'accepted') {
+      updateTag(userEventsCacheTag(user.id));
+    }
+    revalidatePath(`/dashboard/events/${eventId}`);
+    revalidatePath('/dashboard');
+    return ok(decision === 'accepted' ? 'RSVP accepted.' : 'RSVP declined.');
+  } catch (error) {
+    if (error instanceof RsvpResponseError) {
+      return fail(error.message);
+    }
+    console.error('RSVP response error:', error);
+    return fail('Failed to submit RSVP response.');
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Event listing
+// ---------------------------------------------------------------------------
+
 export type EventWithUserStatus = {
   id: string;
   name: string;
@@ -377,6 +582,8 @@ export type EventWithUserStatus = {
   statusKey: ApplicationStatusLabel | null;
   statusDisplay: ApplicationStatusDisplay | null;
   waitlistPosition: number | null;
+  rsvpStatusLabel: RsvpStatusLabel | null;
+  rsvpStatusDisplay: RsvpStatusDisplay | null;
 };
 
 /**
@@ -418,7 +625,19 @@ export async function getEventsWithUserStatus(): Promise<
   const statusByApplicationId = new Map(statusRows.map((r) => [r.id, r]));
 
   const registeredSet = new Set(participation.registeredEventIds);
-  const displayMap = await getApplicationStatusDisplayMap();
+
+  // Read fresh alongside the review status, for the same reason: an RSVP
+  // invitation appears (a wave going out) without the user acting, so it
+  // can't live behind the per-user participation cache.
+  const rsvpRows = await findLatestRsvpResponses({ userId: user.id });
+  const rsvpByEventId = new Map(
+    rsvpRows.map((row) => [row.eventId, row] as const),
+  );
+
+  const [displayMap, rsvpDisplayMap] = await Promise.all([
+    getApplicationStatusDisplayMap(),
+    getRsvpStatusDisplayMap(),
+  ]);
 
   return allEvents.map((e) => {
     const applicationId = participation.applicationIdByEventId[e.id];
@@ -427,6 +646,10 @@ export async function getEventsWithUserStatus(): Promise<
       : undefined;
     const statusKey = applicationId
       ? resolveApplicationStatusKey(status?.statusKey)
+      : null;
+    const rsvp = rsvpByEventId.get(e.id);
+    const rsvpLabel = rsvp
+      ? resolveEffectiveRsvpStatus(rsvp.statusLabel, rsvp.respondBy)
       : null;
     return {
       id: e.id,
@@ -445,6 +668,10 @@ export async function getEventsWithUserStatus(): Promise<
       statusKey,
       statusDisplay: statusKey ? displayMap[statusKey] : null,
       waitlistPosition: status?.waitlistPosition ?? null,
+      rsvpStatusLabel: rsvpLabel ? resolveRsvpStatusKey(rsvpLabel) : null,
+      rsvpStatusDisplay: rsvpLabel
+        ? rsvpDisplayMap[resolveRsvpStatusKey(rsvpLabel)]
+        : null,
     };
   });
 }

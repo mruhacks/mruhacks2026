@@ -87,6 +87,14 @@ export const events = pgTable(
     longitude: doublePrecision('longitude'),
     radiusMeters: integer('radius_meters'),
     capacity: integer('capacity'),
+    /**
+     * Hours invited applicants have to accept or decline. Applied at wave
+     * creation: `respond_by = created_at + rsvp_response_window_hours`.
+     * Changing this only affects waves created afterwards.
+     */
+    rsvpResponseWindowHours: integer('rsvp_response_window_hours')
+      .notNull()
+      .default(48),
     // Marks the single event whose registerUrl the public site links to.
     isFeatured: boolean('is_featured').notNull().default(false),
     teamsEnabled: boolean('teams_enabled').notNull().default(false),
@@ -327,7 +335,7 @@ export const eventRsvpWaves = pgTable(
       .notNull()
       .references(() => events.id, { onDelete: 'cascade' }),
     wave: smallint('wave').notNull(),
-    respondBy: timestamp('respond_by', { withTimezone: true }),
+    respondBy: timestamp('respond_by', { withTimezone: true }).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -356,6 +364,21 @@ export const eventRsvpResponses = pgTable(
       .references(() => user.id, { onDelete: 'cascade' }),
     statusId: integer('status_id').references(() => rsvpStatuses.id),
     respondedAt: timestamp('responded_at', { withTimezone: true }),
+    // Invitation email delivery state (separate from statusId, the RSVP
+    // decision): 'legacy' | 'unsent' | 'queued' | 'sent' | 'failed'.
+    invitationEmailStatus: text('invitation_email_status')
+      .notNull()
+      .default('unsent'),
+    invitationEmailAttempts: smallint('invitation_email_attempts')
+      .notNull()
+      .default(0),
+    invitationEmailLastError: text('invitation_email_last_error'),
+    invitationEmailQueuedAt: timestamp('invitation_email_queued_at', {
+      withTimezone: true,
+    }),
+    invitationEmailSentAt: timestamp('invitation_email_sent_at', {
+      withTimezone: true,
+    }),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -368,6 +391,9 @@ export const eventRsvpResponses = pgTable(
     waveUserUnique: uniqueIndex(
       'event_rsvp_responses_rsvp_wave_id_user_id_unique',
     ).on(table.rsvpWaveId, table.userId),
+    idxInvitationEmailStatus: index(
+      'idx_event_rsvp_responses_invitation_email_status',
+    ).on(table.invitationEmailStatus),
   }),
 );
 

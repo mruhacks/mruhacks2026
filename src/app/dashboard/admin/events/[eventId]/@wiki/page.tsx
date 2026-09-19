@@ -24,7 +24,12 @@ type WikiPageProps = {
  * editor lives here behind `?article=<id>` rather than at its own route
  * because this event page is built from parallel-route slots and its layout
  * renders only those slots — a nested child route would never be shown.
+ *
+ * This slot also does not inherit `instant = false` from the event layout;
+ * session and article queries are request-time, so the segment must block.
  */
+export const instant = false;
+
 export default async function WikiPage({
   params,
   searchParams,

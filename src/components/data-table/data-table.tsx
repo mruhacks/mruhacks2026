@@ -160,6 +160,12 @@ export function DataTable<TData, TValue>({
     getPaginationRowModel: manualPagination
       ? undefined
       : getPaginationRowModel(),
+    initialState: {
+      pagination: {
+        pageIndex: 0,
+        pageSize: pageSize ?? 10,
+      },
+    },
   });
 
   const showSearch = searchPlaceholder !== null;

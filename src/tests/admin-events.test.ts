@@ -17,8 +17,10 @@ import {
   reactivateQuestion,
   getEventWithQuestions,
   getEventDetails,
+  getEventRsvpSummary,
   updateEventSettings,
   getApplicationResponses,
+  sendEventRsvpWave,
 } from '@/app/dashboard/admin/events/actions';
 
 vi.mock('@/utils/auth', () => ({ getUser: vi.fn() }));
@@ -27,9 +29,20 @@ vi.mock('next/navigation', () => ({
     throw new Error(`REDIRECT:${path}`);
   }),
 }));
-vi.mock('next/cache', () => ({ updateTag: vi.fn() }));
+vi.mock('next/cache', () => ({
+  updateTag: vi.fn(),
+  revalidatePath: vi.fn(),
+}));
+vi.mock('@/utils/mail', () => ({
+  sendMail: vi.fn().mockResolvedValue(undefined),
+}));
+vi.mock('@/lib/rsvp/send-rsvp-wave', () => ({
+  sendRsvpWave: vi.fn(),
+}));
 
 import { getUser } from '@/utils/auth';
+import { revalidatePath } from 'next/cache';
+import { sendRsvpWave } from '@/lib/rsvp/send-rsvp-wave';
 
 let adminUserId: string;
 let eventManagePermId: number;
@@ -230,6 +243,26 @@ describe('getEventDetails', () => {
     if (!result.success) throw new Error((result as { error: string }).error);
     expect(result.data?.applicationsCount).toBe(0);
     expect(result.data?.questionsCount).toBe(0);
+    expect(result.data?.attendeeCount).toBe(0);
+  });
+});
+
+describe('getEventRsvpSummary', () => {
+  test('returns error for nonexistent event', async () => {
+    const result = await getEventRsvpSummary(
+      '00000000-0000-0000-0000-000000000000',
+    );
+    expect(result.success).toBe(false);
+    expect((result as { error: string }).error).toContain('not found');
+  });
+
+  test('returns a no_waves summary when RSVP has not started', async () => {
+    const result = await getEventRsvpSummary(testEventId);
+    expect(result.success).toBe(true);
+    if (!result.success) throw new Error(result.error);
+    expect(result.data?.hasApplication).toBe(true);
+    expect(result.data?.lifecycle).toBe('no_waves');
+    expect(result.data?.latestWave).toBeNull();
   });
 });
 
@@ -577,6 +610,18 @@ describe('updateEventSettings', () => {
     expect(row.name).toBe('Renamed Event');
   });
 
+  test('updates rsvp response window hours', async () => {
+    const result = await updateEventSettings(testEventId, {
+      rsvpResponseWindowHours: 24,
+    });
+    expect(result.success).toBe(true);
+
+    const details = await getEventDetails(testEventId);
+    expect(details.success).toBe(true);
+    if (!details.success || !details.data) return;
+    expect(details.data.rsvpResponseWindowHours).toBe(24);
+  });
+
   test('returns validation error when startsAt is after endsAt', async () => {
     const result = await updateEventSettings(testEventId, {
       startsAt: '2026-12-31T12:00',
@@ -686,5 +731,71 @@ describe('getApplicationResponses', () => {
     expect(result.data).toEqual([]);
 
     await db.delete(events).where(eq(events.id, eventId));
+  });
+});
+
+describe('sendEventRsvpWave', () => {
+  test('returns error when not authenticated', async () => {
+    vi.mocked(getUser).mockResolvedValueOnce(null as never);
+    const result = await sendEventRsvpWave(testEventId);
+    expect(result.success).toBe(false);
+  });
+
+  test('forwards wave results and revalidates the admin event page', async () => {
+    vi.mocked(sendRsvpWave).mockResolvedValueOnce({
+      success: true,
+      wave: {
+        id: 'wave-id',
+        eventId: testEventId,
+        wave: 1,
+        respondBy: new Date('2099-08-01T23:59:00.000Z'),
+        createdAt: new Date(),
+      },
+      eligibleApplicantCount: 3,
+      responsesCreated: 3,
+      invitationsQueued: 2,
+      queueFailures: [
+        {
+          userId: 'u1',
+          email: 'fail@example.com',
+          error: 'SMTP unavailable',
+        },
+      ],
+    });
+    vi.mocked(revalidatePath).mockClear();
+
+    const result = await sendEventRsvpWave(testEventId);
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+
+    expect(result.data).toEqual({
+      waveNumber: 1,
+      eligibleApplicantCount: 3,
+      responsesCreated: 3,
+      invitationsQueued: 2,
+      queueFailures: [
+        {
+          userId: 'u1',
+          email: 'fail@example.com',
+          error: 'SMTP unavailable',
+        },
+      ],
+    });
+    expect(revalidatePath).toHaveBeenCalledWith(
+      `/dashboard/admin/events/${testEventId}`,
+    );
+    expect(sendRsvpWave).toHaveBeenCalledWith(testEventId);
+  });
+
+  test('surfaces sendRsvpWave errors', async () => {
+    vi.mocked(sendRsvpWave).mockResolvedValueOnce({
+      success: false,
+      error: 'No available spots remaining for this event.',
+    });
+
+    const result = await sendEventRsvpWave(testEventId);
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.error).toContain('No available spots');
   });
 });

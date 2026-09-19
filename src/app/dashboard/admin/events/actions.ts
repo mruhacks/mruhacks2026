@@ -2,7 +2,7 @@
 
 import { randomUUID } from 'crypto';
 import { and, count, eq, inArray, ne, sql } from 'drizzle-orm';
-import { updateTag } from 'next/cache';
+import { revalidatePath, updateTag } from 'next/cache';
 import { db } from '@/utils/db';
 import { FEATURED_EVENT_CACHE_TAG } from '@/lib/featured-event';
 import { EVENTS_CACHE_TAG } from '@/lib/events';
@@ -18,6 +18,10 @@ import {
 import { getUser } from '@/utils/auth';
 import { ok, fail, type ActionResult } from '@/utils/action-result';
 import { hasPermission, requirePermission } from '@/lib/rbac/authorization';
+import { sendRsvpWave } from '@/lib/rsvp/send-rsvp-wave';
+import { getAdminRsvpSummary } from '@/lib/rsvp/get-admin-rsvp-summary';
+import type { AdminRsvpSummary } from '@/lib/rsvp/get-admin-rsvp-summary';
+import { DEFAULT_RSVP_RESPONSE_WINDOW_HOURS } from '@/lib/rsvp/constants';
 import {
   isSummarizableQuestion,
   type ApplicationQuestion,
@@ -383,6 +387,8 @@ export async function createEvent(
       name: input.name,
       hasApplication: input.hasApplication,
       capacity: input.capacity ?? null,
+      rsvpResponseWindowHours:
+        input.rsvpResponseWindowHours ?? DEFAULT_RSVP_RESPONSE_WINDOW_HOURS,
       teamsEnabled: input.teamsEnabled ?? false,
       maxTeamSize: input.maxTeamSize ?? null,
       startsAt: input.startsAt ? new Date(input.startsAt) : null,
@@ -416,6 +422,7 @@ export type EventDetails = {
   descriptionMarkdown: string;
   hasApplication: boolean;
   capacity: number | null;
+  rsvpResponseWindowHours: number;
   startsAt: Date | null;
   endsAt: Date | null;
   location: string | null;
@@ -429,7 +436,7 @@ export type EventDetails = {
   updatedAt: Date;
   questionsCount: number;
   applicationsCount: number;
-  attendeesCount: number;
+  attendeeCount: number;
 };
 
 /**
@@ -456,7 +463,7 @@ export async function getEventDetails(
     .from(eventApplications)
     .where(eq(eventApplications.eventId, eventId));
 
-  const [{ total: attendeesCount }] = await db
+  const [{ total: attendeeCount }] = await db
     .select({ total: count() })
     .from(eventAttendees)
     .where(eq(eventAttendees.eventId, eventId));
@@ -470,6 +477,7 @@ export async function getEventDetails(
     descriptionMarkdown: eventRow.descriptionMarkdown ?? '',
     hasApplication: eventRow.hasApplication,
     capacity: eventRow.capacity ?? null,
+    rsvpResponseWindowHours: eventRow.rsvpResponseWindowHours,
     startsAt: eventRow.startsAt ?? null,
     endsAt: eventRow.endsAt ?? null,
     location: eventRow.location ?? null,
@@ -483,7 +491,7 @@ export async function getEventDetails(
     updatedAt: eventRow.updatedAt,
     questionsCount,
     applicationsCount,
-    attendeesCount,
+    attendeeCount: Number(attendeeCount),
   });
 }
 
@@ -571,6 +579,8 @@ export async function updateEventSettings(
         hasApplication: input.hasApplication ?? eventRow.hasApplication,
         capacity:
           input.capacity !== undefined ? input.capacity : eventRow.capacity,
+        rsvpResponseWindowHours:
+          input.rsvpResponseWindowHours ?? eventRow.rsvpResponseWindowHours,
         teamsEnabled: input.teamsEnabled ?? eventRow.teamsEnabled,
         maxTeamSize:
           input.maxTeamSize !== undefined
@@ -648,6 +658,86 @@ export async function getApplicationResponses(
       createdAt: row.createdAt,
     })),
   );
+}
+
+export type SendEventRsvpWaveResult = {
+  waveNumber: number;
+  eligibleApplicantCount: number;
+  responsesCreated: number;
+  invitationsQueued: number;
+  queueFailures: Array<{
+    userId: string;
+    email: string;
+    error: string;
+  }>;
+};
+
+/**
+ * Read-only RSVP wave/capacity summary for admin RSVP surfaces.
+ * Requires event:manage permission (satisfied by event:manage:all).
+ */
+export async function getEventRsvpSummary(
+  eventId: string,
+): Promise<ActionResult<AdminRsvpSummary>> {
+  const user = await getAuthorizedUser();
+  if (!user) return fail('Not authenticated');
+
+  if (!eventId.trim()) return fail('Event ID is required.');
+
+  const summary = await getAdminRsvpSummary(eventId);
+  if (!summary) return fail('Event not found');
+
+  return ok(summary);
+}
+
+export type {
+  AdminRsvpLifecycle,
+  AdminRsvpParticipant,
+  AdminRsvpSummary,
+  AdminRsvpWaveSummary,
+} from '@/lib/rsvp/get-admin-rsvp-summary';
+
+/**
+ * Admin: start the next RSVP wave for an event.
+ * Requires event:manage permission (satisfied by event:manage:all).
+ * Deadline is `now + events.rsvp_response_window_hours`.
+ */
+export async function sendEventRsvpWave(
+  eventId: string,
+): Promise<ActionResult<SendEventRsvpWaveResult>> {
+  const user = await getAuthorizedUser();
+  if (!user) return fail('Not authenticated');
+
+  if (!eventId.trim()) return fail('Event ID is required.');
+
+  const result = await sendRsvpWave(eventId);
+  if (!result.success) {
+    return fail(result.error);
+  }
+
+  revalidatePath(`/dashboard/admin/events/${eventId}`);
+
+  await writeAuditLog({
+    actorId: user.id,
+    action: 'event.rsvp_wave_sent',
+    targetType: 'event',
+    targetId: eventId,
+    metadata: {
+      waveNumber: result.wave.wave,
+      eligibleApplicantCount: result.eligibleApplicantCount,
+      responsesCreated: result.responsesCreated,
+      invitationsQueued: result.invitationsQueued,
+      queueFailureCount: result.queueFailures.length,
+    },
+  });
+
+  return ok({
+    waveNumber: result.wave.wave,
+    eligibleApplicantCount: result.eligibleApplicantCount,
+    responsesCreated: result.responsesCreated,
+    invitationsQueued: result.invitationsQueued,
+    queueFailures: result.queueFailures,
+  });
 }
 
 export type EventAttendeeRow = {

@@ -114,10 +114,17 @@ export const applicationStatuses = pgTable('application_statuses', {
  * RSVP response status
  *
  * Values: pending, accepted, declined, timed_out.
+ *
+ * Display columns (title, description, variant, is_final) drive the UI badge
+ * and status card shown to invited applicants.
  */
 export const rsvpStatuses = pgTable('rsvp_statuses', {
   id: serial('id').primaryKey(),
   label: varchar('label', { length: 50 }).unique().notNull(),
+  title: varchar('title', { length: 100 }).notNull(),
+  description: varchar('description', { length: 500 }).notNull(),
+  variant: varchar('variant', { length: 20 }).notNull(),
+  isFinal: boolean('is_final').notNull(),
 });
 
 /**
