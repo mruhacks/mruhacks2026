@@ -28,3 +28,18 @@ allowBuilds:
   sharp: true
   ssh2: true
   unrs-resolver: true
+
+minimumReleaseAgeExclude:
+  - joi@17.13.4
+  - fast-uri@3.1.6
+  - joi@17.13.6
+  - next@16.3.3
+  - joi@17.13.5
+  - vitest@4.1.11
+  - '@vitest/mocker@4.1.11'
+  - baseline-browser-mapping@2.11.0
+  - sharp@0.35.4
+  - js-yaml@4.3.2
+  - nodemailer@9.1.1
+  - nodemailer@9.1.0
+  - smol-toml@1.7.1
