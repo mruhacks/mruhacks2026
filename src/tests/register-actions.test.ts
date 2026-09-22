@@ -88,6 +88,79 @@ describe('registerForEvent', () => {
   });
 });
 
+describe('registerForEvent capacity', () => {
+  let cappedEventId: string;
+  let otherUserId: string;
+
+  beforeAll(async () => {
+    const [e] = await db
+      .insert(events)
+      .values({
+        name: 'Test Capped Event',
+        hasApplication: false,
+        capacity: 1,
+      })
+      .returning({ id: events.id });
+    cappedEventId = e.id;
+
+    const [u] = await db
+      .insert(user)
+      .values({
+        name: 'Register Test User 2',
+        email: 'register-test-2@example.com',
+        emailVerified: true,
+      })
+      .returning({ id: user.id });
+    otherUserId = u.id;
+  });
+
+  afterAll(async () => {
+    await db
+      .delete(eventAttendees)
+      .where(eq(eventAttendees.eventId, cappedEventId));
+    await db.delete(events).where(eq(events.id, cappedEventId));
+    await db.delete(user).where(eq(user.id, otherUserId));
+  });
+
+  test('allows registration up to capacity, rejects once full', async () => {
+    vi.mocked(getUser).mockResolvedValueOnce({
+      id: testUserId,
+      email: 'register-test@example.com',
+      name: 'Register Test User',
+      emailVerified: true,
+    } as never);
+    const first = await registerForEvent(cappedEventId);
+    expect(first.success).toBe(true);
+
+    vi.mocked(getUser).mockResolvedValueOnce({
+      id: otherUserId,
+      email: 'register-test-2@example.com',
+      name: 'Register Test User 2',
+      emailVerified: true,
+    } as never);
+    const second = await registerForEvent(cappedEventId);
+    expect(second.success).toBe(false);
+    expect((second as { error: string }).error).toContain('full');
+
+    const rows = await db
+      .select()
+      .from(eventAttendees)
+      .where(eq(eventAttendees.eventId, cappedEventId));
+    expect(rows).toHaveLength(1);
+  });
+
+  test('re-registering an existing attendee stays a no-op even when full', async () => {
+    vi.mocked(getUser).mockResolvedValueOnce({
+      id: testUserId,
+      email: 'register-test@example.com',
+      name: 'Register Test User',
+      emailVerified: true,
+    } as never);
+    const result = await registerForEvent(cappedEventId);
+    expect(result.success).toBe(true);
+  });
+});
+
 describe('registerForEventFormAction', () => {
   test('returns error when eventId is missing from FormData', async () => {
     const formData = new FormData();

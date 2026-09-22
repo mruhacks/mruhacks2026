@@ -1,6 +1,6 @@
 import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, count, eq } from 'drizzle-orm';
 
 import { getUser } from '@/utils/auth';
 import { db } from '@/utils/db';
@@ -156,6 +156,12 @@ export default async function EventEntryPage({ params, searchParams }: Props) {
 
   const isRegistered = Boolean(attendeeRow);
 
+  const [{ total: attendeeCount }] = await db
+    .select({ total: count() })
+    .from(eventAttendees)
+    .where(eq(eventAttendees.eventId, eventId));
+  const isFull = row.capacity != null && attendeeCount >= row.capacity;
+
   return (
     <EventPageLayout
       event={row}
@@ -164,9 +170,13 @@ export default async function EventEntryPage({ params, searchParams }: Props) {
         isRegistered
           ? null
           : {
-              label: 'Register',
+              label: isFull ? 'Event full' : 'Register',
               control: (
-                <RegisterEventButton eventId={eventId} className='w-full' />
+                <RegisterEventButton
+                  eventId={eventId}
+                  className='w-full'
+                  full={isFull}
+                />
               ),
             }
       }
@@ -174,6 +184,12 @@ export default async function EventEntryPage({ params, searchParams }: Props) {
         <RegistrationParticipationPanel
           eventId={eventId}
           isRegistered={isRegistered}
+          isFull={isFull}
+          spotsRemaining={
+            row.capacity != null
+              ? Math.max(row.capacity - attendeeCount, 0)
+              : null
+          }
           walletPlatform={walletPlatform}
         />
       }
@@ -329,10 +345,14 @@ function ApplicationParticipationPanel({
 function RegistrationParticipationPanel({
   eventId,
   isRegistered,
+  isFull,
+  spotsRemaining,
   walletPlatform,
 }: {
   eventId: string;
   isRegistered: boolean;
+  isFull: boolean;
+  spotsRemaining: number | null;
   walletPlatform: WalletPlatform;
 }) {
   if (isRegistered) {
@@ -366,11 +386,19 @@ function RegistrationParticipationPanel({
       <CardHeader>
         <CardTitle>Registration</CardTitle>
         <CardDescription>
-          No application required — register now to save your spot.
+          {isFull
+            ? 'This event is full.'
+            : spotsRemaining != null
+              ? `No application required — ${spotsRemaining} spot${spotsRemaining === 1 ? '' : 's'} left.`
+              : 'No application required — register now to save your spot.'}
         </CardDescription>
       </CardHeader>
       <CardFooter>
-        <RegisterEventButton eventId={eventId} className='w-full' />
+        <RegisterEventButton
+          eventId={eventId}
+          className='w-full'
+          full={isFull}
+        />
       </CardFooter>
     </Card>
   );

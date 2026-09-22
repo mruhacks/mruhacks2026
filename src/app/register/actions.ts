@@ -6,11 +6,11 @@
 
 'use server';
 
-import { eventAttendees } from '@/db/schema';
+import { events, eventAttendees } from '@/db/schema';
 import { getUser } from '@/utils/auth';
 import { ActionResult, fail, ok } from '@/utils/action-result';
 import { db } from '@/utils/db';
-import { and, eq } from 'drizzle-orm';
+import { and, count, eq } from 'drizzle-orm';
 import { revalidatePath, updateTag } from 'next/cache';
 import { userEventsCacheTag } from '@/lib/events';
 
@@ -22,21 +22,63 @@ export async function registerForEvent(eventId: string): Promise<ActionResult> {
   if (!user) return fail('User not authenticated');
 
   try {
-    await db
-      .insert(eventAttendees)
-      .values({
-        eventId,
-        userId: user.id,
-      })
-      .onConflictDoNothing({
-        target: [eventAttendees.eventId, eventAttendees.userId],
-      });
-    revalidatePath('/dashboard/events');
-    revalidatePath('/dashboard');
-    revalidatePath(`/dashboard/events/${eventId}`);
-    revalidatePath('/welcome', 'layout');
-    updateTag(userEventsCacheTag(user.id));
-    return ok('Registered for event.');
+    const result = await db.transaction(async (tx) => {
+      // Locked for the rest of the transaction: the capacity check below is a
+      // read-then-write, and without this two simultaneous registrations
+      // could both read the pre-registration count and both pass, overflowing
+      // capacity (same race handled for teams in joinTeamByCode).
+      const [eventRow] = await tx
+        .select({ capacity: events.capacity })
+        .from(events)
+        .where(eq(events.id, eventId))
+        .limit(1)
+        .for('update');
+      if (!eventRow) return fail('Event not found.');
+
+      const [existing] = await tx
+        .select({ userId: eventAttendees.userId })
+        .from(eventAttendees)
+        .where(
+          and(
+            eq(eventAttendees.eventId, eventId),
+            eq(eventAttendees.userId, user.id),
+          ),
+        )
+        .limit(1);
+
+      // Only a new registration counts against capacity; re-registering
+      // (already an attendee) stays a no-op regardless of fill level.
+      if (!existing && eventRow.capacity != null) {
+        const [{ total }] = await tx
+          .select({ total: count() })
+          .from(eventAttendees)
+          .where(eq(eventAttendees.eventId, eventId));
+        if (total >= eventRow.capacity) {
+          return fail('This event is full.');
+        }
+      }
+
+      await tx
+        .insert(eventAttendees)
+        .values({
+          eventId,
+          userId: user.id,
+        })
+        .onConflictDoNothing({
+          target: [eventAttendees.eventId, eventAttendees.userId],
+        });
+
+      return ok('Registered for event.');
+    });
+
+    if (result.success) {
+      revalidatePath('/dashboard/events');
+      revalidatePath('/dashboard');
+      revalidatePath(`/dashboard/events/${eventId}`);
+      revalidatePath('/welcome', 'layout');
+      updateTag(userEventsCacheTag(user.id));
+    }
+    return result;
   } catch (error) {
     console.error('Register for event error:', error);
     return fail('Failed to register for event.');
