@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll } from 'vitest';
+import { generateKeyPairSync } from 'node:crypto';
 import forge from 'node-forge';
 import {
   formatDateRange,
@@ -169,6 +170,15 @@ describe('generateParticipantPass', () => {
     process.env.APPLE_WALLET_SIGNER_CERT = certificatePem;
     process.env.APPLE_WALLET_SIGNER_KEY = privateKeyPem;
     delete process.env.APPLE_WALLET_SIGNER_KEY_PASSPHRASE;
+
+    // The barcode is a check-in token signed with this key (see
+    // check-in-token.ts) — mocked here too so the suite doesn't depend on
+    // CHECK_IN_SIGNING_PRIVATE_KEY being set in the environment it runs in.
+    const { privateKey } = generateKeyPairSync('ed25519');
+    process.env.CHECK_IN_SIGNING_PRIVATE_KEY = privateKey
+      .export({ type: 'pkcs8', format: 'pem' })
+      .toString();
+    delete process.env.CHECK_IN_SIGNING_PUBLIC_KEY;
   });
 
   describe('relevance window', () => {
