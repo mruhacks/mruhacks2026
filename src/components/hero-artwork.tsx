@@ -3,26 +3,54 @@
 import { useEffect, useState } from 'react';
 import { EVENT_START_DATE } from '@/content';
 
-function getCountdown(target: Date): {
-  months: number;
-  weeks: number;
-  days: number;
-} {
-  const now = new Date();
-  now.setHours(0, 0, 0, 0);
+type CountdownState =
+  | { mode: 'months'; months: number; weeks: number; days: number }
+  | { mode: 'days'; days: number; hours: number; minutes: number }
+  | { mode: 'time'; hours: number; minutes: number; seconds: number };
 
-  if (now >= target) {
-    return { months: 0, weeks: 0, days: 0 };
+const HOUR_MS = 60 * 60 * 1000;
+const DAY_MS = 24 * HOUR_MS;
+
+function getCountdown(target: Date): CountdownState {
+  const now = new Date();
+  const diffMs = target.getTime() - now.getTime();
+
+  if (diffMs <= 0) {
+    return { mode: 'time', hours: 0, minutes: 0, seconds: 0 };
   }
 
+  if (diffMs <= DAY_MS) {
+    return {
+      mode: 'time',
+      hours: Math.floor(diffMs / HOUR_MS),
+      minutes: Math.floor((diffMs % HOUR_MS) / (60 * 1000)),
+      seconds: Math.floor((diffMs % (60 * 1000)) / 1000),
+    };
+  }
+
+  const oneMonthBefore = new Date(target);
+  oneMonthBefore.setMonth(oneMonthBefore.getMonth() - 1);
+
+  if (now >= oneMonthBefore) {
+    return {
+      mode: 'days',
+      days: Math.floor(diffMs / DAY_MS),
+      hours: Math.floor((diffMs % DAY_MS) / HOUR_MS),
+      minutes: Math.floor((diffMs % HOUR_MS) / (60 * 1000)),
+    };
+  }
+
+  const nowDay = new Date(now);
+  nowDay.setHours(0, 0, 0, 0);
+
   let months =
-    (target.getFullYear() - now.getFullYear()) * 12 +
-    (target.getMonth() - now.getMonth());
-  if (target.getDate() < now.getDate()) {
+    (target.getFullYear() - nowDay.getFullYear()) * 12 +
+    (target.getMonth() - nowDay.getMonth());
+  if (target.getDate() < nowDay.getDate()) {
     months--;
   }
 
-  const afterMonths = new Date(now);
+  const afterMonths = new Date(nowDay);
   // Compute the target year/month to handle rawMonth >= 12 cross-year correctly.
   // JavaScript's Date constructor normalizes overflow months, so this works even
   // when rawMonth spans multiple years (e.g. rawMonth=13 → Feb of next year).
@@ -33,10 +61,11 @@ function getCountdown(target: Date): {
   afterMonths.setMonth(rawMonth);
 
   const remainingDays = Math.floor(
-    (target.getTime() - afterMonths.getTime()) / (1000 * 60 * 60 * 24),
+    (target.getTime() - afterMonths.getTime()) / DAY_MS,
   );
 
   return {
+    mode: 'months',
     months,
     weeks: Math.floor(remainingDays / 7),
     days: remainingDays % 7,
@@ -44,18 +73,43 @@ function getCountdown(target: Date): {
 }
 
 export function HeroArtwork() {
-  const [countdown, setCountdown] = useState({ months: 0, weeks: 0, days: 0 });
+  const [countdown, setCountdown] = useState<CountdownState>({
+    mode: 'months',
+    months: 0,
+    weeks: 0,
+    days: 0,
+  });
 
   useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+
     function update() {
-      setCountdown(getCountdown(EVENT_START_DATE));
+      const next = getCountdown(EVENT_START_DATE);
+      setCountdown(next);
+      const delay =
+        next.mode === 'time' ? 1000 : next.mode === 'days' ? 60 * 1000 : HOUR_MS;
+      timer = setTimeout(update, delay);
     }
+
     update();
-    const timer = setInterval(update, 60 * 60 * 1000);
-    return () => clearInterval(timer);
+    return () => clearTimeout(timer);
   }, []);
 
   const pad = (n: number) => String(n).padStart(2, '0');
+
+  const [primary, secondary, tertiary] =
+    countdown.mode === 'months'
+      ? [countdown.months, countdown.weeks, countdown.days]
+      : countdown.mode === 'days'
+        ? [countdown.days, countdown.hours, countdown.minutes]
+        : [countdown.hours, countdown.minutes, countdown.seconds];
+
+  const [label1, label2, label3] =
+    countdown.mode === 'months'
+      ? ['Months', 'Weeks', 'Days']
+      : countdown.mode === 'days'
+        ? ['Days', 'Hours', 'Minutes']
+        : ['Hours', 'Minutes', 'Seconds'];
 
   return (
     <svg
@@ -603,7 +657,7 @@ export function HeroArtwork() {
           letterSpacing='-3.2'
           transform='rotate(-2.29 77.69 127.32)'
         >
-          {pad(countdown.months)}
+          {pad(primary)}
         </text>
         <text
           x='129.15'
@@ -621,7 +675,7 @@ export function HeroArtwork() {
           letterSpacing='-3.2'
           transform='rotate(-2.29 180.61 123.22)'
         >
-          {pad(countdown.weeks)}
+          {pad(secondary)}
         </text>
         <text
           x='232.07'
@@ -639,7 +693,7 @@ export function HeroArtwork() {
           letterSpacing='-3.2'
           transform='rotate(-2.29 283.53 119.11)'
         >
-          {pad(countdown.days)}
+          {pad(tertiary)}
         </text>
         <text
           x='79.35'
@@ -648,7 +702,7 @@ export function HeroArtwork() {
           letterSpacing='-1'
           transform='rotate(-2.29 79.35 159.15)'
         >
-          Months
+          {label1}
         </text>
         <text
           x='182.27'
@@ -657,7 +711,7 @@ export function HeroArtwork() {
           letterSpacing='-1'
           transform='rotate(-2.29 182.27 155.20)'
         >
-          Weeks
+          {label2}
         </text>
         <text
           x='285.18'
@@ -666,7 +720,7 @@ export function HeroArtwork() {
           letterSpacing='-1'
           transform='rotate(-2.29 285.18 151.41)'
         >
-          Days
+          {label3}
         </text>
       </g>
       <defs>
