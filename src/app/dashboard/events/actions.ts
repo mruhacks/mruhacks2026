@@ -34,6 +34,7 @@ import {
 } from '@/components/application-form/schema';
 import type { ApplicationQuestion } from '@/types/application';
 import { cacheLife, revalidatePath, updateTag } from 'next/cache';
+import { eventApplicationsCacheTag } from '@/lib/admin-event';
 import { and, eq, exists, inArray, sql } from 'drizzle-orm';
 import { getUserProfile } from '@/app/dashboard/profile/actions';
 import {
@@ -220,6 +221,10 @@ async function registerParticipant(
     });
 
     updateTag(userEventsCacheTag(user.id));
+    // A new/updated application moves every number on the admin event
+    // dashboard — the totals tile, the status list, the over-time chart and
+    // the roster all read through this tag.
+    updateTag(eventApplicationsCacheTag(eventId));
     revalidatePath('/welcome', 'layout');
     return ok('Application saved successfully.');
   } catch (error) {
@@ -555,6 +560,8 @@ export async function submitRsvpResponse(
     if (decision === 'accepted') {
       updateTag(userEventsCacheTag(user.id));
     }
+    // Either decision moves the admin RSVP tile's accepted/declined split.
+    updateTag(eventApplicationsCacheTag(eventId));
     revalidatePath(`/dashboard/events/${eventId}`);
     revalidatePath('/dashboard');
     return ok(decision === 'accepted' ? 'RSVP accepted.' : 'RSVP declined.');

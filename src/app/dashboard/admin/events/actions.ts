@@ -7,6 +7,10 @@ import { db } from '@/utils/db';
 import { FEATURED_EVENT_CACHE_TAG } from '@/lib/featured-event';
 import { EVENTS_CACHE_TAG } from '@/lib/events';
 import {
+  adminEventCacheTag,
+  eventApplicationsCacheTag,
+} from '@/lib/admin-event';
+import {
   events,
   eventApplications,
   eventAttendees,
@@ -102,6 +106,11 @@ async function writeQuestions(
     .update(events)
     .set({ applicationQuestions: questions, updatedAt: new Date() })
     .where(eq(events.id, eventId));
+
+  // Single funnel for every question mutation (add/edit/remove/reorder/
+  // reactivate), so the event dashboard's cached question list and stats
+  // can't drift behind an edit no matter which action made it.
+  updateTag(adminEventCacheTag(eventId));
 }
 
 // ── Public actions ────────────────────────────────────────────────────────
@@ -620,6 +629,7 @@ export async function updateEventSettings(
   // them so edits show up immediately.
   updateTag(FEATURED_EVENT_CACHE_TAG);
   updateTag(EVENTS_CACHE_TAG);
+  updateTag(adminEventCacheTag(eventId));
 
   await writeAuditLog({
     actorId: user.id,
@@ -831,6 +841,7 @@ export async function sendEventRsvpWave(
     return fail(result.error);
   }
 
+  updateTag(eventApplicationsCacheTag(eventId));
   revalidatePath(`/dashboard/admin/events/${eventId}`);
 
   await writeAuditLog({
@@ -854,48 +865,6 @@ export async function sendEventRsvpWave(
     invitationsQueued: result.invitationsQueued,
     queueFailures: result.queueFailures,
   });
-}
-
-export type EventAttendeeRow = {
-  userId: string;
-  email: string;
-  fullName: string;
-  registeredAt: Date;
-};
-
-/**
- * Fetches all registered attendees for an event (the simple signup path used
- * by events without an application flow).
- * Requires event:manage permission.
- */
-export async function getEventAttendees(
-  eventId: string,
-): Promise<ActionResult<EventAttendeeRow[]>> {
-  const authUser = await getUser();
-  if (!authUser) return fail('Not authenticated');
-  await requirePermission(authUser.id, 'event:manage');
-
-  const rows = await db
-    .select({
-      userId: eventAttendees.userId,
-      email: user.email,
-      fullName: userProfiles.fullName,
-      registeredAt: eventAttendees.registeredAt,
-    })
-    .from(eventAttendees)
-    .innerJoin(user, eq(eventAttendees.userId, user.id))
-    .leftJoin(userProfiles, eq(eventAttendees.userId, userProfiles.userId))
-    .where(eq(eventAttendees.eventId, eventId))
-    .orderBy(eventAttendees.registeredAt);
-
-  return ok(
-    rows.map((row) => ({
-      userId: row.userId,
-      email: row.email,
-      fullName: row.fullName || 'Unknown',
-      registeredAt: row.registeredAt,
-    })),
-  );
 }
 
 export type FormedTeamMember = {

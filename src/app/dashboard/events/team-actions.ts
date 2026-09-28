@@ -11,7 +11,8 @@
 'use server';
 
 import { and, asc, count, eq } from 'drizzle-orm';
-import { revalidatePath } from 'next/cache';
+import { revalidatePath, updateTag } from 'next/cache';
+import { eventApplicationsCacheTag } from '@/lib/admin-event';
 
 import { db } from '@/utils/db';
 import { getUser } from '@/utils/auth';
@@ -333,7 +334,10 @@ export async function joinTeamByCode(
       return ok('Joined team.');
     });
 
-    if (result.success) revalidatePath(`/dashboard/events/${eventId}`);
+    if (result.success) {
+      updateTag(eventApplicationsCacheTag(eventId));
+      revalidatePath(`/dashboard/events/${eventId}`);
+    }
     return result;
   } catch (error) {
     console.error('joinTeamByCode error:', error);
@@ -395,7 +399,10 @@ export async function leaveTeam(eventId: string): Promise<ActionResult> {
       return ok('Left team.');
     });
 
-    if (result.success) revalidatePath(`/dashboard/events/${eventId}`);
+    if (result.success) {
+      updateTag(eventApplicationsCacheTag(eventId));
+      revalidatePath(`/dashboard/events/${eventId}`);
+    }
     return result;
   } catch (error) {
     console.error('leaveTeam error:', error);
@@ -487,6 +494,7 @@ export async function removeMember(
     });
 
     if (result.success) {
+      updateTag(eventApplicationsCacheTag(eventId));
       revalidatePath(`/dashboard/events/${eventId}`);
       if (isAdminOverride) {
         await writeAuditLog({

@@ -1,5 +1,6 @@
 'use server';
 
+import { updateTag } from 'next/cache';
 import { and, eq, gt, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { z } from 'zod';
@@ -13,6 +14,7 @@ import {
   user,
   userProfiles,
 } from '@/db/schema';
+import { eventApplicationsCacheTag } from '@/lib/admin-event';
 import { parseInstant } from '@/lib/datetime';
 import { requirePermission } from '@/lib/rbac/authorization';
 import { verifyCheckInPayload } from '@/lib/wallet/check-in-token';
@@ -108,6 +110,11 @@ async function recordCheckIn(
       checkedInAt: checkedInAtIsoSql,
       checkedInAtLabel: checkedInAtLabelSql,
     });
+
+  // Moves the event dashboard's check-ins tile. Its getter is cached for
+  // minutes, which is the right staleness for an overview but too slow for
+  // the desk itself — the scanner keeps its own live polling.
+  if (inserted) updateTag(eventApplicationsCacheTag(eventId));
 
   if (inserted) {
     return {
@@ -249,6 +256,8 @@ export async function undoCheckIn(
     .returning({ checkedInAt: checkIns.checkedInAt });
 
   if (!removed) return fail('They were not checked in.');
+
+  updateTag(eventApplicationsCacheTag(eventId));
 
   await writeAuditLog({
     actorId: actor.id,

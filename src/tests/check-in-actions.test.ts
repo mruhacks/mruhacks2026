@@ -20,6 +20,9 @@ import {
 import { db } from '@/utils/db';
 
 vi.mock('@/utils/auth', () => ({ getUser: vi.fn() }));
+// The check-in actions invalidate the event dashboard's cached counts;
+// `updateTag` throws outside a Server Action request scope.
+vi.mock('next/cache', () => ({ updateTag: vi.fn() }));
 
 import { getUser } from '@/utils/auth';
 import { buildCheckInPayload } from '@/lib/wallet/check-in-token';

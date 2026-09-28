@@ -76,6 +76,12 @@ export interface DataTableProps<TData, TValue> {
   initialSorting?: SortingState;
   /** Called whenever the user toggles a sort via column header click. */
   onSortingChange?: (sorting: SortingState) => void;
+  /**
+   * Columns hidden on first render, by column id. Lets a wide table ship a
+   * readable default set while keeping the rest one click away in the
+   * column-visibility menu.
+   */
+  initialColumnVisibility?: VisibilityState;
   /** Optional initial column filters. */
   initialColumnFilters?: ColumnFiltersState;
   /** Called whenever column filters change. */
@@ -100,6 +106,7 @@ export function DataTable<TData, TValue>({
   compact = false,
   initialSorting = [],
   onSortingChange,
+  initialColumnVisibility,
   initialColumnFilters = [],
   onColumnFiltersChange,
 }: DataTableProps<TData, TValue>) {
@@ -107,7 +114,7 @@ export function DataTable<TData, TValue>({
   const [columnFilters, setColumnFilters] =
     React.useState<ColumnFiltersState>(initialColumnFilters);
   const [columnVisibility, setColumnVisibility] =
-    React.useState<VisibilityState>({});
+    React.useState<VisibilityState>(initialColumnVisibility ?? {});
   const [rowSelection, setRowSelection] = React.useState({});
   const [globalFilter, setGlobalFilter] = React.useState('');
   const didNotifySorting = React.useRef(false);
@@ -237,7 +244,19 @@ export function DataTable<TData, TValue>({
                   const canSort = header.column.getCanSort();
                   const sorted = header.column.getIsSorted();
                   return (
-                    <TableHead key={header.id} className={cn(compact && 'h-9')}>
+                    <TableHead
+                      key={header.id}
+                      // Without this a grouped header renders in a single
+                      // column instead of spanning the columns it labels.
+                      // It is 1 for every ungrouped table, so this is inert
+                      // for existing callers.
+                      colSpan={header.colSpan}
+                      className={cn(
+                        compact && 'h-9',
+                        header.subHeaders.length > 0 &&
+                          'text-muted-foreground border-b text-[11px] tracking-wide uppercase',
+                      )}
+                    >
                       {header.isPlaceholder ? null : canSort ? (
                         <button
                           type='button'

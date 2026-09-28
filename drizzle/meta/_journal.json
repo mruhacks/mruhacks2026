@@ -288,6 +288,13 @@
       "when": 1790275303914,
       "tag": "0040_low_young_avengers",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1790275303915,
+      "tag": "0041_rsvp_read_permission",
+      "breakpoints": true
     }
   ]
 }

@@ -62,20 +62,16 @@ const USER_TILE_LINKS = [
 const FEATURED_EVENT_PERMISSION = 'event:manage:all';
 
 /**
- * Buttons inside the featured event's tile. `tab` deep-links into the event
- * admin page's tab strip, and each one checks the permission that page gates
- * the same tab on.
+ * Buttons inside the featured event's tile. `path` deep-links to the tool's
+ * own page under the event dashboard, and each one checks the permission
+ * that page gates itself on. Applications aren't listed — the tile already
+ * links to the event dashboard, where the applications table lives.
  */
 const FEATURED_EVENT_LINKS = [
   {
     label: 'Check-in',
-    tab: 'checkin',
+    path: 'checkin',
     permission: 'checkin:write:all',
-  },
-  {
-    label: 'Applications',
-    tab: 'responses',
-    permission: 'event:manage:all',
   },
 ];
 
@@ -291,7 +287,7 @@ async function AdminPanel({ permissions }: { permissions: Set<string> }) {
             ).map((link) => (
               <Button key={link.label} asChild variant='outline' size='sm'>
                 <Link
-                  href={`/dashboard/admin/events/${featured.id}?tab=${link.tab}`}
+                  href={`/dashboard/admin/events/${featured.id}/${link.path}`}
                 >
                   {link.label}
                 </Link>

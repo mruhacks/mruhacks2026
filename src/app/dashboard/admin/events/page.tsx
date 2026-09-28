@@ -24,14 +24,16 @@ function EventListSkeleton() {
 }
 
 /**
- * Tools each card links to, by the tab they open on the event's admin page.
- * Each is gated on the permission that page gates the same tab on — never a
- * shared "is this an admin" bundle. See AGENTS.md.
+ * Tools each card links to, by their page under the event's admin dashboard.
+ * Each is gated on the permission that page gates itself on — never a shared
+ * "is this an admin" bundle. See AGENTS.md.
+ *
+ * Applications aren't listed: the card itself already links to the event
+ * dashboard, where the applications table lives.
  */
 const EVENT_TOOLS = [
-  { label: 'Check-in', tab: 'checkin', permission: 'checkin:write:all' },
-  { label: 'Applications', tab: 'responses', permission: 'event:manage:all' },
-  { label: 'Wiki', tab: 'wiki', permission: 'article:read:all' },
+  { label: 'Check-in', path: 'checkin', permission: 'checkin:write:all' },
+  { label: 'Wiki', path: 'wiki', permission: 'article:read:all' },
 ] as const;
 
 // Permission check reads the session; the event list is cached but keyed
@@ -70,8 +72,12 @@ async function EventList() {
           <Card key={event.id} className='hover:border-primary/40 relative'>
             {/* Stretched over the card rather than wrapping it, so the tool
                 buttons below sit above it and stay clickable. */}
+            {/* prefetch: the dashboard depends on this event's `params`, so
+                the App Shell for it is only resolved ahead of the click with
+                per-link prefetching. See AGENTS.md / Cache Components. */}
             <Link
               href={`/dashboard/admin/events/${event.id}`}
+              prefetch
               className='absolute inset-0 rounded-xl'
               aria-label={`Manage ${event.name}`}
             />
@@ -131,7 +137,7 @@ async function EventList() {
                       size='sm'
                     >
                       <Link
-                        href={`/dashboard/admin/events/${event.id}?tab=${tool.tab}`}
+                        href={`/dashboard/admin/events/${event.id}/${tool.path}`}
                       >
                         {tool.label}
                       </Link>

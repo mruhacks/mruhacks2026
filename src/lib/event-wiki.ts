@@ -69,3 +69,33 @@ export async function getPublishedArticle(eventId: string, slug: string) {
 
   return article ?? null;
 }
+
+/**
+ * Every article for an event, drafts included — the admin wiki list.
+ *
+ * Separate from `getPublishedArticleList` rather than a flag on it: they're
+ * different cache entries for different audiences, and keying one function
+ * on a boolean would let a published-only reader warm (or read) the entry
+ * holding unpublished drafts. Callers must hold `article:read:all`; that
+ * check lives at the call site because a `use cache` scope can't read the
+ * session.
+ */
+export async function getAllArticlesForAdmin(eventId: string) {
+  'use cache';
+  cacheTag(eventWikiCacheTag(eventId));
+  // updateTag() covers article create/update/delete, but 'minutes' (still
+  // App Shell-prefetchable) is a cheap safety net against a missed path.
+  cacheLife('minutes');
+
+  return db
+    .select({
+      id: eventArticles.id,
+      slug: eventArticles.slug,
+      title: eventArticles.title,
+      published: eventArticles.published,
+      updatedAt: eventArticles.updatedAt,
+    })
+    .from(eventArticles)
+    .where(eq(eventArticles.eventId, eventId))
+    .orderBy(asc(eventArticles.sortOrder), asc(eventArticles.title));
+}

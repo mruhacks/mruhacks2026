@@ -15,6 +15,7 @@ import { randomUUID } from 'crypto';
 import { and, asc, eq, ne } from 'drizzle-orm';
 import { revalidatePath, updateTag } from 'next/cache';
 
+import { adminEventCacheTag } from '@/lib/admin-event';
 import { db } from '@/utils/db';
 import { events, eventArticles } from '@/db/schema';
 import { getUser } from '@/utils/auth';
@@ -156,6 +157,8 @@ export async function updateEventDescription(
 
   if (updated.length === 0) return fail('Event not found');
 
+  // The admin dashboard renders the description from a cached getter.
+  updateTag(adminEventCacheTag(eventId));
   revalidatePath(`/dashboard/events/${eventId}`);
 
   await writeAuditLog({

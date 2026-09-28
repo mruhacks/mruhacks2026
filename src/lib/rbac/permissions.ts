@@ -117,6 +117,10 @@ const CORE_PERMISSIONS = [
     description: 'Remove any team member (moderation override)',
   },
   { slug: 'checkin:write:all', description: 'Check participants in or out' },
+  {
+    slug: 'rsvp:read:all',
+    description: "View an event's RSVP waves and responses",
+  },
   { slug: 'application:read:all', description: 'View event applications' },
   {
     slug: 'application:review:all',

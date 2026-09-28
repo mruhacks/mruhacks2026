@@ -19,7 +19,7 @@ import {
   rosterWatermark,
   startRosterPolling,
   type PollingHost,
-} from '@/app/dashboard/admin/events/[eventId]/@checkin/roster-sync';
+} from '@/app/dashboard/admin/events/[eventId]/checkin/roster-sync';
 
 function row(
   userId: string,

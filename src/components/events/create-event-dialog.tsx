@@ -59,7 +59,7 @@ export function CreateEventDialog() {
       setOpen(false);
       reset();
       // Navigate to the new event
-      router.push(`/dashboard/admin/events/${result.data.id}?tab=overview`);
+      router.push(`/dashboard/admin/events/${result.data.id}`);
     } else if (!result.success) {
       toast.error(result.error || 'Failed to create event');
     }
