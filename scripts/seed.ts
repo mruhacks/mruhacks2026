@@ -28,6 +28,7 @@ import {
 import type { InferInsertModel } from 'drizzle-orm';
 import { eq, isNull, and } from 'drizzle-orm';
 import { seedStaticTables } from './seed-static';
+import { otherTextKey } from '@/lib/other-option';
 
 const COUNT = Number(process.env.SEED_COUNT ?? 3e2);
 const CHUNK_SIZE = Number(process.env.SEED_CHUNK_SIZE ?? 2000);
@@ -40,6 +41,8 @@ const Q_HEARD_FROM = '11111111-0000-0000-0000-000000000004';
 const Q_CONSENT_INFO = '11111111-0000-0000-0000-000000000005';
 const Q_CONSENT_SPONSOR = '11111111-0000-0000-0000-000000000006';
 const Q_CONSENT_MEDIA = '11111111-0000-0000-0000-000000000007';
+const Q_WORKSHOPS_INTERESTED = '11111111-0000-0000-0000-000000000008';
+const Q_HACKATHONS_ATTENDED = '11111111-0000-0000-0000-000000000009';
 
 // ── Stable option UUIDs for heard_from question ───────────────────────────
 const OPT_POSTER = '22222222-0000-0000-0000-000000000001';
@@ -48,14 +51,47 @@ const OPT_CLASSROOM = '22222222-0000-0000-0000-000000000003';
 const OPT_SOCIAL = '22222222-0000-0000-0000-000000000004';
 const OPT_PROFESSOR = '22222222-0000-0000-0000-000000000005';
 const OPT_OTHER = '22222222-0000-0000-0000-000000000006';
-const HEARD_FROM_OPTIONS = [
-  OPT_POSTER,
-  OPT_FRIEND,
-  OPT_CLASSROOM,
-  OPT_SOCIAL,
-  OPT_PROFESSOR,
-  OPT_OTHER,
+
+// Skewed weights for how applicants heard about the event, so the chart
+// shows a real-looking shape instead of six equal bars.
+const HEARD_FROM_WEIGHTS = [
+  { weight: 20, value: OPT_POSTER },
+  { weight: 20, value: OPT_FRIEND },
+  { weight: 15, value: OPT_CLASSROOM },
+  { weight: 35, value: OPT_SOCIAL },
+  { weight: 5, value: OPT_PROFESSOR },
+  { weight: 5, value: OPT_OTHER },
 ];
+
+// ── Stable option UUIDs for the workshops-interested question ────────────
+const OPT_WORKSHOP_WEB = '22222222-0000-0000-0000-000000000007';
+const OPT_WORKSHOP_AI = '22222222-0000-0000-0000-000000000008';
+const OPT_WORKSHOP_HARDWARE = '22222222-0000-0000-0000-000000000009';
+const OPT_WORKSHOP_DESIGN = '22222222-0000-0000-0000-000000000010';
+const OPT_WORKSHOP_GIT = '22222222-0000-0000-0000-000000000011';
+
+// Skewed weights driving which workshops get picked more often, so the
+// multi_select chart shows a real-looking shape rather than equal bars.
+const WORKSHOP_WEIGHTS = [
+  { weight: 35, value: OPT_WORKSHOP_AI },
+  { weight: 25, value: OPT_WORKSHOP_WEB },
+  { weight: 15, value: OPT_WORKSHOP_DESIGN },
+  { weight: 15, value: OPT_WORKSHOP_GIT },
+  { weight: 10, value: OPT_WORKSHOP_HARDWARE },
+];
+
+/** Weighted, duplicate-free sample of `count` workshop option values. */
+function pickWeightedWorkshops(count: number): string[] {
+  const pool = [...WORKSHOP_WEIGHTS];
+  const picked: string[] = [];
+  for (let n = 0; n < count && pool.length > 0; n++) {
+    const choice = faker.helpers.weightedArrayElement(pool);
+    picked.push(choice);
+    const idx = pool.findIndex((p) => p.value === choice);
+    if (idx >= 0) pool.splice(idx, 1);
+  }
+  return picked;
+}
 
 // ── Stable article UUIDs (deterministic for seed data consistency) ────────
 const ART_GETTING_STARTED = '33333333-0000-0000-0000-000000000001';
@@ -94,11 +130,30 @@ async function seedEvents() {
       maxTeamSize: 5,
       applicationQuestions: [
         {
+          id: Q_ATTENDED_BEFORE,
+          label: 'Have you attended a hackathon before?',
+          type: 'boolean' as const,
+          required: true,
+          showInReports: true,
+          order: 1,
+          active: true,
+        },
+        {
+          id: Q_HACKATHONS_ATTENDED,
+          label: 'How many hackathons have you attended?',
+          type: 'number' as const,
+          required: false,
+          showInReports: true,
+          order: 2,
+          active: true,
+        },
+        {
           id: Q_HEARD_FROM,
           label: 'How did you hear about us?',
           type: 'single_select' as const,
           required: true,
-          order: 1,
+          showInReports: true,
+          order: 3,
           active: true,
           options: [
             { value: OPT_POSTER, label: 'Poster', active: true },
@@ -112,6 +167,86 @@ async function seedEvents() {
             },
             { value: OPT_OTHER, label: 'Other', active: true },
           ],
+        },
+        {
+          id: Q_WORKSHOPS_INTERESTED,
+          label: 'Which workshops interest you?',
+          type: 'multi_select' as const,
+          required: false,
+          showInReports: true,
+          order: 4,
+          active: true,
+          options: [
+            { value: OPT_WORKSHOP_WEB, label: 'Web development', active: true },
+            {
+              value: OPT_WORKSHOP_AI,
+              label: 'AI / machine learning',
+              active: true,
+            },
+            {
+              value: OPT_WORKSHOP_HARDWARE,
+              label: 'Hardware & IoT',
+              active: true,
+            },
+            {
+              value: OPT_WORKSHOP_DESIGN,
+              label: 'UI / UX design',
+              active: true,
+            },
+            {
+              value: OPT_WORKSHOP_GIT,
+              label: 'Git & collaboration workflows',
+              active: true,
+            },
+          ],
+        },
+        {
+          id: Q_NEEDS_PARKING,
+          label: 'Do you need a parking pass?',
+          type: 'boolean' as const,
+          required: true,
+          // Deliberately left out of reports so the stats view's filtering
+          // is visibly proven to exclude a flagged-off summarizable question.
+          showInReports: false,
+          order: 5,
+          active: true,
+        },
+        {
+          id: Q_ACCOMMODATIONS,
+          label: 'Do you require any accommodations for the event?',
+          type: 'long_text' as const,
+          required: false,
+          order: 6,
+          active: true,
+        },
+        {
+          id: Q_CONSENT_INFO,
+          label:
+            'I consent to MRUHacks storing my application information for the purpose of running this event.',
+          type: 'boolean' as const,
+          required: true,
+          showInReports: true,
+          order: 7,
+          active: true,
+        },
+        {
+          id: Q_CONSENT_SPONSOR,
+          label: 'I consent to sharing my information with event sponsors.',
+          type: 'boolean' as const,
+          required: true,
+          showInReports: true,
+          order: 8,
+          active: true,
+        },
+        {
+          id: Q_CONSENT_MEDIA,
+          label:
+            'I consent to being photographed or filmed for promotional use during the event.',
+          type: 'boolean' as const,
+          required: true,
+          showInReports: true,
+          order: 9,
+          active: true,
         },
       ],
     },
@@ -467,8 +602,34 @@ async function main() {
     (s) => s.label === 'pending_review',
   );
   const pendingReviewStatusId = pendingReviewStatus?.id ?? null;
+  const approvedStatusId =
+    applicationStatusRows.find((s) => s.label === 'approved')?.id ?? null;
+  const deniedStatusId =
+    applicationStatusRows.find((s) => s.label === 'denied')?.id ?? null;
+  const waitlistedStatusId =
+    applicationStatusRows.find((s) => s.label === 'waitlisted')?.id ?? null;
+
+  // Skewed status distribution so the admin stats status filter has
+  // something real to filter, instead of every row being pending_review.
+  const STATUS_WEIGHTS = [
+    { weight: 30, value: pendingReviewStatusId },
+    { weight: 40, value: approvedStatusId },
+    { weight: 15, value: deniedStatusId },
+    { weight: 15, value: waitlistedStatusId },
+  ];
+
+  // Monotonic across the whole run (not per-chunk), so waitlist positions
+  // never repeat.
+  let waitlistCounter = 0;
 
   const now = new Date();
+  // Applications are spread over the ~6 weeks before "now" rather than all
+  // sharing one instant, so createdAt-based charts show a real shape. These
+  // stay real Date (UTC instant) objects throughout — never a bare
+  // wall-clock string — per the datetime rule in AGENTS.md.
+  const applicationWindowStart = new Date(
+    now.getTime() - 1000 * 60 * 60 * 24 * 42,
+  );
   const chunkCount = Math.ceil(COUNT / CHUNK_SIZE);
 
   for (let c = 0; c < chunkCount; c++) {
@@ -549,26 +710,98 @@ async function main() {
         updatedAt: now,
       });
 
+      // ── Application status + review trail ───────────────────────────────
+      const statusId = faker.helpers.weightedArrayElement(STATUS_WEIGHTS);
+      const isDecided = statusId !== pendingReviewStatusId;
+
+      const appCreatedAt = faker.date.between({
+        from: applicationWindowStart,
+        to: now,
+      });
+      const appUpdatedAt =
+        appCreatedAt.getTime() < now.getTime()
+          ? faker.date.between({ from: appCreatedAt, to: now })
+          : now;
+      const appReviewedAt = isDecided
+        ? appCreatedAt.getTime() < appUpdatedAt.getTime()
+          ? faker.date.between({ from: appCreatedAt, to: appUpdatedAt })
+          : appUpdatedAt
+        : null;
+      // Stand-in reviewer: the first user materialized in this chunk. Any
+      // valid user id satisfies the `reviewed_by` FK — this file has no
+      // dedicated "organizer" user available yet at insert time.
+      const reviewedBy = isDecided ? users[0]!.id : null;
+      const waitlistPosition =
+        statusId === waitlistedStatusId ? ++waitlistCounter : null;
+
+      // ── Question answers (skewed, with some left unanswered) ────────────
+      const attendedBefore = faker.helpers.weightedArrayElement([
+        { weight: 40, value: false },
+        { weight: 60, value: true },
+      ]);
+      const hackathonsAttended = faker.helpers.maybe(
+        () =>
+          faker.helpers.weightedArrayElement([
+            { weight: 40, value: 0 },
+            { weight: 25, value: 1 },
+            { weight: 15, value: 2 },
+            { weight: 10, value: 3 },
+            { weight: 10, value: faker.number.int({ min: 4, max: 10 }) },
+          ]),
+        { probability: 0.85 }, // ~15% leave this optional question unanswered
+      );
+      const heardFrom = faker.helpers.weightedArrayElement(
+        HEARD_FROM_WEIGHTS,
+      );
+      const workshopsInterested = faker.helpers.maybe(
+        () => pickWeightedWorkshops(faker.number.int({ min: 1, max: 3 })),
+        { probability: 0.8 }, // ~20% leave this optional question unanswered
+      );
+      const needsParking = faker.helpers.weightedArrayElement([
+        { weight: 75, value: false },
+        { weight: 25, value: true },
+      ]);
+      const consentSponsor = faker.helpers.weightedArrayElement([
+        { weight: 90, value: true },
+        { weight: 10, value: false },
+      ]);
+      const consentMedia = faker.helpers.weightedArrayElement([
+        { weight: 90, value: true },
+        { weight: 10, value: false },
+      ]);
+
+      const responses: Record<string, unknown> = {
+        [Q_ATTENDED_BEFORE]: attendedBefore,
+        [Q_HACKATHONS_ATTENDED]: hackathonsAttended,
+        [Q_HEARD_FROM]: heardFrom,
+        [Q_WORKSHOPS_INTERESTED]: workshopsInterested,
+        [Q_NEEDS_PARKING]: needsParking,
+        [Q_ACCOMMODATIONS]: faker.helpers.maybe(
+          () => faker.lorem.sentence(),
+          {
+            probability: 0.25,
+          },
+        ),
+        [Q_CONSENT_INFO]: true,
+        [Q_CONSENT_SPONSOR]: consentSponsor,
+        [Q_CONSENT_MEDIA]: consentMedia,
+      };
+      if (heardFrom === OPT_OTHER) {
+        // "Other" was picked — also write the free-text sibling so the
+        // other-text rendering path is exercised in seeded data.
+        responses[otherTextKey(Q_HEARD_FROM)] = faker.lorem.sentence();
+      }
+
       applicationData.push({
         eventId: applicationEvent.id,
         userId: id,
-        statusId: pendingReviewStatusId,
-        createdAt: now,
-        updatedAt: now,
-        responses: {
-          [Q_ATTENDED_BEFORE]: faker.datatype.boolean(),
-          [Q_ACCOMMODATIONS]: faker.helpers.maybe(
-            () => faker.lorem.sentence(),
-            {
-              probability: 0.25,
-            },
-          ),
-          [Q_NEEDS_PARKING]: faker.datatype.boolean(),
-          [Q_HEARD_FROM]: faker.helpers.arrayElement(HEARD_FROM_OPTIONS),
-          [Q_CONSENT_INFO]: true,
-          [Q_CONSENT_SPONSOR]: faker.datatype.boolean({ probability: 0.9 }),
-          [Q_CONSENT_MEDIA]: faker.datatype.boolean({ probability: 0.9 }),
-        },
+        statusId,
+        createdAt: appCreatedAt,
+        updatedAt: appUpdatedAt,
+        reviewedAt: appReviewedAt,
+        reviewedBy,
+        waitlistPosition,
+        responses,
       });
 
       const chosenInterests = faker.helpers.arrayElements(

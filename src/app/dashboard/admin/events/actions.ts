@@ -12,6 +12,12 @@ import {
   eventAttendees,
   user,
   userProfiles,
+  userProfileAbout,
+  genders,
+  universities,
+  majors,
+  yearsOfStudy,
+  applicationStatuses,
   teams,
   teamMembers,
 } from '@/db/schema';
@@ -26,6 +32,15 @@ import {
   isSummarizableQuestion,
   type ApplicationQuestion,
 } from '@/types/application';
+import type { ApplicationStatus } from '@/types/lookups';
+import {
+  buildQuestionStats,
+  buildStatusBreakdown,
+  buildDemographicStats,
+  type ApplicationStatsRow,
+  type QuestionStats,
+  type StatsBucket,
+} from '@/lib/application-stats';
 import {
   addQuestionSchema,
   editQuestionSchema,
@@ -658,6 +673,107 @@ export async function getApplicationResponses(
       createdAt: row.createdAt,
     })),
   );
+}
+
+export type EventApplicationStats = {
+  hasApplication: boolean;
+  total: number;
+  questionStats: QuestionStats[];
+  statusBreakdown: StatsBucket[];
+  demographics: Record<
+    'university' | 'major' | 'yearOfStudy' | 'gender',
+    StatsBucket[]
+  >;
+};
+
+/**
+ * Aggregate application statistics for the Stats tab: per-question buckets
+ * (for questions flagged `showInReports`), a status breakdown, and applicant
+ * demographics.
+ *
+ * Aggregates on the server — raw per-applicant `responses` never crosses the
+ * wire from here, which is the privacy boundary that justifies
+ * `application:stats:all` being its own permission rather than a reuse of
+ * `application:read:all` (that permission grants access to individual
+ * applicants' answers; this one only ever grants cohort-level numbers).
+ */
+export async function getApplicationStats(
+  eventId: string,
+  status?: ApplicationStatus | 'all',
+): Promise<ActionResult<EventApplicationStats>> {
+  const authUser = await getUser();
+  if (!authUser) return fail('Not authenticated');
+  await requirePermission(authUser.id, 'application:stats');
+
+  const [eventRow] = await db
+    .select({
+      applicationQuestions: events.applicationQuestions,
+      hasApplication: events.hasApplication,
+    })
+    .from(events)
+    .where(eq(events.id, eventId))
+    .limit(1);
+
+  if (!eventRow) return fail('Event not found');
+
+  const questions =
+    (eventRow.applicationQuestions as ApplicationQuestion[] | null) ?? [];
+
+  const whereClause =
+    status && status !== 'all'
+      ? and(
+          eq(eventApplications.eventId, eventId),
+          eq(applicationStatuses.label, status),
+        )
+      : eq(eventApplications.eventId, eventId);
+
+  const rows = await db
+    .select({
+      responses: eventApplications.responses,
+      status: applicationStatuses.label,
+      university: universities.label,
+      major: majors.label,
+      yearOfStudy: yearsOfStudy.label,
+      gender: genders.label,
+    })
+    .from(eventApplications)
+    .leftJoin(userProfiles, eq(eventApplications.userId, userProfiles.userId))
+    .leftJoin(
+      userProfileAbout,
+      eq(eventApplications.userId, userProfileAbout.userId),
+    )
+    .leftJoin(genders, eq(userProfiles.genderId, genders.id))
+    .leftJoin(
+      universities,
+      eq(userProfileAbout.universityId, universities.id),
+    )
+    .leftJoin(majors, eq(userProfileAbout.majorId, majors.id))
+    .leftJoin(
+      yearsOfStudy,
+      eq(userProfileAbout.yearOfStudyId, yearsOfStudy.id),
+    )
+    .leftJoin(
+      applicationStatuses,
+      eq(eventApplications.statusId, applicationStatuses.id),
+    )
+    .where(whereClause);
+
+  const statsRows: ApplicationStatsRow[] = rows.map((row) => ({
+    responses: (row.responses as Record<string, unknown> | null) ?? null,
+    status: row.status ?? null,
+    university: row.university ?? null,
+    major: row.major ?? null,
+    yearOfStudy: row.yearOfStudy ?? null,
+    gender: row.gender ?? null,
+  }));
+
+  return ok({
+    hasApplication: eventRow.hasApplication,
+    total: statsRows.length,
+    questionStats: buildQuestionStats(questions, statsRows),
+    statusBreakdown: buildStatusBreakdown(statsRows),
+    demographics: buildDemographicStats(statsRows),
+  });
 }
 
 export type SendEventRsvpWaveResult = {

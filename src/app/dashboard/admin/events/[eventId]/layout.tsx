@@ -18,6 +18,7 @@ type EventLayoutProps = {
   overview: React.ReactNode;
   questions: React.ReactNode;
   responses: React.ReactNode;
+  stats: React.ReactNode;
   rsvp: React.ReactNode;
   checkin: React.ReactNode;
   teams: React.ReactNode;
@@ -29,6 +30,7 @@ export default async function EventLayout({
   overview,
   questions,
   responses,
+  stats,
   rsvp,
   checkin,
   teams,
@@ -42,13 +44,14 @@ export default async function EventLayout({
   // Teams tab redirects to /forbidden on entry, which would throw them off
   // the whole event page — so gate each tab on the permission behind it.
   const user = await getUser();
-  const [canReadTeams, canReadArticles, canCheckIn] = user
+  const [canReadTeams, canReadArticles, canCheckIn, canReadStats] = user
     ? await Promise.all([
         hasPermission(user.id, 'team:read:all'),
         hasPermission(user.id, 'article:read:all'),
         hasPermission(user.id, 'checkin:write:all'),
+        hasPermission(user.id, 'application:stats'),
       ])
-    : [false, false, false];
+    : [false, false, false, false];
 
   const tabs = [
     {
@@ -58,6 +61,9 @@ export default async function EventLayout({
     },
     { id: 'questions' as const, label: 'Questions', content: questions },
     { id: 'responses' as const, label: 'Responses', content: responses },
+    ...(canReadStats
+      ? [{ id: 'stats' as const, label: 'Stats', content: stats }]
+      : []),
     { id: 'rsvp' as const, label: 'RSVP', content: rsvp },
     ...(canCheckIn
       ? [{ id: 'checkin' as const, label: 'Check-in', content: checkin }]

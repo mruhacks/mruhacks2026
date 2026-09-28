@@ -281,6 +281,13 @@
       "when": 1789501394196,
       "tag": "0039_sharp_hellion",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1790275303914,
+      "tag": "0040_low_young_avengers",
+      "breakpoints": true
     }
   ]
 }

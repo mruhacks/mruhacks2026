@@ -123,6 +123,10 @@ const CORE_PERMISSIONS = [
     description: 'Approve or reject applications',
   },
   {
+    slug: 'application:stats:all',
+    description: 'View aggregate application statistics',
+  },
+  {
     slug: 'article:read:all',
     description: 'View unpublished event wiki articles',
   },

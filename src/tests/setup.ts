@@ -28,7 +28,17 @@ beforeAll(async () => {
   const migrationsFolder = path.resolve(process.cwd(), 'drizzle');
 
   try {
-    await migrate(db, { migrationsFolder });
+    await migrate(db, {
+      migrationsFolder,
+      // Must match `migrations` in drizzle.config.ts. The CLI
+      // (`drizzle-kit migrate`, used by db:seed/db:reset and CI) records
+      // applied migrations in drizzle.journal; drizzle-orm's default here
+      // would be drizzle.__drizzle_migrations. Two ledgers over one folder
+      // means whichever path runs second re-applies every migration the
+      // first already did and fails on the first ADD COLUMN.
+      migrationsTable: 'journal',
+      migrationsSchema: 'drizzle',
+    });
     console.log('✅ Test database migrated successfully.');
   } catch (e) {
     console.error('❌ Migration failed in test setup:', e);

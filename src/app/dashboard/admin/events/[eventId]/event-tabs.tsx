@@ -9,6 +9,7 @@ export type EventTabId =
   | 'overview'
   | 'questions'
   | 'responses'
+  | 'stats'
   | 'rsvp'
   | 'checkin'
   | 'teams'

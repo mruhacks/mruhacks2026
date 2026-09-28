@@ -8,7 +8,7 @@
  * - event_applications: Apply flow (one per user per event with has_application); minimal + responses JSONB
  * - event_attendees: Register-for-event flow (simple signup for events without application)
  * - event_articles: Per-event wiki pages authored in markdown by organizers
- * - application_view / application_form_view: Denormalized views for display and form pre-fill
+ * - application_form_view: Denormalized view for form pre-fill
  *
  * Event participation: events with application use event_applications; events without use event_attendees (we call the latter "register for event").
  */
@@ -701,82 +701,6 @@ export const teamMembersRelations = relations(teamMembers, ({ one }) => ({
 // ---------------------------------------------------------------------------
 // Views
 // ---------------------------------------------------------------------------
-
-/**
- * Application view - denormalized for display (profile + event + user + responses)
- */
-export const applicationView = pgView('application_view', {
-  eventId: uuid('event_id').notNull(),
-  eventName: text('event_name').notNull(),
-  userId: uuid('user_id').notNull(),
-  email: text('email').notNull(),
-  fullName: varchar('full_name', { length: 255 }).notNull(),
-  gender: varchar({ length: 100 }).notNull(),
-  university: varchar({ length: 200 }).notNull(),
-  major: varchar({ length: 150 }).notNull(),
-  yearOfStudy: varchar('year_of_study', { length: 10 }).notNull(),
-  interests: text().array(),
-  dietaryRestrictions: text('dietary_restrictions').array(),
-  responses: jsonb('responses').$type<Record<string, unknown>>(),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
-  linkedinUrl: varchar('linkedin_url', { length: 255 }),
-  githubUrl: varchar('github_url', { length: 255 }),
-  genderOtherText: varchar('gender_other_text', { length: 255 }),
-  universityOtherText: varchar('university_other_text', { length: 255 }),
-  majorOtherText: varchar('major_other_text', { length: 255 }),
-  dietaryOtherText: varchar('dietary_other_text', { length: 255 }),
-}).as(
-  sql`
-WITH
-  dr AS (
-    SELECT
-      u.user_id,
-      ARRAY_AGG(l.label ORDER BY l.label) AS dietary_restrictions
-    FROM user_dietary_restrictions u
-    JOIN dietary_restrictions l ON l.id = u.restriction_id
-    GROUP BY u.user_id
-  ),
-  ints AS (
-    SELECT
-      u.user_id,
-      ARRAY_AGG(l.label ORDER BY l.label) AS interests
-    FROM user_interests u
-    JOIN interests l ON l.id = u.interest_id
-    GROUP BY u.user_id
-  )
-SELECT
-  a.event_id,
-  e.name AS event_name,
-  a.user_id,
-  u.email,
-  p.full_name,
-  g.label AS gender,
-  un.label AS university,
-  m.label AS major,
-  y.label AS year_of_study,
-  ints.interests,
-  dr.dietary_restrictions,
-  a.responses,
-  a.created_at,
-  pa.linkedin_url,
-  pa.github_url,
-  p.gender_other_text,
-  pa.university_other_text,
-  pa.major_other_text,
-  p.dietary_other_text
-FROM event_applications a
-JOIN events e ON e.id = a.event_id
-JOIN "user" u ON u.id = a.user_id
-LEFT JOIN user_profiles p ON p.user_id = a.user_id
-LEFT JOIN user_profile_about pa ON pa.user_id = a.user_id
-LEFT JOIN genders g ON g.id = p.gender_id
-LEFT JOIN universities un ON un.id = pa.university_id
-LEFT JOIN majors m ON m.id = pa.major_id
-LEFT JOIN years_of_study y ON y.id = pa.year_of_study_id
-LEFT JOIN ints ON ints.user_id = a.user_id
-LEFT JOIN dr ON dr.user_id = a.user_id
-`,
-);
 
 /**
  * Application form view - for form pre-fill (profile IDs + interests/dietary arrays + responses)
