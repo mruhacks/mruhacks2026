@@ -12,7 +12,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { authClient } from '@/utils/auth-client';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import Chevron from '@/assets/Chevron';
 import { useBreadcrumbContext } from '@/components/breadcrumb-context';
 import { getInitials } from '@/lib/initials';
@@ -63,7 +63,6 @@ function buildBreadcrumbs(
 export function DashboardHeader({ user }: Props) {
   const router = useRouter();
   const pathname = usePathname();
-  const searchParams = useSearchParams();
   const { segments } = useBreadcrumbContext();
   // The header and page content hydrate in separate Suspense boundaries. A
   // page can therefore register its dynamic label before this header starts
@@ -72,17 +71,6 @@ export function DashboardHeader({ user }: Props) {
   const isHydrated = useIsHydrated();
   const dynamicSegments = isHydrated ? segments : EMPTY_DYNAMIC_SEGMENTS;
   const crumbs = buildBreadcrumbs(pathname, dynamicSegments);
-  const articleId = searchParams.get('article');
-  if (
-    pathname.startsWith('/dashboard/admin/events/') &&
-    pathname.endsWith('/wiki') &&
-    articleId
-  ) {
-    crumbs.push({
-      label: dynamicSegments[articleId] ?? 'Article',
-      href: `${pathname}?article=${encodeURIComponent(articleId)}`,
-    });
-  }
 
   async function handleLogout() {
     await authClient.signOut();
