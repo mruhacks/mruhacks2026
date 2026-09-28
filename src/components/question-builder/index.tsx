@@ -86,7 +86,7 @@ export function QuestionBuilder({
       // Use the question returned from the backend with its UUIDs
       setQuestions([...questions, result.data]);
     } else if (!result.success) {
-      toast.error(result.error);
+      return result.error;
     }
   };
 
@@ -132,7 +132,7 @@ export function QuestionBuilder({
         ),
       );
     } else {
-      toast.error(result.error);
+      return result.error;
     }
   };
 

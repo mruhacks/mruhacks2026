@@ -600,6 +600,10 @@ export async function updateEventSettings(
       .update(events)
       .set({
         name: input.name ?? eventRow.name,
+        descriptionMarkdown:
+          input.descriptionMarkdown !== undefined
+            ? input.descriptionMarkdown.trim() || null
+            : eventRow.descriptionMarkdown,
         hasApplication: input.hasApplication ?? eventRow.hasApplication,
         capacity:
           input.capacity !== undefined ? input.capacity : eventRow.capacity,
@@ -630,6 +634,8 @@ export async function updateEventSettings(
   updateTag(FEATURED_EVENT_CACHE_TAG);
   updateTag(EVENTS_CACHE_TAG);
   updateTag(adminEventCacheTag(eventId));
+
+  revalidatePath(`/dashboard/events/${eventId}`);
 
   await writeAuditLog({
     actorId: user.id,
@@ -753,15 +759,9 @@ export async function getApplicationStats(
       eq(eventApplications.userId, userProfileAbout.userId),
     )
     .leftJoin(genders, eq(userProfiles.genderId, genders.id))
-    .leftJoin(
-      universities,
-      eq(userProfileAbout.universityId, universities.id),
-    )
+    .leftJoin(universities, eq(userProfileAbout.universityId, universities.id))
     .leftJoin(majors, eq(userProfileAbout.majorId, majors.id))
-    .leftJoin(
-      yearsOfStudy,
-      eq(userProfileAbout.yearOfStudyId, yearsOfStudy.id),
-    )
+    .leftJoin(yearsOfStudy, eq(userProfileAbout.yearOfStudyId, yearsOfStudy.id))
     .leftJoin(
       applicationStatuses,
       eq(eventApplications.statusId, applicationStatuses.id),

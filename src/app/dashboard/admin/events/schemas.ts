@@ -134,9 +134,14 @@ export const createEventSchema = z
 
 export type CreateEventInput = z.infer<typeof createEventSchema>;
 
+const eventDescriptionSchema = z
+  .string()
+  .max(20_000, 'Description cannot exceed 20,000 characters');
+
 export const updateEventSettingsSchema = z
   .object({
     name: z.string().trim().min(1, 'Event name is required').optional(),
+    descriptionMarkdown: eventDescriptionSchema.optional(),
     hasApplication: z.boolean().optional(),
     capacity: z.number().int().positive().nullish(),
     rsvpResponseWindowHours: z
@@ -172,6 +177,13 @@ export type UpdateEventSettingsInput = z.infer<
   typeof updateEventSettingsSchema
 >;
 
+// The edit form sends every geofence field, so it can validate the group
+// inline. The server schema stays partial for actions that edit one field.
+export const eventSettingsFormSchema = updateEventSettingsSchema.refine(
+  refineGeofence,
+  GEOFENCE_ISSUE,
+);
+
 // ── Markdown content schemas ─────────────────────────────────────────────
 
 /**
@@ -180,7 +192,6 @@ export type UpdateEventSettingsInput = z.infer<
  * unbounded blob into a row that gets read on every page view, not to
  * discipline organizers about article length.
  */
-const EVENT_DESCRIPTION_MAX_LENGTH = 20_000;
 const ARTICLE_BODY_MAX_LENGTH = 200_000;
 const ARTICLE_TITLE_MAX_LENGTH = 200;
 
@@ -190,10 +201,7 @@ const markdownBodySchema = (max: number, label: string) =>
     .max(max, `${label} cannot exceed ${max.toLocaleString()} characters`);
 
 export const updateEventDescriptionSchema = z.object({
-  descriptionMarkdown: markdownBodySchema(
-    EVENT_DESCRIPTION_MAX_LENGTH,
-    'Description',
-  ),
+  descriptionMarkdown: eventDescriptionSchema,
 });
 
 const articleSlugSchema = z

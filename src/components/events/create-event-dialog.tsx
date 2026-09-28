@@ -9,6 +9,7 @@ import { createEvent } from '@/app/dashboard/admin/events/actions';
 import { createEventSchema } from '@/app/dashboard/admin/events/schemas';
 import type { CreateEventInput } from '@/app/dashboard/admin/events/schemas';
 import { fromDateTimeLocalValue, toDateTimeLocalValue } from '@/lib/datetime';
+import { parseOptionalNumber } from '@/lib/form-values';
 import { useZoneAbbreviation } from '@/components/local-date-time';
 import {
   Dialog,
@@ -114,12 +115,14 @@ export function CreateEventDialog() {
             {/* Capacity */}
             <Field>
               <FieldLabel htmlFor='capacity'>Capacity (optional)</FieldLabel>
-              <FieldDescription>Maximum number of attendees</FieldDescription>
+              <FieldDescription>
+                Leave blank for unlimited attendees.
+              </FieldDescription>
               <Input
                 id='capacity'
                 type='number'
                 {...register('capacity', {
-                  setValueAs: (value) => (value === '' ? null : Number(value)),
+                  setValueAs: parseOptionalNumber,
                 })}
                 placeholder='e.g. 100'
               />
@@ -215,8 +218,7 @@ export function CreateEventDialog() {
                   type='number'
                   step='any'
                   {...register('latitude', {
-                    setValueAs: (value) =>
-                      value === '' ? null : Number(value),
+                    setValueAs: parseOptionalNumber,
                   })}
                   placeholder='Latitude'
                 />
@@ -225,8 +227,7 @@ export function CreateEventDialog() {
                   type='number'
                   step='any'
                   {...register('longitude', {
-                    setValueAs: (value) =>
-                      value === '' ? null : Number(value),
+                    setValueAs: parseOptionalNumber,
                   })}
                   placeholder='Longitude'
                 />
@@ -234,8 +235,7 @@ export function CreateEventDialog() {
                   id='radiusMeters'
                   type='number'
                   {...register('radiusMeters', {
-                    setValueAs: (value) =>
-                      value === '' ? null : Number(value),
+                    setValueAs: parseOptionalNumber,
                   })}
                   placeholder='Radius (m)'
                 />

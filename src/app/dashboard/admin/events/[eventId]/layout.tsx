@@ -7,9 +7,10 @@ import { BreadcrumbSegment } from '@/components/breadcrumb-context';
 import { LocalDateRange } from '@/components/local-date-time';
 import { Button } from '@/components/ui/button';
 import { getAdminEventHeader } from '@/lib/admin-event';
-import { hasPermission, requirePermission } from '@/lib/rbac/authorization';
+import { requirePermission } from '@/lib/rbac/authorization';
 import { getUser } from '@/utils/auth';
 
+import { EventBackLink } from './_components/event-back-link';
 import { EventLiveBadge } from './_components/event-live-badge';
 import { ShareEventButton } from './_components/share-event-button';
 
@@ -60,76 +61,61 @@ async function EventHeader({
   if (!user) redirect('/signin');
   await requirePermission(user.id, 'event:manage');
 
-  const [event, canEdit, canReadStats] = await Promise.all([
-    getAdminEventHeader(eventId),
-    hasPermission(user.id, 'event:manage:all'),
-    hasPermission(user.id, 'application:stats'),
-  ]);
+  const event = await getAdminEventHeader(eventId);
 
   if (!event) notFound();
 
   return (
-    <header className='flex flex-wrap items-start justify-between gap-4'>
-      {/* Zero-render: feeds the event's name to the dashboard breadcrumb,
+    <header className='flex flex-col gap-4'>
+      <nav aria-label='Event navigation'>
+        <EventBackLink eventId={eventId} />
+      </nav>
+      <div className='flex flex-wrap items-start justify-between gap-4'>
+        {/* Zero-render: feeds the event's name to the dashboard breadcrumb,
           which otherwise shows the raw uuid. */}
-      <BreadcrumbSegment id={eventId} label={event.name} />
+        <BreadcrumbSegment id={eventId} label={event.name} />
 
-      <div className='min-w-0'>
-        <div className='flex flex-wrap items-center gap-3'>
-          <h1
-            className='m-0 truncate'
-            style={{
-              fontFamily: 'var(--font-display)',
-              fontWeight: 'var(--fw-semibold)',
-              fontSize: '34px',
-              lineHeight: 'var(--lh-tight)',
-              letterSpacing: 'var(--track-display)',
-            }}
-          >
-            {event.name}
-          </h1>
-          <EventLiveBadge startsAt={event.startsAt} endsAt={event.endsAt} />
-        </div>
+        <div className='min-w-0'>
+          <div className='flex flex-wrap items-center gap-3'>
+            <h1
+              className='m-0 truncate'
+              style={{
+                fontFamily: 'var(--font-display)',
+                fontWeight: 'var(--fw-semibold)',
+                fontSize: '34px',
+                lineHeight: 'var(--lh-tight)',
+                letterSpacing: 'var(--track-display)',
+              }}
+            >
+              {event.name}
+            </h1>
+            <EventLiveBadge startsAt={event.startsAt} endsAt={event.endsAt} />
+          </div>
 
-        <div className='text-muted-foreground mt-2 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm'>
-          <span className='inline-flex items-center gap-1.5'>
-            <CalendarDays aria-hidden className='size-4 shrink-0' />
-            <LocalDateRange start={event.startsAt} end={event.endsAt} />
-          </span>
-          {event.location && (
+          <div className='text-muted-foreground mt-2 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm'>
             <span className='inline-flex items-center gap-1.5'>
-              <MapPin aria-hidden className='size-4 shrink-0' />
-              {event.location}
+              <CalendarDays aria-hidden className='size-4 shrink-0' />
+              <LocalDateRange start={event.startsAt} end={event.endsAt} />
             </span>
-          )}
+            {event.location && (
+              <span className='inline-flex items-center gap-1.5'>
+                <MapPin aria-hidden className='size-4 shrink-0' />
+                {event.location}
+              </span>
+            )}
+          </div>
         </div>
-      </div>
 
-      <div className='flex shrink-0 flex-wrap items-center gap-2'>
-        {/* The question builder requires event:manage, checked above. */}
-        {event.hasApplication && (
-          <Button asChild variant='outline' size='sm'>
-            <Link href={`/dashboard/admin/events/${eventId}/questions`}>
-              Application questions
-            </Link>
-          </Button>
-        )}
-        {event.hasApplication && canReadStats && (
-          <Button asChild variant='outline' size='sm'>
-            <Link href={`/dashboard/admin/events/${eventId}/stats`}>
-              Detailed statistics
-            </Link>
-          </Button>
-        )}
-        <ShareEventButton eventId={eventId} />
-        {canEdit && (
+        <div className='flex shrink-0 flex-wrap items-center gap-2'>
+          <ShareEventButton eventId={eventId} />
+
           <Button asChild variant='outline' size='sm'>
             <Link href={`/dashboard/admin/events/${eventId}/settings`}>
-              <SquarePen aria-hidden className='size-4' />
+              <SquarePen aria-hidden data-icon='inline-start' />
               Edit event
             </Link>
           </Button>
-        )}
+        </div>
       </div>
     </header>
   );

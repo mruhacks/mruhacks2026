@@ -1,7 +1,5 @@
 import * as React from 'react';
-import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { ArrowLeft } from 'lucide-react';
 
 import { getUser } from '@/utils/auth';
 import { requirePermission } from '@/lib/rbac/authorization';
@@ -11,7 +9,7 @@ import {
   listEventArticles,
 } from '@/app/dashboard/admin/events/content-actions';
 import { MarkdownContent } from '@/components/markdown/markdown-content';
-import { Button } from '@/components/ui/button';
+import { BreadcrumbSegment } from '@/components/breadcrumb-context';
 import { ArticleEditor } from './article-editor';
 import { WikiArticleList } from './wiki-article-list';
 
@@ -113,17 +111,9 @@ async function ArticlePanel({
 
   return (
     <div className='space-y-6'>
-      <Button
-        asChild
-        variant='ghost'
-        size='sm'
-        className='text-muted-foreground -ml-2'
-      >
-        <Link href={`/dashboard/admin/events/${eventId}/wiki`}>
-          <ArrowLeft className='mr-1.5 size-4' />
-          All articles
-        </Link>
-      </Button>
+      {result.success && result.data && (
+        <BreadcrumbSegment id={articleId} label={result.data.title} />
+      )}
 
       {!result.success || !result.data ? (
         <p className='text-destructive'>

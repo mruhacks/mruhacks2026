@@ -4,7 +4,6 @@ import { notFound, redirect } from 'next/navigation';
 import { getAdminEventSettings } from '@/lib/admin-event';
 import { requirePermission } from '@/lib/rbac/authorization';
 import { getUser } from '@/utils/auth';
-
 import { EventSettingsForm } from './event-settings-form';
 
 type Props = { params: Promise<{ eventId: string }> };
@@ -38,8 +37,5 @@ async function SettingsContent({
   const event = await getAdminEventSettings(eventId);
   if (!event) notFound();
 
-  // Just the settings form. The description is authored in place on the
-  // event dashboard's Description card, so editing it here too would be two
-  // sources of truth for the same field.
-  return <EventSettingsForm event={event} />;
+  return <EventSettingsForm key={event.id} event={event} />;
 }

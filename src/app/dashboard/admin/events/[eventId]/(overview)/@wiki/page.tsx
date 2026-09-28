@@ -1,7 +1,7 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { ChevronRight, FileText, Plus } from 'lucide-react';
+import { ExternalLink, FileText, Plus } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -73,7 +73,7 @@ async function WikiSection({
                 />
                 <span className='min-w-0 flex-1 truncate'>{article.title}</span>
                 {!article.published && <Badge variant='secondary'>Draft</Badge>}
-                <ChevronRight
+                <ExternalLink
                   aria-hidden
                   className='text-muted-foreground size-4 shrink-0'
                 />

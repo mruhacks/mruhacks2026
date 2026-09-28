@@ -6,7 +6,7 @@ import { hasPermission, requirePermission } from '@/lib/rbac/authorization';
 import { getAllEvents, getEventParticipationCounts } from '@/lib/events';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowRight } from 'lucide-react';
+import { ExternalLink } from 'lucide-react';
 import { CreateEventDialog } from '@/components/events/create-event-dialog';
 
 function EventListSkeleton() {
@@ -120,7 +120,7 @@ async function EventList() {
                     {value === 1 ? unit : `${unit}s`}
                   </p>
                 </div>
-                <ArrowRight
+                <ExternalLink
                   aria-hidden
                   className='text-muted-foreground size-5 shrink-0'
                 />

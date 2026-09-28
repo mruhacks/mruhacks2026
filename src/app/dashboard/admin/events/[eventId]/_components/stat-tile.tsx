@@ -1,5 +1,6 @@
 import * as React from 'react';
 import Link from 'next/link';
+import { ExternalLink } from 'lucide-react';
 
 import { Card } from '@/components/ui/card';
 
@@ -31,11 +32,16 @@ export function StatTile({
           href={href}
           className='hover:border-primary/40 absolute inset-0 rounded-xl border border-transparent'
           aria-label={`Open ${label}`}
-        />
+        >
+          <ExternalLink
+            aria-hidden
+            className='text-muted-foreground pointer-events-none absolute top-5 right-5 size-4'
+          />
+        </Link>
       )}
       <span
         aria-hidden
-        className='text-accent-foreground relative flex size-9 w-fit items-center justify-center rounded-lg'
+        className='text-accent-foreground pointer-events-none relative flex size-9 w-fit items-center justify-center rounded-lg'
       >
         {icon}
       </span>

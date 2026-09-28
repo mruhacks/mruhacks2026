@@ -1,4 +1,7 @@
 import * as React from 'react';
+import Link from 'next/link';
+import { Pencil } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { redirect } from 'next/navigation';
 
 import { MarkdownContent } from '@/components/markdown/markdown-content';
@@ -7,7 +10,6 @@ import { hasPermission } from '@/lib/rbac/authorization';
 import { getUser } from '@/utils/auth';
 
 import { BentoCard, BentoCardSkeleton } from '../../_components/bento-card';
-import { EventDescriptionCard } from '../../_components/event-description-card';
 
 type Props = { params: Promise<{ eventId: string }> };
 
@@ -35,22 +37,23 @@ async function DescriptionSection({
 
   if (!event) return null;
 
-  // Authored in place rather than behind a link to /settings — the card is
-  // already the read view, and its editor core is a dynamic import, so the
-  // MDX bundle only loads once Edit is pressed. Keyed by event so the editor
-  // can't open on a stale draft.
-  if (canManage) {
-    return (
-      <EventDescriptionCard
-        key={event.id}
-        eventId={event.id}
-        initialMarkdown={event.descriptionMarkdown}
-      />
-    );
-  }
-
   return (
-    <BentoCard title='Description'>
+    <BentoCard
+      title='Description'
+      action={
+        canManage ? (
+          <Button asChild variant='ghost' size='icon'>
+            <Link
+              href={`/dashboard/admin/events/${eventId}/settings/description`}
+              aria-label='Edit description'
+              title='Edit description'
+            >
+              <Pencil aria-hidden />
+            </Link>
+          </Button>
+        ) : undefined
+      }
+    >
       {event.descriptionMarkdown ? (
         <MarkdownContent markdown={event.descriptionMarkdown} />
       ) : (

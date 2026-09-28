@@ -12,7 +12,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { authClient } from '@/utils/auth-client';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import Chevron from '@/assets/Chevron';
 import { useBreadcrumbContext } from '@/components/breadcrumb-context';
 import { getInitials } from '@/lib/initials';
@@ -33,6 +33,14 @@ const SEGMENT_LABELS: Record<string, string> = {
   permissions: 'Permissions',
   register: 'Register',
   apply: 'Apply',
+  applications: 'Applications',
+  checkin: 'Check-in',
+  rsvp: 'RSVP',
+  teams: 'Teams',
+  wiki: 'Wiki',
+  settings: 'Edit event',
+  questions: 'Application questions',
+  description: 'Description',
 };
 
 const EMPTY_DYNAMIC_SEGMENTS: Record<string, string> = {};
@@ -55,6 +63,7 @@ function buildBreadcrumbs(
 export function DashboardHeader({ user }: Props) {
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { segments } = useBreadcrumbContext();
   // The header and page content hydrate in separate Suspense boundaries. A
   // page can therefore register its dynamic label before this header starts
@@ -62,6 +71,18 @@ export function DashboardHeader({ user }: Props) {
   // matches its SSR output; labels appear in the next render.
   const isHydrated = useIsHydrated();
   const dynamicSegments = isHydrated ? segments : EMPTY_DYNAMIC_SEGMENTS;
+  const crumbs = buildBreadcrumbs(pathname, dynamicSegments);
+  const articleId = searchParams.get('article');
+  if (
+    pathname.startsWith('/dashboard/admin/events/') &&
+    pathname.endsWith('/wiki') &&
+    articleId
+  ) {
+    crumbs.push({
+      label: dynamicSegments[articleId] ?? 'Article',
+      href: `${pathname}?article=${encodeURIComponent(articleId)}`,
+    });
+  }
 
   async function handleLogout() {
     await authClient.signOut();
@@ -107,58 +128,56 @@ export function DashboardHeader({ user }: Props) {
             aria-label='Breadcrumb'
             style={{ alignItems: 'center', gap: '0' }}
           >
-            {buildBreadcrumbs(pathname, dynamicSegments).map(
-              (crumb, i, arr) => {
-                const isLast = i === arr.length - 1;
-                return (
+            {crumbs.map((crumb, i, arr) => {
+              const isLast = i === arr.length - 1;
+              return (
+                <span
+                  key={crumb.href}
+                  style={{ display: 'flex', alignItems: 'center' }}
+                >
                   <span
-                    key={crumb.href}
-                    style={{ display: 'flex', alignItems: 'center' }}
+                    style={{
+                      fontFamily: 'var(--font-ui)',
+                      fontWeight: 'var(--fw-normal)',
+                      fontSize: '15px',
+                      color: 'var(--ink-400)',
+                      padding: '0 6px',
+                    }}
+                    aria-hidden
                   >
+                    /
+                  </span>
+                  {isLast ? (
                     <span
                       style={{
                         fontFamily: 'var(--font-ui)',
-                        fontWeight: 'var(--fw-normal)',
+                        fontWeight: 'var(--fw-semibold)',
                         fontSize: '15px',
-                        color: 'var(--ink-400)',
-                        padding: '0 6px',
+                        letterSpacing: 'var(--track-ui)',
+                        color: 'var(--black)',
                       }}
-                      aria-hidden
+                      aria-current='page'
                     >
-                      /
+                      {crumb.label}
                     </span>
-                    {isLast ? (
-                      <span
-                        style={{
-                          fontFamily: 'var(--font-ui)',
-                          fontWeight: 'var(--fw-semibold)',
-                          fontSize: '15px',
-                          letterSpacing: 'var(--track-ui)',
-                          color: 'var(--black)',
-                        }}
-                        aria-current='page'
-                      >
-                        {crumb.label}
-                      </span>
-                    ) : (
-                      <Link
-                        href={crumb.href}
-                        style={{
-                          fontFamily: 'var(--font-ui)',
-                          fontWeight: 'var(--fw-semibold)',
-                          fontSize: '15px',
-                          letterSpacing: 'var(--track-ui)',
-                          color: 'var(--ink-500)',
-                          textDecoration: 'none',
-                        }}
-                      >
-                        {crumb.label}
-                      </Link>
-                    )}
-                  </span>
-                );
-              },
-            )}
+                  ) : (
+                    <Link
+                      href={crumb.href}
+                      style={{
+                        fontFamily: 'var(--font-ui)',
+                        fontWeight: 'var(--fw-semibold)',
+                        fontSize: '15px',
+                        letterSpacing: 'var(--track-ui)',
+                        color: 'var(--ink-500)',
+                        textDecoration: 'none',
+                      }}
+                    >
+                      {crumb.label}
+                    </Link>
+                  )}
+                </span>
+              );
+            })}
           </nav>
         </div>
 

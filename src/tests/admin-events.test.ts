@@ -622,6 +622,58 @@ describe('updateEventSettings', () => {
     expect(details.data.rsvpResponseWindowHours).toBe(24);
   });
 
+  test('saves description with event details, preserves it on partial edits, and allows clearing it', async () => {
+    const saved = await updateEventSettings(testEventId, {
+      name: 'Event with description',
+      descriptionMarkdown: '  ## Welcome\nJoin us for a weekend of building.  ',
+    });
+    expect(saved.success).toBe(true);
+
+    const renamed = await updateEventSettings(testEventId, {
+      name: 'Renamed again',
+    });
+    expect(renamed.success).toBe(true);
+    const [row] = await db
+      .select()
+      .from(events)
+      .where(eq(events.id, testEventId));
+    expect(row.name).toBe('Renamed again');
+    expect(row.descriptionMarkdown).toBe(
+      '## Welcome\nJoin us for a weekend of building.',
+    );
+    expect(revalidatePath).toHaveBeenCalledWith(
+      `/dashboard/events/${testEventId}`,
+    );
+
+    const cleared = await updateEventSettings(testEventId, {
+      descriptionMarkdown: '   ',
+    });
+    expect(cleared.success).toBe(true);
+    const [empty] = await db
+      .select()
+      .from(events)
+      .where(eq(events.id, testEventId));
+    expect(empty.descriptionMarkdown).toBeNull();
+  });
+
+  test('rejects an oversized description without saving other event changes', async () => {
+    const [before] = await db
+      .select()
+      .from(events)
+      .where(eq(events.id, testEventId));
+    const result = await updateEventSettings(testEventId, {
+      name: 'Must not be saved',
+      descriptionMarkdown: 'x'.repeat(20_001),
+    });
+    expect(result.success).toBe(false);
+    const [after] = await db
+      .select()
+      .from(events)
+      .where(eq(events.id, testEventId));
+    expect(after.name).toBe(before.name);
+    expect(after.descriptionMarkdown).toBe(before.descriptionMarkdown);
+  });
+
   test('returns validation error when startsAt is after endsAt', async () => {
     const result = await updateEventSettings(testEventId, {
       startsAt: '2026-12-31T12:00',

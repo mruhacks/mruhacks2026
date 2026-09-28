@@ -1,8 +1,11 @@
 'use client';
 
 import * as React from 'react';
+import { unstable_rethrow } from 'next/navigation';
+import { useIsHydrated } from '@/lib/use-is-hydrated';
 import {
   useForm,
+  useWatch,
   Controller,
   useFieldArray,
   type Control,
@@ -50,6 +53,7 @@ import {
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -127,7 +131,7 @@ type QuestionDialogProps = {
   question?: ApplicationQuestion;
   /** Whether this event has existing applications (locks type field). */
   hasApplications: boolean;
-  onSubmit: (data: FormValues) => Promise<void>;
+  onSubmit: (data: FormValues) => Promise<string | void>;
 };
 
 type OptionItemProps = {
@@ -248,20 +252,20 @@ function OptionItem({
 
 export function QuestionDialog({
   open,
-  onOpenChange,
+  onOpenChange: setOpen,
   question,
   hasApplications,
   onSubmit,
 }: QuestionDialogProps) {
   const isEdit = !!question;
-  const [isMounted, setIsMounted] = React.useState(false);
+  const [submitError, setSubmitError] = React.useState<string | null>(null);
+  const isMounted = useIsHydrated();
   const [activeDragId, setActiveDragId] = React.useState<string | null>(null);
 
-  React.useEffect(() => {
-    if (open) {
-      setIsMounted(true);
-    }
-  }, [open]);
+  function onOpenChange(nextOpen: boolean) {
+    setSubmitError(null);
+    setOpen(nextOpen);
+  }
 
   const sensors = useSensors(useSensor(PointerSensor));
 
@@ -269,7 +273,6 @@ export function QuestionDialog({
     control,
     register,
     handleSubmit,
-    watch,
     reset,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
@@ -306,8 +309,10 @@ export function QuestionDialog({
     control,
     name: 'options',
   });
-  const questionType = watch('type');
-  const options = watch('options');
+  const [questionType, options] = useWatch({
+    control,
+    name: ['type', 'options'],
+  });
   const showOptions =
     questionType === 'single_select' || questionType === 'multi_select';
   const showMaxLength = isStringQuestion(questionType);
@@ -394,8 +399,18 @@ export function QuestionDialog({
   }, [open, question, reset]);
 
   const submitHandler = async (data: FormValues) => {
-    await onSubmit(data);
-    onOpenChange(false);
+    setSubmitError(null);
+    try {
+      const error = await onSubmit(data);
+      if (error) {
+        setSubmitError(error);
+        return;
+      }
+      onOpenChange(false);
+    } catch (error) {
+      unstable_rethrow(error);
+      setSubmitError('Unable to save this question. Please try again.');
+    }
   };
 
   return (
@@ -405,7 +420,11 @@ export function QuestionDialog({
           <DialogTitle>{isEdit ? 'Edit Question' : 'Add Question'}</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit(submitHandler)} className='space-y-0'>
+        <form
+          onSubmit={handleSubmit(submitHandler)}
+          onChangeCapture={() => setSubmitError(null)}
+          className='space-y-0'
+        >
           <FieldGroup className='gap-4'>
             {/* Label */}
             <Field>
@@ -450,18 +469,23 @@ export function QuestionDialog({
                 render={({ field }) => (
                   <Select
                     value={field.value}
-                    onValueChange={field.onChange}
+                    onValueChange={(value) => {
+                      setSubmitError(null);
+                      field.onChange(value);
+                    }}
                     disabled={isEdit && hasApplications}
                   >
                     <SelectTrigger id='q-type'>
                       <SelectValue placeholder='Select type' />
                     </SelectTrigger>
                     <SelectContent>
-                      {QUESTION_TYPES.map((t) => (
-                        <SelectItem key={t.value} value={t.value}>
-                          {t.label}
-                        </SelectItem>
-                      ))}
+                      <SelectGroup>
+                        {QUESTION_TYPES.map((t) => (
+                          <SelectItem key={t.value} value={t.value}>
+                            {t.label}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
                     </SelectContent>
                   </Select>
                 )}
@@ -479,7 +503,10 @@ export function QuestionDialog({
                     <Switch
                       id='q-required'
                       checked={field.value}
-                      onCheckedChange={field.onChange}
+                      onCheckedChange={(value) => {
+                        setSubmitError(null);
+                        field.onChange(value);
+                      }}
                     />
                   )}
                 />
@@ -497,7 +524,10 @@ export function QuestionDialog({
                     <Switch
                       id='q-show-in-review'
                       checked={field.value}
-                      onCheckedChange={field.onChange}
+                      onCheckedChange={(value) => {
+                        setSubmitError(null);
+                        field.onChange(value);
+                      }}
                     />
                   )}
                 />
@@ -517,7 +547,10 @@ export function QuestionDialog({
                     <Switch
                       id='q-show-in-reports'
                       checked={field.value}
-                      onCheckedChange={field.onChange}
+                      onCheckedChange={(value) => {
+                        setSubmitError(null);
+                        field.onChange(value);
+                      }}
                     />
                   )}
                 />
@@ -636,6 +669,11 @@ export function QuestionDialog({
             )}
           </FieldGroup>
 
+          {submitError && (
+            <FieldError role='alert' className='mt-4'>
+              {submitError}
+            </FieldError>
+          )}
           <DialogFooter className='mt-6'>
             <Button
               type='button'
