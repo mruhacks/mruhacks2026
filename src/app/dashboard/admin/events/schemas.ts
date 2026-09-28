@@ -1,9 +1,7 @@
 import { z } from 'zod';
 import { QUESTION_MAX_LENGTH_LIMIT } from '@/types/application';
-import {
-  ARTICLE_SLUG_MAX_LENGTH,
-  isValidArticleSlug,
-} from '@/lib/article-slug';
+import { SLUG_MAX_LENGTH, isValidSlug } from '@/lib/slug';
+import { RESERVED_EVENT_SLUGS, isValidEventSlug } from '@/lib/event-slug';
 
 const questionTypeSchema = z.enum([
   'short_text',
@@ -101,9 +99,27 @@ const GEOFENCE_ISSUE = {
  */
 const eventInstantSchema = z.iso.datetime({ offset: true });
 
+/**
+ * An event's optional custom URL slug (`/dashboard/events/mruhacks-2026`).
+ * An empty string is how a form says "no slug" — it normalizes to null on the
+ * way into the DB, leaving the event addressed by its uuid.
+ */
+const eventSlugSchema = z
+  .string()
+  .trim()
+  .max(SLUG_MAX_LENGTH)
+  .refine((value) => value === '' || isValidSlug(value), {
+    message:
+      'Use lowercase letters, numbers and single hyphens (e.g. "mruhacks-2026")',
+  })
+  .refine((value) => value === '' || isValidEventSlug(value), {
+    message: `That slug is reserved. Pick something that isn't a uuid or one of: ${RESERVED_EVENT_SLUGS.join(', ')}.`,
+  });
+
 export const createEventSchema = z
   .object({
     name: z.string().trim().min(1, 'Event name is required'),
+    slug: eventSlugSchema.nullish(),
     hasApplication: z.boolean().default(false),
     capacity: z.number().int().positive().nullish(),
     rsvpResponseWindowHours: z
@@ -141,6 +157,7 @@ const eventDescriptionSchema = z
 export const updateEventSettingsSchema = z
   .object({
     name: z.string().trim().min(1, 'Event name is required').optional(),
+    slug: eventSlugSchema.nullish(),
     descriptionMarkdown: eventDescriptionSchema.optional(),
     hasApplication: z.boolean().optional(),
     capacity: z.number().int().positive().nullish(),
@@ -207,8 +224,8 @@ export const updateEventDescriptionSchema = z.object({
 const articleSlugSchema = z
   .string()
   .trim()
-  .max(ARTICLE_SLUG_MAX_LENGTH)
-  .refine(isValidArticleSlug, {
+  .max(SLUG_MAX_LENGTH)
+  .refine(isValidSlug, {
     message:
       'Use lowercase letters, numbers and single hyphens (e.g. "getting-started")',
   });

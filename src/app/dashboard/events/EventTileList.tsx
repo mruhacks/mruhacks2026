@@ -6,6 +6,7 @@ import {
   type EventDisplayPill,
 } from '@/app/dashboard/events/event-display-status';
 import { LocalDateRange } from '@/components/local-date-time';
+import { eventPath } from '@/lib/event-slug';
 
 // ── Design tokens ──────────────────────────────────────────────────────────────
 
@@ -142,7 +143,7 @@ export function EventTileList({ events }: { events: EventWithUserStatus[] }) {
       {events.map((event) => (
         <li key={event.id}>
           <Link
-            href={`/dashboard/events/${event.id}`}
+            href={eventPath(event)}
             style={{
               display: 'flex',
               alignItems: 'center',

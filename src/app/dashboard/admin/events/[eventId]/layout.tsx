@@ -107,7 +107,7 @@ async function EventHeader({
         </div>
 
         <div className='flex shrink-0 flex-wrap items-center gap-2'>
-          <ShareEventButton eventId={eventId} />
+          <ShareEventButton eventId={event.id} slug={event.slug} />
 
           <Button asChild variant='outline' size='sm'>
             <Link href={`/dashboard/admin/events/${eventId}/settings`}>

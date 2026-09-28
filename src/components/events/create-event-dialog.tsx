@@ -10,6 +10,7 @@ import { createEventSchema } from '@/app/dashboard/admin/events/schemas';
 import type { CreateEventInput } from '@/app/dashboard/admin/events/schemas';
 import { fromDateTimeLocalValue, toDateTimeLocalValue } from '@/lib/datetime';
 import { parseOptionalNumber } from '@/lib/form-values';
+import { slugify } from '@/lib/slug';
 import { useZoneAbbreviation } from '@/components/local-date-time';
 import {
   Dialog,
@@ -35,6 +36,10 @@ import { Plus } from 'lucide-react';
 export function CreateEventDialog() {
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
+  // A rejected submit (most often a slug another event already uses) renders
+  // above the footer rather than as a toast, so the message stays next to the
+  // fields being corrected. See AGENTS.md.
+  const [submitError, setSubmitError] = React.useState<string | null>(null);
   const {
     register,
     control,
@@ -52,8 +57,10 @@ export function CreateEventDialog() {
 
   const startsAtAbbr = useZoneAbbreviation(watch('startsAt') ?? undefined);
   const endsAtAbbr = useZoneAbbreviation(watch('endsAt') ?? undefined);
+  const suggestedSlug = slugify(watch('name') ?? '');
 
   const onSubmit = async (data: CreateEventInput) => {
+    setSubmitError(null);
     const result = await createEvent(data);
     if (result.success && result.data) {
       toast.success('Event created successfully');
@@ -62,12 +69,19 @@ export function CreateEventDialog() {
       // Navigate to the new event
       router.push(`/dashboard/admin/events/${result.data.id}`);
     } else if (!result.success) {
-      toast.error(result.error || 'Failed to create event');
+      setSubmitError(result.error || 'Failed to create event');
     }
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        // Reopening starts clean rather than showing the last attempt's error.
+        if (!next) setSubmitError(null);
+      }}
+    >
       <Button onClick={() => setOpen(true)}>
         <Plus className='mr-2 size-4' />
         Create Event
@@ -94,6 +108,22 @@ export function CreateEventDialog() {
                 placeholder='e.g. MRU Hackathon 2026'
               />
               {errors.name && <FieldError errors={[errors.name]} />}
+            </Field>
+
+            {/* URL slug */}
+            <Field>
+              <FieldLabel htmlFor='slug'>URL slug (optional)</FieldLabel>
+              <FieldDescription>
+                Gives the event a readable link —{' '}
+                <span className='font-mono'>/dashboard/events/{'{slug}'}</span>.
+                Leave blank to use the event id.
+              </FieldDescription>
+              <Input
+                id='slug'
+                {...register('slug')}
+                placeholder={suggestedSlug || 'mruhacks-2026'}
+              />
+              {errors.slug && <FieldError errors={[errors.slug]} />}
             </Field>
 
             {/* Has Application */}
@@ -248,12 +278,15 @@ export function CreateEventDialog() {
             </Field>
           </FieldGroup>
 
+          {submitError && <FieldError>{submitError}</FieldError>}
+
           <DialogFooter>
             <Button
               type='button'
               variant='outline'
               onClick={() => {
                 setOpen(false);
+                setSubmitError(null);
                 reset();
               }}
             >

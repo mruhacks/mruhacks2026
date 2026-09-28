@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import { Plus } from 'lucide-react';
 
 import { createEventArticle } from '@/app/dashboard/admin/events/content-actions';
-import { slugifyArticleTitle } from '@/lib/article-slug';
+import { slugify } from '@/lib/slug';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -42,7 +42,7 @@ export function CreateArticleDialog({ eventId }: { eventId: string }) {
   const [error, setError] = React.useState<string | null>(null);
   const [isCreating, setIsCreating] = React.useState(false);
 
-  const derivedSlug = slugifyArticleTitle(title);
+  const derivedSlug = slugify(title);
 
   function handleOpenChange(next: boolean) {
     setOpen(next);

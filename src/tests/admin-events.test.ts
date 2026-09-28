@@ -202,6 +202,61 @@ describe('createEvent', () => {
 
     await db.delete(events).where(eq(events.id, result.data!.id));
   });
+
+  test('stores a custom slug and treats a blank one as none', async () => {
+    const withSlug = await createEvent({
+      name: 'Slugged Event',
+      hasApplication: false,
+      slug: '  mruhacks-2026  ',
+    });
+    expect(withSlug.success).toBe(true);
+    if (!withSlug.success)
+      throw new Error((withSlug as { error: string }).error);
+
+    const [slugged] = await db
+      .select({ slug: events.slug })
+      .from(events)
+      .where(eq(events.id, withSlug.data!.id));
+    expect(slugged.slug).toBe('mruhacks-2026');
+
+    const blank = await createEvent({
+      name: 'Unslugged Event',
+      hasApplication: false,
+      slug: '',
+    });
+    expect(blank.success).toBe(true);
+    if (!blank.success) throw new Error((blank as { error: string }).error);
+
+    const [unslugged] = await db
+      .select({ slug: events.slug })
+      .from(events)
+      .where(eq(events.id, blank.data!.id));
+    expect(unslugged.slug).toBeNull();
+
+    const duplicate = await createEvent({
+      name: 'Duplicate Slug Event',
+      hasApplication: false,
+      slug: 'mruhacks-2026',
+    });
+    expect(duplicate.success).toBe(false);
+    expect((duplicate as { error: string }).error).toContain('already used');
+
+    await db.delete(events).where(eq(events.id, withSlug.data!.id));
+    await db.delete(events).where(eq(events.id, blank.data!.id));
+  });
+
+  test.each([
+    ['Not A Slug', 'uppercase and spaces'],
+    ['team', 'a reserved route segment'],
+    ['3f0c9b4e-1d2a-4c5b-8e7f-0a1b2c3d4e5f', 'a uuid'],
+  ])('rejects %s as a slug (%s)', async (slug) => {
+    const result = await createEvent({
+      name: 'Bad Slug Event',
+      hasApplication: false,
+      slug,
+    });
+    expect(result.success).toBe(false);
+  });
 });
 describe('getEventWithQuestions', () => {
   test('returns error when not authenticated', async () => {
@@ -608,6 +663,60 @@ describe('updateEventSettings', () => {
       .from(events)
       .where(eq(events.id, testEventId));
     expect(row.name).toBe('Renamed Event');
+  });
+
+  test('sets, clears, and revalidates the paths of a custom slug', async () => {
+    const set = await updateEventSettings(testEventId, { slug: 'slug-one' });
+    expect(set.success).toBe(true);
+    expect(revalidatePath).toHaveBeenCalledWith('/dashboard/events/slug-one');
+
+    // A partial edit that never mentions the slug leaves it alone.
+    const partial = await updateEventSettings(testEventId, { name: 'Kept' });
+    expect(partial.success).toBe(true);
+    const [kept] = await db
+      .select({ slug: events.slug })
+      .from(events)
+      .where(eq(events.id, testEventId));
+    expect(kept.slug).toBe('slug-one');
+
+    // Renaming it has to drop the old path as well as the new one, or the
+    // orphaned URL keeps serving a cached render.
+    const renamed = await updateEventSettings(testEventId, {
+      slug: 'slug-two',
+    });
+    expect(renamed.success).toBe(true);
+    expect(revalidatePath).toHaveBeenCalledWith('/dashboard/events/slug-one');
+    expect(revalidatePath).toHaveBeenCalledWith('/dashboard/events/slug-two');
+
+    const cleared = await updateEventSettings(testEventId, { slug: '' });
+    expect(cleared.success).toBe(true);
+    const [empty] = await db
+      .select({ slug: events.slug })
+      .from(events)
+      .where(eq(events.id, testEventId));
+    expect(empty.slug).toBeNull();
+  });
+
+  test('rejects a slug another event already uses', async () => {
+    const [other] = await db
+      .insert(events)
+      .values({
+        name: 'Slug Holder',
+        hasApplication: false,
+        applicationQuestions: [],
+        slug: 'held-slug',
+      })
+      .returning({ id: events.id });
+
+    const taken = await updateEventSettings(testEventId, { slug: 'held-slug' });
+    expect(taken.success).toBe(false);
+    expect((taken as { error: string }).error).toContain('already used');
+
+    // Re-saving an event's own slug is not a collision with itself.
+    const ownSlug = await updateEventSettings(other.id, { slug: 'held-slug' });
+    expect(ownSlug.success).toBe(true);
+
+    await db.delete(events).where(eq(events.id, other.id));
   });
 
   test('updates rsvp response window hours', async () => {

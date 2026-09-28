@@ -6,6 +6,7 @@ import { revalidatePath, updateTag } from 'next/cache';
 import { db } from '@/utils/db';
 import { FEATURED_EVENT_CACHE_TAG } from '@/lib/featured-event';
 import { EVENTS_CACHE_TAG } from '@/lib/events';
+import { eventPath } from '@/lib/event-slug';
 import {
   adminEventCacheTag,
   eventApplicationsCacheTag,
@@ -389,6 +390,29 @@ export async function reactivateQuestion(
 // ── Event management ──────────────────────────────────────────────────────
 
 /**
+ * Whether `slug` is free. Format and reserved-word rules are already enforced
+ * by the zod schema; this is the uniqueness half, checked up front so a taken
+ * slug comes back as a message the form can render next to the field instead
+ * of a unique-violation from `idx_events_slug_unique`.
+ */
+async function isEventSlugAvailable(
+  slug: string,
+  exceptEventId?: string,
+): Promise<boolean> {
+  const [taken] = await db
+    .select({ id: events.id })
+    .from(events)
+    .where(
+      exceptEventId
+        ? and(eq(events.slug, slug), ne(events.id, exceptEventId))
+        : eq(events.slug, slug),
+    )
+    .limit(1);
+
+  return !taken;
+}
+
+/**
  * Creates a new event.
  * Requires event:manage permission.
  */
@@ -404,11 +428,19 @@ export async function createEvent(
 
   const input = parsed.data;
 
+  // Empty string is the form's "no slug"; both it and an omitted field mean
+  // the event stays addressable by its uuid alone.
+  const slug = input.slug?.trim() || null;
+  if (slug && !(await isEventSlugAvailable(slug))) {
+    return fail('That URL slug is already used by another event.');
+  }
+
   const [newEvent] = await db
     .insert(events)
     .values({
       id: randomUUID(),
       name: input.name,
+      slug,
       hasApplication: input.hasApplication,
       capacity: input.capacity ?? null,
       rsvpResponseWindowHours:
@@ -442,6 +474,7 @@ export async function createEvent(
 
 export type EventDetails = {
   id: string;
+  slug: string | null;
   name: string;
   descriptionMarkdown: string;
   hasApplication: boolean;
@@ -497,6 +530,7 @@ export async function getEventDetails(
 
   return ok({
     id: eventRow.id,
+    slug: eventRow.slug ?? null,
     name: eventRow.name,
     descriptionMarkdown: eventRow.descriptionMarkdown ?? '',
     hasApplication: eventRow.hasApplication,
@@ -566,6 +600,19 @@ export async function updateEventSettings(
     return fail('Start date must be before end date');
   }
 
+  // undefined leaves the stored slug alone; '' or null clears it back to
+  // uuid-only addressing.
+  const finalSlug =
+    input.slug !== undefined ? input.slug?.trim() || null : eventRow.slug;
+
+  if (
+    finalSlug &&
+    finalSlug !== eventRow.slug &&
+    !(await isEventSlugAvailable(finalSlug, eventId))
+  ) {
+    return fail('That URL slug is already used by another event.');
+  }
+
   const latitude =
     input.latitude !== undefined ? input.latitude : eventRow.latitude;
   const longitude =
@@ -600,6 +647,7 @@ export async function updateEventSettings(
       .update(events)
       .set({
         name: input.name ?? eventRow.name,
+        slug: finalSlug,
         descriptionMarkdown:
           input.descriptionMarkdown !== undefined
             ? input.descriptionMarkdown.trim() || null
@@ -635,7 +683,12 @@ export async function updateEventSettings(
   updateTag(EVENTS_CACHE_TAG);
   updateTag(adminEventCacheTag(eventId));
 
-  revalidatePath(`/dashboard/events/${eventId}`);
+  // The event page is reachable by uuid and by every slug it has worn, so
+  // drop the uuid path, the current slug's path, and the one a rename just
+  // orphaned — otherwise a stale render survives under a URL still in use.
+  for (const slug of new Set([null, finalSlug, eventRow.slug])) {
+    revalidatePath(eventPath({ id: eventId, slug }));
+  }
 
   await writeAuditLog({
     actorId: user.id,

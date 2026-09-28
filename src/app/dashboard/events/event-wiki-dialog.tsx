@@ -16,11 +16,12 @@ import { Separator } from '@/components/ui/separator';
 type Article = { slug: string; title: string };
 
 type Props = {
-  eventId: string;
+  /** The event's canonical base path — see `eventPath` in `@/lib/event-slug`. */
+  eventHref: string;
   articles: Article[];
 };
 
-export function EventWikiDialog({ eventId, articles }: Props) {
+export function EventWikiDialog({ eventHref, articles }: Props) {
   return (
     <Dialog>
       <DialogTrigger asChild>
@@ -37,7 +38,7 @@ export function EventWikiDialog({ eventId, articles }: Props) {
             <div key={article.slug}>
               {index > 0 && <Separator />}
               <Link
-                href={`/dashboard/events/${eventId}/wiki/${article.slug}`}
+                href={`${eventHref}/wiki/${article.slug}`}
                 className='hover:bg-accent flex items-center justify-between gap-3 px-4 py-3 text-sm font-medium transition-colors'
               >
                 <span>{article.title}</span>

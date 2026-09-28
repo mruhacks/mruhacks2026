@@ -7,6 +7,8 @@ import { getUser } from '@/utils/auth';
 import { db } from '@/utils/db';
 import { hasPermission } from '@/lib/rbac/authorization';
 import { getPublishedArticleList } from '@/lib/event-wiki';
+import { resolveEventId } from '@/lib/events';
+import { eventPath } from '@/lib/event-slug';
 import { BreadcrumbSegment } from '@/components/breadcrumb-context';
 import { eventArticles, events } from '@/db/schema';
 import { Badge } from '@/components/ui/badge';
@@ -17,12 +19,15 @@ type Props = {
 };
 
 export default async function EventWikiIndexPage({ params }: Props) {
-  const { eventId } = await params;
+  // The segment may be the event's custom slug rather than its uuid.
+  const { eventId: segment } = await params;
+  const eventId = await resolveEventId(segment);
+  if (!eventId) notFound();
   const user = await getUser();
   if (!user) redirect('/signin');
 
   const [event] = await db
-    .select({ id: events.id, name: events.name })
+    .select({ id: events.id, slug: events.slug, name: events.name })
     .from(events)
     .where(eq(events.id, eventId))
     .limit(1);
@@ -49,7 +54,7 @@ export default async function EventWikiIndexPage({ params }: Props) {
 
   return (
     <div className='max-w-2xl space-y-6'>
-      <BreadcrumbSegment id={eventId} label={event.name} />
+      <BreadcrumbSegment id={segment} label={event.name} />
       <div>
         <Button
           asChild
@@ -57,7 +62,7 @@ export default async function EventWikiIndexPage({ params }: Props) {
           size='sm'
           className='text-muted-foreground mb-2 -ml-2'
         >
-          <Link href={`/dashboard/events/${eventId}`}>
+          <Link href={eventPath(event)}>
             <ArrowLeft className='mr-1.5 size-4' />
             {event.name}
           </Link>
@@ -74,7 +79,7 @@ export default async function EventWikiIndexPage({ params }: Props) {
           {articles.map((article) => (
             <li key={article.slug}>
               <Link
-                href={`/dashboard/events/${eventId}/wiki/${article.slug}`}
+                href={`${eventPath(event)}/wiki/${article.slug}`}
                 className='hover:bg-muted/50 flex items-center justify-between gap-3 p-4'
               >
                 <span className='font-medium'>{article.title}</span>

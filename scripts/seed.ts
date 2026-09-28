@@ -117,6 +117,9 @@ async function seedEvents() {
   const eventInserts: EventInsert[] = [
     {
       name: 'MRUHacks 2026',
+      // Gives the seeded dev environment one event reachable by a readable
+      // URL (/dashboard/events/mruhacks-2026) as well as by its uuid.
+      slug: 'mruhacks-2026',
       hasApplication: true,
       capacity: null,
       isFeatured: !existing.some((event) => event.isFeatured),

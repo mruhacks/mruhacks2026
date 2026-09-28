@@ -76,6 +76,10 @@ async function getResponseStatus(userId: string) {
 beforeAll(async () => {
   approvedStatusId = await ensureStatus(applicationStatuses, 'approved', true);
   pendingRsvpStatusId = await ensureStatus(rsvpStatuses, 'pending', false);
+  // sendRsvpWave times out expired responses before sending, which needs this
+  // row to exist. Seeded here rather than left to whichever other test file
+  // happened to run first and insert it.
+  await ensureStatus(rsvpStatuses, 'timed_out', true);
 
   const [eventRow] = await db
     .insert(events)

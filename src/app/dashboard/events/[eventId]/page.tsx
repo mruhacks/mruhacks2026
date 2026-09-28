@@ -8,6 +8,8 @@ import { db } from '@/utils/db';
 import { BreadcrumbSegment } from '@/components/breadcrumb-context';
 import { MarkdownContent } from '@/components/markdown/markdown-content';
 import { events, eventTypes, eventAttendees, eventArticles } from '@/db/schema';
+import { resolveEventId } from '@/lib/events';
+import { eventPath } from '@/lib/event-slug';
 import {
   getUserApplicationStatus,
   getUserRsvpStatus,
@@ -55,6 +57,7 @@ type Props = {
 
 type EventDetails = {
   id: string;
+  slug: string | null;
   name: string;
   descriptionMarkdown: string | null;
   hasApplication: boolean;
@@ -97,7 +100,12 @@ export default function EventEntryPage(props: Props) {
 }
 
 async function EventEntryContent({ params, searchParams }: Props) {
-  const { eventId } = await params;
+  // The segment is either the event's uuid or its custom slug; everything
+  // below queries by the resolved uuid, while links are rebuilt from the
+  // event's canonical path so a configured slug is what participants share.
+  const { eventId: segment } = await params;
+  const eventId = await resolveEventId(segment);
+  if (!eventId) notFound();
   const { joinCode: rawJoinCode } = await searchParams;
   // A repeated `?joinCode=` (a double-appended share link) arrives as an
   // array; take the first so the dialog always gets a plain code string.
@@ -110,6 +118,7 @@ async function EventEntryContent({ params, searchParams }: Props) {
   const [row] = await db
     .select({
       id: events.id,
+      slug: events.slug,
       name: events.name,
       descriptionMarkdown: events.descriptionMarkdown,
       hasApplication: events.hasApplication,
@@ -125,6 +134,8 @@ async function EventEntryContent({ params, searchParams }: Props) {
     .limit(1);
 
   if (!row) notFound();
+
+  const eventHref = eventPath(row);
 
   const publishedArticles = await db
     .select({ slug: eventArticles.slug, title: eventArticles.title })
@@ -150,6 +161,7 @@ async function EventEntryContent({ params, searchParams }: Props) {
     return (
       <EventPageLayout
         event={row}
+        segment={segment}
         articles={publishedArticles}
         mobileAction={
           // An outstanding RSVP is the one thing we want a phone visitor to
@@ -159,16 +171,17 @@ async function EventEntryContent({ params, searchParams }: Props) {
             : applicationStatus
               ? {
                   label: 'Edit application',
-                  href: `/dashboard/events/${eventId}/apply`,
+                  href: `${eventHref}/apply`,
                 }
               : {
                   label: 'Start application',
-                  href: `/dashboard/events/${eventId}/apply`,
+                  href: `${eventHref}/apply`,
                 }
         }
         participation={
           <ApplicationParticipationPanel
             eventId={eventId}
+            eventHref={eventHref}
             eventName={row.name}
             applicationStatus={applicationStatus}
             rsvpStatus={rsvpStatus}
@@ -200,6 +213,7 @@ async function EventEntryContent({ params, searchParams }: Props) {
   return (
     <EventPageLayout
       event={row}
+      segment={segment}
       articles={publishedArticles}
       mobileAction={
         isRegistered
@@ -229,12 +243,19 @@ async function EventEntryContent({ params, searchParams }: Props) {
 
 function EventPageLayout({
   event,
+  segment,
   articles,
   participation,
   team,
   mobileAction,
 }: {
   event: EventDetails;
+  /**
+   * The `[eventId]` segment exactly as it appears in the current URL — the
+   * breadcrumb is keyed by path segment, so it has to be the visitor's form
+   * (uuid or slug) rather than the canonical one.
+   */
+  segment: string;
   articles: PublishedArticle[];
   participation: React.ReactNode;
   team: React.ReactNode;
@@ -245,7 +266,7 @@ function EventPageLayout({
 }) {
   return (
     <div className='pb-24 lg:pb-0'>
-      <BreadcrumbSegment id={event.id} label={event.name} />
+      <BreadcrumbSegment id={segment} label={event.name} />
 
       <header className='flex flex-col gap-3'>
         <Button
@@ -278,7 +299,7 @@ function EventPageLayout({
       <div className='mt-8 grid gap-8 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start'>
         <main className='flex min-w-0 flex-col gap-8'>
           <EventDescription markdown={event.descriptionMarkdown} />
-          <WikiArticles eventId={event.id} articles={articles} />
+          <WikiArticles eventHref={eventPath(event)} articles={articles} />
         </main>
 
         <aside className='order-first flex flex-col gap-4 lg:sticky lg:top-24 lg:order-0 lg:self-start'>
@@ -318,12 +339,14 @@ function WalletAction({
 
 function ApplicationParticipationPanel({
   eventId,
+  eventHref,
   eventName,
   applicationStatus,
   rsvpStatus,
   walletPlatform,
 }: {
   eventId: string;
+  eventHref: string;
   eventName: string;
   applicationStatus: ApplicationStatusForUser | null;
   rsvpStatus: RsvpStatusForUser | null;
@@ -373,7 +396,7 @@ function ApplicationParticipationPanel({
         <CardContent>
           <ApplicationStatusBanner
             application={applicationStatus}
-            editHref={`/dashboard/events/${eventId}/apply`}
+            editHref={`${eventHref}/apply`}
           />
         </CardContent>
         {applicationStatus.statusKey === 'approved' && (
@@ -397,9 +420,7 @@ function ApplicationParticipationPanel({
       </CardHeader>
       <CardFooter className='flex-col gap-2'>
         <Button asChild className='w-full' size='lg'>
-          <Link href={`/dashboard/events/${eventId}/apply`}>
-            Start application
-          </Link>
+          <Link href={`${eventHref}/apply`}>Start application</Link>
         </Button>
       </CardFooter>
     </Card>
@@ -469,10 +490,10 @@ function EventDescription({ markdown }: { markdown: string | null }) {
 
 /** Shows the existing published wiki content directly on the event page. */
 function WikiArticles({
-  eventId,
+  eventHref,
   articles,
 }: {
-  eventId: string;
+  eventHref: string;
   articles: PublishedArticle[];
 }) {
   if (articles.length === 0) return null;
@@ -488,7 +509,7 @@ function WikiArticles({
             Hackerpack
           </h2>
         </div>
-        <EventWikiDialog eventId={eventId} articles={articles} />
+        <EventWikiDialog eventHref={eventHref} articles={articles} />
       </div>
       <Card>
         <CardContent className='flex flex-col gap-0 p-0'>
@@ -496,7 +517,7 @@ function WikiArticles({
             <div key={article.slug}>
               {index > 0 && <Separator />}
               <Link
-                href={`/dashboard/events/${eventId}/wiki/${article.slug}`}
+                href={`${eventHref}/wiki/${article.slug}`}
                 className='hover:bg-accent flex items-center justify-between gap-3 px-6 py-4 text-sm font-medium transition-colors'
               >
                 <span>{article.title}</span>

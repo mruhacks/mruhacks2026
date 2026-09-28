@@ -580,6 +580,8 @@ export async function submitRsvpResponse(
 
 export type EventWithUserStatus = {
   id: string;
+  /** Custom URL segment, or null when the event is addressed by uuid only. */
+  slug: string | null;
   name: string;
   parentEventId: string | null;
   hasApplication: boolean;
@@ -660,6 +662,7 @@ export async function getEventsWithUserStatus(): Promise<
       : null;
     return {
       id: e.id,
+      slug: e.slug,
       name: e.name,
       parentEventId: e.parentEventId,
       hasApplication: e.hasApplication,

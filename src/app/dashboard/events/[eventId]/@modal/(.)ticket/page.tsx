@@ -7,8 +7,9 @@ export default async function TicketModal({
 }: {
   params: Promise<{ eventId: string }>;
 }) {
-  const { eventId } = await params;
-  const ticket = await getTicketViewData(eventId);
+  // Raw segment — `getTicketViewData` resolves a custom slug to the uuid.
+  const { eventId: segment } = await params;
+  const ticket = await getTicketViewData(segment);
 
   return (
     <RouteModal

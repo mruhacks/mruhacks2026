@@ -7,6 +7,8 @@ import { getUser } from '@/utils/auth';
 import { db } from '@/utils/db';
 import { hasPermission } from '@/lib/rbac/authorization';
 import { getPublishedArticle } from '@/lib/event-wiki';
+import { resolveEventId } from '@/lib/events';
+import { eventPath } from '@/lib/event-slug';
 import { BreadcrumbSegment } from '@/components/breadcrumb-context';
 import { MarkdownContent } from '@/components/markdown/markdown-content';
 import { eventArticles, events } from '@/db/schema';
@@ -19,12 +21,16 @@ type Props = {
 };
 
 export default async function EventWikiArticlePage({ params }: Props) {
-  const { eventId, slug } = await params;
+  // The event segment may be the event's custom slug rather than its uuid;
+  // `slug` here is the article's, which is only ever unique within the event.
+  const { eventId: segment, slug } = await params;
+  const eventId = await resolveEventId(segment);
+  if (!eventId) notFound();
   const user = await getUser();
   if (!user) redirect('/signin');
 
   const [event] = await db
-    .select({ id: events.id, name: events.name })
+    .select({ id: events.id, slug: events.slug, name: events.name })
     .from(events)
     .where(eq(events.id, eventId))
     .limit(1);
@@ -58,7 +64,7 @@ export default async function EventWikiArticlePage({ params }: Props) {
 
   return (
     <article className='max-w-2xl space-y-6'>
-      <BreadcrumbSegment id={eventId} label={event.name} />
+      <BreadcrumbSegment id={segment} label={event.name} />
       <div>
         <Button
           asChild
@@ -66,7 +72,7 @@ export default async function EventWikiArticlePage({ params }: Props) {
           size='sm'
           className='text-muted-foreground mb-2 -ml-2'
         >
-          <Link href={`/dashboard/events/${eventId}/wiki`}>
+          <Link href={`${eventPath(event)}/wiki`}>
             <ArrowLeft className='mr-1.5 size-4' />
             Hackerpack
           </Link>

@@ -29,7 +29,7 @@ import {
   putObject,
 } from '@/utils/object-storage';
 import { collectAttachmentKeys } from '@/lib/markdown-attachments';
-import { slugifyArticleTitle, uniqueArticleSlug } from '@/lib/article-slug';
+import { slugify, uniqueSlug } from '@/lib/slug';
 import {
   createArticleSchema,
   updateArticleSchema,
@@ -303,7 +303,7 @@ export async function createEventArticle(
     .limit(1);
   if (!eventRow) return fail('Event not found');
 
-  const requested = parsed.data.slug ?? slugifyArticleTitle(parsed.data.title);
+  const requested = parsed.data.slug ?? slugify(parsed.data.title);
   if (!requested) {
     return fail('Add a URL slug — the title has no letters or numbers to use.');
   }
@@ -313,7 +313,7 @@ export async function createEventArticle(
   if (parsed.data.slug && existing.includes(requested)) {
     return fail('That slug is already used by another article in this event.');
   }
-  const slug = uniqueArticleSlug(requested, existing);
+  const slug = uniqueSlug(requested, existing);
 
   const [created] = await db
     .insert(eventArticles)

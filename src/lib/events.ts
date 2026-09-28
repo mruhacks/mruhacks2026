@@ -2,6 +2,7 @@ import { cacheTag, cacheLife } from 'next/cache';
 import { desc, eq, sql } from 'drizzle-orm';
 import { db } from '@/utils/db';
 import { events, eventApplications, eventAttendees } from '@/db/schema';
+import { isEventUuid } from '@/lib/event-slug';
 
 /** Invalidated by updateTag() whenever an event is created or its settings change. */
 export const EVENTS_CACHE_TAG = 'events';
@@ -21,6 +22,7 @@ export async function getAllEvents() {
   return db
     .select({
       id: events.id,
+      slug: events.slug,
       name: events.name,
       parentEventId: events.parentEventId,
       hasApplication: events.hasApplication,
@@ -29,6 +31,39 @@ export async function getAllEvents() {
     })
     .from(events)
     .orderBy(desc(events.createdAt));
+}
+
+/**
+ * Resolves a `[eventId]` route segment to the event's uuid. The segment is
+ * either the uuid itself or the event's custom slug (see `@/lib/event-slug`),
+ * so every page that queries by id has to translate first. Returns null when
+ * the segment is a slug no event owns; a uuid is handed back unchanged and
+ * left for the caller's own query to 404 on.
+ */
+export async function resolveEventId(segment: string): Promise<string | null> {
+  if (isEventUuid(segment)) return segment;
+  return getEventIdBySlug(segment);
+}
+
+/**
+ * Slug -> uuid, cached per slug. Same output for every viewer, and read on
+ * every request to a slug URL, so it shares the events tag rather than
+ * hitting the DB per visit.
+ */
+async function getEventIdBySlug(slug: string): Promise<string | null> {
+  'use cache';
+  cacheTag(EVENTS_CACHE_TAG);
+  // Busted by updateTag() on create/settings-update, the two paths that can
+  // move a slug; 'minutes' is the same safety net the listing above uses.
+  cacheLife('minutes');
+
+  const [row] = await db
+    .select({ id: events.id })
+    .from(events)
+    .where(eq(events.slug, slug))
+    .limit(1);
+
+  return row?.id ?? null;
 }
 
 /** One tag per user, invalidated wherever they apply, register, or unregister. */

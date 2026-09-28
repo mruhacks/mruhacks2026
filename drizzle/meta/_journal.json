@@ -295,6 +295,13 @@
       "when": 1790275303915,
       "tag": "0041_rsvp_read_permission",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1790632123783,
+      "tag": "0042_event_custom_slug",
+      "breakpoints": true
     }
   ]
 }

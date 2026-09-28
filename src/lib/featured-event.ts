@@ -2,6 +2,7 @@ import { cacheTag, cacheLife } from 'next/cache';
 import { eq } from 'drizzle-orm';
 import { db } from '@/utils/db';
 import { events } from '@/db/schema';
+import { eventPath } from '@/lib/event-slug';
 
 export const FEATURED_EVENT_CACHE_TAG = 'featured-event';
 const DEFAULT_REGISTER_URL = '/signup';
@@ -18,13 +19,13 @@ export async function getFeaturedEventRegisterUrl(): Promise<string> {
   cacheLife('hours');
 
   const [featured] = await db
-    .select({ id: events.id })
+    .select({ id: events.id, slug: events.slug })
     .from(events)
     .where(eq(events.isFeatured, true))
     .limit(1);
 
   if (featured) {
-    return `/dashboard/events/${featured.id}`;
+    return eventPath(featured);
   }
 
   return DEFAULT_REGISTER_URL;

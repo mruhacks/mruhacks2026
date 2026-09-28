@@ -15,6 +15,7 @@ import {
 } from '@/app/dashboard/profile/actions';
 import { db } from '@/utils/db';
 import { events } from '@/db/schema';
+import { resolveEventId } from '@/lib/events';
 import { eq } from 'drizzle-orm';
 import {
   Card,
@@ -93,7 +94,10 @@ type Props = {
 };
 
 export default async function ApplyEventPage({ params }: Props) {
-  const { eventId } = await params;
+  // The segment may be the event's custom slug rather than its uuid.
+  const { eventId: segment } = await params;
+  const eventId = await resolveEventId(segment);
+  if (!eventId) notFound();
   const user = await getUser();
   if (!user) redirect('/signin');
 
@@ -137,7 +141,7 @@ export default async function ApplyEventPage({ params }: Props) {
   );
 
   if (!hasProfile && !previousApplication.success) {
-    redirect(`/dashboard/profile?next=/dashboard/events/${eventId}/apply`);
+    redirect(`/dashboard/profile?next=/dashboard/events/${segment}/apply`);
   }
 
   const decisionIsFinal =
@@ -161,7 +165,7 @@ export default async function ApplyEventPage({ params }: Props) {
 
   return (
     <Card className='w-full sm:max-w-2xl'>
-      <BreadcrumbSegment id={eventId} label={event.name} />
+      <BreadcrumbSegment id={segment} label={event.name} />
       <CardHeader>
         <CardTitle>Application: {event.name}</CardTitle>
         <CardDescription>

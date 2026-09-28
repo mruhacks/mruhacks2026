@@ -63,6 +63,8 @@ export function eventApplicationsCacheTag(eventId: string): string {
 
 export type AdminEventHeader = {
   id: string;
+  /** Custom URL segment, or null when the event is addressed by uuid only. */
+  slug: string | null;
   name: string;
   descriptionMarkdown: string;
   hasApplication: boolean;
@@ -94,6 +96,7 @@ export async function getAdminEventHeader(
   const [row] = await db
     .select({
       id: events.id,
+      slug: events.slug,
       name: events.name,
       descriptionMarkdown: events.descriptionMarkdown,
       hasApplication: events.hasApplication,
@@ -164,6 +167,7 @@ export async function getAdminEventSettings(
   const [row] = await db
     .select({
       id: events.id,
+      slug: events.slug,
       name: events.name,
       descriptionMarkdown: events.descriptionMarkdown,
       hasApplication: events.hasApplication,

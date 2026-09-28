@@ -63,6 +63,14 @@ export const events = pgTable(
     }),
     name: text('name').notNull(),
     /**
+     * Optional custom URL segment participant links may use in place of the
+     * uuid — `/dashboard/events/mruhacks-2026`. Unique sitewide (unlike an
+     * article slug, which is only unique within its event) because it is a
+     * top-level path segment. Null means the event is addressed by id only.
+     * Format and reserved-word rules live in `@/lib/event-slug`.
+     */
+    slug: varchar('slug', { length: 120 }),
+    /**
      * Organizer-authored blurb shown on the participant event page, stored as
      * markdown (authored in the MDX editor). Attachments referenced from it
      * live in object storage under `event-content/`.
@@ -115,6 +123,9 @@ export const events = pgTable(
     idxFeaturedUnique: uniqueIndex('idx_events_featured_unique')
       .on(table.isFeatured)
       .where(sql`${table.isFeatured} = true`),
+    // Nulls are distinct in Postgres, so this still allows any number of
+    // events with no slug while keeping every set slug unambiguous.
+    idxSlugUnique: uniqueIndex('idx_events_slug_unique').on(table.slug),
   }),
 );
 

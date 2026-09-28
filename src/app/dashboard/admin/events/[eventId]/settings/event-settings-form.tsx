@@ -33,6 +33,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import type { AdminEventSettings } from '@/lib/admin-event';
+import { slugify } from '@/lib/slug';
 import { fromDateTimeLocalValue, toDateTimeLocalValue } from '@/lib/datetime';
 import { parseOptionalNumber } from '@/lib/form-values';
 
@@ -46,6 +47,9 @@ export function EventSettingsForm({ event }: { event: AdminEventSettings }) {
   const defaults = React.useMemo<UpdateEventSettingsInput>(
     () => ({
       name: event.name,
+      // '' rather than undefined: the input is controlled by `register`, and
+      // an empty string is also how the action is told to clear the slug.
+      slug: event.slug ?? '',
       hasApplication: event.hasApplication,
       capacity: event.capacity ?? null,
       startsAt: event.startsAt ? event.startsAt.toISOString() : undefined,
@@ -72,10 +76,14 @@ export function EventSettingsForm({ event }: { event: AdminEventSettings }) {
     defaultValues: defaults,
   });
 
-  const [teamsEnabled, startsAt, endsAt] = useWatch({
+  const [teamsEnabled, startsAt, endsAt, name, slug] = useWatch({
     control,
-    name: ['teamsEnabled', 'startsAt', 'endsAt'],
+    name: ['teamsEnabled', 'startsAt', 'endsAt', 'name', 'slug'],
   });
+  // What the participant URL will look like once saved — the uuid is the
+  // fallback for an event with no slug.
+  const urlSegment = slug?.trim() || event.id;
+  const suggestedSlug = slugify(name ?? '');
   const startsAtAbbr = useZoneAbbreviation(startsAt ?? undefined);
   const endsAtAbbr = useZoneAbbreviation(endsAt ?? undefined);
 
@@ -131,6 +139,27 @@ export function EventSettingsForm({ event }: { event: AdminEventSettings }) {
                       placeholder='e.g. MRU Hackathon 2026'
                     />
                     {errors.name && <FieldError errors={[errors.name]} />}
+                  </Field>
+                  <Field className='gap-1.5' data-invalid={!!errors.slug}>
+                    <FieldLabel htmlFor='slug'>URL slug (optional)</FieldLabel>
+                    <Input
+                      id='slug'
+                      aria-invalid={!!errors.slug}
+                      {...register('slug')}
+                      onChange={(e) => {
+                        setSubmitError(null);
+                        register('slug').onChange(e);
+                      }}
+                      placeholder={suggestedSlug || 'mruhacks-2026'}
+                    />
+                    <FieldDescription>
+                      Participants reach this event at{' '}
+                      <span className='font-mono break-all'>
+                        /dashboard/events/{urlSegment}
+                      </span>
+                      . Leave blank to keep using the event id.
+                    </FieldDescription>
+                    {errors.slug && <FieldError errors={[errors.slug]} />}
                   </Field>
                   <Button
                     asChild
