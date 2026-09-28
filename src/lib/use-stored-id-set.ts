@@ -49,11 +49,11 @@ type Store = {
 
 const stores = new Map<string, Store>();
 
-function readRaw(key: string): string | null {
+function readRaw(key: string): string | null | undefined {
   try {
     return window.localStorage.getItem(key);
   } catch {
-    return null;
+    return undefined;
   }
 }
 
@@ -78,17 +78,22 @@ function getStore(key: string): Store {
   // new Set each render and loop forever.
   let cachedRaw: string | null = null;
   let cachedValue: ReadonlySet<string> | null = null;
+  let hasUnpersistedValue = false;
 
   function emit() {
     for (const listener of listeners) listener();
   }
 
   function write(next: ReadonlySet<string>) {
+    cachedRaw = JSON.stringify([...next]);
+    cachedValue = next;
     try {
-      window.localStorage.setItem(key, JSON.stringify([...next]));
+      window.localStorage.setItem(key, cachedRaw);
+      hasUnpersistedValue = false;
     } catch {
-      // Storage unavailable (private window, blocked site data). The
-      // selection just doesn't survive this reload.
+      // Preserve this session's selection even if storage still returns an
+      // older value after a failed write (for example, when quota is full).
+      hasUnpersistedValue = true;
     }
     emit();
   }
@@ -98,7 +103,10 @@ function getStore(key: string): Store {
       listeners.add(onStoreChange);
       // Another tab writing the same key fires `storage` here.
       const onStorage = (event: StorageEvent) => {
-        if (event.key === null || event.key === key) emit();
+        if (event.key === null || event.key === key) {
+          hasUnpersistedValue = false;
+          emit();
+        }
       };
       window.addEventListener('storage', onStorage);
       return () => {
@@ -107,7 +115,8 @@ function getStore(key: string): Store {
       };
     },
     getSnapshot() {
-      const raw = readRaw(key);
+      const storedRaw = hasUnpersistedValue ? undefined : readRaw(key);
+      const raw = storedRaw === undefined ? cachedRaw : storedRaw;
       if (cachedValue === null || raw !== cachedRaw) {
         cachedRaw = raw;
         cachedValue = parse(raw);

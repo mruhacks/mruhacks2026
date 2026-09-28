@@ -7,9 +7,8 @@ import {
   getEventAttendeeRoster,
   getEventQuestions,
 } from '@/lib/admin-event';
-import { hasPermission } from '@/lib/rbac/authorization';
+import { requirePermission } from '@/lib/rbac/authorization';
 import { getUser } from '@/utils/auth';
-import { forbidden } from 'next/navigation';
 
 import { ApplicationsTable } from '../_components/applications-table';
 import { AttendeesTable } from '../_components/attendees-table';
@@ -48,7 +47,7 @@ async function ApplicationsContent({
 
   // Individual applicants and their answers — a strictly stronger permission
   // than the dashboard's cohort statistics.
-  if (!(await hasPermission(user.id, 'application:read:all'))) forbidden();
+  await requirePermission(user.id, 'application:read:all');
 
   const event = await getAdminEventHeader(eventId);
   if (!event) return null;

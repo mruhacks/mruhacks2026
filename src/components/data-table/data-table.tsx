@@ -45,6 +45,7 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
@@ -213,21 +214,23 @@ export function DataTable<TData, TValue>({
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align='end' className='w-44'>
-                  {table
-                    .getAllColumns()
-                    .filter((c) => c.getCanHide())
-                    .map((c) => (
-                      <DropdownMenuCheckboxItem
-                        key={c.id}
-                        className='capitalize'
-                        checked={c.getIsVisible()}
-                        onCheckedChange={(v) => c.toggleVisibility(!!v)}
-                      >
-                        {typeof c.columnDef.header === 'string'
-                          ? c.columnDef.header
-                          : c.id}
-                      </DropdownMenuCheckboxItem>
-                    ))}
+                  <DropdownMenuGroup>
+                    {table
+                      .getAllLeafColumns()
+                      .filter((c) => c.getCanHide())
+                      .map((c) => (
+                        <DropdownMenuCheckboxItem
+                          key={c.id}
+                          className='capitalize'
+                          checked={c.getIsVisible()}
+                          onCheckedChange={(v) => c.toggleVisibility(!!v)}
+                        >
+                          {typeof c.columnDef.header === 'string'
+                            ? c.columnDef.header
+                            : c.id}
+                        </DropdownMenuCheckboxItem>
+                      ))}
+                  </DropdownMenuGroup>
                 </DropdownMenuContent>
               </DropdownMenu>
             )}
@@ -307,7 +310,7 @@ export function DataTable<TData, TValue>({
             ) : (
               <TableRow>
                 <TableCell
-                  colSpan={columns.length}
+                  colSpan={table.getVisibleLeafColumns().length}
                   className='text-muted-foreground h-24 text-center'
                 >
                   {emptyMessage}

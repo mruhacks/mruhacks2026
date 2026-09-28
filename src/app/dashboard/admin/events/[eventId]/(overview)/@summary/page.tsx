@@ -52,15 +52,21 @@ async function SummaryTiles({
   // Each tile is gated on the permission behind the feature it summarizes —
   // never a shared "is this an admin" bundle, so a check-in volunteer with
   // no team access still sees their own tile. See AGENTS.md.
-  const [event, counts, canManage, canCheckIn, canReadTeams, canReadRsvp] =
-    await Promise.all([
-      getAdminEventHeader(eventId),
-      getEventSummaryCounts(eventId),
-      hasPermission(user.id, 'event:manage:all'),
-      hasPermission(user.id, 'checkin:write:all'),
-      hasPermission(user.id, 'team:read:all'),
-      hasPermission(user.id, 'rsvp:read:all'),
-    ]);
+  const [
+    event,
+    counts,
+    canReadApplications,
+    canCheckIn,
+    canReadTeams,
+    canReadRsvp,
+  ] = await Promise.all([
+    getAdminEventHeader(eventId),
+    getEventSummaryCounts(eventId),
+    hasPermission(user.id, 'application:read:all'),
+    hasPermission(user.id, 'checkin:write:all'),
+    hasPermission(user.id, 'team:read:all'),
+    hasPermission(user.id, 'rsvp:read:all'),
+  ]);
 
   if (!event) return null;
 
@@ -70,13 +76,14 @@ async function SummaryTiles({
 
   // Nothing visible to this viewer: render no grid at all rather than an
   // empty shell.
-  if (!canManage && !canCheckIn && !showTeams && !showRsvp) return null;
+  if (!canReadApplications && !canCheckIn && !showTeams && !showRsvp)
+    return null;
 
   // Every tile is a whole-card link to its tool page — no inline buttons, so
   // the four read identically and the click target is the obvious one.
   return (
     <TileGrid>
-      {canManage && (
+      {canReadApplications && (
         <StatTile
           icon={<ThumbsUp className='size-4' />}
           label={event.hasApplication ? 'Applications' : 'Registered'}

@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeAll } from 'vitest';
+import { describe, test, expect, beforeAll, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 
 import { db } from '@/utils/db';
@@ -13,6 +13,9 @@ import {
   user,
 } from '@/db/schema';
 import { getAdminRsvpSummary } from '@/lib/rsvp/get-admin-rsvp-summary';
+import { getEventSummaryCounts } from '@/lib/admin-event';
+
+vi.mock('next/cache', () => ({ cacheLife: vi.fn(), cacheTag: vi.fn() }));
 
 let approvedStatusId: number;
 let pendingRsvpStatusId: number;
@@ -82,6 +85,68 @@ beforeAll(async () => {
 });
 
 describe('getAdminRsvpSummary', () => {
+  test('dashboard totals resolve expired invitations and sum across waves', async () => {
+    const [eventRow] = await db
+      .insert(events)
+      .values({ name: 'Dashboard RSVP Totals', hasApplication: true })
+      .returning({ id: events.id });
+    const participantIds: string[] = [];
+
+    try {
+      const now = Date.now();
+      const [expiredWave, activeWave] = await db
+        .insert(eventRsvpWaves)
+        .values([
+          {
+            eventId: eventRow.id,
+            wave: 1,
+            respondBy: new Date(now - 86_400_000),
+          },
+          {
+            eventId: eventRow.id,
+            wave: 2,
+            respondBy: new Date(now + 86_400_000),
+          },
+        ])
+        .returning({ id: eventRsvpWaves.id });
+
+      // Both waves contain all stored statuses plus a response with no status.
+      for (const wave of [expiredWave, activeWave]) {
+        for (const statusId of [
+          pendingRsvpStatusId,
+          acceptedRsvpStatusId,
+          declinedRsvpStatusId,
+          timedOutRsvpStatusId,
+          null,
+        ]) {
+          const userId = await createUser(
+            'Dashboard Participant',
+            `dashboard-${wave.id}-${statusId}@example.com`,
+          );
+          participantIds.push(userId);
+          await db.insert(eventRsvpResponses).values({
+            rsvpWaveId: wave.id,
+            userId,
+            statusId,
+          });
+        }
+      }
+
+      const counts = await getEventSummaryCounts(eventRow.id);
+      expect(counts.rsvp).toEqual({
+        accepted: 2,
+        declined: 2,
+        pending: 2,
+        timedOut: 4,
+      });
+    } finally {
+      await db.delete(events).where(eq(events.id, eventRow.id));
+      for (const id of participantIds) {
+        await db.delete(user).where(eq(user.id, id));
+      }
+    }
+  });
+
   test('returns a sensible empty state when no waves have been sent', async () => {
     const [eventRow] = await db
       .insert(events)

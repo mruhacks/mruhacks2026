@@ -30,6 +30,7 @@ import {
   type StatsBucket,
 } from '@/lib/application-stats';
 import { EVENT_TIME_ZONE } from '@/lib/datetime';
+import { resolveEffectiveRsvpStatus } from '@/lib/rsvp/effective-rsvp-status';
 import type { ApplicationQuestion } from '@/types/application';
 import { db } from '@/utils/db';
 
@@ -253,6 +254,7 @@ export async function getEventSummaryCounts(
       db
         .select({
           label: rsvpStatuses.label,
+          respondBy: eventRsvpWaves.respondBy,
           c: countOf,
         })
         .from(eventRsvpResponses)
@@ -265,15 +267,16 @@ export async function getEventSummaryCounts(
           eq(rsvpStatuses.id, eventRsvpResponses.statusId),
         )
         .where(eq(eventRsvpWaves.eventId, eventId))
-        .groupBy(rsvpStatuses.label),
+        .groupBy(rsvpStatuses.label, eventRsvpWaves.respondBy),
     ]);
 
   const rsvp = { accepted: 0, pending: 0, declined: 0, timedOut: 0 };
+  const now = new Date();
   for (const row of rsvpRows) {
-    if (row.label === 'accepted') rsvp.accepted = row.c;
-    else if (row.label === 'declined') rsvp.declined = row.c;
-    else if (row.label === 'timed_out') rsvp.timedOut = row.c;
-    // A response with no status row yet is still awaiting an answer.
+    const status = resolveEffectiveRsvpStatus(row.label, row.respondBy, now);
+    if (status === 'accepted') rsvp.accepted += row.c;
+    else if (status === 'declined') rsvp.declined += row.c;
+    else if (status === 'timed_out') rsvp.timedOut += row.c;
     else rsvp.pending += row.c;
   }
 

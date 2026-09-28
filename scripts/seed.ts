@@ -28,10 +28,9 @@ import {
 import type { InferInsertModel } from 'drizzle-orm';
 import { eq, isNull, and } from 'drizzle-orm';
 import { seedStaticTables } from './seed-static';
+import { seedAdminOnboarding } from './seed-admin-onboarding';
+import { createParticipationSeeder } from './seed-participation';
 import { otherTextKey } from '@/lib/other-option';
-
-const COUNT = Number(process.env.SEED_COUNT ?? 3e2);
-const CHUNK_SIZE = Number(process.env.SEED_CHUNK_SIZE ?? 2000);
 
 // ── Stable question UUIDs (deterministic for seed data consistency) ────────
 const Q_ATTENDED_BEFORE = '11111111-0000-0000-0000-000000000001';
@@ -114,18 +113,13 @@ type UserPermissionInsert = InferInsertModel<typeof userPermission>;
 
 // ── Seed events ───────────────────────────────────────────────────────────
 async function seedEvents() {
-  const existing = await db.select().from(events).limit(2);
-  if (existing.length > 0) {
-    const appEvent = existing.find((e) => e.hasApplication) ?? existing[0]!;
-    const noAppEvent = existing.find((e) => !e.hasApplication) ?? existing[0]!;
-    return { applicationEvent: appEvent, noAppEvent };
-  }
+  const existing = await db.select().from(events);
   const eventInserts: EventInsert[] = [
     {
       name: 'MRUHacks 2026',
       hasApplication: true,
       capacity: null,
-      isFeatured: true,
+      isFeatured: !existing.some((event) => event.isFeatured),
       teamsEnabled: true,
       maxTeamSize: 5,
       applicationQuestions: [
@@ -256,10 +250,22 @@ async function seedEvents() {
       capacity: null,
     },
   ];
-  const inserted = await db.insert(events).values(eventInserts).returning();
-  const applicationEvent = inserted[0]!;
-  const noAppEvent = inserted[1]!;
-  console.log(`✅ Seeded ${inserted.length} events.`);
+  const seededEvents: (typeof events.$inferSelect)[] = [];
+  for (const fixture of eventInserts) {
+    const match = existing.find(
+      (event) =>
+        event.name === fixture.name &&
+        event.hasApplication === fixture.hasApplication,
+    );
+    if (match) {
+      seededEvents.push(match);
+    } else {
+      const [inserted] = await db.insert(events).values(fixture).returning();
+      seededEvents.push(inserted);
+    }
+  }
+  const [applicationEvent, noAppEvent] = seededEvents;
+  console.log('✅ Seed events ready.');
   return { applicationEvent, noAppEvent };
 }
 
@@ -526,7 +532,7 @@ async function seedEnvAdminUser(
 ) {
   const email = process.env.SEED_ADMIN_EMAIL?.trim();
   const password = process.env.SEED_ADMIN_PASSWORD?.trim();
-  const name = process.env.SEED_ADMIN_NAME?.trim() ?? 'Admin';
+  const name = process.env.SEED_ADMIN_NAME?.trim() || 'Admin';
 
   if (!email || !password) return;
 
@@ -569,10 +575,23 @@ async function seedEnvAdminUser(
   }
 
   console.log(`✅ Admin user ready (email: ${email})`);
+  return { id: userId, name };
 }
 
 // ── Main user seeding ───────────────────────────────────────────────────
-async function main() {
+export async function seedDemoData() {
+  const COUNT = Number(process.env.SEED_COUNT ?? 3e2);
+  const CHUNK_SIZE = Number(process.env.SEED_CHUNK_SIZE ?? 2000);
+  if (
+    !Number.isSafeInteger(COUNT) ||
+    COUNT < 0 ||
+    !Number.isSafeInteger(CHUNK_SIZE) ||
+    CHUNK_SIZE < 1
+  ) {
+    throw new Error(
+      'SEED_COUNT must be a non-negative integer and SEED_CHUNK_SIZE must be a positive integer.',
+    );
+  }
   const { applicationEvent, noAppEvent } = await seedEvents();
   await seedEventContent(applicationEvent, noAppEvent);
 
@@ -623,6 +642,33 @@ async function main() {
   let waitlistCounter = 0;
 
   const now = new Date();
+  const admin = await seedEnvAdminUser(insertedRoles);
+  const seedParticipation = createParticipationSeeder(now, admin?.id);
+  if (admin) {
+    await seedAdminOnboarding(
+      admin.id,
+      admin.name,
+      applicationEvent.id,
+      noAppEvent.id,
+      {
+        [Q_ATTENDED_BEFORE]: true,
+        [Q_HACKATHONS_ATTENDED]: 2,
+        [Q_HEARD_FROM]: OPT_FRIEND,
+        [Q_WORKSHOPS_INTERESTED]: [OPT_WORKSHOP_WEB],
+        [Q_NEEDS_PARKING]: true,
+        [Q_ACCOMMODATIONS]: 'None',
+        [Q_CONSENT_INFO]: true,
+        [Q_CONSENT_SPONSOR]: true,
+        [Q_CONSENT_MEDIA]: true,
+      },
+      now,
+    );
+    await seedParticipation(applicationEvent.id, [admin.id]);
+    await seedParticipation(noAppEvent.id, [admin.id]);
+    console.log(
+      '✅ Admin onboarding, registration, team, RSVP, and check-ins ready.',
+    );
+  }
   // Applications are spread over the ~6 weeks before "now" rather than all
   // sharing one instant, so createdAt-based charts show a real shape. These
   // stay real Date (UTC instant) objects throughout — never a bare
@@ -630,6 +676,8 @@ async function main() {
   const applicationWindowStart = new Date(
     now.getTime() - 1000 * 60 * 60 * 24 * 42,
   );
+  // All reviews predate the historical RSVP waves created by the participation seed.
+  const applicationWindowEnd = new Date(now.getTime() - 7 * 86_400_000);
   const chunkCount = Math.ceil(COUNT / CHUNK_SIZE);
 
   for (let c = 0; c < chunkCount; c++) {
@@ -663,7 +711,7 @@ async function main() {
         email,
         emailVerified: faker.datatype.boolean(),
         image: faker.image.avatar(),
-        createdAt: now,
+        createdAt: applicationWindowStart,
         updatedAt: now,
       });
 
@@ -716,21 +764,18 @@ async function main() {
 
       const appCreatedAt = faker.date.between({
         from: applicationWindowStart,
-        to: now,
+        to: applicationWindowEnd,
       });
       const appUpdatedAt =
-        appCreatedAt.getTime() < now.getTime()
-          ? faker.date.between({ from: appCreatedAt, to: now })
-          : now;
+        appCreatedAt.getTime() < applicationWindowEnd.getTime()
+          ? faker.date.between({ from: appCreatedAt, to: applicationWindowEnd })
+          : applicationWindowEnd;
       const appReviewedAt = isDecided
         ? appCreatedAt.getTime() < appUpdatedAt.getTime()
           ? faker.date.between({ from: appCreatedAt, to: appUpdatedAt })
           : appUpdatedAt
         : null;
-      // Stand-in reviewer: the first user materialized in this chunk. Any
-      // valid user id satisfies the `reviewed_by` FK — this file has no
-      // dedicated "organizer" user available yet at insert time.
-      const reviewedBy = isDecided ? users[0]!.id : null;
+      const reviewedBy = isDecided ? (admin?.id ?? null) : null;
       const waitlistPosition =
         statusId === waitlistedStatusId ? ++waitlistCounter : null;
 
@@ -750,9 +795,7 @@ async function main() {
           ]),
         { probability: 0.85 }, // ~15% leave this optional question unanswered
       );
-      const heardFrom = faker.helpers.weightedArrayElement(
-        HEARD_FROM_WEIGHTS,
-      );
+      const heardFrom = faker.helpers.weightedArrayElement(HEARD_FROM_WEIGHTS);
       const workshopsInterested = faker.helpers.maybe(
         () => pickWeightedWorkshops(faker.number.int({ min: 1, max: 3 })),
         { probability: 0.8 }, // ~20% leave this optional question unanswered
@@ -776,12 +819,9 @@ async function main() {
         [Q_HEARD_FROM]: heardFrom,
         [Q_WORKSHOPS_INTERESTED]: workshopsInterested,
         [Q_NEEDS_PARKING]: needsParking,
-        [Q_ACCOMMODATIONS]: faker.helpers.maybe(
-          () => faker.lorem.sentence(),
-          {
-            probability: 0.25,
-          },
-        ),
+        [Q_ACCOMMODATIONS]: faker.helpers.maybe(() => faker.lorem.sentence(), {
+          probability: 0.25,
+        }),
         [Q_CONSENT_INFO]: true,
         [Q_CONSENT_SPONSOR]: consentSponsor,
         [Q_CONSENT_MEDIA]: consentMedia,
@@ -825,7 +865,7 @@ async function main() {
         attendeeData.push({
           eventId: noAppEvent.id,
           userId: id,
-          registeredAt: now,
+          registeredAt: applicationWindowEnd,
         });
       }
 
@@ -885,6 +925,10 @@ async function main() {
         await tx.insert(userPermission).values(userPerms);
     });
 
+    const userIds = users.map((user) => user.id!);
+    await seedParticipation(applicationEvent.id, userIds);
+    await seedParticipation(noAppEvent.id, userIds);
+
     const t1 = performance.now();
     console.log(
       `✅ Chunk ${c + 1}/${chunkCount} done in ${(t1 - t0).toFixed(1)}ms`,
@@ -892,15 +936,13 @@ async function main() {
   }
 
   console.log(
-    `🎉 Done! Inserted ${COUNT} fake users with profiles, applications, and roles.`,
+    `🎉 Done! Inserted ${COUNT} fake users with profiles, applications, roles, teams, RSVPs, and check-ins.`,
   );
-
-  await seedEnvAdminUser(insertedRoles);
 }
 
 async function run() {
   try {
-    await main();
+    await seedDemoData();
   } catch (err) {
     console.error('❌ Seed failed:', err);
     process.exitCode = 1;
@@ -909,4 +951,4 @@ async function run() {
   }
 }
 
-void run();
+if (require.main === module) void run();

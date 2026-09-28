@@ -80,8 +80,7 @@ function toCsv(rows: string[][]): string {
 
 export function ApplicationsTable({ eventId, rows, questions }: Props) {
   const answerQuestions = React.useMemo(
-    () =>
-      questions.filter((q) => q.active && q.type !== 'section_divider'),
+    () => questions.filter((q) => q.active && q.type !== 'section_divider'),
     [questions],
   );
 
@@ -108,6 +107,10 @@ export function ApplicationsTable({ eventId, rows, questions }: Props) {
                 </div>
               </div>
             ),
+          },
+          {
+            accessorKey: 'email',
+            header: 'Email',
           },
           {
             accessorKey: 'university',
@@ -227,6 +230,7 @@ export function ApplicationsTable({ eventId, rows, questions }: Props) {
    */
   const initialColumnVisibility = React.useMemo(
     () => ({
+      email: false,
       major: false,
       yearOfStudy: false,
       ...Object.fromEntries(answerQuestions.map((q) => [q.id, false])),
@@ -253,7 +257,9 @@ export function ApplicationsTable({ eventId, rows, questions }: Props) {
       row.university ?? '',
       row.major ?? '',
       row.yearOfStudy ?? '',
-      row.status ? (STATUS_DISPLAY.get(row.status)?.title ?? row.status) : 'Submitted',
+      row.status
+        ? (STATUS_DISPLAY.get(row.status)?.title ?? row.status)
+        : 'Submitted',
       row.submittedAt.toISOString(),
       row.teamCode ?? '',
       row.hasResume ? 'yes' : 'no',

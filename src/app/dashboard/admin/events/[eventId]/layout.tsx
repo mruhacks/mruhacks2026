@@ -60,9 +60,10 @@ async function EventHeader({
   if (!user) redirect('/signin');
   await requirePermission(user.id, 'event:manage');
 
-  const [event, canEdit] = await Promise.all([
+  const [event, canEdit, canReadStats] = await Promise.all([
     getAdminEventHeader(eventId),
     hasPermission(user.id, 'event:manage:all'),
+    hasPermission(user.id, 'application:stats'),
   ]);
 
   if (!event) notFound();
@@ -104,7 +105,22 @@ async function EventHeader({
         </div>
       </div>
 
-      <div className='flex shrink-0 items-center gap-2'>
+      <div className='flex shrink-0 flex-wrap items-center gap-2'>
+        {/* The question builder requires event:manage, checked above. */}
+        {event.hasApplication && (
+          <Button asChild variant='outline' size='sm'>
+            <Link href={`/dashboard/admin/events/${eventId}/questions`}>
+              Application questions
+            </Link>
+          </Button>
+        )}
+        {event.hasApplication && canReadStats && (
+          <Button asChild variant='outline' size='sm'>
+            <Link href={`/dashboard/admin/events/${eventId}/stats`}>
+              Detailed statistics
+            </Link>
+          </Button>
+        )}
         <ShareEventButton eventId={eventId} />
         {canEdit && (
           <Button asChild variant='outline' size='sm'>
