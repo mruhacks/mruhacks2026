@@ -11,71 +11,217 @@ import {
   EventTileList,
   SectionEyebrow,
 } from '@/app/dashboard/events/EventTileList';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-} from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowRight, KeyRound, ShieldCheck, Users } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 
 /**
- * Each admin nav item is gated on its own direct permission, not a shared
- * "is this an admin" list. See AGENTS.md: permissions, not roles, gate UI.
+ * Each admin tile is gated on its own direct permission — the one that gates
+ * the page it links to — not a shared "is this an admin" list. See AGENTS.md:
+ * permissions, not roles, gate UI.
  */
-const ADMIN_STATS = [
+const ADMIN_TILES = [
+  {
+    label: 'Events',
+    countKey: 'events' as const,
+    unit: 'Event',
+    href: '/dashboard/admin/events',
+    permission: 'event:manage:all',
+  },
   {
     label: 'Users',
     countKey: 'users' as const,
-    icon: Users,
+    unit: 'User',
     href: '/dashboard/admin/users',
     permission: 'user:read:all',
   },
+];
+
+/**
+ * Roles and permissions ride along inside the Users tile as buttons. Each one
+ * still checks the permission that gates its own page — and falls back to a
+ * tile of its own when the user can't see the Users tile it normally sits in.
+ */
+const USER_TILE_LINKS = [
   {
     label: 'Roles',
     countKey: 'roles' as const,
-    icon: ShieldCheck,
+    unit: 'Role',
     href: '/dashboard/admin/roles',
     permission: 'role:read:all',
   },
   {
     label: 'Permissions',
     countKey: 'permissions' as const,
-    icon: KeyRound,
+    unit: 'Permission',
     href: '/dashboard/admin/permissions',
     permission: 'permission:read:all',
   },
+];
+
+/** The featured event's own tile links into its admin page, gated the same way. */
+const FEATURED_EVENT_PERMISSION = 'event:manage:all';
+
+/**
+ * Buttons inside the featured event's tile. `tab` deep-links into the event
+ * admin page's tab strip, and each one checks the permission that page gates
+ * the same tab on.
+ */
+const FEATURED_EVENT_LINKS = [
   {
-    label: 'Role assignments',
-    countKey: 'assignments' as const,
-    icon: Users,
-    href: '/dashboard/admin/users',
-    permission: 'user:read:all',
+    label: 'Check-in',
+    tab: 'checkin',
+    permission: 'checkin:write:all',
+  },
+  {
+    label: 'Applications',
+    tab: 'responses',
+    permission: 'event:manage:all',
   },
 ];
 
-const ADMIN_ACTIONS = [
-  {
-    label: 'Manage users',
-    href: '/dashboard/admin/users',
-    permission: 'user:read:all',
-  },
-  {
-    label: 'Manage events',
-    href: '/dashboard/admin/events',
-    permission: 'event:manage:all',
-  },
-  {
-    label: 'Manage roles',
-    href: '/dashboard/admin/roles',
-    permission: 'role:read:all',
-  },
-];
+function pluralize(count: number, unit: string) {
+  return count === 1 ? unit : `${unit}s`;
+}
+
+/** Outer "Admin" frame — hairline box wrapping the eyebrow and the tile row. */
+const adminFrame: React.CSSProperties = {
+  background: 'var(--white)',
+  borderRadius: 'var(--radius-md)',
+  padding: '18px',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '14px',
+  boxShadow: 'var(--shadow-card)',
+};
+
+const adminTileGrid: React.CSSProperties = {
+  display: 'grid',
+  gap: '12px',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+};
+
+/**
+ * A tile is one big click target, so the link is stretched over the whole
+ * card rather than wrapping it — that leaves room for the nested buttons
+ * some tiles carry (they sit above the overlay on their own stacking level).
+ */
+function AdminTile({
+  label,
+  value,
+  unit,
+  href,
+  children,
+}: {
+  label: string;
+  value: number;
+  unit: string;
+  href: string;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div
+      className='border border-(--hairline) transition-colors hover:border-(--blue)'
+      style={{
+        position: 'relative',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '14px',
+        borderRadius: 'var(--radius-card)',
+        padding: '14px 16px',
+        minWidth: 0,
+      }}
+    >
+      <Link
+        href={href}
+        aria-label={label}
+        style={{
+          position: 'absolute',
+          inset: 0,
+          borderRadius: 'var(--radius-card)',
+        }}
+      />
+
+      <div
+        style={{
+          // Deliberately not grown to fill the tile: a tile without buttons
+          // keeps its stat at the top, level with the ones that have them.
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '12px',
+          minWidth: 0,
+        }}
+      >
+        <div style={{ minWidth: 0 }}>
+          <p
+            style={{
+              fontFamily: 'var(--font-ui)',
+              fontWeight: 'var(--fw-semibold)',
+              fontSize: '15px',
+              letterSpacing: 'var(--track-ui)',
+              margin: 0,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {label}
+          </p>
+          <p
+            style={{
+              fontFamily: 'var(--font-display)',
+              fontWeight: 'var(--fw-semibold)',
+              fontSize: '30px',
+              lineHeight: 'var(--lh-tight)',
+              letterSpacing: 'var(--track-display)',
+              margin: '6px 0 0',
+            }}
+          >
+            {value.toLocaleString()}
+          </p>
+          <p
+            style={{
+              fontFamily: 'var(--font-ds-mono)',
+              fontSize: '12px',
+              letterSpacing: '0.04em',
+              textTransform: 'uppercase',
+              color: 'var(--ink-500)',
+              margin: '6px 0 0',
+            }}
+          >
+            {pluralize(value, unit)}
+          </p>
+        </div>
+        <ArrowRight
+          aria-hidden
+          className='size-4 shrink-0'
+          style={{ color: 'var(--ink-500)' }}
+        />
+      </div>
+
+      {children && (
+        // Sits above the stretched overlay link so these stay clickable.
+        <div
+          style={{
+            position: 'relative',
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: '8px',
+          }}
+        >
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function AdminPanelSkeleton() {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+    <div
+      className='border border-(--hairline)'
+      style={{ ...adminFrame, boxShadow: 'none' }}
+    >
       <div
         className='animate-pulse'
         style={{
@@ -85,80 +231,103 @@ function AdminPanelSkeleton() {
           background: 'var(--ink-200)',
         }}
       />
-      <div className='grid grid-cols-2 gap-3 sm:grid-cols-4'>
+      <div style={adminTileGrid}>
         {[...Array(4)].map((_, i) => (
           <div
             key={i}
             className='animate-pulse'
             style={{
-              height: 76,
+              height: 100,
               borderRadius: 'var(--radius-card)',
               background: 'var(--ink-100)',
             }}
           />
         ))}
       </div>
-      <div
-        className='animate-pulse'
-        style={{
-          height: 44,
-          borderRadius: 'var(--radius-card)',
-          background: 'var(--ink-100)',
-        }}
-      />
     </div>
   );
 }
 
 async function AdminPanel({ permissions }: { permissions: Set<string> }) {
-  const visibleStats = ADMIN_STATS.filter((s) =>
-    anyPermissionMatches(permissions, s.permission),
+  const visibleTiles = ADMIN_TILES.filter((t) =>
+    anyPermissionMatches(permissions, t.permission),
   );
-  const visibleActions = ADMIN_ACTIONS.filter((a) =>
-    anyPermissionMatches(permissions, a.permission),
+  const canSeeUsers = anyPermissionMatches(permissions, 'user:read:all');
+  const visibleUserLinks = USER_TILE_LINKS.filter((l) =>
+    anyPermissionMatches(permissions, l.permission),
+  );
+  const canSeeFeaturedEvent = anyPermissionMatches(
+    permissions,
+    FEATURED_EVENT_PERMISSION,
   );
 
-  if (visibleStats.length === 0 && visibleActions.length === 0) return null;
+  const counts = await getAdminCounts();
+  const featured = canSeeFeaturedEvent ? counts.featuredEvent : null;
 
-  const counts = visibleStats.length > 0 ? await getAdminCounts() : null;
+  if (visibleTiles.length === 0 && visibleUserLinks.length === 0 && !featured) {
+    return null;
+  }
 
   return (
-    <section className='space-y-3'>
+    <section
+      className='border border-(--hairline)'
+      style={adminFrame}
+      aria-label='Admin'
+    >
       <SectionEyebrow color='var(--pink)'>Admin</SectionEyebrow>
 
-      {visibleStats.length > 0 && (
-        <div className='grid grid-cols-2 gap-3 sm:grid-cols-4'>
-          {visibleStats.map(({ label, countKey, icon: Icon, href }) => (
-            <Link key={label} href={href}>
-              <Card className='hover:border-primary/40 transition-colors'>
-                <CardHeader className='flex flex-row items-center justify-between space-y-0 pt-3 pb-1'>
-                  <CardDescription className='text-xs'>{label}</CardDescription>
-                  <Icon className='text-muted-foreground size-3.5' />
-                </CardHeader>
-                <CardContent className='pb-3'>
-                  <div className='text-xl font-semibold'>
-                    {(counts?.[countKey] ?? 0).toLocaleString()}
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
-        </div>
-      )}
-
-      {visibleActions.length > 0 && (
-        <Card>
-          <CardContent className='flex flex-wrap gap-2 py-3'>
-            {visibleActions.map(({ label, href }) => (
-              <Button key={label} asChild variant='outline' size='sm'>
-                <Link href={href}>
-                  {label} <ArrowRight className='size-4' />
+      <div style={adminTileGrid}>
+        {/* The flagship event leads the row — its application count is the
+            number admins check most often. */}
+        {featured && (
+          <AdminTile
+            label={featured.name}
+            value={featured.applications}
+            unit='Application'
+            href={`/dashboard/admin/events/${featured.id}`}
+          >
+            {FEATURED_EVENT_LINKS.filter((link) =>
+              anyPermissionMatches(permissions, link.permission),
+            ).map((link) => (
+              <Button key={link.label} asChild variant='outline' size='sm'>
+                <Link
+                  href={`/dashboard/admin/events/${featured.id}?tab=${link.tab}`}
+                >
+                  {link.label}
                 </Link>
               </Button>
             ))}
-          </CardContent>
-        </Card>
-      )}
+          </AdminTile>
+        )}
+        {visibleTiles.map(({ label, countKey, unit, href }) => (
+          <AdminTile
+            key={label}
+            label={label}
+            value={counts[countKey]}
+            unit={unit}
+            href={href}
+          >
+            {label === 'Users' &&
+              visibleUserLinks.map((link) => (
+                <Button key={link.label} asChild variant='outline' size='sm'>
+                  <Link href={link.href}>{link.label}</Link>
+                </Button>
+              ))}
+          </AdminTile>
+        ))}
+        {/* Without the Users tile these buttons would have nowhere to live,
+            so they get tiles of their own instead of vanishing. */}
+        {!canSeeUsers &&
+          visibleUserLinks.map(({ label, countKey, unit, href }) => (
+            <AdminTile
+              key={label}
+              label={label}
+              value={counts[countKey]}
+              unit={unit}
+              href={href}
+            />
+          ))}
+      </div>
     </section>
   );
 }
@@ -167,8 +336,10 @@ async function AdminSection() {
   const { permissions } = await getAuthenticatedUserPermissions();
 
   const hasAnyAccess =
-    ADMIN_STATS.some((s) => anyPermissionMatches(permissions, s.permission)) ||
-    ADMIN_ACTIONS.some((a) => anyPermissionMatches(permissions, a.permission));
+    ADMIN_TILES.some((t) => anyPermissionMatches(permissions, t.permission)) ||
+    USER_TILE_LINKS.some((l) =>
+      anyPermissionMatches(permissions, l.permission),
+    );
 
   if (!hasAnyAccess) return null;
 

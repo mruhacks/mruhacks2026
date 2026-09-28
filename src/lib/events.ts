@@ -1,5 +1,5 @@
 import { cacheTag, cacheLife } from 'next/cache';
-import { desc, eq } from 'drizzle-orm';
+import { desc, eq, sql } from 'drizzle-orm';
 import { db } from '@/utils/db';
 import { events, eventApplications, eventAttendees } from '@/db/schema';
 
@@ -76,4 +76,54 @@ export async function getUserEventParticipation(
     ),
     registeredEventIds: attendeeRows.map((r) => r.eventId),
   };
+}
+
+export type EventParticipationCount = {
+  applications: number;
+  attendees: number;
+};
+
+/**
+ * Per-event application and attendee totals, keyed by event id. Sitewide
+ * numbers rather than per-viewer ones, so one cache entry serves every admin
+ * looking at the event list.
+ */
+export async function getEventParticipationCounts(): Promise<
+  Record<string, EventParticipationCount>
+> {
+  'use cache';
+  cacheTag(EVENTS_CACHE_TAG);
+  // These move whenever a participant applies or registers, which no admin
+  // mutation tag covers — 'minutes' (still App Shell-prefetchable) is what
+  // bounds how stale a total can get.
+  cacheLife('minutes');
+
+  const [applicationRows, attendeeRows] = await Promise.all([
+    db
+      .select({
+        eventId: eventApplications.eventId,
+        c: sql<number>`COUNT(*)`.mapWith(Number),
+      })
+      .from(eventApplications)
+      .groupBy(eventApplications.eventId),
+    db
+      .select({
+        eventId: eventAttendees.eventId,
+        c: sql<number>`COUNT(*)`.mapWith(Number),
+      })
+      .from(eventAttendees)
+      .groupBy(eventAttendees.eventId),
+  ]);
+
+  const counts: Record<string, EventParticipationCount> = {};
+  for (const row of applicationRows) {
+    counts[row.eventId] = { applications: row.c, attendees: 0 };
+  }
+  for (const row of attendeeRows) {
+    const existing = counts[row.eventId];
+    if (existing) existing.attendees = row.c;
+    else counts[row.eventId] = { applications: 0, attendees: row.c };
+  }
+
+  return counts;
 }
