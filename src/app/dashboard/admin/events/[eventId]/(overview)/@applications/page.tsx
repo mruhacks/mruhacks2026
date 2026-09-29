@@ -5,6 +5,7 @@ import {
   getApplicationsOverTime,
   getEventApplicationStats,
 } from '@/lib/admin-event';
+import { resolveEventId } from '@/lib/events';
 import { hasPermission } from '@/lib/rbac/authorization';
 import { getUser } from '@/utils/auth';
 
@@ -40,7 +41,9 @@ async function ApplicationsSection({
 }: {
   paramsPromise: Promise<{ eventId: string }>;
 }) {
-  const { eventId } = await paramsPromise;
+  const { eventId: segment } = await paramsPromise;
+  const eventId = await resolveEventId(segment);
+  if (!eventId) return null;
   const user = await getUser();
   if (!user) redirect('/signin');
 
@@ -55,7 +58,9 @@ async function ApplicationsSection({
 
   if (!stats || !stats.hasApplication) return null;
 
-  const countByKey = new Map(stats.statusBreakdown.map((b) => [b.key, b.count]));
+  const countByKey = new Map(
+    stats.statusBreakdown.map((b) => [b.key, b.count]),
+  );
 
   return (
     <BentoCard

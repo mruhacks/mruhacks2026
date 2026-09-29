@@ -4,6 +4,7 @@ import Link from 'next/link';
 
 import { getUser } from '@/utils/auth';
 import { getAdminCounts } from '@/lib/admin-counts';
+import { adminEventPath } from '@/lib/event-slug';
 import { getAuthenticatedUserPermissions } from '@/lib/rbac/guards';
 import { anyPermissionMatches } from '@/lib/rbac/permissions';
 import { getEventsWithUserStatus } from '@/app/dashboard/events/actions';
@@ -280,15 +281,13 @@ async function AdminPanel({ permissions }: { permissions: Set<string> }) {
             label={featured.name}
             value={featured.applications}
             unit='Application'
-            href={`/dashboard/admin/events/${featured.id}`}
+            href={adminEventPath(featured)}
           >
             {FEATURED_EVENT_LINKS.filter((link) =>
               anyPermissionMatches(permissions, link.permission),
             ).map((link) => (
               <Button key={link.label} asChild variant='outline' size='sm'>
-                <Link
-                  href={`/dashboard/admin/events/${featured.id}/${link.path}`}
-                >
+                <Link href={`${adminEventPath(featured)}/${link.path}`}>
                   {link.label}
                 </Link>
               </Button>

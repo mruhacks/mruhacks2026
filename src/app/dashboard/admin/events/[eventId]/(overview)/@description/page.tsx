@@ -6,6 +6,7 @@ import { redirect } from 'next/navigation';
 
 import { MarkdownContent } from '@/components/markdown/markdown-content';
 import { getAdminEventHeader } from '@/lib/admin-event';
+import { resolveEventId } from '@/lib/events';
 import { hasPermission } from '@/lib/rbac/authorization';
 import { getUser } from '@/utils/auth';
 
@@ -26,7 +27,9 @@ async function DescriptionSection({
 }: {
   paramsPromise: Promise<{ eventId: string }>;
 }) {
-  const { eventId } = await paramsPromise;
+  const { eventId: segment } = await paramsPromise;
+  const eventId = await resolveEventId(segment);
+  if (!eventId) return null;
   const user = await getUser();
   if (!user) redirect('/signin');
 
@@ -44,7 +47,7 @@ async function DescriptionSection({
         canManage ? (
           <Button asChild variant='ghost' size='icon'>
             <Link
-              href={`/dashboard/admin/events/${eventId}/settings/description`}
+              href={`/dashboard/admin/events/${segment}/settings/description`}
               aria-label='Edit description'
               title='Edit description'
             >

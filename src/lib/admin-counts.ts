@@ -20,7 +20,12 @@ export type AdminCounts = {
   assignments: number;
   events: number;
   /** The single isFeatured event plus its application total, or null if none is featured. */
-  featuredEvent: { id: string; name: string; applications: number } | null;
+  featuredEvent: {
+    id: string;
+    slug: string | null;
+    name: string;
+    applications: number;
+  } | null;
 };
 
 /**
@@ -56,6 +61,7 @@ export async function getAdminCounts(): Promise<AdminCounts> {
     db
       .select({
         id: events.id,
+        slug: events.slug,
         name: events.name,
         applications: sql<number>`COUNT(${eventApplications.id})`.mapWith(
           Number,
@@ -64,7 +70,7 @@ export async function getAdminCounts(): Promise<AdminCounts> {
       .from(events)
       .leftJoin(eventApplications, eq(eventApplications.eventId, events.id))
       .where(eq(events.isFeatured, true))
-      .groupBy(events.id, events.name)
+      .groupBy(events.id, events.slug, events.name)
       .limit(1),
   ]);
 
@@ -79,6 +85,7 @@ export async function getAdminCounts(): Promise<AdminCounts> {
     featuredEvent: featured
       ? {
           id: featured.id,
+          slug: featured.slug,
           name: featured.name,
           applications: featured.applications,
         }

@@ -25,6 +25,8 @@ import {
 } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 
+import { useEventBasePath } from '../../_components/use-event-base-path';
+
 /**
  * The wiki cell's "Add" action. Creates an empty draft and goes straight to
  * its page, since a new article has nothing to show in the list until its
@@ -36,6 +38,7 @@ import { Input } from '@/components/ui/input';
  */
 export function CreateArticleDialog({ eventId }: { eventId: string }) {
   const router = useRouter();
+  const basePath = useEventBasePath();
   const [open, setOpen] = React.useState(false);
   const [title, setTitle] = React.useState('');
   const [slug, setSlug] = React.useState('');
@@ -81,7 +84,7 @@ export function CreateArticleDialog({ eventId }: { eventId: string }) {
     // Always present on a successful create; the check is only here because
     // `ActionResult`'s payload is optional by type.
     if (created) {
-      router.push(`/dashboard/admin/events/${eventId}/articles/${created.id}`);
+      router.push(`${basePath}/articles/${created.id}`);
     }
   }
 

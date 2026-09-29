@@ -3,6 +3,7 @@ import { notFound, redirect } from 'next/navigation';
 
 import { Skeleton } from '@/components/ui/skeleton';
 import { getAdminEventHeader } from '@/lib/admin-event';
+import { resolveEventId } from '@/lib/events';
 import { requirePermission } from '@/lib/rbac/authorization';
 import { getUser } from '@/utils/auth';
 import { DescriptionForm } from './description-form';
@@ -18,7 +19,9 @@ export default function DescriptionPage({ params }: Props) {
 }
 
 async function DescriptionContent({ params }: Props) {
-  const { eventId } = await params;
+  const { eventId: segment } = await params;
+  const eventId = await resolveEventId(segment);
+  if (!eventId) notFound();
   const user = await getUser();
   if (!user) redirect('/signin');
   await requirePermission(user.id, 'event:manage');

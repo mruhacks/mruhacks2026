@@ -51,3 +51,17 @@ export function isValidEventSlug(slug: string): boolean {
 export function eventPath(event: { id: string; slug?: string | null }): string {
   return `/dashboard/events/${event.slug ?? event.id}`;
 }
+
+/**
+ * The same thing for the organizer dashboard. Its `[eventId]` segment accepts
+ * a slug too, so an admin who arrived from the events list stays on readable
+ * URLs all the way down to check-in. Links *within* the event dashboard are
+ * built from the current URL's segment instead (`useEventBasePath`), which
+ * keeps whichever form the admin arrived with.
+ */
+export function adminEventPath(event: {
+  id: string;
+  slug?: string | null;
+}): string {
+  return `/dashboard/admin/events/${event.slug ?? event.id}`;
+}

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { getUser } from '@/utils/auth';
 import { hasPermission, requirePermission } from '@/lib/rbac/authorization';
 import { getAllEvents, getEventParticipationCounts } from '@/lib/events';
+import { adminEventPath } from '@/lib/event-slug';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ExternalLink } from 'lucide-react';
@@ -76,7 +77,7 @@ async function EventList() {
                 the App Shell for it is only resolved ahead of the click with
                 per-link prefetching. See AGENTS.md / Cache Components. */}
             <Link
-              href={`/dashboard/admin/events/${event.id}`}
+              href={adminEventPath(event)}
               prefetch
               className='absolute inset-0 rounded-xl'
               aria-label={`Manage ${event.name}`}
@@ -136,9 +137,7 @@ async function EventList() {
                       variant='outline'
                       size='sm'
                     >
-                      <Link
-                        href={`/dashboard/admin/events/${event.id}/${tool.path}`}
-                      >
+                      <Link href={`${adminEventPath(event)}/${tool.path}`}>
                         {tool.label}
                       </Link>
                     </Button>

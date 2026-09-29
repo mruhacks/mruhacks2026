@@ -22,10 +22,12 @@ import { Switch } from '@/components/ui/switch';
 
 type Props = {
   eventId: string;
+  /** Participant-facing base path for the event — see `eventPath`. */
+  eventHref: string;
   article: ArticleDetail;
 };
 
-export function ArticleEditor({ eventId, article }: Props) {
+export function ArticleEditor({ eventId, eventHref, article }: Props) {
   const [title, setTitle] = React.useState(article.title);
   const [slug, setSlug] = React.useState(article.slug);
   const [body, setBody] = React.useState(article.bodyMarkdown);
@@ -80,8 +82,7 @@ export function ArticleEditor({ eventId, article }: Props) {
         <Field>
           <FieldLabel htmlFor='slug'>URL slug</FieldLabel>
           <FieldDescription>
-            Participants read this at /dashboard/events/{eventId}/wiki/
-            {slug || article.slug}
+            Participants read this at {eventHref}/wiki/{slug || article.slug}
           </FieldDescription>
           <Input
             id='slug'

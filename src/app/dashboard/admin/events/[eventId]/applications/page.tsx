@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { redirect } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 
 import {
   getAdminEventHeader,
@@ -7,6 +7,7 @@ import {
   getEventAttendeeRoster,
   getEventQuestions,
 } from '@/lib/admin-event';
+import { resolveEventId } from '@/lib/events';
 import { requirePermission } from '@/lib/rbac/authorization';
 import { getUser } from '@/utils/auth';
 
@@ -41,7 +42,9 @@ async function ApplicationsContent({
 }: {
   paramsPromise: Promise<{ eventId: string }>;
 }) {
-  const { eventId } = await paramsPromise;
+  const { eventId: segment } = await paramsPromise;
+  const eventId = await resolveEventId(segment);
+  if (!eventId) notFound();
   const user = await getUser();
   if (!user) redirect('/signin');
 

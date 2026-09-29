@@ -2,6 +2,7 @@ import * as React from 'react';
 import { redirect } from 'next/navigation';
 
 import { getEventApplicationStats } from '@/lib/admin-event';
+import { resolveEventId } from '@/lib/events';
 import { hasPermission } from '@/lib/rbac/authorization';
 import { getUser } from '@/utils/auth';
 
@@ -36,7 +37,9 @@ async function BreakdownSection({
 }: {
   paramsPromise: Promise<{ eventId: string }>;
 }) {
-  const { eventId } = await paramsPromise;
+  const { eventId: segment } = await paramsPromise;
+  const eventId = await resolveEventId(segment);
+  if (!eventId) return null;
   const user = await getUser();
   if (!user) redirect('/signin');
 
@@ -49,5 +52,7 @@ async function BreakdownSection({
 
   // Which cards are shown is a per-admin browser preference, so the choosing
   // happens on the client; the server always sends the full set.
-  return <QuestionStatsGrid eventId={eventId} questions={stats.questionStats} />;
+  return (
+    <QuestionStatsGrid eventId={eventId} questions={stats.questionStats} />
+  );
 }

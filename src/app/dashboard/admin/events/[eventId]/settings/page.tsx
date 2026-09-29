@@ -2,6 +2,7 @@ import * as React from 'react';
 import { notFound, redirect } from 'next/navigation';
 
 import { getAdminEventSettings } from '@/lib/admin-event';
+import { resolveEventId } from '@/lib/events';
 import { requirePermission } from '@/lib/rbac/authorization';
 import { getUser } from '@/utils/auth';
 import { EventSettingsForm } from './event-settings-form';
@@ -29,7 +30,9 @@ async function SettingsContent({
 }: {
   paramsPromise: Promise<{ eventId: string }>;
 }) {
-  const { eventId } = await paramsPromise;
+  const { eventId: segment } = await paramsPromise;
+  const eventId = await resolveEventId(segment);
+  if (!eventId) notFound();
   const user = await getUser();
   if (!user) redirect('/signin');
   await requirePermission(user.id, 'event:manage:all');

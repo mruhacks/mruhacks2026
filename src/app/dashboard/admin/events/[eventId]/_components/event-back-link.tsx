@@ -5,22 +5,23 @@ import { usePathname } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
+import { useEventBasePath } from './use-event-base-path';
 
-export function EventBackLink({ eventId }: { eventId: string }) {
+export function EventBackLink() {
   const pathname = usePathname();
-  const eventPath = `/dashboard/admin/events/${eventId}`;
-  const isOverview = pathname === eventPath;
-  const isSettingsSubpage = pathname.startsWith(`${eventPath}/settings/`);
+  const basePath = useEventBasePath();
+  const isOverview = pathname === basePath;
+  const isSettingsSubpage = pathname.startsWith(`${basePath}/settings/`);
 
   return (
     <Button asChild variant='ghost' size='sm'>
       <Link
         href={
           isSettingsSubpage
-            ? `${eventPath}/settings`
+            ? `${basePath}/settings`
             : isOverview
               ? '/dashboard/admin/events'
-              : eventPath
+              : basePath
         }
       >
         <ArrowLeft aria-hidden data-icon='inline-start' />

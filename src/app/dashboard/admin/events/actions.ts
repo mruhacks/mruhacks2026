@@ -5,7 +5,7 @@ import { and, count, eq, inArray, ne, sql } from 'drizzle-orm';
 import { revalidatePath, updateTag } from 'next/cache';
 import { db } from '@/utils/db';
 import { FEATURED_EVENT_CACHE_TAG } from '@/lib/featured-event';
-import { EVENTS_CACHE_TAG } from '@/lib/events';
+import { EVENTS_CACHE_TAG, eventUrlSegments } from '@/lib/events';
 import { eventPath } from '@/lib/event-slug';
 import {
   adminEventCacheTag,
@@ -895,7 +895,9 @@ export async function sendEventRsvpWave(
   }
 
   updateTag(eventApplicationsCacheTag(eventId));
-  revalidatePath(`/dashboard/admin/events/${eventId}`);
+  for (const segment of await eventUrlSegments(eventId)) {
+    revalidatePath(`/dashboard/admin/events/${segment}`);
+  }
 
   await writeAuditLog({
     actorId: user.id,

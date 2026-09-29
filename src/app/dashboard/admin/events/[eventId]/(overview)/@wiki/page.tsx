@@ -2,6 +2,7 @@ import * as React from 'react';
 import { redirect } from 'next/navigation';
 
 import { getAllArticlesForAdmin } from '@/lib/event-wiki';
+import { resolveEventId } from '@/lib/events';
 import { hasPermission } from '@/lib/rbac/authorization';
 import { getUser } from '@/utils/auth';
 
@@ -30,7 +31,9 @@ async function WikiSection({
 }: {
   paramsPromise: Promise<{ eventId: string }>;
 }) {
-  const { eventId } = await paramsPromise;
+  const { eventId: segment } = await paramsPromise;
+  const eventId = await resolveEventId(segment);
+  if (!eventId) return null;
   const user = await getUser();
   if (!user) redirect('/signin');
 

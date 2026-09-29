@@ -66,6 +66,22 @@ async function getEventIdBySlug(slug: string): Promise<string | null> {
   return row?.id ?? null;
 }
 
+/**
+ * Every `[eventId]` segment an event is reachable at: its uuid, plus its
+ * custom slug when it has one. Mutations loop over this to revalidate each
+ * live URL — a page cached under the slug form is a different router-cache
+ * entry from the same page under the uuid.
+ */
+export async function eventUrlSegments(eventId: string): Promise<string[]> {
+  const [row] = await db
+    .select({ slug: events.slug })
+    .from(events)
+    .where(eq(events.id, eventId))
+    .limit(1);
+
+  return row?.slug ? [eventId, row.slug] : [eventId];
+}
+
 /** One tag per user, invalidated wherever they apply, register, or unregister. */
 export function userEventsCacheTag(userId: string): string {
   return `user-events:${userId}`;

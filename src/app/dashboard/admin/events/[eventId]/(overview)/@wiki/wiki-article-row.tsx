@@ -34,6 +34,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
+import { useEventBasePath } from '../../_components/use-event-base-path';
+
 /** Exactly what `getAllArticlesForAdmin` returns per row. */
 type WikiArticleRowData = {
   id: string;
@@ -65,7 +67,9 @@ export function WikiArticleRow({
   const [confirmingDelete, setConfirmingDelete] = React.useState(false);
   const [isBusy, setIsBusy] = React.useState(false);
 
-  const articleHref = `/dashboard/admin/events/${eventId}/articles/${article.id}`;
+  const basePath = useEventBasePath();
+
+  const articleHref = `${basePath}/articles/${article.id}`;
 
   async function handleTogglePublished() {
     setIsBusy(true);

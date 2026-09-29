@@ -33,12 +33,16 @@ import {
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import type { AdminEventSettings } from '@/lib/admin-event';
+import { adminEventPath } from '@/lib/event-slug';
 import { slugify } from '@/lib/slug';
 import { fromDateTimeLocalValue, toDateTimeLocalValue } from '@/lib/datetime';
 import { parseOptionalNumber } from '@/lib/form-values';
 
+import { useEventBasePath } from '../_components/use-event-base-path';
+
 export function EventSettingsForm({ event }: { event: AdminEventSettings }) {
   const router = useRouter();
+  const basePath = useEventBasePath();
   // Submission failures render under the submit button, not as a toast: a
   // toast disappears and leaves the user guessing which field to fix. See
   // AGENTS.md.
@@ -97,6 +101,18 @@ export function EventSettingsForm({ event }: { event: AdminEventSettings }) {
       }
       toast.success('Event updated');
       reset(data);
+
+      // Editing the slug moves this very page: the URL we are on carries the
+      // old segment, which no longer resolves. Navigate to the new one rather
+      // than refreshing into a 404.
+      const nextSlug = data.slug?.trim() || null;
+      if (nextSlug !== (event.slug ?? null)) {
+        router.replace(
+          `${adminEventPath({ id: event.id, slug: nextSlug })}/settings`,
+        );
+        return;
+      }
+
       // Event data is rendered by Server Components, not a React Query cache.
       // eslint-disable-next-line custom/no-router-refresh
       router.refresh();
@@ -167,9 +183,7 @@ export function EventSettingsForm({ event }: { event: AdminEventSettings }) {
                     size='sm'
                     className='self-start'
                   >
-                    <Link
-                      href={`/dashboard/admin/events/${event.id}/settings/description`}
-                    >
+                    <Link href={`${basePath}/settings/description`}>
                       <Pencil aria-hidden data-icon='inline-start' />
                       Edit description
                     </Link>
@@ -422,9 +436,7 @@ export function EventSettingsForm({ event }: { event: AdminEventSettings }) {
                     size='sm'
                     className='self-start'
                   >
-                    <Link
-                      href={`/dashboard/admin/events/${event.id}/settings/questions`}
-                    >
+                    <Link href={`${basePath}/settings/questions`}>
                       Edit application questions
                     </Link>
                   </Button>
@@ -499,9 +511,7 @@ export function EventSettingsForm({ event }: { event: AdminEventSettings }) {
         {submitError && <FieldError role='alert'>{submitError}</FieldError>}
         <div className='flex flex-wrap items-center justify-end gap-2'>
           <Button asChild variant='outline'>
-            <Link href={`/dashboard/admin/events/${event.id}`}>
-              Back to event
-            </Link>
+            <Link href={basePath}>Back to event</Link>
           </Button>
           <Button type='submit' disabled={isSubmitting}>
             {isSubmitting ? 'Saving…' : 'Save event settings'}

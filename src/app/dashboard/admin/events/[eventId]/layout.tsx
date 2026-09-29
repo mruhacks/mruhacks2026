@@ -7,6 +7,7 @@ import { BreadcrumbSegment } from '@/components/breadcrumb-context';
 import { LocalDateRange } from '@/components/local-date-time';
 import { Button } from '@/components/ui/button';
 import { getAdminEventHeader } from '@/lib/admin-event';
+import { resolveEventId } from '@/lib/events';
 import { requirePermission } from '@/lib/rbac/authorization';
 import { getUser } from '@/utils/auth';
 
@@ -55,7 +56,11 @@ async function EventHeader({
 }: {
   paramsPromise: Promise<{ eventId: string }>;
 }) {
-  const { eventId } = await paramsPromise;
+  // The segment is the event's uuid or its custom slug; the header and every
+  // page below it read by the resolved uuid, while links keep the segment.
+  const { eventId: segment } = await paramsPromise;
+  const eventId = await resolveEventId(segment);
+  if (!eventId) notFound();
 
   const user = await getUser();
   if (!user) redirect('/signin');
@@ -68,12 +73,12 @@ async function EventHeader({
   return (
     <header className='flex flex-col gap-4'>
       <nav aria-label='Event navigation'>
-        <EventBackLink eventId={eventId} />
+        <EventBackLink />
       </nav>
       <div className='flex flex-wrap items-start justify-between gap-4'>
         {/* Zero-render: feeds the event's name to the dashboard breadcrumb,
           which otherwise shows the raw uuid. */}
-        <BreadcrumbSegment id={eventId} label={event.name} />
+        <BreadcrumbSegment id={segment} label={event.name} />
 
         <div className='min-w-0'>
           <div className='flex flex-wrap items-center gap-3'>
@@ -110,7 +115,7 @@ async function EventHeader({
           <ShareEventButton eventId={event.id} slug={event.slug} />
 
           <Button asChild variant='outline' size='sm'>
-            <Link href={`/dashboard/admin/events/${eventId}/settings`}>
+            <Link href={`/dashboard/admin/events/${segment}/settings`}>
               <SquarePen aria-hidden data-icon='inline-start' />
               Edit event
             </Link>

@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { redirect } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 
 import {
   canWriteArticles,
@@ -7,6 +7,9 @@ import {
 } from '@/app/dashboard/admin/events/content-actions';
 import { BreadcrumbSegment } from '@/components/breadcrumb-context';
 import { MarkdownContent } from '@/components/markdown/markdown-content';
+import { getAdminEventHeader } from '@/lib/admin-event';
+import { eventPath } from '@/lib/event-slug';
+import { resolveEventId } from '@/lib/events';
 import { requirePermission } from '@/lib/rbac/authorization';
 import { getUser } from '@/utils/auth';
 
@@ -41,14 +44,20 @@ async function ArticleContent({
 }: {
   paramsPromise: ArticlePageProps['params'];
 }) {
-  const { eventId, articleId } = await paramsPromise;
+  const { eventId: segment, articleId } = await paramsPromise;
+  const eventId = await resolveEventId(segment);
+  if (!eventId) notFound();
 
   const user = await getUser();
   if (!user) redirect('/signin');
   await requirePermission(user.id, 'article:read:all');
 
-  const [result, canWrite] = await Promise.all([
+  // The header read is the same cached entry the layout above already
+  // filled; it's here for the event's own slug, which the editor shows in
+  // the participant URL it previews.
+  const [result, event, canWrite] = await Promise.all([
     getEventArticle(eventId, articleId),
+    getAdminEventHeader(eventId),
     canWriteArticles(),
   ]);
 
@@ -68,7 +77,11 @@ async function ArticleContent({
       <BreadcrumbSegment id={articleId} label={article.title} />
 
       {canWrite ? (
-        <ArticleEditor eventId={eventId} article={article} />
+        <ArticleEditor
+          eventId={eventId}
+          eventHref={event ? eventPath(event) : eventPath({ id: eventId })}
+          article={article}
+        />
       ) : (
         // `article:read:all` without `article:write:all` is a legitimate
         // combination — show the article rather than bouncing to /forbidden.

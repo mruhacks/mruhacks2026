@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { CalendarCheck, CircleCheckBig, ThumbsUp, Users } from 'lucide-react';
 
 import { getAdminEventHeader, getEventSummaryCounts } from '@/lib/admin-event';
+import { resolveEventId } from '@/lib/events';
 import { hasPermission } from '@/lib/rbac/authorization';
 import { getUser } from '@/utils/auth';
 
@@ -45,7 +46,9 @@ async function SummaryTiles({
 }: {
   paramsPromise: Promise<{ eventId: string }>;
 }) {
-  const { eventId } = await paramsPromise;
+  const { eventId: segment } = await paramsPromise;
+  const eventId = await resolveEventId(segment);
+  if (!eventId) return null;
   const user = await getUser();
   if (!user) redirect('/signin');
 
@@ -70,7 +73,8 @@ async function SummaryTiles({
 
   if (!event) return null;
 
-  const base = `/dashboard/admin/events/${eventId}`;
+  // Built from the segment, not the uuid, so a slug URL stays a slug URL.
+  const base = `/dashboard/admin/events/${segment}`;
   const showRsvp = canReadRsvp && event.hasApplication;
   const showTeams = canReadTeams && event.teamsEnabled;
 

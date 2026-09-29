@@ -10,7 +10,7 @@ vi.mock('next/cache', () => ({
   cacheTag: vi.fn(),
 }));
 
-import { resolveEventId } from '@/lib/events';
+import { eventUrlSegments, resolveEventId } from '@/lib/events';
 
 let sluggedEventId: string;
 let plainEventId: string;
@@ -61,5 +61,20 @@ describe('resolveEventId', () => {
 
   test('returns null for a slug no event owns', async () => {
     await expect(resolveEventId('no-such-event')).resolves.toBeNull();
+  });
+});
+
+describe('eventUrlSegments', () => {
+  test('lists the uuid and the slug for a slugged event', async () => {
+    await expect(eventUrlSegments(sluggedEventId)).resolves.toEqual([
+      sluggedEventId,
+      'resolution-2026',
+    ]);
+  });
+
+  test('lists only the uuid when the event has no slug', async () => {
+    await expect(eventUrlSegments(plainEventId)).resolves.toEqual([
+      plainEventId,
+    ]);
   });
 });

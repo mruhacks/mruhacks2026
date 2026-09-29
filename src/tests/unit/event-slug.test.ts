@@ -1,6 +1,7 @@
 import { describe, test, expect } from 'vitest';
 import {
   RESERVED_EVENT_SLUGS,
+  adminEventPath,
   eventPath,
   isEventUuid,
   isValidEventSlug,
@@ -60,5 +61,19 @@ describe('eventPath', () => {
       `/dashboard/events/${UUID}`,
     );
     expect(eventPath({ id: UUID })).toBe(`/dashboard/events/${UUID}`);
+  });
+});
+
+describe('adminEventPath', () => {
+  test('prefers the slug when the event has one', () => {
+    expect(adminEventPath({ id: UUID, slug: 'mruhacks-2026' })).toBe(
+      '/dashboard/admin/events/mruhacks-2026',
+    );
+  });
+
+  test('falls back to the id when there is no slug', () => {
+    expect(adminEventPath({ id: UUID, slug: null })).toBe(
+      `/dashboard/admin/events/${UUID}`,
+    );
   });
 });

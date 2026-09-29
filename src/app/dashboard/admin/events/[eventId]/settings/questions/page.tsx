@@ -1,7 +1,8 @@
 import { Suspense } from 'react';
-import { redirect } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 
 import { getEventWithQuestions } from '@/app/dashboard/admin/events/actions';
+import { resolveEventId } from '@/lib/events';
 import { QuestionBuilder } from '@/components/question-builder';
 import {
   Card,
@@ -25,7 +26,9 @@ export default function ApplicationQuestionsPage({ params }: Props) {
 }
 
 async function ApplicationQuestionsContent({ params }: Props) {
-  const { eventId } = await params;
+  const { eventId: segment } = await params;
+  const eventId = await resolveEventId(segment);
+  if (!eventId) notFound();
   const user = await getUser();
   if (!user) redirect('/signin');
   await requirePermission(user.id, 'event:manage');

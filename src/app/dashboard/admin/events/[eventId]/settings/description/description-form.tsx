@@ -20,6 +20,8 @@ import {
 } from '@/components/ui/card';
 import { Field, FieldError, FieldGroup } from '@/components/ui/field';
 
+import { useEventBasePath } from '../../_components/use-event-base-path';
+
 export function DescriptionForm({
   eventId,
   initialMarkdown,
@@ -28,6 +30,7 @@ export function DescriptionForm({
   initialMarkdown: string;
 }) {
   const router = useRouter();
+  const basePath = useEventBasePath();
   const [draft, setDraft] = React.useState(initialMarkdown);
   const [error, setError] = React.useState<string | null>(null);
   const [isSaving, setIsSaving] = React.useState(false);
@@ -85,9 +88,7 @@ export function DescriptionForm({
           </FieldGroup>
           <div className='flex flex-wrap justify-end gap-2'>
             <Button asChild variant='outline'>
-              <Link href={`/dashboard/admin/events/${eventId}/settings`}>
-                Back to edit event
-              </Link>
+              <Link href={`${basePath}/settings`}>Back to edit event</Link>
             </Button>
             <Button type='submit' disabled={isSaving}>
               {isSaving ? 'Saving…' : 'Save description'}

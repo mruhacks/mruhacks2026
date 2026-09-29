@@ -11,6 +11,7 @@ import type { CreateEventInput } from '@/app/dashboard/admin/events/schemas';
 import { fromDateTimeLocalValue, toDateTimeLocalValue } from '@/lib/datetime';
 import { parseOptionalNumber } from '@/lib/form-values';
 import { slugify } from '@/lib/slug';
+import { adminEventPath } from '@/lib/event-slug';
 import { useZoneAbbreviation } from '@/components/local-date-time';
 import {
   Dialog,
@@ -66,8 +67,10 @@ export function CreateEventDialog() {
       toast.success('Event created successfully');
       setOpen(false);
       reset();
-      // Navigate to the new event
-      router.push(`/dashboard/admin/events/${result.data.id}`);
+      // Navigate to the new event, by the slug it was just given if any.
+      router.push(
+        adminEventPath({ id: result.data.id, slug: data.slug?.trim() || null }),
+      );
     } else if (!result.success) {
       setSubmitError(result.error || 'Failed to create event');
     }

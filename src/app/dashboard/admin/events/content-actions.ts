@@ -22,6 +22,7 @@ import { getUser } from '@/utils/auth';
 import { ok, fail, type ActionResult } from '@/utils/action-result';
 import { hasPermission, requirePermission } from '@/lib/rbac/authorization';
 import { eventWikiCacheTag } from '@/lib/event-wiki';
+import { eventUrlSegments } from '@/lib/events';
 import { writeAuditLog } from '@/utils/audit-log';
 import {
   deleteObject,
@@ -159,7 +160,9 @@ export async function updateEventDescription(
 
   // The admin dashboard renders the description from a cached getter.
   updateTag(adminEventCacheTag(eventId));
-  revalidatePath(`/dashboard/events/${eventId}`);
+  for (const segment of await eventUrlSegments(eventId)) {
+    revalidatePath(`/dashboard/events/${segment}`);
+  }
 
   await writeAuditLog({
     actorId: user.id,
@@ -328,8 +331,10 @@ export async function createEventArticle(
     })
     .returning({ id: eventArticles.id, slug: eventArticles.slug });
 
-  revalidatePath(`/dashboard/admin/events/${eventId}`);
-  revalidatePath(`/dashboard/events/${eventId}/wiki`);
+  for (const segment of await eventUrlSegments(eventId)) {
+    revalidatePath(`/dashboard/admin/events/${segment}`);
+    revalidatePath(`/dashboard/events/${segment}/wiki`);
+  }
   updateTag(eventWikiCacheTag(eventId));
 
   await writeAuditLog({
@@ -395,14 +400,16 @@ export async function updateEventArticle(
     })
     .where(eq(eventArticles.id, articleId));
 
-  revalidatePath(`/dashboard/admin/events/${eventId}`);
-  revalidatePath(`/dashboard/events/${eventId}/wiki`);
-  revalidatePath(
-    `/dashboard/events/${eventId}/wiki/${input.slug ?? existing.slug}`,
-  );
-  // A rename leaves the old URL live in caches until it is dropped too.
-  if (input.slug && input.slug !== existing.slug) {
-    revalidatePath(`/dashboard/events/${eventId}/wiki/${existing.slug}`);
+  for (const segment of await eventUrlSegments(eventId)) {
+    revalidatePath(`/dashboard/admin/events/${segment}`);
+    revalidatePath(`/dashboard/events/${segment}/wiki`);
+    revalidatePath(
+      `/dashboard/events/${segment}/wiki/${input.slug ?? existing.slug}`,
+    );
+    // A rename leaves the old URL live in caches until it is dropped too.
+    if (input.slug && input.slug !== existing.slug) {
+      revalidatePath(`/dashboard/events/${segment}/wiki/${existing.slug}`);
+    }
   }
   updateTag(eventWikiCacheTag(eventId));
 
@@ -445,9 +452,11 @@ export async function deleteEventArticle(
 
   await deleteOrphanedAttachments(eventId, existing.bodyMarkdown);
 
-  revalidatePath(`/dashboard/admin/events/${eventId}`);
-  revalidatePath(`/dashboard/events/${eventId}/wiki`);
-  revalidatePath(`/dashboard/events/${eventId}/wiki/${existing.slug}`);
+  for (const segment of await eventUrlSegments(eventId)) {
+    revalidatePath(`/dashboard/admin/events/${segment}`);
+    revalidatePath(`/dashboard/events/${segment}/wiki`);
+    revalidatePath(`/dashboard/events/${segment}/wiki/${existing.slug}`);
+  }
   updateTag(eventWikiCacheTag(eventId));
 
   await writeAuditLog({
