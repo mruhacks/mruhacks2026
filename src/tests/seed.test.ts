@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest';
 import { faker } from '@faker-js/faker';
+import { readFile } from 'node:fs/promises';
 import { and, eq, inArray } from 'drizzle-orm';
 import { seedDemoData } from '../../scripts/seed';
 import { db } from '@/utils/db';
@@ -22,6 +23,12 @@ import {
 } from '@/db/schema';
 import { userNeedsConsent } from '@/utils/consent-check';
 import { createApplicationQuestionSchema } from '@/components/application-form/schema';
+import { putObject } from '@/utils/object-storage';
+import { createResumeSeeder } from '../../scripts/seed-resumes';
+
+vi.mock('@/utils/object-storage', () => ({
+  putObject: vi.fn().mockResolvedValue(undefined),
+}));
 
 describe('demo seed', () => {
   let adminId: string;
@@ -117,6 +124,58 @@ describe('demo seed', () => {
         .from(teamMembers)
         .where(eq(teamMembers.userId, adminId)),
     ).toHaveLength(1);
+  });
+
+  test('gives every fake user an isolated copy of a committed PDF', async () => {
+    const profiles = await db
+      .select({ profile: userProfiles })
+      .from(userProfiles)
+      .innerJoin(
+        eventApplications,
+        eq(eventApplications.userId, userProfiles.userId),
+      )
+      .where(eq(eventApplications.eventId, eventId));
+    const fakeProfiles = profiles
+      .map(({ profile }) => profile)
+      .filter((profile) => profile.userId !== adminId);
+    expect(fakeProfiles).toHaveLength(80);
+    const uploads = vi.mocked(putObject).mock.calls.map(([upload]) => upload);
+    expect(uploads).toHaveLength(80);
+    expect(new Set(uploads.map(({ key }) => key)).size).toBe(80);
+    const fixtureNames = new Set<string>();
+    for (const profile of fakeProfiles) {
+      expect(profile.resumeFile).toMatch(
+        new RegExp(`^resumes/${profile.userId}/[0-9a-f-]{36}\\.pdf$`),
+      );
+      expect(profile.resumeFileName).toMatch(
+        /^resume-(0[1-9]|1[0-9]|20)\.pdf$/,
+      );
+      expect(profile.resumeFileType).toBe('application/pdf');
+      const upload = uploads.find(({ key }) => key === profile.resumeFile)!;
+      expect(upload).toBeDefined();
+      expect(upload.contentType).toBe('application/pdf');
+      const fixture = await readFile(
+        new URL(
+          `../../scripts/fixtures/resumes/${profile.resumeFileName}`,
+          import.meta.url,
+        ),
+      );
+      expect(Buffer.from(upload.body).equals(fixture)).toBe(true);
+      expect(fixture.subarray(0, 5).toString()).toBe('%PDF-');
+      fixtureNames.add(profile.resumeFileName!);
+    }
+    expect(fixtureNames.size).toBeGreaterThan(1);
+    expect(fixtureNames.size).toBeLessThanOrEqual(20);
+  });
+
+  test('propagates storage failures instead of returning a broken resume reference', async () => {
+    const seedResume = await createResumeSeeder();
+    vi.mocked(putObject).mockRejectedValueOnce(
+      new Error('Storage unavailable'),
+    );
+    await expect(seedResume('test-user')).rejects.toThrow(
+      'Storage unavailable',
+    );
   });
 
   test('links RSVP states, approvals, attendance, and timestamps consistently across chunks', async () => {
@@ -261,7 +320,9 @@ describe('demo seed', () => {
       .from(eventRsvpWaves)
       .where(eq(eventRsvpWaves.eventId, eventId));
     vi.stubEnv('SEED_COUNT', '0');
+    const uploadCount = vi.mocked(putObject).mock.calls.length;
     await seedDemoData();
+    expect(putObject).toHaveBeenCalledTimes(uploadCount);
     expect(
       await db
         .select()

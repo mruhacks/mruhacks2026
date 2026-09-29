@@ -30,6 +30,7 @@ import { eq, isNull, and } from 'drizzle-orm';
 import { seedStaticTables } from './seed-static';
 import { seedAdminOnboarding } from './seed-admin-onboarding';
 import { createParticipationSeeder } from './seed-participation';
+import { createResumeSeeder } from './seed-resumes';
 import { otherTextKey } from '@/lib/other-option';
 
 // ── Stable question UUIDs (deterministic for seed data consistency) ────────
@@ -595,6 +596,7 @@ export async function seedDemoData() {
       'SEED_COUNT must be a non-negative integer and SEED_CHUNK_SIZE must be a positive integer.',
     );
   }
+  const seedResume = COUNT > 0 ? await createResumeSeeder() : null;
   const { applicationEvent, noAppEvent } = await seedEvents();
   await seedEventContent(applicationEvent, noAppEvent);
 
@@ -748,6 +750,7 @@ export async function seedDemoData() {
         userId: id,
         fullName: name,
         genderId: gender.id,
+        ...(await seedResume!(id)),
         createdAt: now,
         updatedAt: now,
       });
@@ -939,7 +942,7 @@ export async function seedDemoData() {
   }
 
   console.log(
-    `🎉 Done! Inserted ${COUNT} fake users with profiles, applications, roles, teams, RSVPs, and check-ins.`,
+    `🎉 Done! Inserted ${COUNT} fake users with profiles, resumes, applications, roles, teams, RSVPs, and check-ins.`,
   );
 }
 
