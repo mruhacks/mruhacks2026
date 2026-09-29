@@ -12,7 +12,7 @@ export function eventWikiCacheTag(eventId: string): string {
  * Published articles for an event's public wiki index. Same output for
  * every reader without draft access, so it's cached rather than queried per
  * visit. Invalidated by updateTag(eventWikiCacheTag(eventId)) on article
- * create/update/delete.
+ * create/update/delete/reorder.
  */
 export async function getPublishedArticleList(eventId: string) {
   'use cache';

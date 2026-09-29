@@ -37,7 +37,7 @@ import {
 import { useEventBasePath } from '../../_components/use-event-base-path';
 
 /** Exactly what `getAllArticlesForAdmin` returns per row. */
-type WikiArticleRowData = {
+export type WikiArticleRowData = {
   id: string;
   slug: string;
   title: string;
@@ -59,10 +59,14 @@ export function WikiArticleRow({
   eventId,
   article,
   canWrite,
+  dragHandle,
+  disabled = false,
 }: {
   eventId: string;
   article: WikiArticleRowData;
   canWrite: boolean;
+  dragHandle?: React.ReactNode;
+  disabled?: boolean;
 }) {
   const [confirmingDelete, setConfirmingDelete] = React.useState(false);
   const [isBusy, setIsBusy] = React.useState(false);
@@ -121,6 +125,8 @@ export function WikiArticleRow({
         </span>
       </Link>
 
+      {dragHandle}
+
       {!article.published && (
         <Badge variant='secondary' className='shrink-0'>
           Draft
@@ -134,7 +140,7 @@ export function WikiArticleRow({
               variant='ghost'
               size='icon-sm'
               className='relative shrink-0'
-              disabled={isBusy}
+              disabled={isBusy || disabled}
             >
               <MoreHorizontal className='size-4' />
               <span className='sr-only'>Actions for {article.title}</span>

@@ -265,3 +265,7 @@ export const updateArticleSchema = z.object({
 });
 
 export type UpdateArticleInput = z.infer<typeof updateArticleSchema>;
+
+// Seeded IDs are valid PostgreSQL UUID values without RFC version/variant bits.
+// Validate their canonical shape; the action checks exact event membership.
+export const reorderArticlesSchema = z.array(z.guid()).min(1).max(10_000);

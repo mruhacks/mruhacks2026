@@ -12,7 +12,7 @@
 'use server';
 
 import { randomUUID } from 'crypto';
-import { and, asc, eq, ne } from 'drizzle-orm';
+import { and, asc, eq, ne, sql } from 'drizzle-orm';
 import { revalidatePath, updateTag } from 'next/cache';
 
 import { adminEventCacheTag } from '@/lib/admin-event';
@@ -33,6 +33,7 @@ import { collectAttachmentKeys } from '@/lib/markdown-attachments';
 import { slugify, uniqueSlug } from '@/lib/slug';
 import {
   createArticleSchema,
+  reorderArticlesSchema,
   updateArticleSchema,
   updateEventDescriptionSchema,
   type CreateArticleInput,
@@ -326,6 +327,7 @@ export async function createEventArticle(
       title: parsed.data.title,
       bodyMarkdown: '',
       published: false,
+      sortOrder: sql`(select coalesce(max(sort_order), -1) + 1 from event_articles where event_id = ${eventId})`,
       createdBy: user.id,
       updatedBy: user.id,
     })
@@ -345,6 +347,62 @@ export async function createEventArticle(
     metadata: { eventId, slug: created.slug },
   });
   return ok({ id: created.id, slug: created.slug });
+}
+
+/** Saves the complete article order, including drafts, in one transaction. */
+export async function reorderEventArticles(
+  eventId: string,
+  orderedIds: string[],
+): Promise<ActionResult> {
+  const user = await getUser();
+  if (!user) return fail('Not authenticated');
+  await requirePermission(user.id, 'article:write:all');
+
+  const parsed = reorderArticlesSchema.safeParse(orderedIds);
+  if (!parsed.success) return fail('Invalid article order.');
+
+  const result = await db.transaction(async (tx) => {
+    // Lock in a stable order so simultaneous reorders cannot interleave.
+    const articles = await tx
+      .select({ id: eventArticles.id })
+      .from(eventArticles)
+      .where(eq(eventArticles.eventId, eventId))
+      .orderBy(asc(eventArticles.id))
+      .for('update');
+    const ids = new Set(parsed.data);
+    if (
+      ids.size !== parsed.data.length ||
+      ids.size !== articles.length ||
+      !articles.every((article) => ids.has(article.id))
+    ) {
+      return fail('The article list has changed. Refresh and try again.');
+    }
+
+    for (const [sortOrder, id] of parsed.data.entries()) {
+      await tx
+        .update(eventArticles)
+        .set({ sortOrder, updatedBy: user.id, updatedAt: new Date() })
+        .where(
+          and(eq(eventArticles.id, id), eq(eventArticles.eventId, eventId)),
+        );
+    }
+    return ok('Articles reordered.');
+  });
+  if (!result.success) return result;
+
+  updateTag(eventWikiCacheTag(eventId));
+  for (const segment of await eventUrlSegments(eventId)) {
+    revalidatePath(`/dashboard/admin/events/${segment}`);
+    revalidatePath(`/dashboard/events/${segment}/wiki`);
+  }
+  await writeAuditLog({
+    actorId: user.id,
+    action: 'event.articles.reordered',
+    targetType: 'event',
+    targetId: eventId,
+    metadata: { orderedIds: parsed.data },
+  });
+  return result;
 }
 
 /**

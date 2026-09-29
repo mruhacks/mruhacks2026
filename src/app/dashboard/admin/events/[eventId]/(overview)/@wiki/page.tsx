@@ -8,7 +8,7 @@ import { getUser } from '@/utils/auth';
 
 import { BentoCard, BentoCardSkeleton } from '../../_components/bento-card';
 import { CreateArticleDialog } from './create-article-dialog';
-import { WikiArticleRow } from './wiki-article-row';
+import { WikiArticleList } from './wiki-article-list';
 
 type Props = { params: Promise<{ eventId: string }> };
 
@@ -23,8 +23,7 @@ export default function WikiCell({ params }: Props) {
 /**
  * The whole wiki admin surface: listing, create, edit, publish and delete all
  * happen from this cell, which is why there is no longer a `/wiki` route
- * under the event. Each row's controls are client components; the list itself
- * stays server-rendered so a mutation's revalidation refreshes it.
+ * under the event. The sortable list receives fresh server data after mutations.
  */
 async function WikiSection({
   paramsPromise,
@@ -58,17 +57,11 @@ async function WikiSection({
           {canWrite ? ' Add one to start the wiki.' : ''}
         </p>
       ) : (
-        <ul className='m-0 list-none divide-y p-0'>
-          {articles.map((article) => (
-            <li key={article.id}>
-              <WikiArticleRow
-                eventId={eventId}
-                article={article}
-                canWrite={canWrite}
-              />
-            </li>
-          ))}
-        </ul>
+        <WikiArticleList
+          eventId={eventId}
+          articles={articles}
+          canWrite={canWrite}
+        />
       )}
     </BentoCard>
   );

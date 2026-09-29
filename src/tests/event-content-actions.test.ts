@@ -20,7 +20,12 @@ import {
 } from '@/db/schema';
 
 vi.mock('@/utils/auth', () => ({ getUser: vi.fn() }));
-vi.mock('next/cache', () => ({ revalidatePath: vi.fn(), updateTag: vi.fn() }));
+vi.mock('next/cache', () => ({
+  revalidatePath: vi.fn(),
+  updateTag: vi.fn(),
+  cacheTag: vi.fn(),
+  cacheLife: vi.fn(),
+}));
 
 const putObject =
   vi.fn<(args: { key: string; contentType: string }) => Promise<void>>();
@@ -32,12 +37,15 @@ vi.mock('@/utils/object-storage', async (importOriginal) => ({
 }));
 
 import { getUser } from '@/utils/auth';
+import { revalidatePath, updateTag } from 'next/cache';
+import { getPublishedArticleList } from '@/lib/event-wiki';
 import {
   canWriteArticles,
   createEventArticle,
   deleteEventArticle,
   getEventArticle,
   listEventArticles,
+  reorderEventArticles,
   updateEventArticle,
   updateEventDescription,
   uploadArticleAttachment,
@@ -149,6 +157,11 @@ describe('authorization', () => {
       uploadArticleAttachment(eventId, new FormData()),
     ).resolves.toMatchObject({ success: false });
     await expect(canWriteArticles()).resolves.toBe(false);
+    await expect(
+      reorderEventArticles(eventId, [NIL_UUID]),
+    ).resolves.toMatchObject({
+      success: false,
+    });
     actAs(editor);
   });
 
@@ -176,6 +189,9 @@ describe('authorization', () => {
 
   test('article:read:all alone cannot write', async () => {
     actAs(reader);
+    await expect(reorderEventArticles(eventId, [NIL_UUID])).rejects.toThrow(
+      forbidden('article:write:all'),
+    );
     await expect(canWriteArticles()).resolves.toBe(false);
     await expect(createEventArticle(eventId, { title: 'X' })).rejects.toThrow(
       forbidden('article:write:all'),
@@ -346,6 +362,110 @@ describe('wiki articles', () => {
     expect(slugs).toContain('getting-started');
     expect(slugs).toContain('schedule');
     expect(unwrap(list).some((a) => !a.published)).toBe(true);
+  });
+
+  test('persists a complete order including drafts and refreshes both wiki views', async () => {
+    const before = unwrap(await listEventArticles(eventId));
+    const orderedIds = before.map((article) => article.id).reverse();
+    vi.mocked(updateTag).mockClear();
+    vi.mocked(revalidatePath).mockClear();
+
+    expect(await reorderEventArticles(eventId, orderedIds)).toMatchObject({
+      success: true,
+    });
+    const after = unwrap(await listEventArticles(eventId));
+    expect(after.map((article) => article.id)).toEqual(orderedIds);
+    expect(after.map((article) => article.sortOrder)).toEqual(
+      orderedIds.map((_, index) => index),
+    );
+    expect(
+      after.filter((article) => article.published).map((article) => article.id),
+    ).toEqual(
+      [...before]
+        .reverse()
+        .filter((article) => article.published)
+        .map((article) => article.id),
+    );
+    expect(updateTag).toHaveBeenCalledWith(`event-wiki:${eventId}`);
+    expect(
+      (await getPublishedArticleList(eventId)).map((article) => article.slug),
+    ).toEqual(
+      after
+        .filter((article) => article.published)
+        .map((article) => article.slug),
+    );
+    expect(revalidatePath).toHaveBeenCalledWith(
+      `/dashboard/admin/events/${eventId}`,
+    );
+    expect(revalidatePath).toHaveBeenCalledWith(
+      `/dashboard/events/${eventId}/wiki`,
+    );
+
+    const created = unwrap(
+      await createEventArticle(eventId, { title: 'A new last article' }),
+    );
+    expect(
+      unwrap(await listEventArticles(eventId)).map((article) => article.id),
+    ).toEqual([...orderedIds, created.id]);
+  });
+
+  test('reorders seeded article IDs alongside generated UUIDs', async () => {
+    // These IDs match scripts/seed.ts: PostgreSQL accepts them even though
+    // their version/variant bits do not satisfy strict RFC UUID validation.
+    const seededIds = [
+      '33333333-0000-0000-0000-000000000001',
+      '33333333-0000-0000-0000-000000000002',
+      '33333333-0000-0000-0000-000000000003',
+    ];
+    await db.insert(eventArticles).values(
+      seededIds.map((id, index) => ({
+        id,
+        eventId,
+        slug: `seeded-article-${index}`,
+        title: `Seeded article ${index}`,
+      })),
+    );
+    const ids = unwrap(await listEventArticles(eventId))
+      .map((article) => article.id)
+      .reverse();
+
+    expect(await reorderEventArticles(eventId, ids)).toMatchObject({
+      success: true,
+    });
+    expect(
+      unwrap(await listEventArticles(eventId)).map((article) => article.id),
+    ).toEqual(ids);
+  });
+
+  test('rejects duplicate, incomplete, foreign and malformed orders without changing articles', async () => {
+    const before = unwrap(await listEventArticles(eventId));
+    const ids = before.map((article) => article.id);
+    const [other] = await db
+      .insert(events)
+      .values({ name: 'Foreign wiki' })
+      .returning({ id: events.id });
+    try {
+      const foreign = unwrap(
+        await createEventArticle(other.id, { title: 'Foreign article' }),
+      );
+      for (const invalid of [
+        [],
+        ids.slice(1),
+        [ids[0], ...ids.slice(0, -1)],
+        [foreign.id, ...ids.slice(1)],
+        ['not-a-uuid', ...ids.slice(1)],
+      ]) {
+        expect(await reorderEventArticles(eventId, invalid)).toMatchObject({
+          success: false,
+        });
+        expect(unwrap(await listEventArticles(eventId))).toEqual(before);
+      }
+      expect(
+        unwrap(await getEventArticle(other.id, foreign.id)).sortOrder,
+      ).toBe(0);
+    } finally {
+      await db.delete(events).where(eq(events.id, other.id));
+    }
   });
 
   test('deletes the article row', async () => {
