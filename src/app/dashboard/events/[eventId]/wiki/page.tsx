@@ -1,109 +1,12 @@
-import Link from 'next/link';
-import { notFound, redirect } from 'next/navigation';
-import { asc, eq } from 'drizzle-orm';
-import { ArrowLeft } from 'lucide-react';
-
-import { getUser } from '@/utils/auth';
-import { db } from '@/utils/db';
-import { hasPermission } from '@/lib/rbac/authorization';
-import { getPublishedArticleList } from '@/lib/event-wiki';
-import { resolveEventId } from '@/lib/events';
-import { eventPath } from '@/lib/event-slug';
-import { BreadcrumbSegment } from '@/components/breadcrumb-context';
-import { eventArticles, events } from '@/db/schema';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-
-type Props = {
-  params: Promise<{ eventId: string }>;
-};
-
-export default async function EventWikiIndexPage({ params }: Props) {
-  // The segment may be the event's custom slug rather than its uuid.
-  const { eventId: segment } = await params;
-  const eventId = await resolveEventId(segment);
-  if (!eventId) notFound();
-  const user = await getUser();
-  if (!user) redirect('/signin');
-
-  const [event] = await db
-    .select({
-      id: events.id,
-      slug: events.slug,
-      name: events.name,
-      termsId: events.termsId,
-    })
-    .from(events)
-    .where(eq(events.id, eventId))
-    .limit(1);
-  if (!event) notFound();
-
-  // Organizers who can read drafts see them here too, badged — it saves them
-  // a round trip through the admin UI to preview what they are writing.
-  const canSeeDrafts = await hasPermission(user.id, 'article:read:all');
-
-  // The common case (no draft access) reads the cached, published-only list.
-  // Organizers previewing drafts get a live, uncached query instead.
-  const articles = canSeeDrafts
-    ? await db
-        .select({
-          slug: eventArticles.slug,
-          title: eventArticles.title,
-          published: eventArticles.published,
-          updatedAt: eventArticles.updatedAt,
-        })
-        .from(eventArticles)
-        .where(eq(eventArticles.eventId, eventId))
-        .orderBy(asc(eventArticles.sortOrder), asc(eventArticles.title))
-    : await getPublishedArticleList(eventId);
-
-  // Event Terms isn't a real article — it's synthesized onto the end of the
-  // list so it's always reachable from the wiki without living in
-  // `eventArticles` (whose slugs are freely editable by organizers).
-  const articlesWithTerms = event.termsId
-    ? [
-        ...articles,
-        { slug: 'terms', title: 'Event Terms', published: true, updatedAt: null },
-      ]
-    : articles;
-
+/**
+ * The center panel's default state before an article is picked from the
+ * sidebar (see `./layout.tsx`, which renders that sidebar and already
+ * 404s/redirects before this ever mounts).
+ */
+export default function EventWikiIndexPage() {
   return (
-    <div className='max-w-2xl space-y-6'>
-      <BreadcrumbSegment id={segment} label={event.name} />
-      <div>
-        <Button
-          asChild
-          variant='ghost'
-          size='sm'
-          className='text-muted-foreground mb-2 -ml-2'
-        >
-          <Link href={eventPath(event)}>
-            <ArrowLeft className='mr-1.5 size-4' />
-            {event.name}
-          </Link>
-        </Button>
-        <h1 className='text-3xl font-semibold'>Hackerpack</h1>
-      </div>
-
-      {articlesWithTerms.length === 0 ? (
-        <p className='text-muted-foreground text-sm'>
-          Nothing has been published yet. Check back closer to the event.
-        </p>
-      ) : (
-        <ul className='divide-y rounded-md border'>
-          {articlesWithTerms.map((article) => (
-            <li key={article.slug}>
-              <Link
-                href={`${eventPath(event)}/wiki/${article.slug}`}
-                className='hover:bg-muted/50 flex items-center justify-between gap-3 p-4'
-              >
-                <span className='font-medium'>{article.title}</span>
-                {!article.published && <Badge variant='outline'>Draft</Badge>}
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
+    <div className='text-muted-foreground flex min-h-[50vh] items-center justify-center rounded-lg border border-dashed p-12 text-center text-sm'>
+      Select an article from the sidebar to get started.
     </div>
   );
 }

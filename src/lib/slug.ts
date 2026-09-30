@@ -40,10 +40,11 @@ export function isValidSlug(slug: string): boolean {
 }
 
 /**
- * Static route segments that sit alongside an event's `/wiki/[slug]`. An
- * article slug matching one of these would be shadowed by the static route
- * and never resolve, so it's rejected rather than left to 404. `terms` is
- * the Event Terms pseudo-article synthesized onto the wiki list.
+ * Slugs an `eventArticles` row may not use because `/wiki/[slug]` (see
+ * `EventWikiArticlePage`) special-cases them into content from elsewhere.
+ * `terms` renders Event Terms from `events.termsId` / `eventTerms` instead
+ * of looking up a real article row, so a real article claiming that slug
+ * would never be reachable.
  */
 export const RESERVED_ARTICLE_SLUGS = ['terms'] as const;
 
