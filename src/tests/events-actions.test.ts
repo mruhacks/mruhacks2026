@@ -7,6 +7,11 @@ import {
   eventApplications,
   applicationStatuses,
   userProfiles,
+  userProfileAbout,
+  genders,
+  universities,
+  majors,
+  yearsOfStudy,
 } from '@/db/schema';
 
 vi.mock('@/utils/auth', () => ({ getUser: vi.fn() }));
@@ -14,6 +19,7 @@ vi.mock('next/cache', () => ({
   revalidatePath: vi.fn(),
   cacheLife: vi.fn(),
   cacheTag: vi.fn(),
+  updateTag: vi.fn(),
 }));
 
 import { getUser } from '@/utils/auth';
@@ -262,5 +268,161 @@ describe('getEventsWithUserStatus — applied user', () => {
     expect(found).toBeDefined();
     expect(found?.userStatus).toBe('applied');
     expect(found?.statusKey).toBe('pending_review');
+  });
+});
+
+// ─── submitEventApplication — edit restrictions ───────────────────────────────
+
+describe('submitEventApplication — edit restrictions', () => {
+  let openEventId: string;
+  let elapsedEventId: string;
+  let pendingStatusId: number;
+  let approvedStatusId: number;
+
+  beforeAll(async () => {
+    const [gender] = await db.select({ id: genders.id }).from(genders).limit(1);
+    const [university] = await db
+      .select({ id: universities.id })
+      .from(universities)
+      .limit(1);
+    const [major] = await db.select({ id: majors.id }).from(majors).limit(1);
+    const [year] = await db
+      .select({ id: yearsOfStudy.id })
+      .from(yearsOfStudy)
+      .limit(1);
+    if (!gender || !university || !major || !year) {
+      throw new Error('Expected lookup tables to be seeded.');
+    }
+
+    await db
+      .insert(userProfiles)
+      .values({
+        userId: testUserId,
+        fullName: 'Events Test User',
+        genderId: gender.id,
+      })
+      .onConflictDoUpdate({
+        target: userProfiles.userId,
+        set: { fullName: 'Events Test User', genderId: gender.id },
+      });
+    await db
+      .insert(userProfileAbout)
+      .values({
+        userId: testUserId,
+        universityId: university.id,
+        majorId: major.id,
+        yearOfStudyId: year.id,
+      })
+      .onConflictDoUpdate({
+        target: userProfileAbout.userId,
+        set: {
+          universityId: university.id,
+          majorId: major.id,
+          yearOfStudyId: year.id,
+        },
+      });
+
+    const [pending] = await db
+      .select({ id: applicationStatuses.id })
+      .from(applicationStatuses)
+      .where(eq(applicationStatuses.label, 'pending_review'))
+      .limit(1);
+    pendingStatusId =
+      pending?.id ??
+      (() => {
+        throw new Error('pending_review status missing');
+      })();
+
+    const [approved] = await db
+      .select({ id: applicationStatuses.id })
+      .from(applicationStatuses)
+      .where(eq(applicationStatuses.label, 'approved'))
+      .limit(1);
+    approvedStatusId =
+      approved?.id ??
+      (() => {
+        throw new Error('approved status missing');
+      })();
+
+    const [open] = await db
+      .insert(events)
+      .values({
+        name: 'Edit Restriction Event',
+        hasApplication: true,
+        applicationQuestions: [],
+      })
+      .returning({ id: events.id });
+    openEventId = open.id;
+
+    const [elapsed] = await db
+      .insert(events)
+      .values({
+        name: 'Edit Restriction Elapsed Event',
+        hasApplication: true,
+        applicationQuestions: [],
+        endsAt: new Date(Date.now() - 60_000),
+      })
+      .returning({ id: events.id });
+    elapsedEventId = elapsed.id;
+  });
+
+  afterAll(async () => {
+    await db
+      .delete(eventApplications)
+      .where(eq(eventApplications.eventId, openEventId));
+    await db
+      .delete(eventApplications)
+      .where(eq(eventApplications.eventId, elapsedEventId));
+    await db.delete(events).where(eq(events.id, openEventId));
+    await db.delete(events).where(eq(events.id, elapsedEventId));
+    await db
+      .delete(userProfileAbout)
+      .where(eq(userProfileAbout.userId, testUserId));
+  });
+
+  test('allows editing while the application is still pending review', async () => {
+    await db
+      .insert(eventApplications)
+      .values({
+        eventId: openEventId,
+        userId: testUserId,
+        statusId: pendingStatusId,
+        responses: {},
+      })
+      .onConflictDoUpdate({
+        target: [eventApplications.eventId, eventApplications.userId],
+        set: { statusId: pendingStatusId },
+      });
+
+    const result = await submitEventApplication(
+      { applicationResponses: {} },
+      openEventId,
+    );
+    expect(result.success).toBe(true);
+  });
+
+  test('rejects editing once the application has been decided', async () => {
+    await db
+      .update(eventApplications)
+      .set({ statusId: approvedStatusId })
+      .where(eq(eventApplications.eventId, openEventId));
+
+    const result = await submitEventApplication(
+      { applicationResponses: {} },
+      openEventId,
+    );
+    expect(result.success).toBe(false);
+    expect((result as { error: string }).error).toMatch(
+      /already been reviewed/i,
+    );
+  });
+
+  test('rejects editing once the event has ended', async () => {
+    const result = await submitEventApplication(
+      { applicationResponses: {} },
+      elapsedEventId,
+    );
+    expect(result.success).toBe(false);
+    expect((result as { error: string }).error).toMatch(/ended/i);
   });
 });

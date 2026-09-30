@@ -15,6 +15,7 @@ import { getUser } from '@/utils/auth';
 
 let testUserId: string;
 let testEventId: string;
+let elapsedEventId: string;
 
 beforeAll(async () => {
   const [u] = await db
@@ -33,6 +34,16 @@ beforeAll(async () => {
     .returning({ id: events.id });
   testEventId = e.id;
 
+  const [elapsed] = await db
+    .insert(events)
+    .values({
+      name: 'Test Elapsed Register Event',
+      hasApplication: false,
+      endsAt: new Date(Date.now() - 60_000),
+    })
+    .returning({ id: events.id });
+  elapsedEventId = elapsed.id;
+
   vi.mocked(getUser).mockResolvedValue({
     id: testUserId,
     email: 'register-test@example.com',
@@ -44,6 +55,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await db.delete(eventAttendees).where(eq(eventAttendees.userId, testUserId));
   await db.delete(events).where(eq(events.id, testEventId));
+  await db.delete(events).where(eq(events.id, elapsedEventId));
   await db.delete(user).where(eq(user.id, testUserId));
 });
 
@@ -85,6 +97,12 @@ describe('registerForEvent', () => {
         ),
       );
     expect(rows).toHaveLength(1);
+  });
+
+  test('rejects registering for an event that has already ended', async () => {
+    const result = await registerForEvent(elapsedEventId);
+    expect(result.success).toBe(false);
+    expect((result as { error: string }).error).toContain('ended');
   });
 });
 
@@ -143,5 +161,15 @@ describe('unregisterFromEvent', () => {
   test('unregistering when not registered is a no-op', async () => {
     const result = await unregisterFromEvent(testEventId);
     expect(result.success).toBe(true);
+  });
+
+  test('rejects unregistering from an event that has already ended', async () => {
+    await db
+      .insert(eventAttendees)
+      .values({ userId: testUserId, eventId: elapsedEventId })
+      .onConflictDoNothing();
+    const result = await unregisterFromEvent(elapsedEventId);
+    expect(result.success).toBe(false);
+    expect((result as { error: string }).error).toContain('ended');
   });
 });

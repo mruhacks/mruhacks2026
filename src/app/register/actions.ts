@@ -6,13 +6,24 @@
 
 'use server';
 
-import { eventAttendees } from '@/db/schema';
+import { events, eventAttendees } from '@/db/schema';
 import { getUser } from '@/utils/auth';
 import { ActionResult, fail, ok } from '@/utils/action-result';
 import { db } from '@/utils/db';
 import { and, eq } from 'drizzle-orm';
 import { revalidatePath, updateTag } from 'next/cache';
-import { userEventsCacheTag } from '@/lib/events';
+import { hasEventElapsed, userEventsCacheTag } from '@/lib/events';
+
+async function getEventEndsAt(
+  eventId: string,
+): Promise<Date | null | undefined> {
+  const [row] = await db
+    .select({ endsAt: events.endsAt })
+    .from(events)
+    .where(eq(events.id, eventId))
+    .limit(1);
+  return row?.endsAt;
+}
 
 /**
  * Registers the current user for an event that has no application (simple signup).
@@ -20,6 +31,12 @@ import { userEventsCacheTag } from '@/lib/events';
 export async function registerForEvent(eventId: string): Promise<ActionResult> {
   const user = await getUser();
   if (!user) return fail('User not authenticated');
+
+  const endsAt = await getEventEndsAt(eventId);
+  if (endsAt === undefined) return fail('Event not found.');
+  if (hasEventElapsed(endsAt)) {
+    return fail('This event has already ended.');
+  }
 
   try {
     await db
@@ -63,6 +80,12 @@ export async function unregisterFromEvent(
 ): Promise<ActionResult> {
   const user = await getUser();
   if (!user) return fail('User not authenticated');
+
+  const endsAt = await getEventEndsAt(eventId);
+  if (endsAt === undefined) return fail('Event not found.');
+  if (hasEventElapsed(endsAt)) {
+    return fail('This event has already ended. You can no longer unregister.');
+  }
 
   try {
     await db

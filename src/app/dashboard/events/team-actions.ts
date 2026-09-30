@@ -18,6 +18,7 @@ import { db } from '@/utils/db';
 import { getUser } from '@/utils/auth';
 import { ActionResult, fail, ok } from '@/utils/action-result';
 import { hasPermission } from '@/lib/rbac/authorization';
+import { hasEventElapsed } from '@/lib/events';
 import { writeAuditLog } from '@/utils/audit-log';
 import { generateTeamCode } from '@/lib/team-code';
 import { joinTeamSchema } from './team-schemas';
@@ -36,13 +37,16 @@ type Queryable = Pick<typeof db, 'select' | 'insert' | 'update' | 'delete'>;
 
 // ── Internal helpers ────────────────────────────────────────────────────
 
-async function getEventTeamSettings(
-  eventId: string,
-): Promise<{ teamsEnabled: boolean; maxTeamSize: number | null } | null> {
+async function getEventTeamSettings(eventId: string): Promise<{
+  teamsEnabled: boolean;
+  maxTeamSize: number | null;
+  endsAt: Date | null;
+} | null> {
   const [row] = await db
     .select({
       teamsEnabled: events.teamsEnabled,
       maxTeamSize: events.maxTeamSize,
+      endsAt: events.endsAt,
     })
     .from(events)
     .where(eq(events.id, eventId))
@@ -277,6 +281,9 @@ export async function joinTeamByCode(
   if (!settings) return fail('Event not found.');
   if (!settings.teamsEnabled)
     return fail('Teams are not enabled for this event.');
+  if (hasEventElapsed(settings.endsAt)) {
+    return fail('This event has already ended.');
+  }
 
   if (!(await isEventParticipant(currentUser.id, eventId))) {
     return fail('You must be registered for this event to manage a team.');
@@ -354,6 +361,9 @@ export async function leaveTeam(eventId: string): Promise<ActionResult> {
   if (!settings) return fail('Event not found.');
   if (!settings.teamsEnabled)
     return fail('Teams are not enabled for this event.');
+  if (hasEventElapsed(settings.endsAt)) {
+    return fail('This event has already ended.');
+  }
 
   if (!(await isEventParticipant(currentUser.id, eventId))) {
     return fail('You must be registered for this event to manage a team.');
@@ -430,6 +440,9 @@ export async function removeMember(
   if (!settings) return fail('Event not found.');
   if (!settings.teamsEnabled)
     return fail('Teams are not enabled for this event.');
+  if (hasEventElapsed(settings.endsAt)) {
+    return fail('This event has already ended.');
+  }
 
   const [targetMembership] = await db
     .select({ teamId: teamMembers.teamId })

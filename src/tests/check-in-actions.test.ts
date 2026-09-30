@@ -325,7 +325,7 @@ describe('scanCheckIn', () => {
     );
     expect(result).toMatchObject({
       success: false,
-      error: expect.stringContaining('expired'),
+      error: expect.stringContaining('ended'),
     });
   });
 
@@ -398,12 +398,26 @@ describe('checkInParticipant and undoCheckIn', () => {
     });
   });
 
-  test('still allows a hand check-in after the event has ended, unlike a scan', async () => {
+  test('rejects a hand check-in after the event has ended, same as a scan', async () => {
     await db.delete(checkIns).where(eq(checkIns.eventId, expiredEventId));
     const result = await checkInParticipant(expiredEventId, participantId);
-    expect(result.success && result.data).toMatchObject({
-      alreadyCheckedIn: false,
+    expect(result).toMatchObject({
+      success: false,
+      error: expect.stringContaining('ended'),
     });
+  });
+
+  test('rejects undoing a check-in after the event has ended', async () => {
+    await db
+      .insert(checkIns)
+      .values({ eventId: expiredEventId, userId: participantId })
+      .onConflictDoNothing();
+    const result = await undoCheckIn(expiredEventId, participantId);
+    expect(result).toMatchObject({
+      success: false,
+      error: expect.stringContaining('ended'),
+    });
+    await db.delete(checkIns).where(eq(checkIns.eventId, expiredEventId));
   });
 });
 

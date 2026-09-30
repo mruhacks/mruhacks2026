@@ -151,11 +151,6 @@ async function checkInUser(
   eventId: string,
   userId: string,
   actorId: string,
-  /** True only for a QR scan: the pass carries no expiry of its own (see
-   *  `check-in-token.ts`), so a scan checks the event's own end date instead.
-   *  Hand check-in skips this — it's the fallback for an already-expired
-   *  pass, so it must still work after the event ends. */
-  enforceEventEnded: boolean,
 ): Promise<ActionResult<CheckInOutcome>> {
   const participation = await getEventParticipation(eventId, userId);
   if (!participation) {
@@ -164,12 +159,8 @@ async function checkInUser(
   if (!participation.isParticipant) {
     return fail('This person is not registered for this event.');
   }
-  if (
-    enforceEventEnded &&
-    participation.endsAt &&
-    participation.endsAt.getTime() < Date.now()
-  ) {
-    return fail('This pass has expired. Check them in by name instead.');
+  if (participation.endsAt && participation.endsAt.getTime() < Date.now()) {
+    return fail('This event has ended. Check-in is frozen.');
   }
 
   const name = resolveParticipantName(
@@ -216,7 +207,7 @@ export async function scanCheckIn(
     return fail('This pass was issued for a different event.');
   }
 
-  return checkInUser(eventId, claims.userId, actor.id, true);
+  return checkInUser(eventId, claims.userId, actor.id);
 }
 
 /**
@@ -231,7 +222,7 @@ export async function checkInParticipant(
   if (!actor) return fail('Not authenticated');
   if (!UUID_PATTERN.test(userId)) return fail('Unknown participant.');
 
-  return checkInUser(eventId, userId, actor.id, false);
+  return checkInUser(eventId, userId, actor.id);
 }
 
 /**
@@ -249,6 +240,16 @@ export async function undoCheckIn(
   // unhandled action error rather than a fail() result.
   if (!UUID_PATTERN.test(eventId)) return fail('Event not found.');
   if (!UUID_PATTERN.test(userId)) return fail('Unknown participant.');
+
+  const [eventRow] = await db
+    .select({ endsAt: events.endsAt })
+    .from(events)
+    .where(eq(events.id, eventId))
+    .limit(1);
+  if (!eventRow) return fail('Event not found.');
+  if (eventRow.endsAt && eventRow.endsAt.getTime() < Date.now()) {
+    return fail('This event has ended. Check-in is frozen.');
+  }
 
   const [removed] = await db
     .delete(checkIns)

@@ -51,6 +51,7 @@ import {
 import {
   getAllEvents,
   getUserEventParticipation,
+  hasEventElapsed,
   userEventsCacheTag,
 } from '@/lib/events';
 import { buildApplicationResponses } from './application-responses';
@@ -114,6 +115,7 @@ async function registerParticipant(
     .select({
       hasApplication: events.hasApplication,
       applicationQuestions: events.applicationQuestions,
+      endsAt: events.endsAt,
     })
     .from(events)
     .where(eq(events.id, eventId))
@@ -122,8 +124,40 @@ async function registerParticipant(
   if (!eventRow.hasApplication) {
     return fail('This event does not require an application.');
   }
+  if (hasEventElapsed(eventRow.endsAt)) {
+    return fail('This event has already ended. Applications are closed.');
+  }
   const applicationQuestions =
     eventRow.applicationQuestions as ApplicationQuestion[];
+
+  // Once an application has been decided (or is waitlisted), the applicant
+  // can no longer change their answers — only a still-pending review may be
+  // edited. This is checked server-side because the apply page's own gate
+  // (`decisionIsFinal`) only hides the form for statuses flagged `isFinal`,
+  // which deliberately excludes `waitlisted`.
+  const [existingApplication] = await db
+    .select({ statusLabel: applicationStatuses.label })
+    .from(eventApplications)
+    .leftJoin(
+      applicationStatuses,
+      eq(eventApplications.statusId, applicationStatuses.id),
+    )
+    .where(
+      and(
+        eq(eventApplications.eventId, eventId),
+        eq(eventApplications.userId, user.id),
+      ),
+    )
+    .limit(1);
+  if (
+    existingApplication &&
+    resolveApplicationStatusKey(existingApplication.statusLabel) !==
+      'pending_review'
+  ) {
+    return fail(
+      'Your application has already been reviewed and can no longer be edited.',
+    );
+  }
 
   const built = buildApplicationResponses(
     applicationQuestions,

@@ -466,3 +466,53 @@ describe('getFormedTeamsForEvent payload', () => {
     }
   });
 });
+
+describe('team actions on an elapsed event', () => {
+  let elapsedEventId: string;
+
+  beforeAll(async () => {
+    const [e] = await db
+      .insert(events)
+      .values({
+        name: 'Team Test Elapsed Event',
+        hasApplication: false,
+        teamsEnabled: true,
+        endsAt: new Date(Date.now() - 60_000),
+      })
+      .returning({ id: events.id });
+    elapsedEventId = e.id;
+
+    await db.insert(eventAttendees).values([
+      { eventId: elapsedEventId, userId: userA.id },
+      { eventId: elapsedEventId, userId: userB.id },
+    ]);
+  });
+
+  afterAll(async () => {
+    await db.delete(events).where(eq(events.id, elapsedEventId));
+  });
+
+  test('leaveTeam is rejected once the event has ended', async () => {
+    loginAs(userA);
+    const result = await leaveTeam(elapsedEventId);
+    expect(result.success).toBe(false);
+    if (result.success) throw new Error('expected failure');
+    expect(result.error).toMatch(/ended/i);
+  });
+
+  test('joinTeamByCode is rejected once the event has ended', async () => {
+    loginAs(userB);
+    const result = await joinTeamByCode(elapsedEventId, 'ABCDEFGH');
+    expect(result.success).toBe(false);
+    if (result.success) throw new Error('expected failure');
+    expect(result.error).toMatch(/ended/i);
+  });
+
+  test('removeMember is rejected once the event has ended, even for an admin override', async () => {
+    loginAs(adminUser);
+    const result = await removeMember(elapsedEventId, userB.id);
+    expect(result.success).toBe(false);
+    if (result.success) throw new Error('expected failure');
+    expect(result.error).toMatch(/ended/i);
+  });
+});

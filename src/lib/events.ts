@@ -87,6 +87,16 @@ export function userEventsCacheTag(userId: string): string {
   return `user-events:${userId}`;
 }
 
+/**
+ * True once an event's end instant is in the past. Null `endsAt` (no end
+ * date configured) never elapses — used to freeze participant- and
+ * admin-facing mutations (unregister, check-in, team changes) once an event
+ * is over.
+ */
+export function hasEventElapsed(endsAt: Date | null): boolean {
+  return endsAt != null && endsAt.getTime() < Date.now();
+}
+
 export type UserEventParticipation = {
   /** eventId -> applicationId, for events this user has applied to. */
   applicationIdByEventId: Record<string, string>;
