@@ -304,10 +304,6 @@ function EventPageLayout({
           <h1 className='text-3xl font-semibold tracking-tight sm:text-4xl'>
             {event.name}
           </h1>
-          <EventTypeTag
-            label={event.eventTypeLabel}
-            hasApplication={event.hasApplication}
-          />
           <EventMeta
             startsAt={event.startsAt}
             endsAt={event.endsAt}
@@ -589,25 +585,6 @@ function WikiArticles({
         </CardContent>
       </Card>
     </section>
-  );
-}
-
-function EventTypeTag({
-  label,
-  hasApplication,
-}: {
-  label: string | null;
-  hasApplication: boolean;
-}) {
-  const display = label
-    ? label.charAt(0).toUpperCase() + label.slice(1)
-    : hasApplication
-      ? 'Application required'
-      : 'Open registration';
-  return (
-    <Badge variant='outline' className='text-muted-foreground'>
-      {display}
-    </Badge>
   );
 }
 
