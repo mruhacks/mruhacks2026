@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 
 import {
   updateEventDescription,
+  updateEventTerms,
   uploadEventDescriptionAttachment,
 } from '@/app/dashboard/admin/events/content-actions';
 import { MarkdownEditor } from '@/components/markdown/markdown-editor';
@@ -20,15 +21,19 @@ import {
 } from '@/components/ui/card';
 import { Field, FieldError, FieldGroup } from '@/components/ui/field';
 
-import { useEventBasePath } from '../../_components/use-event-base-path';
+import { useEventBasePath } from '../_components/use-event-base-path';
 
-export function DescriptionForm({
+export function EventContentForm({
   eventId,
   initialMarkdown,
+  kind = 'description',
 }: {
   eventId: string;
   initialMarkdown: string;
+  kind?: 'description' | 'terms';
 }) {
+  const isTerms = kind === 'terms';
+  const label = isTerms ? 'Event Terms' : 'description';
   const router = useRouter();
   const basePath = useEventBasePath();
   const [draft, setDraft] = React.useState(initialMarkdown);
@@ -44,18 +49,20 @@ export function DescriptionForm({
     setError(null);
     setIsSaving(true);
     try {
-      const result = await updateEventDescription(eventId, draft);
+      const result = await (
+        isTerms ? updateEventTerms : updateEventDescription
+      )(eventId, draft);
       if (!result.success) {
         setError(result.error);
         return;
       }
-      toast.success('Description saved');
+      toast.success(isTerms ? 'Event terms saved' : 'Description saved');
       // The overview reads this description through a Server Component.
       // eslint-disable-next-line custom/no-router-refresh
       router.refresh();
     } catch (error) {
       unstable_rethrow(error);
-      setError('Unable to save the description. Please try again.');
+      setError(`Unable to save ${label}. Please try again.`);
     } finally {
       setIsSaving(false);
     }
@@ -64,9 +71,11 @@ export function DescriptionForm({
   return (
     <Card className='gap-4 py-5'>
       <CardHeader className='gap-1 px-5'>
-        <CardTitle>Edit description</CardTitle>
+        <CardTitle>Edit {label}</CardTitle>
         <CardDescription>
-          Shown to participants on the event page.
+          {isTerms
+            ? 'Participants must agree to these terms before accepting their RSVP. Leave empty if no event terms are required. Changes apply to future acceptances; previous consent records are preserved.'
+            : 'Shown to participants on the event page.'}
         </CardDescription>
       </CardHeader>
       <CardContent className='px-5'>
@@ -81,7 +90,11 @@ export function DescriptionForm({
                 }}
                 uploadAttachment={uploadAttachment}
                 onUploadError={setError}
-                placeholder='Tell participants what this event is about…'
+                placeholder={
+                  isTerms
+                    ? 'Add the rules and terms for attending this event…'
+                    : 'Tell participants what this event is about…'
+                }
               />
               {error && <FieldError role='alert'>{error}</FieldError>}
             </Field>
@@ -91,7 +104,7 @@ export function DescriptionForm({
               <Link href={`${basePath}/settings`}>Back to edit event</Link>
             </Button>
             <Button type='submit' disabled={isSaving}>
-              {isSaving ? 'Saving…' : 'Save description'}
+              {isSaving ? 'Saving…' : `Save ${label}`}
             </Button>
           </div>
         </form>

@@ -28,6 +28,7 @@ import {
   uniqueIndex,
   primaryKey,
   doublePrecision,
+  type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
 import { relations, sql } from 'drizzle-orm';
 
@@ -76,6 +77,8 @@ export const events = pgTable(
      * live in object storage under `event-content/`.
      */
     descriptionMarkdown: text('description_markdown'),
+    /** Current immutable terms version; edits replace this pointer. */
+    termsId: uuid('terms_id').references((): AnyPgColumn => eventTerms.id),
     hasApplication: boolean('has_application').notNull().default(false),
     // Questions are configured independently from whether an application is
     // required. An empty list is a valid application configuration.
@@ -126,6 +129,24 @@ export const events = pgTable(
     // Nulls are distinct in Postgres, so this still allows any number of
     // events with no slug while keeping every set slug unambiguous.
     idxSlugUnique: uniqueIndex('idx_events_slug_unique').on(table.slug),
+  }),
+);
+
+/** Copy-on-write versions: insert on edit, never update an existing body. */
+export const eventTerms = pgTable(
+  'event_terms',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    eventId: uuid('event_id')
+      .notNull()
+      .references(() => events.id, { onDelete: 'cascade' }),
+    markdown: text('markdown').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => ({
+    idxEvent: index('idx_event_terms_event').on(table.eventId),
   }),
 );
 
@@ -375,6 +396,9 @@ export const eventRsvpResponses = pgTable(
       .references(() => user.id, { onDelete: 'cascade' }),
     statusId: integer('status_id').references(() => rsvpStatuses.id),
     respondedAt: timestamp('responded_at', { withTimezone: true }),
+    termsAcceptedAt: timestamp('terms_accepted_at', { withTimezone: true }),
+    /** References the immutable version accepted for this invitation. */
+    acceptedTermsId: uuid('accepted_terms_id').references(() => eventTerms.id),
     // Invitation email delivery state (separate from statusId, the RSVP
     // decision): 'legacy' | 'unsent' | 'queued' | 'sent' | 'failed'.
     invitationEmailStatus: text('invitation_email_status')

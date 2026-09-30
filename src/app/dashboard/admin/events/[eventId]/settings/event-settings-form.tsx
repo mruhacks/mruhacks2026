@@ -188,6 +188,17 @@ export function EventSettingsForm({ event }: { event: AdminEventSettings }) {
                       Edit description
                     </Link>
                   </Button>
+                  <Button
+                    asChild
+                    variant='outline'
+                    size='sm'
+                    className='self-start'
+                  >
+                    <Link href={`${basePath}/settings/terms`}>
+                      <Pencil aria-hidden data-icon='inline-start' />
+                      Edit Event Terms
+                    </Link>
+                  </Button>
                   <Field orientation='horizontal' className='gap-4'>
                     <FieldContent>
                       <FieldLabel htmlFor='isFeatured'>

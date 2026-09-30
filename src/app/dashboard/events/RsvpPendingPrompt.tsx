@@ -4,6 +4,7 @@ import * as React from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 
+import { RsvpTermsConsent } from './RsvpTermsConsent';
 import { useRsvpDecision } from '@/app/dashboard/events/use-rsvp-decision';
 import curtPointing from '@/assets/crt_pointing.png';
 import { Button } from '@/components/ui/button';
@@ -21,11 +22,19 @@ import { useIsHydrated } from '@/lib/use-is-hydrated';
 
 type Props = {
   eventId: string;
+  termsMarkdown: string | null;
+  termsId: string | null;
   eventName: string;
   respondBy: Date | string;
 };
 
-export function RsvpPendingPrompt({ eventId, eventName, respondBy }: Props) {
+export function RsvpPendingPrompt({
+  eventId,
+  eventName,
+  respondBy,
+  termsMarkdown,
+  termsId,
+}: Props) {
   const router = useRouter();
   const hydrated = useIsHydrated();
   const deadline = toDate(respondBy);
@@ -33,7 +42,16 @@ export function RsvpPendingPrompt({ eventId, eventName, respondBy }: Props) {
   const [open, setOpen] = React.useState(true);
   const [confirmDecline, setConfirmDecline] = React.useState(false);
   const refreshedOnExpiry = React.useRef(false);
-  const { isPending, activeDecision, error, submit } = useRsvpDecision(eventId);
+  const {
+    isPending,
+    activeDecision,
+    error,
+    submit,
+    termsAccepted,
+    setTermsAccepted,
+    canAccept,
+    clearError,
+  } = useRsvpDecision(eventId, termsId);
 
   React.useEffect(() => {
     if (!hydrated) return;
@@ -57,6 +75,7 @@ export function RsvpPendingPrompt({ eventId, eventName, respondBy }: Props) {
   function handleOpenChange(nextOpen: boolean) {
     if (isPending) return;
     setOpen(nextOpen);
+    clearError();
     if (!nextOpen) {
       setConfirmDecline(false);
     }
@@ -109,7 +128,7 @@ export function RsvpPendingPrompt({ eventId, eventName, respondBy }: Props) {
             </div>
           </div>
         ) : (
-          <div className='flex flex-col items-center gap-8 py-2 text-center sm:py-4'>
+          <div className='flex max-h-[70vh] flex-col items-center gap-6 overflow-y-auto py-2 text-center sm:py-4'>
             <DialogHeader className='items-center text-center'>
               <DialogTitle className='text-2xl tracking-tight sm:text-3xl'>
                 Your spot is ready
@@ -133,13 +152,20 @@ export function RsvpPendingPrompt({ eventId, eventName, respondBy }: Props) {
 
             {error && <FieldError errors={[{ message: error }]} />}
 
+            <RsvpTermsConsent
+              markdown={termsMarkdown}
+              accepted={termsAccepted}
+              onAcceptedChange={setTermsAccepted}
+              disabled={isPending}
+            />
+
             <div className='flex w-full max-w-xs flex-col items-center gap-2'>
               <Button
                 type='button'
                 variant='purple'
                 size='lg'
                 className='w-full'
-                disabled={isPending}
+                disabled={isPending || !canAccept}
                 onClick={() => submit('accepted')}
               >
                 {activeDecision === 'accepted' && isPending ? (
@@ -155,7 +181,10 @@ export function RsvpPendingPrompt({ eventId, eventName, respondBy }: Props) {
                 type='button'
                 variant='ghost'
                 disabled={isPending}
-                onClick={() => setConfirmDecline(true)}
+                onClick={() => {
+                  clearError();
+                  setConfirmDecline(true);
+                }}
               >
                 Decline
               </Button>

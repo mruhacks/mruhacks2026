@@ -2,15 +2,19 @@
 
 import * as React from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
+import { toast } from 'sonner';
 
-import type {
-  AdminRsvpParticipant,
-  AdminRsvpWaveSummary,
+import {
+  resendRsvpInvitation,
+  type AdminRsvpParticipant,
+  type AdminRsvpWaveSummary,
+  type RsvpInvitationEmailStatus,
 } from '@/app/dashboard/admin/events/actions';
 import { DataTable } from '@/components/data-table/data-table';
 import { DataTableFacetedFilter } from '@/components/data-table/data-table-faceted-filter';
 import { LocalDateTime } from '@/components/local-date-time';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { rsvpStatusFilterFn } from '@/lib/rsvp/rsvp-status-filter';
 import { rsvpStatusDisplayList, type RsvpStatus } from '@/types/lookups';
 
@@ -25,9 +29,78 @@ const STATUS_FILTER_OPTIONS: { label: string; value: RsvpStatus }[] = [
   { label: 'Timed out', value: 'timed_out' },
 ];
 
+const DELIVERY_FILTER_OPTIONS: {
+  label: string;
+  value: RsvpInvitationEmailStatus;
+}[] = [{ label: 'Delivery failed', value: 'failed' }];
+
 function StatusBadge({ status }: { status: RsvpStatus }) {
   const display = RSVP_DISPLAY[status];
   return <Badge variant={display.variant}>{display.title}</Badge>;
+}
+
+function DeliveryBadge({ status }: { status: RsvpInvitationEmailStatus }) {
+  if (status === 'failed') {
+    return <Badge variant='destructive'>Delivery failed</Badge>;
+  }
+  if (status === 'queued') {
+    return <Badge variant='outline'>Queued</Badge>;
+  }
+  if (status === 'sent') {
+    return <Badge variant='outline'>Sent</Badge>;
+  }
+  return <span className='text-muted-foreground'>—</span>;
+}
+
+function ResendButton({
+  eventId,
+  participant,
+  hasResent,
+  onResent,
+}: {
+  eventId: string;
+  participant: AdminRsvpParticipant;
+  /** Already resent this session — session-local, not persisted past a reload. */
+  hasResent: boolean;
+  onResent: (responseId: string) => void;
+}) {
+  const [isSending, setIsSending] = React.useState(false);
+
+  if (participant.statusLabel !== 'pending') {
+    return null;
+  }
+
+  async function handleClick() {
+    if (isSending || hasResent) return;
+    setIsSending(true);
+    try {
+      const result = await resendRsvpInvitation(eventId, participant.userId);
+      if (!result.success) {
+        toast.error(result.error || 'Failed to resend RSVP invitation');
+        return;
+      }
+      toast.success(`Invitation resent to ${participant.email}.`);
+      // Update this row in place — no need to reload the whole RSVP summary
+      // (and its loading state) just to reflect one row's delivery status.
+      onResent(participant.responseId);
+    } catch {
+      toast.error('Failed to resend RSVP invitation');
+    } finally {
+      setIsSending(false);
+    }
+  }
+
+  return (
+    <Button
+      type='button'
+      variant='outline'
+      size='sm'
+      disabled={isSending || hasResent}
+      onClick={handleClick}
+    >
+      {hasResent ? 'Resent' : isSending ? 'Resending…' : 'Resend'}
+    </Button>
+  );
 }
 
 function ParticipantTiming({
@@ -80,10 +153,33 @@ function timingSortValue(participant: AdminRsvpParticipant): number {
 }
 
 type Props = {
+  eventId: string;
   wave: AdminRsvpWaveSummary;
 };
 
-export function RsvpParticipantsTable({ wave }: Props) {
+export function RsvpParticipantsTable({ eventId, wave }: Props) {
+  // Resend only ever flips a row to 'sent' — applied locally so a resend
+  // doesn't have to trigger a full summary refetch (and its loading state)
+  // just to reflect one row's delivery status.
+  const [sentOverrides, setSentOverrides] = React.useState<
+    ReadonlySet<string>
+  >(new Set());
+  const handleResent = React.useCallback((responseId: string) => {
+    setSentOverrides((current) => new Set(current).add(responseId));
+  }, []);
+
+  const data = React.useMemo(
+    () =>
+      sentOverrides.size === 0
+        ? wave.participants
+        : wave.participants.map((participant) =>
+            sentOverrides.has(participant.responseId)
+              ? { ...participant, invitationEmailStatus: 'sent' as const }
+              : participant,
+          ),
+    [wave.participants, sentOverrides],
+  );
+
   const columns = React.useMemo<ColumnDef<AdminRsvpParticipant>[]>(
     () => [
       {
@@ -120,14 +216,54 @@ export function RsvpParticipantsTable({ wave }: Props) {
           </span>
         ),
       },
+      {
+        id: 'termsAcceptedAt',
+        accessorFn: (row) =>
+          row.termsAcceptedAt ? new Date(row.termsAcceptedAt).getTime() : 0,
+        header: 'Event Terms consent',
+        enableColumnFilter: false,
+        cell: ({ row }) =>
+          row.original.termsAcceptedAt ? (
+            <LocalDateTime
+              value={row.original.termsAcceptedAt}
+              dateStyle='medium'
+              timeStyle='short'
+            />
+          ) : (
+            '—'
+          ),
+      },
+      {
+        id: 'delivery',
+        accessorKey: 'invitationEmailStatus',
+        header: 'Invitation',
+        filterFn: rsvpStatusFilterFn,
+        cell: ({ row }) => (
+          <DeliveryBadge status={row.original.invitationEmailStatus} />
+        ),
+      },
+      {
+        id: 'actions',
+        header: '',
+        enableColumnFilter: false,
+        enableSorting: false,
+        cell: ({ row }) => (
+          <ResendButton
+            eventId={eventId}
+            participant={row.original}
+            hasResent={sentOverrides.has(row.original.responseId)}
+            onResent={handleResent}
+          />
+        ),
+      },
     ],
-    [wave.respondBy],
+    [eventId, handleResent, sentOverrides, wave.respondBy],
   );
 
   return (
     <DataTable
       columns={columns}
-      data={wave.participants}
+      data={data}
       searchPlaceholder='Search applicants...'
       emptyMessage={
         wave.participants.length === 0
@@ -137,11 +273,18 @@ export function RsvpParticipantsTable({ wave }: Props) {
       pageSize={10}
       initialSorting={[{ id: 'applicant', desc: false }]}
       toolbarRight={(table) => (
-        <DataTableFacetedFilter
-          column={table.getColumn('status')}
-          title='Status'
-          options={STATUS_FILTER_OPTIONS}
-        />
+        <>
+          <DataTableFacetedFilter
+            column={table.getColumn('status')}
+            title='Status'
+            options={STATUS_FILTER_OPTIONS}
+          />
+          <DataTableFacetedFilter
+            column={table.getColumn('delivery')}
+            title='Invitation'
+            options={DELIVERY_FILTER_OPTIONS}
+          />
+        </>
       )}
     />
   );

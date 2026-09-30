@@ -8,6 +8,7 @@ import {
   account,
   session,
   events,
+  eventTerms,
   userProfiles,
   userProfileAbout,
   userInterests,
@@ -451,6 +452,25 @@ room for questions.
 
 Questions about eligibility go to an organizer *before* you build, not after.`;
 
+const DEMO_EVENT_TERMS = `## Hackathon rules
+
+- Treat participants, mentors, volunteers, and staff with respect. Harassment, discrimination, threats, and unsafe conduct are not allowed.
+- Follow organizer instructions, venue rules, and the published schedule. Report safety concerns to an organizer promptly.
+- Build your competition submission during the event. Clearly credit pre-existing code, open-source libraries, third-party assets, and AI assistance.
+- Respect intellectual property and software licenses. Do not copy another team's work, interfere with other projects, or access systems without permission.
+- Follow the event's team-size, eligibility, submission, and judging rules. Organizers may disqualify submissions or remove participants for rule violations.
+- Look after your belongings and equipment, and leave shared spaces clean.
+
+## Photo and video release
+
+I understand that photographs and video may be taken during the event. I give the event organizers permission to capture and use my image, likeness, and voice in event photographs and recordings for event reporting, educational materials, and promotion, including websites, social media, and future event announcements, without compensation.
+
+I understand that published materials may be shared by others. I can contact the organizers before the event with questions about photography or to discuss available accommodations.
+
+## Agreement
+
+By accepting my spot, I confirm that I have read and agree to these Event Terms, including the hackathon rules and photo and video release.`;
+
 /**
  * Fills in the markdown surfaces: a description on each event, and a small
  * wiki for the hackathon.
@@ -471,6 +491,30 @@ async function seedEventContent(
     },
     { event: noAppEvent, markdown: WORKSHOP_DESCRIPTION },
   ];
+
+  // Demo fixtures only; the production/static seed does not add event terms.
+  await db.transaction(async (tx) => {
+    const [event] = await tx
+      .select({ termsId: events.termsId })
+      .from(events)
+      .where(eq(events.id, applicationEvent.id))
+      .for('update');
+    if (event.termsId) return;
+    const [existing] = await tx
+      .select({ id: eventTerms.id })
+      .from(eventTerms)
+      .where(eq(eventTerms.eventId, applicationEvent.id))
+      .limit(1);
+    if (existing) return; // Preserve an organizer's explicit removal of terms.
+    const [version] = await tx
+      .insert(eventTerms)
+      .values({ eventId: applicationEvent.id, markdown: DEMO_EVENT_TERMS })
+      .returning({ id: eventTerms.id });
+    await tx
+      .update(events)
+      .set({ termsId: version.id, updatedAt: new Date() })
+      .where(eq(events.id, applicationEvent.id));
+  });
 
   let described = 0;
   for (const { event, markdown } of descriptions) {

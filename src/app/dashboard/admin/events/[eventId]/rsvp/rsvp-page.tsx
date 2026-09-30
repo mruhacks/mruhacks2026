@@ -104,6 +104,7 @@ export function EventRsvpPage({ eventId }: { eventId: string }) {
       <h2 className='text-lg font-semibold'>RSVP</h2>
 
       <AdminRsvpOverviewCard
+        eventId={event.id}
         summary={rsvpSummary}
         loading={rsvpSummaryLoading}
         error={rsvpSummaryError}

@@ -7,7 +7,13 @@ import { getUser } from '@/utils/auth';
 import { db } from '@/utils/db';
 import { BreadcrumbSegment } from '@/components/breadcrumb-context';
 import { MarkdownContent } from '@/components/markdown/markdown-content';
-import { events, eventTypes, eventAttendees, eventArticles } from '@/db/schema';
+import {
+  events,
+  eventTypes,
+  eventAttendees,
+  eventArticles,
+  eventTerms,
+} from '@/db/schema';
 import { resolveEventId } from '@/lib/events';
 import { eventPath } from '@/lib/event-slug';
 import {
@@ -60,6 +66,8 @@ type EventDetails = {
   slug: string | null;
   name: string;
   descriptionMarkdown: string | null;
+  termsMarkdown: string | null;
+  termsId: string | null;
   hasApplication: boolean;
   startsAt: Date | null;
   endsAt: Date | null;
@@ -121,6 +129,8 @@ async function EventEntryContent({ params, searchParams }: Props) {
       slug: events.slug,
       name: events.name,
       descriptionMarkdown: events.descriptionMarkdown,
+      termsMarkdown: eventTerms.markdown,
+      termsId: events.termsId,
       hasApplication: events.hasApplication,
       startsAt: events.startsAt,
       endsAt: events.endsAt,
@@ -129,6 +139,7 @@ async function EventEntryContent({ params, searchParams }: Props) {
       eventTypeLabel: eventTypes.label,
     })
     .from(events)
+    .leftJoin(eventTerms, eq(events.termsId, eventTerms.id))
     .leftJoin(eventTypes, eq(events.eventTypeId, eventTypes.id))
     .where(eq(events.id, eventId))
     .limit(1);
@@ -137,7 +148,7 @@ async function EventEntryContent({ params, searchParams }: Props) {
 
   const eventHref = eventPath(row);
 
-  const publishedArticles = await db
+  const publishedArticlesRows = await db
     .select({ slug: eventArticles.slug, title: eventArticles.title })
     .from(eventArticles)
     .where(
@@ -147,6 +158,13 @@ async function EventEntryContent({ params, searchParams }: Props) {
       ),
     )
     .orderBy(asc(eventArticles.sortOrder), asc(eventArticles.title));
+
+  // Event Terms isn't a real article — it's synthesized onto the end of the
+  // list so it's always reachable from the wiki without living in
+  // `eventArticles` (whose slugs are freely editable by organizers).
+  const publishedArticles: PublishedArticle[] = row.termsId
+    ? [...publishedArticlesRows, { slug: 'terms', title: 'Event Terms' }]
+    : publishedArticlesRows;
 
   if (row.hasApplication) {
     const [applicationStatus, rsvpStatus] = await Promise.all([
@@ -183,6 +201,8 @@ async function EventEntryContent({ params, searchParams }: Props) {
             eventId={eventId}
             eventHref={eventHref}
             eventName={row.name}
+            termsMarkdown={row.termsMarkdown}
+            termsId={row.termsId}
             applicationStatus={applicationStatus}
             rsvpStatus={rsvpStatus}
             walletPlatform={walletPlatform}
@@ -342,12 +362,16 @@ function ApplicationParticipationPanel({
   eventHref,
   eventName,
   applicationStatus,
+  termsMarkdown,
+  termsId,
   rsvpStatus,
   walletPlatform,
 }: {
   eventId: string;
   eventHref: string;
   eventName: string;
+  termsMarkdown: string | null;
+  termsId: string | null;
   applicationStatus: ApplicationStatusForUser | null;
   rsvpStatus: RsvpStatusForUser | null;
   walletPlatform: WalletPlatform;
@@ -361,6 +385,8 @@ function ApplicationParticipationPanel({
           <RsvpPendingPrompt
             eventId={eventId}
             eventName={eventName}
+            termsMarkdown={termsMarkdown}
+            termsId={termsId}
             respondBy={rsvpStatus.respondBy}
           />
         )}
@@ -368,6 +394,8 @@ function ApplicationParticipationPanel({
           eventId={eventId}
           eventName={eventName}
           rsvp={rsvpStatus}
+          termsMarkdown={termsMarkdown}
+          termsId={termsId}
         />
         {rsvpStatus.statusLabel === 'accepted' && (
           <Card>

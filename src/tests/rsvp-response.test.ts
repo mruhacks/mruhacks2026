@@ -4,6 +4,7 @@ import { db } from '@/utils/db';
 import {
   user,
   events,
+  eventTerms,
   eventAttendees,
   eventRsvpWaves,
   eventRsvpResponses,
@@ -1180,6 +1181,165 @@ describe('getEventsWithUserStatus', () => {
         .where(eq(eventRsvpWaves.eventId, otherEvent.id));
       await db.delete(events).where(eq(events.id, otherEvent.id));
       restoreDefaultSession();
+    }
+  });
+});
+
+describe('RSVP Event Terms consent', () => {
+  async function inviteWithTerms() {
+    restoreDefaultSession();
+    const [event] = await db
+      .insert(events)
+      .values({ name: 'Terms RSVP', hasApplication: true })
+      .returning();
+    const [terms] = await db
+      .insert(eventTerms)
+      .values({ eventId: event.id, markdown: '## Rules\nBe respectful.' })
+      .returning();
+    await db
+      .update(events)
+      .set({ termsId: terms.id })
+      .where(eq(events.id, event.id));
+    const [wave] = await db
+      .insert(eventRsvpWaves)
+      .values({ eventId: event.id, wave: 1, respondBy })
+      .returning();
+    const [response] = await db
+      .insert(eventRsvpResponses)
+      .values({
+        rsvpWaveId: wave.id,
+        userId: testUserId,
+        statusId: pendingStatusId,
+      })
+      .returning();
+    return { event, terms, response };
+  }
+
+  test('requires explicit consent to the current version and records only its ID and server time', async () => {
+    const { event, terms, response } = await inviteWithTerms();
+    try {
+      for (const consent of [
+        undefined,
+        { accepted: false, termsId: terms.id },
+        { accepted: true, termsId: '00000000-0000-0000-0000-000000000000' },
+      ]) {
+        const result = await submitRsvpResponse(event.id, 'accepted', consent);
+        expect(result.success).toBe(false);
+        expect(await countAttendees(event.id, testUserId)).toBe(0);
+        const [stored] = await db
+          .select()
+          .from(eventRsvpResponses)
+          .where(eq(eventRsvpResponses.id, response.id));
+        expect(stored.termsAcceptedAt).toBeNull();
+        expect(stored.acceptedTermsId).toBeNull();
+        expect(stored.statusId).toBe(pendingStatusId);
+      }
+      const before = Date.now();
+      expect(
+        (
+          await submitRsvpResponse(event.id, 'accepted', {
+            accepted: true,
+            termsId: terms.id,
+          })
+        ).success,
+      ).toBe(true);
+      const [stored] = await db
+        .select()
+        .from(eventRsvpResponses)
+        .where(eq(eventRsvpResponses.id, response.id));
+      expect(stored.acceptedTermsId).toBe(terms.id);
+      expect(stored.termsAcceptedAt).toEqual(stored.respondedAt);
+      expect(stored.termsAcceptedAt!.getTime()).toBeGreaterThanOrEqual(before);
+      expect(stored.termsAcceptedAt!.getTime()).toBeLessThanOrEqual(Date.now());
+      expect(await countAttendees(event.id, testUserId)).toBe(1);
+      expect(
+        (
+          await submitRsvpResponse(event.id, 'accepted', {
+            accepted: true,
+            termsId: terms.id,
+          })
+        ).success,
+      ).toBe(false);
+      const [retried] = await db
+        .select()
+        .from(eventRsvpResponses)
+        .where(eq(eventRsvpResponses.id, response.id));
+      expect(retried.termsAcceptedAt).toEqual(stored.termsAcceptedAt);
+      const [newVersion] = await db
+        .insert(eventTerms)
+        .values({ eventId: event.id, markdown: 'New rules after acceptance' })
+        .returning();
+      await db
+        .update(events)
+        .set({ termsId: newVersion.id })
+        .where(eq(events.id, event.id));
+      const [consentRecord] = await db
+        .select({
+          termsId: eventRsvpResponses.acceptedTermsId,
+          markdown: eventTerms.markdown,
+        })
+        .from(eventRsvpResponses)
+        .innerJoin(
+          eventTerms,
+          eq(eventRsvpResponses.acceptedTermsId, eventTerms.id),
+        )
+        .where(eq(eventRsvpResponses.id, response.id));
+      expect(consentRecord).toEqual({
+        termsId: terms.id,
+        markdown: terms.markdown,
+      });
+    } finally {
+      await db.delete(events).where(eq(events.id, event.id));
+    }
+  });
+
+  test('rejects a previously displayed terms version after an edit', async () => {
+    const { event, terms } = await inviteWithTerms();
+    try {
+      const [next] = await db
+        .insert(eventTerms)
+        .values({ eventId: event.id, markdown: 'Updated rules' })
+        .returning();
+      await db
+        .update(events)
+        .set({ termsId: next.id })
+        .where(eq(events.id, event.id));
+      const result = await submitRsvpResponse(event.id, 'accepted', {
+        accepted: true,
+        termsId: terms.id,
+      });
+      expect(result).toMatchObject({
+        success: false,
+        error: expect.stringContaining('changed'),
+      });
+      expect(await countAttendees(event.id, testUserId)).toBe(0);
+      expect(
+        (
+          await submitRsvpResponse(event.id, 'accepted', {
+            accepted: true,
+            termsId: next.id,
+          })
+        ).success,
+      ).toBe(true);
+    } finally {
+      await db.delete(events).where(eq(events.id, event.id));
+    }
+  });
+
+  test('declining does not require or record consent', async () => {
+    const { event, response } = await inviteWithTerms();
+    try {
+      expect((await submitRsvpResponse(event.id, 'declined')).success).toBe(
+        true,
+      );
+      const [stored] = await db
+        .select()
+        .from(eventRsvpResponses)
+        .where(eq(eventRsvpResponses.id, response.id));
+      expect(stored.termsAcceptedAt).toBeNull();
+      expect(stored.acceptedTermsId).toBeNull();
+    } finally {
+      await db.delete(events).where(eq(events.id, event.id));
     }
   });
 });

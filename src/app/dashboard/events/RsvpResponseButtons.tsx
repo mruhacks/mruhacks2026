@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 
+import { RsvpTermsConsent } from './RsvpTermsConsent';
 import { useRsvpDecision } from '@/app/dashboard/events/use-rsvp-decision';
 import { Button } from '@/components/ui/button';
 import {
@@ -17,22 +18,43 @@ import { Spinner } from '@/components/ui/spinner';
 
 type Props = {
   eventId: string;
+  termsMarkdown: string | null;
+  termsId: string | null;
 };
 
 /**
  * Accept / Decline controls for a pending RSVP invitation.
  */
-export function RsvpResponseButtons({ eventId }: Props) {
-  const { isPending, activeDecision, error, submit } = useRsvpDecision(eventId);
+export function RsvpResponseButtons({
+  eventId,
+  termsMarkdown,
+  termsId,
+}: Props) {
+  const {
+    isPending,
+    activeDecision,
+    error,
+    submit,
+    termsAccepted,
+    setTermsAccepted,
+    canAccept,
+    clearError,
+  } = useRsvpDecision(eventId, termsId);
   const [confirmDecline, setConfirmDecline] = useState(false);
 
   return (
     <div className='flex flex-col gap-3'>
+      <RsvpTermsConsent
+        markdown={termsMarkdown}
+        accepted={termsAccepted}
+        onAcceptedChange={setTermsAccepted}
+        disabled={isPending}
+      />
       {error && <FieldError errors={[{ message: error }]} />}
       <div className='flex flex-wrap gap-3'>
         <Button
           onClick={() => submit('accepted')}
-          disabled={isPending}
+          disabled={isPending || !canAccept}
           variant='purple'
           size='lg'
         >
@@ -46,7 +68,10 @@ export function RsvpResponseButtons({ eventId }: Props) {
           )}
         </Button>
         <Button
-          onClick={() => setConfirmDecline(true)}
+          onClick={() => {
+            clearError();
+            setConfirmDecline(true);
+          }}
           disabled={isPending}
           variant='outline'
           size='lg'
@@ -59,6 +84,7 @@ export function RsvpResponseButtons({ eventId }: Props) {
         open={confirmDecline}
         onOpenChange={(open) => {
           if (!open && isPending) return;
+          clearError();
           setConfirmDecline(open);
         }}
       >

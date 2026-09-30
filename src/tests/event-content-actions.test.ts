@@ -13,6 +13,7 @@ import { and, eq } from 'drizzle-orm';
 import { db } from '@/utils/db';
 import {
   events,
+  eventTerms,
   eventArticles,
   permission,
   user,
@@ -48,6 +49,7 @@ import {
   reorderEventArticles,
   updateEventArticle,
   updateEventDescription,
+  updateEventTerms,
   uploadArticleAttachment,
   uploadEventDescriptionAttachment,
 } from '@/app/dashboard/admin/events/content-actions';
@@ -564,5 +566,70 @@ describe('attachments', () => {
 
     const deleted = deleteObject.mock.calls.map((call) => call[0]);
     expect(deleted).toEqual([lonelyUrl.replace('/api/assets/', '')]);
+  });
+});
+
+describe('Event Terms copy-on-write', () => {
+  test('requires event:manage, including when clearing terms', async () => {
+    actAs(null);
+    expect((await updateEventTerms(eventId, 'Rules')).success).toBe(false);
+    actAs(outsider);
+    await expect(updateEventTerms(eventId, '')).rejects.toThrow(
+      forbidden('event:manage'),
+    );
+    actAs(reader);
+    await expect(updateEventTerms(eventId, 'Rules')).rejects.toThrow(
+      forbidden('event:manage'),
+    );
+    actAs(editor);
+  });
+
+  test('inserts versions on edits, reuses unchanged content, and preserves history on removal', async () => {
+    actAs(editor);
+    expect(
+      (await updateEventTerms(eventId, '  ## Original rules  ')).success,
+    ).toBe(true);
+    const [original] = await db
+      .select()
+      .from(events)
+      .where(eq(events.id, eventId));
+    expect(original.termsId).toBeTruthy();
+    expect((await updateEventTerms(eventId, '## Original rules')).success).toBe(
+      true,
+    );
+    const [unchanged] = await db
+      .select()
+      .from(events)
+      .where(eq(events.id, eventId));
+    expect(unchanged.termsId).toBe(original.termsId);
+    expect((await updateEventTerms(eventId, '## New rules')).success).toBe(
+      true,
+    );
+    const [updated] = await db
+      .select()
+      .from(events)
+      .where(eq(events.id, eventId));
+    expect(updated.termsId).not.toBe(original.termsId);
+    const versions = await db
+      .select()
+      .from(eventTerms)
+      .where(eq(eventTerms.eventId, eventId));
+    expect(versions.map((v) => v.markdown).sort()).toEqual([
+      '## New rules',
+      '## Original rules',
+    ]);
+    expect((await updateEventTerms(eventId, '   ')).success).toBe(true);
+    const [cleared] = await db
+      .select()
+      .from(events)
+      .where(eq(events.id, eventId));
+    expect(cleared.termsId).toBeNull();
+    expect(
+      await db.select().from(eventTerms).where(eq(eventTerms.eventId, eventId)),
+    ).toHaveLength(2);
+    expect(updateTag).toHaveBeenCalledWith(`admin-event:${eventId}`);
+    expect((await updateEventTerms(eventId, 'x'.repeat(20_001))).success).toBe(
+      false,
+    );
   });
 });

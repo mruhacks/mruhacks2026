@@ -14,6 +14,7 @@ export type LatestRsvpResponse = {
   statusLabel: string | null;
   respondBy: Date;
   respondedAt: Date | null;
+  termsAcceptedAt: Date | null;
 };
 
 /**
@@ -54,6 +55,7 @@ export async function findLatestRsvpResponses(options: {
       statusLabel: rsvpStatuses.label,
       respondBy: eventRsvpWaves.respondBy,
       respondedAt: eventRsvpResponses.respondedAt,
+      termsAcceptedAt: eventRsvpResponses.termsAcceptedAt,
     })
     .from(eventRsvpResponses)
     .innerJoin(
@@ -121,6 +123,7 @@ export async function findLatestRsvpResponseForDecision(options: {
       statusLabel: rsvpStatuses.label,
       respondBy: eventRsvpWaves.respondBy,
       respondedAt: eventRsvpResponses.respondedAt,
+      termsAcceptedAt: eventRsvpResponses.termsAcceptedAt,
       decisionStatusId: decisionStatuses.id,
     })
     .from(eventRsvpResponses)

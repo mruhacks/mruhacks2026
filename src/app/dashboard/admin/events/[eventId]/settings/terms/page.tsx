@@ -10,15 +10,15 @@ import { EventContentForm } from '../event-content-form';
 
 type Props = { params: Promise<{ eventId: string }> };
 
-export default function DescriptionPage({ params }: Props) {
+export default function TermsPage({ params }: Props) {
   return (
     <Suspense fallback={<Skeleton className='h-96 rounded-xl' />}>
-      <DescriptionContent params={params} />
+      <TermsContent params={params} />
     </Suspense>
   );
 }
 
-async function DescriptionContent({ params }: Props) {
+async function TermsContent({ params }: Props) {
   const { eventId: segment } = await params;
   const eventId = await resolveEventId(segment);
   if (!eventId) notFound();
@@ -33,7 +33,8 @@ async function DescriptionContent({ params }: Props) {
     <EventContentForm
       key={eventId}
       eventId={eventId}
-      initialMarkdown={event.descriptionMarkdown}
+      kind='terms'
+      initialMarkdown={event.termsMarkdown ?? ''}
     />
   );
 }

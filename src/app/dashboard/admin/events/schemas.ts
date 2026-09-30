@@ -1,6 +1,11 @@
 import { z } from 'zod';
 import { QUESTION_MAX_LENGTH_LIMIT } from '@/types/application';
-import { SLUG_MAX_LENGTH, isValidSlug } from '@/lib/slug';
+import {
+  SLUG_MAX_LENGTH,
+  isValidSlug,
+  isValidArticleSlug,
+  RESERVED_ARTICLE_SLUGS,
+} from '@/lib/slug';
 import { RESERVED_EVENT_SLUGS, isValidEventSlug } from '@/lib/event-slug';
 
 const questionTypeSchema = z.enum([
@@ -217,6 +222,12 @@ const markdownBodySchema = (max: number, label: string) =>
     .string()
     .max(max, `${label} cannot exceed ${max.toLocaleString()} characters`);
 
+export const updateEventTermsSchema = z.object({
+  termsMarkdown: z
+    .string()
+    .max(20_000, 'Event Terms cannot exceed 20,000 characters'),
+});
+
 export const updateEventDescriptionSchema = z.object({
   descriptionMarkdown: eventDescriptionSchema,
 });
@@ -228,6 +239,9 @@ const articleSlugSchema = z
   .refine(isValidSlug, {
     message:
       'Use lowercase letters, numbers and single hyphens (e.g. "getting-started")',
+  })
+  .refine(isValidArticleSlug, {
+    message: `That slug is reserved. Pick something that isn't: ${RESERVED_ARTICLE_SLUGS.join(', ')}.`,
   });
 
 export const createArticleSchema = z.object({

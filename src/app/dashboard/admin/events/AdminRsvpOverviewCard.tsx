@@ -101,12 +101,18 @@ function RemainingLabel({ respondBy }: { respondBy: Date | string }) {
 }
 
 type Props = {
+  eventId: string;
   summary: AdminRsvpSummary | null;
   loading: boolean;
   error: string | null;
 };
 
-export function AdminRsvpOverviewCard({ summary, loading, error }: Props) {
+export function AdminRsvpOverviewCard({
+  eventId,
+  summary,
+  loading,
+  error,
+}: Props) {
   const [historyWaveId, setHistoryWaveId] = React.useState<string | null>(null);
 
   if (loading) {
@@ -206,7 +212,7 @@ export function AdminRsvpOverviewCard({ summary, loading, error }: Props) {
             <CardTitle>Current Wave Participants</CardTitle>
           </CardHeader>
           <CardContent>
-            <RsvpParticipantsTable wave={latestWave} />
+            <RsvpParticipantsTable eventId={eventId} wave={latestWave} />
           </CardContent>
         </Card>
       )}
@@ -275,7 +281,10 @@ export function AdminRsvpOverviewCard({ summary, loading, error }: Props) {
                 <p className='text-sm font-medium'>
                   Wave {openHistoryWave.wave} participants
                 </p>
-                <RsvpParticipantsTable wave={openHistoryWave} />
+                <RsvpParticipantsTable
+                  eventId={eventId}
+                  wave={openHistoryWave}
+                />
               </div>
             )}
           </CardContent>

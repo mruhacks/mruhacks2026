@@ -24,6 +24,14 @@ export type AdminRsvpLifecycle =
   | 'no_eligible_applicants'
   | 'event_started';
 
+/** Invitation email delivery state, separate from the RSVP decision itself. */
+export type RsvpInvitationEmailStatus =
+  | 'legacy'
+  | 'unsent'
+  | 'queued'
+  | 'sent'
+  | 'failed';
+
 export type AdminRsvpParticipant = {
   responseId: string;
   userId: string;
@@ -31,6 +39,8 @@ export type AdminRsvpParticipant = {
   email: string;
   statusLabel: RsvpStatus;
   respondedAt: Date | null;
+  termsAcceptedAt: Date | null;
+  invitationEmailStatus: RsvpInvitationEmailStatus;
 };
 
 export type AdminRsvpWaveSummary = {
@@ -99,6 +109,8 @@ function summarizeWave(options: {
     email: string;
     storedLabel: string | null;
     respondedAt: Date | null;
+    termsAcceptedAt: Date | null;
+    invitationEmailStatus: string;
   }[];
 }): AdminRsvpWaveSummary {
   const participants: AdminRsvpParticipant[] = options.rows.map((row) => ({
@@ -112,6 +124,9 @@ function summarizeWave(options: {
       options.now,
     ),
     respondedAt: row.respondedAt,
+    termsAcceptedAt: row.termsAcceptedAt,
+    invitationEmailStatus:
+      row.invitationEmailStatus as RsvpInvitationEmailStatus,
   }));
 
   participants.sort((a, b) => {
@@ -216,6 +231,8 @@ export async function getAdminRsvpSummary(
             email: user.email,
             storedLabel: rsvpStatuses.label,
             respondedAt: eventRsvpResponses.respondedAt,
+            termsAcceptedAt: eventRsvpResponses.termsAcceptedAt,
+            invitationEmailStatus: eventRsvpResponses.invitationEmailStatus,
           })
           .from(eventRsvpResponses)
           .innerJoin(user, eq(eventRsvpResponses.userId, user.id))

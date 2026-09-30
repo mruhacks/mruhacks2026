@@ -17,7 +17,7 @@ import { revalidatePath, updateTag } from 'next/cache';
 
 import { adminEventCacheTag } from '@/lib/admin-event';
 import { db } from '@/utils/db';
-import { events, eventArticles } from '@/db/schema';
+import { events, eventArticles, eventTerms } from '@/db/schema';
 import { getUser } from '@/utils/auth';
 import { ok, fail, type ActionResult } from '@/utils/action-result';
 import { hasPermission, requirePermission } from '@/lib/rbac/authorization';
@@ -30,12 +30,13 @@ import {
   putObject,
 } from '@/utils/object-storage';
 import { collectAttachmentKeys } from '@/lib/markdown-attachments';
-import { slugify, uniqueSlug } from '@/lib/slug';
+import { slugify, uniqueSlug, RESERVED_ARTICLE_SLUGS } from '@/lib/slug';
 import {
   createArticleSchema,
   reorderArticlesSchema,
   updateArticleSchema,
   updateEventDescriptionSchema,
+  updateEventTermsSchema,
   type CreateArticleInput,
   type UpdateArticleInput,
 } from './schemas';
@@ -138,41 +139,89 @@ export async function updateEventDescription(
   eventId: string,
   descriptionMarkdown: string,
 ): Promise<ActionResult> {
+  return updateEventMarkdown(eventId, 'description', descriptionMarkdown);
+}
+
+/** Replaces Event Terms; existing RSVP consent version references are preserved. */
+export async function updateEventTerms(
+  eventId: string,
+  termsMarkdown: string,
+): Promise<ActionResult> {
+  return updateEventMarkdown(eventId, 'terms', termsMarkdown);
+}
+
+async function updateEventMarkdown(
+  eventId: string,
+  kind: 'description' | 'terms',
+  markdown: string,
+): Promise<ActionResult> {
   const user = await getUser();
   if (!user) return fail('Not authenticated');
   await requirePermission(user.id, 'event:manage');
 
-  const parsed = updateEventDescriptionSchema.safeParse({
-    descriptionMarkdown,
-  });
+  const parsed =
+    kind === 'terms'
+      ? updateEventTermsSchema.shape.termsMarkdown.safeParse(markdown)
+      : updateEventDescriptionSchema.shape.descriptionMarkdown.safeParse(
+          markdown,
+        );
   if (!parsed.success)
     return fail(parsed.error.issues[0]?.message ?? 'Invalid input');
 
-  const trimmed = parsed.data.descriptionMarkdown.trim();
-  const updated = await db
-    .update(events)
-    // An empty editor means "no description", which reads better as NULL than
-    // as a row holding an empty string the renderer then has to special-case.
-    .set({ descriptionMarkdown: trimmed || null, updatedAt: new Date() })
-    .where(eq(events.id, eventId))
-    .returning({ id: events.id });
+  const trimmed = parsed.data.trim();
+  const found = await db.transaction(async (tx) => {
+    // Serialize terms edits with RSVP acceptance on the same event row.
+    const [event] = await tx
+      .select({ id: events.id, termsId: events.termsId })
+      .from(events)
+      .where(eq(events.id, eventId))
+      .for('update')
+      .limit(1);
+    if (!event) return false;
+    if (kind === 'description') {
+      await tx
+        .update(events)
+        .set({ descriptionMarkdown: trimmed || null, updatedAt: new Date() })
+        .where(eq(events.id, eventId));
+      return true;
+    }
 
-  if (updated.length === 0) return fail('Event not found');
+    const [current] = event.termsId
+      ? await tx
+          .select({ markdown: eventTerms.markdown })
+          .from(eventTerms)
+          .where(eq(eventTerms.id, event.termsId))
+      : [];
+    if ((current?.markdown ?? '') === trimmed) return true;
 
-  // The admin dashboard renders the description from a cached getter.
+    let termsId: string | null = null;
+    if (trimmed) {
+      const [version] = await tx
+        .insert(eventTerms)
+        .values({ eventId, markdown: trimmed })
+        .returning({ id: eventTerms.id });
+      termsId = version.id;
+    }
+    await tx
+      .update(events)
+      .set({ termsId, updatedAt: new Date() })
+      .where(eq(events.id, eventId));
+    return true;
+  });
+  if (!found) return fail('Event not found');
+
   updateTag(adminEventCacheTag(eventId));
   for (const segment of await eventUrlSegments(eventId)) {
     revalidatePath(`/dashboard/events/${segment}`);
   }
-
   await writeAuditLog({
     actorId: user.id,
-    action: 'event.description.updated',
+    action: `event.${kind}.updated`,
     targetType: 'event',
     targetId: eventId,
     metadata: { length: trimmed.length },
   });
-  return ok('Description saved.');
+  return ok(kind === 'terms' ? 'Event terms saved.' : 'Description saved.');
 }
 
 // ── Wiki articles ─────────────────────────────────────────────────────────
@@ -312,12 +361,13 @@ export async function createEventArticle(
     return fail('Add a URL slug — the title has no letters or numbers to use.');
   }
   // An explicit slug that collides is a mistake worth reporting; a derived one
-  // is just a naming coincidence, so quietly disambiguate it.
+  // (including one that happens to land on a reserved word) is just a naming
+  // coincidence, so quietly disambiguate it instead.
   const existing = await takenSlugs(eventId);
   if (parsed.data.slug && existing.includes(requested)) {
     return fail('That slug is already used by another article in this event.');
   }
-  const slug = uniqueSlug(requested, existing);
+  const slug = uniqueSlug(requested, [...existing, ...RESERVED_ARTICLE_SLUGS]);
 
   const [created] = await db
     .insert(eventArticles)
@@ -540,7 +590,7 @@ async function deleteOrphanedAttachments(
   if (candidates.size === 0) return;
 
   try {
-    const [remainingArticles, [eventRow]] = await Promise.all([
+    const [remainingArticles, [eventRow], termsVersions] = await Promise.all([
       db
         .select({ bodyMarkdown: eventArticles.bodyMarkdown })
         .from(eventArticles)
@@ -550,9 +600,17 @@ async function deleteOrphanedAttachments(
         .from(events)
         .where(eq(events.id, eventId))
         .limit(1),
+      db
+        .select({ markdown: eventTerms.markdown })
+        .from(eventTerms)
+        .where(eq(eventTerms.eventId, eventId)),
     ]);
 
     const stillReferenced = new Set<string>();
+    for (const markdown of termsVersions.map((row) => row.markdown)) {
+      for (const key of collectAttachmentKeys(markdown))
+        stillReferenced.add(key);
+    }
     for (const row of remainingArticles) {
       for (const key of collectAttachmentKeys(row.bodyMarkdown)) {
         stillReferenced.add(key);

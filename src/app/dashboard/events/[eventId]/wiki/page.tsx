@@ -27,7 +27,12 @@ export default async function EventWikiIndexPage({ params }: Props) {
   if (!user) redirect('/signin');
 
   const [event] = await db
-    .select({ id: events.id, slug: events.slug, name: events.name })
+    .select({
+      id: events.id,
+      slug: events.slug,
+      name: events.name,
+      termsId: events.termsId,
+    })
     .from(events)
     .where(eq(events.id, eventId))
     .limit(1);
@@ -52,6 +57,16 @@ export default async function EventWikiIndexPage({ params }: Props) {
         .orderBy(asc(eventArticles.sortOrder), asc(eventArticles.title))
     : await getPublishedArticleList(eventId);
 
+  // Event Terms isn't a real article — it's synthesized onto the end of the
+  // list so it's always reachable from the wiki without living in
+  // `eventArticles` (whose slugs are freely editable by organizers).
+  const articlesWithTerms = event.termsId
+    ? [
+        ...articles,
+        { slug: 'terms', title: 'Event Terms', published: true, updatedAt: null },
+      ]
+    : articles;
+
   return (
     <div className='max-w-2xl space-y-6'>
       <BreadcrumbSegment id={segment} label={event.name} />
@@ -70,13 +85,13 @@ export default async function EventWikiIndexPage({ params }: Props) {
         <h1 className='text-3xl font-semibold'>Hackerpack</h1>
       </div>
 
-      {articles.length === 0 ? (
+      {articlesWithTerms.length === 0 ? (
         <p className='text-muted-foreground text-sm'>
           Nothing has been published yet. Check back closer to the event.
         </p>
       ) : (
         <ul className='divide-y rounded-md border'>
-          {articles.map((article) => (
+          {articlesWithTerms.map((article) => (
             <li key={article.slug}>
               <Link
                 href={`${eventPath(event)}/wiki/${article.slug}`}

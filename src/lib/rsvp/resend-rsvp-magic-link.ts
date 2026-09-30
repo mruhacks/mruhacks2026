@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, ne, sql } from 'drizzle-orm';
 
 import {
   events,
@@ -131,8 +131,36 @@ export async function resendRsvpMagicLink(
       `[resendRsvpMagicLink] failed for user ${pending.userId}:`,
       error,
     );
+    // Guard against a stale write if a concurrent delivery already sent it.
+    await db
+      .update(eventRsvpResponses)
+      .set({
+        invitationEmailStatus: 'failed',
+        invitationEmailAttempts: sql`${eventRsvpResponses.invitationEmailAttempts} + 1`,
+        invitationEmailLastError: message,
+      })
+      .where(
+        and(
+          eq(eventRsvpResponses.id, pending.responseId),
+          ne(eventRsvpResponses.invitationEmailStatus, 'sent'),
+        ),
+      );
     return { success: false, error: message };
   }
+
+  await db
+    .update(eventRsvpResponses)
+    .set({
+      invitationEmailStatus: 'sent',
+      invitationEmailSentAt: new Date(),
+      invitationEmailLastError: null,
+    })
+    .where(
+      and(
+        eq(eventRsvpResponses.id, pending.responseId),
+        ne(eventRsvpResponses.invitationEmailStatus, 'sent'),
+      ),
+    );
 
   return {
     success: true,

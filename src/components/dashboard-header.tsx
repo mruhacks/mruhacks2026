@@ -41,6 +41,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   settings: 'Edit event',
   questions: 'Application questions',
   description: 'Description',
+  terms: 'Event Terms',
 };
 
 const EMPTY_DYNAMIC_SEGMENTS: Record<string, string> = {};

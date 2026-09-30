@@ -283,8 +283,11 @@ export async function sendRsvpWave(
   const queueFailures: RsvpWaveQueueFailure[] = [];
   let invitationsQueued = 0;
 
-  for (const response of insertedResponses) {
-    try {
+  // Publish concurrently — a wave can be hundreds of invitees, and awaiting
+  // each publish (plus its own internal retries) one at a time would hold
+  // the caller's response open for the entire wave.
+  const publishResults = await Promise.allSettled(
+    insertedResponses.map(async (response) => {
       await publishRsvpInvitation(response.id);
       // Consumer may already have processed and marked this 'sent' by the
       // time this update runs — never regress it back to 'queued'.
@@ -300,21 +303,30 @@ export async function sendRsvpWave(
             eq(eventRsvpResponses.invitationEmailStatus, 'unsent'),
           ),
         );
+    }),
+  );
+
+  publishResults.forEach((result, index) => {
+    if (result.status === 'fulfilled') {
       invitationsQueued += 1;
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'Unknown queue publish error';
-      console.error(
-        `[sendRsvpWave] failed to queue invitation for user ${response.userId}:`,
-        error,
-      );
-      queueFailures.push({
-        userId: response.userId,
-        email: emailByUserId.get(response.userId) ?? '',
-        error: message,
-      });
+      return;
     }
-  }
+
+    const response = insertedResponses[index];
+    const message =
+      result.reason instanceof Error
+        ? result.reason.message
+        : 'Unknown queue publish error';
+    console.error(
+      `[sendRsvpWave] failed to queue invitation for user ${response.userId}:`,
+      result.reason,
+    );
+    queueFailures.push({
+      userId: response.userId,
+      email: emailByUserId.get(response.userId) ?? '',
+      error: message,
+    });
+  });
 
   return {
     success: true,

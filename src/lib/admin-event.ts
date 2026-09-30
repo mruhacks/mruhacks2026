@@ -11,6 +11,7 @@ import {
   eventRsvpResponses,
   eventRsvpWaves,
   events,
+  eventTerms,
   genders,
   majors,
   rsvpStatuses,
@@ -67,6 +68,8 @@ export type AdminEventHeader = {
   slug: string | null;
   name: string;
   descriptionMarkdown: string;
+  termsMarkdown: string | null;
+  termsId: string | null;
   hasApplication: boolean;
   teamsEnabled: boolean;
   isFeatured: boolean;
@@ -99,6 +102,8 @@ export async function getAdminEventHeader(
       slug: events.slug,
       name: events.name,
       descriptionMarkdown: events.descriptionMarkdown,
+      termsMarkdown: eventTerms.markdown,
+      termsId: events.termsId,
       hasApplication: events.hasApplication,
       teamsEnabled: events.teamsEnabled,
       isFeatured: events.isFeatured,
@@ -108,6 +113,7 @@ export async function getAdminEventHeader(
       location: events.location,
     })
     .from(events)
+    .leftJoin(eventTerms, eq(events.termsId, eventTerms.id))
     .where(eq(events.id, eventId))
     .limit(1);
 
@@ -170,6 +176,8 @@ export async function getAdminEventSettings(
       slug: events.slug,
       name: events.name,
       descriptionMarkdown: events.descriptionMarkdown,
+      termsMarkdown: eventTerms.markdown,
+      termsId: events.termsId,
       hasApplication: events.hasApplication,
       teamsEnabled: events.teamsEnabled,
       isFeatured: events.isFeatured,
@@ -184,6 +192,7 @@ export async function getAdminEventSettings(
       rsvpResponseWindowHours: events.rsvpResponseWindowHours,
     })
     .from(events)
+    .leftJoin(eventTerms, eq(events.termsId, eventTerms.id))
     .where(eq(events.id, eventId))
     .limit(1);
 

@@ -401,6 +401,7 @@ export type RsvpStatusForUser = {
   statusDisplay: RsvpStatusDisplay;
   respondBy: Date;
   respondedAt: Date | null;
+  termsAcceptedAt: Date | null;
 };
 
 /**
@@ -452,6 +453,7 @@ class RsvpResponseError extends Error {
 export async function submitRsvpResponse(
   eventId: string,
   decision: RsvpUserDecision,
+  consent?: { accepted: boolean; termsId: string | null },
 ): Promise<ActionResult> {
   const user = await getUser();
   if (!user) return fail('User not authenticated');
@@ -486,11 +488,13 @@ export async function submitRsvpResponse(
 
   try {
     await db.transaction(async (tx) => {
+      let acceptedTermsId: string | null = null;
       if (decision === 'accepted') {
         const [eventRow] = await tx
           .select({
             id: events.id,
             capacity: events.capacity,
+            termsId: events.termsId,
             attendeeCount: sql<number>`(
               SELECT count(*)::int
               FROM ${eventAttendees}
@@ -517,6 +521,20 @@ export async function submitRsvpResponse(
           throw new RsvpResponseError('Event not found.');
         }
 
+        if (eventRow.termsId) {
+          if (consent?.accepted !== true) {
+            throw new RsvpResponseError(
+              'You must agree to the Event Terms before accepting your spot.',
+            );
+          }
+          if (consent.termsId !== eventRow.termsId) {
+            throw new RsvpResponseError(
+              'The Event Terms have changed. Refresh the page, review them, and agree again.',
+            );
+          }
+          acceptedTermsId = eventRow.termsId;
+        }
+
         if (
           eventRow.capacity !== null &&
           !eventRow.isExistingAttendee &&
@@ -536,11 +554,17 @@ export async function submitRsvpResponse(
           });
       }
 
+      const respondedAt = new Date();
+      if (respondedAt >= row.respondBy) {
+        throw new RsvpResponseError('RSVP deadline has passed.');
+      }
       const updated = await tx
         .update(eventRsvpResponses)
         .set({
           statusId: decisionStatusId,
-          respondedAt: new Date(),
+          respondedAt,
+          termsAcceptedAt: acceptedTermsId ? respondedAt : null,
+          acceptedTermsId,
         })
         .where(
           and(

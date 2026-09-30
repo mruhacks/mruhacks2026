@@ -1,6 +1,7 @@
 import 'server-only';
 
 import { and, eq, ne, sql } from 'drizzle-orm';
+import { APIError } from 'better-auth';
 
 import {
   events,
@@ -86,7 +87,13 @@ export async function processRsvpInvitation(
       })
       .where(eq(eventRsvpResponses.id, responseId));
 
-    if (deliveryCount >= MAX_INVITATION_DELIVERY_ATTEMPTS) {
+    // A validation error (e.g. malformed email) is never going to succeed on
+    // redelivery — the request body doesn't change between attempts — so
+    // give up immediately instead of burning through retries.
+    const isPermanentFailure =
+      error instanceof APIError && error.body?.code === 'VALIDATION_ERROR';
+
+    if (isPermanentFailure || deliveryCount >= MAX_INVITATION_DELIVERY_ATTEMPTS) {
       // Guard against a stale write if a concurrent delivery already sent it.
       await db
         .update(eventRsvpResponses)
@@ -98,7 +105,9 @@ export async function processRsvpInvitation(
           ),
         );
       console.error(
-        '[processRsvpInvitation] giving up after max delivery attempts',
+        isPermanentFailure
+          ? '[processRsvpInvitation] giving up after non-retryable error'
+          : '[processRsvpInvitation] giving up after max delivery attempts',
         { responseId, deliveryCount, error },
       );
       return 'given_up';

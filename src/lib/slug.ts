@@ -40,6 +40,18 @@ export function isValidSlug(slug: string): boolean {
 }
 
 /**
+ * Static route segments that sit alongside an event's `/wiki/[slug]`. An
+ * article slug matching one of these would be shadowed by the static route
+ * and never resolve, so it's rejected rather than left to 404. `terms` is
+ * the Event Terms pseudo-article synthesized onto the wiki list.
+ */
+export const RESERVED_ARTICLE_SLUGS = ['terms'] as const;
+
+export function isValidArticleSlug(slug: string): boolean {
+  return !(RESERVED_ARTICLE_SLUGS as readonly string[]).includes(slug);
+}
+
+/**
  * Returns `base` if it is free, otherwise the first `base-2`, `base-3`, …
  * that isn't taken. Suffixes are trimmed back into the length budget so the
  * result always stays a valid slug.

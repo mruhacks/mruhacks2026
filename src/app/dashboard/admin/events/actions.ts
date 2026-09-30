@@ -30,6 +30,7 @@ import { getUser } from '@/utils/auth';
 import { ok, fail, type ActionResult } from '@/utils/action-result';
 import { hasPermission, requirePermission } from '@/lib/rbac/authorization';
 import { sendRsvpWave } from '@/lib/rsvp/send-rsvp-wave';
+import { resendRsvpMagicLink } from '@/lib/rsvp/resend-rsvp-magic-link';
 import { getAdminRsvpSummary } from '@/lib/rsvp/get-admin-rsvp-summary';
 import type { AdminRsvpSummary } from '@/lib/rsvp/get-admin-rsvp-summary';
 import { DEFAULT_RSVP_RESPONSE_WINDOW_HOURS } from '@/lib/rsvp/constants';
@@ -874,7 +875,45 @@ export type {
   AdminRsvpParticipant,
   AdminRsvpSummary,
   AdminRsvpWaveSummary,
+  RsvpInvitationEmailStatus,
 } from '@/lib/rsvp/get-admin-rsvp-summary';
+
+/**
+ * Admin: resend the RSVP invitation email for one pending applicant.
+ * Requires event:manage permission (satisfied by event:manage:all).
+ * Sends directly (not via the queue) — this is a one-off, admin-initiated
+ * retry, not a wave-scale fan-out.
+ */
+export async function resendRsvpInvitation(
+  eventId: string,
+  userId: string,
+): Promise<ActionResult<{ email: string }>> {
+  const user = await getAuthorizedUser();
+  if (!user) return fail('Not authenticated');
+
+  if (!eventId.trim()) return fail('Event ID is required.');
+  if (!userId.trim()) return fail('User ID is required.');
+
+  const result = await resendRsvpMagicLink({ eventId, userId });
+  if (!result.success) {
+    return fail(result.error);
+  }
+
+  updateTag(eventApplicationsCacheTag(eventId));
+  for (const segment of await eventUrlSegments(eventId)) {
+    revalidatePath(`/dashboard/admin/events/${segment}`);
+  }
+
+  await writeAuditLog({
+    actorId: user.id,
+    action: 'event.rsvp_invitation_resent',
+    targetType: 'event',
+    targetId: eventId,
+    metadata: { userId, responseId: result.responseId },
+  });
+
+  return ok({ email: result.email });
+}
 
 /**
  * Admin: start the next RSVP wave for an event.

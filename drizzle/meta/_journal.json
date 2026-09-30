@@ -302,6 +302,13 @@
       "when": 1790632123783,
       "tag": "0042_event_custom_slug",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1790694842210,
+      "tag": "0043_event_terms_consent",
+      "breakpoints": true
     }
   ]
 }

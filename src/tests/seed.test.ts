@@ -12,6 +12,7 @@ import {
   eventRsvpResponses,
   eventRsvpWaves,
   events,
+  eventTerms,
   privacyAcceptances,
   rsvpStatuses,
   teamMembers,
@@ -63,6 +64,22 @@ describe('demo seed', () => {
     fixtureEventIds = fixtureEvents.map((event) => event.id);
     eventId = fixtureEvents.find((event) => event.hasApplication)!.id;
   }, 30_000);
+
+  test('seeds hackathon rules and a photo release as one shared terms version', async () => {
+    const [event] = await db
+      .select()
+      .from(events)
+      .where(eq(events.id, eventId));
+    const [terms] = await db
+      .select()
+      .from(eventTerms)
+      .where(eq(eventTerms.id, event.termsId!));
+    expect(terms.markdown).toContain('## Hackathon rules');
+    expect(terms.markdown).toContain('## Photo and video release');
+    expect(
+      await db.select().from(eventTerms).where(eq(eventTerms.eventId, eventId)),
+    ).toHaveLength(1);
+  });
 
   afterAll(async () => {
     if (fixtureEventIds)
@@ -226,6 +243,13 @@ describe('demo seed', () => {
     expect(waves).toHaveLength(2);
     for (const row of responses) {
       expect(row.applicationStatus).toBe('approved');
+      if (row.status === 'accepted') {
+        expect(row.response.acceptedTermsId).toBeTruthy();
+        expect(row.response.termsAcceptedAt).toEqual(row.response.respondedAt);
+      } else {
+        expect(row.response.acceptedTermsId).toBeNull();
+        expect(row.response.termsAcceptedAt).toBeNull();
+      }
       expect(row.response.invitationEmailStatus).toBe('legacy');
       expect(row.reviewedAt!.getTime()).toBeLessThanOrEqual(
         row.wave.createdAt.getTime(),

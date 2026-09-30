@@ -134,6 +134,9 @@ export function createParticipationSeeder(now: Date, adminId?: string) {
           userId: application.userId,
           statusId: status.id,
           respondedAt,
+          termsAcceptedAt:
+            label === 'accepted' && event.termsId ? respondedAt : null,
+          acceptedTermsId: label === 'accepted' ? event.termsId : null,
           // Synthetic history: never enqueue mail for seeded invitations.
           invitationEmailStatus: 'legacy',
           createdAt: wave.createdAt,

@@ -1,3 +1,5 @@
+import Link from 'next/link';
+
 import { Badge } from '@/components/ui/badge';
 import {
   Card,
@@ -15,6 +17,8 @@ import { LocalDateTime } from '@/components/local-date-time';
 
 type Props = {
   eventId: string;
+  termsMarkdown: string | null;
+  termsId: string | null;
   eventName: string;
   rsvp: RsvpStatusForUser;
 };
@@ -23,7 +27,13 @@ type Props = {
  * RSVP status card for the event page. Pending shows Accept/Decline;
  * final statuses show a message only.
  */
-export function RsvpStatusCard({ eventId, eventName, rsvp }: Props) {
+export function RsvpStatusCard({
+  eventId,
+  eventName,
+  rsvp,
+  termsMarkdown,
+  termsId,
+}: Props) {
   const { statusLabel, statusDisplay, respondBy, respondedAt } = rsvp;
   const isPending = statusLabel === 'pending';
 
@@ -47,7 +57,7 @@ export function RsvpStatusCard({ eventId, eventName, rsvp }: Props) {
         <CardDescription>{description}</CardDescription>
       </CardHeader>
       {(metaDate || isPending) && (
-        <CardContent className='space-y-4'>
+        <CardContent className='flex flex-col gap-4'>
           {metaDate && (
             <p className='text-muted-foreground text-sm'>
               {metaLabel}{' '}
@@ -58,7 +68,29 @@ export function RsvpStatusCard({ eventId, eventName, rsvp }: Props) {
               />
             </p>
           )}
-          {isPending && <RsvpResponseButtons eventId={eventId} />}
+          {rsvp.termsAcceptedAt && (
+            <p className='text-muted-foreground text-sm'>
+              <Link
+                href={`/dashboard/events/${eventId}/wiki/terms`}
+                className='underline underline-offset-2'
+              >
+                Event Terms
+              </Link>{' '}
+              agreed to{' '}
+              <LocalDateTime
+                value={rsvp.termsAcceptedAt}
+                dateStyle='medium'
+                timeStyle='short'
+              />
+            </p>
+          )}
+          {isPending && (
+            <RsvpResponseButtons
+              eventId={eventId}
+              termsMarkdown={termsMarkdown}
+              termsId={termsId}
+            />
+          )}
         </CardContent>
       )}
     </Card>
