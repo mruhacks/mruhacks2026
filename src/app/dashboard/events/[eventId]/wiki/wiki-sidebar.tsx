@@ -4,13 +4,10 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 import { cn } from '@/lib/utils';
+import type { WikiSidebarArticle } from '@/lib/event-wiki';
 import { Badge } from '@/components/ui/badge';
 
-export type WikiSidebarArticle = {
-  slug: string;
-  title: string;
-  published: boolean;
-};
+export type { WikiSidebarArticle };
 
 /**
  * Client component so the active article can be highlighted from the live

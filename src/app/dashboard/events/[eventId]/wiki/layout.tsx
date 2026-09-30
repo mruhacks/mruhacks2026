@@ -1,19 +1,19 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
-import { asc, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { ArrowLeft, BookOpen } from 'lucide-react';
 
 import { getUser } from '@/utils/auth';
 import { db } from '@/utils/db';
 import { hasPermission } from '@/lib/rbac/authorization';
-import { getPublishedArticleList } from '@/lib/event-wiki';
+import { getWikiSidebarArticles } from '@/lib/event-wiki';
 import { resolveEventId } from '@/lib/events';
 import { eventPath } from '@/lib/event-slug';
 import { BreadcrumbSegment } from '@/components/breadcrumb-context';
-import { eventArticles, events } from '@/db/schema';
+import { events } from '@/db/schema';
 import { Button } from '@/components/ui/button';
-import { WikiSidebar, type WikiSidebarArticle } from './wiki-sidebar';
+import { WikiSidebar } from './wiki-sidebar';
 
 type Props = {
   params: Promise<{ eventId: string }>;
@@ -51,35 +51,10 @@ export default async function EventWikiLayout({ params, children }: Props) {
   // a round trip through the admin UI to preview what they are writing.
   const canSeeDrafts = await hasPermission(user.id, 'article:read:all');
 
-  const articles = canSeeDrafts
-    ? await db
-        .select({
-          slug: eventArticles.slug,
-          title: eventArticles.title,
-          published: eventArticles.published,
-        })
-        .from(eventArticles)
-        .where(eq(eventArticles.eventId, eventId))
-        .orderBy(asc(eventArticles.sortOrder), asc(eventArticles.title))
-    : await getPublishedArticleList(eventId);
-
-  // Event Terms isn't a real article — it's synthesized onto the end of the
-  // list so it's always reachable from the wiki without living in
-  // `eventArticles` (whose slugs are freely editable by organizers).
-  const articlesWithTerms: WikiSidebarArticle[] = event.termsId
-    ? [
-        ...articles.map((a) => ({
-          slug: a.slug,
-          title: a.title,
-          published: a.published,
-        })),
-        { slug: 'terms', title: 'Event Terms', published: true },
-      ]
-    : articles.map((a) => ({
-        slug: a.slug,
-        title: a.title,
-        published: a.published,
-      }));
+  const articlesWithTerms = await getWikiSidebarArticles(eventId, {
+    canSeeDrafts,
+    hasTerms: event.termsId !== null,
+  });
 
   const eventHref = eventPath(event);
 
