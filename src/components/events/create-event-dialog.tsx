@@ -2,17 +2,13 @@
 
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
-import { useForm, Controller, type Resolver } from 'react-hook-form';
+import { useForm, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
 import { createEvent } from '@/app/dashboard/admin/events/actions';
 import { createEventSchema } from '@/app/dashboard/admin/events/schemas';
 import type { CreateEventInput } from '@/app/dashboard/admin/events/schemas';
-import { fromDateTimeLocalValue, toDateTimeLocalValue } from '@/lib/datetime';
-import { parseOptionalNumber } from '@/lib/form-values';
-import { slugify } from '@/lib/slug';
 import { adminEventPath } from '@/lib/event-slug';
-import { useZoneAbbreviation } from '@/components/local-date-time';
 import {
   Dialog,
   DialogContent,
@@ -21,18 +17,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import {
-  Field,
-  FieldGroup,
-  FieldLabel,
-  FieldError,
-  FieldDescription,
-} from '@/components/ui/field';
+import { Field, FieldGroup, FieldLabel, FieldError } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { Eye, EyeOff, Plus } from 'lucide-react';
+import { Plus } from 'lucide-react';
 
 export function CreateEventDialog() {
   const router = useRouter();
@@ -43,10 +31,8 @@ export function CreateEventDialog() {
   const [submitError, setSubmitError] = React.useState<string | null>(null);
   const {
     register,
-    control,
     handleSubmit,
     reset,
-    watch,
     formState: { errors, isSubmitting },
   } = useForm<CreateEventInput>({
     resolver: zodResolver(createEventSchema) as Resolver<CreateEventInput>,
@@ -55,11 +41,6 @@ export function CreateEventDialog() {
       hasApplication: false,
     },
   });
-
-  const startsAtAbbr = useZoneAbbreviation(watch('startsAt') ?? undefined);
-  const endsAtAbbr = useZoneAbbreviation(watch('endsAt') ?? undefined);
-  const suggestedSlug = slugify(watch('name') ?? '');
-  const capacityVisible = watch('capacityVisible');
 
   const onSubmit = async (data: CreateEventInput) => {
     setSubmitError(null);
@@ -95,7 +76,9 @@ export function CreateEventDialog() {
         <DialogHeader>
           <DialogTitle>Create New Event</DialogTitle>
           <DialogDescription>
-            Add a new event to your organization.
+            Give it a name to get started — everything else (schedule,
+            location, capacity, application) can be set up afterward from the
+            event&apos;s settings.
           </DialogDescription>
         </DialogHeader>
 
@@ -110,209 +93,9 @@ export function CreateEventDialog() {
                 id='name'
                 {...register('name')}
                 placeholder='e.g. MRU Hackathon 2026'
+                autoFocus
               />
               {errors.name && <FieldError errors={[errors.name]} />}
-            </Field>
-
-            {/* URL slug */}
-            <Field>
-              <FieldLabel htmlFor='slug'>URL slug (optional)</FieldLabel>
-              <FieldDescription>
-                Gives the event a readable link —{' '}
-                <span className='font-mono'>/dashboard/events/{'{slug}'}</span>.
-                Leave blank to use the event id.
-              </FieldDescription>
-              <Input
-                id='slug'
-                {...register('slug')}
-                placeholder={suggestedSlug || 'mruhacks-2026'}
-              />
-              {errors.slug && <FieldError errors={[errors.slug]} />}
-            </Field>
-
-            {/* Has Application */}
-            <div className='flex items-center gap-3'>
-              <Controller
-                name='hasApplication'
-                control={control}
-                render={({ field }) => (
-                  <Switch
-                    id='hasApplication'
-                    checked={field.value}
-                    onCheckedChange={field.onChange}
-                  />
-                )}
-              />
-              <Label htmlFor='hasApplication'>Requires application form</Label>
-            </div>
-
-            {/* Capacity */}
-            <Field>
-              <FieldLabel htmlFor='capacity'>
-                Capacity (optional)
-                {!capacityVisible && (
-                  <span className='text-muted-foreground font-normal'>
-                    {' '}
-                    (publicly hidden)
-                  </span>
-                )}
-              </FieldLabel>
-              <div className='flex items-center gap-2'>
-                <Input
-                  id='capacity'
-                  type='number'
-                  {...register('capacity', {
-                    setValueAs: parseOptionalNumber,
-                  })}
-                  placeholder='e.g. 100'
-                />
-                <Controller
-                  name='capacityVisible'
-                  control={control}
-                  render={({ field }) => (
-                    <Button
-                      type='button'
-                      variant='outline'
-                      size='icon'
-                      aria-pressed={field.value ?? false}
-                      aria-label={
-                        field.value
-                          ? 'Hide capacity from the public event page'
-                          : 'Show capacity on the public event page'
-                      }
-                      onClick={() => field.onChange(!field.value)}
-                    >
-                      {field.value ? (
-                        <Eye className='size-4' />
-                      ) : (
-                        <EyeOff className='size-4' />
-                      )}
-                    </Button>
-                  )}
-                />
-              </div>
-              <FieldDescription>
-                Leave blank for unlimited attendees.
-              </FieldDescription>
-              {errors.capacity && <FieldError errors={[errors.capacity]} />}
-            </Field>
-
-            {/* Starts At */}
-            <Field>
-              <FieldLabel htmlFor='startsAt'>
-                Starts At ({startsAtAbbr}, optional)
-              </FieldLabel>
-              <Controller
-                name='startsAt'
-                control={control}
-                render={({ field }) => (
-                  <Input
-                    {...field}
-                    id='startsAt'
-                    type='datetime-local'
-                    value={
-                      field.value
-                        ? toDateTimeLocalValue(new Date(field.value))
-                        : ''
-                    }
-                    onChange={(e) =>
-                      field.onChange(
-                        fromDateTimeLocalValue(e.target.value)?.toISOString() ??
-                          null,
-                      )
-                    }
-                  />
-                )}
-              />
-              {errors.startsAt && <FieldError errors={[errors.startsAt]} />}
-            </Field>
-
-            {/* Ends At */}
-            <Field>
-              <FieldLabel htmlFor='endsAt'>
-                Ends At ({endsAtAbbr}, optional)
-              </FieldLabel>
-              <Controller
-                name='endsAt'
-                control={control}
-                render={({ field }) => (
-                  <Input
-                    {...field}
-                    id='endsAt'
-                    type='datetime-local'
-                    value={
-                      field.value
-                        ? toDateTimeLocalValue(new Date(field.value))
-                        : ''
-                    }
-                    onChange={(e) =>
-                      field.onChange(
-                        fromDateTimeLocalValue(e.target.value)?.toISOString() ??
-                          null,
-                      )
-                    }
-                  />
-                )}
-              />
-              {errors.endsAt && <FieldError errors={[errors.endsAt]} />}
-            </Field>
-
-            {/* Location */}
-            <Field>
-              <FieldLabel htmlFor='location'>Location (optional)</FieldLabel>
-              <FieldDescription>
-                Shown on the event page and Apple Wallet pass
-              </FieldDescription>
-              <Input
-                id='location'
-                {...register('location')}
-                placeholder='e.g. Riddell Library & Learning Centre'
-              />
-              {errors.location && <FieldError errors={[errors.location]} />}
-            </Field>
-
-            {/* Geofence (lat/long/radius) */}
-            <Field>
-              <FieldLabel htmlFor='latitude'>
-                Pass geofence (optional)
-              </FieldLabel>
-              <FieldDescription>
-                Triggers the Apple Wallet pass when nearby. Set all three, or
-                leave all blank.
-              </FieldDescription>
-              <div className='grid grid-cols-3 gap-2'>
-                <Input
-                  id='latitude'
-                  type='number'
-                  step='any'
-                  {...register('latitude', {
-                    setValueAs: parseOptionalNumber,
-                  })}
-                  placeholder='Latitude'
-                />
-                <Input
-                  id='longitude'
-                  type='number'
-                  step='any'
-                  {...register('longitude', {
-                    setValueAs: parseOptionalNumber,
-                  })}
-                  placeholder='Longitude'
-                />
-                <Input
-                  id='radiusMeters'
-                  type='number'
-                  {...register('radiusMeters', {
-                    setValueAs: parseOptionalNumber,
-                  })}
-                  placeholder='Radius (m)'
-                />
-              </div>
-              {errors.latitude && <FieldError errors={[errors.latitude]} />}
-              {errors.longitude && <FieldError errors={[errors.longitude]} />}
-              {errors.radiusMeters && (
-                <FieldError errors={[errors.radiusMeters]} />
-              )}
             </Field>
           </FieldGroup>
 
