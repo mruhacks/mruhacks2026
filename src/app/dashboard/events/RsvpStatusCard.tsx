@@ -1,18 +1,9 @@
-import Link from 'next/link';
-
-import { Badge } from '@/components/ui/badge';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
 import type { RsvpStatusForUser } from '@/app/dashboard/events/actions';
 import { RsvpResponseButtons } from '@/app/dashboard/events/RsvpResponseButtons';
 import { getAttendeeRsvpCardDescription } from '@/app/dashboard/events/attendee-rsvp-copy';
 import { RSVP_TIMELINE_LABELS } from '@/app/dashboard/events/rsvp-status';
 import { RSVP_DASHBOARD_LABELS } from '@/app/dashboard/events/event-display-status';
+import { EventParticipationStatusCard } from '@/app/dashboard/events/EventParticipationStatusCard';
 import { LocalDateTime } from '@/components/local-date-time';
 
 type Props = {
@@ -37,7 +28,9 @@ export function RsvpStatusCard({
   const { statusLabel, statusDisplay, respondBy, respondedAt } = rsvp;
   const isPending = statusLabel === 'pending';
 
-  const title = RSVP_DASHBOARD_LABELS[statusLabel];
+  // RSVP_DASHBOARD_LABELS entries are all "RSVP <word>" — the badge only
+  // needs the status word since the card title already says "RSVP".
+  const statusWord = RSVP_DASHBOARD_LABELS[statusLabel].replace(/^RSVP /, '');
   const description = getAttendeeRsvpCardDescription(statusLabel, eventName);
 
   const metaDate = isPending ? respondBy : respondedAt;
@@ -46,53 +39,39 @@ export function RsvpStatusCard({
     : RSVP_TIMELINE_LABELS.respondedAt;
 
   return (
-    <Card>
-      <CardHeader>
-        <div className='flex items-center justify-between gap-2'>
-          <CardTitle className='text-base'>{title}</CardTitle>
-          <Badge variant={isPending ? 'purple' : statusDisplay.variant}>
-            {title}
-          </Badge>
-        </div>
-        <CardDescription>{description}</CardDescription>
-      </CardHeader>
-      {(metaDate || isPending) && (
-        <CardContent className='flex flex-col gap-4'>
-          {metaDate && (
-            <p className='text-muted-foreground text-sm'>
-              {metaLabel}{' '}
-              <LocalDateTime
-                value={metaDate}
-                dateStyle='medium'
-                timeStyle='short'
-              />
-            </p>
-          )}
-          {rsvp.termsAcceptedAt && (
-            <p className='text-muted-foreground text-sm'>
-              <Link
-                href={`/dashboard/events/${eventId}/wiki/terms`}
-                className='underline underline-offset-2'
-              >
-                Event Terms
-              </Link>{' '}
-              agreed to{' '}
-              <LocalDateTime
-                value={rsvp.termsAcceptedAt}
-                dateStyle='medium'
-                timeStyle='short'
-              />
-            </p>
-          )}
-          {isPending && (
-            <RsvpResponseButtons
-              eventId={eventId}
-              termsMarkdown={termsMarkdown}
-              termsId={termsId}
-            />
-          )}
-        </CardContent>
-      )}
-    </Card>
+    <EventParticipationStatusCard
+      title='RSVP'
+      badgeLabel={statusWord}
+      badgeVariant={isPending ? 'purple' : statusDisplay.variant}
+      description={description}
+      infoRows={
+        metaDate
+          ? [
+              {
+                key: 'meta-date',
+                content: (
+                  <>
+                    {metaLabel}{' '}
+                    <LocalDateTime
+                      value={metaDate}
+                      dateStyle='medium'
+                      timeStyle='short'
+                    />
+                  </>
+                ),
+              },
+            ]
+          : []
+      }
+      footer={
+        isPending ? (
+          <RsvpResponseButtons
+            eventId={eventId}
+            termsMarkdown={termsMarkdown}
+            termsId={termsId}
+          />
+        ) : undefined
+      }
+    />
   );
 }

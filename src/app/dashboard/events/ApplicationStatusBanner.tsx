@@ -79,7 +79,7 @@ export function ApplicationStatusBanner({
         <div className='flex min-w-0 flex-col gap-0.5 text-sm'>
           <p>{display.description}</p>
           {createdAt && (
-            <p className='text-muted-foreground text-xs'>
+            <p className='text-muted-foreground text-sm'>
               {APPLICATION_TIMELINE_LABELS.submitted}{' '}
               <LocalDateTime
                 value={createdAt}

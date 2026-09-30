@@ -22,11 +22,11 @@ import {
   type ApplicationStatusForUser,
   type RsvpStatusForUser,
 } from '@/app/dashboard/events/actions';
-import { ApplicationStatusBanner } from '@/app/dashboard/events/ApplicationStatusBanner';
+import { APPLICATION_TIMELINE_LABELS } from '@/app/dashboard/events/application-status';
 import { RsvpStatusCard } from '@/app/dashboard/events/RsvpStatusCard';
+import { EventParticipationStatusCard } from '@/app/dashboard/events/EventParticipationStatusCard';
 import { RsvpPendingPrompt } from '@/app/dashboard/events/RsvpPendingPrompt';
-import { EventWikiDialog } from '@/app/dashboard/events/event-wiki-dialog';
-import { LocalDateRange } from '@/components/local-date-time';
+import { LocalDateRange, LocalDateTime } from '@/components/local-date-time';
 import { RegisterEventButton } from '@/app/dashboard/events/RegisterEventButton';
 import { UnregisterEventButton } from '@/app/dashboard/events/UnregisterEventButton';
 import { TeamPanel } from '@/app/dashboard/events/team/TeamPanel';
@@ -416,24 +416,55 @@ function ApplicationParticipationPanel({
   }
 
   if (applicationStatus) {
+    const { statusDisplay: display, createdAt } = applicationStatus;
+    const showEdit = !display.isFinal;
+    const isApproved = applicationStatus.statusKey === 'approved';
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Application</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ApplicationStatusBanner
-            application={applicationStatus}
-            editHref={`${eventHref}/apply`}
-          />
-        </CardContent>
-        {applicationStatus.statusKey === 'approved' && (
-          <CardFooter className='flex flex-row gap-2'>
-            <WalletAction eventId={eventId} walletPlatform={walletPlatform} />
-            <EventTicketButton eventId={eventId} />
-          </CardFooter>
-        )}
-      </Card>
+      <EventParticipationStatusCard
+        title='Application'
+        badgeLabel={display.title}
+        badgeVariant={display.variant}
+        description={display.description}
+        infoRows={
+          createdAt
+            ? [
+                {
+                  key: 'submitted',
+                  content: (
+                    <>
+                      {APPLICATION_TIMELINE_LABELS.submitted}{' '}
+                      <LocalDateTime
+                        value={createdAt}
+                        dateStyle='medium'
+                        timeStyle='short'
+                      />
+                    </>
+                  ),
+                },
+              ]
+            : []
+        }
+        footer={
+          showEdit || isApproved ? (
+            <>
+              {showEdit && (
+                <Button asChild size='sm' variant='outline'>
+                  <Link href={`${eventHref}/apply`}>Edit application</Link>
+                </Button>
+              )}
+              {isApproved && (
+                <>
+                  <WalletAction
+                    eventId={eventId}
+                    walletPlatform={walletPlatform}
+                  />
+                  <EventTicketButton eventId={eventId} />
+                </>
+              )}
+            </>
+          ) : undefined
+        }
+      />
     );
   }
 
@@ -537,7 +568,9 @@ function WikiArticles({
             Hackerpack
           </h2>
         </div>
-        <EventWikiDialog eventHref={eventHref} articles={articles} />
+        <Button asChild size='sm' variant='ghost'>
+          <Link href={`${eventHref}/wiki`}>View all</Link>
+        </Button>
       </div>
       <Card>
         <CardContent className='flex flex-col gap-0 p-0'>
