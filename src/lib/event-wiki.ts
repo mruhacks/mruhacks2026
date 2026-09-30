@@ -39,6 +39,43 @@ export async function getPublishedArticleList(eventId: string) {
     .orderBy(asc(eventArticles.sortOrder), asc(eventArticles.title));
 }
 
+export type WikiSidebarArticle = {
+  slug: string;
+  title: string;
+  published: boolean;
+};
+
+/**
+ * The wiki sidebar's full article list for one event: real articles (drafts
+ * included only when `canSeeDrafts`) plus the synthesized `terms` entry when
+ * the event has terms. Shared by the wiki layout (renders the sidebar) and
+ * the bare `/wiki` index (redirects to whichever entry is first).
+ */
+export async function getWikiSidebarArticles(
+  eventId: string,
+  { canSeeDrafts, hasTerms }: { canSeeDrafts: boolean; hasTerms: boolean },
+): Promise<WikiSidebarArticle[]> {
+  const articles = canSeeDrafts
+    ? await db
+        .select({
+          slug: eventArticles.slug,
+          title: eventArticles.title,
+          published: eventArticles.published,
+        })
+        .from(eventArticles)
+        .where(eq(eventArticles.eventId, eventId))
+        .orderBy(asc(eventArticles.sortOrder), asc(eventArticles.title))
+    : (await getPublishedArticleList(eventId)).map((a) => ({
+        slug: a.slug,
+        title: a.title,
+        published: a.published,
+      }));
+
+  return hasTerms
+    ? [...articles, { slug: 'terms', title: 'Event Terms', published: true }]
+    : articles;
+}
+
 /**
  * A single published article's content, or null if no published article has
  * that slug (either it doesn't exist or it's still a draft). Cached like

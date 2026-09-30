@@ -444,6 +444,7 @@ export async function createEvent(
       slug,
       hasApplication: input.hasApplication,
       capacity: input.capacity ?? null,
+      capacityVisible: input.capacityVisible ?? false,
       rsvpResponseWindowHours:
         input.rsvpResponseWindowHours ?? DEFAULT_RSVP_RESPONSE_WINDOW_HOURS,
       teamsEnabled: input.teamsEnabled ?? false,
@@ -480,6 +481,7 @@ export type EventDetails = {
   descriptionMarkdown: string;
   hasApplication: boolean;
   capacity: number | null;
+  capacityVisible: boolean;
   rsvpResponseWindowHours: number;
   startsAt: Date | null;
   endsAt: Date | null;
@@ -536,6 +538,7 @@ export async function getEventDetails(
     descriptionMarkdown: eventRow.descriptionMarkdown ?? '',
     hasApplication: eventRow.hasApplication,
     capacity: eventRow.capacity ?? null,
+    capacityVisible: eventRow.capacityVisible,
     rsvpResponseWindowHours: eventRow.rsvpResponseWindowHours,
     startsAt: eventRow.startsAt ?? null,
     endsAt: eventRow.endsAt ?? null,
@@ -656,6 +659,7 @@ export async function updateEventSettings(
         hasApplication: input.hasApplication ?? eventRow.hasApplication,
         capacity:
           input.capacity !== undefined ? input.capacity : eventRow.capacity,
+        capacityVisible: input.capacityVisible ?? eventRow.capacityVisible,
         rsvpResponseWindowHours:
           input.rsvpResponseWindowHours ?? eventRow.rsvpResponseWindowHours,
         teamsEnabled: input.teamsEnabled ?? eventRow.teamsEnabled,

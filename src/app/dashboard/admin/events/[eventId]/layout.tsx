@@ -1,16 +1,15 @@
 import * as React from 'react';
-import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
-import { CalendarDays, MapPin, SquarePen } from 'lucide-react';
+import { CalendarDays, MapPin } from 'lucide-react';
 
 import { BreadcrumbSegment } from '@/components/breadcrumb-context';
 import { LocalDateRange } from '@/components/local-date-time';
-import { Button } from '@/components/ui/button';
 import { getAdminEventHeader } from '@/lib/admin-event';
 import { resolveEventId } from '@/lib/events';
 import { requirePermission } from '@/lib/rbac/authorization';
 import { getUser } from '@/utils/auth';
 
+import { EditEventButton } from './_components/edit-event-button';
 import { EventBackLink } from './_components/event-back-link';
 import { EventLiveBadge } from './_components/event-live-badge';
 import { ShareEventButton } from './_components/share-event-button';
@@ -114,12 +113,7 @@ async function EventHeader({
         <div className='flex shrink-0 flex-wrap items-center gap-2'>
           <ShareEventButton eventId={event.id} slug={event.slug} />
 
-          <Button asChild variant='outline' size='sm'>
-            <Link href={`/dashboard/admin/events/${segment}/settings`}>
-              <SquarePen aria-hidden data-icon='inline-start' />
-              Edit event
-            </Link>
-          </Button>
+          <EditEventButton />
         </div>
       </div>
     </header>

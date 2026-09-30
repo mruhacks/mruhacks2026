@@ -127,6 +127,7 @@ export const createEventSchema = z
     slug: eventSlugSchema.nullish(),
     hasApplication: z.boolean().default(false),
     capacity: z.number().int().positive().nullish(),
+    capacityVisible: z.boolean().optional(),
     rsvpResponseWindowHours: z
       .number()
       .int()
@@ -166,6 +167,7 @@ export const updateEventSettingsSchema = z
     descriptionMarkdown: eventDescriptionSchema.optional(),
     hasApplication: z.boolean().optional(),
     capacity: z.number().int().positive().nullish(),
+    capacityVisible: z.boolean().optional(),
     rsvpResponseWindowHours: z
       .number()
       .int()

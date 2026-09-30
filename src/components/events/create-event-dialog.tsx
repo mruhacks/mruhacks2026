@@ -32,7 +32,7 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { Plus } from 'lucide-react';
+import { Eye, EyeOff, Plus } from 'lucide-react';
 
 export function CreateEventDialog() {
   const router = useRouter();
@@ -59,6 +59,7 @@ export function CreateEventDialog() {
   const startsAtAbbr = useZoneAbbreviation(watch('startsAt') ?? undefined);
   const endsAtAbbr = useZoneAbbreviation(watch('endsAt') ?? undefined);
   const suggestedSlug = slugify(watch('name') ?? '');
+  const capacityVisible = watch('capacityVisible');
 
   const onSubmit = async (data: CreateEventInput) => {
     setSubmitError(null);
@@ -147,18 +148,52 @@ export function CreateEventDialog() {
 
             {/* Capacity */}
             <Field>
-              <FieldLabel htmlFor='capacity'>Capacity (optional)</FieldLabel>
+              <FieldLabel htmlFor='capacity'>
+                Capacity (optional)
+                {!capacityVisible && (
+                  <span className='text-muted-foreground font-normal'>
+                    {' '}
+                    (publicly hidden)
+                  </span>
+                )}
+              </FieldLabel>
+              <div className='flex items-center gap-2'>
+                <Input
+                  id='capacity'
+                  type='number'
+                  {...register('capacity', {
+                    setValueAs: parseOptionalNumber,
+                  })}
+                  placeholder='e.g. 100'
+                />
+                <Controller
+                  name='capacityVisible'
+                  control={control}
+                  render={({ field }) => (
+                    <Button
+                      type='button'
+                      variant='outline'
+                      size='icon'
+                      aria-pressed={field.value ?? false}
+                      aria-label={
+                        field.value
+                          ? 'Hide capacity from the public event page'
+                          : 'Show capacity on the public event page'
+                      }
+                      onClick={() => field.onChange(!field.value)}
+                    >
+                      {field.value ? (
+                        <Eye className='size-4' />
+                      ) : (
+                        <EyeOff className='size-4' />
+                      )}
+                    </Button>
+                  )}
+                />
+              </div>
               <FieldDescription>
                 Leave blank for unlimited attendees.
               </FieldDescription>
-              <Input
-                id='capacity'
-                type='number'
-                {...register('capacity', {
-                  setValueAs: parseOptionalNumber,
-                })}
-                placeholder='e.g. 100'
-              />
               {errors.capacity && <FieldError errors={[errors.capacity]} />}
             </Field>
 

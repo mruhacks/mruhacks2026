@@ -72,6 +72,7 @@ type EventDetails = {
   startsAt: Date | null;
   endsAt: Date | null;
   capacity: number | null;
+  capacityVisible: boolean;
   teamsEnabled: boolean;
   eventTypeLabel: string | null;
 };
@@ -135,6 +136,7 @@ async function EventEntryContent({ params, searchParams }: Props) {
       startsAt: events.startsAt,
       endsAt: events.endsAt,
       capacity: events.capacity,
+      capacityVisible: events.capacityVisible,
       teamsEnabled: events.teamsEnabled,
       eventTypeLabel: eventTypes.label,
     })
@@ -307,7 +309,7 @@ function EventPageLayout({
           <EventMeta
             startsAt={event.startsAt}
             endsAt={event.endsAt}
-            capacity={event.capacity}
+            capacity={event.capacityVisible ? event.capacity : null}
           />
         </div>
       </header>

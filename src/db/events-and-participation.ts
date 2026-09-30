@@ -98,6 +98,8 @@ export const events = pgTable(
     longitude: doublePrecision('longitude'),
     radiusMeters: integer('radius_meters'),
     capacity: integer('capacity'),
+    // Whether the capacity number is shown on the public event page.
+    capacityVisible: boolean('capacity_visible').notNull().default(false),
     /**
      * Hours invited applicants have to accept or decline. Applied at wave
      * creation: `respond_by = created_at + rsvp_response_window_hours`.

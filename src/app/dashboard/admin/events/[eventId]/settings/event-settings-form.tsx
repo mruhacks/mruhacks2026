@@ -6,7 +6,7 @@ import { unstable_rethrow, useRouter } from 'next/navigation';
 import { Controller, useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
-import { Pencil } from 'lucide-react';
+import { Eye, EyeOff, Pencil } from 'lucide-react';
 
 import { updateEventSettings } from '@/app/dashboard/admin/events/actions';
 import { eventSettingsFormSchema } from '@/app/dashboard/admin/events/schemas';
@@ -56,6 +56,7 @@ export function EventSettingsForm({ event }: { event: AdminEventSettings }) {
       slug: event.slug ?? '',
       hasApplication: event.hasApplication,
       capacity: event.capacity ?? null,
+      capacityVisible: event.capacityVisible,
       startsAt: event.startsAt ? event.startsAt.toISOString() : undefined,
       endsAt: event.endsAt ? event.endsAt.toISOString() : undefined,
       location: event.location ?? undefined,
@@ -80,10 +81,18 @@ export function EventSettingsForm({ event }: { event: AdminEventSettings }) {
     defaultValues: defaults,
   });
 
-  const [teamsEnabled, startsAt, endsAt, name, slug] = useWatch({
-    control,
-    name: ['teamsEnabled', 'startsAt', 'endsAt', 'name', 'slug'],
-  });
+  const [teamsEnabled, startsAt, endsAt, name, slug, capacityVisible] =
+    useWatch({
+      control,
+      name: [
+        'teamsEnabled',
+        'startsAt',
+        'endsAt',
+        'name',
+        'slug',
+        'capacityVisible',
+      ],
+    });
   // What the participant URL will look like once saved — the uuid is the
   // fallback for an event with no slug.
   const urlSegment = slug?.trim() || event.id;
@@ -424,16 +433,51 @@ export function EventSettingsForm({ event }: { event: AdminEventSettings }) {
                   <Field className='gap-1.5' data-invalid={!!errors.capacity}>
                     <FieldLabel htmlFor='capacity'>
                       Attendee capacity
+                      {!capacityVisible && (
+                        <span className='text-muted-foreground font-normal'>
+                          {' '}
+                          (publicly hidden)
+                        </span>
+                      )}
                     </FieldLabel>
-                    <Input
-                      id='capacity'
-                      aria-invalid={!!errors.capacity}
-                      type='number'
-                      {...register('capacity', {
-                        setValueAs: parseOptionalNumber,
-                      })}
-                      placeholder='Unlimited'
-                    />
+                    <div className='flex items-center gap-2'>
+                      <Input
+                        id='capacity'
+                        aria-invalid={!!errors.capacity}
+                        type='number'
+                        {...register('capacity', {
+                          setValueAs: parseOptionalNumber,
+                        })}
+                        placeholder='Unlimited'
+                      />
+                      <Controller
+                        name='capacityVisible'
+                        control={control}
+                        render={({ field }) => (
+                          <Button
+                            type='button'
+                            variant='outline'
+                            size='icon'
+                            aria-pressed={field.value ?? false}
+                            aria-label={
+                              field.value
+                                ? 'Hide capacity from the public event page'
+                                : 'Show capacity on the public event page'
+                            }
+                            onClick={() => {
+                              setSubmitError(null);
+                              field.onChange(!field.value);
+                            }}
+                          >
+                            {field.value ? (
+                              <Eye className='size-4' />
+                            ) : (
+                              <EyeOff className='size-4' />
+                            )}
+                          </Button>
+                        )}
+                      />
+                    </div>
                     <FieldDescription>
                       Total attendees. Leave blank for no limit.
                     </FieldDescription>
