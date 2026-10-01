@@ -22,6 +22,7 @@ export type EventParticipation = {
   eventName: string;
   startsAt: Date | null;
   endsAt: Date | null;
+  checkInEnabled: boolean;
   location: string | null;
   latitude: number | null;
   longitude: number | null;
@@ -49,6 +50,7 @@ export async function getEventParticipation(
       eventName: events.name,
       startsAt: events.startsAt,
       endsAt: events.endsAt,
+      checkInEnabled: events.checkInEnabled,
       location: events.location,
       latitude: events.latitude,
       longitude: events.longitude,
@@ -86,6 +88,7 @@ export async function getEventParticipation(
     eventName: row.eventName,
     startsAt: row.startsAt,
     endsAt: row.endsAt,
+    checkInEnabled: row.checkInEnabled,
     location: row.location,
     latitude: row.latitude,
     longitude: row.longitude,

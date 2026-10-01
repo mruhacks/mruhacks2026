@@ -142,6 +142,7 @@ async function EventEntryContent({ params, searchParams }: Props) {
       hasApplication: events.hasApplication,
       startsAt: events.startsAt,
       endsAt: events.endsAt,
+      checkInEnabled: events.checkInEnabled,
       capacity: events.capacity,
       capacityVisible: events.capacityVisible,
       teamsEnabled: events.teamsEnabled,
@@ -188,7 +189,8 @@ async function EventEntryContent({ params, searchParams }: Props) {
       // Non-null by `isScheduleVisible`; serialized because a Date must never
       // cross into a client component.
       startsAt: serializeInstant(subevent.startsAt!),
-      endsAt: serializeInstant(subevent.endsAt!),
+      endsAt: serializeInstant(subevent.endsAt),
+      descriptionMarkdown: subevent.descriptionMarkdown,
       location: subevent.location,
     }));
 
@@ -237,6 +239,7 @@ async function EventEntryContent({ params, searchParams }: Props) {
             eventName={row.name}
             termsMarkdown={row.termsMarkdown}
             termsId={row.termsId}
+            checkInEnabled={row.checkInEnabled}
             applicationStatus={applicationStatus}
             rsvpStatus={rsvpStatus}
             walletPlatform={walletPlatform}
@@ -283,6 +286,7 @@ async function EventEntryContent({ params, searchParams }: Props) {
       participation={
         <RegistrationParticipationPanel
           eventId={eventId}
+          checkInEnabled={row.checkInEnabled}
           isRegistered={isRegistered}
           walletPlatform={walletPlatform}
         />
@@ -403,6 +407,7 @@ function ApplicationParticipationPanel({
   termsId,
   rsvpStatus,
   walletPlatform,
+  checkInEnabled,
 }: {
   eventId: string;
   eventHref: string;
@@ -412,6 +417,7 @@ function ApplicationParticipationPanel({
   applicationStatus: ApplicationStatusForUser | null;
   rsvpStatus: RsvpStatusForUser | null;
   walletPlatform: WalletPlatform;
+  checkInEnabled: boolean;
 }) {
   // Any latest-wave RSVP (pending, accepted, declined, timed_out) is the
   // status of record — same precedence as the dashboard listing badges.
@@ -434,7 +440,7 @@ function ApplicationParticipationPanel({
           termsMarkdown={termsMarkdown}
           termsId={termsId}
         />
-        {rsvpStatus.statusLabel === 'accepted' && (
+        {checkInEnabled && rsvpStatus.statusLabel === 'accepted' && (
           <Card>
             <CardHeader>
               <CardTitle>Your pass</CardTitle>
@@ -482,14 +488,14 @@ function ApplicationParticipationPanel({
             : []
         }
         footer={
-          showEdit || isApproved ? (
+          showEdit || (isApproved && checkInEnabled) ? (
             <>
               {showEdit && (
                 <Button asChild size='sm' variant='outline'>
                   <Link href={`${eventHref}/apply`}>Edit application</Link>
                 </Button>
               )}
-              {isApproved && (
+              {isApproved && checkInEnabled && (
                 <>
                   <WalletAction
                     eventId={eventId}
@@ -527,10 +533,12 @@ function RegistrationParticipationPanel({
   eventId,
   isRegistered,
   walletPlatform,
+  checkInEnabled,
 }: {
   eventId: string;
   isRegistered: boolean;
   walletPlatform: WalletPlatform;
+  checkInEnabled: boolean;
 }) {
   if (isRegistered) {
     return (
@@ -545,13 +553,20 @@ function RegistrationParticipationPanel({
           </CardDescription>
         </CardHeader>
         <CardFooter className='flex-col gap-2'>
-          <div className='flex flex-row gap-2'>
-            <WalletAction eventId={eventId} walletPlatform={walletPlatform} />
-            <EventTicketButton eventId={eventId} />
-          </div>
-          <p className='text-muted-foreground text-center text-xs'>
-            Tip: add your pass on your phone for faster check-in.
-          </p>
+          {checkInEnabled && (
+            <>
+              <div className='flex flex-row gap-2'>
+                <WalletAction
+                  eventId={eventId}
+                  walletPlatform={walletPlatform}
+                />
+                <EventTicketButton eventId={eventId} />
+              </div>
+              <p className='text-muted-foreground text-center text-xs'>
+                Tip: add your pass on your phone for faster check-in.
+              </p>
+            </>
+          )}
           <UnregisterEventButton eventId={eventId} className='w-full' />
         </CardFooter>
       </Card>
@@ -609,14 +624,14 @@ function WikiArticles({
           <Link href={`${eventHref}/wiki`}>View all</Link>
         </Button>
       </div>
-      <Card>
+      <Card className='overflow-hidden py-0'>
         <CardContent className='flex flex-col gap-0 p-0'>
           {articles.map((article, index) => (
             <div key={article.slug}>
               {index > 0 && <Separator />}
               <Link
                 href={`${eventHref}/wiki/${article.slug}`}
-                className='hover:bg-accent flex items-center justify-between gap-3 px-6 py-4 text-sm font-medium transition-colors'
+                className='hover:bg-accent flex items-center justify-between gap-3 px-4 py-3 text-sm font-medium transition-colors'
               >
                 <span>{article.title}</span>
                 <ArrowRight className='text-muted-foreground size-4 shrink-0' />

@@ -140,6 +140,7 @@ export const createEventSchema = z
     ...geofenceFields,
     isFeatured: z.boolean().optional(),
     teamsEnabled: z.boolean().optional(),
+    checkInEnabled: z.boolean().optional(),
     maxTeamSize: z.number().int().positive().nullish(),
   })
   .refine(
@@ -180,6 +181,7 @@ export const updateEventSettingsSchema = z
     ...geofenceFields,
     isFeatured: z.boolean().optional(),
     teamsEnabled: z.boolean().optional(),
+    checkInEnabled: z.boolean().optional(),
     maxTeamSize: z.number().int().positive().nullish(),
   })
   .refine(
@@ -210,24 +212,23 @@ export const eventSettingsFormSchema = updateEventSettingsSchema.refine(
 
 // ── Sub-event schemas ────────────────────────────────────────────────────
 
-/**
- * A sub-event — a meal, a workshop, a ceremony — is a child `events` row that
- * carries only a name, a window and a place. Unlike a top-level event both
- * instants are required: a sub-event exists to be a check-in target at a
- * particular time, and the participant schedule hides any row missing either
- * one, so an organizer who clears them makes it silently disappear.
- */
+/** A schedule entry needs a start; its end and Markdown copy are optional. */
 export const createSubeventSchema = z
   .object({
-    name: z.string().trim().min(1, 'Sub-event name is required').max(255),
+    name: z.string().trim().min(1, 'Schedule entry name is required').max(255),
     startsAt: eventInstantSchema,
-    endsAt: eventInstantSchema,
+    endsAt: eventInstantSchema.nullish(),
+    descriptionMarkdown: eventDescriptionSchema.optional(),
+    checkInEnabled: z.boolean().optional(),
     location: z.string().trim().max(255).nullish(),
   })
-  .refine((data) => new Date(data.startsAt) < new Date(data.endsAt), {
-    message: 'Start time must be before end time',
-    path: ['endsAt'],
-  });
+  .refine(
+    (data) => !data.endsAt || new Date(data.startsAt) < new Date(data.endsAt),
+    {
+      message: 'Start time must be before end time',
+      path: ['endsAt'],
+    },
+  );
 
 export type CreateSubeventInput = z.infer<typeof createSubeventSchema>;
 

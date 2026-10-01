@@ -101,7 +101,7 @@ export function EventContentForm({
           </FieldGroup>
           <div className='flex flex-wrap justify-end gap-2'>
             <Button asChild variant='outline'>
-              <Link href={`${basePath}/settings`}>Back to edit event</Link>
+              <Link href={basePath}>Back to event overview</Link>
             </Button>
             <Button type='submit' disabled={isSaving}>
               {isSaving ? 'Saving…' : `Save ${label}`}

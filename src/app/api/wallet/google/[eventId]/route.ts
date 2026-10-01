@@ -23,7 +23,11 @@ export async function GET(
 
   const { eventId } = await params;
   const participation = await getEventParticipation(eventId, user.id);
-  if (!participation || !participation.isParticipant) {
+  if (
+    !participation ||
+    !participation.isParticipant ||
+    !participation.checkInEnabled
+  ) {
     return new Response('Not found', { status: 404 });
   }
 

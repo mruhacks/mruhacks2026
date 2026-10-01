@@ -33,7 +33,7 @@ export async function getTicketViewData(segment: string) {
     if (parentEventId) redirect(`/dashboard/events/${parentEventId}/ticket`);
     notFound();
   }
-  if (!participation.isParticipant) notFound();
+  if (!participation.isParticipant || !participation.checkInEnabled) notFound();
 
   return {
     eventId,

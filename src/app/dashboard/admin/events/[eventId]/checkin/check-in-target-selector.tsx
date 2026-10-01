@@ -95,7 +95,7 @@ export function CheckInTargetSelector({
                 <LocalDateRange
                   start={armed.startsAt}
                   end={armed.endsAt}
-                  singleTimeStyle='short'
+                  weekday='long'
                 />
                 {armed.location ? ` · ${armed.location}` : ''}
               </>
@@ -106,7 +106,7 @@ export function CheckInTargetSelector({
         </div>
         {armed && (
           <Badge className='shrink-0 border-amber-500/40 bg-amber-500/20 text-amber-900 dark:text-amber-100'>
-            Sub-event
+            Schedule entry
           </Badge>
         )}
       </div>
@@ -115,8 +115,8 @@ export function CheckInTargetSelector({
           a meal that ran over is still recordable — and so are corrections. */}
       {armedEnded && (
         <p className='text-sm text-amber-800 dark:text-amber-200'>
-          This sub-event has already ended. You can still record check-ins for
-          it.
+          This schedule entry has already ended. You can still record check-ins
+          for it.
         </p>
       )}
 

@@ -5,6 +5,7 @@ import { and, count, eq, inArray, ne, sql } from 'drizzle-orm';
 import { revalidatePath, updateTag } from 'next/cache';
 import { db } from '@/utils/db';
 import { FEATURED_EVENT_CACHE_TAG } from '@/lib/featured-event';
+import { subeventsCacheTag } from '@/lib/subevents';
 import { EVENTS_CACHE_TAG, eventUrlSegments } from '@/lib/events';
 import { eventPath } from '@/lib/event-slug';
 import {
@@ -451,6 +452,7 @@ export async function createEvent(
       maxTeamSize: input.maxTeamSize ?? null,
       startsAt: input.startsAt ? new Date(input.startsAt) : null,
       endsAt: input.endsAt ? new Date(input.endsAt) : null,
+      checkInEnabled: input.checkInEnabled ?? true,
       location: input.location || null,
       latitude: input.latitude ?? null,
       longitude: input.longitude ?? null,
@@ -610,7 +612,7 @@ export async function updateEventSettings(
   // quietly steal the public site's register link and the /welcome onboarding
   // event from the real event it belongs to.
   if (input.isFeatured === true && eventRow.parentEventId) {
-    return fail('A sub-event cannot be the featured event.');
+    return fail('A schedule entry cannot be the featured event.');
   }
 
   // undefined leaves the stored slug alone; '' or null clears it back to
@@ -672,6 +674,7 @@ export async function updateEventSettings(
         rsvpResponseWindowHours:
           input.rsvpResponseWindowHours ?? eventRow.rsvpResponseWindowHours,
         teamsEnabled: input.teamsEnabled ?? eventRow.teamsEnabled,
+        checkInEnabled: input.checkInEnabled ?? eventRow.checkInEnabled,
         maxTeamSize:
           input.maxTeamSize !== undefined
             ? input.maxTeamSize
@@ -696,6 +699,8 @@ export async function updateEventSettings(
   updateTag(FEATURED_EVENT_CACHE_TAG);
   updateTag(EVENTS_CACHE_TAG);
   updateTag(adminEventCacheTag(eventId));
+  if (eventRow.parentEventId)
+    updateTag(subeventsCacheTag(eventRow.parentEventId));
 
   // The event page is reachable by uuid and by every slug it has worn, so
   // drop the uuid path, the current slug's path, and the one a rename just

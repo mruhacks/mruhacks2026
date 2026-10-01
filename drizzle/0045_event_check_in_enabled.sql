@@ -1,0 +1,1 @@
+ALTER TABLE "events" ADD COLUMN "check_in_enabled" boolean DEFAULT true NOT NULL;

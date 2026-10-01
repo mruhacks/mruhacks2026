@@ -56,23 +56,37 @@ export function LocalDateTime({
   timeStyle,
   timeZone: timeZoneProp,
   timeZoneName,
+  weekday,
   className,
 }: {
   value: Date | string | null;
   dateStyle?: Intl.DateTimeFormatOptions['dateStyle'];
   timeStyle?: Intl.DateTimeFormatOptions['timeStyle'];
-  /** Defaults to the event venue (America/Edmonton). Do not fall back to
-   *  the browser zone — a laptop set to UTC otherwise shows 10pm for 4pm MDT. */
+  /** Optional explicit zone; otherwise localizes after hydration. */
   timeZone?: string;
   timeZoneName?: Intl.DateTimeFormatOptions['timeZoneName'];
+  weekday?: Intl.DateTimeFormatOptions['weekday'];
   className?: string;
 }) {
-  const locale = DEFAULT_LOCALE;
-  const timeZone = timeZoneProp ?? EVENT_TIME_ZONE;
+  const locale = useDisplayLocale();
+  const displayTimeZone = useDisplayTimeZone();
+  const timeZone = timeZoneProp ?? displayTimeZone;
   const date = toDate(value);
   if (!date) return null;
 
-  const text = formatInstant(date, timeZone, locale, { dateStyle, timeStyle });
+  const text = formatInstant(
+    date,
+    timeZone,
+    locale,
+    weekday
+      ? {
+          weekday,
+          ...(timeStyle
+            ? ({ hour: 'numeric', minute: '2-digit' } as const)
+            : {}),
+        }
+      : { dateStyle, timeStyle },
+  );
   // dateStyle/timeStyle cannot be mixed with timeZoneName in Intl.
   const labeled =
     timeZoneName === 'short'
@@ -86,17 +100,15 @@ export function LocalDateTime({
   );
 }
 
-/** Replaces the duplicated per-file date-range formatters. Collapses to a
- *  single date when start and end render identically; "Date TBA" when
- *  start is null. `singleTimeStyle` controls how much detail shows when it
- *  collapses to that one date — e.g. a full "long" date + time, since there's
- *  no second date competing for space. */
+/** Event ranges always include their times, including same-day ranges. */
 export function LocalDateRange({
   start,
   end,
   dateStyle = 'medium',
   singleDateStyle,
-  singleTimeStyle,
+  singleTimeStyle = 'short',
+  weekday,
+  timeOnly = false,
   className,
 }: {
   start: Date | string | null;
@@ -104,36 +116,59 @@ export function LocalDateRange({
   dateStyle?: Intl.DateTimeFormatOptions['dateStyle'];
   singleDateStyle?: Intl.DateTimeFormatOptions['dateStyle'];
   singleTimeStyle?: Intl.DateTimeFormatOptions['timeStyle'];
+  weekday?: Intl.DateTimeFormatOptions['weekday'];
+  /** For rows under a weekday heading; overnight ends still name their day. */
+  timeOnly?: boolean;
   className?: string;
 }) {
-  const locale = DEFAULT_LOCALE;
-  const timeZone = EVENT_TIME_ZONE;
+  const locale = useDisplayLocale();
+  const timeZone = useDisplayTimeZone();
   const startDate = toDate(start);
+  const endDate = toDate(end);
   if (!startDate) return <span className={className}>Date TBA</span>;
 
-  const endDate = toDate(end);
-  const startText = formatInstant(startDate, timeZone, locale, { dateStyle });
-  const endText = endDate
-    ? formatInstant(endDate, timeZone, locale, { dateStyle })
-    : null;
-
-  if (!endText || endText === startText) {
-    const singleText = formatInstant(startDate, timeZone, locale, {
-      dateStyle: singleDateStyle ?? dateStyle,
-      timeStyle: singleTimeStyle,
-    });
-    return (
-      <time dateTime={startDate.toISOString()} className={className}>
-        {singleText}
-      </time>
-    );
-  }
+  const options: Intl.DateTimeFormatOptions = weekday
+    ? { weekday, hour: 'numeric', minute: '2-digit' }
+    : { dateStyle: singleDateStyle ?? dateStyle, timeStyle: singleTimeStyle };
+  const startText = formatInstant(
+    startDate,
+    timeZone,
+    locale,
+    timeOnly ? { timeStyle: singleTimeStyle } : options,
+  );
+  const sameDay =
+    endDate &&
+    formatInstant(startDate, timeZone, 'en-CA', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }) ===
+      formatInstant(endDate, timeZone, 'en-CA', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      });
 
   return (
     <span className={className}>
       <time dateTime={startDate.toISOString()}>{startText}</time>
-      {' – '}
-      <time dateTime={endDate!.toISOString()}>{endText}</time>
+      {endDate && endDate.getTime() !== startDate.getTime() && (
+        <>
+          {' – '}
+          <time dateTime={endDate.toISOString()}>
+            {formatInstant(
+              endDate,
+              timeZone,
+              locale,
+              sameDay
+                ? { timeStyle: singleTimeStyle }
+                : timeOnly
+                  ? { weekday: 'long', hour: 'numeric', minute: '2-digit' }
+                  : options,
+            )}
+          </time>
+        </>
+      )}
     </span>
   );
 }

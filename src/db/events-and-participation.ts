@@ -79,6 +79,7 @@ export const events = pgTable(
     descriptionMarkdown: text('description_markdown'),
     /** Current immutable terms version; edits replace this pointer. */
     termsId: uuid('terms_id').references((): AnyPgColumn => eventTerms.id),
+    checkInEnabled: boolean('check_in_enabled').notNull().default(true),
     hasApplication: boolean('has_application').notNull().default(false),
     // Questions are configured independently from whether an application is
     // required. An empty list is a valid application configuration.

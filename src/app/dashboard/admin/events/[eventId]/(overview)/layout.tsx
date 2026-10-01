@@ -4,6 +4,7 @@ type OverviewLayoutProps = {
   children: React.ReactNode;
   summary: React.ReactNode;
   description: React.ReactNode;
+  copy: React.ReactNode;
   wiki: React.ReactNode;
   applications: React.ReactNode;
   breakdown: React.ReactNode;
@@ -28,20 +29,26 @@ export default function EventOverviewLayout({
   children,
   summary,
   description,
+  copy,
   wiki,
   applications,
   breakdown,
 }: OverviewLayoutProps) {
   return (
-    <div className='space-y-8'>
+    <div className='flex flex-col gap-8'>
       {children}
       {summary}
 
-      <div className='grid grid-cols-1 items-start gap-4 lg:grid-cols-5'>
-        <div className='lg:col-span-3'>{description}</div>
+      <div className='grid grid-cols-1 gap-4 lg:min-h-96 lg:grid-cols-5'>
+        {/* Size containment lets the neighboring column determine the row's
+            height; the schedule scrolls inside that available space. */}
+        <div className='min-w-0 lg:col-span-3 lg:contain-[size]'>
+          {description}
+        </div>
         {/* Wiki, then applications-over-time beneath it. A cell the viewer
             can't see renders null, so the column simply gets shorter. */}
-        <div className='space-y-4 lg:col-span-2'>
+        <div className='flex flex-col gap-4 lg:col-span-2'>
+          {copy}
           {wiki}
           {applications}
         </div>

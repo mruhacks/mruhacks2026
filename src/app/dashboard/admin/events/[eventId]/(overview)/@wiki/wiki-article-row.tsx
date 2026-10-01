@@ -103,7 +103,7 @@ export function WikiArticleRow({
   }
 
   return (
-    <div className='hover:bg-accent/50 relative flex items-center gap-2 px-6 py-3'>
+    <div className='hover:bg-accent/50 relative flex items-center gap-2 px-4 py-3'>
       {/* `after:inset-0` stretches the link over the whole row, which leaves
           room beside it for the menu — positioned, so it stays clickable. */}
       <Link

@@ -332,7 +332,7 @@ export function CheckInPage({
       <div className='space-y-6'>
         {selector}
         <p className='text-destructive py-8 text-center text-sm'>
-          That sub-event doesn&apos;t belong to this event. Pick a check-in
+          That schedule entry doesn&apos;t belong to this event. Pick a check-in
           target above to start scanning.
         </p>
       </div>

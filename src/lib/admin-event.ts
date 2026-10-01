@@ -76,6 +76,7 @@ export type AdminEventHeader = {
   capacity: number | null;
   startsAt: Date | null;
   endsAt: Date | null;
+  checkInEnabled: boolean;
   location: string | null;
 };
 
@@ -110,6 +111,7 @@ export async function getAdminEventHeader(
       capacity: events.capacity,
       startsAt: events.startsAt,
       endsAt: events.endsAt,
+      checkInEnabled: events.checkInEnabled,
       location: events.location,
     })
     .from(events)
@@ -185,6 +187,7 @@ export async function getAdminEventSettings(
       capacity: events.capacity,
       startsAt: events.startsAt,
       endsAt: events.endsAt,
+      checkInEnabled: events.checkInEnabled,
       location: events.location,
       latitude: events.latitude,
       longitude: events.longitude,

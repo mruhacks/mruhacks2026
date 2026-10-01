@@ -35,7 +35,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   apply: 'Apply',
   applications: 'Applications',
   checkin: 'Check-in',
-  subevents: 'Sub-events',
+  subevents: 'Schedule',
   rsvp: 'RSVP',
   teams: 'Teams',
   wiki: 'Wiki',

@@ -37,6 +37,13 @@ import {
   createSubevent,
   deleteSubevent,
 } from '@/app/dashboard/admin/events/subevent-actions';
+import {
+  isScheduleVisible,
+  listSubevents,
+  subeventsCacheTag,
+} from '@/lib/subevents';
+import { updateTag } from 'next/cache';
+import { updateEventDescription } from '@/app/dashboard/admin/events/content-actions';
 import { updateEventSettings } from '@/app/dashboard/admin/events/actions';
 
 const START = '2026-09-19T18:00:00.000Z';
@@ -190,6 +197,39 @@ describe('createSubevent', () => {
         location: null,
       }),
     ).resolves.toMatchObject({ success: false });
+  });
+
+  test('publishes an open-ended entry with Markdown and configurable check-in', async () => {
+    const result = await createSubevent(eventId, {
+      name: 'Open workshop',
+      startsAt: START,
+      endsAt: null,
+      descriptionMarkdown: '**Bring a laptop**',
+      checkInEnabled: false,
+    });
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    const rows = await listSubevents(eventId);
+    const entry = rows.find((row) => row.id === result.data!.id)!;
+    expect(entry.endsAt).toBeNull();
+    expect(entry.checkInEnabled).toBe(false);
+    expect(entry.descriptionMarkdown).toBe('**Bring a laptop**');
+    expect(isScheduleVisible(entry)).toBe(true);
+    expect(isScheduleVisible({ startsAt: null })).toBe(false);
+
+    vi.mocked(updateTag).mockClear();
+    await updateEventSettings(entry.id, { endsAt: END, checkInEnabled: true });
+    expect(updateTag).toHaveBeenCalledWith(subeventsCacheTag(eventId));
+    await updateEventSettings(entry.id, { endsAt: null });
+    vi.mocked(updateTag).mockClear();
+    await updateEventDescription(entry.id, '# Updated copy');
+    expect(updateTag).toHaveBeenCalledWith(subeventsCacheTag(eventId));
+    const updated = (await listSubevents(eventId)).find(
+      (row) => row.id === entry.id,
+    )!;
+    expect(updated.endsAt).toBeNull();
+    expect(updated.checkInEnabled).toBe(true);
+    expect(updated.descriptionMarkdown).toBe('# Updated copy');
   });
 
   test('creates a child with participation flags pinned off', async () => {

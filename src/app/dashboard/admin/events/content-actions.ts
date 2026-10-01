@@ -15,6 +15,7 @@ import { randomUUID } from 'crypto';
 import { and, asc, eq, ne, sql } from 'drizzle-orm';
 import { revalidatePath, updateTag } from 'next/cache';
 
+import { getParentEventId, subeventsCacheTag } from '@/lib/subevents';
 import { adminEventCacheTag } from '@/lib/admin-event';
 import { db } from '@/utils/db';
 import { events, eventArticles, eventTerms } from '@/db/schema';
@@ -211,6 +212,8 @@ async function updateEventMarkdown(
   if (!found) return fail('Event not found');
 
   updateTag(adminEventCacheTag(eventId));
+  const parentEventId = await getParentEventId(eventId);
+  if (parentEventId) updateTag(subeventsCacheTag(parentEventId));
   for (const segment of await eventUrlSegments(eventId)) {
     revalidatePath(`/dashboard/events/${segment}`);
   }

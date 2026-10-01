@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { useForm, Controller } from 'react-hook-form';
+import { useForm, Controller, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
 import { Plus } from 'lucide-react';
@@ -30,17 +30,11 @@ import {
   FieldGroup,
   FieldLabel,
 } from '@/components/ui/field';
+import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
 
-/**
- * Adds a sub-event. Deliberately only four fields — a sub-event is a name, a
- * window and a place; everything else on `events` stays at the safe default
- * `createSubevent` pins.
- *
- * `datetime-local` gives a browser-local wall clock, so both instants are
- * converted before they leave the client and the server only ever sees a real
- * UTC instant (see AGENTS.md).
- */
+/** Adds a schedule entry, converting browser wall-clock inputs to UTC instants. */
 export function CreateSubeventDialog({
   eventId,
   defaultStartsAt,
@@ -57,7 +51,6 @@ export function CreateSubeventDialog({
     control,
     handleSubmit,
     reset,
-    watch,
     formState: { errors, isSubmitting },
   } = useForm<CreateSubeventInput>({
     resolver: zodResolver(createSubeventSchema),
@@ -67,13 +60,17 @@ export function CreateSubeventDialog({
       // own days — needs only the time changed. Not a constraint: an organizer
       // can still put a sub-event wherever they want.
       startsAt: defaultStartsAt ?? '',
-      endsAt: '',
+      endsAt: null,
+      descriptionMarkdown: '',
+      checkInEnabled: true,
       location: '',
     },
   });
 
-  const startsAt = watch('startsAt');
-  const endsAt = watch('endsAt');
+  const [startsAt, endsAt] = useWatch({
+    control,
+    name: ['startsAt', 'endsAt'],
+  });
   const startsAtAbbr = useZoneAbbreviation(startsAt || undefined);
   const endsAtAbbr = useZoneAbbreviation(endsAt || undefined);
 
@@ -113,14 +110,17 @@ export function CreateSubeventDialog({
       </DialogTrigger>
       <DialogContent className='sm:max-w-md'>
         <DialogHeader>
-          <DialogTitle>New sub-event</DialogTitle>
+          <DialogTitle>New schedule entry</DialogTitle>
           <DialogDescription>
-            Meals, workshops and ceremonies participants can be checked into
-            separately, using the pass they already have.
+            Add a meal, workshop or ceremony to the participant schedule.
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={onSubmit} className='space-y-4'>
+        <form
+          onSubmit={onSubmit}
+          onChangeCapture={() => setSubmitError(null)}
+          className='flex flex-col gap-4'
+        >
           <FieldGroup className='gap-4'>
             <Field className='gap-1.5' data-invalid={!!errors.name}>
               <FieldLabel htmlFor='subevent-name'>Name</FieldLabel>
@@ -167,7 +167,7 @@ export function CreateSubeventDialog({
 
               <Field className='gap-1.5' data-invalid={!!errors.endsAt}>
                 <FieldLabel htmlFor='subevent-endsAt'>
-                  Ends ({endsAtAbbr})
+                  Ends ({endsAtAbbr}, optional)
                 </FieldLabel>
                 <Controller
                   name='endsAt'
@@ -187,7 +187,7 @@ export function CreateSubeventDialog({
                         field.onChange(
                           fromDateTimeLocalValue(
                             event.target.value,
-                          )?.toISOString() ?? '',
+                          )?.toISOString() ?? null,
                         )
                       }
                     />
@@ -212,6 +212,41 @@ export function CreateSubeventDialog({
               />
               {errors.location && <FieldError errors={[errors.location]} />}
             </Field>
+            <Field data-invalid={!!errors.descriptionMarkdown}>
+              <FieldLabel htmlFor='schedule-description'>
+                Description (optional)
+              </FieldLabel>
+              <FieldDescription>
+                Supports Markdown and appears inline on the schedule.
+              </FieldDescription>
+              <Textarea
+                id='schedule-description'
+                aria-invalid={!!errors.descriptionMarkdown}
+                {...register('descriptionMarkdown')}
+              />
+              {errors.descriptionMarkdown && (
+                <FieldError errors={[errors.descriptionMarkdown]} />
+              )}
+            </Field>
+            <Field orientation='horizontal'>
+              <FieldLabel htmlFor='schedule-check-in'>
+                Enable check-in
+              </FieldLabel>
+              <Controller
+                name='checkInEnabled'
+                control={control}
+                render={({ field }) => (
+                  <Switch
+                    id='schedule-check-in'
+                    checked={field.value ?? true}
+                    onCheckedChange={(value) => {
+                      setSubmitError(null);
+                      field.onChange(value);
+                    }}
+                  />
+                )}
+              />
+            </Field>
           </FieldGroup>
 
           {submitError && <FieldError>{submitError}</FieldError>}
@@ -225,7 +260,7 @@ export function CreateSubeventDialog({
               Cancel
             </Button>
             <Button type='submit' disabled={isSubmitting}>
-              {isSubmitting ? 'Adding...' : 'Add sub-event'}
+              {isSubmitting ? 'Adding...' : 'Add to schedule'}
             </Button>
           </DialogFooter>
         </form>

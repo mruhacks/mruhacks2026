@@ -2,11 +2,11 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { unstable_rethrow, useRouter } from 'next/navigation';
+import { unstable_rethrow, useRouter, useSearchParams } from 'next/navigation';
 import { Controller, useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
-import { Eye, EyeOff, Pencil } from 'lucide-react';
+import { Eye, EyeOff } from 'lucide-react';
 
 import { updateEventSettings } from '@/app/dashboard/admin/events/actions';
 import { eventSettingsFormSchema } from '@/app/dashboard/admin/events/schemas';
@@ -37,12 +37,16 @@ import { adminEventPath } from '@/lib/event-slug';
 import { slugify } from '@/lib/slug';
 import { fromDateTimeLocalValue, toDateTimeLocalValue } from '@/lib/datetime';
 import { parseOptionalNumber } from '@/lib/form-values';
+import { sanitizeReturnPath } from '@/utils/return-path';
 
 import { useEventBasePath } from '../_components/use-event-base-path';
 
 export function EventSettingsForm({ event }: { event: AdminEventSettings }) {
   const router = useRouter();
   const basePath = useEventBasePath();
+  const searchParams = useSearchParams();
+  const back = searchParams.get('back');
+  const backHref = sanitizeReturnPath(back, basePath);
   // Submission failures render under the submit button, not as a toast: a
   // toast disappears and leaves the user guessing which field to fix. See
   // AGENTS.md.
@@ -55,6 +59,7 @@ export function EventSettingsForm({ event }: { event: AdminEventSettings }) {
       // an empty string is also how the action is told to clear the slug.
       slug: event.slug ?? '',
       hasApplication: event.hasApplication,
+      checkInEnabled: event.checkInEnabled,
       capacity: event.capacity ?? null,
       capacityVisible: event.capacityVisible,
       startsAt: event.startsAt ? event.startsAt.toISOString() : undefined,
@@ -117,7 +122,9 @@ export function EventSettingsForm({ event }: { event: AdminEventSettings }) {
       const nextSlug = data.slug?.trim() || null;
       if (nextSlug !== (event.slug ?? null)) {
         router.replace(
-          `${adminEventPath({ id: event.id, slug: nextSlug })}/settings`,
+          `${adminEventPath({ id: event.id, slug: nextSlug })}/settings${
+            back ? `?${new URLSearchParams({ back })}` : ''
+          }`,
         );
         return;
       }
@@ -186,28 +193,6 @@ export function EventSettingsForm({ event }: { event: AdminEventSettings }) {
                     </FieldDescription>
                     {errors.slug && <FieldError errors={[errors.slug]} />}
                   </Field>
-                  <Button
-                    asChild
-                    variant='outline'
-                    size='sm'
-                    className='self-start'
-                  >
-                    <Link href={`${basePath}/settings/description`}>
-                      <Pencil aria-hidden data-icon='inline-start' />
-                      Edit description
-                    </Link>
-                  </Button>
-                  <Button
-                    asChild
-                    variant='outline'
-                    size='sm'
-                    className='self-start'
-                  >
-                    <Link href={`${basePath}/settings/terms`}>
-                      <Pencil aria-hidden data-icon='inline-start' />
-                      Edit Event Terms
-                    </Link>
-                  </Button>
                   <Field orientation='horizontal' className='gap-4'>
                     <FieldContent>
                       <FieldLabel htmlFor='isFeatured'>
@@ -279,7 +264,7 @@ export function EventSettingsForm({ event }: { event: AdminEventSettings }) {
                     </Field>
                     <Field className='gap-1.5' data-invalid={!!errors.endsAt}>
                       <FieldLabel htmlFor='endsAt'>
-                        Ends ({endsAtAbbr})
+                        Ends ({endsAtAbbr}, optional)
                       </FieldLabel>
                       <Controller
                         name='endsAt'
@@ -430,6 +415,31 @@ export function EventSettingsForm({ event }: { event: AdminEventSettings }) {
                       )}
                     />
                   </Field>
+                  <Field orientation='horizontal' className='gap-4'>
+                    <FieldContent>
+                      <FieldLabel htmlFor='checkInEnabled'>
+                        Enable check-in
+                      </FieldLabel>
+                      <FieldDescription>
+                        Offer participant passes and let volunteers record
+                        attendance.
+                      </FieldDescription>
+                    </FieldContent>
+                    <Controller
+                      name='checkInEnabled'
+                      control={control}
+                      render={({ field }) => (
+                        <Switch
+                          id='checkInEnabled'
+                          checked={field.value ?? true}
+                          onCheckedChange={(value) => {
+                            setSubmitError(null);
+                            field.onChange(value);
+                          }}
+                        />
+                      )}
+                    />
+                  </Field>
                   <Field className='gap-1.5' data-invalid={!!errors.capacity}>
                     <FieldLabel htmlFor='capacity'>
                       Attendee capacity
@@ -566,7 +576,7 @@ export function EventSettingsForm({ event }: { event: AdminEventSettings }) {
         {submitError && <FieldError role='alert'>{submitError}</FieldError>}
         <div className='flex flex-wrap items-center justify-end gap-2'>
           <Button asChild variant='outline'>
-            <Link href={basePath}>Back to event</Link>
+            <Link href={backHref}>Back to event</Link>
           </Button>
           <Button type='submit' disabled={isSubmitting}>
             {isSubmitting ? 'Saving…' : 'Save event settings'}

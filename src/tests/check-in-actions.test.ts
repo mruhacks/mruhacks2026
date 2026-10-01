@@ -791,3 +791,37 @@ describe('sub-event check-in', () => {
     ).resolves.toMatchObject({ success: false });
   });
 });
+
+describe('disabled check-in', () => {
+  test.each(['main', 'schedule'] as const)(
+    'blocks every scanner action when %s check-in is disabled',
+    async (kind) => {
+      vi.mocked(getUser).mockResolvedValue(scanner as never);
+      const disabledId = kind === 'main' ? eventId : childEventId;
+      const targetId = kind === 'main' ? undefined : childEventId;
+      await db
+        .update(events)
+        .set({ checkInEnabled: false })
+        .where(eq(events.id, disabledId));
+      try {
+        for (const action of [
+          () => scanCheckIn(eventId, passFor(eventId, participantId), targetId),
+          () => checkInParticipant(eventId, participantId, targetId),
+          () => undoCheckIn(eventId, participantId, targetId),
+          () => getCheckInRoster(eventId, targetId),
+          () => getCheckInUpdates(eventId, null, targetId),
+        ]) {
+          await expect(action()).resolves.toMatchObject({
+            success: false,
+            error: 'Check-in is disabled for this event.',
+          });
+        }
+      } finally {
+        await db
+          .update(events)
+          .set({ checkInEnabled: true })
+          .where(eq(events.id, disabledId));
+      }
+    },
+  );
+});

@@ -74,7 +74,7 @@ async function WikiSection({
       action={canWrite ? <CreateArticleDialog eventId={eventId} /> : undefined}
     >
       {articles.length === 0 && !hasTerms ? (
-        <p className='text-muted-foreground px-6 py-5 text-sm'>
+        <p className='text-muted-foreground px-4 py-5 text-sm'>
           No articles yet.
           {canWrite ? ' Add one to start the wiki.' : ''}
         </p>
@@ -124,7 +124,7 @@ function WikiTermsRow({
   return (
     <div
       className={cn(
-        'hover:bg-accent/50 relative flex items-center gap-2 px-6 py-3',
+        'hover:bg-accent/50 relative flex items-center gap-2 px-4 py-3',
         bordered && 'border-t',
       )}
     >
@@ -148,8 +148,7 @@ function WikiTermsRow({
             {updatedAt && (
               <>
                 {' '}
-                · updated{' '}
-                <LocalDateTime value={updatedAt} dateStyle='medium' />
+                · updated <LocalDateTime value={updatedAt} dateStyle='medium' />
               </>
             )}
           </span>

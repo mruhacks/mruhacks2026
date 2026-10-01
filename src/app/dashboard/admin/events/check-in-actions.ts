@@ -99,6 +99,29 @@ async function getScanner() {
   return actor;
 }
 
+async function isCheckInEnabled(
+  eventId: string,
+  targetEventId?: string | null,
+) {
+  if (!UUID_PATTERN.test(eventId)) return false;
+  const [main] = await db
+    .select({ enabled: events.checkInEnabled })
+    .from(events)
+    .where(and(eq(events.id, eventId), isNull(events.parentEventId)))
+    .limit(1);
+  if (main && !main.enabled) return false;
+  if (!targetEventId || targetEventId.toLowerCase() === eventId.toLowerCase())
+    return true;
+  if (!UUID_PATTERN.test(targetEventId)) return false;
+  const [target] = await db
+    .select({ enabled: events.checkInEnabled })
+    .from(events)
+    .where(and(eq(events.id, targetEventId), eq(events.parentEventId, eventId)))
+    .limit(1);
+  // The target resolver reports missing/foreign entries with its specific error.
+  return target?.enabled ?? true;
+}
+
 async function loadAccountName(userId: string): Promise<string> {
   const [row] = await db
     .select({ name: user.name })
@@ -248,7 +271,7 @@ async function checkInUser(
 }
 
 /** The failure every action shares when a target isn't this event's sub-event. */
-const UNKNOWN_TARGET = 'That sub-event does not belong to this event.';
+const UNKNOWN_TARGET = 'That schedule entry does not belong to this event.';
 
 /**
  * Checks a participant in from their pass QR code.
@@ -278,6 +301,10 @@ export async function scanCheckIn(
     return fail('This pass was issued for a different event.');
   }
 
+  if (!(await isCheckInEnabled(eventId, targetEventId))) {
+    return fail('Check-in is disabled for this event.');
+  }
+
   const target = await resolveCheckInTarget(eventId, targetEventId);
   if (!target) return fail(UNKNOWN_TARGET);
 
@@ -296,6 +323,10 @@ export async function checkInParticipant(
   const actor = await getScanner();
   if (!actor) return fail('Not authenticated');
   if (!UUID_PATTERN.test(userId)) return fail('Unknown participant.');
+
+  if (!(await isCheckInEnabled(eventId, targetEventId))) {
+    return fail('Check-in is disabled for this event.');
+  }
 
   const target = await resolveCheckInTarget(eventId, targetEventId);
   if (!target) return fail(UNKNOWN_TARGET);
@@ -319,6 +350,10 @@ export async function undoCheckIn(
   // unhandled action error rather than a fail() result.
   if (!UUID_PATTERN.test(eventId)) return fail('Event not found.');
   if (!UUID_PATTERN.test(userId)) return fail('Unknown participant.');
+
+  if (!(await isCheckInEnabled(eventId, targetEventId))) {
+    return fail('Check-in is disabled for this event.');
+  }
 
   const target = await resolveCheckInTarget(eventId, targetEventId);
   if (!target) return fail(UNKNOWN_TARGET);
@@ -381,6 +416,10 @@ export async function getCheckInRoster(
     .limit(1);
   if (!topLevelEvent) {
     return fail('Check-in is only available for main events.');
+  }
+
+  if (!(await isCheckInEnabled(eventId, targetEventId))) {
+    return fail('Check-in is disabled for this event.');
   }
 
   const target = await resolveCheckInTarget(eventId, targetEventId);
@@ -483,6 +522,10 @@ export async function getCheckInUpdates(
 
   // Gated like the writes even though it only returns timestamps: an
   // unvalidated target would let a caller poll another event's check-in times.
+  if (!(await isCheckInEnabled(eventId, targetEventId))) {
+    return fail('Check-in is disabled for this event.');
+  }
+
   const target = await resolveCheckInTarget(eventId, targetEventId);
   if (!target) return fail(UNKNOWN_TARGET);
 

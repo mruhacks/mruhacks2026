@@ -21,7 +21,11 @@ export async function GET(
   // Not-participant collapses into the same 404 as "no application at all"
   // rather than a 403, so this endpoint can't be used to probe whether a
   // given user has applied to a given event.
-  if (!participation || !participation.isParticipant) {
+  if (
+    !participation ||
+    !participation.isParticipant ||
+    !participation.checkInEnabled
+  ) {
     return new Response('Not found', { status: 404 });
   }
 

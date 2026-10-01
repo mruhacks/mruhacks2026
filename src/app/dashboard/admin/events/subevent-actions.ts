@@ -87,7 +87,9 @@ export async function createSubevent(
       parentEventId,
       name: parsed.data.name,
       startsAt: new Date(parsed.data.startsAt),
-      endsAt: new Date(parsed.data.endsAt),
+      endsAt: parsed.data.endsAt ? new Date(parsed.data.endsAt) : null,
+      descriptionMarkdown: parsed.data.descriptionMarkdown?.trim() || null,
+      checkInEnabled: parsed.data.checkInEnabled ?? true,
       location: parsed.data.location || null,
       slug: null,
       hasApplication: false,
@@ -135,7 +137,7 @@ export async function deleteSubevent(
       and(eq(events.id, subeventId), eq(events.parentEventId, parentEventId)),
     )
     .limit(1);
-  if (!subevent) return fail('Sub-event not found.');
+  if (!subevent) return fail('Schedule entry not found.');
 
   // `events.parent_event_id` is ON DELETE SET NULL, so a child of this row
   // would be silently promoted into a top-level event. `createSubevent`'s
@@ -146,7 +148,9 @@ export async function deleteSubevent(
     .where(eq(events.parentEventId, subeventId))
     .limit(1);
   if (grandchild) {
-    return fail('That sub-event has sub-events of its own. Remove them first.');
+    return fail(
+      'That schedule entry has entries of its own. Remove them first.',
+    );
   }
 
   const checkInRows = await db

@@ -53,8 +53,11 @@ async function SubeventsContent({
 
   return (
     <SubeventList
+      checkInEnabled={event.checkInEnabled}
+      canCheckIn={await hasPermission(user.id, 'checkin:write:all')}
       eventId={eventId}
       segment={segment}
+      backHref={`/dashboard/admin/events/${segment}/subevents`}
       eventStartsAt={event.startsAt ? serializeInstant(event.startsAt) : null}
       subevents={subevents}
       checkInCounts={checkInCounts}

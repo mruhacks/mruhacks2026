@@ -1,67 +1,67 @@
-import * as React from 'react';
-import Link from 'next/link';
-import { Pencil } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Suspense } from 'react';
 import { redirect } from 'next/navigation';
-
-import { MarkdownContent } from '@/components/markdown/markdown-content';
+import { EventSchedule } from '@/app/dashboard/events/[eventId]/event-schedule';
 import { getAdminEventHeader } from '@/lib/admin-event';
 import { resolveEventId } from '@/lib/events';
+import { serializeInstant } from '@/lib/datetime';
 import { hasPermission } from '@/lib/rbac/authorization';
+import {
+  listSubevents,
+  isScheduleVisible,
+  getSubeventCheckInCounts,
+} from '@/lib/subevents';
 import { getUser } from '@/utils/auth';
-
-import { BentoCard, BentoCardSkeleton } from '../../_components/bento-card';
+import { BentoCardSkeleton } from '../../_components/bento-card';
+import { SubeventList } from '../../subevents/subevent-list';
 
 type Props = { params: Promise<{ eventId: string }> };
 
-export default function DescriptionCell({ params }: Props) {
+export default function ScheduleCell({ params }: Props) {
   return (
-    <React.Suspense fallback={<BentoCardSkeleton rows={5} />}>
-      <DescriptionSection paramsPromise={params} />
-    </React.Suspense>
+    <Suspense fallback={<BentoCardSkeleton rows={5} />}>
+      <ScheduleSection params={params} />
+    </Suspense>
   );
 }
 
-async function DescriptionSection({
-  paramsPromise,
-}: {
-  paramsPromise: Promise<{ eventId: string }>;
-}) {
-  const { eventId: segment } = await paramsPromise;
+async function ScheduleSection({ params }: Props) {
+  const { eventId: segment } = await params;
   const eventId = await resolveEventId(segment);
   if (!eventId) return null;
   const user = await getUser();
   if (!user) redirect('/signin');
-
-  const [event, canManage] = await Promise.all([
+  const [event, entries, canManage, canCheckIn] = await Promise.all([
     getAdminEventHeader(eventId),
-    hasPermission(user.id, 'event:manage:all'),
+    listSubevents(eventId),
+    hasPermission(user.id, 'event:manage'),
+    hasPermission(user.id, 'checkin:write:all'),
   ]);
-
   if (!event) return null;
-
+  if (canManage)
+    return (
+      <SubeventList
+        fitContainer
+        eventId={eventId}
+        segment={segment}
+        eventStartsAt={serializeInstant(event.startsAt)}
+        subevents={entries}
+        checkInEnabled={event.checkInEnabled}
+        canCheckIn={canCheckIn}
+        checkInCounts={
+          canCheckIn && event.checkInEnabled
+            ? await getSubeventCheckInCounts(entries.map((entry) => entry.id))
+            : {}
+        }
+      />
+    );
   return (
-    <BentoCard
-      title='Description'
-      action={
-        canManage ? (
-          <Button asChild variant='ghost' size='icon'>
-            <Link
-              href={`/dashboard/admin/events/${segment}/settings/description`}
-              aria-label='Edit description'
-              title='Edit description'
-            >
-              <Pencil aria-hidden />
-            </Link>
-          </Button>
-        ) : undefined
-      }
-    >
-      {event.descriptionMarkdown ? (
-        <MarkdownContent markdown={event.descriptionMarkdown} />
-      ) : (
-        <p className='text-muted-foreground text-sm'>No description yet.</p>
-      )}
-    </BentoCard>
+    <EventSchedule
+      fitContainer
+      entries={entries.filter(isScheduleVisible).map((entry) => ({
+        ...entry,
+        startsAt: serializeInstant(entry.startsAt!),
+        endsAt: serializeInstant(entry.endsAt),
+      }))}
+    />
   );
 }

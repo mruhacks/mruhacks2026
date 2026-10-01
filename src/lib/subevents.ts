@@ -7,9 +7,8 @@ import { db } from '@/utils/db';
 /**
  * A sub-event: a child `events` row standing in for something that happens
  * inside the main event — a meal, a workshop, a ceremony. It carries a name, a
- * time and a place and nothing else; every other column on `events` is left at
- * its default, because a sub-event issues no passes, takes no applications and
- * forms no teams.
+ * time, place, optional Markdown copy and check-in setting. A sub-event
+ * issues no passes, takes no applications and forms no teams.
  *
  * Sub-events deliberately reuse the events table rather than getting one of
  * their own: `check_ins`'s unique `(user_id, event_id)` index then gives
@@ -23,9 +22,11 @@ export type SubeventRow = {
   startsAt: Date | null;
   endsAt: Date | null;
   location: string | null;
+  descriptionMarkdown: string | null;
+  checkInEnabled: boolean;
 };
 
-/** Invalidated by updateTag() whenever a sub-event is created or removed. */
+/** Invalidated whenever a schedule entry is created, edited or removed. */
 export function subeventsCacheTag(parentEventId: string): string {
   return `subevents:${parentEventId}`;
 }
@@ -42,9 +43,7 @@ export async function listSubevents(
 ): Promise<SubeventRow[]> {
   'use cache';
   cacheTag(subeventsCacheTag(parentEventId));
-  // updateTag() covers create and delete, and an edit goes through the ordinary
-  // event settings form, which revalidates the event's paths — 'minutes' is the
-  // safety net for anything that misses.
+  // Settings and copy edits invalidate this parent-scoped cache too.
   cacheLife('minutes');
 
   return db
@@ -54,23 +53,17 @@ export async function listSubevents(
       startsAt: events.startsAt,
       endsAt: events.endsAt,
       location: events.location,
+      descriptionMarkdown: events.descriptionMarkdown,
+      checkInEnabled: events.checkInEnabled,
     })
     .from(events)
     .where(eq(events.parentEventId, parentEventId))
     .orderBy(asc(events.startsAt), asc(events.name));
 }
 
-/**
- * Whether a sub-event is complete enough to show participants.
- *
- * `events` has no publish flag and this feature does not add one: the create
- * form requires both instants, so a normally-created sub-event always passes
- * and this gate is invisible in practice. What it buys is an escape hatch —
- * clearing the end time pulls a row off the public schedule — with no
- * migration, no toggle and no publish/unpublish action to maintain.
- */
-export function isScheduleVisible(row: SubeventRow): boolean {
-  return row.startsAt !== null && row.endsAt !== null;
+/** A start time is enough to publish an entry in the participant schedule. */
+export function isScheduleVisible(row: Pick<SubeventRow, 'startsAt'>): boolean {
+  return row.startsAt !== null;
 }
 
 /**

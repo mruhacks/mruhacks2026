@@ -42,11 +42,7 @@ export function NextSubeventFootnote({
   return (
     <>
       <strong className='text-foreground'>{next.name}</strong> next ·{' '}
-      <LocalDateTime
-        value={next.startsAt}
-        dateStyle='short'
-        timeStyle='short'
-      />
+      <LocalDateTime value={next.startsAt} weekday='long' timeStyle='short' />
     </>
   );
 }

@@ -87,7 +87,7 @@ export function DeleteSubeventButton({
               disabled={isDeleting}
               onClick={handleDelete}
             >
-              {isDeleting ? 'Deleting...' : 'Delete sub-event'}
+              {isDeleting ? 'Deleting...' : 'Delete schedule entry'}
             </Button>
           </DialogFooter>
         </DialogContent>

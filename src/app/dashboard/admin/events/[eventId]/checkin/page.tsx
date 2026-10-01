@@ -1,6 +1,8 @@
 import * as React from 'react';
 import { notFound, redirect } from 'next/navigation';
 
+import { requirePermission } from '@/lib/rbac/authorization';
+import { getUser } from '@/utils/auth';
 import { resolveEventId } from '@/lib/events';
 import { getAdminEventHeader } from '@/lib/admin-event';
 import { getParentEventId, listSubevents } from '@/lib/subevents';
@@ -54,6 +56,9 @@ async function CheckInContent({
   const { eventId: segment } = await paramsPromise;
   const eventId = await resolveEventId(segment);
   if (!eventId) notFound();
+  const user = await getUser();
+  if (!user) redirect('/signin');
+  await requirePermission(user.id, 'checkin:write:all');
 
   // A sub-event has no check-in desk of its own: its roster is the parent's and
   // the passes are the parent's. Arriving here from a sub-event's own admin
@@ -76,14 +81,17 @@ async function CheckInContent({
     listSubevents(eventId),
   ]);
   if (!event) notFound();
+  if (!event.checkInEnabled) return <p>Check-in is disabled for this event.</p>;
 
-  const subevents: CheckInTargetOption[] = subeventRows.map((row) => ({
-    id: row.id,
-    name: row.name,
-    startsAt: row.startsAt ? serializeInstant(row.startsAt) : null,
-    endsAt: row.endsAt ? serializeInstant(row.endsAt) : null,
-    location: row.location,
-  }));
+  const subevents: CheckInTargetOption[] = subeventRows
+    .filter((row) => row.checkInEnabled)
+    .map((row) => ({
+      id: row.id,
+      name: row.name,
+      startsAt: row.startsAt ? serializeInstant(row.startsAt) : null,
+      endsAt: row.endsAt ? serializeInstant(row.endsAt) : null,
+      location: row.location,
+    }));
 
   const armed =
     requestedTarget && requestedTarget !== eventId
