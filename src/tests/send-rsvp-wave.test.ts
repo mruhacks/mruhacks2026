@@ -280,8 +280,8 @@ describe('resolveMagicLinkMailOptions', () => {
           baseUrl: testBaseUrl,
         }),
     );
-    expect(result.subject).toBe('RSVP invitation — Hackathon');
-    expect(result.html).toContain('View RSVP');
+    expect(result.subject).toBe("You're invited to Hackathon — please RSVP");
+    expect(result.html).toContain('RSVP Now');
   });
 });
 

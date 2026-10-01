@@ -230,10 +230,10 @@ describe('RSVP magic-link expiration / resend', () => {
       const mailCall = vi.mocked(sendMail).mock.calls[0]?.[0];
       expect(mailCall?.to).toBe('resend-rsvp@example.com');
       expect(mailCall?.subject).toBe(
-        'RSVP invitation — Resend Magic Link Event',
+        "You're invited to Resend Magic Link Event — please RSVP",
       );
       expect(mailCall?.subject).not.toBe('Sign in to MRUHacks');
-      expect(mailCall?.html).toContain('View RSVP');
+      expect(mailCall?.html).toContain('RSVP Now');
 
       const token = magicLinkTokenFromLastMail();
       const expiresAt = await getVerificationExpiresAt(token);

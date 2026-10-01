@@ -38,11 +38,12 @@ export async function resolveMagicLinkMailOptions(options: {
   if (rsvp) {
     return {
       to: email,
-      ...buildRsvpInvitationEmail({
+      ...(await buildRsvpInvitationEmail({
         eventName: rsvp.eventName,
         respondBy: rsvp.respondBy,
         magicLinkUrl,
-      }),
+        baseUrl,
+      })),
     };
   }
 
