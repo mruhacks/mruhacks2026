@@ -31,7 +31,7 @@ export default function ApplicationsCell({ params }: Props) {
 const STATUS_ROWS = [
   { key: 'unknown', label: 'Submitted', dot: 'bg-muted-foreground' },
   { key: 'pending_review', label: 'In review', dot: 'bg-sky-500' },
-  { key: 'approved', label: 'Accepted', dot: 'bg-emerald-500' },
+  { key: 'approved', label: 'Invited', dot: 'bg-emerald-500' },
   { key: 'waitlisted', label: 'Waitlisted', dot: 'bg-amber-500' },
   { key: 'denied', label: 'Declined', dot: 'bg-red-500' },
 ] as const;

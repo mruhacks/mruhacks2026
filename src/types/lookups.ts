@@ -101,7 +101,7 @@ export const applicationStatusDisplayList = [
   },
   {
     label: 'approved',
-    title: 'Accepted',
+    title: 'Invited',
     description: "You're in! Check your email and ticket for next steps.",
     variant: 'success',
     isFinal: true,

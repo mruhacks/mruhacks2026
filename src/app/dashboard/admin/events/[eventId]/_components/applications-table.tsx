@@ -8,6 +8,7 @@ import { LocalDateTime } from '@/components/local-date-time';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { DataTable } from '@/components/data-table/data-table';
+import { getApplicationDisplayStatus } from '@/app/dashboard/events/event-display-status';
 import type { AdminApplicationRow } from '@/lib/admin-event';
 import { isOtherOption, otherTextKey } from '@/lib/other-option';
 import type {
@@ -16,12 +17,20 @@ import type {
 } from '@/types/application';
 import {
   applicationStatusDisplayList,
+  rsvpStatusDisplayList,
+  type ApplicationStatus,
   type ApplicationStatusBadgeVariant,
+  type RsvpStatus,
 } from '@/types/lookups';
+
+export type ApplicationsTableRow = AdminApplicationRow & {
+  /** Effective status of the applicant's latest-wave RSVP, if invited. */
+  rsvpStatus: RsvpStatus | null;
+};
 
 type Props = {
   eventId: string;
-  rows: AdminApplicationRow[];
+  rows: ApplicationsTableRow[];
   questions: ApplicationQuestion[];
 };
 
@@ -34,6 +43,42 @@ const STATUS_DISPLAY = new Map<
     { title: status.title, variant: status.variant },
   ]),
 );
+
+const RSVP_STATUS_DISPLAY = new Map<
+  string,
+  { title: string; variant: ApplicationStatusBadgeVariant }
+>(
+  rsvpStatusDisplayList.map((status) => [
+    status.label,
+    { title: status.title, variant: status.variant },
+  ]),
+);
+
+/**
+ * The same badge the applicant sees on their dashboard: RSVP status wins
+ * once they've been invited, otherwise the application's review status.
+ * A row with neither is an untriaged submission.
+ */
+function getStatusDisplay(row: ApplicationsTableRow): {
+  label: string;
+  variant: ApplicationStatusBadgeVariant;
+} {
+  const statusDisplay = row.status ? STATUS_DISPLAY.get(row.status) : undefined;
+  if (!row.rsvpStatus && !statusDisplay) {
+    return { label: row.status ?? 'Submitted', variant: 'secondary' };
+  }
+  const display = getApplicationDisplayStatus({
+    hasApplication: true,
+    userStatus: 'applied',
+    statusKey: statusDisplay ? (row.status as ApplicationStatus) : null,
+    statusDisplay: statusDisplay ?? null,
+    rsvpStatusLabel: row.rsvpStatus,
+    rsvpStatusDisplay: row.rsvpStatus
+      ? (RSVP_STATUS_DISPLAY.get(row.rsvpStatus) ?? null)
+      : null,
+  });
+  return { label: display.label, variant: display.badgeVariant };
+}
 
 /** Mirrors the renderer in the full responses view. */
 function getDisplayValue(
@@ -90,7 +135,7 @@ export function ApplicationsTable({ eventId, rows, questions }: Props) {
    * than something they typed on this form — the two disagree often enough
    * to matter when triaging.
    */
-  const columns = React.useMemo<ColumnDef<AdminApplicationRow>[]>(
+  const columns = React.useMemo<ColumnDef<ApplicationsTableRow>[]>(
     () => [
       {
         id: 'profile',
@@ -156,17 +201,12 @@ export function ApplicationsTable({ eventId, rows, questions }: Props) {
         header: 'Application',
         columns: [
           {
-            accessorKey: 'status',
+            id: 'status',
             header: 'Status',
+            accessorFn: (row) => getStatusDisplay(row).label,
             cell: ({ row }) => {
-              const display = row.original.status
-                ? STATUS_DISPLAY.get(row.original.status)
-                : undefined;
-              return (
-                <Badge variant={display?.variant ?? 'secondary'}>
-                  {display?.title ?? 'Submitted'}
-                </Badge>
-              );
+              const display = getStatusDisplay(row.original);
+              return <Badge variant={display.variant}>{display.label}</Badge>;
             },
           },
           {
@@ -203,7 +243,7 @@ export function ApplicationsTable({ eventId, rows, questions }: Props) {
               id: 'answers',
               header: 'Application form answers',
               columns: answerQuestions.map(
-                (question): ColumnDef<AdminApplicationRow> => ({
+                (question): ColumnDef<ApplicationsTableRow> => ({
                   id: question.id,
                   header: question.label,
                   accessorFn: (row) => row.responses[question.id],
@@ -216,7 +256,7 @@ export function ApplicationsTable({ eventId, rows, questions }: Props) {
                     ),
                 }),
               ),
-            } satisfies ColumnDef<AdminApplicationRow>,
+            } satisfies ColumnDef<ApplicationsTableRow>,
           ]
         : []),
     ],
@@ -257,9 +297,7 @@ export function ApplicationsTable({ eventId, rows, questions }: Props) {
       row.university ?? '',
       row.major ?? '',
       row.yearOfStudy ?? '',
-      row.status
-        ? (STATUS_DISPLAY.get(row.status)?.title ?? row.status)
-        : 'Submitted',
+      getStatusDisplay(row).label,
       row.submittedAt.toISOString(),
       row.teamCode ?? '',
       row.hasResume ? 'yes' : 'no',

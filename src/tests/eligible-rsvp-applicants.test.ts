@@ -86,7 +86,7 @@ async function ensureApplicationStatus(
 beforeAll(async () => {
   approvedStatusId = await ensureApplicationStatus(
     'approved',
-    'Accepted',
+    'Invited',
     true,
   );
   pendingReviewStatusId = await ensureApplicationStatus(

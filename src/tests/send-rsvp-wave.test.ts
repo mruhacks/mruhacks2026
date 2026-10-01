@@ -94,8 +94,8 @@ beforeAll(async () => {
     .insert(applicationStatuses)
     .values({
       label: 'approved',
-      title: 'Accepted',
-      description: 'Accepted',
+      title: 'Invited',
+      description: 'Invited',
       variant: 'success',
       isFinal: true,
     })
@@ -280,7 +280,9 @@ describe('resolveMagicLinkMailOptions', () => {
           baseUrl: testBaseUrl,
         }),
     );
-    expect(result.subject).toBe("You're invited to Hackathon — please RSVP");
+    expect(result.subject).toBe(
+      "[Action Required] You're invited to Hackathon!",
+    );
     expect(result.html).toContain('RSVP Now');
   });
 });

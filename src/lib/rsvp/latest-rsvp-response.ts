@@ -73,6 +73,56 @@ export async function findLatestRsvpResponses(options: {
     .where(where);
 }
 
+export type LatestEventRsvpResponse = {
+  userId: string;
+  statusLabel: string | null;
+  respondBy: Date;
+};
+
+/**
+ * Latest RSVP response per user for one event (highest wave each user was
+ * invited in) — the admin-side counterpart of `findLatestRsvpResponses`, so
+ * the applications roster resolves the same row the applicant sees.
+ */
+export async function findLatestEventRsvpResponses(
+  eventId: string,
+): Promise<LatestEventRsvpResponse[]> {
+  const latestWave = db
+    .select({
+      userId: eventRsvpResponses.userId,
+      maxWave: max(eventRsvpWaves.wave).as('max_wave'),
+    })
+    .from(eventRsvpResponses)
+    .innerJoin(
+      eventRsvpWaves,
+      eq(eventRsvpResponses.rsvpWaveId, eventRsvpWaves.id),
+    )
+    .where(eq(eventRsvpWaves.eventId, eventId))
+    .groupBy(eventRsvpResponses.userId)
+    .as('latest_event_rsvp_wave');
+
+  return db
+    .select({
+      userId: eventRsvpResponses.userId,
+      statusLabel: rsvpStatuses.label,
+      respondBy: eventRsvpWaves.respondBy,
+    })
+    .from(eventRsvpResponses)
+    .innerJoin(
+      eventRsvpWaves,
+      eq(eventRsvpResponses.rsvpWaveId, eventRsvpWaves.id),
+    )
+    .innerJoin(
+      latestWave,
+      and(
+        eq(eventRsvpResponses.userId, latestWave.userId),
+        eq(eventRsvpWaves.wave, latestWave.maxWave),
+      ),
+    )
+    .leftJoin(rsvpStatuses, eq(eventRsvpResponses.statusId, rsvpStatuses.id))
+    .where(eq(eventRsvpWaves.eventId, eventId));
+}
+
 export async function findLatestRsvpResponse(options: {
   userId: string;
   eventId: string;

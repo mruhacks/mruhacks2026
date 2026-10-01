@@ -52,8 +52,8 @@ async function ensureApprovedStatus(): Promise<number> {
     .insert(applicationStatuses)
     .values({
       label: 'approved',
-      title: 'Accepted',
-      description: 'Accepted',
+      title: 'Invited',
+      description: 'Invited',
       variant: 'success',
       isFinal: true,
     })

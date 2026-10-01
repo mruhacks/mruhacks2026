@@ -62,8 +62,8 @@ beforeAll(async () => {
     .insert(applicationStatuses)
     .values({
       label: 'approved',
-      title: 'Accepted',
-      description: 'Accepted',
+      title: 'Invited',
+      description: 'Invited',
       variant: 'success',
       isFinal: true,
     })
@@ -230,7 +230,7 @@ describe('RSVP magic-link expiration / resend', () => {
       const mailCall = vi.mocked(sendMail).mock.calls[0]?.[0];
       expect(mailCall?.to).toBe('resend-rsvp@example.com');
       expect(mailCall?.subject).toBe(
-        "You're invited to Resend Magic Link Event — please RSVP",
+        "[Action Required] You're invited to Resend Magic Link Event!",
       );
       expect(mailCall?.subject).not.toBe('Sign in to MRUHacks');
       expect(mailCall?.html).toContain('RSVP Now');

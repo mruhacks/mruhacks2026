@@ -4,7 +4,7 @@ import { getApplicationDisplayStatus } from '@/app/dashboard/events/event-displa
 import type { ApplicationDisplayStatusInput } from '@/app/dashboard/events/event-display-status';
 
 const acceptedApplication = {
-  title: 'Accepted',
+  title: 'Invited',
   variant: 'success' as const,
 };
 
@@ -83,9 +83,9 @@ describe('getApplicationDisplayStatus', () => {
     expect(result.badgeVariant).toBe('destructive');
   });
 
-  test('accepted application without RSVP → Accepted', () => {
+  test('accepted application without RSVP → Invited', () => {
     const result = getApplicationDisplayStatus(applied());
-    expect(result.label).toBe('Accepted');
+    expect(result.label).toBe('Invited');
     expect(result.pill).toBe('approved');
     expect(result.badgeVariant).toBe('success');
   });

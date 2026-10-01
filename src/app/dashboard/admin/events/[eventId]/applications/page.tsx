@@ -8,6 +8,8 @@ import {
   getEventQuestions,
 } from '@/lib/admin-event';
 import { resolveEventId } from '@/lib/events';
+import { resolveEffectiveRsvpStatus } from '@/lib/rsvp/effective-rsvp-status';
+import { findLatestEventRsvpResponses } from '@/lib/rsvp/latest-rsvp-response';
 import { requirePermission } from '@/lib/rbac/authorization';
 import { getUser } from '@/utils/auth';
 
@@ -71,10 +73,25 @@ async function ApplicationsContent({
     );
   }
 
-  const [rows, questions] = await Promise.all([
+  // RSVP status is read fresh rather than folded into the cached roster: a
+  // response (or a deadline passing) changes it without touching the
+  // application, so it can't sit behind the applications cache tag.
+  const [roster, questions, rsvpRows] = await Promise.all([
     getApplicationRoster(eventId),
     getEventQuestions(eventId),
+    findLatestEventRsvpResponses(eventId),
   ]);
+  const now = new Date();
+  const rsvpByUserId = new Map(
+    rsvpRows.map((r) => [
+      r.userId,
+      resolveEffectiveRsvpStatus(r.statusLabel, r.respondBy, now),
+    ]),
+  );
+  const rows = roster.map((row) => ({
+    ...row,
+    rsvpStatus: rsvpByUserId.get(row.userId) ?? null,
+  }));
 
   return (
     <div className='space-y-4'>
