@@ -208,6 +208,29 @@ export const eventSettingsFormSchema = updateEventSettingsSchema.refine(
   GEOFENCE_ISSUE,
 );
 
+// ── Sub-event schemas ────────────────────────────────────────────────────
+
+/**
+ * A sub-event — a meal, a workshop, a ceremony — is a child `events` row that
+ * carries only a name, a window and a place. Unlike a top-level event both
+ * instants are required: a sub-event exists to be a check-in target at a
+ * particular time, and the participant schedule hides any row missing either
+ * one, so an organizer who clears them makes it silently disappear.
+ */
+export const createSubeventSchema = z
+  .object({
+    name: z.string().trim().min(1, 'Sub-event name is required').max(255),
+    startsAt: eventInstantSchema,
+    endsAt: eventInstantSchema,
+    location: z.string().trim().max(255).nullish(),
+  })
+  .refine((data) => new Date(data.startsAt) < new Date(data.endsAt), {
+    message: 'Start time must be before end time',
+    path: ['endsAt'],
+  });
+
+export type CreateSubeventInput = z.infer<typeof createSubeventSchema>;
+
 // ── Markdown content schemas ─────────────────────────────────────────────
 
 /**

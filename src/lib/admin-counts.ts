@@ -1,5 +1,5 @@
 import { cacheTag, cacheLife } from 'next/cache';
-import { eq, sql } from 'drizzle-orm';
+import { eq, isNull, sql } from 'drizzle-orm';
 import { db } from '@/utils/db';
 import {
   user,
@@ -57,7 +57,12 @@ export async function getAdminCounts(): Promise<AdminCounts> {
     db.select({ c: sql<number>`COUNT(*)`.mapWith(Number) }).from(role),
     db.select({ c: sql<number>`COUNT(*)`.mapWith(Number) }).from(permission),
     db.select({ c: sql<number>`COUNT(*)`.mapWith(Number) }).from(userRole),
-    db.select({ c: sql<number>`COUNT(*)`.mapWith(Number) }).from(events),
+    // Top-level only: sub-events would inflate a number an admin reads as
+    // "how many events are there".
+    db
+      .select({ c: sql<number>`COUNT(*)`.mapWith(Number) })
+      .from(events)
+      .where(isNull(events.parentEventId)),
     db
       .select({
         id: events.id,

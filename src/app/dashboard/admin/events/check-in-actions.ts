@@ -16,6 +16,7 @@ import {
 } from '@/db/schema';
 import { eventApplicationsCacheTag } from '@/lib/admin-event';
 import { parseInstant } from '@/lib/datetime';
+import { resolveCheckInTarget, type CheckInTarget } from '@/lib/subevents';
 import { requirePermission } from '@/lib/rbac/authorization';
 import { verifyCheckInPayload } from '@/lib/wallet/check-in-token';
 import {
@@ -42,6 +43,13 @@ export type CheckInOutcome = {
   /** America/Edmonton wall clock, formatted on the server. */
   checkedInAtLabel: string;
   checkedInByName: string | null;
+  /**
+   * The sub-event this check-in was recorded against, or null for the door.
+   * Echoed back so the scan result can name it — a scanner left armed on the
+   * wrong sub-event records perfectly valid-looking rows, and reading the
+   * target back on the very first scan is what catches that.
+   */
+  targetName: string | null;
 };
 
 export type CheckInRosterRow = {
@@ -52,6 +60,14 @@ export type CheckInRosterRow = {
   checkedInAt: string | null;
   checkedInAtLabel: string | null;
   checkedInByName: string | null;
+  /**
+   * Whether they have a check-in against the *main* event — i.e. whether they
+   * actually turned up. On a main-event roster this is the same fact as
+   * `checkedInAt` and goes unread; on a sub-event roster it is what lets the
+   * desk show *why* someone isn't checkable yet, instead of leaving a
+   * volunteer to discover it by tapping.
+   */
+  atMainEvent: boolean;
 };
 
 /** The check-in half of a roster row — everything a poll can change. */
@@ -96,12 +112,17 @@ async function loadAccountName(userId: string): Promise<string> {
  * Relies on the (user_id, event_id) unique index to decide whether this scan
  * is the first, so simultaneous scans can't both be told they were.
  * Returns null if the conflicting row was deleted before it could be read.
+ *
+ * `eventId` is the event the row is written against — the main event at the
+ * door, a sub-event at a meal or workshop — while `mainEventId` is only there
+ * to invalidate the right dashboard.
  */
 async function recordCheckIn(
   eventId: string,
+  mainEventId: string,
   userId: string,
   actorId: string,
-): Promise<Omit<CheckInOutcome, 'userId' | 'name'> | null> {
+): Promise<Omit<CheckInOutcome, 'userId' | 'name' | 'targetName'> | null> {
   const [inserted] = await db
     .insert(checkIns)
     .values({ eventId, userId, checkedInBy: actorId })
@@ -114,7 +135,10 @@ async function recordCheckIn(
   // Moves the event dashboard's check-ins tile. Its getter is cached for
   // minutes, which is the right staleness for an overview but too slow for
   // the desk itself — the scanner keeps its own live polling.
-  if (inserted) updateTag(eventApplicationsCacheTag(eventId));
+  //
+  // Always tagged against the main event, even for a sub-event check-in: the
+  // tiles that count check-ins hang off the parent's dashboard.
+  if (inserted) updateTag(eventApplicationsCacheTag(mainEventId));
 
   if (inserted) {
     return {
@@ -147,10 +171,22 @@ async function recordCheckIn(
   };
 }
 
+/**
+ * Records one check-in. `eventId` is always the *main* event — the one the pass
+ * was issued for and the one participation is judged against — while `target`
+ * says which event the row actually lands on.
+ *
+ * Note which event the freeze reads: `participation.endsAt` is the main event's
+ * end, so a sub-event stays open for corrections after its own slot has passed
+ * and closes only once the whole event is over. A meal line at 13:05 for a
+ * 13:00 lunch is the normal case, not an error, and undo has to stay available
+ * for exactly as long as check-in does.
+ */
 async function checkInUser(
   eventId: string,
   userId: string,
   actorId: string,
+  target: CheckInTarget,
 ): Promise<ActionResult<CheckInOutcome>> {
   const participation = await getEventParticipation(eventId, userId);
   if (!participation) {
@@ -168,7 +204,30 @@ async function checkInUser(
     await loadAccountName(userId),
   );
 
-  const recorded = await recordCheckIn(eventId, userId, actorId);
+  // A sub-event is for people who are actually here, so the door comes first.
+  // Read-then-write rather than an atomic insert-where-exists: the atomic form
+  // can't tell "not at the door" apart from "already checked in" through
+  // onConflictDoNothing, and the race it would close is benign — a door
+  // check-in undone microseconds earlier, which the roster shows anyway.
+  if (target.isSubevent) {
+    const [atDoor] = await db
+      .select({ userId: checkIns.userId })
+      .from(checkIns)
+      .where(and(eq(checkIns.eventId, eventId), eq(checkIns.userId, userId)))
+      .limit(1);
+    if (!atDoor) {
+      return fail(
+        `${name} has not checked in at the main event yet — check them in at the door first.`,
+      );
+    }
+  }
+
+  const recorded = await recordCheckIn(
+    target.targetId,
+    eventId,
+    userId,
+    actorId,
+  );
   if (!recorded) {
     return fail('That check-in was just undone. Scan again to redo it.');
   }
@@ -179,20 +238,32 @@ async function checkInUser(
       action: 'checkin.create',
       targetType: 'user',
       targetId: userId,
-      metadata: { eventId },
+      metadata: target.isSubevent
+        ? { eventId, subeventId: target.targetId }
+        : { eventId },
     });
   }
 
-  return ok({ userId, name, ...recorded });
+  return ok({ userId, name, targetName: target.name, ...recorded });
 }
+
+/** The failure every action shares when a target isn't this event's sub-event. */
+const UNKNOWN_TARGET = 'That sub-event does not belong to this event.';
 
 /**
  * Checks a participant in from their pass QR code.
+ *
+ * `eventId` is the main event, which is what the pass encodes; `targetEventId`
+ * optionally narrows the check-in to one of its sub-events. Passes are only
+ * ever issued for a main event, so the token is deliberately still compared
+ * against `eventId` and needs no new version.
+ *
  * Requires checkin:write:all permission.
  */
 export async function scanCheckIn(
   eventId: string,
   payload: string,
+  targetEventId?: string | null,
 ): Promise<ActionResult<CheckInOutcome>> {
   const actor = await getScanner();
   if (!actor) return fail('Not authenticated');
@@ -207,7 +278,10 @@ export async function scanCheckIn(
     return fail('This pass was issued for a different event.');
   }
 
-  return checkInUser(eventId, claims.userId, actor.id);
+  const target = await resolveCheckInTarget(eventId, targetEventId);
+  if (!target) return fail(UNKNOWN_TARGET);
+
+  return checkInUser(eventId, claims.userId, actor.id, target);
 }
 
 /**
@@ -217,12 +291,16 @@ export async function scanCheckIn(
 export async function checkInParticipant(
   eventId: string,
   userId: string,
+  targetEventId?: string | null,
 ): Promise<ActionResult<CheckInOutcome>> {
   const actor = await getScanner();
   if (!actor) return fail('Not authenticated');
   if (!UUID_PATTERN.test(userId)) return fail('Unknown participant.');
 
-  return checkInUser(eventId, userId, actor.id);
+  const target = await resolveCheckInTarget(eventId, targetEventId);
+  if (!target) return fail(UNKNOWN_TARGET);
+
+  return checkInUser(eventId, userId, actor.id, target);
 }
 
 /**
@@ -232,6 +310,7 @@ export async function checkInParticipant(
 export async function undoCheckIn(
   eventId: string,
   userId: string,
+  targetEventId?: string | null,
 ): Promise<ActionResult> {
   const actor = await getScanner();
   if (!actor) return fail('Not authenticated');
@@ -241,6 +320,12 @@ export async function undoCheckIn(
   if (!UUID_PATTERN.test(eventId)) return fail('Event not found.');
   if (!UUID_PATTERN.test(userId)) return fail('Unknown participant.');
 
+  const target = await resolveCheckInTarget(eventId, targetEventId);
+  if (!target) return fail(UNKNOWN_TARGET);
+
+  // The main event's end, deliberately, even when undoing a sub-event row —
+  // undo has to stay available for exactly as long as check-in does, or a
+  // mis-scan at a meal becomes permanent the moment that meal's slot passes.
   const [eventRow] = await db
     .select({ endsAt: events.endsAt })
     .from(events)
@@ -253,7 +338,9 @@ export async function undoCheckIn(
 
   const [removed] = await db
     .delete(checkIns)
-    .where(and(eq(checkIns.eventId, eventId), eq(checkIns.userId, userId)))
+    .where(
+      and(eq(checkIns.eventId, target.targetId), eq(checkIns.userId, userId)),
+    )
     .returning({ checkedInAt: checkIns.checkedInAt });
 
   if (!removed) return fail('They were not checked in.');
@@ -265,7 +352,11 @@ export async function undoCheckIn(
     action: 'checkin.undo',
     targetType: 'user',
     targetId: userId,
-    metadata: { eventId, checkedInAt: removed.checkedInAt.toISOString() },
+    metadata: {
+      eventId,
+      ...(target.isSubevent ? { subeventId: target.targetId } : {}),
+      checkedInAt: removed.checkedInAt.toISOString(),
+    },
   });
 
   return ok();
@@ -277,6 +368,7 @@ export async function undoCheckIn(
  */
 export async function getCheckInRoster(
   eventId: string,
+  targetEventId?: string | null,
 ): Promise<ActionResult<CheckInRosterRow[]>> {
   const actor = await getScanner();
   if (!actor) return fail('Not authenticated');
@@ -291,7 +383,15 @@ export async function getCheckInRoster(
     return fail('Check-in is only available for main events.');
   }
 
+  const target = await resolveCheckInTarget(eventId, targetEventId);
+  if (!target) return fail(UNKNOWN_TARGET);
+
   const scanner = alias(user, 'scanner');
+  // Door check-ins, read separately from the target's own. A sub-event roster
+  // lists the *main* event's population — a child has no applicants or
+  // attendees of its own — so who is actually here has to come from the main
+  // event's rows even while `checkedInAt` tracks the sub-event's.
+  const doorCheckIns = alias(checkIns, 'door_check_ins');
 
   const rows = await db
     .select({
@@ -302,6 +402,7 @@ export async function getCheckInRoster(
       checkedInAt: checkedInAtIsoSql,
       checkedInAtLabel: checkedInAtLabelSql,
       scannerName: scanner.name,
+      atMainEvent: sql<boolean>`${doorCheckIns.userId} IS NOT NULL`,
     })
     .from(user)
     .leftJoin(
@@ -325,7 +426,15 @@ export async function getCheckInRoster(
     .leftJoin(userProfiles, eq(userProfiles.userId, user.id))
     .leftJoin(
       checkIns,
-      and(eq(checkIns.eventId, eventId), eq(checkIns.userId, user.id)),
+      and(eq(checkIns.eventId, target.targetId), eq(checkIns.userId, user.id)),
+    )
+    // Joined unconditionally rather than only for a sub-event: on a main target
+    // it resolves to the very same row as the join above (the unique index
+    // guarantees at most one), so it cannot fan out, and one code path beats a
+    // dynamic query whose result type changes with the target.
+    .leftJoin(
+      doorCheckIns,
+      and(eq(doorCheckIns.eventId, eventId), eq(doorCheckIns.userId, user.id)),
     )
     .leftJoin(scanner, eq(scanner.id, checkIns.checkedInBy))
     .where(
@@ -343,6 +452,7 @@ export async function getCheckInRoster(
       checkedInAt: row.checkedInAt,
       checkedInAtLabel: row.checkedInAtLabel,
       checkedInByName: row.scannerName,
+      atMainEvent: row.atMainEvent,
     })),
   );
 }
@@ -365,10 +475,16 @@ const watermarkSchema = z.iso.datetime();
 export async function getCheckInUpdates(
   eventId: string,
   since: string | null,
+  targetEventId?: string | null,
 ): Promise<ActionResult<CheckInUpdates>> {
   const actor = await getScanner();
   if (!actor) return fail('Not authenticated');
   if (!UUID_PATTERN.test(eventId)) return fail('Event not found.');
+
+  // Gated like the writes even though it only returns timestamps: an
+  // unvalidated target would let a caller poll another event's check-in times.
+  const target = await resolveCheckInTarget(eventId, targetEventId);
+  if (!target) return fail(UNKNOWN_TARGET);
 
   // A malformed watermark degrades to a full patch rather than an error: the
   // caller reconciles against checkedInCount either way, so the worst case is
@@ -390,15 +506,15 @@ export async function getCheckInUpdates(
       .where(
         watermark
           ? and(
-              eq(checkIns.eventId, eventId),
+              eq(checkIns.eventId, target.targetId),
               gt(checkIns.checkedInAt, watermark),
             )
-          : eq(checkIns.eventId, eventId),
+          : eq(checkIns.eventId, target.targetId),
       ),
     db
       .select({ checkedInCount: sql<number>`count(*)::int` })
       .from(checkIns)
-      .where(eq(checkIns.eventId, eventId)),
+      .where(eq(checkIns.eventId, target.targetId)),
   ]);
 
   return ok({

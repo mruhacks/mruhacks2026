@@ -24,6 +24,7 @@ import {
 function row(
   userId: string,
   checkedInAt: string | null = null,
+  atMainEvent = checkedInAt !== null,
 ): CheckInRosterRow {
   return {
     userId,
@@ -32,6 +33,7 @@ function row(
     checkedInAt,
     checkedInAtLabel: checkedInAt ? 'Sep 16, 2026, 9:00 AM MT' : null,
     checkedInByName: checkedInAt ? 'Door Volunteer' : null,
+    atMainEvent,
   };
 }
 
@@ -127,6 +129,7 @@ describe('applyCheckIn / clearCheckIn', () => {
     checkedInAt: AT_TEN,
     checkedInAtLabel: 'Sep 16, 2026, 10:00 AM MT',
     checkedInByName: null,
+    targetName: null,
   };
 
   test('applyCheckIn marks the scanned row without touching the rest', () => {

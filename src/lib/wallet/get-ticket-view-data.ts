@@ -4,6 +4,7 @@ import { notFound, redirect } from 'next/navigation';
 
 import { getUser } from '@/utils/auth';
 import { resolveEventId } from '@/lib/events';
+import { getParentEventId } from '@/lib/subevents';
 import { formatDateRange } from './format';
 import { getEventParticipation } from './participation';
 
@@ -23,7 +24,16 @@ export async function getTicketViewData(segment: string) {
   if (!eventId) notFound();
 
   const participation = await getEventParticipation(eventId, user.id);
-  if (!participation || !participation.isParticipant) notFound();
+  if (!participation) {
+    // A sub-event issues no pass of its own, so `getEventParticipation`
+    // correctly returns null for one. Rather than 404 on a shared or
+    // bookmarked link, send them to the ticket that does cover it — the
+    // parent's, which is the pass they'd be scanned with anyway.
+    const parentEventId = await getParentEventId(eventId);
+    if (parentEventId) redirect(`/dashboard/events/${parentEventId}/ticket`);
+    notFound();
+  }
+  if (!participation.isParticipant) notFound();
 
   return {
     eventId,

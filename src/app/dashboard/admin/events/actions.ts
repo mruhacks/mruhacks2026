@@ -604,6 +604,15 @@ export async function updateEventSettings(
     return fail('Start date must be before end date');
   }
 
+  // A sub-event is edited through this same form, and most of the settings that
+  // make no sense for one are harmless if set. Featured is the exception:
+  // idx_events_featured_unique is sitewide, so featuring a sub-event would
+  // quietly steal the public site's register link and the /welcome onboarding
+  // event from the real event it belongs to.
+  if (input.isFeatured === true && eventRow.parentEventId) {
+    return fail('A sub-event cannot be the featured event.');
+  }
+
   // undefined leaves the stored slug alone; '' or null clears it back to
   // uuid-only addressing.
   const finalSlug =

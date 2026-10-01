@@ -33,6 +33,7 @@ import { seedAdminOnboarding } from './seed-admin-onboarding';
 import { createParticipationSeeder } from './seed-participation';
 import { createResumeSeeder } from './seed-resumes';
 import { otherTextKey } from '@/lib/other-option';
+import { EVENT_TIME_ZONE } from '@/lib/datetime';
 
 // ── Stable question UUIDs (deterministic for seed data consistency) ────────
 const Q_ATTENDED_BEFORE = '11111111-0000-0000-0000-000000000001';
@@ -270,8 +271,197 @@ async function seedEvents() {
     }
   }
   const [applicationEvent, noAppEvent] = seededEvents;
+  await seedHackathonSchedule(applicationEvent.id);
   console.log('✅ Seed events ready.');
   return { applicationEvent, noAppEvent };
+}
+
+/** Seed the schedule for the next Friday–Sunday weekend in Mountain time. */
+async function seedHackathonSchedule(parentEventId: string) {
+  const schedule = [
+    [
+      'Participant Check-In Opens',
+      'Friday 7:30 PM',
+      'Friday 9:00 PM',
+      'Ross Glenn Hall',
+    ],
+    ['Opening Ceremony', 'Friday 8:30 PM', 'Friday 9:00 PM', 'Ross Glenn Hall'],
+    ['Hacking Begins', 'Friday 9:00 PM', 'Sunday 9:00 AM', null],
+    ['Dinner Served', 'Friday 9:15 PM', 'Friday 10:00 PM', 'Ideas Lounge'],
+    ['Games', 'Friday 11:00 PM', 'Saturday 1:15 AM', 'Ideas Lounge'],
+    [
+      'Midnight Snack',
+      'Saturday 12:00 AM',
+      'Saturday 12:30 AM',
+      'Ideas Lounge',
+    ],
+    [
+      'Breakfast Served',
+      'Saturday 9:00 AM',
+      'Saturday 10:00 AM',
+      'Ideas Lounge',
+    ],
+    ['Scavenger Hunt', 'Saturday 10:00 AM', 'Sunday 12:00 AM', null],
+    [
+      'Quantum Computing Tech Presentation',
+      'Saturday 12:15 PM',
+      'Saturday 1:15 PM',
+      null,
+    ],
+    ['Lunch Served', 'Saturday 12:00 PM', 'Saturday 1:00 PM', 'Ideas Lounge'],
+    ['Typing Test', 'Saturday 2:00 PM', 'Saturday 3:00 PM', 'Ideas Lounge'],
+    ['Therapy Dogs', 'Saturday 3:00 PM', 'Saturday 6:00 PM', 'Ideas Lounge'],
+    ['Ice Cream', 'Saturday 4:00 PM', 'Saturday 4:30 PM', null],
+    ['Dinner Served', 'Saturday 6:30 PM', 'Saturday 7:30 PM', 'Ideas Lounge'],
+    ['Games', 'Saturday 11:00 PM', 'Sunday 1:15 AM', 'Ideas Lounge'],
+    ['Midnight Snack', 'Sunday 12:00 AM', 'Sunday 12:30 AM', 'Ideas Lounge'],
+    ['Breakfast Served', 'Sunday 9:00 AM', 'Sunday 10:00 AM', 'Ideas Lounge'],
+    [
+      'Hacking Ends / Submissions Due',
+      'Sunday 9:00 AM',
+      'Sunday 9:00 AM',
+      null,
+    ],
+    ['Judging', 'Sunday 10:00 AM', 'Sunday 12:00 PM', 'Ross Glenn Hall'],
+    ['Lunch', 'Sunday 12:45 PM', 'Sunday 1:45 PM', 'Ideas Lounge'],
+    ['Closing Ceremony', 'Sunday 1:30 PM', 'Sunday 2:30 PM', 'Ross Glenn Hall'],
+  ] as const;
+
+  const weekdayOffsets = { Friday: 0, Saturday: 1, Sunday: 2 } as const;
+  const nowParts = new Intl.DateTimeFormat('en-US', {
+    timeZone: EVENT_TIME_ZONE,
+    weekday: 'short',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date());
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    nowParts.find((item) => item.type === type)!.value;
+  const weekdayIndex = {
+    Sun: 0,
+    Mon: 1,
+    Tue: 2,
+    Wed: 3,
+    Thu: 4,
+    Fri: 5,
+    Sat: 6,
+  }[part('weekday') as 'Sun' | 'Mon' | 'Tue' | 'Wed' | 'Thu' | 'Fri' | 'Sat'];
+  const friday = new Date(
+    Date.UTC(
+      Number(part('year')),
+      Number(part('month')) - 1,
+      Number(part('day')) + ((5 - weekdayIndex + 7) % 7),
+    ),
+  );
+  const eventDate = (weekday: keyof typeof weekdayOffsets, time: string) => {
+    const match = /^(\d{1,2}):(\d{2}) (AM|PM)$/.exec(time);
+    if (!match) throw new Error(`Invalid seeded schedule time: ${time}`);
+    const [, rawHour, minute, period] = match;
+    let hour = Number(rawHour) % 12;
+    if (period === 'PM') hour += 12;
+    const day = new Date(
+      Date.UTC(
+        friday.getUTCFullYear(),
+        friday.getUTCMonth(),
+        friday.getUTCDate() + weekdayOffsets[weekday],
+      ),
+    );
+
+    // Resolve the venue wall clock without using the process timezone.
+    const desired = Date.UTC(
+      day.getUTCFullYear(),
+      day.getUTCMonth(),
+      day.getUTCDate(),
+      hour,
+      Number(minute),
+    );
+    let instant = desired;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const viewed = new Date(instant);
+      const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: EVENT_TIME_ZONE,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hourCycle: 'h23',
+      }).formatToParts(viewed);
+      const values = Object.fromEntries(
+        parts.map(({ type, value }) => [type, value]),
+      );
+      const represented = Date.UTC(
+        Number(values.year),
+        Number(values.month) - 1,
+        Number(values.day),
+        Number(values.hour),
+        Number(values.minute),
+      );
+      instant += desired - represented;
+    }
+    return new Date(instant);
+  };
+
+  const dates = schedule.map(([name, start, end, location]) => {
+    const toInstant = (label: string) => {
+      const match = /^(Friday|Saturday|Sunday) (.+)$/.exec(label);
+      if (!match) throw new Error(`Invalid seeded schedule time: ${label}`);
+      return eventDate(match[1] as keyof typeof weekdayOffsets, match[2]);
+    };
+    return {
+      parentEventId,
+      name,
+      startsAt: toInstant(start),
+      endsAt: toInstant(end),
+      location,
+      slug: null,
+      hasApplication: false,
+      applicationQuestions: [],
+      teamsEnabled: false,
+      isFeatured: false,
+      capacityVisible: false,
+    };
+  });
+
+  await db
+    .update(events)
+    .set({
+      startsAt: eventDate('Friday', '7:30 PM'),
+      endsAt: eventDate('Sunday', '2:30 PM'),
+    })
+    .where(eq(events.id, parentEventId));
+
+  const existingSubevents = await db
+    .select()
+    .from(events)
+    .where(eq(events.parentEventId, parentEventId));
+  const existingByName = new Map<
+    string,
+    (typeof existingSubevents)[number][]
+  >();
+  for (const existing of existingSubevents) {
+    const group = existingByName.get(existing.name) ?? [];
+    group.push(existing);
+    existingByName.set(existing.name, group);
+  }
+  for (const group of existingByName.values()) {
+    group.sort(
+      (left, right) =>
+        (left.startsAt?.getTime() ?? 0) - (right.startsAt?.getTime() ?? 0),
+    );
+  }
+  const occurrenceByName = new Map<string, number>();
+
+  for (const fixture of dates) {
+    const occurrence = occurrenceByName.get(fixture.name) ?? 0;
+    occurrenceByName.set(fixture.name, occurrence + 1);
+    const existing = existingByName.get(fixture.name)?.[occurrence];
+    if (existing) {
+      await db.update(events).set(fixture).where(eq(events.id, existing.id));
+    } else {
+      await db.insert(events).values(fixture);
+    }
+  }
 }
 
 // ── Seed markdown content (event descriptions + wiki) ────────────────────
@@ -279,34 +469,11 @@ async function seedEvents() {
 // Internal links are built from the event id so the seeded content actually
 // navigates, rather than shipping `#` placeholders that look like a bug.
 const hackathonDescription = (eventId: string) =>
-  `MRUHacks is Mount Royal University's **24-hour hackathon** — one weekend to build
-something with people you have probably not met yet.
+  `
+MRUHacks is Mount Royal University’s largest student-run hackathon, bringing students together for an immersive 36-hour experience focused on building, collaboration, and learning.
 
-You do not need a team, an idea, or prior hackathon experience to apply. Roughly
-half of every cohort is attending their first hackathon, and we run the weekend
-with that in mind.
-
-## What the weekend looks like
-
-- **Friday evening** — check-in, opening ceremony, team formation
-- **Saturday** — workshops, mentor office hours, meals, and a lot of building
-- **Sunday morning** — submissions close, judging, closing ceremony
-
-## What we provide
-
-| | |
-| --- | --- |
-| Food | All meals, snacks and coffee for the full 24 hours |
-| Space | A room to work in, and a quiet room to not work in |
-| Mentors | Industry and senior-student mentors on the floor all weekend |
-| Hardware | A lending library of sensors, microcontrollers and peripherals |
-
-> Bring a laptop, a charger, and something to sleep on if you plan to stay
-> overnight. Everything else is on us.
-
-Applications are reviewed on a rolling basis. Read the
-[event wiki](/dashboard/events/${eventId}/wiki) for schedules, judging criteria,
-and the packing list.`;
+You can think of a hackathon as a software science fair. Anyone with an interest in technology attends a hackathon to learn, build & share their creations over the course of a weekend, in a relaxed and welcoming atmosphere. You will bring your ideas to life through technology over the course of 36 hours before showcasing them to a team of judges.
+  `;
 
 const WORKSHOP_DESCRIPTION = `A hands-on **two-hour introduction to React** for students who already know some
 JavaScript but have not built a component-based UI before.

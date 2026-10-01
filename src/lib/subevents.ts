@@ -1,0 +1,162 @@
+import { cacheLife, cacheTag } from 'next/cache';
+import { and, asc, eq, inArray, isNotNull, sql } from 'drizzle-orm';
+
+import { checkIns, events } from '@/db/schema';
+import { db } from '@/utils/db';
+
+/**
+ * A sub-event: a child `events` row standing in for something that happens
+ * inside the main event — a meal, a workshop, a ceremony. It carries a name, a
+ * time and a place and nothing else; every other column on `events` is left at
+ * its default, because a sub-event issues no passes, takes no applications and
+ * forms no teams.
+ *
+ * Sub-events deliberately reuse the events table rather than getting one of
+ * their own: `check_ins`'s unique `(user_id, event_id)` index then gives
+ * per-sub-event check-ins, with correct duplicate detection, for free. See
+ * `docs/DATABASE.md`, which has described this as the intent since before any
+ * of it was built.
+ */
+export type SubeventRow = {
+  id: string;
+  name: string;
+  startsAt: Date | null;
+  endsAt: Date | null;
+  location: string | null;
+};
+
+/** Invalidated by updateTag() whenever a sub-event is created or removed. */
+export function subeventsCacheTag(parentEventId: string): string {
+  return `subevents:${parentEventId}`;
+}
+
+/**
+ * A main event's sub-events, in the order they happen.
+ *
+ * Returns *every* child, incomplete ones included, so the admin list and the
+ * participant schedule share one cache entry. It's the participant surface that
+ * applies `isScheduleVisible`, not this getter.
+ */
+export async function listSubevents(
+  parentEventId: string,
+): Promise<SubeventRow[]> {
+  'use cache';
+  cacheTag(subeventsCacheTag(parentEventId));
+  // updateTag() covers create and delete, and an edit goes through the ordinary
+  // event settings form, which revalidates the event's paths — 'minutes' is the
+  // safety net for anything that misses.
+  cacheLife('minutes');
+
+  return db
+    .select({
+      id: events.id,
+      name: events.name,
+      startsAt: events.startsAt,
+      endsAt: events.endsAt,
+      location: events.location,
+    })
+    .from(events)
+    .where(eq(events.parentEventId, parentEventId))
+    .orderBy(asc(events.startsAt), asc(events.name));
+}
+
+/**
+ * Whether a sub-event is complete enough to show participants.
+ *
+ * `events` has no publish flag and this feature does not add one: the create
+ * form requires both instants, so a normally-created sub-event always passes
+ * and this gate is invisible in practice. What it buys is an escape hatch —
+ * clearing the end time pulls a row off the public schedule — with no
+ * migration, no toggle and no publish/unpublish action to maintain.
+ */
+export function isScheduleVisible(row: SubeventRow): boolean {
+  return row.startsAt !== null && row.endsAt !== null;
+}
+
+/**
+ * Check-ins per sub-event, keyed by sub-event id. Sub-events with none are
+ * absent from the map rather than zero, so callers should default.
+ */
+export async function getSubeventCheckInCounts(
+  subeventIds: string[],
+): Promise<Record<string, number>> {
+  if (subeventIds.length === 0) return {};
+
+  const rows = await db
+    .select({
+      eventId: checkIns.eventId,
+      count: sql<number>`COUNT(*)`.mapWith(Number),
+    })
+    .from(checkIns)
+    .where(inArray(checkIns.eventId, subeventIds))
+    .groupBy(checkIns.eventId);
+
+  return Object.fromEntries(rows.map((row) => [row.eventId, row.count]));
+}
+
+export type CheckInTarget = {
+  /** The event id a check-in row should actually be written against. */
+  targetId: string;
+  isSubevent: boolean;
+  /** The sub-event's name, or null when the target is the main event. */
+  name: string | null;
+};
+
+/**
+ * Resolves a scanner's check-in target to a concrete event id.
+ *
+ * An attendee's pass only ever carries the *main* event's id — sub-events issue
+ * no passes of their own — so the sub-event being scanned for arrives as a
+ * separate argument, chosen in the check-in UI. That makes this the one place
+ * that has to prove the target is legitimate, and it does so by pinning
+ * `parent_event_id` to the main event in the lookup itself: an arbitrary event
+ * id simply doesn't come back, so it can never reach a write.
+ *
+ * The no-target case deliberately validates nothing and does no query. Each
+ * caller already has its own guard rejecting a sub-event id in the *main*
+ * position — `getEventParticipation` for the writes, the `isNull` lookup in
+ * `getCheckInRoster` — and those produce the more useful "only available for
+ * main events" message. Duplicating the check here would only shadow it.
+ */
+export async function resolveCheckInTarget(
+  mainEventId: string,
+  targetEventId: string | null | undefined,
+): Promise<CheckInTarget | null> {
+  if (
+    !targetEventId ||
+    targetEventId.toLowerCase() === mainEventId.toLowerCase()
+  ) {
+    return { targetId: mainEventId, isSubevent: false, name: null };
+  }
+
+  const [row] = await db
+    .select({ id: events.id, name: events.name })
+    .from(events)
+    .where(
+      and(eq(events.id, targetEventId), eq(events.parentEventId, mainEventId)),
+    )
+    .limit(1);
+
+  if (!row) return null;
+
+  return { targetId: row.id, isSubevent: true, name: row.name };
+}
+
+/**
+ * The parent of a sub-event, or null when the id is a main event (or unknown).
+ *
+ * Used to redirect the surfaces that only make sense on a main event — a
+ * sub-event's own check-in page, its participant event page — up to the event
+ * they belong to, rather than 404ing or rendering something incoherent.
+ */
+export async function getParentEventId(
+  eventId: string,
+): Promise<string | null> {
+  const [row] = await db
+    .select({ parentEventId: events.parentEventId })
+    .from(events)
+    .where(and(eq(events.id, eventId), isNotNull(events.parentEventId)))
+    .limit(1);
+
+  return row?.parentEventId ?? null;
+}

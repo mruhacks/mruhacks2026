@@ -641,7 +641,6 @@ export type EventWithUserStatus = {
   /** Custom URL segment, or null when the event is addressed by uuid only. */
   slug: string | null;
   name: string;
-  parentEventId: string | null;
   hasApplication: boolean;
   startsAt: Date | null;
   endsAt: Date | null;
@@ -722,7 +721,6 @@ export async function getEventsWithUserStatus(): Promise<
       id: e.id,
       slug: e.slug,
       name: e.name,
-      parentEventId: e.parentEventId,
       hasApplication: e.hasApplication,
       startsAt: e.startsAt,
       endsAt: e.endsAt,

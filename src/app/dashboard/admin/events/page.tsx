@@ -34,6 +34,7 @@ function EventListSkeleton() {
  */
 const EVENT_TOOLS = [
   { label: 'Check-in', path: 'checkin', permission: 'checkin:write:all' },
+  { label: 'Sub-events', path: 'subevents', permission: 'event:manage:all' },
   { label: 'Wiki', path: 'wiki', permission: 'article:read:all' },
 ] as const;
 

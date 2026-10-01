@@ -10,17 +10,27 @@ import { events, eventAttendees } from '@/db/schema';
 import { getUser } from '@/utils/auth';
 import { ActionResult, fail, ok } from '@/utils/action-result';
 import { db } from '@/utils/db';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { revalidatePath, updateTag } from 'next/cache';
 import { hasEventElapsed, userEventsCacheTag } from '@/lib/events';
 
+/**
+ * The event's end instant, or `undefined` when there's no such event to
+ * register for.
+ *
+ * Deliberately scoped to top-level events: a sub-event (a meal, a workshop) has
+ * no signup of its own — attendance is recorded by checking in, using the
+ * parent event's pass. No UI offers it, but these actions take a bare id, so
+ * reading a child as "not found" is what keeps an `event_attendees` row from
+ * ever being written against one.
+ */
 async function getEventEndsAt(
   eventId: string,
 ): Promise<Date | null | undefined> {
   const [row] = await db
     .select({ endsAt: events.endsAt })
     .from(events)
-    .where(eq(events.id, eventId))
+    .where(and(eq(events.id, eventId), isNull(events.parentEventId)))
     .limit(1);
   return row?.endsAt;
 }

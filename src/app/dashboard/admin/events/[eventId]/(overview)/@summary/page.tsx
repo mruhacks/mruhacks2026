@@ -1,13 +1,25 @@
 import * as React from 'react';
 import { redirect } from 'next/navigation';
-import { CalendarCheck, CircleCheckBig, ThumbsUp, Users } from 'lucide-react';
+import {
+  CalendarCheck,
+  CalendarClock,
+  CircleCheckBig,
+  ThumbsUp,
+  Users,
+} from 'lucide-react';
 
 import { getAdminEventHeader, getEventSummaryCounts } from '@/lib/admin-event';
 import { resolveEventId } from '@/lib/events';
 import { hasPermission } from '@/lib/rbac/authorization';
+import { listSubevents } from '@/lib/subevents';
+import { serializeInstant } from '@/lib/datetime';
 import { getUser } from '@/utils/auth';
 
 import { StatTile, StatTileSkeleton } from '../../_components/stat-tile';
+import {
+  NextSubeventFootnote,
+  type SubeventFootnoteEntry,
+} from '../../_components/next-subevent-footnote';
 
 type Props = { params: Promise<{ eventId: string }> };
 
@@ -58,17 +70,24 @@ async function SummaryTiles({
   const [
     event,
     counts,
+    subevents,
     canReadApplications,
     canCheckIn,
     canReadTeams,
     canReadRsvp,
+    canManageEvent,
   ] = await Promise.all([
     getAdminEventHeader(eventId),
     getEventSummaryCounts(eventId),
+    // Read here rather than folded into `getEventSummaryCounts`: that getter is
+    // tagged only with the applications tag, which a sub-event create/delete
+    // doesn't move, so the tile would sit stale for a minute after every edit.
+    listSubevents(eventId),
     hasPermission(user.id, 'application:read:all'),
     hasPermission(user.id, 'checkin:write:all'),
     hasPermission(user.id, 'team:read:all'),
     hasPermission(user.id, 'rsvp:read:all'),
+    hasPermission(user.id, 'event:manage'),
   ]);
 
   if (!event) return null;
@@ -80,8 +99,25 @@ async function SummaryTiles({
 
   // Nothing visible to this viewer: render no grid at all rather than an
   // empty shell.
-  if (!canReadApplications && !canCheckIn && !showTeams && !showRsvp)
+  if (
+    !canReadApplications &&
+    !canCheckIn &&
+    !showTeams &&
+    !showRsvp &&
+    !canManageEvent
+  )
     return null;
+
+  // Serialized and handed to a client component: which sub-event is "next"
+  // depends on now, and this cell is cached, so resolving it here would freeze
+  // the answer for the cache's lifetime.
+  const scheduled: SubeventFootnoteEntry[] = subevents
+    .filter((subevent) => subevent.startsAt != null)
+    .map((subevent) => ({
+      id: subevent.id,
+      name: subevent.name,
+      startsAt: serializeInstant(subevent.startsAt!),
+    }));
 
   // Every tile is a whole-card link to its tool page — no inline buttons, so
   // the four read identically and the click target is the obvious one.
@@ -133,6 +169,16 @@ async function SummaryTiles({
             </>
           }
           href={`${base}/rsvp`}
+        />
+      )}
+
+      {canManageEvent && (
+        <StatTile
+          icon={<CalendarClock className='size-4' />}
+          label='Sub-events'
+          value={subevents.length.toLocaleString()}
+          footnote={<NextSubeventFootnote entries={scheduled} />}
+          href={`${base}/subevents`}
         />
       )}
     </TileGrid>

@@ -19,6 +19,10 @@ import { cn } from '@/lib/utils';
 import { CheckInRoster } from './check-in-roster';
 import { CheckInScanner } from './check-in-scanner';
 import {
+  CheckInTargetSelector,
+  type CheckInTargetOption,
+} from './check-in-target-selector';
+import {
   applyCheckIn,
   browserPollingHost,
   clearCheckIn,
@@ -68,6 +72,10 @@ function ScanFeedbackPanel({ feedback }: { feedback: ScanFeedback }) {
 
   const { outcome } = feedback;
   const duplicate = feedback.kind === 'duplicate';
+  // Naming the sub-event back is the cheapest guard against a scanner left
+  // armed on the wrong one: the mistake shows up on the first scan instead of
+  // in the numbers a week later.
+  const forTarget = outcome.targetName ? ` for ${outcome.targetName}` : '';
 
   return (
     <div className={cn('flex items-start gap-3 rounded-xl border p-4', box)}>
@@ -75,8 +83,8 @@ function ScanFeedbackPanel({ feedback }: { feedback: ScanFeedback }) {
       <div className='min-w-0'>
         <p className='text-lg font-semibold sm:text-base'>
           {duplicate
-            ? `${outcome.name} was already checked in`
-            : `${outcome.name} is checked in`}
+            ? `${outcome.name} was already checked in${forTarget}`
+            : `${outcome.name} is checked in${forTarget}`}
         </p>
         <p className='text-muted-foreground text-sm'>
           At {outcome.checkedInAtLabel}
@@ -90,13 +98,38 @@ function ScanFeedbackPanel({ feedback }: { feedback: ScanFeedback }) {
   );
 }
 
+type CheckInPageProps = {
+  eventId: string;
+  eventName: string;
+  subevents: CheckInTargetOption[];
+  /** The armed target: `eventId` for the door, or one of `subevents`. */
+  targetId: string;
+  /** `?target=` named something that isn't a sub-event of this event. */
+  unknownTarget?: boolean;
+};
+
 /**
  * The live check-in surface. Takes the event's uuid rather than the route's
  * `params`, because the `[eventId]` segment may be the event's custom slug —
  * `page.tsx` resolves it on the server so every action here is keyed by the
  * id the DB actually stores.
+ *
+ * `eventId` is always the *main* event: it's what the passes encode and what
+ * eligibility is judged against. `targetId` is what a scan gets recorded
+ * against, and is passed to every action as its trailing argument — the server
+ * treats a target equal to `eventId` as the door, so there are no conditionals
+ * at the call sites here.
+ *
+ * `page.tsx` remounts this component whenever the target changes, so all the
+ * state below is per-target by construction.
  */
-export function CheckInPage({ eventId }: { eventId: string }) {
+export function CheckInPage({
+  eventId,
+  eventName,
+  subevents,
+  targetId,
+  unknownTarget = false,
+}: CheckInPageProps) {
   const [roster, setRoster] = React.useState<CheckInRosterRow[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [loadError, setLoadError] = React.useState<string | null>(null);
@@ -118,8 +151,8 @@ export function CheckInPage({ eventId }: { eventId: string }) {
   React.useEffect(() => {
     let cancelled = false;
 
-    async function fetchRoster(currentEventId: string) {
-      const result = await getCheckInRoster(currentEventId);
+    async function fetchRoster(currentEventId: string, currentTarget: string) {
+      const result = await getCheckInRoster(currentEventId, currentTarget);
       if (cancelled) return;
 
       if (result.success && result.data) {
@@ -131,11 +164,11 @@ export function CheckInPage({ eventId }: { eventId: string }) {
       setLoading(false);
     }
 
-    fetchRoster(eventId);
+    fetchRoster(eventId, targetId);
     return () => {
       cancelled = true;
     };
-  }, [eventId, reloadToken]);
+  }, [eventId, targetId, reloadToken]);
 
   // Someone else on a second scanner is checking people in too, so the list
   // on screen goes quietly out of date. Ask only what changed and patch it in.
@@ -145,7 +178,7 @@ export function CheckInPage({ eventId }: { eventId: string }) {
     let cancelled = false;
     let inFlight = false;
 
-    async function poll(currentEventId: string) {
+    async function poll(currentEventId: string, currentTarget: string) {
       if (inFlight) return;
       inFlight = true;
       const seq = mutationSeqRef.current;
@@ -154,6 +187,7 @@ export function CheckInPage({ eventId }: { eventId: string }) {
         const result = await getCheckInUpdates(
           currentEventId,
           rosterWatermark(rosterRef.current),
+          currentTarget,
         );
         if (cancelled || seq !== mutationSeqRef.current) return;
         if (!result.success || !result.data) return;
@@ -184,7 +218,7 @@ export function CheckInPage({ eventId }: { eventId: string }) {
     // while the page is backgrounded or unfocused, and polls the moment it
     // comes back.
     const stopPolling = startRosterPolling(
-      () => void poll(eventId),
+      () => void poll(eventId, targetId),
       browserPollingHost(),
     );
 
@@ -192,7 +226,7 @@ export function CheckInPage({ eventId }: { eventId: string }) {
       cancelled = true;
       stopPolling();
     };
-  }, [eventId, loading, loadError]);
+  }, [eventId, targetId, loading, loadError]);
 
   /** Writes a mutation's own result straight into the roster. Falls back to a
    *  full reload only when the roster has no row to patch. */
@@ -217,7 +251,7 @@ export function CheckInPage({ eventId }: { eventId: string }) {
       scanBusyRef.current = true;
 
       try {
-        const result = await scanCheckIn(eventId, payload);
+        const result = await scanCheckIn(eventId, payload, targetId);
         if (result.success && result.data) {
           const outcome = result.data;
           const kind = outcome.alreadyCheckedIn ? 'duplicate' : 'accepted';
@@ -234,20 +268,21 @@ export function CheckInPage({ eventId }: { eventId: string }) {
         scanBusyRef.current = false;
       }
     },
-    [eventId, applyLocalPatch],
+    [eventId, targetId, applyLocalPatch],
   );
 
   const handleManualCheckIn = React.useCallback(
     async (row: CheckInRosterRow) => {
       setPendingUserId(row.userId);
       try {
-        const result = await checkInParticipant(eventId, row.userId);
+        const result = await checkInParticipant(eventId, row.userId, targetId);
         if (result.success && result.data) {
-          const { name, alreadyCheckedIn } = result.data;
+          const { name, alreadyCheckedIn, targetName } = result.data;
+          const forTarget = targetName ? ` for ${targetName}` : '';
           toast.success(
             alreadyCheckedIn
-              ? `${name} was already checked in.`
-              : `${name} is checked in.`,
+              ? `${name} was already checked in${forTarget}.`
+              : `${name} is checked in${forTarget}.`,
           );
           applyLocalPatch(applyCheckIn(rosterRef.current, result.data));
         } else if (!result.success) {
@@ -257,14 +292,14 @@ export function CheckInPage({ eventId }: { eventId: string }) {
         setPendingUserId(null);
       }
     },
-    [eventId, applyLocalPatch],
+    [eventId, targetId, applyLocalPatch],
   );
 
   const handleUndo = React.useCallback(
     async (row: CheckInRosterRow) => {
       setPendingUserId(row.userId);
       try {
-        const result = await undoCheckIn(eventId, row.userId);
+        const result = await undoCheckIn(eventId, row.userId, targetId);
         if (!result.success) {
           toast.error(result.error);
           return;
@@ -275,31 +310,72 @@ export function CheckInPage({ eventId }: { eventId: string }) {
         setPendingUserId(null);
       }
     },
-    [eventId, applyLocalPatch],
+    [eventId, targetId, applyLocalPatch],
   );
+
+  const isSubeventArmed = targetId !== eventId;
+  const selector =
+    subevents.length > 0 ? (
+      <CheckInTargetSelector
+        eventId={eventId}
+        eventName={eventName}
+        subevents={subevents}
+        targetId={targetId}
+      />
+    ) : null;
+
+  // The URL asked for a sub-event this event doesn't have. Show the picker so
+  // they can choose a real one, but no scanner — arming the door instead of
+  // what was asked for, silently, is the failure this guard exists to stop.
+  if (unknownTarget) {
+    return (
+      <div className='space-y-6'>
+        {selector}
+        <p className='text-destructive py-8 text-center text-sm'>
+          That sub-event doesn&apos;t belong to this event. Pick a check-in
+          target above to start scanning.
+        </p>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
-      <div className='text-muted-foreground py-8 text-center'>Loading...</div>
+      <div className='space-y-6'>
+        {selector}
+        <div className='text-muted-foreground py-8 text-center'>Loading...</div>
+      </div>
     );
   }
 
   if (loadError) {
-    return <p className='text-destructive py-8 text-center'>{loadError}</p>;
+    return (
+      <div className='space-y-6'>
+        {selector}
+        <p className='text-destructive py-8 text-center'>{loadError}</p>
+      </div>
+    );
   }
 
   const checkedInCount = roster.filter((row) => row.checkedInAt).length;
-  const progress = roster.length
-    ? Math.round((checkedInCount / roster.length) * 100)
-    : 0;
+  // For a sub-event the population that matters is the people who actually
+  // turned up, not everyone registered: "18 of 40 who are here" is the number a
+  // meal volunteer is working against, while "18 of 300" tells them nothing.
+  const total = isSubeventArmed
+    ? roster.filter((row) => row.atMainEvent).length
+    : roster.length;
+  const progress = total ? Math.round((checkedInCount / total) * 100) : 0;
 
   return (
     <div className='space-y-6'>
+      {selector}
+
       <div className='space-y-2'>
         <div>
           <h2 className='text-lg font-semibold'>Check-in</h2>
           <p className='text-muted-foreground mt-1 text-sm'>
-            {checkedInCount} of {roster.length} checked in
+            {checkedInCount} of {total}{' '}
+            {isSubeventArmed ? 'here checked in' : 'checked in'}
           </p>
         </div>
         <div className='bg-muted h-2 w-full overflow-hidden rounded-full'>
@@ -319,6 +395,7 @@ export function CheckInPage({ eventId }: { eventId: string }) {
         <CheckInRoster
           rows={roster}
           pendingUserId={pendingUserId}
+          requiresDoorCheckIn={isSubeventArmed}
           onCheckIn={handleManualCheckIn}
           onUndo={handleUndo}
         />

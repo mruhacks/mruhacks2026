@@ -16,6 +16,12 @@ import {
 } from '@/db/schema';
 import { resolveEventId } from '@/lib/events';
 import { eventPath } from '@/lib/event-slug';
+import { isScheduleVisible, listSubevents } from '@/lib/subevents';
+import { serializeInstant } from '@/lib/datetime';
+import {
+  EventSchedule,
+  type ScheduleEntry,
+} from '@/app/dashboard/events/[eventId]/event-schedule';
 import {
   getUserApplicationStatus,
   getUserRsvpStatus,
@@ -129,6 +135,7 @@ async function EventEntryContent({ params, searchParams }: Props) {
       id: events.id,
       slug: events.slug,
       name: events.name,
+      parentEventId: events.parentEventId,
       descriptionMarkdown: events.descriptionMarkdown,
       termsMarkdown: eventTerms.markdown,
       termsId: events.termsId,
@@ -148,18 +155,42 @@ async function EventEntryContent({ params, searchParams }: Props) {
 
   if (!row) notFound();
 
+  // A sub-event has no page of its own — no registration, no application, no
+  // pass — it's a row on its parent's schedule. Redirect rather than 404: the
+  // thing being asked for does exist, just one level up.
+  if (row.parentEventId) {
+    redirect(`/dashboard/events/${row.parentEventId}`);
+  }
+
   const eventHref = eventPath(row);
 
-  const publishedArticlesRows = await db
-    .select({ slug: eventArticles.slug, title: eventArticles.title })
-    .from(eventArticles)
-    .where(
-      and(
-        eq(eventArticles.eventId, eventId),
-        eq(eventArticles.published, true),
-      ),
-    )
-    .orderBy(asc(eventArticles.sortOrder), asc(eventArticles.title));
+  const [publishedArticlesRows, subeventRows] = await Promise.all([
+    db
+      .select({ slug: eventArticles.slug, title: eventArticles.title })
+      .from(eventArticles)
+      .where(
+        and(
+          eq(eventArticles.eventId, eventId),
+          eq(eventArticles.published, true),
+        ),
+      )
+      .orderBy(asc(eventArticles.sortOrder), asc(eventArticles.title)),
+    listSubevents(eventId),
+  ]);
+
+  // Incomplete sub-events are held back from the schedule rather than filtered
+  // out of the getter, so the admin list and this page share one cache entry.
+  const schedule: ScheduleEntry[] = subeventRows
+    .filter(isScheduleVisible)
+    .map((subevent) => ({
+      id: subevent.id,
+      name: subevent.name,
+      // Non-null by `isScheduleVisible`; serialized because a Date must never
+      // cross into a client component.
+      startsAt: serializeInstant(subevent.startsAt!),
+      endsAt: serializeInstant(subevent.endsAt!),
+      location: subevent.location,
+    }));
 
   // Event Terms isn't a real article — it's synthesized onto the end of the
   // list so it's always reachable from the wiki without living in
@@ -183,6 +214,7 @@ async function EventEntryContent({ params, searchParams }: Props) {
         event={row}
         segment={segment}
         articles={publishedArticles}
+        schedule={schedule}
         mobileAction={
           // An outstanding RSVP is the one thing we want a phone visitor to
           // act on, and its buttons live in the panel — so no sticky bar.
@@ -237,6 +269,7 @@ async function EventEntryContent({ params, searchParams }: Props) {
       event={row}
       segment={segment}
       articles={publishedArticles}
+      schedule={schedule}
       mobileAction={
         isRegistered
           ? null
@@ -267,6 +300,7 @@ function EventPageLayout({
   event,
   segment,
   articles,
+  schedule,
   participation,
   team,
   mobileAction,
@@ -279,6 +313,7 @@ function EventPageLayout({
    */
   segment: string;
   articles: PublishedArticle[];
+  schedule: ScheduleEntry[];
   participation: React.ReactNode;
   team: React.ReactNode;
   mobileAction:
@@ -317,6 +352,10 @@ function EventPageLayout({
       <div className='mt-8 grid gap-8 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start'>
         <main className='flex min-w-0 flex-col gap-8'>
           <EventDescription markdown={event.descriptionMarkdown} />
+          {/* Between the blurb and the wiki: the description says what this is,
+              the schedule is the "when and where" participants come back to,
+              and the wiki is reference material they navigate to deliberately. */}
+          <EventSchedule entries={schedule} />
           <WikiArticles eventHref={eventPath(event)} articles={articles} />
         </main>
 

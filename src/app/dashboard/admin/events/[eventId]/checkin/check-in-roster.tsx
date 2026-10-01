@@ -8,13 +8,18 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
-type RosterFilter = 'all' | 'waiting' | 'arrived';
+type RosterFilter = 'all' | 'waiting' | 'arrived' | 'not-here';
 
 const PAGE_SIZE = 40;
 
 type CheckInRosterProps = {
   rows: CheckInRosterRow[];
   pendingUserId: string | null;
+  /**
+   * A sub-event is armed, so `atMainEvent` decides who can be checked in and
+   * the door-arrival state is worth showing per row.
+   */
+  requiresDoorCheckIn?: boolean;
   onCheckIn: (row: CheckInRosterRow) => void;
   onUndo: (row: CheckInRosterRow) => void;
 };
@@ -22,6 +27,7 @@ type CheckInRosterProps = {
 export function CheckInRoster({
   rows,
   pendingUserId,
+  requiresDoorCheckIn = false,
   onCheckIn,
   onUndo,
 }: CheckInRosterProps) {
@@ -37,6 +43,7 @@ export function CheckInRoster({
       .filter((row) => {
         if (filter === 'waiting' && row.checkedInAt) return false;
         if (filter === 'arrived' && !row.checkedInAt) return false;
+        if (filter === 'not-here' && row.atMainEvent) return false;
         if (!needle) return true;
         return (
           row.name.toLowerCase().includes(needle) ||
@@ -51,6 +58,16 @@ export function CheckInRoster({
     { id: 'waiting', label: 'Not in', count: rows.length - arrivedCount },
     { id: 'arrived', label: 'Checked in', count: arrivedCount },
   ];
+
+  // Only meaningful on a sub-event roster; at the door, arriving and being
+  // checked in are the same event and 'Not in' already says it.
+  if (requiresDoorCheckIn) {
+    filters.push({
+      id: 'not-here',
+      label: 'Not at door',
+      count: rows.filter((row) => !row.atMainEvent).length,
+    });
+  }
 
   return (
     <div className='space-y-3'>
@@ -100,6 +117,7 @@ export function CheckInRoster({
               key={row.userId}
               row={row}
               pending={pendingUserId === row.userId}
+              requiresDoorCheckIn={requiresDoorCheckIn}
               onCheckIn={onCheckIn}
               onUndo={onUndo}
             />
@@ -124,11 +142,20 @@ export function CheckInRoster({
 type RosterRowProps = {
   row: CheckInRosterRow;
   pending: boolean;
+  requiresDoorCheckIn: boolean;
   onCheckIn: (row: CheckInRosterRow) => void;
   onUndo: (row: CheckInRosterRow) => void;
 };
 
-function RosterRow({ row, pending, onCheckIn, onUndo }: RosterRowProps) {
+function RosterRow({
+  row,
+  pending,
+  requiresDoorCheckIn,
+  onCheckIn,
+  onUndo,
+}: RosterRowProps) {
+  const awaitingDoor = requiresDoorCheckIn && !row.atMainEvent;
+
   return (
     <li className='flex flex-col gap-2 p-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4'>
       <div className='min-w-0'>
@@ -148,6 +175,10 @@ function RosterRow({ row, pending, onCheckIn, onUndo }: RosterRowProps) {
               </span>
             )}
           </div>
+        ) : awaitingDoor ? (
+          <Badge variant='outline' className='text-muted-foreground w-fit'>
+            Not at door yet
+          </Badge>
         ) : (
           <Badge variant='outline' className='w-fit'>
             Not checked in

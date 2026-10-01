@@ -1,5 +1,5 @@
 import { cacheTag, cacheLife } from 'next/cache';
-import { desc, eq, sql } from 'drizzle-orm';
+import { desc, eq, isNull, sql } from 'drizzle-orm';
 import { db } from '@/utils/db';
 import { events, eventApplications, eventAttendees } from '@/db/schema';
 import { isEventUuid } from '@/lib/event-slug';
@@ -11,6 +11,13 @@ export const EVENTS_CACHE_TAG = 'events';
  * Core event listing fields (id, name, dates, application flag), same for
  * every viewer regardless of session. Shared by the dashboard events list
  * and the admin events list so both read from one cache entry.
+ *
+ * Top-level events only. Sub-events (meals, workshops — child rows carrying a
+ * `parent_event_id`) are not events in their own right anywhere a list is
+ * shown: they have no registration, no pass and no page of their own, and
+ * belong to their parent's schedule. Filtered here rather than at each call
+ * site so a new consumer can't forget; anything that actually wants children
+ * goes through `listSubevents` in `@/lib/subevents`.
  */
 export async function getAllEvents() {
   'use cache';
@@ -24,12 +31,12 @@ export async function getAllEvents() {
       id: events.id,
       slug: events.slug,
       name: events.name,
-      parentEventId: events.parentEventId,
       hasApplication: events.hasApplication,
       startsAt: events.startsAt,
       endsAt: events.endsAt,
     })
     .from(events)
+    .where(isNull(events.parentEventId))
     .orderBy(desc(events.createdAt));
 }
 

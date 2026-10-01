@@ -54,6 +54,10 @@ let strangerId: string;
 let eventId: string;
 let otherEventId: string;
 let childEventId: string;
+/** A sub-event of `eventId` whose own slot has already finished. */
+let pastChildEventId: string;
+/** A sub-event of `otherEventId` — a valid sub-event of the wrong parent. */
+let foreignChildEventId: string;
 let expiredEventId: string;
 let permissionId: number;
 
@@ -123,6 +127,12 @@ beforeAll(async () => {
   eventId = await createEvent('Check-in Test Event');
   otherEventId = await createEvent('Check-in Other Event');
   childEventId = await createEvent('Check-in Lunch', eventId);
+  pastChildEventId = await createEvent(
+    'Check-in Breakfast',
+    eventId,
+    new Date(Date.now() - 60_000),
+  );
+  foreignChildEventId = await createEvent('Check-in Other Lunch', otherEventId);
   expiredEventId = await createEvent(
     'Check-in Ended Event',
     undefined,
@@ -176,6 +186,8 @@ afterAll(async () => {
     .delete(eventAttendees)
     .where(eq(eventAttendees.eventId, expiredEventId));
   await db.delete(events).where(eq(events.id, childEventId));
+  await db.delete(events).where(eq(events.id, pastChildEventId));
+  await db.delete(events).where(eq(events.id, foreignChildEventId));
   await db.delete(events).where(eq(events.id, otherEventId));
   await db.delete(events).where(eq(events.id, expiredEventId));
   await db.delete(events).where(eq(events.id, eventId));
@@ -520,5 +532,262 @@ describe('getCheckInUpdates', () => {
     await expect(getCheckInUpdates('not-a-uuid', null)).resolves.toMatchObject({
       success: false,
     });
+  });
+});
+
+// ─── Sub-event check-in ────────────────────────────────────────────────────────
+
+/**
+ * A sub-event is a check-in target, never a pass issuer: every scan here still
+ * presents the *main* event's pass, and the sub-event arrives as the trailing
+ * argument. That's why none of these needs a new token version.
+ */
+describe('sub-event check-in', () => {
+  async function clearAll() {
+    for (const id of [eventId, childEventId, pastChildEventId]) {
+      await db.delete(checkIns).where(eq(checkIns.eventId, id));
+    }
+  }
+
+  async function atDoor() {
+    const result = await scanCheckIn(eventId, passFor(eventId, participantId));
+    expect(result.success).toBe(true);
+  }
+
+  test('refuses someone who has not checked in at the main event', async () => {
+    await clearAll();
+
+    const result = await scanCheckIn(
+      eventId,
+      passFor(eventId, participantId),
+      childEventId,
+    );
+
+    expect(result).toMatchObject({
+      success: false,
+      error: expect.stringContaining('has not checked in at the main event'),
+    });
+    // And nothing was written for the sub-event.
+    const rows = await db
+      .select({ userId: checkIns.userId })
+      .from(checkIns)
+      .where(eq(checkIns.eventId, childEventId));
+    expect(rows).toHaveLength(0);
+  });
+
+  test('succeeds once they are at the door, keeping both rows', async () => {
+    await clearAll();
+    await atDoor();
+
+    const result = await scanCheckIn(
+      eventId,
+      passFor(eventId, participantId),
+      childEventId,
+    );
+
+    expect(result).toMatchObject({
+      success: true,
+      data: {
+        userId: participantId,
+        alreadyCheckedIn: false,
+        // Echoed back so the desk can confirm which target it recorded.
+        targetName: 'Check-in Lunch',
+      },
+    });
+
+    // The door row and the sub-event row are independent: one per event id.
+    for (const id of [eventId, childEventId]) {
+      const rows = await db
+        .select({ userId: checkIns.userId })
+        .from(checkIns)
+        .where(
+          and(eq(checkIns.eventId, id), eq(checkIns.userId, participantId)),
+        );
+      expect(rows).toHaveLength(1);
+    }
+  });
+
+  test('reports a repeat sub-event scan as already checked in', async () => {
+    await clearAll();
+    await atDoor();
+    await scanCheckIn(eventId, passFor(eventId, participantId), childEventId);
+
+    const result = await scanCheckIn(
+      eventId,
+      passFor(eventId, participantId),
+      childEventId,
+    );
+
+    expect(result).toMatchObject({
+      success: true,
+      data: { alreadyCheckedIn: true, checkedInByName: SCANNER_NAME },
+    });
+  });
+
+  test('main-event check-in is unaffected by a sub-event scan', async () => {
+    await clearAll();
+    await atDoor();
+    await scanCheckIn(eventId, passFor(eventId, participantId), childEventId);
+
+    // The door tile counts only the main event's own rows.
+    const updates = await getCheckInUpdates(eventId, null);
+    expect(updates.success && updates.data?.checkedInCount).toBe(1);
+  });
+
+  // The security-critical pair: a target is only ever valid as a child of the
+  // event in the first argument.
+  test('refuses an unrelated top-level event as a target', async () => {
+    await clearAll();
+    await atDoor();
+
+    await expect(
+      scanCheckIn(eventId, passFor(eventId, participantId), otherEventId),
+    ).resolves.toMatchObject({
+      success: false,
+      error: expect.stringContaining('does not belong to this event'),
+    });
+  });
+
+  test("refuses another event's sub-event as a target", async () => {
+    await clearAll();
+    await atDoor();
+
+    await expect(
+      scanCheckIn(
+        eventId,
+        passFor(eventId, participantId),
+        foreignChildEventId,
+      ),
+    ).resolves.toMatchObject({ success: false });
+  });
+
+  test('checkInParticipant honours the same rules', async () => {
+    await clearAll();
+
+    await expect(
+      checkInParticipant(eventId, participantId, childEventId),
+    ).resolves.toMatchObject({ success: false });
+
+    await atDoor();
+
+    await expect(
+      checkInParticipant(eventId, participantId, childEventId),
+    ).resolves.toMatchObject({
+      success: true,
+      data: { targetName: 'Check-in Lunch' },
+    });
+    await expect(
+      checkInParticipant(eventId, participantId, foreignChildEventId),
+    ).resolves.toMatchObject({ success: false });
+  });
+
+  test('undo removes only the targeted sub-event row', async () => {
+    await clearAll();
+    await atDoor();
+    await scanCheckIn(eventId, passFor(eventId, participantId), childEventId);
+
+    await expect(
+      undoCheckIn(eventId, participantId, childEventId),
+    ).resolves.toMatchObject({ success: true });
+
+    const subeventRows = await db
+      .select({ userId: checkIns.userId })
+      .from(checkIns)
+      .where(eq(checkIns.eventId, childEventId));
+    expect(subeventRows).toHaveLength(0);
+
+    // Still at the door — undoing a meal is not a departure.
+    const doorRows = await db
+      .select({ userId: checkIns.userId })
+      .from(checkIns)
+      .where(eq(checkIns.eventId, eventId));
+    expect(doorRows).toHaveLength(1);
+  });
+
+  test('undoing the door check-in leaves sub-event rows alone', async () => {
+    await clearAll();
+    await atDoor();
+    await scanCheckIn(eventId, passFor(eventId, participantId), childEventId);
+
+    await undoCheckIn(eventId, participantId);
+
+    // Cascading would silently destroy attendance data that was correctly
+    // recorded; they were at lunch whether or not the door scan stands.
+    const subeventRows = await db
+      .select({ userId: checkIns.userId })
+      .from(checkIns)
+      .where(eq(checkIns.eventId, childEventId));
+    expect(subeventRows).toHaveLength(1);
+  });
+
+  // Freeze is the parent's end, not the sub-event's — a lunch line at 13:05 for
+  // a 13:00 lunch is the normal case, and corrections have to stay possible.
+  test('allows check-in for a sub-event that has already ended', async () => {
+    await clearAll();
+    await atDoor();
+
+    await expect(
+      scanCheckIn(eventId, passFor(eventId, participantId), pastChildEventId),
+    ).resolves.toMatchObject({ success: true });
+  });
+
+  test('freezes once the parent event has ended', async () => {
+    await expect(
+      scanCheckIn(expiredEventId, passFor(expiredEventId, participantId)),
+    ).resolves.toMatchObject({
+      success: false,
+      error: expect.stringContaining('frozen'),
+    });
+  });
+
+  test('roster keeps the main population while tracking the sub-event', async () => {
+    await clearAll();
+    await atDoor();
+    await scanCheckIn(eventId, passFor(eventId, participantId), childEventId);
+
+    const result = await getCheckInRoster(eventId, childEventId);
+    expect(result.success).toBe(true);
+    const rows = result.success ? result.data! : [];
+
+    const row = rows.find((entry) => entry.userId === participantId);
+    expect(row).toMatchObject({ atMainEvent: true });
+    expect(row?.checkedInAt).toMatch(/^\d{4}-\d{2}-\d{2}T.*Z$/);
+
+    // Eligibility still comes from the main event, so somebody who never
+    // arrived is listed — flagged, not hidden, so the desk can say why.
+    const stranger = rows.find((entry) => entry.userId === strangerId);
+    expect(stranger).toBeUndefined();
+  });
+
+  test('roster flags a registered participant who is not at the door', async () => {
+    await clearAll();
+
+    const result = await getCheckInRoster(eventId, childEventId);
+    const row = result.success
+      ? result.data?.find((entry) => entry.userId === participantId)
+      : undefined;
+
+    expect(row).toMatchObject({ atMainEvent: false, checkedInAt: null });
+  });
+
+  test('updates are scoped to the target', async () => {
+    await clearAll();
+    await atDoor();
+    await scanCheckIn(eventId, passFor(eventId, participantId), childEventId);
+
+    const subevent = await getCheckInUpdates(eventId, null, childEventId);
+    expect(subevent.success && subevent.data?.checkedInCount).toBe(1);
+
+    const past = await getCheckInUpdates(eventId, null, pastChildEventId);
+    expect(past.success && past.data?.checkedInCount).toBe(0);
+  });
+
+  test('refuses a forged target on the read paths too', async () => {
+    await expect(
+      getCheckInRoster(eventId, otherEventId),
+    ).resolves.toMatchObject({ success: false });
+    await expect(
+      getCheckInUpdates(eventId, null, otherEventId),
+    ).resolves.toMatchObject({ success: false });
   });
 });
