@@ -10,7 +10,7 @@ import {
 import { resolveEventId } from '@/lib/events';
 import { resolveEffectiveRsvpStatus } from '@/lib/rsvp/effective-rsvp-status';
 import { findLatestEventRsvpResponses } from '@/lib/rsvp/latest-rsvp-response';
-import { requirePermission } from '@/lib/rbac/authorization';
+import { hasPermission, requirePermission } from '@/lib/rbac/authorization';
 import { getUser } from '@/utils/auth';
 
 import { ApplicationsTable } from '../_components/applications-table';
@@ -76,11 +76,14 @@ async function ApplicationsContent({
   // RSVP status is read fresh rather than folded into the cached roster: a
   // response (or a deadline passing) changes it without touching the
   // application, so it can't sit behind the applications cache tag.
-  const [roster, questions, rsvpRows] = await Promise.all([
-    getApplicationRoster(eventId),
-    getEventQuestions(eventId),
-    findLatestEventRsvpResponses(eventId),
-  ]);
+  const [roster, questions, rsvpRows, canReview, canManageRsvp] =
+    await Promise.all([
+      getApplicationRoster(eventId),
+      getEventQuestions(eventId),
+      findLatestEventRsvpResponses(eventId),
+      hasPermission(user.id, 'application:review:all'),
+      hasPermission(user.id, 'rsvp:write:all'),
+    ]);
   const now = new Date();
   const rsvpByUserId = new Map(
     rsvpRows.map((r) => [
@@ -102,7 +105,13 @@ async function ApplicationsContent({
           {rows.length === 1 ? 'application' : 'applications'} submitted.
         </p>
       </div>
-      <ApplicationsTable eventId={eventId} rows={rows} questions={questions} />
+      <ApplicationsTable
+        eventId={eventId}
+        rows={rows}
+        questions={questions}
+        canReview={canReview}
+        canManageRsvp={canManageRsvp}
+      />
     </div>
   );
 }

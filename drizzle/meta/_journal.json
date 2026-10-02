@@ -330,6 +330,13 @@
       "when": 1790866429559,
       "tag": "0046_application_status_invited_title",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1790867812007,
+      "tag": "0047_rsvp_write_permission",
+      "breakpoints": true
     }
   ]
 }

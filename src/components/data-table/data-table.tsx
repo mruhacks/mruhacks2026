@@ -12,10 +12,13 @@ import * as React from 'react';
 import {
   ColumnDef,
   ColumnFiltersState,
+  FilterFn,
   SortingState,
   VisibilityState,
   flexRender,
   getCoreRowModel,
+  getFacetedRowModel,
+  getFacetedUniqueValues,
   getFilteredRowModel,
   getPaginationRowModel,
   getSortedRowModel,
@@ -29,6 +32,7 @@ import {
   ChevronRight,
   ChevronsUpDown,
   Settings2,
+  X,
 } from 'lucide-react';
 
 import {
@@ -49,6 +53,11 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
+
+import {
+  DataTableColumnFilter,
+  columnFilterFn,
+} from './data-table-column-filter';
 
 export interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -87,6 +96,12 @@ export interface DataTableProps<TData, TValue> {
   initialColumnFilters?: ColumnFiltersState;
   /** Called whenever column filters change. */
   onColumnFiltersChange?: (filters: ColumnFiltersState) => void;
+  /**
+   * Put a filter button in every filterable column header. Each column's
+   * `meta.filterVariant` picks the filter UI (text by default); columns
+   * without an accessor, or with `enableColumnFilter: false`, get none.
+   */
+  enableColumnFilters?: boolean;
 }
 
 export function DataTable<TData, TValue>({
@@ -110,6 +125,7 @@ export function DataTable<TData, TValue>({
   initialColumnVisibility,
   initialColumnFilters = [],
   onColumnFiltersChange,
+  enableColumnFilters = false,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = React.useState<SortingState>(initialSorting);
   const [columnFilters, setColumnFilters] =
@@ -137,7 +153,7 @@ export function DataTable<TData, TValue>({
     onColumnFiltersChange?.(columnFilters);
   }, [columnFilters, onColumnFiltersChange]);
 
-  const table = useReactTable({
+  const table = useReactTable<TData>({
     data,
     columns,
     state: {
@@ -164,6 +180,17 @@ export function DataTable<TData, TValue>({
     onGlobalFilterChange: setGlobalFilter,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
+    ...(enableColumnFilters
+      ? {
+          // Faceted values feed the select filters' derived option lists.
+          getFacetedRowModel: getFacetedRowModel(),
+          getFacetedUniqueValues: getFacetedUniqueValues(),
+          // A column's own `filterFn` still wins; this only replaces 'auto',
+          // which guesses from the first row and picks the wrong comparison
+          // when that row's value happens to be null.
+          defaultColumn: { filterFn: columnFilterFn as FilterFn<TData> },
+        }
+      : {}),
     getSortedRowModel: getSortedRowModel(),
     getPaginationRowModel: manualPagination
       ? undefined
@@ -202,6 +229,17 @@ export function DataTable<TData, TValue>({
               />
             )}
             {toolbar}
+            {enableColumnFilters && columnFilters.length > 0 && (
+              <Button
+                variant='ghost'
+                size='sm'
+                className='h-9'
+                onClick={() => setColumnFilters([])}
+              >
+                Clear filters ({columnFilters.length})
+                <X className='size-4' />
+              </Button>
+            )}
           </div>
           <div className='flex items-center gap-2'>
             {toolbarRight?.(table)}
@@ -246,6 +284,13 @@ export function DataTable<TData, TValue>({
                 {headerGroup.headers.map((header) => {
                   const canSort = header.column.getCanSort();
                   const sorted = header.column.getIsSorted();
+                  // Only the leaf header row gets filter buttons — a
+                  // placeholder cell above it points at the same column.
+                  const showFilter =
+                    enableColumnFilters &&
+                    !header.isPlaceholder &&
+                    header.subHeaders.length === 0 &&
+                    header.column.getCanFilter();
                   return (
                     <TableHead
                       key={header.id}
@@ -260,30 +305,35 @@ export function DataTable<TData, TValue>({
                           'text-muted-foreground border-b text-[11px] tracking-wide uppercase',
                       )}
                     >
-                      {header.isPlaceholder ? null : canSort ? (
-                        <button
-                          type='button'
-                          onClick={header.column.getToggleSortingHandler()}
-                          className='hover:text-foreground inline-flex items-center gap-1 transition-colors'
-                        >
-                          {flexRender(
+                      <div className='inline-flex items-center gap-0.5'>
+                        {header.isPlaceholder ? null : canSort ? (
+                          <button
+                            type='button'
+                            onClick={header.column.getToggleSortingHandler()}
+                            className='hover:text-foreground inline-flex items-center gap-1 transition-colors'
+                          >
+                            {flexRender(
+                              header.column.columnDef.header,
+                              header.getContext(),
+                            )}
+                            {sorted === 'asc' ? (
+                              <ArrowUp className='size-3' />
+                            ) : sorted === 'desc' ? (
+                              <ArrowDown className='size-3' />
+                            ) : (
+                              <ChevronsUpDown className='size-3 opacity-50' />
+                            )}
+                          </button>
+                        ) : (
+                          flexRender(
                             header.column.columnDef.header,
                             header.getContext(),
-                          )}
-                          {sorted === 'asc' ? (
-                            <ArrowUp className='size-3' />
-                          ) : sorted === 'desc' ? (
-                            <ArrowDown className='size-3' />
-                          ) : (
-                            <ChevronsUpDown className='size-3 opacity-50' />
-                          )}
-                        </button>
-                      ) : (
-                        flexRender(
-                          header.column.columnDef.header,
-                          header.getContext(),
-                        )
-                      )}
+                          )
+                        )}
+                        {showFilter && (
+                          <DataTableColumnFilter column={header.column} />
+                        )}
+                      </div>
                     </TableHead>
                   );
                 })}

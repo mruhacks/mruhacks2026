@@ -1,12 +1,16 @@
 'use server';
 
 import { randomUUID } from 'crypto';
-import { and, count, eq, inArray, ne, sql } from 'drizzle-orm';
+import { and, count, desc, eq, inArray, ne, notExists, sql } from 'drizzle-orm';
 import { revalidatePath, updateTag } from 'next/cache';
 import { db } from '@/utils/db';
 import { FEATURED_EVENT_CACHE_TAG } from '@/lib/featured-event';
 import { subeventsCacheTag } from '@/lib/subevents';
-import { EVENTS_CACHE_TAG, eventUrlSegments } from '@/lib/events';
+import {
+  EVENTS_CACHE_TAG,
+  eventUrlSegments,
+  userEventsCacheTag,
+} from '@/lib/events';
 import { eventPath } from '@/lib/event-slug';
 import {
   adminEventCacheTag,
@@ -24,6 +28,10 @@ import {
   majors,
   yearsOfStudy,
   applicationStatuses,
+  eventRsvpResponses,
+  eventRsvpWaves,
+  rsvpStatuses,
+  checkIns,
   teams,
   teamMembers,
 } from '@/db/schema';
@@ -39,7 +47,7 @@ import {
   isSummarizableQuestion,
   type ApplicationQuestion,
 } from '@/types/application';
-import type { ApplicationStatus } from '@/types/lookups';
+import type { ApplicationStatus, RsvpStatus } from '@/types/lookups';
 import {
   buildQuestionStats,
   buildStatusBreakdown,
@@ -53,12 +61,16 @@ import {
   editQuestionSchema,
   createEventSchema,
   updateEventSettingsSchema,
+  updateApplicationStatusSchema,
+  updateRsvpStatusSchema,
 } from './schemas';
 import type {
   AddQuestionInput,
   EditQuestionInput,
   CreateEventInput,
   UpdateEventSettingsInput,
+  UpdateApplicationStatusInput,
+  UpdateRsvpStatusInput,
 } from './schemas';
 import { validateQuestionEdit } from '@/lib/question-diff';
 import { writeAuditLog } from '@/utils/audit-log';
@@ -856,6 +868,238 @@ export async function getApplicationStats(
     statusBreakdown: buildStatusBreakdown(statsRows),
     demographics: buildDemographicStats(statsRows),
   });
+}
+
+/**
+ * Admin: set an application's review status from the applications table.
+ * Requires `application:review:all`.
+ *
+ * Refused once the applicant has an RSVP invitation for the event: from then
+ * on the RSVP decides what they see and whether they're attending, so a
+ * review change would silently do nothing (or, for a later wave, re-invite
+ * someone who already has an invitation). The check sits inside the UPDATE
+ * so a wave going out concurrently can't slip between it and the write.
+ */
+export async function updateApplicationStatus(
+  input: UpdateApplicationStatusInput,
+): Promise<ActionResult<{ status: ApplicationStatus }>> {
+  const authUser = await getUser();
+  if (!authUser) return fail('Not authenticated');
+  await requirePermission(authUser.id, 'application:review:all');
+
+  const parsed = updateApplicationStatusSchema.safeParse(input);
+  if (!parsed.success) return fail('Invalid application status.');
+  const { eventId, applicationId, status } = parsed.data;
+
+  const [statusRow] = await db
+    .select({ id: applicationStatuses.id })
+    .from(applicationStatuses)
+    .where(eq(applicationStatuses.label, status))
+    .limit(1);
+  if (!statusRow) return fail('Unknown application status.');
+
+  const updated = await db
+    .update(eventApplications)
+    .set({
+      statusId: statusRow.id,
+      reviewedAt: new Date(),
+      reviewedBy: authUser.id,
+    })
+    .where(
+      and(
+        eq(eventApplications.id, applicationId),
+        eq(eventApplications.eventId, eventId),
+        notExists(
+          db
+            .select({ id: eventRsvpResponses.id })
+            .from(eventRsvpResponses)
+            .innerJoin(
+              eventRsvpWaves,
+              eq(eventRsvpResponses.rsvpWaveId, eventRsvpWaves.id),
+            )
+            .where(
+              and(
+                eq(eventRsvpWaves.eventId, eventId),
+                eq(eventRsvpResponses.userId, eventApplications.userId),
+              ),
+            ),
+        ),
+      ),
+    )
+    .returning({ userId: eventApplications.userId });
+
+  if (updated.length === 0) {
+    const [exists] = await db
+      .select({ id: eventApplications.id })
+      .from(eventApplications)
+      .where(
+        and(
+          eq(eventApplications.id, applicationId),
+          eq(eventApplications.eventId, eventId),
+        ),
+      )
+      .limit(1);
+    return fail(
+      exists
+        ? 'This applicant has already been sent an RSVP invitation, so their status can no longer be changed.'
+        : 'Application not found.',
+    );
+  }
+
+  updateTag(eventApplicationsCacheTag(eventId));
+
+  await writeAuditLog({
+    actorId: authUser.id,
+    action: 'event.application_status_changed',
+    targetType: 'event_application',
+    targetId: applicationId,
+    metadata: { eventId, userId: updated[0].userId, status },
+  });
+
+  return ok({ status });
+}
+
+class RsvpOverrideError extends Error {}
+
+/**
+ * Admin: override an invited applicant's RSVP from the applications table.
+ * Requires `rsvp:write:all`.
+ *
+ * Acts on the applicant's latest-wave response — the one they and the
+ * roster both resolve — so an applicant who was never invited has nothing
+ * to override; they go through an RSVP wave first.
+ *
+ * Accepted keeps `event_attendees` in step the same way the applicant's own
+ * accept does, but as an admin override it skips the capacity check and
+ * doesn't record Event Terms consent the applicant never gave. Moving off
+ * accepted removes the attendee row, unless they've already checked in.
+ */
+export async function updateRsvpStatus(
+  input: UpdateRsvpStatusInput,
+): Promise<ActionResult<{ status: RsvpStatus }>> {
+  const authUser = await getUser();
+  if (!authUser) return fail('Not authenticated');
+  await requirePermission(authUser.id, 'rsvp:write:all');
+
+  const parsed = updateRsvpStatusSchema.safeParse(input);
+  if (!parsed.success) return fail('Invalid RSVP status.');
+  const { eventId, applicationId, status } = parsed.data;
+
+  let userId: string;
+  try {
+    userId = await db.transaction(async (tx) => {
+      const [application] = await tx
+        .select({ userId: eventApplications.userId })
+        .from(eventApplications)
+        .where(
+          and(
+            eq(eventApplications.id, applicationId),
+            eq(eventApplications.eventId, eventId),
+          ),
+        )
+        .limit(1);
+      if (!application) throw new RsvpOverrideError('Application not found.');
+
+      const [response] = await tx
+        .select({
+          id: eventRsvpResponses.id,
+          respondBy: eventRsvpWaves.respondBy,
+        })
+        .from(eventRsvpResponses)
+        .innerJoin(
+          eventRsvpWaves,
+          eq(eventRsvpResponses.rsvpWaveId, eventRsvpWaves.id),
+        )
+        .where(
+          and(
+            eq(eventRsvpWaves.eventId, eventId),
+            eq(eventRsvpResponses.userId, application.userId),
+          ),
+        )
+        .orderBy(desc(eventRsvpWaves.wave))
+        .limit(1)
+        .for('update', { of: eventRsvpResponses });
+      if (!response) {
+        throw new RsvpOverrideError(
+          "This applicant hasn't been sent an RSVP invitation yet.",
+        );
+      }
+      // A stored `pending` past the deadline still reads as expired.
+      if (status === 'pending' && response.respondBy <= new Date()) {
+        throw new RsvpOverrideError(
+          "This RSVP wave's deadline has passed, so it can't be set back to awaiting a response.",
+        );
+      }
+
+      const [statusRow] = await tx
+        .select({ id: rsvpStatuses.id })
+        .from(rsvpStatuses)
+        .where(eq(rsvpStatuses.label, status))
+        .limit(1);
+      if (!statusRow) throw new RsvpOverrideError('Unknown RSVP status.');
+
+      const decided = status === 'accepted' || status === 'declined';
+      await tx
+        .update(eventRsvpResponses)
+        .set({
+          statusId: statusRow.id,
+          respondedAt: decided ? new Date() : null,
+        })
+        .where(eq(eventRsvpResponses.id, response.id));
+
+      if (status === 'accepted') {
+        await tx
+          .insert(eventAttendees)
+          .values({ eventId, userId: application.userId })
+          .onConflictDoNothing({
+            target: [eventAttendees.eventId, eventAttendees.userId],
+          });
+      } else {
+        const [checkIn] = await tx
+          .select({ userId: checkIns.userId })
+          .from(checkIns)
+          .where(
+            and(
+              eq(checkIns.eventId, eventId),
+              eq(checkIns.userId, application.userId),
+            ),
+          )
+          .limit(1);
+        if (checkIn) {
+          throw new RsvpOverrideError(
+            'This applicant has already checked in, so their RSVP can no longer be changed.',
+          );
+        }
+        await tx
+          .delete(eventAttendees)
+          .where(
+            and(
+              eq(eventAttendees.eventId, eventId),
+              eq(eventAttendees.userId, application.userId),
+            ),
+          );
+      }
+
+      return application.userId;
+    });
+  } catch (error) {
+    if (error instanceof RsvpOverrideError) return fail(error.message);
+    console.error('RSVP override error:', error);
+    return fail('Failed to update RSVP status.');
+  }
+
+  updateTag(eventApplicationsCacheTag(eventId));
+  updateTag(userEventsCacheTag(userId));
+
+  await writeAuditLog({
+    actorId: authUser.id,
+    action: 'event.rsvp_status_overridden',
+    targetType: 'event_application',
+    targetId: applicationId,
+    metadata: { eventId, userId, status },
+  });
+
+  return ok({ status });
 }
 
 export type SendEventRsvpWaveResult = {

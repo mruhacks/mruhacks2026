@@ -121,6 +121,10 @@ const CORE_PERMISSIONS = [
     slug: 'rsvp:read:all',
     description: "View an event's RSVP waves and responses",
   },
+  {
+    slug: 'rsvp:write:all',
+    description: "Override a participant's RSVP response",
+  },
   { slug: 'application:read:all', description: 'View event applications' },
   {
     slug: 'application:review:all',

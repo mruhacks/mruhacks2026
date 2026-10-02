@@ -195,6 +195,10 @@ async function seedRolesAndPermissions() {
       slug: 'rsvp:read:all',
       description: "View an event's RSVP waves and responses",
     },
+    {
+      slug: 'rsvp:write:all',
+      description: "Override a participant's RSVP response",
+    },
     { slug: 'application:read:all', description: 'View event applications' },
     {
       slug: 'application:review:all',
@@ -291,6 +295,10 @@ async function seedRolesAndPermissions() {
       {
         roleId: findRole('organizer').id,
         permissionId: findPerm('rsvp:read:all').id,
+      },
+      {
+        roleId: findRole('organizer').id,
+        permissionId: findPerm('rsvp:write:all').id,
       },
       {
         roleId: findRole('organizer').id,
