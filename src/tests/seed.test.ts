@@ -5,16 +5,14 @@ import { and, eq, inArray } from 'drizzle-orm';
 import { seedDemoData } from '../../scripts/seed';
 import { db } from '@/utils/db';
 import {
-  applicationStatuses,
   checkIns,
-  eventApplications,
-  eventAttendees,
-  eventRsvpResponses,
+  eventParticipants,
+  eventInvitations,
+  participationStatuses,
   eventRsvpWaves,
   events,
   eventTerms,
   privacyAcceptances,
-  rsvpStatuses,
   teamMembers,
   teams,
   termsAcceptances,
@@ -106,11 +104,11 @@ describe('demo seed', () => {
     expect(about.yearOfStudyId).toBeTypeOf('number');
     const [application] = await db
       .select()
-      .from(eventApplications)
+      .from(eventParticipants)
       .where(
         and(
-          eq(eventApplications.userId, adminId),
-          eq(eventApplications.eventId, eventId),
+          eq(eventParticipants.userId, adminId),
+          eq(eventParticipants.eventId, eventId),
         ),
       );
     const [event] = await db
@@ -129,8 +127,17 @@ describe('demo seed', () => {
     expect(
       await db
         .select()
-        .from(eventAttendees)
-        .where(eq(eventAttendees.userId, adminId)),
+        .from(eventParticipants)
+        .innerJoin(
+          participationStatuses,
+          eq(eventParticipants.statusId, participationStatuses.id),
+        )
+        .where(
+          and(
+            eq(eventParticipants.userId, adminId),
+            eq(participationStatuses.label, 'accepted'),
+          ),
+        ),
     ).toHaveLength(2);
     expect(
       await db.select().from(checkIns).where(eq(checkIns.userId, adminId)),
@@ -148,10 +155,10 @@ describe('demo seed', () => {
       .select({ profile: userProfiles })
       .from(userProfiles)
       .innerJoin(
-        eventApplications,
-        eq(eventApplications.userId, userProfiles.userId),
+        eventParticipants,
+        eq(eventParticipants.userId, userProfiles.userId),
       )
-      .where(eq(eventApplications.eventId, eventId));
+      .where(eq(eventParticipants.eventId, eventId));
     const fakeProfiles = profiles
       .map(({ profile }) => profile)
       .filter((profile) => profile.userId !== adminId);
@@ -198,42 +205,48 @@ describe('demo seed', () => {
   test('links RSVP states, approvals, attendance, and timestamps consistently across chunks', async () => {
     const responses = await db
       .select({
-        response: eventRsvpResponses,
+        response: eventInvitations,
+        userId: eventParticipants.userId,
         wave: eventRsvpWaves,
-        status: rsvpStatuses.label,
-        applicationStatus: applicationStatuses.label,
-        reviewedAt: eventApplications.reviewedAt,
+        status: participationStatuses.label,
+        reviewedAt: eventParticipants.reviewedAt,
       })
-      .from(eventRsvpResponses)
+      .from(eventInvitations)
       .innerJoin(
         eventRsvpWaves,
-        eq(eventRsvpResponses.rsvpWaveId, eventRsvpWaves.id),
-      )
-      .innerJoin(rsvpStatuses, eq(eventRsvpResponses.statusId, rsvpStatuses.id))
-      .innerJoin(
-        eventApplications,
-        and(
-          eq(eventApplications.userId, eventRsvpResponses.userId),
-          eq(eventApplications.eventId, eventRsvpWaves.eventId),
-        ),
+        eq(eventInvitations.rsvpWaveId, eventRsvpWaves.id),
       )
       .innerJoin(
-        applicationStatuses,
-        eq(applicationStatuses.id, eventApplications.statusId),
+        eventParticipants,
+        eq(eventInvitations.participantId, eventParticipants.id),
+      )
+      .innerJoin(
+        participationStatuses,
+        eq(participationStatuses.id, eventParticipants.statusId),
       )
       .where(eq(eventRsvpWaves.eventId, eventId));
     expect(new Set(responses.map((row) => row.status))).toEqual(
-      new Set(['accepted', 'pending', 'declined', 'timed_out']),
+      new Set(['accepted', 'invited', 'declined', 'timed_out']),
     );
+    // Everyone holding a spot got there by accepting an invitation.
     const attendees = await db
-      .select()
-      .from(eventAttendees)
-      .where(eq(eventAttendees.eventId, eventId));
+      .select({ userId: eventParticipants.userId })
+      .from(eventParticipants)
+      .innerJoin(
+        participationStatuses,
+        eq(participationStatuses.id, eventParticipants.statusId),
+      )
+      .where(
+        and(
+          eq(eventParticipants.eventId, eventId),
+          eq(participationStatuses.label, 'accepted'),
+        ),
+      );
     expect(new Set(attendees.map((row) => row.userId))).toEqual(
       new Set(
         responses
           .filter((row) => row.status === 'accepted')
-          .map((row) => row.response.userId),
+          .map((row) => row.userId),
       ),
     );
     const waves = await db
@@ -242,7 +255,7 @@ describe('demo seed', () => {
       .where(eq(eventRsvpWaves.eventId, eventId));
     expect(waves).toHaveLength(2);
     for (const row of responses) {
-      expect(row.applicationStatus).toBe('approved');
+      expect(row.reviewedAt).not.toBeNull();
       if (row.status === 'accepted') {
         expect(row.response.acceptedTermsId).toBeTruthy();
         expect(row.response.termsAcceptedAt).toEqual(row.response.respondedAt);
@@ -254,7 +267,7 @@ describe('demo seed', () => {
       expect(row.reviewedAt!.getTime()).toBeLessThanOrEqual(
         row.wave.createdAt.getTime(),
       );
-      if (row.status === 'pending')
+      if (row.status === 'invited')
         expect(row.wave.respondBy.getTime()).toBeGreaterThan(Date.now());
       if (row.status === 'timed_out')
         expect(row.wave.respondBy.getTime()).toBeLessThan(Date.now());
@@ -267,24 +280,36 @@ describe('demo seed', () => {
         );
       }
     }
-    const approved = await db
+    // Some waitlisted applicants are left for a future wave.
+    const waitlisted = await db
       .select()
-      .from(eventApplications)
+      .from(eventParticipants)
       .innerJoin(
-        applicationStatuses,
-        eq(eventApplications.statusId, applicationStatuses.id),
+        participationStatuses,
+        eq(eventParticipants.statusId, participationStatuses.id),
       )
       .where(
         and(
-          eq(eventApplications.eventId, eventId),
-          eq(applicationStatuses.label, 'approved'),
+          eq(eventParticipants.eventId, eventId),
+          eq(participationStatuses.label, 'waitlisted'),
         ),
       );
-    expect(approved.length).toBeGreaterThan(responses.length);
-    const allAttendees = await db
-      .select()
-      .from(eventAttendees)
-      .where(inArray(eventAttendees.eventId, fixtureEventIds));
+    expect(waitlisted.length).toBeGreaterThan(0);
+    const allAttendees = (
+      await db
+        .select({ participant: eventParticipants })
+        .from(eventParticipants)
+        .innerJoin(
+          participationStatuses,
+          eq(eventParticipants.statusId, participationStatuses.id),
+        )
+        .where(
+          and(
+            inArray(eventParticipants.eventId, fixtureEventIds),
+            eq(participationStatuses.label, 'accepted'),
+          ),
+        )
+    ).map((row) => row.participant);
     const checkins = await db
       .select()
       .from(checkIns)
@@ -298,7 +323,7 @@ describe('demo seed', () => {
       );
       expect(attendee).toBeDefined();
       expect(checkin.checkedInAt.getTime()).toBeGreaterThanOrEqual(
-        attendee!.registeredAt.getTime(),
+        attendee!.createdAt.getTime(),
       );
       expect(checkin.checkedInBy).toBe(adminId);
     }
@@ -362,8 +387,12 @@ describe('demo seed', () => {
     expect(
       await db
         .select()
-        .from(eventRsvpResponses)
-        .where(eq(eventRsvpResponses.userId, adminId)),
+        .from(eventInvitations)
+        .innerJoin(
+          eventParticipants,
+          eq(eventInvitations.participantId, eventParticipants.id),
+        )
+        .where(eq(eventParticipants.userId, adminId)),
     ).toHaveLength(1);
     expect(
       await db

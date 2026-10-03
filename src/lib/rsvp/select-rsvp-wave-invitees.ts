@@ -6,10 +6,8 @@ import type { EligibleRsvpApplicant } from '@/lib/rsvp/eligible-rsvp-applicants'
  * Invite count is `min(eligible applicants, remaining spots)`. Unlimited
  * capacity (`availableSpots === null`) invites everyone eligible.
  *
- * When a subset is required, eligible applicants are ordered by original
- * application submission time (`event_applications.created_at`) ascending —
- * oldest application first. `event_applications.id` is a tie-break only so
- * equal timestamps stay deterministic.
+ * Order: `waitlist_position` (unranked last), then oldest application.
+ * `participantId` is a tie-break only so equal timestamps stay deterministic.
  */
 export function selectRsvpWaveInvitees(
   applicants: EligibleRsvpApplicant[],
@@ -26,12 +24,15 @@ function compareEligibleRsvpApplicants(
   a: EligibleRsvpApplicant,
   b: EligibleRsvpApplicant,
 ): number {
+  const pa = a.waitlistPosition ?? Number.POSITIVE_INFINITY;
+  const pb = b.waitlistPosition ?? Number.POSITIVE_INFINITY;
+  if (pa !== pb) return pa < pb ? -1 : 1;
   const byAppliedAt =
     a.applicationCreatedAt.getTime() - b.applicationCreatedAt.getTime();
   if (byAppliedAt !== 0) {
     return byAppliedAt;
   }
-  if (a.applicationId < b.applicationId) return -1;
-  if (a.applicationId > b.applicationId) return 1;
+  if (a.participantId < b.participantId) return -1;
+  if (a.participantId > b.participantId) return 1;
   return 0;
 }

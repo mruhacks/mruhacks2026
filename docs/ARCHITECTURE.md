@@ -8,11 +8,11 @@ Use these terms consistently across UI, code, and docs:
 
 1. **Sign up** – Create a site account (email/password). Do not use "register" for account creation.
 2. **Sign in** – Log into the site.
-3. **Apply to an event** – For events with an application (`has_application`): user fills profile + event application form. Data in `event_applications` (with `status_id` for manual review: pending_review → approved / denied / waitlisted). UI: "Apply", "Edit application", "applied".
-4. **Register for an event** – For events without an application: one-click to attend. UI: "Register", "You are registered", "Unregister".
+3. **Apply to an event** – For events with an application (`has_application`): user fills profile + event application form. Stored as an `event_participants` row starting at `pending_review`. UI: "Apply", "Edit application", "applied".
+4. **Register for an event** – For events without an application: one-click to attend — an `event_participants` row that starts at `accepted`. UI: "Register", "You are registered", "Unregister".
 5. **Event application** – The form and stored data for events that require an application. Use "application" (not "registration") for this flow.
 6. **Profile** – User profile (shared across events).
-7. **Attendee** – A user in `event_attendees`.
+7. **Attendee** – A participant whose status is `accepted` (holds a spot).
 8. **Group** – A team associated with an event; members are in `group_members`. Use for "group" or "team" in UI and docs.
 9. **Submission** – A group's submission to an event (e.g. project); stored in `submissions`. Distinct from "event application" (user applying to attend).
 10. **Check-in** – Physical verification that an attendee is present (e.g. at event start or at a meal). One row per user per event in `check_ins`; the event can be the main event or a sub-event (e.g. meal). UI: "Check in", "Checked in", etc.
@@ -82,7 +82,7 @@ The database schema is organized into three main modules:
 
 1. **auth-schema.ts**: Better Auth tables (users, sessions, accounts)
 2. **lookups.ts**: Reference tables for form options (genders, universities, majors, etc.)
-3. **events-and-participation.ts**: Events (with `capacity`, optional `event_type_id`), user profiles, event applications (with application status, waitlist position), event RSVP waves and responses, event attendees, check-ins, groups, group members, and submissions
+3. **events-and-participation.ts**: Events (with `capacity`, optional `event_type_id`), user profiles, event participants (one participation status per user per event, waitlist position), event RSVP waves and invitations, check-ins, groups, group members, and submissions
 
 ### Key Tables
 
@@ -91,10 +91,9 @@ The database schema is organized into three main modules:
 - `check_ins`: One row per user per event (door check-in or meal check-in); unique on `(user_id, event_id)`; `checked_in_at` timestamp
 - `user_profiles`: Profile fields shared across applications (full name, gender, university, major, year of study)
 - `user_interests` / `user_dietary_restrictions`: User-level many-to-many with lookups
-- `event_applications`: One per user per event (when event has application); `id` (uuid PK), unique on `(event_id, user_id)`; `status_id` (FK to `application_statuses`: pending_review, approved, denied, waitlisted), optional `reviewed_at` / `reviewed_by` / `waitlist_position`; `responses` (JSONB) stores application answers
+- `event_participants`: One per user per event, for every event; unique on `(event_id, user_id)`; `status_id` (FK to `participation_statuses`) is the single participation status — see "Registration flow" below; optional `reviewed_at` / `reviewed_by` / `waitlist_position`; `responses` (JSONB) stores application answers (null for an event without an application)
 - `event_rsvp_waves`: One row per invitation wave per event (wave number, `respond_by` deadline)
-- `event_rsvp_responses`: One row per user per wave; `status_id` (FK to `rsvp_statuses`: pending, accepted, declined, timed_out), `responded_at`
-- `event_attendees`: Simple signup for events without applications; also used for accepted RSVPs
+- `event_invitations`: One per invited participant (unique on `participant_id`); wave, `responded_at`, invitation email delivery state and Event Terms consent. It has no status — the RSVP outcome is the participant's status
 - `groups`: Groups (teams) hosted by an event; `id`, `event_id` (FK to events), `name`
 - `group_members`: Junction `(group_id, user_id)`; groups contain users
 - `submissions`: Group submissions to events; `id`, `group_id`, `event_id`, `submitted_at`; groups submit to events
@@ -119,8 +118,7 @@ stateDiagram-v2
 
     ApplicationProcess --> ManualReview
 
-    ManualReview --> Waitlist
-    ManualReview --> RSVP : Approved
+    ManualReview --> Waitlist : Passes review
     ManualReview --> Denied
 
     state "Check Event Type" as checkType
@@ -144,6 +142,26 @@ stateDiagram-v2
         Accepted --> NoShow
     }
 ```
+
+### Participation statuses
+
+The diagram above is stored as **one** status per participant (`event_participants.status_id`):
+
+| Diagram state | Status | Notes |
+| --- | --- | --- |
+| Manual review | `pending_review` | Answers editable only here |
+| Waitlist | `waitlisted` | Where an accepted application goes. RSVP waves invite from here, by `waitlist_position` |
+| Denied | `denied` | |
+| RSVP (open) | `invited` | Reads as `timed_out` once the wave's `respond_by` passes |
+| Accepted | `accepted` | Holds a spot: counts against capacity, gets a pass, can check in |
+| Decline | `declined` | Declined the RSVP, gave up a spot, or left the waitlist |
+| Time out | `timed_out` | |
+| Checked-in / No Show | — | Derived from `accepted` + `check_ins` (no-show once the event has ended) |
+| Event Full | — | Derived: still `waitlisted` when no spot opens |
+
+The rules live in `src/lib/participation/`: `status.ts` (what each status means) and `transitions.ts` (who may make which move). Organizers can set any status from any other: review statuses need `application:review:all`, RSVP outcomes need `rsvp:write:all`, and a move between the two needs both. Moving someone back to a review status withdraws their invitation; setting someone to `invited` adds them to the open wave (refused when no wave is open). Participants may only answer an invitation, give up an accepted spot, or leave the waitlist.
+
+The waitlist is the RSVP queue. Each wave invites from the top of it (`waitlist_position`, then application time) to fill `capacity − accepted`. On the admin RSVP page every wave (past, open, next and later) is a collapsible row; organizers with `rsvp:write:all` can reorder the waitlist and send the next wave early, which closes the open wave and times out its unanswered invitations (`sendRsvpWave(..., { closeActiveWave: true })`).
 
 ## Authentication Flow
 

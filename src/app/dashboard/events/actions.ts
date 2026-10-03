@@ -10,11 +10,12 @@ import {
   userProfiles,
   userProfileAbout,
   userDietaryRestrictions,
-  eventApplications,
-  applicationStatuses,
-  eventAttendees,
+  eventParticipants,
+  participationStatuses,
+  eventInvitations,
+  eventRsvpWaves,
+  checkIns,
   applicationFormView,
-  eventRsvpResponses,
   genders,
   universities,
   majors,
@@ -35,40 +36,28 @@ import {
 import type { ApplicationQuestion } from '@/types/application';
 import { cacheLife, revalidatePath, updateTag } from 'next/cache';
 import { eventApplicationsCacheTag } from '@/lib/admin-event';
-import { and, eq, exists, inArray, sql } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { getUserProfile } from '@/app/dashboard/profile/actions';
 import {
   EVENT_AT_CAPACITY_MESSAGE,
   isRsvpUserDecision,
   type RsvpUserDecision,
 } from '@/lib/rsvp/constants';
-import { resolveEffectiveRsvpStatus } from '@/lib/rsvp/effective-rsvp-status';
+import { getAllEvents, hasEventElapsed } from '@/lib/events';
 import {
-  findLatestRsvpResponse,
-  findLatestRsvpResponseForDecision,
-  findLatestRsvpResponses,
-} from '@/lib/rsvp/latest-rsvp-response';
+  canEditApplication,
+  resolveEffectiveStatus,
+  resolveStoredStatus,
+  type StatusDisplay,
+} from '@/lib/participation/status';
+import { canParticipantTransition } from '@/lib/participation/transitions';
 import {
-  getAllEvents,
-  getUserEventParticipation,
-  hasEventElapsed,
-  userEventsCacheTag,
-} from '@/lib/events';
+  attendingCountSql,
+  getStatusDisplayMap,
+  statusIdOf,
+} from '@/lib/participation/server';
+import type { ParticipationStatus } from '@/types/lookups';
 import { buildApplicationResponses } from './application-responses';
-import {
-  type ApplicationStatusLabel,
-  type ApplicationStatusDisplay,
-  getApplicationStatusDisplay,
-  getApplicationStatusDisplayMap,
-  resolveApplicationStatusKey,
-} from './application-status';
-import {
-  type RsvpStatusLabel,
-  type RsvpStatusDisplay,
-  getRsvpStatusDisplay,
-  getRsvpStatusDisplayMap,
-  resolveRsvpStatusKey,
-} from './rsvp-status';
 
 /**
  * Returns the first event with has_application = true (e.g. default hackathon).
@@ -89,7 +78,7 @@ async function getDefaultApplicationEvent() {
  * Saves profile and event application for an event that has_application.
  * 1. Upserts user_profiles (from profileData)
  * 2. Replaces user_dietary_restrictions (from profileData)
- * 3. Upserts event_applications for (eventId, userId) with responses from eventData
+ * 3. Upserts event_participants for (eventId, userId) with responses from eventData
  */
 async function registerParticipant(
   profileData: ProfileFormValues,
@@ -132,27 +121,24 @@ async function registerParticipant(
 
   // Once an application has been decided (or is waitlisted), the applicant
   // can no longer change their answers — only a still-pending review may be
-  // edited. This is checked server-side because the apply page's own gate
-  // (`decisionIsFinal`) only hides the form for statuses flagged `isFinal`,
-  // which deliberately excludes `waitlisted`.
+  // edited.
   const [existingApplication] = await db
-    .select({ statusLabel: applicationStatuses.label })
-    .from(eventApplications)
-    .leftJoin(
-      applicationStatuses,
-      eq(eventApplications.statusId, applicationStatuses.id),
+    .select({ statusLabel: participationStatuses.label })
+    .from(eventParticipants)
+    .innerJoin(
+      participationStatuses,
+      eq(eventParticipants.statusId, participationStatuses.id),
     )
     .where(
       and(
-        eq(eventApplications.eventId, eventId),
-        eq(eventApplications.userId, user.id),
+        eq(eventParticipants.eventId, eventId),
+        eq(eventParticipants.userId, user.id),
       ),
     )
     .limit(1);
   if (
     existingApplication &&
-    resolveApplicationStatusKey(existingApplication.statusLabel) !==
-      'pending_review'
+    !canEditApplication(resolveStoredStatus(existingApplication.statusLabel))
   ) {
     return fail(
       'Your application has already been reviewed and can no longer be edited.',
@@ -165,15 +151,6 @@ async function registerParticipant(
   );
   if (!built.ok) return fail(built.error);
   const responses = built.responses;
-
-  const [pendingReview] = await db
-    .select({ id: applicationStatuses.id })
-    .from(applicationStatuses)
-    .where(eq(applicationStatuses.label, 'pending_review'))
-    .limit(1);
-  if (!pendingReview) {
-    return fail('Application statuses are not configured.');
-  }
 
   try {
     await db.transaction(async (tx) => {
@@ -238,15 +215,15 @@ async function registerParticipant(
       }
 
       await tx
-        .insert(eventApplications)
+        .insert(eventParticipants)
         .values({
           eventId,
           userId: user.id,
           responses,
-          statusId: pendingReview.id,
+          statusId: statusIdOf('pending_review'),
         })
         .onConflictDoUpdate({
-          target: [eventApplications.eventId, eventApplications.userId],
+          target: [eventParticipants.eventId, eventParticipants.userId],
           set: {
             responses,
             updatedAt: new Date(),
@@ -254,7 +231,6 @@ async function registerParticipant(
         });
     });
 
-    updateTag(userEventsCacheTag(user.id));
     // A new/updated application moves every number on the admin event
     // dashboard — the totals tile, the status list, the over-time chart and
     // the roster all read through this tag.
@@ -378,111 +354,108 @@ export async function submitEventApplication(
   );
 }
 
-export type ApplicationStatusForUser = {
-  applicationId: string;
-  statusKey: ApplicationStatusLabel;
-  statusDisplay: ApplicationStatusDisplay;
-  reviewedAt: Date | null;
-  waitlistPosition: number | null;
+// ---------------------------------------------------------------------------
+// Participation status
+// ---------------------------------------------------------------------------
+
+export type ParticipationForUser = {
+  participantId: string;
+  /** Effective status: an expired invitation already reads as `timed_out`. */
+  status: ParticipationStatus;
+  display: StatusDisplay;
   createdAt: Date;
+  reviewedAt: Date | null;
+  /** The RSVP invitation, once one has been sent. */
+  invitation: {
+    respondBy: Date;
+    respondedAt: Date | null;
+    termsAcceptedAt: Date | null;
+  } | null;
 };
 
 /**
- * Current user's application row for an event + review status label.
- * Returns null if there is no application row for (user, event).
+ * The current user's participation in an event — the one status that covers
+ * the application, the RSVP and attendance. Null when they have neither
+ * applied nor registered.
  */
-export async function getUserApplicationStatus(
+export async function getUserParticipation(
   eventId: string,
-): Promise<ApplicationStatusForUser | null> {
+): Promise<ParticipationForUser | null> {
   const user = await getUser();
   if (!user) return null;
+
   const [row] = await db
     .select({
-      applicationId: eventApplications.id,
-      statusKey: applicationStatuses.label,
-      reviewedAt: eventApplications.reviewedAt,
-      waitlistPosition: eventApplications.waitlistPosition,
-      createdAt: eventApplications.createdAt,
+      participantId: eventParticipants.id,
+      statusLabel: participationStatuses.label,
+      createdAt: eventParticipants.createdAt,
+      reviewedAt: eventParticipants.reviewedAt,
+      respondBy: eventRsvpWaves.respondBy,
+      respondedAt: eventInvitations.respondedAt,
+      termsAcceptedAt: eventInvitations.termsAcceptedAt,
     })
-    .from(eventApplications)
+    .from(eventParticipants)
+    .innerJoin(
+      participationStatuses,
+      eq(eventParticipants.statusId, participationStatuses.id),
+    )
     .leftJoin(
-      applicationStatuses,
-      eq(eventApplications.statusId, applicationStatuses.id),
+      eventInvitations,
+      eq(eventInvitations.participantId, eventParticipants.id),
+    )
+    .leftJoin(
+      eventRsvpWaves,
+      eq(eventInvitations.rsvpWaveId, eventRsvpWaves.id),
     )
     .where(
       and(
-        eq(eventApplications.userId, user.id),
-        eq(eventApplications.eventId, eventId),
+        eq(eventParticipants.userId, user.id),
+        eq(eventParticipants.eventId, eventId),
       ),
     )
     .limit(1);
   if (!row) return null;
-  const statusKey = resolveApplicationStatusKey(row.statusKey);
+
+  const status = resolveEffectiveStatus(row.statusLabel, row.respondBy);
+  const displayMap = await getStatusDisplayMap();
   return {
-    ...row,
-    statusKey,
-    statusDisplay: await getApplicationStatusDisplay(statusKey),
+    participantId: row.participantId,
+    status,
+    display: displayMap[status],
+    createdAt: row.createdAt,
+    reviewedAt: row.reviewedAt,
+    invitation: row.respondBy
+      ? {
+          respondBy: row.respondBy,
+          respondedAt: row.respondedAt,
+          termsAcceptedAt: row.termsAcceptedAt,
+        }
+      : null,
   };
 }
 
-// ---------------------------------------------------------------------------
-// RSVP
-// ---------------------------------------------------------------------------
-
-export type RsvpStatusForUser = {
-  responseId: string;
-  statusLabel: RsvpStatusLabel;
-  statusDisplay: RsvpStatusDisplay;
-  respondBy: Date;
-  respondedAt: Date | null;
-  termsAcceptedAt: Date | null;
-};
-
-/**
- * Current user's RSVP response for an event (latest wave).
- * Effective status treats expired pending invites as timed_out without a
- * write sweep. Returns null if the user has no RSVP invitation for this event.
- */
-export async function getUserRsvpStatus(
-  eventId: string,
-): Promise<RsvpStatusForUser | null> {
-  const user = await getUser();
-  if (!user) return null;
-
-  const row = await findLatestRsvpResponse({
-    userId: user.id,
-    eventId,
-  });
-  if (!row) return null;
-  const statusLabel = resolveEffectiveRsvpStatus(
-    row.statusLabel,
-    row.respondBy,
-  );
-  return {
-    ...row,
-    statusLabel,
-    statusDisplay: await getRsvpStatusDisplay(statusLabel),
-  };
-}
-
-class RsvpResponseError extends Error {
+class ParticipationError extends Error {
   constructor(message: string) {
     super(message);
-    this.name = 'RsvpResponseError';
+    this.name = 'ParticipationError';
   }
 }
 
+/** Revalidates every page a participant's own status change shows up on. */
+function revalidateParticipation(eventId: string) {
+  // Moves the admin roster, RSVP tile and capacity numbers too.
+  updateTag(eventApplicationsCacheTag(eventId));
+  revalidatePath(`/dashboard/events/${eventId}`);
+  revalidatePath('/dashboard');
+}
+
 /**
- * Accept or decline an RSVP invitation on the latest wave.
- *
- * Accept updates the RSVP row and creates an `event_attendees` record in one
- * transaction. Decline only updates the RSVP row.
+ * Accept or decline an RSVP invitation (`invited` → `accepted` / `declined`).
  *
  * Capacity is enforced here — not at wave send — by locking the event row,
- * counting attendees, and refusing the accept when the event is already full.
- * Duplicate attendee rows are prevented by the (event_id, user_id) primary key
- * with ON CONFLICT DO NOTHING; a user who is already an attendee may still
- * accept without consuming an extra spot.
+ * counting `accepted` participants, and refusing the accept when the event is
+ * already full. The status write is a compare-and-set from `invited`, so a
+ * double submit (or a concurrent admin override) can't apply twice.
  */
 export async function submitRsvpResponse(
   eventId: string,
@@ -495,74 +468,68 @@ export async function submitRsvpResponse(
     return fail('Invalid RSVP decision.');
   }
 
-  const row = await findLatestRsvpResponseForDecision({
-    userId: user.id,
-    eventId,
-    decision,
-  });
-
-  if (!row) return fail('No RSVP invitation found.');
-  if (row.statusId == null || row.decisionStatusId == null) {
-    return fail('RSVP statuses are not configured.');
-  }
-
-  const currentStatus = resolveEffectiveRsvpStatus(
-    row.statusLabel,
-    row.respondBy,
-  );
-  if (currentStatus === 'timed_out') {
-    return fail('RSVP deadline has passed.');
-  }
-  if (currentStatus !== 'pending') {
-    return fail('Already responded to RSVP.');
-  }
-
-  const pendingResponseStatusId = row.statusId;
-  const decisionStatusId = row.decisionStatusId;
-
   try {
     await db.transaction(async (tx) => {
+      const [eventRow] = await tx
+        .select({
+          capacity: events.capacity,
+          termsId: events.termsId,
+          attendingCount: attendingCountSql(eventId),
+        })
+        .from(events)
+        .where(eq(events.id, eventId))
+        .for('update')
+        .limit(1);
+      if (!eventRow) throw new ParticipationError('No RSVP invitation found.');
+
+      const [row] = await tx
+        .select({
+          participantId: eventParticipants.id,
+          statusLabel: participationStatuses.label,
+          invitationId: eventInvitations.id,
+          respondBy: eventRsvpWaves.respondBy,
+        })
+        .from(eventParticipants)
+        .innerJoin(
+          participationStatuses,
+          eq(eventParticipants.statusId, participationStatuses.id),
+        )
+        .innerJoin(
+          eventInvitations,
+          eq(eventInvitations.participantId, eventParticipants.id),
+        )
+        .innerJoin(
+          eventRsvpWaves,
+          eq(eventInvitations.rsvpWaveId, eventRsvpWaves.id),
+        )
+        .where(
+          and(
+            eq(eventParticipants.eventId, eventId),
+            eq(eventParticipants.userId, user.id),
+          ),
+        )
+        .for('update', { of: eventParticipants })
+        .limit(1);
+      if (!row) throw new ParticipationError('No RSVP invitation found.');
+
+      const current = resolveEffectiveStatus(row.statusLabel, row.respondBy);
+      if (current === 'timed_out') {
+        throw new ParticipationError('RSVP deadline has passed.');
+      }
+      if (current !== 'invited') {
+        throw new ParticipationError('Already responded to RSVP.');
+      }
+
       let acceptedTermsId: string | null = null;
       if (decision === 'accepted') {
-        const [eventRow] = await tx
-          .select({
-            id: events.id,
-            capacity: events.capacity,
-            termsId: events.termsId,
-            attendeeCount: sql<number>`(
-              SELECT count(*)::int
-              FROM ${eventAttendees}
-              WHERE ${eventAttendees.eventId} = ${events.id}
-            )`.mapWith(Number),
-            isExistingAttendee: exists(
-              tx
-                .select({ one: sql`1` })
-                .from(eventAttendees)
-                .where(
-                  and(
-                    eq(eventAttendees.eventId, events.id),
-                    eq(eventAttendees.userId, user.id),
-                  ),
-                ),
-            ),
-          })
-          .from(events)
-          .where(eq(events.id, eventId))
-          .for('update')
-          .limit(1);
-
-        if (!eventRow) {
-          throw new RsvpResponseError('Event not found.');
-        }
-
         if (eventRow.termsId) {
           if (consent?.accepted !== true) {
-            throw new RsvpResponseError(
+            throw new ParticipationError(
               'You must agree to the Event Terms before accepting your spot.',
             );
           }
           if (consent.termsId !== eventRow.termsId) {
-            throw new RsvpResponseError(
+            throw new ParticipationError(
               'The Event Terms have changed. Refresh the page, review them, and agree again.',
             );
           }
@@ -571,64 +538,158 @@ export async function submitRsvpResponse(
 
         if (
           eventRow.capacity !== null &&
-          !eventRow.isExistingAttendee &&
-          eventRow.attendeeCount >= eventRow.capacity
+          eventRow.attendingCount >= eventRow.capacity
         ) {
-          throw new RsvpResponseError(EVENT_AT_CAPACITY_MESSAGE);
+          throw new ParticipationError(EVENT_AT_CAPACITY_MESSAGE);
         }
-
-        await tx
-          .insert(eventAttendees)
-          .values({
-            eventId,
-            userId: user.id,
-          })
-          .onConflictDoNothing({
-            target: [eventAttendees.eventId, eventAttendees.userId],
-          });
       }
 
       const respondedAt = new Date();
       if (respondedAt >= row.respondBy) {
-        throw new RsvpResponseError('RSVP deadline has passed.');
+        throw new ParticipationError('RSVP deadline has passed.');
       }
+
       const updated = await tx
-        .update(eventRsvpResponses)
+        .update(eventParticipants)
+        .set({ statusId: statusIdOf(decision) })
+        .where(
+          and(
+            eq(eventParticipants.id, row.participantId),
+            eq(eventParticipants.statusId, statusIdOf('invited')),
+          ),
+        )
+        .returning({ id: eventParticipants.id });
+      if (updated.length === 0) {
+        throw new ParticipationError('Already responded to RSVP.');
+      }
+
+      await tx
+        .update(eventInvitations)
         .set({
-          statusId: decisionStatusId,
           respondedAt,
           termsAcceptedAt: acceptedTermsId ? respondedAt : null,
           acceptedTermsId,
         })
-        .where(
-          and(
-            eq(eventRsvpResponses.id, row.responseId),
-            eq(eventRsvpResponses.statusId, pendingResponseStatusId),
-          ),
-        )
-        .returning({ id: eventRsvpResponses.id });
-
-      if (updated.length === 0) {
-        throw new RsvpResponseError('Already responded to RSVP.');
-      }
+        .where(eq(eventInvitations.id, row.invitationId));
     });
 
-    // Accepting inserts an event_attendees row, which is what
-    // getUserEventParticipation caches per user.
-    if (decision === 'accepted') {
-      updateTag(userEventsCacheTag(user.id));
-    }
-    // Either decision moves the admin RSVP tile's accepted/declined split.
-    updateTag(eventApplicationsCacheTag(eventId));
-    revalidatePath(`/dashboard/events/${eventId}`);
-    revalidatePath('/dashboard');
+    revalidateParticipation(eventId);
     return ok(decision === 'accepted' ? 'RSVP accepted.' : 'RSVP declined.');
   } catch (error) {
-    if (error instanceof RsvpResponseError) {
+    if (error instanceof ParticipationError) {
       return fail(error.message);
     }
     console.error('RSVP response error:', error);
     return fail('Failed to submit RSVP response.');
+  }
+}
+
+/**
+ * Give up a confirmed spot (`accepted` → `declined`) or leave the waitlist
+ * (`waitlisted` → `declined`), for an event with an application. A freed
+ * spot goes to the next RSVP wave.
+ *
+ * Events without an application use `unregisterFromEvent` instead: their
+ * signup has nothing to remember once it's withdrawn.
+ */
+export async function withdrawParticipation(
+  eventId: string,
+): Promise<ActionResult> {
+  const user = await getUser();
+  if (!user) return fail('User not authenticated');
+
+  try {
+    const wasAttending = await db.transaction(async (tx) => {
+      const [row] = await tx
+        .select({
+          participantId: eventParticipants.id,
+          statusId: eventParticipants.statusId,
+          statusLabel: participationStatuses.label,
+          hasApplication: events.hasApplication,
+          endsAt: events.endsAt,
+          invitationId: eventInvitations.id,
+          respondBy: eventRsvpWaves.respondBy,
+          checkedIn: checkIns.userId,
+        })
+        .from(eventParticipants)
+        .innerJoin(events, eq(events.id, eventParticipants.eventId))
+        .innerJoin(
+          participationStatuses,
+          eq(eventParticipants.statusId, participationStatuses.id),
+        )
+        .leftJoin(
+          eventInvitations,
+          eq(eventInvitations.participantId, eventParticipants.id),
+        )
+        .leftJoin(
+          eventRsvpWaves,
+          eq(eventInvitations.rsvpWaveId, eventRsvpWaves.id),
+        )
+        .leftJoin(
+          checkIns,
+          and(
+            eq(checkIns.eventId, eventParticipants.eventId),
+            eq(checkIns.userId, eventParticipants.userId),
+          ),
+        )
+        .where(
+          and(
+            eq(eventParticipants.eventId, eventId),
+            eq(eventParticipants.userId, user.id),
+          ),
+        )
+        .for('update', { of: eventParticipants })
+        .limit(1);
+
+      if (!row || !row.hasApplication) {
+        throw new ParticipationError('There is nothing to withdraw from.');
+      }
+      const current = resolveEffectiveStatus(row.statusLabel, row.respondBy);
+      // Answering an open invitation goes through `submitRsvpResponse`, which
+      // owns the deadline and consent rules.
+      if (
+        current === 'invited' ||
+        !canParticipantTransition(current, 'declined')
+      ) {
+        throw new ParticipationError('There is nothing to withdraw from.');
+      }
+      if (hasEventElapsed(row.endsAt)) {
+        throw new ParticipationError('This event has already ended.');
+      }
+      if (row.checkedIn) {
+        throw new ParticipationError(
+          "You've already checked in, so your spot can no longer be given up.",
+        );
+      }
+
+      await tx
+        .update(eventParticipants)
+        .set({ statusId: statusIdOf('declined'), waitlistPosition: null })
+        .where(
+          and(
+            eq(eventParticipants.id, row.participantId),
+            eq(eventParticipants.statusId, row.statusId),
+          ),
+        );
+      if (row.invitationId) {
+        await tx
+          .update(eventInvitations)
+          .set({ respondedAt: new Date() })
+          .where(eq(eventInvitations.id, row.invitationId));
+      }
+      return current === 'accepted';
+    });
+
+    revalidateParticipation(eventId);
+    return ok(
+      wasAttending ? 'You gave up your spot.' : 'You left the waitlist.',
+    );
+  } catch (error) {
+    if (error instanceof ParticipationError) {
+      return fail(error.message);
+    }
+    console.error('Withdraw participation error:', error);
+    return fail('Failed to update your participation.');
   }
 }
 
@@ -644,23 +705,18 @@ export type EventWithUserStatus = {
   hasApplication: boolean;
   startsAt: Date | null;
   endsAt: Date | null;
-  userStatus: 'applied' | 'registered' | null;
-  statusKey: ApplicationStatusLabel | null;
-  statusDisplay: ApplicationStatusDisplay | null;
-  waitlistPosition: number | null;
-  rsvpStatusLabel: RsvpStatusLabel | null;
-  rsvpStatusDisplay: RsvpStatusDisplay | null;
+  /** The user's effective participation status, or null if not involved. */
+  status: ParticipationStatus | null;
+  statusDisplay: StatusDisplay | null;
 };
 
 /**
- * Returns all events with the current user's application/attendee status.
- * Used by dashboard/events page.
+ * Returns all events with the current user's participation status. Used by
+ * the dashboard.
  *
- * Everything except the application's review status is cached: the event
- * list (`getAllEvents`) and which events the user applied to/registered
- * for (`getUserEventParticipation`) rarely change. The status itself can
- * change out from under the applicant (an admin review), so it's the one
- * piece fetched fresh on every call.
+ * The event list (`getAllEvents`) is cached; the user's statuses are one
+ * fresh query, since a status changes without the user acting (a review, an
+ * RSVP wave going out, a deadline passing).
  */
 export async function getEventsWithUserStatus(): Promise<
   EventWithUserStatus[]
@@ -668,55 +724,41 @@ export async function getEventsWithUserStatus(): Promise<
   const user = await getUser();
   if (!user) return [];
 
-  const [allEvents, participation] = await Promise.all([
+  const [allEvents, rows, displayMap] = await Promise.all([
     getAllEvents(),
-    getUserEventParticipation(user.id),
+    db
+      .select({
+        eventId: eventParticipants.eventId,
+        statusLabel: participationStatuses.label,
+        respondBy: eventRsvpWaves.respondBy,
+      })
+      .from(eventParticipants)
+      .innerJoin(
+        participationStatuses,
+        eq(eventParticipants.statusId, participationStatuses.id),
+      )
+      .leftJoin(
+        eventInvitations,
+        eq(eventInvitations.participantId, eventParticipants.id),
+      )
+      .leftJoin(
+        eventRsvpWaves,
+        eq(eventInvitations.rsvpWaveId, eventRsvpWaves.id),
+      )
+      .where(eq(eventParticipants.userId, user.id)),
+    getStatusDisplayMap(),
   ]);
 
-  const applicationIds = Object.values(participation.applicationIdByEventId);
-  const statusRows = applicationIds.length
-    ? await db
-        .select({
-          id: eventApplications.id,
-          statusKey: applicationStatuses.label,
-          waitlistPosition: eventApplications.waitlistPosition,
-        })
-        .from(eventApplications)
-        .leftJoin(
-          applicationStatuses,
-          eq(eventApplications.statusId, applicationStatuses.id),
-        )
-        .where(inArray(eventApplications.id, applicationIds))
-    : [];
-  const statusByApplicationId = new Map(statusRows.map((r) => [r.id, r]));
-
-  const registeredSet = new Set(participation.registeredEventIds);
-
-  // Read fresh alongside the review status, for the same reason: an RSVP
-  // invitation appears (a wave going out) without the user acting, so it
-  // can't live behind the per-user participation cache.
-  const rsvpRows = await findLatestRsvpResponses({ userId: user.id });
-  const rsvpByEventId = new Map(
-    rsvpRows.map((row) => [row.eventId, row] as const),
+  const now = new Date();
+  const statusByEventId = new Map(
+    rows.map((row) => [
+      row.eventId,
+      resolveEffectiveStatus(row.statusLabel, row.respondBy, now),
+    ]),
   );
 
-  const [displayMap, rsvpDisplayMap] = await Promise.all([
-    getApplicationStatusDisplayMap(),
-    getRsvpStatusDisplayMap(),
-  ]);
-
   return allEvents.map((e) => {
-    const applicationId = participation.applicationIdByEventId[e.id];
-    const status = applicationId
-      ? statusByApplicationId.get(applicationId)
-      : undefined;
-    const statusKey = applicationId
-      ? resolveApplicationStatusKey(status?.statusKey)
-      : null;
-    const rsvp = rsvpByEventId.get(e.id);
-    const rsvpLabel = rsvp
-      ? resolveEffectiveRsvpStatus(rsvp.statusLabel, rsvp.respondBy)
-      : null;
+    const status = statusByEventId.get(e.id) ?? null;
     return {
       id: e.id,
       slug: e.slug,
@@ -724,20 +766,8 @@ export async function getEventsWithUserStatus(): Promise<
       hasApplication: e.hasApplication,
       startsAt: e.startsAt,
       endsAt: e.endsAt,
-      userStatus: e.hasApplication
-        ? applicationId
-          ? ('applied' as const)
-          : null
-        : registeredSet.has(e.id)
-          ? ('registered' as const)
-          : null,
-      statusKey,
-      statusDisplay: statusKey ? displayMap[statusKey] : null,
-      waitlistPosition: status?.waitlistPosition ?? null,
-      rsvpStatusLabel: rsvpLabel ? resolveRsvpStatusKey(rsvpLabel) : null,
-      rsvpStatusDisplay: rsvpLabel
-        ? rsvpDisplayMap[resolveRsvpStatusKey(rsvpLabel)]
-        : null,
+      status,
+      statusDisplay: status ? displayMap[status] : null,
     };
   });
 }

@@ -6,33 +6,35 @@
 
 'use server';
 
-import { events, eventAttendees } from '@/db/schema';
+import { events, eventParticipants } from '@/db/schema';
 import { getUser } from '@/utils/auth';
 import { ActionResult, fail, ok } from '@/utils/action-result';
 import { db } from '@/utils/db';
 import { and, eq, isNull } from 'drizzle-orm';
 import { revalidatePath, updateTag } from 'next/cache';
-import { hasEventElapsed, userEventsCacheTag } from '@/lib/events';
+import { eventApplicationsCacheTag } from '@/lib/admin-event';
+import { hasEventElapsed } from '@/lib/events';
+import { hasStatus, statusIdOf } from '@/lib/participation/server';
 
 /**
- * The event's end instant, or `undefined` when there's no such event to
- * register for.
+ * The event's end instant and whether it takes applications, or `undefined`
+ * when there's no such event to register for.
  *
  * Deliberately scoped to top-level events: a sub-event (a meal, a workshop) has
  * no signup of its own — attendance is recorded by checking in, using the
  * parent event's pass. No UI offers it, but these actions take a bare id, so
- * reading a child as "not found" is what keeps an `event_attendees` row from
- * ever being written against one.
+ * reading a child as "not found" is what keeps a participant row from ever
+ * being written against one.
  */
-async function getEventEndsAt(
+async function getRegistrableEvent(
   eventId: string,
-): Promise<Date | null | undefined> {
+): Promise<{ endsAt: Date | null; hasApplication: boolean } | undefined> {
   const [row] = await db
-    .select({ endsAt: events.endsAt })
+    .select({ endsAt: events.endsAt, hasApplication: events.hasApplication })
     .from(events)
     .where(and(eq(events.id, eventId), isNull(events.parentEventId)))
     .limit(1);
-  return row?.endsAt;
+  return row;
 }
 
 /**
@@ -42,27 +44,33 @@ export async function registerForEvent(eventId: string): Promise<ActionResult> {
   const user = await getUser();
   if (!user) return fail('User not authenticated');
 
-  const endsAt = await getEventEndsAt(eventId);
-  if (endsAt === undefined) return fail('Event not found.');
-  if (hasEventElapsed(endsAt)) {
+  const event = await getRegistrableEvent(eventId);
+  if (!event) return fail('Event not found.');
+  // Registering goes straight to `accepted` — an event that takes
+  // applications must go through review instead.
+  if (event.hasApplication) {
+    return fail('This event requires an application.');
+  }
+  if (hasEventElapsed(event.endsAt)) {
     return fail('This event has already ended.');
   }
 
   try {
     await db
-      .insert(eventAttendees)
+      .insert(eventParticipants)
       .values({
         eventId,
         userId: user.id,
+        statusId: statusIdOf('accepted'),
       })
       .onConflictDoNothing({
-        target: [eventAttendees.eventId, eventAttendees.userId],
+        target: [eventParticipants.eventId, eventParticipants.userId],
       });
     revalidatePath('/dashboard/events');
     revalidatePath('/dashboard');
     revalidatePath(`/dashboard/events/${eventId}`);
     revalidatePath('/welcome', 'layout');
-    updateTag(userEventsCacheTag(user.id));
+    updateTag(eventApplicationsCacheTag(eventId));
     return ok('Registered for event.');
   } catch (error) {
     console.error('Register for event error:', error);
@@ -82,8 +90,9 @@ export async function registerForEventFormAction(
 }
 
 /**
- * Unregisters the current user from an event that has no application (simple signup).
- * Only applies to events without application questions (event_attendees).
+ * Unregisters the current user from an event that has no application (simple
+ * signup) by removing their participant row. An event with an application
+ * keeps its row — see `withdrawParticipation`.
  */
 export async function unregisterFromEvent(
   eventId: string,
@@ -91,25 +100,29 @@ export async function unregisterFromEvent(
   const user = await getUser();
   if (!user) return fail('User not authenticated');
 
-  const endsAt = await getEventEndsAt(eventId);
-  if (endsAt === undefined) return fail('Event not found.');
-  if (hasEventElapsed(endsAt)) {
+  const event = await getRegistrableEvent(eventId);
+  if (!event) return fail('Event not found.');
+  if (event.hasApplication) {
+    return fail('This event requires an application.');
+  }
+  if (hasEventElapsed(event.endsAt)) {
     return fail('This event has already ended. You can no longer unregister.');
   }
 
   try {
     await db
-      .delete(eventAttendees)
+      .delete(eventParticipants)
       .where(
         and(
-          eq(eventAttendees.eventId, eventId),
-          eq(eventAttendees.userId, user.id),
+          eq(eventParticipants.eventId, eventId),
+          eq(eventParticipants.userId, user.id),
+          hasStatus('accepted'),
         ),
       );
     revalidatePath('/dashboard/events');
     revalidatePath('/dashboard');
     revalidatePath(`/dashboard/events/${eventId}`);
-    updateTag(userEventsCacheTag(user.id));
+    updateTag(eventApplicationsCacheTag(eventId));
     return ok('Unregistered from event.');
   } catch (error) {
     console.error('Unregister from event error:', error);

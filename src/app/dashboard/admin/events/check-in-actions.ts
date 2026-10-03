@@ -1,15 +1,13 @@
 'use server';
 
 import { updateTag } from 'next/cache';
-import { and, eq, gt, isNotNull, isNull, or, sql } from 'drizzle-orm';
+import { and, eq, gt, isNull, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { z } from 'zod';
 
 import {
-  applicationStatuses,
   checkIns,
-  eventApplications,
-  eventAttendees,
+  eventParticipants,
   events,
   user,
   userProfiles,
@@ -23,13 +21,11 @@ import {
   getEventParticipation,
   resolveParticipantName,
 } from '@/lib/wallet/participation';
-import type { ApplicationStatus } from '@/types/lookups';
+import { hasStatus } from '@/lib/participation/server';
 import { ok, fail, type ActionResult } from '@/utils/action-result';
 import { writeAuditLog } from '@/utils/audit-log';
 import { getUser } from '@/utils/auth';
 import { db } from '@/utils/db';
-
-const APPROVED_STATUS: ApplicationStatus = 'approved';
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -444,22 +440,15 @@ export async function getCheckInRoster(
       atMainEvent: sql<boolean>`${doorCheckIns.userId} IS NOT NULL`,
     })
     .from(user)
-    .leftJoin(
-      eventApplications,
+    // Everyone holding a spot — and nobody else. An invited applicant who
+    // never accepted (or declined, or let their invitation expire) isn't
+    // attending.
+    .innerJoin(
+      eventParticipants,
       and(
-        eq(eventApplications.eventId, eventId),
-        eq(eventApplications.userId, user.id),
-      ),
-    )
-    .leftJoin(
-      applicationStatuses,
-      eq(applicationStatuses.id, eventApplications.statusId),
-    )
-    .leftJoin(
-      eventAttendees,
-      and(
-        eq(eventAttendees.eventId, eventId),
-        eq(eventAttendees.userId, user.id),
+        eq(eventParticipants.eventId, eventId),
+        eq(eventParticipants.userId, user.id),
+        hasStatus('accepted'),
       ),
     )
     .leftJoin(userProfiles, eq(userProfiles.userId, user.id))
@@ -475,13 +464,7 @@ export async function getCheckInRoster(
       doorCheckIns,
       and(eq(doorCheckIns.eventId, eventId), eq(doorCheckIns.userId, user.id)),
     )
-    .leftJoin(scanner, eq(scanner.id, checkIns.checkedInBy))
-    .where(
-      or(
-        isNotNull(eventAttendees.userId),
-        eq(applicationStatuses.label, APPROVED_STATUS),
-      ),
-    );
+    .leftJoin(scanner, eq(scanner.id, checkIns.checkedInBy));
 
   return ok(
     rows.map((row) => ({

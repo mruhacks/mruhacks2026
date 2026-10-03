@@ -7,17 +7,14 @@ import {
   afterAll,
   vi,
 } from 'vitest';
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { db } from '@/utils/db';
 import {
   user,
   events,
-  eventApplications,
-  eventAttendees,
-  applicationStatuses,
-  rsvpStatuses,
+  eventParticipants,
   eventRsvpWaves,
-  eventRsvpResponses,
+  eventInvitations,
 } from '@/db/schema';
 import { sendRsvpWave } from '@/lib/rsvp/send-rsvp-wave';
 import { getRsvpMagicLinkCallbackURL } from '@/lib/rsvp/send-rsvp-magic-link';
@@ -29,6 +26,12 @@ import {
   RSVP_WAVE_EVENT_STARTED_MESSAGE,
 } from '@/lib/rsvp/constants';
 import { computeRsvpRespondBy } from '@/lib/rsvp/compute-rsvp-respond-by';
+import type { ParticipationStatus } from '@/types/lookups';
+import {
+  getStatus,
+  insertParticipant,
+  statusId,
+} from '@/tests/participation-fixtures';
 
 const { publishRsvpInvitation } = vi.hoisted(() => ({
   publishRsvpInvitation: vi.fn(),
@@ -44,22 +47,12 @@ vi.mock('@/utils/mail', () => ({
 import { sendMail } from '@/utils/mail';
 import { auth } from '@/utils/auth';
 
-let approvedStatusId: number;
-let pendingRsvpStatusId: number;
-let pendingReviewStatusId: number;
 let testEventId: string;
-let approvedUserId: string;
-let pendingUserId: string;
 const respondBy = new Date('2099-08-01T23:59:59.000Z');
 const testBaseUrl = 'http://localhost:3000';
 const frozenNow = new Date('2026-09-15T18:00:00.000Z');
-
-async function expireEventWaves(eventId: string) {
-  await db
-    .update(eventRsvpWaves)
-    .set({ respondBy: new Date('2020-01-01T00:00:00.000Z') })
-    .where(eq(eventRsvpWaves.eventId, eventId));
-}
+const createdEventIds: string[] = [];
+const createdUserIds: string[] = [];
 
 function magicLinkUrlFor(callbackURL: string): string {
   const url = new URL(`${testBaseUrl}/api/auth/magic-link/verify`);
@@ -68,160 +61,74 @@ function magicLinkUrlFor(callbackURL: string): string {
   return url.toString();
 }
 
-async function getResponseByUserId(userId: string) {
-  const [row] = await db
-    .select({
-      id: eventRsvpResponses.id,
-      statusId: eventRsvpResponses.statusId,
-      invitationEmailStatus: eventRsvpResponses.invitationEmailStatus,
-      invitationEmailQueuedAt: eventRsvpResponses.invitationEmailQueuedAt,
-    })
-    .from(eventRsvpResponses)
-    .innerJoin(
-      eventRsvpWaves,
-      eq(eventRsvpResponses.rsvpWaveId, eventRsvpWaves.id),
-    )
-    .where(eq(eventRsvpResponses.userId, userId))
-    .orderBy(desc(eventRsvpWaves.wave))
-    .limit(1);
-  return row;
+async function expireEventWaves(eventId: string) {
+  await db
+    .update(eventRsvpWaves)
+    .set({ respondBy: new Date('2020-01-01T00:00:00.000Z') })
+    .where(eq(eventRsvpWaves.eventId, eventId));
 }
+
+async function createEvent(
+  values: Partial<typeof events.$inferInsert> = {},
+): Promise<string> {
+  const [row] = await db
+    .insert(events)
+    .values({ name: 'RSVP Wave Test Event', hasApplication: true, ...values })
+    .returning({ id: events.id });
+  createdEventIds.push(row.id);
+  return row.id;
+}
+
+let userCounter = 0;
+async function createApplicant(
+  eventId: string,
+  status: ParticipationStatus,
+  extra: { createdAt?: Date; waitlistPosition?: number | null } = {},
+): Promise<string> {
+  const email = `wave-${Date.now()}-${userCounter++}@example.com`;
+  const [row] = await db
+    .insert(user)
+    .values({ name: email, email, emailVerified: true })
+    .returning({ id: user.id });
+  createdUserIds.push(row.id);
+  await insertParticipant({ eventId, userId: row.id, status, ...extra });
+  return row.id;
+}
+
+/** Invitations for an event, keyed by the invited user. */
+async function invitationsFor(eventId: string) {
+  return db
+    .select({
+      id: eventInvitations.id,
+      userId: eventParticipants.userId,
+      invitationEmailStatus: eventInvitations.invitationEmailStatus,
+      invitationEmailQueuedAt: eventInvitations.invitationEmailQueuedAt,
+    })
+    .from(eventInvitations)
+    .innerJoin(
+      eventParticipants,
+      eq(eventInvitations.participantId, eventParticipants.id),
+    )
+    .where(eq(eventParticipants.eventId, eventId));
+}
+
+let waitlistedUserId: string;
+let pendingUserId: string;
 
 beforeAll(async () => {
   process.env.BETTER_AUTH_URL = 'http://localhost:3000';
-
-  const [approvedStatus] = await db
-    .insert(applicationStatuses)
-    .values({
-      label: 'approved',
-      title: 'Invited',
-      description: 'Invited',
-      variant: 'success',
-      isFinal: true,
-    })
-    .onConflictDoNothing()
-    .returning({ id: applicationStatuses.id });
-
-  if (approvedStatus) {
-    approvedStatusId = approvedStatus.id;
-  } else {
-    const [existing] = await db
-      .select({ id: applicationStatuses.id })
-      .from(applicationStatuses)
-      .where(eq(applicationStatuses.label, 'approved'))
-      .limit(1);
-    approvedStatusId = existing.id;
-  }
-
-  const [pendingReviewStatus] = await db
-    .insert(applicationStatuses)
-    .values({
-      label: 'pending_review',
-      title: 'Under review',
-      description: 'Under review',
-      variant: 'warning',
-      isFinal: false,
-    })
-    .onConflictDoNothing()
-    .returning({ id: applicationStatuses.id });
-
-  if (pendingReviewStatus) {
-    pendingReviewStatusId = pendingReviewStatus.id;
-  } else {
-    const [existing] = await db
-      .select({ id: applicationStatuses.id })
-      .from(applicationStatuses)
-      .where(eq(applicationStatuses.label, 'pending_review'))
-      .limit(1);
-    pendingReviewStatusId = existing.id;
-  }
-
-  const [pendingRsvpStatus] = await db
-    .insert(rsvpStatuses)
-    .values({
-      label: 'pending',
-      title: 'RSVP Invited',
-      description: 'RSVP Invited',
-      variant: 'default',
-      isFinal: false,
-    })
-    .onConflictDoNothing()
-    .returning({ id: rsvpStatuses.id });
-
-  if (pendingRsvpStatus) {
-    pendingRsvpStatusId = pendingRsvpStatus.id;
-  } else {
-    const [existing] = await db
-      .select({ id: rsvpStatuses.id })
-      .from(rsvpStatuses)
-      .where(eq(rsvpStatuses.label, 'pending'))
-      .limit(1);
-    pendingRsvpStatusId = existing.id;
-  }
-
-  // sendRsvpWave sweeps expired invitations first, which needs `timed_out`
-  // present — otherwise the very first wave throws on a freshly created DB.
-  await db
-    .insert(rsvpStatuses)
-    .values({
-      label: 'timed_out',
-      title: 'RSVP Expired',
-      description: 'RSVP Expired',
-      variant: 'secondary',
-      isFinal: true,
-    })
-    .onConflictDoNothing();
-
-  const [eventRow] = await db
-    .insert(events)
-    .values({ name: 'RSVP Wave Test Event', hasApplication: true })
-    .returning({ id: events.id });
-  testEventId = eventRow.id;
-
-  const [approvedUser] = await db
-    .insert(user)
-    .values({
-      name: 'Approved Applicant',
-      email: 'approved-rsvp@example.com',
-      emailVerified: true,
-    })
-    .returning({ id: user.id });
-  approvedUserId = approvedUser.id;
-
-  const [pendingUser] = await db
-    .insert(user)
-    .values({
-      name: 'Pending Applicant',
-      email: 'pending-rsvp@example.com',
-      emailVerified: true,
-    })
-    .returning({ id: user.id });
-  pendingUserId = pendingUser.id;
-
-  await db.insert(eventApplications).values([
-    {
-      eventId: testEventId,
-      userId: approvedUserId,
-      statusId: approvedStatusId,
-    },
-    {
-      eventId: testEventId,
-      userId: pendingUserId,
-      statusId: pendingReviewStatusId,
-    },
-  ]);
+  testEventId = await createEvent();
+  waitlistedUserId = await createApplicant(testEventId, 'waitlisted');
+  pendingUserId = await createApplicant(testEventId, 'pending_review');
 });
 
 afterAll(async () => {
-  await db
-    .delete(eventRsvpWaves)
-    .where(eq(eventRsvpWaves.eventId, testEventId));
-  await db
-    .delete(eventApplications)
-    .where(eq(eventApplications.eventId, testEventId));
-  await db.delete(events).where(eq(events.id, testEventId));
-  await db.delete(user).where(eq(user.id, approvedUserId));
-  await db.delete(user).where(eq(user.id, pendingUserId));
+  if (createdEventIds.length) {
+    await db.delete(events).where(inArray(events.id, createdEventIds));
+  }
+  if (createdUserIds.length) {
+    await db.delete(user).where(inArray(user.id, createdUserIds));
+  }
 });
 
 beforeEach(() => {
@@ -261,7 +168,7 @@ describe('resolveMagicLinkMailOptions', () => {
 
   test('does not treat caller-controlled source=rsvp as RSVP mail intent', async () => {
     const result = await resolveMagicLinkMailOptions({
-      email: 'approved-rsvp@example.com',
+      email: 'waitlisted-rsvp@example.com',
       magicLinkUrl: magicLinkUrlFor(
         `/dashboard/events/${testEventId}?source=rsvp`,
       ),
@@ -292,13 +199,13 @@ describe('resolveMagicLinkMailOptions', () => {
 describe('sendRsvpWave', () => {
   test('returns error when event does not exist', async () => {
     const result = await sendRsvpWave('00000000-0000-0000-0000-000000000000');
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error).toContain('Event not found');
-    }
+    expect(result).toMatchObject({
+      success: false,
+      error: expect.stringContaining('Event not found'),
+    });
   });
 
-  test('creates wave, pending responses, and queues one invitation per response', async () => {
+  test('moves waitlisted applicants to invited and queues one invitation each', async () => {
     const signInSpy = vi.spyOn(auth.api, 'signInMagicLink');
 
     try {
@@ -317,13 +224,18 @@ describe('sendRsvpWave', () => {
       expect(result.invitationsQueued).toBe(1);
       expect(result.queueFailures).toHaveLength(0);
 
-      const response = await getResponseByUserId(approvedUserId);
-      expect(response?.invitationEmailStatus).toBe('queued');
-      expect(response?.invitationEmailQueuedAt).not.toBeNull();
-      expect(response?.statusId).toBe(pendingRsvpStatusId);
+      expect(await getStatus(testEventId, waitlistedUserId)).toBe('invited');
+      expect(await getStatus(testEventId, pendingUserId)).toBe(
+        'pending_review',
+      );
+
+      const [invitation] = await invitationsFor(testEventId);
+      expect(invitation.userId).toBe(waitlistedUserId);
+      expect(invitation.invitationEmailStatus).toBe('queued');
+      expect(invitation.invitationEmailQueuedAt).not.toBeNull();
 
       expect(publishRsvpInvitation).toHaveBeenCalledTimes(1);
-      expect(publishRsvpInvitation).toHaveBeenCalledWith(response?.id);
+      expect(publishRsvpInvitation).toHaveBeenCalledWith(invitation.id);
 
       // The old synchronous sender must never run alongside the queue.
       expect(signInSpy).not.toHaveBeenCalled();
@@ -334,768 +246,325 @@ describe('sendRsvpWave', () => {
   });
 
   test('does not create another wave while the latest wave is still active', async () => {
-    const wavesBefore = await db
-      .select({ id: eventRsvpWaves.id })
-      .from(eventRsvpWaves)
-      .where(eq(eventRsvpWaves.eventId, testEventId));
-
+    await createApplicant(testEventId, 'waitlisted');
     const result = await sendRsvpWave(testEventId, { now: frozenNow });
 
-    expect(result.success).toBe(false);
-    if (result.success) return;
-    expect(result.error).toBe(RSVP_WAVE_ALREADY_ACTIVE_MESSAGE);
-    expect(publishRsvpInvitation).not.toHaveBeenCalled();
-
-    const wavesAfter = await db
-      .select({ id: eventRsvpWaves.id })
-      .from(eventRsvpWaves)
-      .where(eq(eventRsvpWaves.eventId, testEventId));
-    expect(wavesAfter).toHaveLength(wavesBefore.length);
-  });
-
-  test('does not re-invite applicants after their previous RSVP times out', async () => {
-    const [timedOutStatus] = await db
-      .select({ id: rsvpStatuses.id })
-      .from(rsvpStatuses)
-      .where(eq(rsvpStatuses.label, 'timed_out'))
-      .limit(1);
-
-    let timedOutStatusId = timedOutStatus?.id;
-    if (!timedOutStatusId) {
-      const [inserted] = await db
-        .insert(rsvpStatuses)
-        .values({
-          label: 'timed_out',
-          title: 'RSVP Timed Out',
-          description: 'RSVP Timed Out',
-          variant: 'secondary',
-          isFinal: true,
-        })
-        .returning({ id: rsvpStatuses.id });
-      timedOutStatusId = inserted.id;
-    }
-
-    await expireEventWaves(testEventId);
-    await db
-      .update(eventRsvpResponses)
-      .set({ statusId: timedOutStatusId })
-      .where(eq(eventRsvpResponses.userId, approvedUserId));
-
-    const result = await sendRsvpWave(testEventId, { now: frozenNow });
-
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error).toMatch(/no eligible applicants/i);
-    }
-    expect(publishRsvpInvitation).not.toHaveBeenCalled();
-  });
-
-  test('reports queue failures without deleting RSVP records', async () => {
-    const [timedOutStatus] = await db
-      .select({ id: rsvpStatuses.id })
-      .from(rsvpStatuses)
-      .where(eq(rsvpStatuses.label, 'timed_out'))
-      .limit(1);
-    expect(timedOutStatus).toBeTruthy();
-
-    await expireEventWaves(testEventId);
-    await db
-      .update(eventRsvpResponses)
-      .set({ statusId: timedOutStatus!.id })
-      .where(eq(eventRsvpResponses.userId, approvedUserId));
-
-    const [queueUser] = await db
-      .insert(user)
-      .values({
-        name: 'Queue Fail Applicant',
-        email: 'approved-rsvp-queue@example.com',
-        emailVerified: true,
-      })
-      .returning({ id: user.id });
-
-    await db.insert(eventApplications).values({
-      eventId: testEventId,
-      userId: queueUser.id,
-      statusId: approvedStatusId,
+    expect(result).toMatchObject({
+      success: false,
+      error: RSVP_WAVE_ALREADY_ACTIVE_MESSAGE,
     });
-
-    publishRsvpInvitation.mockRejectedValueOnce(new Error('queue unavailable'));
-
-    const beforeCount = await db
-      .select({ id: eventRsvpResponses.id })
-      .from(eventRsvpResponses)
-      .innerJoin(
-        eventRsvpWaves,
-        eq(eventRsvpResponses.rsvpWaveId, eventRsvpWaves.id),
-      )
+    const waves = await db
+      .select({ id: eventRsvpWaves.id })
+      .from(eventRsvpWaves)
       .where(eq(eventRsvpWaves.eventId, testEventId));
+    expect(waves).toHaveLength(1);
+    expect(publishRsvpInvitation).not.toHaveBeenCalled();
+  });
 
-    try {
-      const result = await sendRsvpWave(testEventId, { now: frozenNow });
+  test('never re-invites someone whose invitation timed out', async () => {
+    const eventId = await createEvent();
+    const userId = await createApplicant(eventId, 'waitlisted');
+    expect((await sendRsvpWave(eventId, { now: frozenNow })).success).toBe(
+      true,
+    );
+    await expireEventWaves(eventId);
 
-      expect(result.success).toBe(true);
-      if (!result.success) return;
+    const second = await sendRsvpWave(eventId, { now: frozenNow });
+    expect(second).toMatchObject({
+      success: false,
+      error: 'No eligible applicants for the next RSVP wave.',
+    });
+    // The sweep before the wave persisted the time-out.
+    expect(await getStatus(eventId, userId)).toBe('timed_out');
+    expect(await invitationsFor(eventId)).toHaveLength(1);
+  });
 
-      expect(result.invitationsQueued).toBe(0);
-      expect(result.queueFailures).toHaveLength(1);
-      expect(result.queueFailures[0]?.email).toBe(
-        'approved-rsvp-queue@example.com',
-      );
-      expect(result.queueFailures[0]?.error).toContain('queue unavailable');
-      expect(result.responsesCreated).toBe(1);
+  test('reports queue failures without undoing the invitation', async () => {
+    const eventId = await createEvent();
+    const userId = await createApplicant(eventId, 'waitlisted');
+    publishRsvpInvitation.mockRejectedValueOnce(new Error('queue down'));
 
-      const afterCount = await db
-        .select({ id: eventRsvpResponses.id })
-        .from(eventRsvpResponses)
-        .innerJoin(
-          eventRsvpWaves,
-          eq(eventRsvpResponses.rsvpWaveId, eventRsvpWaves.id),
-        )
-        .where(eq(eventRsvpWaves.eventId, testEventId));
+    const result = await sendRsvpWave(eventId, { now: frozenNow });
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.invitationsQueued).toBe(0);
+    expect(result.queueFailures).toEqual([
+      expect.objectContaining({ userId, error: 'queue down' }),
+    ]);
 
-      expect(afterCount.length).toBe(beforeCount.length + 1);
-
-      const response = await getResponseByUserId(queueUser.id);
-      expect(response?.invitationEmailStatus).toBe('unsent');
-    } finally {
-      await db
-        .delete(eventRsvpResponses)
-        .where(eq(eventRsvpResponses.userId, queueUser.id));
-      await db
-        .delete(eventApplications)
-        .where(eq(eventApplications.userId, queueUser.id));
-      await db.delete(user).where(eq(user.id, queueUser.id));
-    }
+    // Still invited, still `unsent` — the requeue sweep picks it up later.
+    expect(await getStatus(eventId, userId)).toBe('invited');
+    const [invitation] = await invitationsFor(eventId);
+    expect(invitation.invitationEmailStatus).toBe('unsent');
   });
 
   test('continues queuing remaining applicants when one publish fails', async () => {
-    const [timedOutStatus] = await db
-      .select({ id: rsvpStatuses.id })
-      .from(rsvpStatuses)
-      .where(eq(rsvpStatuses.label, 'timed_out'))
-      .limit(1);
-    expect(timedOutStatus).toBeTruthy();
+    const eventId = await createEvent();
+    await createApplicant(eventId, 'waitlisted');
+    await createApplicant(eventId, 'waitlisted');
+    publishRsvpInvitation
+      .mockRejectedValueOnce(new Error('queue down'))
+      .mockResolvedValue({ messageId: 'ok' });
 
-    await expireEventWaves(testEventId);
-    await db
-      .update(eventRsvpResponses)
-      .set({ statusId: timedOutStatus!.id })
-      .where(eq(eventRsvpResponses.userId, approvedUserId));
-
-    const [secondUser] = await db
-      .insert(user)
-      .values({
-        name: 'Second Approved',
-        email: 'approved-rsvp-2@example.com',
-        emailVerified: true,
-      })
-      .returning({ id: user.id });
-    const [thirdUser] = await db
-      .insert(user)
-      .values({
-        name: 'Third Approved',
-        email: 'approved-rsvp-3@example.com',
-        emailVerified: true,
-      })
-      .returning({ id: user.id });
-
-    await db.insert(eventApplications).values([
-      {
-        eventId: testEventId,
-        userId: secondUser.id,
-        statusId: approvedStatusId,
-      },
-      {
-        eventId: testEventId,
-        userId: thirdUser.id,
-        statusId: approvedStatusId,
-      },
-    ]);
-
-    publishRsvpInvitation.mockRejectedValueOnce(new Error('queue unavailable'));
-
-    try {
-      const result = await sendRsvpWave(testEventId, { now: frozenNow });
-
-      expect(result.success).toBe(true);
-      if (!result.success) return;
-
-      expect(result.responsesCreated).toBe(2);
-      expect(result.invitationsQueued).toBe(1);
-      expect(result.queueFailures).toHaveLength(1);
-      expect(result.queueFailures[0]?.error).toContain('queue unavailable');
-      expect(publishRsvpInvitation).toHaveBeenCalledTimes(2);
-    } finally {
-      await db
-        .delete(eventRsvpResponses)
-        .where(
-          inArray(eventRsvpResponses.userId, [secondUser.id, thirdUser.id]),
-        );
-      await db
-        .delete(eventApplications)
-        .where(
-          inArray(eventApplications.userId, [secondUser.id, thirdUser.id]),
-        );
-      await db
-        .delete(user)
-        .where(inArray(user.id, [secondUser.id, thirdUser.id]));
-    }
+    const result = await sendRsvpWave(eventId, { now: frozenNow });
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.responsesCreated).toBe(2);
+    expect(result.invitationsQueued).toBe(1);
+    expect(result.queueFailures).toHaveLength(1);
+    expect(publishRsvpInvitation).toHaveBeenCalledTimes(2);
   });
 
-  test('never regresses a response a fast consumer already marked sent back to queued', async () => {
-    const [timedOutStatus] = await db
-      .select({ id: rsvpStatuses.id })
-      .from(rsvpStatuses)
-      .where(eq(rsvpStatuses.label, 'timed_out'))
-      .limit(1);
-    expect(timedOutStatus).toBeTruthy();
-
-    await expireEventWaves(testEventId);
-    await db
-      .update(eventRsvpResponses)
-      .set({ statusId: timedOutStatus!.id })
-      .where(eq(eventRsvpResponses.userId, approvedUserId));
-
-    const [raceUser] = await db
-      .insert(user)
-      .values({
-        name: 'Race Applicant',
-        email: 'approved-rsvp-race@example.com',
-        emailVerified: true,
-      })
-      .returning({ id: user.id });
-
-    await db.insert(eventApplications).values({
-      eventId: testEventId,
-      userId: raceUser.id,
-      statusId: approvedStatusId,
-    });
-
-    // Simulate the consumer racing ahead of the producer: by the time
-    // publishRsvpInvitation "returns", the message has already been
-    // delivered, processed, and marked 'sent'.
-    publishRsvpInvitation.mockImplementationOnce(async (responseId: string) => {
+  test('never regresses an invitation a fast consumer already marked sent back to queued', async () => {
+    const eventId = await createEvent();
+    await createApplicant(eventId, 'waitlisted');
+    publishRsvpInvitation.mockImplementation(async (invitationId: string) => {
       await db
-        .update(eventRsvpResponses)
+        .update(eventInvitations)
         .set({
           invitationEmailStatus: 'sent',
           invitationEmailSentAt: new Date(),
         })
-        .where(eq(eventRsvpResponses.id, responseId));
-      return { messageId: 'msg-race' };
+        .where(eq(eventInvitations.id, invitationId));
+      return { messageId: 'fast' };
     });
 
-    try {
-      const result = await sendRsvpWave(testEventId, { now: frozenNow });
-      expect(result.success).toBe(true);
-      if (!result.success) return;
-      expect(result.invitationsQueued).toBe(1);
-
-      const response = await getResponseByUserId(raceUser.id);
-      expect(response?.invitationEmailStatus).toBe('sent');
-    } finally {
-      await db
-        .delete(eventRsvpResponses)
-        .where(eq(eventRsvpResponses.userId, raceUser.id));
-      await db
-        .delete(eventApplications)
-        .where(eq(eventApplications.userId, raceUser.id));
-      await db.delete(user).where(eq(user.id, raceUser.id));
-    }
+    expect((await sendRsvpWave(eventId, { now: frozenNow })).success).toBe(
+      true,
+    );
+    const [invitation] = await invitationsFor(eventId);
+    expect(invitation.invitationEmailStatus).toBe('sent');
   });
 
-  test('does not invite non-approved applicants', async () => {
-    const signInSpy = vi.spyOn(auth.api, 'signInMagicLink');
+  test.each(['pending_review', 'denied', 'declined', 'accepted'] as const)(
+    'does not invite %s participants',
+    async (status) => {
+      const eventId = await createEvent();
+      const userId = await createApplicant(eventId, status);
 
-    try {
-      // Prior test left the approved user pending; pending_review stays ineligible.
-      const result = await sendRsvpWave(testEventId, { now: frozenNow });
-      expect(result.success).toBe(false);
-      if (result.success) return;
-      expect(result.error).toMatch(/already active|no eligible applicants/i);
-      expect(signInSpy).not.toHaveBeenCalled();
-      expect(publishRsvpInvitation).not.toHaveBeenCalled();
-    } finally {
-      signInSpy.mockRestore();
-    }
+      const result = await sendRsvpWave(eventId, { now: frozenNow });
+      expect(result).toMatchObject({
+        success: false,
+        error: 'No eligible applicants for the next RSVP wave.',
+      });
+      expect(await getStatus(eventId, userId)).toBe(status);
+    },
+  );
+
+  test('invites the earliest unranked applicants up to remaining capacity', async () => {
+    const eventId = await createEvent({ capacity: 2 });
+    await createApplicant(eventId, 'accepted');
+    const first = await createApplicant(eventId, 'waitlisted', {
+      createdAt: new Date('2026-01-01T00:00:00.000Z'),
+    });
+    const second = await createApplicant(eventId, 'waitlisted', {
+      createdAt: new Date('2026-01-02T00:00:00.000Z'),
+    });
+
+    const result = await sendRsvpWave(eventId, { now: frozenNow });
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.eligibleApplicantCount).toBe(2);
+    expect(result.responsesCreated).toBe(1);
+
+    expect(await getStatus(eventId, first)).toBe('invited');
+    expect(await getStatus(eventId, second)).toBe('waitlisted');
   });
 
-  test('invites the earliest applicants up to remaining capacity', async () => {
-    const [capEvent] = await db
-      .insert(events)
-      .values({
-        name: 'Capacity Limited RSVP Event',
-        hasApplication: true,
-        capacity: 1,
-      })
-      .returning({ id: events.id });
+  test('closeActiveWave closes the open wave, times out its unanswered invitations, then sends', async () => {
+    const eventId = await createEvent({ capacity: 10 });
+    const first = await createApplicant(eventId, 'waitlisted');
+    expect((await sendRsvpWave(eventId, { now: frozenNow })).success).toBe(
+      true,
+    );
+    const second = await createApplicant(eventId, 'waitlisted');
 
-    const [userA] = await db
-      .insert(user)
-      .values({
-        name: 'Cap A',
-        email: 'cap-a@example.com',
-        emailVerified: true,
-      })
-      .returning({ id: user.id });
-    const [userB] = await db
-      .insert(user)
-      .values({
-        name: 'Cap B',
-        email: 'cap-b@example.com',
-        emailVerified: true,
-      })
-      .returning({ id: user.id });
+    expect(await sendRsvpWave(eventId, { now: frozenNow })).toMatchObject({
+      success: false,
+      error: 'An RSVP wave is already active for this event.',
+    });
 
-    await db.insert(eventApplications).values([
-      {
-        eventId: capEvent.id,
-        userId: userB.id,
-        statusId: approvedStatusId,
-        createdAt: new Date('2026-09-02T00:00:00.000Z'),
-      },
-      {
-        eventId: capEvent.id,
-        userId: userA.id,
-        statusId: approvedStatusId,
-        createdAt: new Date('2026-09-01T00:00:00.000Z'),
-      },
-    ]);
+    const result = await sendRsvpWave(eventId, {
+      now: frozenNow,
+      closeActiveWave: true,
+    });
+    expect(result).toMatchObject({
+      success: true,
+      wave: { wave: 2 },
+      closedWave: { wave: 1, timedOutCount: 1 },
+      responsesCreated: 1,
+    });
+    expect(await getStatus(eventId, first)).toBe('timed_out');
+    expect(await getStatus(eventId, second)).toBe('invited');
 
-    try {
-      const result = await sendRsvpWave(capEvent.id, { now: frozenNow });
-      expect(result.success).toBe(true);
-      if (!result.success) return;
-      expect(result.eligibleApplicantCount).toBe(2);
-      expect(result.responsesCreated).toBe(1);
-
-      const invited = await db
-        .select({ userId: eventRsvpResponses.userId })
-        .from(eventRsvpResponses)
-        .innerJoin(
-          eventRsvpWaves,
-          eq(eventRsvpResponses.rsvpWaveId, eventRsvpWaves.id),
-        )
-        .where(eq(eventRsvpWaves.eventId, capEvent.id));
-      expect(invited).toHaveLength(1);
-      expect(invited[0]?.userId).toBe(userA.id);
-    } finally {
-      await db
-        .delete(eventRsvpWaves)
-        .where(eq(eventRsvpWaves.eventId, capEvent.id));
-      await db
-        .delete(eventApplications)
-        .where(eq(eventApplications.eventId, capEvent.id));
-      await db.delete(events).where(eq(events.id, capEvent.id));
-      await db.delete(user).where(eq(user.id, userA.id));
-      await db.delete(user).where(eq(user.id, userB.id));
-    }
-  });
-
-  test('does not rank declined or timed_out applicants even if they applied first', async () => {
-    const [rankEvent] = await db
-      .insert(events)
-      .values({
-        name: 'Ranking Eligibility RSVP Event',
-        hasApplication: true,
-        capacity: 1,
-      })
-      .returning({ id: events.id });
-
-    const [declinedStatus] = await db
-      .insert(rsvpStatuses)
-      .values({
-        label: 'declined',
-        title: 'RSVP Declined',
-        description: 'RSVP Declined',
-        variant: 'destructive',
-        isFinal: true,
-      })
-      .onConflictDoNothing()
-      .returning({ id: rsvpStatuses.id });
-    const declinedStatusId =
-      declinedStatus?.id ??
-      (
-        await db
-          .select({ id: rsvpStatuses.id })
-          .from(rsvpStatuses)
-          .where(eq(rsvpStatuses.label, 'declined'))
-          .limit(1)
-      )[0]!.id;
-
-    const [timedOutStatus] = await db
-      .select({ id: rsvpStatuses.id })
-      .from(rsvpStatuses)
-      .where(eq(rsvpStatuses.label, 'timed_out'))
+    const [wave1] = await db
+      .select({ respondBy: eventRsvpWaves.respondBy })
+      .from(eventRsvpWaves)
+      .where(eq(eventRsvpWaves.eventId, eventId))
+      .orderBy(eventRsvpWaves.wave)
       .limit(1);
+    expect(wave1.respondBy.getTime()).toBe(frozenNow.getTime());
+  });
 
-    const [declinedUser] = await db
-      .insert(user)
-      .values({
-        name: 'Rank Declined',
-        email: 'rank-declined@example.com',
-        emailVerified: true,
-      })
-      .returning({ id: user.id });
-    const [timedOutUser] = await db
-      .insert(user)
-      .values({
-        name: 'Rank Timed Out',
-        email: 'rank-timedout@example.com',
-        emailVerified: true,
-      })
-      .returning({ id: user.id });
-    const [eligibleUser] = await db
-      .insert(user)
-      .values({
-        name: 'Rank Eligible',
-        email: 'rank-eligible@example.com',
-        emailVerified: true,
-      })
-      .returning({ id: user.id });
+  test('refuses when the event is already full', async () => {
+    const eventId = await createEvent({ capacity: 1 });
+    await createApplicant(eventId, 'accepted');
+    await createApplicant(eventId, 'waitlisted');
 
-    await db.insert(eventApplications).values([
-      {
-        eventId: rankEvent.id,
-        userId: declinedUser.id,
-        statusId: approvedStatusId,
-        createdAt: new Date('2026-08-01T00:00:00.000Z'),
-      },
-      {
-        eventId: rankEvent.id,
-        userId: timedOutUser.id,
-        statusId: approvedStatusId,
-        createdAt: new Date('2026-08-02T00:00:00.000Z'),
-      },
-      {
-        eventId: rankEvent.id,
-        userId: eligibleUser.id,
-        statusId: approvedStatusId,
-        createdAt: new Date('2026-08-03T00:00:00.000Z'),
-      },
-    ]);
+    const result = await sendRsvpWave(eventId, { now: frozenNow });
+    expect(result).toMatchObject({
+      success: false,
+      error: 'No available spots remaining for this event.',
+    });
+  });
 
-    const [priorWave] = await db
-      .insert(eventRsvpWaves)
-      .values({
-        eventId: rankEvent.id,
-        wave: 1,
-        respondBy: new Date('2020-01-01T00:00:00.000Z'),
-        createdAt: new Date('2026-08-10T00:00:00.000Z'),
-      })
-      .returning({ id: eventRsvpWaves.id });
+  test('invites the waitlist in position order, unranked last', async () => {
+    const eventId = await createEvent({ capacity: 3 });
+    // Position wins over application time; unranked go after the ranked queue.
+    const unranked = await createApplicant(eventId, 'waitlisted', {
+      createdAt: new Date('2025-12-01T00:00:00.000Z'),
+      waitlistPosition: null,
+    });
+    const waitlistedThird = await createApplicant(eventId, 'waitlisted', {
+      createdAt: new Date('2026-01-01T00:00:00.000Z'),
+      waitlistPosition: 3,
+    });
+    const waitlistedFirst = await createApplicant(eventId, 'waitlisted', {
+      createdAt: new Date('2026-02-01T00:00:00.000Z'),
+      waitlistPosition: 1,
+    });
+    const waitlistedSecond = await createApplicant(eventId, 'waitlisted', {
+      createdAt: new Date('2026-02-02T00:00:00.000Z'),
+      waitlistPosition: 2,
+    });
 
-    await db.insert(eventRsvpResponses).values([
-      {
-        rsvpWaveId: priorWave.id,
-        userId: declinedUser.id,
-        statusId: declinedStatusId,
-      },
-      {
-        rsvpWaveId: priorWave.id,
-        userId: timedOutUser.id,
-        statusId: timedOutStatus!.id,
-      },
-    ]);
+    const result = await sendRsvpWave(eventId, { now: frozenNow });
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.eligibleApplicantCount).toBe(4);
+    expect(result.responsesCreated).toBe(3);
+
+    expect(await getStatus(eventId, waitlistedFirst)).toBe('invited');
+    expect(await getStatus(eventId, waitlistedSecond)).toBe('invited');
+    expect(await getStatus(eventId, waitlistedThird)).toBe('invited');
+    expect(await getStatus(eventId, unranked)).toBe('waitlisted');
+
+    // Invited participants leave the waitlist queue.
+    const [row] = await db
+      .select({ waitlistPosition: eventParticipants.waitlistPosition })
+      .from(eventParticipants)
+      .where(eq(eventParticipants.userId, waitlistedFirst));
+    expect(row.waitlistPosition).toBeNull();
+  });
+
+  test('skips an applicant a reviewer moved after eligibility was read', async () => {
+    const eventId = await createEvent();
+    const kept = await createApplicant(eventId, 'waitlisted');
+    const moved = await createApplicant(eventId, 'waitlisted');
+
+    // A reviewer denies `moved` between the eligibility read and the write.
+    const originalTransaction = db.transaction.bind(db);
+    const spy = vi
+      .spyOn(db, 'transaction')
+      .mockImplementationOnce(async (callback) => {
+        await db
+          .update(eventParticipants)
+          .set({ statusId: await statusId('denied') })
+          .where(eq(eventParticipants.userId, moved));
+        return originalTransaction(callback);
+      });
 
     try {
-      const result = await sendRsvpWave(rankEvent.id, { now: frozenNow });
+      const result = await sendRsvpWave(eventId, { now: frozenNow });
       expect(result.success).toBe(true);
       if (!result.success) return;
-      expect(result.eligibleApplicantCount).toBe(1);
       expect(result.responsesCreated).toBe(1);
-
-      const invited = await db
-        .select({
-          userId: eventRsvpResponses.userId,
-          wave: eventRsvpWaves.wave,
-        })
-        .from(eventRsvpResponses)
-        .innerJoin(
-          eventRsvpWaves,
-          eq(eventRsvpResponses.rsvpWaveId, eventRsvpWaves.id),
-        )
-        .where(eq(eventRsvpWaves.eventId, rankEvent.id));
-      const wave2 = invited.filter((row) => row.wave === 2);
-      expect(wave2).toHaveLength(1);
-      expect(wave2[0]?.userId).toBe(eligibleUser.id);
+      expect(await getStatus(eventId, kept)).toBe('invited');
+      expect(await getStatus(eventId, moved)).toBe('denied');
+      expect(await invitationsFor(eventId)).toHaveLength(1);
     } finally {
-      await db
-        .delete(eventRsvpWaves)
-        .where(eq(eventRsvpWaves.eventId, rankEvent.id));
-      await db
-        .delete(eventApplications)
-        .where(eq(eventApplications.eventId, rankEvent.id));
-      await db.delete(events).where(eq(events.id, rankEvent.id));
-      await db.delete(user).where(eq(user.id, declinedUser.id));
-      await db.delete(user).where(eq(user.id, timedOutUser.id));
-      await db.delete(user).where(eq(user.id, eligibleUser.id));
+      spy.mockRestore();
     }
   });
 
   test('publishes a distinct queue message per event for concurrent waves', async () => {
-    const [eventA] = await db
-      .insert(events)
-      .values({ name: 'Concurrent Event A', hasApplication: true })
-      .returning({ id: events.id });
-    const [eventB] = await db
-      .insert(events)
-      .values({ name: 'Concurrent Event B', hasApplication: true })
-      .returning({ id: events.id });
+    const eventA = await createEvent({ name: 'Concurrent Wave A' });
+    const eventB = await createEvent({ name: 'Concurrent Wave B' });
+    await createApplicant(eventA, 'waitlisted');
+    await createApplicant(eventB, 'waitlisted');
 
-    const [userA] = await db
-      .insert(user)
-      .values({
-        name: 'Concurrent A',
-        email: 'concurrent-a@example.com',
-        emailVerified: true,
-      })
-      .returning({ id: user.id });
-    const [userB] = await db
-      .insert(user)
-      .values({
-        name: 'Concurrent B',
-        email: 'concurrent-b@example.com',
-        emailVerified: true,
-      })
-      .returning({ id: user.id });
-
-    await db.insert(eventApplications).values([
-      {
-        eventId: eventA.id,
-        userId: userA.id,
-        statusId: approvedStatusId,
-      },
-      {
-        eventId: eventB.id,
-        userId: userB.id,
-        statusId: approvedStatusId,
-      },
+    const [a, b] = await Promise.all([
+      sendRsvpWave(eventA, { now: frozenNow }),
+      sendRsvpWave(eventB, { now: frozenNow }),
     ]);
+    expect(a.success && b.success).toBe(true);
 
-    try {
-      const [resultA, resultB] = await Promise.all([
-        sendRsvpWave(eventA.id, { now: frozenNow }),
-        sendRsvpWave(eventB.id, { now: frozenNow }),
-      ]);
-
-      expect(resultA.success).toBe(true);
-      expect(resultB.success).toBe(true);
-
-      const responseA = await getResponseByUserId(userA.id);
-      const responseB = await getResponseByUserId(userB.id);
-
-      expect(responseA?.invitationEmailStatus).toBe('queued');
-      expect(responseB?.invitationEmailStatus).toBe('queued');
-
-      const publishedIds = publishRsvpInvitation.mock.calls.map(
-        (call) => call[0],
-      );
-      expect(publishedIds).toContain(responseA?.id);
-      expect(publishedIds).toContain(responseB?.id);
-      expect(new Set(publishedIds).size).toBe(publishedIds.length);
-    } finally {
-      await db
-        .delete(eventRsvpWaves)
-        .where(eq(eventRsvpWaves.eventId, eventA.id));
-      await db
-        .delete(eventRsvpWaves)
-        .where(eq(eventRsvpWaves.eventId, eventB.id));
-      await db
-        .delete(eventApplications)
-        .where(eq(eventApplications.eventId, eventA.id));
-      await db
-        .delete(eventApplications)
-        .where(eq(eventApplications.eventId, eventB.id));
-      await db.delete(events).where(eq(events.id, eventA.id));
-      await db.delete(events).where(eq(events.id, eventB.id));
-      await db.delete(user).where(eq(user.id, userA.id));
-      await db.delete(user).where(eq(user.id, userB.id));
-    }
+    const published = publishRsvpInvitation.mock.calls.map((call) => call[0]);
+    const invitationIds = [
+      ...(await invitationsFor(eventA)),
+      ...(await invitationsFor(eventB)),
+    ].map((row) => row.id);
+    expect(new Set(published)).toEqual(new Set(invitationIds));
+    expect(published).toHaveLength(2);
   });
 });
 
 describe('sendRsvpWave window, overlap, and event start', () => {
-  async function insertApprovedApplicant(
-    eventId: string,
-    email: string,
-  ): Promise<string> {
-    const [row] = await db
-      .insert(user)
-      .values({
-        name: email,
-        email,
-        emailVerified: true,
-      })
-      .returning({ id: user.id });
-    await db.insert(eventApplications).values({
-      eventId,
-      userId: row.id,
-      statusId: approvedStatusId,
-    });
-    return row.id;
-  }
-
   test('uses a custom event response window for respond_by', async () => {
-    const [eventRow] = await db
-      .insert(events)
-      .values({
-        name: 'Custom Window RSVP Event',
-        hasApplication: true,
-        rsvpResponseWindowHours: 24,
-      })
-      .returning({ id: events.id });
-    const userId = await insertApprovedApplicant(
-      eventRow.id,
-      'custom-window@example.com',
-    );
+    const eventId = await createEvent({ rsvpResponseWindowHours: 24 });
+    await createApplicant(eventId, 'waitlisted');
 
-    try {
-      const result = await sendRsvpWave(eventRow.id, { now: frozenNow });
-      expect(result.success).toBe(true);
-      if (!result.success) return;
-      expect(result.wave.respondBy).toEqual(
-        computeRsvpRespondBy(frozenNow, 24),
-      );
+    const result = await sendRsvpWave(eventId, { now: frozenNow });
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.wave.respondBy).toEqual(computeRsvpRespondBy(frozenNow, 24));
 
-      await db
-        .update(events)
-        .set({ rsvpResponseWindowHours: 72 })
-        .where(eq(events.id, eventRow.id));
-      await expireEventWaves(eventRow.id);
+    await db
+      .update(events)
+      .set({ rsvpResponseWindowHours: 72 })
+      .where(eq(events.id, eventId));
+    await expireEventWaves(eventId);
+    await createApplicant(eventId, 'waitlisted');
 
-      const laterUserId = await insertApprovedApplicant(
-        eventRow.id,
-        'custom-window-2@example.com',
-      );
-      const later = await sendRsvpWave(eventRow.id, { now: frozenNow });
-      expect(later.success).toBe(true);
-      if (!later.success) return;
-      expect(later.wave.respondBy).toEqual(computeRsvpRespondBy(frozenNow, 72));
-
-      await db.delete(user).where(eq(user.id, laterUserId));
-    } finally {
-      await db
-        .delete(eventRsvpWaves)
-        .where(eq(eventRsvpWaves.eventId, eventRow.id));
-      await db
-        .delete(eventApplications)
-        .where(eq(eventApplications.eventId, eventRow.id));
-      await db.delete(events).where(eq(events.id, eventRow.id));
-      await db.delete(user).where(eq(user.id, userId));
-    }
+    const later = await sendRsvpWave(eventId, { now: frozenNow });
+    expect(later.success).toBe(true);
+    if (!later.success) return;
+    expect(later.wave.respondBy).toEqual(computeRsvpRespondBy(frozenNow, 72));
   });
 
   test('allows a later wave after the previous respond_by has passed', async () => {
-    const [eventRow] = await db
-      .insert(events)
-      .values({
-        name: 'Expired Then Next Wave Event',
-        hasApplication: true,
-      })
-      .returning({ id: events.id });
-    const firstUserId = await insertApprovedApplicant(
-      eventRow.id,
-      'expired-then-next-1@example.com',
+    const eventId = await createEvent();
+    await createApplicant(eventId, 'waitlisted');
+    expect((await sendRsvpWave(eventId, { now: frozenNow })).success).toBe(
+      true,
     );
 
-    try {
-      const first = await sendRsvpWave(eventRow.id, { now: frozenNow });
-      expect(first.success).toBe(true);
-
-      await expireEventWaves(eventRow.id);
-      const secondUserId = await insertApprovedApplicant(
-        eventRow.id,
-        'expired-then-next-2@example.com',
-      );
-      const second = await sendRsvpWave(eventRow.id, { now: frozenNow });
-      expect(second.success).toBe(true);
-      if (!second.success) return;
-      expect(second.wave.wave).toBe(2);
-      expect(second.eligibleApplicantCount).toBe(1);
-      await db.delete(user).where(eq(user.id, secondUserId));
-    } finally {
-      await db
-        .delete(eventRsvpWaves)
-        .where(eq(eventRsvpWaves.eventId, eventRow.id));
-      await db
-        .delete(eventApplications)
-        .where(eq(eventApplications.eventId, eventRow.id));
-      await db.delete(events).where(eq(events.id, eventRow.id));
-      await db.delete(user).where(eq(user.id, firstUserId));
-    }
+    await expireEventWaves(eventId);
+    await createApplicant(eventId, 'waitlisted');
+    const second = await sendRsvpWave(eventId, { now: frozenNow });
+    expect(second.success).toBe(true);
+    if (!second.success) return;
+    expect(second.wave.wave).toBe(2);
+    expect(second.eligibleApplicantCount).toBe(1);
   });
 
   test('refuses a wave after the event start time', async () => {
-    const [eventRow] = await db
-      .insert(events)
-      .values({
-        name: 'Started RSVP Event',
-        hasApplication: true,
-        startsAt: new Date('2026-09-15T17:00:00.000Z'),
-      })
-      .returning({ id: events.id });
-    const userId = await insertApprovedApplicant(
-      eventRow.id,
-      'started-event@example.com',
-    );
+    const eventId = await createEvent({
+      startsAt: new Date('2026-09-15T17:00:00.000Z'),
+    });
+    const userId = await createApplicant(eventId, 'waitlisted');
 
-    try {
-      const result = await sendRsvpWave(eventRow.id, { now: frozenNow });
-      expect(result.success).toBe(false);
-      if (result.success) return;
-      expect(result.error).toBe(RSVP_WAVE_EVENT_STARTED_MESSAGE);
-      expect(publishRsvpInvitation).not.toHaveBeenCalled();
-    } finally {
-      await db
-        .delete(eventApplications)
-        .where(eq(eventApplications.eventId, eventRow.id));
-      await db.delete(events).where(eq(events.id, eventRow.id));
-      await db.delete(user).where(eq(user.id, userId));
-    }
+    const result = await sendRsvpWave(eventId, { now: frozenNow });
+    expect(result).toMatchObject({
+      success: false,
+      error: RSVP_WAVE_EVENT_STARTED_MESSAGE,
+    });
+    expect(publishRsvpInvitation).not.toHaveBeenCalled();
+    expect(await getStatus(eventId, userId)).toBe('waitlisted');
   });
 });
 
-describe('sendRsvpWave with no approved applicants', () => {
-  let emptyEventId: string;
-
-  beforeAll(async () => {
-    const [eventRow] = await db
-      .insert(events)
-      .values({ name: 'Empty RSVP Event', hasApplication: true })
-      .returning({ id: events.id });
-    emptyEventId = eventRow.id;
-  });
-
-  afterAll(async () => {
-    await db
-      .delete(eventRsvpWaves)
-      .where(eq(eventRsvpWaves.eventId, emptyEventId));
-    await db.delete(events).where(eq(events.id, emptyEventId));
-  });
-
-  test('refuses to create a wave when nobody is eligible', async () => {
-    const signInSpy = vi.spyOn(auth.api, 'signInMagicLink');
-
-    try {
-      const result = await sendRsvpWave(emptyEventId, { now: frozenNow });
-
-      expect(result.success).toBe(false);
-      if (result.success) return;
-      expect(result.error).toMatch(/no eligible applicants/i);
-      expect(signInSpy).not.toHaveBeenCalled();
-      expect(publishRsvpInvitation).not.toHaveBeenCalled();
-
-      const waves = await db
-        .select({ id: eventRsvpWaves.id })
-        .from(eventRsvpWaves)
-        .where(eq(eventRsvpWaves.eventId, emptyEventId));
-      expect(waves).toHaveLength(0);
-    } finally {
-      signInSpy.mockRestore();
-    }
-  });
-});
+// ─── Volume ─────────────────────────────────────────────────────────────────
 
 const VOLUME_ELIGIBLE_COUNT = 1000;
 const VOLUME_PENDING_REVIEW_COUNT = 5;
@@ -1103,110 +572,45 @@ const VOLUME_ATTENDEE_COUNT = 5;
 const VOLUME_INSERT_CHUNK = 250;
 const VOLUME_TEST_TIMEOUT_MS = 60_000;
 
-async function insertUsersInChunks(
-  values: { name: string; email: string; emailVerified: boolean }[],
-): Promise<string[]> {
-  const ids: string[] = [];
-  for (let i = 0; i < values.length; i += VOLUME_INSERT_CHUNK) {
-    const inserted = await db
-      .insert(user)
-      .values(values.slice(i, i + VOLUME_INSERT_CHUNK))
-      .returning({ id: user.id });
-    ids.push(...inserted.map((row) => row.id));
-  }
-  return ids;
-}
-
-async function insertApplicationsInChunks(
-  values: { eventId: string; userId: string; statusId: number }[],
-): Promise<void> {
-  for (let i = 0; i < values.length; i += VOLUME_INSERT_CHUNK) {
-    await db
-      .insert(eventApplications)
-      .values(values.slice(i, i + VOLUME_INSERT_CHUNK));
-  }
-}
-
 describe('sendRsvpWave volume', () => {
   const suiteId = crypto.randomUUID();
   let stressEventId: string;
-  let eligibleUserIds: string[] = [];
-  let pendingReviewUserIds: string[] = [];
-  let attendeeUserIds: string[] = [];
-  let allUserIds: string[] = [];
+  const idsByStatus = new Map<ParticipationStatus, string[]>();
 
   beforeAll(async () => {
-    const [eventRow] = await db
-      .insert(events)
-      .values({
-        name: 'RSVP Wave Volume Event',
-        hasApplication: true,
-      })
-      .returning({ id: events.id });
-    stressEventId = eventRow.id;
-
-    eligibleUserIds = await insertUsersInChunks(
-      Array.from({ length: VOLUME_ELIGIBLE_COUNT }, (_, i) => ({
-        name: `Stress Eligible ${i}`,
-        email: `rsvp-stress-${suiteId}-${i}@example.com`,
-        emailVerified: true,
-      })),
-    );
-
-    pendingReviewUserIds = await insertUsersInChunks(
-      Array.from({ length: VOLUME_PENDING_REVIEW_COUNT }, (_, i) => ({
-        name: `Stress Pending Review ${i}`,
-        email: `rsvp-stress-pending-${suiteId}-${i}@example.com`,
-        emailVerified: true,
-      })),
-    );
-
-    attendeeUserIds = await insertUsersInChunks(
-      Array.from({ length: VOLUME_ATTENDEE_COUNT }, (_, i) => ({
-        name: `Stress Attendee ${i}`,
-        email: `rsvp-stress-attendee-${suiteId}-${i}@example.com`,
-        emailVerified: true,
-      })),
-    );
-
-    allUserIds = [
-      ...eligibleUserIds,
-      ...pendingReviewUserIds,
-      ...attendeeUserIds,
+    stressEventId = await createEvent({ name: 'RSVP Wave Volume Event' });
+    const groups: [ParticipationStatus, number][] = [
+      ['waitlisted', VOLUME_ELIGIBLE_COUNT],
+      ['pending_review', VOLUME_PENDING_REVIEW_COUNT],
+      ['accepted', VOLUME_ATTENDEE_COUNT],
     ];
-
-    await insertApplicationsInChunks([
-      ...eligibleUserIds.map((userId) => ({
-        eventId: stressEventId,
-        userId,
-        statusId: approvedStatusId,
-      })),
-      ...pendingReviewUserIds.map((userId) => ({
-        eventId: stressEventId,
-        userId,
-        statusId: pendingReviewStatusId,
-      })),
-      ...attendeeUserIds.map((userId) => ({
-        eventId: stressEventId,
-        userId,
-        statusId: approvedStatusId,
-      })),
-    ]);
-
-    await db.insert(eventAttendees).values(
-      attendeeUserIds.map((userId) => ({
-        eventId: stressEventId,
-        userId,
-      })),
-    );
-  }, VOLUME_TEST_TIMEOUT_MS);
-
-  afterAll(async () => {
-    if (stressEventId) {
-      await db.delete(events).where(eq(events.id, stressEventId));
-    }
-    if (allUserIds.length > 0) {
-      await db.delete(user).where(inArray(user.id, allUserIds));
+    for (const [status, size] of groups) {
+      const ids: string[] = [];
+      const id = await statusId(status);
+      for (let i = 0; i < size; i += VOLUME_INSERT_CHUNK) {
+        const chunk = Array.from(
+          { length: Math.min(VOLUME_INSERT_CHUNK, size - i) },
+          (_, j) => ({
+            name: `Stress ${status} ${i + j}`,
+            email: `rsvp-stress-${status}-${suiteId}-${i + j}@example.com`,
+            emailVerified: true,
+          }),
+        );
+        const users = await db
+          .insert(user)
+          .values(chunk)
+          .returning({ id: user.id });
+        await db.insert(eventParticipants).values(
+          users.map((u) => ({
+            eventId: stressEventId,
+            userId: u.id,
+            statusId: id,
+          })),
+        );
+        ids.push(...users.map((u) => u.id));
+      }
+      idsByStatus.set(status, ids);
+      createdUserIds.push(...ids);
     }
   }, VOLUME_TEST_TIMEOUT_MS);
 
@@ -1217,82 +621,36 @@ describe('sendRsvpWave volume', () => {
 
       expect(result.success).toBe(true);
       if (!result.success) return;
-
-      expect(result.wave.wave).toBe(1);
-      expect(result.wave.respondBy).toEqual(
-        computeRsvpRespondBy(frozenNow, DEFAULT_RSVP_RESPONSE_WINDOW_HOURS),
-      );
       expect(result.eligibleApplicantCount).toBe(VOLUME_ELIGIBLE_COUNT);
       expect(result.responsesCreated).toBe(VOLUME_ELIGIBLE_COUNT);
       expect(result.invitationsQueued).toBe(VOLUME_ELIGIBLE_COUNT);
       expect(result.queueFailures).toHaveLength(0);
 
-      expect(publishRsvpInvitation).toHaveBeenCalledTimes(
-        VOLUME_ELIGIBLE_COUNT,
-      );
-      const publishedIds = publishRsvpInvitation.mock.calls.map(
+      const published = publishRsvpInvitation.mock.calls.map(
         (call) => call[0] as string,
       );
-      expect(new Set(publishedIds).size).toBe(VOLUME_ELIGIBLE_COUNT);
+      expect(new Set(published).size).toBe(VOLUME_ELIGIBLE_COUNT);
 
-      const responses = await db
-        .select({
-          id: eventRsvpResponses.id,
-          userId: eventRsvpResponses.userId,
-          statusId: eventRsvpResponses.statusId,
-          invitationEmailStatus: eventRsvpResponses.invitationEmailStatus,
-          invitationEmailQueuedAt: eventRsvpResponses.invitationEmailQueuedAt,
-        })
-        .from(eventRsvpResponses)
-        .innerJoin(
-          eventRsvpWaves,
-          eq(eventRsvpResponses.rsvpWaveId, eventRsvpWaves.id),
-        )
-        .where(eq(eventRsvpWaves.eventId, stressEventId));
-
-      expect(responses).toHaveLength(VOLUME_ELIGIBLE_COUNT);
-      expect(new Set(responses.map((row) => row.userId))).toEqual(
-        new Set(eligibleUserIds),
+      const invitations = await invitationsFor(stressEventId);
+      expect(invitations).toHaveLength(VOLUME_ELIGIBLE_COUNT);
+      expect(new Set(invitations.map((row) => row.userId))).toEqual(
+        new Set(idsByStatus.get('waitlisted')),
       );
-      expect(new Set(publishedIds)).toEqual(
-        new Set(responses.map((row) => row.id)),
+      expect(new Set(published)).toEqual(
+        new Set(invitations.map((row) => row.id)),
       );
-
-      for (const row of responses) {
-        expect(row.statusId).toBe(pendingRsvpStatusId);
+      for (const row of invitations) {
         expect(row.invitationEmailStatus).toBe('queued');
-        expect(row.invitationEmailQueuedAt).not.toBeNull();
       }
 
-      const ineligibleIds = new Set([
-        ...pendingReviewUserIds,
-        ...attendeeUserIds,
-      ]);
-      for (const row of responses) {
-        expect(ineligibleIds.has(row.userId)).toBe(false);
-      }
-      for (const publishedId of publishedIds) {
-        const match = responses.find((row) => row.id === publishedId);
-        expect(match).toBeDefined();
-        expect(ineligibleIds.has(match!.userId)).toBe(false);
-      }
-
-      const applications = await db
-        .select({
-          userId: eventApplications.userId,
-          statusId: eventApplications.statusId,
-        })
-        .from(eventApplications)
+      const invitedId = await statusId('invited');
+      const statuses = await db
+        .select({ statusId: eventParticipants.statusId })
+        .from(eventParticipants)
         .where(
-          and(
-            eq(eventApplications.eventId, stressEventId),
-            inArray(eventApplications.userId, eligibleUserIds),
-          ),
+          inArray(eventParticipants.userId, idsByStatus.get('waitlisted')!),
         );
-      expect(applications).toHaveLength(VOLUME_ELIGIBLE_COUNT);
-      for (const application of applications) {
-        expect(application.statusId).toBe(approvedStatusId);
-      }
+      expect(statuses.every((row) => row.statusId === invitedId)).toBe(true);
     },
     VOLUME_TEST_TIMEOUT_MS,
   );
@@ -1301,28 +659,14 @@ describe('sendRsvpWave volume', () => {
     'does not create a second wave or duplicate jobs for the same applicants',
     async () => {
       const result = await sendRsvpWave(stressEventId, { now: frozenNow });
-
-      expect(result.success).toBe(false);
-      if (result.success) return;
-      expect(result.error).toBe(RSVP_WAVE_ALREADY_ACTIVE_MESSAGE);
+      expect(result).toMatchObject({
+        success: false,
+        error: RSVP_WAVE_ALREADY_ACTIVE_MESSAGE,
+      });
       expect(publishRsvpInvitation).not.toHaveBeenCalled();
-
-      const waves = await db
-        .select({ id: eventRsvpWaves.id, wave: eventRsvpWaves.wave })
-        .from(eventRsvpWaves)
-        .where(eq(eventRsvpWaves.eventId, stressEventId));
-      expect(waves).toHaveLength(1);
-      expect(waves[0]?.wave).toBe(1);
-
-      const responses = await db
-        .select({ id: eventRsvpResponses.id })
-        .from(eventRsvpResponses)
-        .innerJoin(
-          eventRsvpWaves,
-          eq(eventRsvpResponses.rsvpWaveId, eventRsvpWaves.id),
-        )
-        .where(eq(eventRsvpWaves.eventId, stressEventId));
-      expect(responses).toHaveLength(VOLUME_ELIGIBLE_COUNT);
+      expect(await invitationsFor(stressEventId)).toHaveLength(
+        VOLUME_ELIGIBLE_COUNT,
+      );
     },
     VOLUME_TEST_TIMEOUT_MS,
   );

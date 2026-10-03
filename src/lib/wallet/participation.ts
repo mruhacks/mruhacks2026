@@ -3,17 +3,13 @@ import 'server-only';
 import { and, eq, isNull } from 'drizzle-orm';
 
 import {
-  applicationStatuses,
-  eventApplications,
-  eventAttendees,
+  eventParticipants,
   events,
+  participationStatuses,
   userProfiles,
 } from '@/db/schema';
-import type { ApplicationStatus } from '@/types/lookups';
+import { isAttending, resolveStoredStatus } from '@/lib/participation/status';
 import { db } from '@/utils/db';
-
-/** Typed against the same enum the dashboard uses, rather than a bare string. */
-const APPROVED_STATUS: ApplicationStatus = 'approved';
 
 export const EVENT_ID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -28,7 +24,7 @@ export type EventParticipation = {
   longitude: number | null;
   radiusMeters: number | null;
   fullName: string | null;
-  /** Approved applicant or registered attendee of this (top-level) event. */
+  /** Holds a spot (`accepted`) in this (top-level) event. */
   isParticipant: boolean;
 };
 
@@ -55,28 +51,20 @@ export async function getEventParticipation(
       latitude: events.latitude,
       longitude: events.longitude,
       radiusMeters: events.radiusMeters,
-      statusLabel: applicationStatuses.label,
-      attendeeUserId: eventAttendees.userId,
+      statusLabel: participationStatuses.label,
       fullName: userProfiles.fullName,
     })
     .from(events)
     .leftJoin(
-      eventApplications,
+      eventParticipants,
       and(
-        eq(eventApplications.eventId, events.id),
-        eq(eventApplications.userId, userId),
+        eq(eventParticipants.eventId, events.id),
+        eq(eventParticipants.userId, userId),
       ),
     )
     .leftJoin(
-      applicationStatuses,
-      eq(applicationStatuses.id, eventApplications.statusId),
-    )
-    .leftJoin(
-      eventAttendees,
-      and(
-        eq(eventAttendees.eventId, events.id),
-        eq(eventAttendees.userId, userId),
-      ),
+      participationStatuses,
+      eq(participationStatuses.id, eventParticipants.statusId),
     )
     .leftJoin(userProfiles, eq(userProfiles.userId, userId))
     .where(and(eq(events.id, eventId), isNull(events.parentEventId)))
@@ -94,8 +82,11 @@ export async function getEventParticipation(
     longitude: row.longitude,
     radiusMeters: row.radiusMeters,
     fullName: row.fullName,
+    // An invited applicant who never accepted their RSVP (or who declined
+    // or let it expire) doesn't get a pass — only a held spot does.
     isParticipant:
-      row.statusLabel === APPROVED_STATUS || row.attendeeUserId !== null,
+      row.statusLabel !== null &&
+      isAttending(resolveStoredStatus(row.statusLabel)),
   };
 }
 

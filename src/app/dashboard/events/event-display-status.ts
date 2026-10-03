@@ -1,22 +1,17 @@
-import type {
-  ApplicationStatus,
-  ApplicationStatusBadgeVariant,
-  RsvpStatus,
-} from '@/types/lookups';
+import type { ParticipationStatus, StatusBadgeVariant } from '@/types/lookups';
+import {
+  STATIC_STATUS_DISPLAY,
+  type StatusDisplay,
+} from '@/lib/participation/status';
 
 /**
- * Dashboard / listing badge presentation derived from application status
- * plus RSVP status. RSVP is the status of record whenever an invitation
- * exists — same precedence as the event detail page (`RsvpStatusCard`
- * vs `ApplicationStatusBanner`).
+ * Dashboard / listing badge for a user and an event, derived from their one
+ * participation status. The event page card and the admin roster use the
+ * same titles, so a status reads identically everywhere it's shown.
  */
 
 export type EventDisplayPill =
-  | ApplicationStatus
-  | 'rsvp_pending'
-  | 'rsvp_accepted'
-  | 'rsvp_declined'
-  | 'rsvp_expired'
+  | ParticipationStatus
   | 'registered'
   | 'open_to_apply'
   | 'registration_open';
@@ -24,72 +19,34 @@ export type EventDisplayPill =
 export type EventDisplayStatus = {
   label: string;
   pill: EventDisplayPill;
-  badgeVariant: ApplicationStatusBadgeVariant;
+  badgeVariant: StatusBadgeVariant;
 };
 
-export type ApplicationDisplayStatusInput = {
+export type EventDisplayStatusInput = {
   hasApplication: boolean;
-  userStatus: 'applied' | 'registered' | null;
-  statusKey: ApplicationStatus | null;
-  statusDisplay: {
-    title: string;
-    variant: ApplicationStatusBadgeVariant;
-  } | null;
-  rsvpStatusLabel: RsvpStatus | null;
-  rsvpStatusDisplay: {
-    title: string;
-    variant: ApplicationStatusBadgeVariant;
-  } | null;
+  status: ParticipationStatus | null;
+  /** DB display config; falls back to the seeded copy when absent. */
+  statusDisplay?: Pick<StatusDisplay, 'title' | 'variant'> | null;
 };
 
-/** Dashboard labels for RSVP states. Pending uses action-required copy. */
-export const RSVP_DASHBOARD_LABELS: Record<RsvpStatus, string> = {
-  pending: 'RSVP Required',
-  accepted: 'RSVP Confirmed',
-  declined: 'RSVP Declined',
-  timed_out: 'RSVP Expired',
-};
-
-const RSVP_PILL: Record<RsvpStatus, EventDisplayPill> = {
-  pending: 'rsvp_pending',
-  accepted: 'rsvp_accepted',
-  declined: 'rsvp_declined',
-  timed_out: 'rsvp_expired',
-};
-
-const RSVP_BADGE_VARIANT: Record<RsvpStatus, ApplicationStatusBadgeVariant> = {
-  pending: 'default',
-  accepted: 'success',
-  declined: 'destructive',
-  timed_out: 'secondary',
-};
-
-export function getApplicationDisplayStatus(
-  input: ApplicationDisplayStatusInput,
+export function getEventDisplayStatus(
+  input: EventDisplayStatusInput,
 ): EventDisplayStatus {
-  if (input.rsvpStatusLabel) {
+  if (input.status) {
+    // A signup for an event without an application is `accepted` from the
+    // start; "Confirmed" would imply an RSVP they never made.
+    if (!input.hasApplication && input.status === 'accepted') {
+      return {
+        label: 'Registered',
+        pill: 'registered',
+        badgeVariant: 'success',
+      };
+    }
+    const display = input.statusDisplay ?? STATIC_STATUS_DISPLAY[input.status];
     return {
-      label: RSVP_DASHBOARD_LABELS[input.rsvpStatusLabel],
-      pill: RSVP_PILL[input.rsvpStatusLabel],
-      badgeVariant:
-        input.rsvpStatusDisplay?.variant ??
-        RSVP_BADGE_VARIANT[input.rsvpStatusLabel],
-    };
-  }
-
-  if (input.statusKey && input.statusDisplay) {
-    return {
-      label: input.statusDisplay.title,
-      pill: input.statusKey,
-      badgeVariant: input.statusDisplay.variant,
-    };
-  }
-
-  if (input.userStatus === 'registered') {
-    return {
-      label: 'Registered',
-      pill: 'registered',
-      badgeVariant: 'default',
+      label: display.title,
+      pill: input.status,
+      badgeVariant: display.variant,
     };
   }
 

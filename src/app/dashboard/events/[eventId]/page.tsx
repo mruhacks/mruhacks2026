@@ -7,13 +7,7 @@ import { getUser } from '@/utils/auth';
 import { db } from '@/utils/db';
 import { BreadcrumbSegment } from '@/components/breadcrumb-context';
 import { MarkdownContent } from '@/components/markdown/markdown-content';
-import {
-  events,
-  eventTypes,
-  eventAttendees,
-  eventArticles,
-  eventTerms,
-} from '@/db/schema';
+import { events, eventTypes, eventArticles, eventTerms } from '@/db/schema';
 import { resolveEventId } from '@/lib/events';
 import { eventPath } from '@/lib/event-slug';
 import { isScheduleVisible, listSubevents } from '@/lib/subevents';
@@ -23,16 +17,17 @@ import {
   type ScheduleEntry,
 } from '@/app/dashboard/events/[eventId]/event-schedule';
 import {
-  getUserApplicationStatus,
-  getUserRsvpStatus,
-  type ApplicationStatusForUser,
-  type RsvpStatusForUser,
+  getUserParticipation,
+  type ParticipationForUser,
 } from '@/app/dashboard/events/actions';
-import { APPLICATION_TIMELINE_LABELS } from '@/app/dashboard/events/application-status';
-import { RsvpStatusCard } from '@/app/dashboard/events/RsvpStatusCard';
-import { EventParticipationStatusCard } from '@/app/dashboard/events/EventParticipationStatusCard';
+import { ParticipationStatusCard } from '@/app/dashboard/events/ParticipationStatusCard';
 import { RsvpPendingPrompt } from '@/app/dashboard/events/RsvpPendingPrompt';
-import { LocalDateRange, LocalDateTime } from '@/components/local-date-time';
+import { LocalDateRange } from '@/components/local-date-time';
+import {
+  canEditApplication,
+  canFormTeam,
+  isAttending,
+} from '@/lib/participation/status';
 import { RegisterEventButton } from '@/app/dashboard/events/RegisterEventButton';
 import { UnregisterEventButton } from '@/app/dashboard/events/UnregisterEventButton';
 import { TeamPanel } from '@/app/dashboard/events/team/TeamPanel';
@@ -201,15 +196,13 @@ async function EventEntryContent({ params, searchParams }: Props) {
     ? [...publishedArticlesRows, { slug: 'terms', title: 'Event Terms' }]
     : publishedArticlesRows;
 
+  const participation = await getUserParticipation(eventId);
+
   if (row.hasApplication) {
-    const [applicationStatus, rsvpStatus] = await Promise.all([
-      getUserApplicationStatus(eventId),
-      getUserRsvpStatus(eventId),
-    ]);
     const canManageTeam =
       row.teamsEnabled &&
-      applicationStatus != null &&
-      applicationStatus.statusKey !== 'denied';
+      participation != null &&
+      canFormTeam(participation.status);
 
     return (
       <EventPageLayout
@@ -218,19 +211,14 @@ async function EventEntryContent({ params, searchParams }: Props) {
         articles={publishedArticles}
         schedule={schedule}
         mobileAction={
-          // An outstanding RSVP is the one thing we want a phone visitor to
-          // act on, and its buttons live in the panel — so no sticky bar.
-          rsvpStatus || applicationStatus?.statusDisplay.isFinal
+          // Once the application is decided, the only thing left to act on
+          // (an RSVP, giving up a spot) lives in the panel — no sticky bar.
+          participation && !canEditApplication(participation.status)
             ? null
-            : applicationStatus
-              ? {
-                  label: 'Edit application',
-                  href: `${eventHref}/apply`,
-                }
-              : {
-                  label: 'Start application',
-                  href: `${eventHref}/apply`,
-                }
+            : {
+                label: participation ? 'Edit application' : 'Start application',
+                href: `${eventHref}/apply`,
+              }
         }
         participation={
           <ApplicationParticipationPanel
@@ -240,8 +228,7 @@ async function EventEntryContent({ params, searchParams }: Props) {
             termsMarkdown={row.termsMarkdown}
             termsId={row.termsId}
             checkInEnabled={row.checkInEnabled}
-            applicationStatus={applicationStatus}
-            rsvpStatus={rsvpStatus}
+            participation={participation}
             walletPlatform={walletPlatform}
           />
         }
@@ -254,18 +241,8 @@ async function EventEntryContent({ params, searchParams }: Props) {
     );
   }
 
-  const [attendeeRow] = await db
-    .select({ userId: eventAttendees.userId })
-    .from(eventAttendees)
-    .where(
-      and(
-        eq(eventAttendees.eventId, eventId),
-        eq(eventAttendees.userId, user.id),
-      ),
-    )
-    .limit(1);
-
-  const isRegistered = Boolean(attendeeRow);
+  const isRegistered =
+    participation != null && isAttending(participation.status);
 
   return (
     <EventPageLayout
@@ -402,10 +379,9 @@ function ApplicationParticipationPanel({
   eventId,
   eventHref,
   eventName,
-  applicationStatus,
+  participation,
   termsMarkdown,
   termsId,
-  rsvpStatus,
   walletPlatform,
   checkInEnabled,
 }: {
@@ -414,100 +390,41 @@ function ApplicationParticipationPanel({
   eventName: string;
   termsMarkdown: string | null;
   termsId: string | null;
-  applicationStatus: ApplicationStatusForUser | null;
-  rsvpStatus: RsvpStatusForUser | null;
+  participation: ParticipationForUser | null;
   walletPlatform: WalletPlatform;
   checkInEnabled: boolean;
 }) {
-  // Any latest-wave RSVP (pending, accepted, declined, timed_out) is the
-  // status of record — same precedence as the dashboard listing badges.
-  if (rsvpStatus) {
+  if (participation) {
     return (
       <>
-        {rsvpStatus.statusLabel === 'pending' && (
+        {participation.status === 'invited' && participation.invitation && (
           <RsvpPendingPrompt
             eventId={eventId}
             eventName={eventName}
             termsMarkdown={termsMarkdown}
             termsId={termsId}
-            respondBy={rsvpStatus.respondBy}
+            respondBy={participation.invitation.respondBy}
           />
         )}
-        <RsvpStatusCard
+        <ParticipationStatusCard
           eventId={eventId}
-          eventName={eventName}
-          rsvp={rsvpStatus}
+          eventHref={eventHref}
+          participation={participation}
           termsMarkdown={termsMarkdown}
           termsId={termsId}
+          pass={
+            checkInEnabled ? (
+              <>
+                <WalletAction
+                  eventId={eventId}
+                  walletPlatform={walletPlatform}
+                />
+                <EventTicketButton eventId={eventId} />
+              </>
+            ) : undefined
+          }
         />
-        {checkInEnabled && rsvpStatus.statusLabel === 'accepted' && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Your pass</CardTitle>
-              <CardDescription>
-                Add it to your phone for faster check-in.
-              </CardDescription>
-            </CardHeader>
-            <CardFooter className='flex flex-row gap-2'>
-              <WalletAction eventId={eventId} walletPlatform={walletPlatform} />
-              <EventTicketButton eventId={eventId} />
-            </CardFooter>
-          </Card>
-        )}
       </>
-    );
-  }
-
-  if (applicationStatus) {
-    const { statusDisplay: display, createdAt } = applicationStatus;
-    const showEdit = !display.isFinal;
-    const isApproved = applicationStatus.statusKey === 'approved';
-    return (
-      <EventParticipationStatusCard
-        title='Application'
-        badgeLabel={display.title}
-        badgeVariant={display.variant}
-        description={display.description}
-        infoRows={
-          createdAt
-            ? [
-                {
-                  key: 'submitted',
-                  content: (
-                    <>
-                      {APPLICATION_TIMELINE_LABELS.submitted}{' '}
-                      <LocalDateTime
-                        value={createdAt}
-                        dateStyle='medium'
-                        timeStyle='short'
-                      />
-                    </>
-                  ),
-                },
-              ]
-            : []
-        }
-        footer={
-          showEdit || (isApproved && checkInEnabled) ? (
-            <>
-              {showEdit && (
-                <Button asChild size='sm' variant='outline'>
-                  <Link href={`${eventHref}/apply`}>Edit application</Link>
-                </Button>
-              )}
-              {isApproved && checkInEnabled && (
-                <>
-                  <WalletAction
-                    eventId={eventId}
-                    walletPlatform={walletPlatform}
-                  />
-                  <EventTicketButton eventId={eventId} />
-                </>
-              )}
-            </>
-          ) : undefined
-        }
-      />
     );
   }
 

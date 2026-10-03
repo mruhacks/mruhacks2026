@@ -10,13 +10,8 @@ import {
 import { eq } from 'drizzle-orm';
 
 import { db } from '@/utils/db';
-import {
-  events,
-  eventRsvpResponses,
-  eventRsvpWaves,
-  rsvpStatuses,
-  user,
-} from '@/db/schema';
+import { events, eventInvitations, eventRsvpWaves, user } from '@/db/schema';
+import { insertInvitation } from '@/tests/participation-fixtures';
 
 const { publishRsvpInvitation } = vi.hoisted(() => ({
   publishRsvpInvitation: vi.fn(),
@@ -33,85 +28,58 @@ const FRESH_CREATED_AT = new Date();
 
 let testEventId: string;
 let testUserId: string;
-let statusIdByLabel: Record<string, number>;
-let waveCounter = 0;
-
-async function ensureRsvpStatus(
-  label: string,
-  isFinal: boolean,
-): Promise<number> {
-  const [inserted] = await db
-    .insert(rsvpStatuses)
-    .values({
-      label,
-      title: label,
-      description: label,
-      variant: 'default',
-      isFinal,
-    })
-    .onConflictDoNothing()
-    .returning({ id: rsvpStatuses.id });
-  if (inserted) return inserted.id;
-  const [existing] = await db
-    .select({ id: rsvpStatuses.id })
-    .from(rsvpStatuses)
-    .where(eq(rsvpStatuses.label, label))
-    .limit(1);
-  return existing.id;
-}
 
 async function createResponse(options: {
-  statusLabel?: string;
+  statusLabel?: keyof typeof STATUS_BY_LABEL;
   respondBy: Date;
   invitationEmailStatus: string;
   createdAt: Date;
 }): Promise<{ responseId: string; waveId: string }> {
-  waveCounter += 1;
+  // One event per invitation: a participant is invited at most once.
+  const [eventRow] = await db
+    .insert(events)
+    .values({ name: 'Invitation Delivery Test', hasApplication: true })
+    .returning({ id: events.id });
   const [wave] = await db
     .insert(eventRsvpWaves)
-    .values({
-      eventId: testEventId,
-      wave: waveCounter,
-      respondBy: options.respondBy,
-    })
+    .values({ eventId: eventRow.id, wave: 1, respondBy: options.respondBy })
     .returning({ id: eventRsvpWaves.id });
 
-  const [response] = await db
-    .insert(eventRsvpResponses)
-    .values({
-      rsvpWaveId: wave.id,
-      userId: testUserId,
-      statusId: statusIdByLabel[options.statusLabel ?? 'pending'],
-      invitationEmailStatus: options.invitationEmailStatus,
-      createdAt: options.createdAt,
-    })
-    .returning({ id: eventRsvpResponses.id });
+  const { invitationId } = await insertInvitation({
+    rsvpWaveId: wave.id,
+    eventId: eventRow.id,
+    userId: testUserId,
+    status: STATUS_BY_LABEL[options.statusLabel ?? 'pending'],
+    invitationEmailStatus: options.invitationEmailStatus,
+    createdAt: options.createdAt,
+  });
 
-  return { responseId: response.id, waveId: wave.id };
+  // `waveId` is the event here: deleting it cascades to everything above.
+  return { responseId: invitationId, waveId: eventRow.id };
 }
 
 async function getResponse(responseId: string) {
   const [row] = await db
     .select()
-    .from(eventRsvpResponses)
-    .where(eq(eventRsvpResponses.id, responseId))
+    .from(eventInvitations)
+    .where(eq(eventInvitations.id, responseId))
     .limit(1);
   return row;
 }
 
-async function deleteResponse(waveId: string): Promise<void> {
-  // Cascades to the response row.
-  await db.delete(eventRsvpWaves).where(eq(eventRsvpWaves.id, waveId));
+async function deleteResponse(eventId: string): Promise<void> {
+  // Cascades to the wave, participant and invitation rows.
+  await db.delete(events).where(eq(events.id, eventId));
 }
 
-beforeAll(async () => {
-  statusIdByLabel = {
-    pending: await ensureRsvpStatus('pending', false),
-    accepted: await ensureRsvpStatus('accepted', true),
-    declined: await ensureRsvpStatus('declined', true),
-    timed_out: await ensureRsvpStatus('timed_out', true),
-  };
+const STATUS_BY_LABEL = {
+  pending: 'invited',
+  accepted: 'accepted',
+  declined: 'declined',
+  timed_out: 'timed_out',
+} as const;
 
+beforeAll(async () => {
   const [eventRow] = await db
     .insert(events)
     .values({ name: 'Reconciliation Sweep Test Event', hasApplication: true })
@@ -302,12 +270,12 @@ describe('requeuePendingRsvpInvitations', () => {
     // delivered, processed, and marked 'sent'.
     publishRsvpInvitation.mockImplementationOnce(async (id: string) => {
       await db
-        .update(eventRsvpResponses)
+        .update(eventInvitations)
         .set({
           invitationEmailStatus: 'sent',
           invitationEmailSentAt: new Date(),
         })
-        .where(eq(eventRsvpResponses.id, id));
+        .where(eq(eventInvitations.id, id));
       return { messageId: 'msg-race' };
     });
 

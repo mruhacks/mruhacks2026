@@ -1,6 +1,6 @@
 import { and, eq } from 'drizzle-orm';
 
-import { eventApplications, userProfiles } from '@/db/schema';
+import { eventParticipants, userProfiles } from '@/db/schema';
 import { hasPermission } from '@/lib/rbac/authorization';
 import { getUser } from '@/utils/auth';
 import { db } from '@/utils/db';
@@ -34,15 +34,12 @@ export async function GET(
       key: userProfiles.resumeFile,
       fileName: userProfiles.resumeFileName,
     })
-    .from(eventApplications)
-    .innerJoin(
-      userProfiles,
-      eq(userProfiles.userId, eventApplications.userId),
-    )
+    .from(eventParticipants)
+    .innerJoin(userProfiles, eq(userProfiles.userId, eventParticipants.userId))
     .where(
       and(
-        eq(eventApplications.eventId, eventId),
-        eq(eventApplications.userId, userId),
+        eq(eventParticipants.eventId, eventId),
+        eq(eventParticipants.userId, userId),
       ),
     )
     .limit(1);

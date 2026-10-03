@@ -8,31 +8,40 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import type { ApplicationStatusForUser } from '@/app/dashboard/events/actions';
-import {
-  APPLICATION_TIMELINE_FIELDS,
-  APPLICATION_TIMELINE_LABELS,
-} from '@/app/dashboard/events/application-status';
+import type { ParticipationForUser } from '@/app/dashboard/events/actions';
 import { LocalDateTime } from '@/components/local-date-time';
+import { canEditApplication } from '@/lib/participation/status';
+
+const TIMELINE_FIELDS = [
+  {
+    key: 'submitted',
+    label: 'Submitted',
+    getDate: (p: ParticipationForUser) => p.createdAt,
+  },
+  {
+    key: 'decisionMade',
+    label: 'Decision made',
+    getDate: (p: ParticipationForUser) => p.reviewedAt,
+  },
+] as const;
 
 type Props = {
-  application: ApplicationStatusForUser;
+  application: ParticipationForUser;
   /** Full card layout vs compact banner above the form. */
   standalone?: boolean;
-  /** When set (and the decision isn't final), renders an "Edit application" button inside the banner. */
+  /** When set (and the application is still editable), renders an "Edit application" button inside the banner. */
   editHref?: string;
 };
 
-/** Application status badge and timeline for the current user. */
+/** Participation status badge and application timeline for the current user. */
 export function ApplicationStatusBanner({
   application,
   standalone = false,
   editHref,
 }: Props) {
-  const { statusDisplay: display, createdAt, reviewedAt } = application;
+  const { display, createdAt } = application;
   const label = display.title;
-  const timelineSource = { createdAt, reviewedAt };
-  const showEdit = Boolean(editHref) && !display.isFinal;
+  const showEdit = Boolean(editHref) && canEditApplication(application.status);
 
   if (standalone) {
     return (
@@ -46,24 +55,22 @@ export function ApplicationStatusBanner({
         </CardHeader>
         <CardContent>
           <dl className='grid gap-2 text-sm sm:grid-cols-2'>
-            {APPLICATION_TIMELINE_FIELDS.map(
-              ({ key, label: fieldLabel, getDate }) => {
-                const date = getDate(timelineSource);
-                if (!date) return null;
-                return (
-                  <div key={key}>
-                    <dt className='text-muted-foreground'>{fieldLabel}</dt>
-                    <dd>
-                      <LocalDateTime
-                        value={date}
-                        dateStyle='medium'
-                        timeStyle='short'
-                      />
-                    </dd>
-                  </div>
-                );
-              },
-            )}
+            {TIMELINE_FIELDS.map(({ key, label: fieldLabel, getDate }) => {
+              const date = getDate(application);
+              if (!date) return null;
+              return (
+                <div key={key}>
+                  <dt className='text-muted-foreground'>{fieldLabel}</dt>
+                  <dd>
+                    <LocalDateTime
+                      value={date}
+                      dateStyle='medium'
+                      timeStyle='short'
+                    />
+                  </dd>
+                </div>
+              );
+            })}
           </dl>
         </CardContent>
       </Card>
@@ -80,7 +87,7 @@ export function ApplicationStatusBanner({
           <p>{display.description}</p>
           {createdAt && (
             <p className='text-muted-foreground text-sm'>
-              {APPLICATION_TIMELINE_LABELS.submitted}{' '}
+              Submitted{' '}
               <LocalDateTime
                 value={createdAt}
                 dateStyle='medium'

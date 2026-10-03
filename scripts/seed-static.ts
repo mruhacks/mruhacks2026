@@ -15,8 +15,7 @@ import {
   interests,
   dietaryRestrictions,
   heardFromSources,
-  applicationStatuses,
-  rsvpStatuses,
+  participationStatuses,
   eventTypes,
   role,
   permission,
@@ -30,10 +29,8 @@ import {
   interestsList,
   dietaryRestrictionsList,
   heardFromSourcesList,
-  applicationStatusesList,
-  applicationStatusDisplayList,
-  rsvpStatusesList,
-  rsvpStatusDisplayList,
+  participationStatusesList,
+  participationStatusDisplayList,
   eventTypesList,
 } from '@/types/lookups';
 
@@ -65,35 +62,19 @@ function defineSeedTable<TTable extends Table>(
   };
 }
 
-function defineApplicationStatusSeedTable(): SeedTable<
-  typeof applicationStatuses
+function defineParticipationStatusSeedTable(): SeedTable<
+  typeof participationStatuses
 > {
   return {
-    table: applicationStatuses,
-    validLabels: applicationStatusesList as readonly string[],
-    values: applicationStatusDisplayList.map((s) => ({
+    table: participationStatuses,
+    validLabels: participationStatusesList as readonly string[],
+    values: participationStatusDisplayList.map((s) => ({
       label: s.label,
       title: s.title,
       description: s.description,
       variant: s.variant,
-      isFinal: s.isFinal,
     })),
-    updatableColumns: ['title', 'description', 'variant', 'isFinal'],
-  };
-}
-
-function defineRsvpStatusSeedTable(): SeedTable<typeof rsvpStatuses> {
-  return {
-    table: rsvpStatuses,
-    validLabels: rsvpStatusesList as readonly string[],
-    values: rsvpStatusDisplayList.map((s) => ({
-      label: s.label,
-      title: s.title,
-      description: s.description,
-      variant: s.variant,
-      isFinal: s.isFinal,
-    })),
-    updatableColumns: ['title', 'description', 'variant', 'isFinal'],
+    updatableColumns: ['title', 'description', 'variant'],
   };
 }
 
@@ -106,8 +87,7 @@ const tables = [
   defineSeedTable(interests, interestsList),
   defineSeedTable(dietaryRestrictions, dietaryRestrictionsList),
   defineSeedTable(heardFromSources, heardFromSourcesList),
-  defineApplicationStatusSeedTable(),
-  defineRsvpStatusSeedTable(),
+  defineParticipationStatusSeedTable(),
   defineSeedTable(eventTypes, eventTypesList),
 ] satisfies SeedTable<Table>[];
 

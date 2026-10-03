@@ -6,7 +6,7 @@ import { getUser } from '@/utils/auth';
 import {
   getOptions,
   getPreviousFormSubmission,
-  getUserApplicationStatus,
+  getUserParticipation,
   submitEventApplication,
 } from '@/app/dashboard/events/actions';
 import {
@@ -31,6 +31,7 @@ import type { ProfileFormValues } from '@/components/profile-form/schema';
 import type { EventOnlyFormValues } from '@/components/application-form/schema';
 import { ApplicationStatusBanner } from '@/app/dashboard/events/ApplicationStatusBanner';
 import { oauthPrefillName } from '@/lib/oauth-name';
+import { canEditApplication } from '@/lib/participation/status';
 
 type PreviousSubmission = {
   fullName: string;
@@ -127,7 +128,7 @@ export default async function ApplyEventPage({ params }: Props) {
       getPreviousFormSubmission(eventId),
       getOptions(),
       getUserProfile(),
-      getUserApplicationStatus(eventId),
+      getUserParticipation(eventId),
     ]);
 
   const hasProfile = profileResult.success && profileResult.data != null;
@@ -145,7 +146,7 @@ export default async function ApplyEventPage({ params }: Props) {
   }
 
   const decisionIsFinal =
-    applicationStatus != null && applicationStatus.statusDisplay.isFinal;
+    applicationStatus != null && !canEditApplication(applicationStatus.status);
   const hasCustomQuestions = event.applicationQuestions.some(
     (question) => question.active && question.type !== 'section_divider',
   );

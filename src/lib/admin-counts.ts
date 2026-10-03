@@ -7,7 +7,7 @@ import {
   permission,
   userRole,
   events,
-  eventApplications,
+  eventParticipants,
 } from '@/db/schema';
 import { EVENTS_CACHE_TAG } from '@/lib/events';
 
@@ -68,12 +68,12 @@ export async function getAdminCounts(): Promise<AdminCounts> {
         id: events.id,
         slug: events.slug,
         name: events.name,
-        applications: sql<number>`COUNT(${eventApplications.id})`.mapWith(
+        applications: sql<number>`COUNT(${eventParticipants.id})`.mapWith(
           Number,
         ),
       })
       .from(events)
-      .leftJoin(eventApplications, eq(eventApplications.eventId, events.id))
+      .leftJoin(eventParticipants, eq(eventParticipants.eventId, events.id))
       .where(eq(events.isFeatured, true))
       .groupBy(events.id, events.slug, events.name)
       .limit(1),

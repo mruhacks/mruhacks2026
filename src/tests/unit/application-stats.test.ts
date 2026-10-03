@@ -7,6 +7,7 @@ import {
 } from '@/lib/application-stats';
 import type { ApplicationQuestion } from '@/types/application';
 import { otherTextKey } from '@/lib/other-option';
+import { participationStatusesList } from '@/types/lookups';
 
 function q(
   overrides: Partial<ApplicationQuestion> &
@@ -300,26 +301,26 @@ describe('buildQuestionStats', () => {
 });
 
 describe('buildStatusBreakdown', () => {
-  test('seeds every known application status at zero and counts observed statuses', () => {
+  test('seeds every known participation status at zero and counts observed statuses', () => {
     const rows = [
-      row({ status: 'approved' }),
-      row({ status: 'approved' }),
+      row({ status: 'waitlisted' }),
+      row({ status: 'waitlisted' }),
       row({ status: 'pending_review' }),
     ];
     const buckets = buildStatusBreakdown(rows);
     const byKey = Object.fromEntries(buckets.map((b) => [b.key, b]));
 
     expect(Object.keys(byKey).sort()).toEqual(
-      ['approved', 'denied', 'pending_review', 'waitlisted'].sort(),
+      [...participationStatusesList].sort(),
     );
-    expect(byKey['approved'].count).toBe(2);
+    expect(byKey['waitlisted'].count).toBe(2);
     expect(byKey['pending_review'].count).toBe(1);
     expect(byKey['denied'].count).toBe(0);
-    expect(byKey['waitlisted'].count).toBe(0);
+    expect(byKey['accepted'].count).toBe(0);
   });
 
   test('a null status is bucketed under "unknown", never dropped', () => {
-    const rows = [row({ status: null }), row({ status: 'approved' })];
+    const rows = [row({ status: null }), row({ status: 'waitlisted' })];
     const buckets = buildStatusBreakdown(rows);
     const unknown = buckets.find((b) => b.key === 'unknown');
     expect(unknown?.count).toBe(1);
@@ -330,7 +331,7 @@ describe('buildStatusBreakdown', () => {
 
   test('empty rows: every known status present at zero, no NaN', () => {
     const buckets = buildStatusBreakdown([]);
-    expect(buckets).toHaveLength(4);
+    expect(buckets).toHaveLength(participationStatusesList.length);
     buckets.forEach((bucket) => {
       expect(bucket.count).toBe(0);
       expect(bucket.percent).toBe(0);

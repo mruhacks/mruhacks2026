@@ -259,7 +259,7 @@ export const auth = betterAuth({
     magicLink({
       /**
        * Leave sign-up enabled: admin `inviteUser` creates accounts via magic
-       * link. RSVP waves only email existing approved applicants.
+       * link. RSVP waves only email existing waitlisted applicants.
        */
       expiresIn: MAGIC_LINK_EXPIRES_IN,
       sendMagicLink: async ({ email, url }) => {
@@ -269,7 +269,7 @@ export const auth = betterAuth({
           baseUrl: getAuthBaseUrl(),
         });
 
-        // An RSVP invitation is system-initiated — one per approved applicant,
+        // An RSVP invitation is system-initiated — one per waitlisted applicant,
         // already deduplicated by `invitation_email_status` — so the sign-in
         // cooldown below, which exists to absorb a human double-submitting the
         // public form, must not reject it. A user who signed in moments before

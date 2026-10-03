@@ -19,14 +19,19 @@ import { getUser } from '@/utils/auth';
 import { ActionResult, fail, ok } from '@/utils/action-result';
 import { hasPermission } from '@/lib/rbac/authorization';
 import { hasEventElapsed } from '@/lib/events';
+import {
+  canFormTeam,
+  resolveEffectiveStatus,
+} from '@/lib/participation/status';
 import { writeAuditLog } from '@/utils/audit-log';
 import { generateTeamCode } from '@/lib/team-code';
 import { joinTeamSchema } from './team-schemas';
 import {
   events,
-  eventAttendees,
-  eventApplications,
-  applicationStatuses,
+  eventParticipants,
+  eventInvitations,
+  eventRsvpWaves,
+  participationStatuses,
   teams,
   teamMembers,
   user as authUser,
@@ -55,41 +60,44 @@ async function getEventTeamSettings(eventId: string): Promise<{
 }
 
 /**
- * Registered via simple signup, or has a live (non-denied) application.
- * Teams can be formed before a final decision is made — a pending or
- * waitlisted applicant should still be able to plan a team.
+ * Still in the running for (or holding) a spot — see `canFormTeam`. Teams can
+ * be formed before a final decision is made: a pending or waitlisted
+ * applicant should still be able to plan a team, while anyone denied, who
+ * declined, or whose invitation expired can't.
  */
 async function isEventParticipant(
   userId: string,
   eventId: string,
 ): Promise<boolean> {
-  const [attendee] = await db
-    .select({ userId: eventAttendees.userId })
-    .from(eventAttendees)
-    .where(
-      and(
-        eq(eventAttendees.eventId, eventId),
-        eq(eventAttendees.userId, userId),
-      ),
+  const [row] = await db
+    .select({
+      statusLabel: participationStatuses.label,
+      respondBy: eventRsvpWaves.respondBy,
+    })
+    .from(eventParticipants)
+    .innerJoin(
+      participationStatuses,
+      eq(eventParticipants.statusId, participationStatuses.id),
     )
-    .limit(1);
-  if (attendee) return true;
-
-  const [application] = await db
-    .select({ statusLabel: applicationStatuses.label })
-    .from(eventApplications)
     .leftJoin(
-      applicationStatuses,
-      eq(eventApplications.statusId, applicationStatuses.id),
+      eventInvitations,
+      eq(eventInvitations.participantId, eventParticipants.id),
+    )
+    .leftJoin(
+      eventRsvpWaves,
+      eq(eventInvitations.rsvpWaveId, eventRsvpWaves.id),
     )
     .where(
       and(
-        eq(eventApplications.eventId, eventId),
-        eq(eventApplications.userId, userId),
+        eq(eventParticipants.eventId, eventId),
+        eq(eventParticipants.userId, userId),
       ),
     )
     .limit(1);
-  return application != null && application.statusLabel !== 'denied';
+  return (
+    row != null &&
+    canFormTeam(resolveEffectiveStatus(row.statusLabel, row.respondBy))
+  );
 }
 
 /** Loads (or lazily creates) the caller's current team-of-one/team for this event. */

@@ -18,6 +18,8 @@ const eslintConfig = [
       'next-env.d.ts',
       'src/components/ui/**',
       'eslint-rules/**',
+      // Standalone Cloudflare Worker with its own tsconfig/deps.
+      'workers/**',
     ],
   },
   {

@@ -192,18 +192,20 @@ freeze's scope. See
       permissions, terms tables, event slug uniqueness, response-window default
       `48`, and capacity-display default `false`. The removed `application_view`
       must not have an external consumer still depending on it.
-- [ ] **D3 — Runtime configuration.** Set `CRON_SECRET`; optionally set
-      `CRON_MANUAL_SECRET` for manual triggers. The latter does not replace the
-      former. An authorized health report must include the required cron secret.
+- [ ] **D3 — Runtime configuration.** Set `CRON_MANUAL_SECRET` on Vercel and
+      as a secret on the `workers/rsvp-cron` Cloudflare Worker (same value);
+      `CRON_SECRET` is optional (a second accepted token). There are no Vercel
+      Cron entries.
+      An authorized health report must include the required cron secret.
       Health only checks its presence, not actual queue delivery.
 - [ ] **D4 — Scheduled jobs and queue.** Verify the deployed `rsvp-invitations`
-      topic invokes `/api/queues/rsvp-invitation`. The configured schedules are
-      `/api/cron/rsvp-waves` at **00:00 UTC daily** and
-      `/api/cron/rsvp-invitation-sweep` at **06:00 UTC daily**. Verify
-      invocations in deployment logs; a local UI run alone does not exercise
-      this wiring.
+      topic invokes `/api/queues/rsvp-invitation`. `/api/cron/rsvp` (follow-up
+      waves, then the invitation requeue sweep) runs **hourly** from the
+      `workers/rsvp-cron` Cloudflare Worker (`vercel.json` has no crons).
+      Verify invocations in the Worker's Cron Events and deployment logs; a
+      local UI run alone does not exercise this wiring.
 - [ ] **D5 — Job authorization.** Missing/wrong bearer tokens return 401 without
-      changing data. The configured cron token and optional manual token
+      changing data. `CRON_MANUAL_SECRET` and, if set, `CRON_SECRET` both
       succeed. A failed job produces a failure response/log instead of reporting
       success.
 

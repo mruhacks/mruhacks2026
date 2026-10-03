@@ -1,0 +1,16 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "mruhacks-rsvp-cron",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "workers_dev": false,
+  "triggers": {
+    "crons": ["0 * * * *"]
+  },
+  "vars": {
+    "APP_URL": "https://REPLACE-WITH-PRODUCTION-ORIGIN"
+  },
+  "observability": {
+    "enabled": true
+  }
+}

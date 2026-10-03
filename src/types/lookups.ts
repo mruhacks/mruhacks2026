@@ -70,113 +70,91 @@ export const heardFromSourcesList = [
 ] as const;
 export type HeardFromSource = (typeof heardFromSourcesList)[number];
 
-export const applicationStatusesList = [
+/**
+ * The single participation lifecycle for a person and an event — see the
+ * registration flow in docs/ARCHITECTURE.md. Application review, the RSVP
+ * invitation, and attendance are all stages of this one status; there is no
+ * separate application or RSVP status.
+ *
+ * Checked-in and no-show are not stored: they're derived from `accepted`
+ * plus the `check_ins` table (see `deriveAttendance`).
+ */
+export const participationStatusesList = [
   'pending_review',
-  'approved',
-  'denied',
   'waitlisted',
+  'denied',
+  'invited',
+  'accepted',
+  'declined',
+  'timed_out',
 ] as const;
-export type ApplicationStatus = (typeof applicationStatusesList)[number];
+export type ParticipationStatus = (typeof participationStatusesList)[number];
 
-export type ApplicationStatusBadgeVariant =
+export type StatusBadgeVariant =
   | 'default'
   | 'secondary'
   | 'success'
   | 'warning'
   | 'destructive'
-  | 'outline';
+  | 'outline'
+  | 'purple';
 
 /**
- * Display config for each application status, seeded into the
- * `application_statuses` table (title, description, badge variant, isFinal).
+ * Display config for each participation status, seeded into the
+ * `participation_statuses` table (title, description, badge variant).
  */
-export const applicationStatusDisplayList = [
+export const participationStatusDisplayList = [
   {
     label: 'pending_review',
     title: 'Under review',
     description:
       "We're reviewing your application and will email you when a decision has been made.",
     variant: 'warning',
-    isFinal: false,
-  },
-  {
-    label: 'approved',
-    title: 'Invited',
-    description: "You're in! Check your email and ticket for next steps.",
-    variant: 'success',
-    isFinal: true,
   },
   {
     label: 'waitlisted',
     title: 'Waitlisted',
-    description: "You're on the waitlist. We'll reach out if a spot opens up.",
+    description:
+      "You're on the waitlist. We'll email you an invitation when a spot opens up.",
     variant: 'secondary',
-    isFinal: true,
   },
   {
     label: 'denied',
     title: 'Not accepted',
     description:
-      'Thanks for applying — unfortunately we were not able to offer you a spot.',
+      'Thanks for applying — unfortunately we were not able to offer you a spot. Please contact us if you think this was a mistake.',
     variant: 'destructive',
-    isFinal: true,
   },
-] as const satisfies readonly {
-  label: ApplicationStatus;
-  title: string;
-  description: string;
-  variant: ApplicationStatusBadgeVariant;
-  isFinal: boolean;
-}[];
-
-export const rsvpStatusesList = [
-  'pending',
-  'accepted',
-  'declined',
-  'timed_out',
-] as const;
-export type RsvpStatus = (typeof rsvpStatusesList)[number];
-
-/**
- * Display config for each RSVP status, seeded into the
- * `rsvp_statuses` table (title, description, badge variant, isFinal).
- */
-export const rsvpStatusDisplayList = [
   {
-    label: 'pending',
-    title: 'RSVP Invited',
+    label: 'invited',
+    title: 'RSVP required',
     description:
-      "You've been invited to attend! Please respond before the deadline.",
-    variant: 'default',
-    isFinal: false,
+      "You've been offered a spot! Please confirm whether you will attend before the deadline.",
+    variant: 'purple',
   },
   {
     label: 'accepted',
-    title: 'RSVP Accepted',
-    description: "You've confirmed your attendance. See you there!",
+    title: 'Confirmed',
+    description: "Your spot is confirmed. We'll see you there!",
     variant: 'success',
-    isFinal: true,
   },
   {
     label: 'declined',
-    title: 'RSVP Declined',
-    description: "You've declined the invitation.",
+    title: 'Declined',
+    description: "You've given up your spot.",
     variant: 'destructive',
-    isFinal: true,
   },
   {
     label: 'timed_out',
-    title: 'RSVP Expired',
-    description: 'The RSVP deadline has passed without a response.',
+    title: 'RSVP expired',
+    description: 'Your RSVP window ended without a response.',
     variant: 'secondary',
-    isFinal: true,
   },
 ] as const satisfies readonly {
-  label: RsvpStatus;
+  label: ParticipationStatus;
   title: string;
   description: string;
-  variant: ApplicationStatusBadgeVariant;
-  isFinal: boolean;
+  variant: StatusBadgeVariant;
 }[];
 
 export const eventTypesList = ['meal', 'workshop', 'hackathon'] as const;

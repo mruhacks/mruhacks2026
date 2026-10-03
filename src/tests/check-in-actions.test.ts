@@ -11,12 +11,16 @@ import { and, eq } from 'drizzle-orm';
 
 import {
   checkIns,
-  eventAttendees,
+  eventParticipants,
   events,
   permission,
   user,
   userPermission,
 } from '@/db/schema';
+import {
+  insertAttendees,
+  insertParticipant,
+} from '@/tests/participation-fixtures';
 import { db } from '@/utils/db';
 
 vi.mock('@/utils/auth', () => ({ getUser: vi.fn() }));
@@ -139,15 +143,12 @@ beforeAll(async () => {
     new Date(Date.now() - 60_000),
   );
 
-  await db
-    .insert(eventAttendees)
-    .values([
-      { eventId, userId: participantId },
-      { eventId: otherEventId, userId: participantId },
-      { eventId: childEventId, userId: participantId },
-      { eventId: expiredEventId, userId: participantId },
-    ])
-    .onConflictDoNothing();
+  await insertAttendees([
+    { eventId, userId: participantId },
+    { eventId: otherEventId, userId: participantId },
+    { eventId: childEventId, userId: participantId },
+    { eventId: expiredEventId, userId: participantId },
+  ]);
 
   const [created] = await db
     .insert(permission)
@@ -175,16 +176,18 @@ beforeAll(async () => {
 afterAll(async () => {
   await db.delete(checkIns).where(eq(checkIns.eventId, eventId));
   await db.delete(checkIns).where(eq(checkIns.eventId, expiredEventId));
-  await db.delete(eventAttendees).where(eq(eventAttendees.eventId, eventId));
   await db
-    .delete(eventAttendees)
-    .where(eq(eventAttendees.eventId, otherEventId));
+    .delete(eventParticipants)
+    .where(eq(eventParticipants.eventId, eventId));
   await db
-    .delete(eventAttendees)
-    .where(eq(eventAttendees.eventId, childEventId));
+    .delete(eventParticipants)
+    .where(eq(eventParticipants.eventId, otherEventId));
   await db
-    .delete(eventAttendees)
-    .where(eq(eventAttendees.eventId, expiredEventId));
+    .delete(eventParticipants)
+    .where(eq(eventParticipants.eventId, childEventId));
+  await db
+    .delete(eventParticipants)
+    .where(eq(eventParticipants.eventId, expiredEventId));
   await db.delete(events).where(eq(events.id, childEventId));
   await db.delete(events).where(eq(events.id, pastChildEventId));
   await db.delete(events).where(eq(events.id, foreignChildEventId));
@@ -359,6 +362,35 @@ describe('scanCheckIn', () => {
       success: false,
       error: expect.stringContaining('not registered'),
     });
+  });
+
+  // Holding a spot is `accepted`, and nothing else: an applicant who never
+  // answered their RSVP, declined it, or let it expire holds no spot.
+  test.each([
+    'invited',
+    'declined',
+    'timed_out',
+    'waitlisted',
+  ] as const)('rejects a %s participant, who holds no spot', async (status) => {
+    const userId = await createUser(
+      `Not attending ${status}`,
+      `check-in-${status}@test.dev`,
+    );
+    await insertParticipant({ eventId, userId, status });
+    try {
+      const scan = await scanCheckIn(eventId, passFor(eventId, userId));
+      expect(scan).toMatchObject({
+        success: false,
+        error: expect.stringContaining('not registered'),
+      });
+      const roster = await getCheckInRoster(eventId);
+      const ids = roster.success
+        ? (roster.data ?? []).map((row) => row.userId)
+        : [];
+      expect(ids).not.toContain(userId);
+    } finally {
+      await db.delete(user).where(eq(user.id, userId));
+    }
   });
 
   test('refuses a sub-event, which issues no passes of its own', async () => {

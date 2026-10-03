@@ -1,16 +1,12 @@
 'use server';
 
 import { randomUUID } from 'crypto';
-import { and, count, desc, eq, inArray, ne, notExists, sql } from 'drizzle-orm';
+import { and, count, desc, eq, inArray, ne, sql } from 'drizzle-orm';
 import { revalidatePath, updateTag } from 'next/cache';
 import { db } from '@/utils/db';
 import { FEATURED_EVENT_CACHE_TAG } from '@/lib/featured-event';
 import { subeventsCacheTag } from '@/lib/subevents';
-import {
-  EVENTS_CACHE_TAG,
-  eventUrlSegments,
-  userEventsCacheTag,
-} from '@/lib/events';
+import { EVENTS_CACHE_TAG, eventUrlSegments } from '@/lib/events';
 import { eventPath } from '@/lib/event-slug';
 import {
   adminEventCacheTag,
@@ -18,8 +14,9 @@ import {
 } from '@/lib/admin-event';
 import {
   events,
-  eventApplications,
-  eventAttendees,
+  eventParticipants,
+  eventInvitations,
+  participationStatuses,
   user,
   userProfiles,
   userProfileAbout,
@@ -27,27 +24,41 @@ import {
   universities,
   majors,
   yearsOfStudy,
-  applicationStatuses,
-  eventRsvpResponses,
   eventRsvpWaves,
-  rsvpStatuses,
   checkIns,
   teams,
   teamMembers,
 } from '@/db/schema';
 import { getUser } from '@/utils/auth';
 import { ok, fail, type ActionResult } from '@/utils/action-result';
-import { hasPermission, requirePermission } from '@/lib/rbac/authorization';
+import {
+  hasPermission,
+  requireAnyPermission,
+  requirePermission,
+} from '@/lib/rbac/authorization';
 import { sendRsvpWave } from '@/lib/rsvp/send-rsvp-wave';
 import { resendRsvpMagicLink } from '@/lib/rsvp/resend-rsvp-magic-link';
 import { getAdminRsvpSummary } from '@/lib/rsvp/get-admin-rsvp-summary';
+import {
+  getWaitlist,
+  moveWaitlistEntry,
+  type WaitlistEntry,
+} from '@/lib/rsvp/waitlist';
 import type { AdminRsvpSummary } from '@/lib/rsvp/get-admin-rsvp-summary';
 import { DEFAULT_RSVP_RESPONSE_WINDOW_HOURS } from '@/lib/rsvp/constants';
 import {
   isSummarizableQuestion,
   type ApplicationQuestion,
 } from '@/types/application';
-import type { ApplicationStatus, RsvpStatus } from '@/types/lookups';
+import type { ParticipationStatus } from '@/types/lookups';
+import { countAttending, statusIdOf } from '@/lib/participation/server';
+import {
+  isAttending,
+  isReviewStatus,
+  resolveEffectiveStatus,
+} from '@/lib/participation/status';
+import { adminTransitionPermissions } from '@/lib/participation/transitions';
+import { publishRsvpInvitation } from '@/lib/rsvp/rsvp-invitation-queue';
 import {
   buildQuestionStats,
   buildStatusBreakdown,
@@ -61,16 +72,14 @@ import {
   editQuestionSchema,
   createEventSchema,
   updateEventSettingsSchema,
-  updateApplicationStatusSchema,
-  updateRsvpStatusSchema,
+  updateParticipantStatusSchema,
 } from './schemas';
 import type {
   AddQuestionInput,
   EditQuestionInput,
   CreateEventInput,
   UpdateEventSettingsInput,
-  UpdateApplicationStatusInput,
-  UpdateRsvpStatusInput,
+  UpdateParticipantStatusInput,
 } from './schemas';
 import { validateQuestionEdit } from '@/lib/question-diff';
 import { writeAuditLog } from '@/utils/audit-log';
@@ -101,14 +110,14 @@ async function fetchQuestions(
   return (row.applicationQuestions as ApplicationQuestion[] | null) ?? [];
 }
 
-/** Fetch all event_applications.responses for a given event. */
+/** Fetch all event_participants.responses for a given event. */
 async function fetchAllResponses(
   eventId: string,
 ): Promise<Record<string, unknown>[]> {
   const rows = await db
-    .select({ responses: eventApplications.responses })
-    .from(eventApplications)
-    .where(eq(eventApplications.eventId, eventId));
+    .select({ responses: eventParticipants.responses })
+    .from(eventParticipants)
+    .where(eq(eventParticipants.eventId, eventId));
   return rows.map((r) => (r.responses as Record<string, unknown>) ?? {});
 }
 
@@ -160,8 +169,8 @@ export async function getEventWithQuestions(
   // Fetch applications count - ensure we're getting a fresh count
   const applicationsData = await db
     .select({ total: count() })
-    .from(eventApplications)
-    .where(eq(eventApplications.eventId, eventId));
+    .from(eventParticipants)
+    .where(eq(eventParticipants.eventId, eventId));
 
   const applicationCount = applicationsData[0]?.total ?? 0;
 
@@ -534,13 +543,10 @@ export async function getEventDetails(
 
   const [{ total: applicationsCount }] = await db
     .select({ total: count() })
-    .from(eventApplications)
-    .where(eq(eventApplications.eventId, eventId));
+    .from(eventParticipants)
+    .where(eq(eventParticipants.eventId, eventId));
 
-  const [{ total: attendeeCount }] = await db
-    .select({ total: count() })
-    .from(eventAttendees)
-    .where(eq(eventAttendees.eventId, eventId));
+  const attendeeCount = await countAttending(eventId);
 
   const questions = await fetchQuestions(eventId);
   const questionsCount = (questions ?? []).filter((q) => q.active).length;
@@ -567,7 +573,7 @@ export async function getEventDetails(
     updatedAt: eventRow.updatedAt,
     questionsCount,
     applicationsCount,
-    attendeeCount: Number(attendeeCount),
+    attendeeCount,
   });
 }
 
@@ -752,17 +758,17 @@ export async function getApplicationResponses(
 
   const rows = await db
     .select({
-      userId: eventApplications.userId,
+      userId: eventParticipants.userId,
       email: user.email,
       fullName: userProfiles.fullName,
-      responses: eventApplications.responses,
-      createdAt: eventApplications.createdAt,
+      responses: eventParticipants.responses,
+      createdAt: eventParticipants.createdAt,
     })
-    .from(eventApplications)
-    .innerJoin(user, eq(eventApplications.userId, user.id))
-    .leftJoin(userProfiles, eq(eventApplications.userId, userProfiles.userId))
-    .where(eq(eventApplications.eventId, eventId))
-    .orderBy(eventApplications.createdAt);
+    .from(eventParticipants)
+    .innerJoin(user, eq(eventParticipants.userId, user.id))
+    .leftJoin(userProfiles, eq(eventParticipants.userId, userProfiles.userId))
+    .where(eq(eventParticipants.eventId, eventId))
+    .orderBy(eventParticipants.createdAt);
 
   return ok(
     rows.map((row) => ({
@@ -799,7 +805,7 @@ export type EventApplicationStats = {
  */
 export async function getApplicationStats(
   eventId: string,
-  status?: ApplicationStatus | 'all',
+  status?: ParticipationStatus | 'all',
 ): Promise<ActionResult<EventApplicationStats>> {
   const authUser = await getUser();
   if (!authUser) return fail('Not authenticated');
@@ -822,33 +828,33 @@ export async function getApplicationStats(
   const whereClause =
     status && status !== 'all'
       ? and(
-          eq(eventApplications.eventId, eventId),
-          eq(applicationStatuses.label, status),
+          eq(eventParticipants.eventId, eventId),
+          eq(participationStatuses.label, status),
         )
-      : eq(eventApplications.eventId, eventId);
+      : eq(eventParticipants.eventId, eventId);
 
   const rows = await db
     .select({
-      responses: eventApplications.responses,
-      status: applicationStatuses.label,
+      responses: eventParticipants.responses,
+      status: participationStatuses.label,
       university: universities.label,
       major: majors.label,
       yearOfStudy: yearsOfStudy.label,
       gender: genders.label,
     })
-    .from(eventApplications)
-    .leftJoin(userProfiles, eq(eventApplications.userId, userProfiles.userId))
+    .from(eventParticipants)
+    .leftJoin(userProfiles, eq(eventParticipants.userId, userProfiles.userId))
     .leftJoin(
       userProfileAbout,
-      eq(eventApplications.userId, userProfileAbout.userId),
+      eq(eventParticipants.userId, userProfileAbout.userId),
     )
     .leftJoin(genders, eq(userProfiles.genderId, genders.id))
     .leftJoin(universities, eq(userProfileAbout.universityId, universities.id))
     .leftJoin(majors, eq(userProfileAbout.majorId, majors.id))
     .leftJoin(yearsOfStudy, eq(userProfileAbout.yearOfStudyId, yearsOfStudy.id))
-    .leftJoin(
-      applicationStatuses,
-      eq(eventApplications.statusId, applicationStatuses.id),
+    .innerJoin(
+      participationStatuses,
+      eq(eventParticipants.statusId, participationStatuses.id),
     )
     .where(whereClause);
 
@@ -870,233 +876,242 @@ export async function getApplicationStats(
   });
 }
 
-/**
- * Admin: set an application's review status from the applications table.
- * Requires `application:review:all`.
- *
- * Refused once the applicant has an RSVP invitation for the event: from then
- * on the RSVP decides what they see and whether they're attending, so a
- * review change would silently do nothing (or, for a later wave, re-invite
- * someone who already has an invitation). The check sits inside the UPDATE
- * so a wave going out concurrently can't slip between it and the write.
- */
-export async function updateApplicationStatus(
-  input: UpdateApplicationStatusInput,
-): Promise<ActionResult<{ status: ApplicationStatus }>> {
-  const authUser = await getUser();
-  if (!authUser) return fail('Not authenticated');
-  await requirePermission(authUser.id, 'application:review:all');
-
-  const parsed = updateApplicationStatusSchema.safeParse(input);
-  if (!parsed.success) return fail('Invalid application status.');
-  const { eventId, applicationId, status } = parsed.data;
-
-  const [statusRow] = await db
-    .select({ id: applicationStatuses.id })
-    .from(applicationStatuses)
-    .where(eq(applicationStatuses.label, status))
-    .limit(1);
-  if (!statusRow) return fail('Unknown application status.');
-
-  const updated = await db
-    .update(eventApplications)
-    .set({
-      statusId: statusRow.id,
-      reviewedAt: new Date(),
-      reviewedBy: authUser.id,
-    })
-    .where(
-      and(
-        eq(eventApplications.id, applicationId),
-        eq(eventApplications.eventId, eventId),
-        notExists(
-          db
-            .select({ id: eventRsvpResponses.id })
-            .from(eventRsvpResponses)
-            .innerJoin(
-              eventRsvpWaves,
-              eq(eventRsvpResponses.rsvpWaveId, eventRsvpWaves.id),
-            )
-            .where(
-              and(
-                eq(eventRsvpWaves.eventId, eventId),
-                eq(eventRsvpResponses.userId, eventApplications.userId),
-              ),
-            ),
-        ),
-      ),
-    )
-    .returning({ userId: eventApplications.userId });
-
-  if (updated.length === 0) {
-    const [exists] = await db
-      .select({ id: eventApplications.id })
-      .from(eventApplications)
-      .where(
-        and(
-          eq(eventApplications.id, applicationId),
-          eq(eventApplications.eventId, eventId),
-        ),
-      )
-      .limit(1);
-    return fail(
-      exists
-        ? 'This applicant has already been sent an RSVP invitation, so their status can no longer be changed.'
-        : 'Application not found.',
-    );
-  }
-
-  updateTag(eventApplicationsCacheTag(eventId));
-
-  await writeAuditLog({
-    actorId: authUser.id,
-    action: 'event.application_status_changed',
-    targetType: 'event_application',
-    targetId: applicationId,
-    metadata: { eventId, userId: updated[0].userId, status },
-  });
-
-  return ok({ status });
-}
-
-class RsvpOverrideError extends Error {}
+class StatusChangeError extends Error {}
 
 /**
- * Admin: override an invited applicant's RSVP from the applications table.
- * Requires `rsvp:write:all`.
+ * Admin: set a participant to any status from the applications table.
  *
- * Acts on the applicant's latest-wave response — the one they and the
- * roster both resolve — so an applicant who was never invited has nothing
- * to override; they go through an RSVP wave first.
+ * Any status can be reached from any other; which permissions a move needs is
+ * `adminTransitionPermissions` in `@/lib/participation/transitions`. The
+ * participant row is locked and the move is checked against its current
+ * status inside one transaction, so a wave going out (or the participant
+ * answering) concurrently can't slip between them.
  *
- * Accepted keeps `event_attendees` in step the same way the applicant's own
- * accept does, but as an admin override it skips the capacity check and
- * doesn't record Event Terms consent the applicant never gave. Moving off
- * accepted removes the attendee row, unless they've already checked in.
+ * Side effects keep the invitation in step with the status:
+ * - To `invited` without an invitation, or with one in a closed wave: invited
+ *   in the open RSVP wave (refused when no wave is open) and their invitation
+ *   email is queued.
+ * - To a review status (pending_review / waitlisted / denied): any invitation
+ *   is withdrawn, so a later wave can invite them afresh.
+ * - To `accepted`: an override — skips the capacity check and records no
+ *   Event Terms consent the participant never gave.
+ * Moving off `accepted` is refused once they've checked in.
  */
-export async function updateRsvpStatus(
-  input: UpdateRsvpStatusInput,
-): Promise<ActionResult<{ status: RsvpStatus }>> {
+export async function updateParticipantStatus(
+  input: UpdateParticipantStatusInput,
+): Promise<ActionResult<{ status: ParticipationStatus }>> {
   const authUser = await getUser();
   if (!authUser) return fail('Not authenticated');
-  await requirePermission(authUser.id, 'rsvp:write:all');
 
-  const parsed = updateRsvpStatusSchema.safeParse(input);
-  if (!parsed.success) return fail('Invalid RSVP status.');
-  const { eventId, applicationId, status } = parsed.data;
+  await requireAnyPermission(authUser.id, [
+    'application:review:all',
+    'rsvp:write:all',
+  ]);
 
-  let userId: string;
+  const parsed = updateParticipantStatusSchema.safeParse(input);
+  if (!parsed.success) return fail('Invalid status.');
+  const { eventId, participantId, status } = parsed.data;
+
+  let result: {
+    userId: string;
+    from: ParticipationStatus;
+    newInvitationId: string | null;
+  };
   try {
-    userId = await db.transaction(async (tx) => {
-      const [application] = await tx
-        .select({ userId: eventApplications.userId })
-        .from(eventApplications)
-        .where(
-          and(
-            eq(eventApplications.id, applicationId),
-            eq(eventApplications.eventId, eventId),
-          ),
-        )
-        .limit(1);
-      if (!application) throw new RsvpOverrideError('Application not found.');
+    result = await db.transaction(async (tx) => {
+      if (status === 'invited') {
+        // Same lock order as `sendRsvpWave` and `submitRsvpResponse` (event,
+        // then participant), so the open wave can't close underneath us.
+        await tx
+          .select({ id: events.id })
+          .from(events)
+          .where(eq(events.id, eventId))
+          .for('update');
+      }
 
-      const [response] = await tx
+      const [row] = await tx
         .select({
-          id: eventRsvpResponses.id,
+          userId: eventParticipants.userId,
+          statusLabel: participationStatuses.label,
+          invitationId: eventInvitations.id,
           respondBy: eventRsvpWaves.respondBy,
         })
-        .from(eventRsvpResponses)
+        .from(eventParticipants)
         .innerJoin(
+          participationStatuses,
+          eq(eventParticipants.statusId, participationStatuses.id),
+        )
+        .leftJoin(
+          eventInvitations,
+          eq(eventInvitations.participantId, eventParticipants.id),
+        )
+        .leftJoin(
           eventRsvpWaves,
-          eq(eventRsvpResponses.rsvpWaveId, eventRsvpWaves.id),
+          eq(eventInvitations.rsvpWaveId, eventRsvpWaves.id),
         )
         .where(
           and(
-            eq(eventRsvpWaves.eventId, eventId),
-            eq(eventRsvpResponses.userId, application.userId),
+            eq(eventParticipants.id, participantId),
+            eq(eventParticipants.eventId, eventId),
           ),
         )
-        .orderBy(desc(eventRsvpWaves.wave))
-        .limit(1)
-        .for('update', { of: eventRsvpResponses });
-      if (!response) {
-        throw new RsvpOverrideError(
-          "This applicant hasn't been sent an RSVP invitation yet.",
-        );
-      }
-      // A stored `pending` past the deadline still reads as expired.
-      if (status === 'pending' && response.respondBy <= new Date()) {
-        throw new RsvpOverrideError(
-          "This RSVP wave's deadline has passed, so it can't be set back to awaiting a response.",
-        );
-      }
-
-      const [statusRow] = await tx
-        .select({ id: rsvpStatuses.id })
-        .from(rsvpStatuses)
-        .where(eq(rsvpStatuses.label, status))
+        .for('update', { of: eventParticipants })
         .limit(1);
-      if (!statusRow) throw new RsvpOverrideError('Unknown RSVP status.');
+      if (!row) throw new StatusChangeError('Application not found.');
 
-      const decided = status === 'accepted' || status === 'declined';
-      await tx
-        .update(eventRsvpResponses)
-        .set({
-          statusId: statusRow.id,
-          respondedAt: decided ? new Date() : null,
-        })
-        .where(eq(eventRsvpResponses.id, response.id));
+      const now = new Date();
+      const from = resolveEffectiveStatus(row.statusLabel, row.respondBy, now);
+      if (from === status) {
+        return { userId: row.userId, from, newInvitationId: null };
+      }
 
-      if (status === 'accepted') {
-        await tx
-          .insert(eventAttendees)
-          .values({ eventId, userId: application.userId })
-          .onConflictDoNothing({
-            target: [eventAttendees.eventId, eventAttendees.userId],
-          });
-      } else {
+      const required = adminTransitionPermissions(from, status) ?? [];
+      for (const permission of required) {
+        if (!(await hasPermission(authUser.id, permission))) {
+          throw new StatusChangeError(
+            'You do not have permission to make this change.',
+          );
+        }
+      }
+
+      if (isAttending(from)) {
         const [checkIn] = await tx
           .select({ userId: checkIns.userId })
           .from(checkIns)
           .where(
-            and(
-              eq(checkIns.eventId, eventId),
-              eq(checkIns.userId, application.userId),
-            ),
+            and(eq(checkIns.eventId, eventId), eq(checkIns.userId, row.userId)),
           )
           .limit(1);
         if (checkIn) {
-          throw new RsvpOverrideError(
-            'This applicant has already checked in, so their RSVP can no longer be changed.',
+          throw new StatusChangeError(
+            'This applicant has already checked in, so their status can no longer be changed.',
           );
         }
-        await tx
-          .delete(eventAttendees)
-          .where(
-            and(
-              eq(eventAttendees.eventId, eventId),
-              eq(eventAttendees.userId, application.userId),
-            ),
-          );
       }
 
-      return application.userId;
+      let waitlistPosition: number | null = null;
+      if (status === 'waitlisted') {
+        // Joining the waitlist goes to the back of the queue.
+        const [{ next }] = await tx
+          .select({
+            next: sql<number>`COALESCE(MAX(${eventParticipants.waitlistPosition}), 0) + 1`.mapWith(
+              Number,
+            ),
+          })
+          .from(eventParticipants)
+          .where(eq(eventParticipants.eventId, eventId));
+        waitlistPosition = next;
+      }
+
+      let newInvitationId: string | null = null;
+      const needsOpenWave =
+        status === 'invited' &&
+        (!row.invitationId || (row.respondBy !== null && row.respondBy <= now));
+      if (needsOpenWave) {
+        const [openWave] = await tx
+          .select({
+            id: eventRsvpWaves.id,
+            respondBy: eventRsvpWaves.respondBy,
+          })
+          .from(eventRsvpWaves)
+          .where(eq(eventRsvpWaves.eventId, eventId))
+          .orderBy(desc(eventRsvpWaves.wave))
+          .limit(1);
+        if (!openWave || openWave.respondBy <= now) {
+          throw new StatusChangeError(
+            "There's no open RSVP wave to invite them in. Send the next wave from the RSVP page instead.",
+          );
+        }
+        if (row.invitationId) {
+          // Their wave has closed: re-invite them in the open one instead.
+          await tx
+            .update(eventInvitations)
+            .set({
+              rsvpWaveId: openWave.id,
+              respondedAt: null,
+              acceptedTermsId: null,
+              termsAcceptedAt: null,
+              invitationEmailStatus: 'unsent',
+              invitationEmailAttempts: 0,
+              invitationEmailLastError: null,
+              invitationEmailQueuedAt: null,
+              invitationEmailSentAt: null,
+            })
+            .where(eq(eventInvitations.id, row.invitationId));
+          newInvitationId = row.invitationId;
+        } else {
+          const [invitation] = await tx
+            .insert(eventInvitations)
+            .values({ rsvpWaveId: openWave.id, participantId })
+            .returning({ id: eventInvitations.id });
+          newInvitationId = invitation.id;
+        }
+      }
+
+      const toReview = isReviewStatus(status);
+      await tx
+        .update(eventParticipants)
+        .set({
+          statusId: statusIdOf(status),
+          waitlistPosition,
+          ...(toReview ? { reviewedAt: now, reviewedBy: authUser.id } : {}),
+        })
+        .where(eq(eventParticipants.id, participantId));
+
+      if (row.invitationId && toReview) {
+        // Back in review: the invitation is withdrawn, so a later wave can
+        // invite them again (one invitation per participant).
+        await tx
+          .delete(eventInvitations)
+          .where(eq(eventInvitations.id, row.invitationId));
+      } else if (row.invitationId && !newInvitationId) {
+        const decided = status === 'accepted' || status === 'declined';
+        await tx
+          .update(eventInvitations)
+          .set({ respondedAt: decided ? now : null })
+          .where(eq(eventInvitations.id, row.invitationId));
+      }
+
+      return { userId: row.userId, from, newInvitationId };
     });
   } catch (error) {
-    if (error instanceof RsvpOverrideError) return fail(error.message);
-    console.error('RSVP override error:', error);
-    return fail('Failed to update RSVP status.');
+    if (error instanceof StatusChangeError) return fail(error.message);
+    console.error('Participant status change error:', error);
+    return fail('Failed to update status.');
   }
 
+  if (result.from === status) return ok({ status });
+
   updateTag(eventApplicationsCacheTag(eventId));
-  updateTag(userEventsCacheTag(userId));
+
+  if (result.newInvitationId) {
+    // Best effort, like a wave: an invitation left `unsent` is picked up by
+    // the requeue sweep.
+    try {
+      await publishRsvpInvitation(result.newInvitationId);
+      await db
+        .update(eventInvitations)
+        .set({
+          invitationEmailStatus: 'queued',
+          invitationEmailQueuedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(eventInvitations.id, result.newInvitationId),
+            eq(eventInvitations.invitationEmailStatus, 'unsent'),
+          ),
+        );
+    } catch (error) {
+      console.error('Failed to queue RSVP invitation:', error);
+    }
+  }
 
   await writeAuditLog({
     actorId: authUser.id,
-    action: 'event.rsvp_status_overridden',
-    targetType: 'event_application',
-    targetId: applicationId,
-    metadata: { eventId, userId, status },
+    action: 'event.participant_status_changed',
+    targetType: 'event_participant',
+    targetId: participantId,
+    metadata: { eventId, userId: result.userId, from: result.from, to: status },
   });
 
   return ok({ status });
@@ -1104,6 +1119,8 @@ export async function updateRsvpStatus(
 
 export type SendEventRsvpWaveResult = {
   waveNumber: number;
+  /** The open wave this send closed early, if any. */
+  closedWave: { wave: number; timedOutCount: number } | null;
   eligibleApplicantCount: number;
   responsesCreated: number;
   invitationsQueued: number;
@@ -1181,16 +1198,26 @@ export async function resendRsvpInvitation(
  * Admin: start the next RSVP wave for an event.
  * Requires event:manage permission (satisfied by event:manage:all).
  * Deadline is `now + events.rsvp_response_window_hours`.
+ *
+ * `closeActiveWave` sends while a wave is still open: that wave closes now
+ * and its unanswered invitations time out. That overrides people's RSVPs, so
+ * it also needs `rsvp:write:all`.
  */
 export async function sendEventRsvpWave(
   eventId: string,
+  options: { closeActiveWave?: boolean } = {},
 ): Promise<ActionResult<SendEventRsvpWaveResult>> {
   const user = await getAuthorizedUser();
   if (!user) return fail('Not authenticated');
 
   if (!eventId.trim()) return fail('Event ID is required.');
 
-  const result = await sendRsvpWave(eventId);
+  const closeActiveWave = options.closeActiveWave === true;
+  if (closeActiveWave && !(await hasPermission(user.id, 'rsvp:write:all'))) {
+    return fail("You don't have permission to close an open RSVP wave.");
+  }
+
+  const result = await sendRsvpWave(eventId, { closeActiveWave });
   if (!result.success) {
     return fail(result.error);
   }
@@ -1211,16 +1238,73 @@ export async function sendEventRsvpWave(
       responsesCreated: result.responsesCreated,
       invitationsQueued: result.invitationsQueued,
       queueFailureCount: result.queueFailures.length,
+      closedWave: result.closedWave,
     },
   });
 
   return ok({
     waveNumber: result.wave.wave,
+    closedWave: result.closedWave,
     eligibleApplicantCount: result.eligibleApplicantCount,
     responsesCreated: result.responsesCreated,
     invitationsQueued: result.invitationsQueued,
     queueFailures: result.queueFailures,
   });
+}
+
+/**
+ * Admin: the event's waitlist in queue order — the order RSVP waves invite
+ * in. Requires event:manage, like the rest of the RSVP page.
+ */
+export async function getEventWaitlist(
+  eventId: string,
+): Promise<ActionResult<WaitlistEntry[]>> {
+  const user = await getAuthorizedUser();
+  if (!user) return fail('Not authenticated');
+  if (!eventId.trim()) return fail('Event ID is required.');
+  return ok(await getWaitlist(eventId));
+}
+
+export type { WaitlistEntry } from '@/lib/rsvp/waitlist';
+
+/**
+ * Admin: move one waitlisted participant to a new place in the queue.
+ * Requires `rsvp:write:all`: the queue decides who the next wave invites.
+ */
+export async function moveWaitlistParticipant(input: {
+  eventId: string;
+  participantId: string;
+  position: number;
+}): Promise<ActionResult<WaitlistEntry[]>> {
+  const user = await getAuthorizedUser();
+  if (!user) return fail('Not authenticated');
+  if (!(await hasPermission(user.id, 'rsvp:write:all'))) {
+    return fail("You don't have permission to reorder the waitlist.");
+  }
+
+  const result = await moveWaitlistEntry(
+    input.eventId,
+    input.participantId,
+    input.position,
+  );
+  if (!result.success) return fail(result.error);
+
+  if (result.from !== result.to) {
+    updateTag(eventApplicationsCacheTag(input.eventId));
+    await writeAuditLog({
+      actorId: user.id,
+      action: 'event.waitlist_reordered',
+      targetType: 'event',
+      targetId: input.eventId,
+      metadata: {
+        participantId: input.participantId,
+        from: result.from,
+        to: result.to,
+      },
+    });
+  }
+
+  return ok(await getWaitlist(input.eventId));
 }
 
 export type FormedTeamMember = {

@@ -4,8 +4,7 @@ import { eq } from 'drizzle-orm';
 import {
   user,
   events,
-  eventApplications,
-  applicationStatuses,
+  eventParticipants,
   userProfiles,
   userProfileAbout,
   genders,
@@ -13,6 +12,7 @@ import {
   majors,
   yearsOfStudy,
 } from '@/db/schema';
+import { statusId } from '@/tests/participation-fixtures';
 
 vi.mock('@/utils/auth', () => ({ getUser: vi.fn() }));
 vi.mock('next/cache', () => ({
@@ -26,7 +26,7 @@ import { getUser } from '@/utils/auth';
 import {
   getOptions,
   getEventsWithUserStatus,
-  getUserApplicationStatus,
+  getUserParticipation,
   getPreviousFormSubmission,
   submitEventApplication,
 } from '@/app/dashboard/events/actions';
@@ -74,8 +74,8 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await db
-    .delete(eventApplications)
-    .where(eq(eventApplications.userId, testUserId));
+    .delete(eventParticipants)
+    .where(eq(eventParticipants.userId, testUserId));
   await db.delete(userProfiles).where(eq(userProfiles.userId, testUserId));
   await db.delete(events).where(eq(events.id, testEventId));
   await db.delete(user).where(eq(user.id, testUserId));
@@ -111,19 +111,19 @@ describe('getEventsWithUserStatus', () => {
     expect(Array.isArray(result)).toBe(true);
     const found = result.find((e) => e.id === testEventId);
     expect(found).toBeDefined();
-    expect(found?.userStatus).toBeNull();
+    expect(found?.status).toBeNull();
   });
 });
 
-describe('getUserApplicationStatus', () => {
+describe('getUserParticipation', () => {
   test('returns null when unauthenticated', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(null as never);
-    const result = await getUserApplicationStatus(testEventId);
+    const result = await getUserParticipation(testEventId);
     expect(result).toBeNull();
   });
 
   test('returns null when no application exists', async () => {
-    const result = await getUserApplicationStatus(testEventId);
+    const result = await getUserParticipation(testEventId);
     expect(result).toBeNull();
   });
 });
@@ -151,9 +151,9 @@ describe('submitEventApplication', () => {
   });
 });
 
-// ─── getUserApplicationStatus — with application ──────────────────────────────
+// ─── getUserParticipation — with application ──────────────────────────────
 
-describe('getUserApplicationStatus — with application', () => {
+describe('getUserParticipation — with application', () => {
   let pendingStatusId: number;
   let appEventId: string;
 
@@ -168,30 +168,10 @@ describe('getUserApplicationStatus — with application', () => {
       .returning({ id: events.id });
     appEventId = e.id;
 
-    // Seed a pending_review status if it doesn't exist.
-    const [existing] = await db
-      .select({ id: applicationStatuses.id })
-      .from(applicationStatuses)
-      .where(eq(applicationStatuses.label, 'pending_review'))
-      .limit(1);
-    if (existing) {
-      pendingStatusId = existing.id;
-    } else {
-      const [inserted] = await db
-        .insert(applicationStatuses)
-        .values({
-          label: 'pending_review',
-          title: 'Under review',
-          description: 'Being reviewed.',
-          variant: 'default',
-          isFinal: false,
-        })
-        .returning({ id: applicationStatuses.id });
-      pendingStatusId = inserted.id;
-    }
+    pendingStatusId = await statusId('pending_review');
 
     await db
-      .insert(eventApplications)
+      .insert(eventParticipants)
       .values({
         eventId: appEventId,
         userId: testUserId,
@@ -203,16 +183,17 @@ describe('getUserApplicationStatus — with application', () => {
 
   afterAll(async () => {
     await db
-      .delete(eventApplications)
-      .where(eq(eventApplications.eventId, appEventId));
+      .delete(eventParticipants)
+      .where(eq(eventParticipants.eventId, appEventId));
     await db.delete(events).where(eq(events.id, appEventId));
   });
 
   test('returns application status when an application exists', async () => {
-    const result = await getUserApplicationStatus(appEventId);
+    const result = await getUserParticipation(appEventId);
     expect(result).not.toBeNull();
-    expect(result?.statusKey).toBe('pending_review');
-    expect(result?.applicationId).toBeTruthy();
+    expect(result?.status).toBe('pending_review');
+    expect(result?.participantId).toBeTruthy();
+    expect(result?.invitation).toBeNull();
   });
 });
 
@@ -233,19 +214,10 @@ describe('getEventsWithUserStatus — applied user', () => {
       .returning({ id: events.id });
     appliedEventId = e.id;
 
-    const [existing] = await db
-      .select({ id: applicationStatuses.id })
-      .from(applicationStatuses)
-      .where(eq(applicationStatuses.label, 'pending_review'))
-      .limit(1);
-    pendingStatusId =
-      existing?.id ??
-      (() => {
-        throw new Error('pending_review status missing');
-      })();
+    pendingStatusId = await statusId('pending_review');
 
     await db
-      .insert(eventApplications)
+      .insert(eventParticipants)
       .values({
         eventId: appliedEventId,
         userId: testUserId,
@@ -257,17 +229,16 @@ describe('getEventsWithUserStatus — applied user', () => {
 
   afterAll(async () => {
     await db
-      .delete(eventApplications)
-      .where(eq(eventApplications.eventId, appliedEventId));
+      .delete(eventParticipants)
+      .where(eq(eventParticipants.eventId, appliedEventId));
     await db.delete(events).where(eq(events.id, appliedEventId));
   });
 
-  test('shows userStatus as applied for an event with an application', async () => {
+  test('shows the pending_review status for an event the user applied to', async () => {
     const results = await getEventsWithUserStatus();
     const found = results.find((e) => e.id === appliedEventId);
     expect(found).toBeDefined();
-    expect(found?.userStatus).toBe('applied');
-    expect(found?.statusKey).toBe('pending_review');
+    expect(found?.status).toBe('pending_review');
   });
 });
 
@@ -277,7 +248,7 @@ describe('submitEventApplication — edit restrictions', () => {
   let openEventId: string;
   let elapsedEventId: string;
   let pendingStatusId: number;
-  let approvedStatusId: number;
+  let waitlistedStatusId: number;
 
   beforeAll(async () => {
     const [gender] = await db.select({ id: genders.id }).from(genders).limit(1);
@@ -322,27 +293,8 @@ describe('submitEventApplication — edit restrictions', () => {
         },
       });
 
-    const [pending] = await db
-      .select({ id: applicationStatuses.id })
-      .from(applicationStatuses)
-      .where(eq(applicationStatuses.label, 'pending_review'))
-      .limit(1);
-    pendingStatusId =
-      pending?.id ??
-      (() => {
-        throw new Error('pending_review status missing');
-      })();
-
-    const [approved] = await db
-      .select({ id: applicationStatuses.id })
-      .from(applicationStatuses)
-      .where(eq(applicationStatuses.label, 'approved'))
-      .limit(1);
-    approvedStatusId =
-      approved?.id ??
-      (() => {
-        throw new Error('approved status missing');
-      })();
+    pendingStatusId = await statusId('pending_review');
+    waitlistedStatusId = await statusId('waitlisted');
 
     const [open] = await db
       .insert(events)
@@ -368,11 +320,11 @@ describe('submitEventApplication — edit restrictions', () => {
 
   afterAll(async () => {
     await db
-      .delete(eventApplications)
-      .where(eq(eventApplications.eventId, openEventId));
+      .delete(eventParticipants)
+      .where(eq(eventParticipants.eventId, openEventId));
     await db
-      .delete(eventApplications)
-      .where(eq(eventApplications.eventId, elapsedEventId));
+      .delete(eventParticipants)
+      .where(eq(eventParticipants.eventId, elapsedEventId));
     await db.delete(events).where(eq(events.id, openEventId));
     await db.delete(events).where(eq(events.id, elapsedEventId));
     await db
@@ -382,7 +334,7 @@ describe('submitEventApplication — edit restrictions', () => {
 
   test('allows editing while the application is still pending review', async () => {
     await db
-      .insert(eventApplications)
+      .insert(eventParticipants)
       .values({
         eventId: openEventId,
         userId: testUserId,
@@ -390,7 +342,7 @@ describe('submitEventApplication — edit restrictions', () => {
         responses: {},
       })
       .onConflictDoUpdate({
-        target: [eventApplications.eventId, eventApplications.userId],
+        target: [eventParticipants.eventId, eventParticipants.userId],
         set: { statusId: pendingStatusId },
       });
 
@@ -403,9 +355,9 @@ describe('submitEventApplication — edit restrictions', () => {
 
   test('rejects editing once the application has been decided', async () => {
     await db
-      .update(eventApplications)
-      .set({ statusId: approvedStatusId })
-      .where(eq(eventApplications.eventId, openEventId));
+      .update(eventParticipants)
+      .set({ statusId: waitlistedStatusId })
+      .where(eq(eventParticipants.eventId, openEventId));
 
     const result = await submitEventApplication(
       { applicationResponses: {} },

@@ -1,8 +1,7 @@
 import { and, desc, eq, isNull } from 'drizzle-orm';
 import {
-  applicationStatuses,
-  eventApplications,
-  eventAttendees,
+  eventParticipants,
+  participationStatuses,
   events,
   genders,
   interests,
@@ -51,11 +50,21 @@ export async function seedAdminOnboarding(
       .select()
       .from(interests)
       .where(eq(interests.label, 'Web Development'));
-    const [approved] = await tx
-      .select()
-      .from(applicationStatuses)
-      .where(eq(applicationStatuses.label, 'approved'));
-    if (!gender || !university || !major || !year || !interest || !approved) {
+    // Applications start on the waitlist so the RSVP seeder invites (and
+    // accepts) them like anyone else; simple signups are accepted from the
+    // start.
+    const statuses = await tx.select().from(participationStatuses);
+    const waitlisted = statuses.find((row) => row.label === 'waitlisted');
+    const accepted = statuses.find((row) => row.label === 'accepted');
+    if (
+      !gender ||
+      !university ||
+      !major ||
+      !year ||
+      !interest ||
+      !waitlisted ||
+      !accepted
+    ) {
       throw new Error('Seed static tables before completing admin onboarding.');
     }
 
@@ -114,11 +123,11 @@ export async function seedAdminOnboarding(
     for (const event of onboardingEvents.values()) {
       if (event.hasApplication) {
         await tx
-          .insert(eventApplications)
+          .insert(eventParticipants)
           .values({
             eventId: event.id,
             userId,
-            statusId: approved.id,
+            statusId: waitlisted.id,
             responses: event.id === applicationEventId ? responses : {},
             reviewedBy: userId,
             reviewedAt: submittedAt,
@@ -128,14 +137,26 @@ export async function seedAdminOnboarding(
           .onConflictDoNothing();
       } else {
         await tx
-          .insert(eventAttendees)
-          .values({ eventId: event.id, userId, registeredAt: submittedAt })
+          .insert(eventParticipants)
+          .values({
+            eventId: event.id,
+            userId,
+            statusId: accepted.id,
+            createdAt: submittedAt,
+            updatedAt: submittedAt,
+          })
           .onConflictDoNothing();
       }
     }
     await tx
-      .insert(eventAttendees)
-      .values({ eventId: workshopEventId, userId, registeredAt: submittedAt })
+      .insert(eventParticipants)
+      .values({
+        eventId: workshopEventId,
+        userId,
+        statusId: accepted.id,
+        createdAt: submittedAt,
+        updatedAt: submittedAt,
+      })
       .onConflictDoNothing();
     await tx
       .update(user)

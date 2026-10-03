@@ -5,12 +5,14 @@
  * - events: Events (hackathon, workshops); some have applications, some don't
  * - user_profiles: Profile fields shared across event applications
  * - user_interests / user_dietary_restrictions: User-level many-to-many with lookups
- * - event_applications: Apply flow (one per user per event with has_application); minimal + responses JSONB
- * - event_attendees: Register-for-event flow (simple signup for events without application)
+ * - event_participants: One row per user per event, carrying the single participation status
+ *   (application review → RSVP → attendance) and, for events with an application, the answers
+ * - event_rsvp_waves / event_invitations: RSVP invitation batches and per-participant delivery/consent
  * - event_articles: Per-event wiki pages authored in markdown by organizers
  * - application_form_view: Denormalized view for form pre-fill
  *
- * Event participation: events with application use event_applications; events without use event_attendees (we call the latter "register for event").
+ * Event participation: every event uses event_participants. An event with an application starts a
+ * participant at `pending_review`; an event without one ("register for event") starts them at `accepted`.
  */
 
 import {
@@ -26,7 +28,6 @@ import {
   index,
   jsonb,
   uniqueIndex,
-  primaryKey,
   doublePrecision,
   type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
@@ -41,8 +42,7 @@ import {
   yearsOfStudy,
   interests,
   dietaryRestrictions,
-  applicationStatuses,
-  rsvpStatuses,
+  participationStatuses,
   eventTypes,
 } from './lookups';
 
@@ -224,8 +224,8 @@ export const userProfileAbout = pgTable('user_profile_about', {
 // Event applications (one per user per event; responses = JSONB)
 // ---------------------------------------------------------------------------
 
-export const eventApplications = pgTable(
-  'event_applications',
+export const eventParticipants = pgTable(
+  'event_participants',
   {
     id: uuid('id').defaultRandom().primaryKey(),
     eventId: uuid('event_id')
@@ -234,11 +234,19 @@ export const eventApplications = pgTable(
     userId: uuid('user_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
-    statusId: integer('status_id').references(() => applicationStatuses.id),
+    /**
+     * The participant's one lifecycle status. A stored `invited` whose
+     * invitation deadline has passed reads as `timed_out` — see
+     * `resolveEffectiveStatus`.
+     */
+    statusId: integer('status_id')
+      .notNull()
+      .references(() => participationStatuses.id),
     reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
     reviewedBy: uuid('reviewed_by').references(() => user.id, {
       onDelete: 'set null',
     }),
+    /** Queue order while `waitlisted`; null otherwise. */
     waitlistPosition: integer('waitlist_position'),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
@@ -247,17 +255,22 @@ export const eventApplications = pgTable(
       .defaultNow()
       .$onUpdate(() => new Date())
       .notNull(),
+    /** Application answers; null for an event without an application. */
     responses: jsonb('responses').$type<Record<string, unknown>>(),
   },
   (table) => ({
     eventUserUnique: uniqueIndex(
-      'event_applications_event_id_user_id_unique',
+      'event_participants_event_id_user_id_unique',
     ).on(table.eventId, table.userId),
-    idxEventCreatedAt: index('idx_event_applications_event_id_created_at').on(
+    idxEventCreatedAt: index('idx_event_participants_event_id_created_at').on(
       table.eventId,
       table.createdAt.desc(),
     ),
-    idxUserId: index('idx_event_applications_user_id').on(table.userId),
+    idxEventStatus: index('idx_event_participants_event_id_status_id').on(
+      table.eventId,
+      table.statusId,
+    ),
+    idxUserId: index('idx_event_participants_user_id').on(table.userId),
   }),
 );
 
@@ -300,28 +313,6 @@ export const userDietaryRestrictions = pgTable(
     idxUserRestriction: uniqueIndex(
       'user_dietary_restrictions_user_id_restriction_id_unique',
     ).on(table.userId, table.restrictionId),
-  }),
-);
-
-// ---------------------------------------------------------------------------
-// Event attendees (simple signup for events without application)
-// ---------------------------------------------------------------------------
-
-export const eventAttendees = pgTable(
-  'event_attendees',
-  {
-    eventId: uuid('event_id')
-      .notNull()
-      .references(() => events.id, { onDelete: 'cascade' }),
-    userId: uuid('user_id')
-      .notNull()
-      .references(() => user.id, { onDelete: 'cascade' }),
-    registeredAt: timestamp('registered_at', { withTimezone: true })
-      .defaultNow()
-      .notNull(),
-  },
-  (table) => ({
-    pk: primaryKey({ columns: [table.eventId, table.userId] }),
   }),
 );
 
@@ -384,26 +375,26 @@ export const eventRsvpWaves = pgTable(
 );
 
 // ---------------------------------------------------------------------------
-// Event RSVP responses (one row per user per wave)
+// Event invitations (one per invited participant; the RSVP itself is the
+// participant's status, this row is the wave, deadline, delivery and consent)
 // ---------------------------------------------------------------------------
 
-export const eventRsvpResponses = pgTable(
-  'event_rsvp_responses',
+export const eventInvitations = pgTable(
+  'event_invitations',
   {
     id: uuid('id').defaultRandom().primaryKey(),
     rsvpWaveId: uuid('rsvp_wave_id')
       .notNull()
       .references(() => eventRsvpWaves.id, { onDelete: 'cascade' }),
-    userId: uuid('user_id')
+    participantId: uuid('participant_id')
       .notNull()
-      .references(() => user.id, { onDelete: 'cascade' }),
-    statusId: integer('status_id').references(() => rsvpStatuses.id),
+      .references(() => eventParticipants.id, { onDelete: 'cascade' }),
     respondedAt: timestamp('responded_at', { withTimezone: true }),
     termsAcceptedAt: timestamp('terms_accepted_at', { withTimezone: true }),
     /** References the immutable version accepted for this invitation. */
     acceptedTermsId: uuid('accepted_terms_id').references(() => eventTerms.id),
-    // Invitation email delivery state (separate from statusId, the RSVP
-    // decision): 'legacy' | 'unsent' | 'queued' | 'sent' | 'failed'.
+    // Invitation email delivery state (separate from the participant's
+    // status): 'legacy' | 'unsent' | 'queued' | 'sent' | 'failed'.
     invitationEmailStatus: text('invitation_email_status')
       .notNull()
       .default('unsent'),
@@ -426,11 +417,16 @@ export const eventRsvpResponses = pgTable(
       .notNull(),
   },
   (table) => ({
-    waveUserUnique: uniqueIndex(
-      'event_rsvp_responses_rsvp_wave_id_user_id_unique',
-    ).on(table.rsvpWaveId, table.userId),
+    // A participant is invited at most once: wave eligibility only takes
+    // `waitlisted`, and an invitation moves them off the waitlist.
+    participantUnique: uniqueIndex(
+      'event_invitations_participant_id_unique',
+    ).on(table.participantId),
+    idxRsvpWaveId: index('idx_event_invitations_rsvp_wave_id').on(
+      table.rsvpWaveId,
+    ),
     idxInvitationEmailStatus: index(
-      'idx_event_rsvp_responses_invitation_email_status',
+      'idx_event_invitations_invitation_email_status',
     ).on(table.invitationEmailStatus),
   }),
 );
@@ -562,8 +558,7 @@ export const eventsRelations = relations(events, ({ one, many }) => ({
     fields: [events.eventTypeId],
     references: [eventTypes.id],
   }),
-  applications: many(eventApplications),
-  attendees: many(eventAttendees),
+  participants: many(eventParticipants),
   checkIns: many(checkIns),
   rsvpWaves: many(eventRsvpWaves),
   teams: many(teams),
@@ -618,20 +613,24 @@ export const userProfileAboutRelations = relations(
   }),
 );
 
-export const eventApplicationsRelations = relations(
-  eventApplications,
+export const eventParticipantsRelations = relations(
+  eventParticipants,
   ({ one }) => ({
     event: one(events, {
-      fields: [eventApplications.eventId],
+      fields: [eventParticipants.eventId],
       references: [events.id],
     }),
     user: one(user, {
-      fields: [eventApplications.userId],
+      fields: [eventParticipants.userId],
       references: [user.id],
     }),
-    status: one(applicationStatuses, {
-      fields: [eventApplications.statusId],
-      references: [applicationStatuses.id],
+    status: one(participationStatuses, {
+      fields: [eventParticipants.statusId],
+      references: [participationStatuses.id],
+    }),
+    invitation: one(eventInvitations, {
+      fields: [eventParticipants.id],
+      references: [eventInvitations.participantId],
     }),
   }),
 );
@@ -658,17 +657,6 @@ export const userDietaryRestrictionsRelations = relations(
   }),
 );
 
-export const eventAttendeesRelations = relations(eventAttendees, ({ one }) => ({
-  event: one(events, {
-    fields: [eventAttendees.eventId],
-    references: [events.id],
-  }),
-  user: one(user, {
-    fields: [eventAttendees.userId],
-    references: [user.id],
-  }),
-}));
-
 export const checkInsRelations = relations(checkIns, ({ one }) => ({
   event: one(events, {
     fields: [checkIns.eventId],
@@ -687,24 +675,20 @@ export const eventRsvpWavesRelations = relations(
       fields: [eventRsvpWaves.eventId],
       references: [events.id],
     }),
-    responses: many(eventRsvpResponses),
+    invitations: many(eventInvitations),
   }),
 );
 
-export const eventRsvpResponsesRelations = relations(
-  eventRsvpResponses,
+export const eventInvitationsRelations = relations(
+  eventInvitations,
   ({ one }) => ({
     rsvpWave: one(eventRsvpWaves, {
-      fields: [eventRsvpResponses.rsvpWaveId],
+      fields: [eventInvitations.rsvpWaveId],
       references: [eventRsvpWaves.id],
     }),
-    user: one(user, {
-      fields: [eventRsvpResponses.userId],
-      references: [user.id],
-    }),
-    status: one(rsvpStatuses, {
-      fields: [eventRsvpResponses.statusId],
-      references: [rsvpStatuses.id],
+    participant: one(eventParticipants, {
+      fields: [eventInvitations.participantId],
+      references: [eventParticipants.id],
     }),
   }),
 );
@@ -798,7 +782,7 @@ SELECT
   pa.university_other_text,
   pa.major_other_text,
   p.dietary_other_text
-FROM event_applications a
+FROM event_participants a
 JOIN user_profiles p ON p.user_id = a.user_id
 LEFT JOIN user_profile_about pa ON pa.user_id = a.user_id
 LEFT JOIN interests_agg i ON i.user_id = a.user_id

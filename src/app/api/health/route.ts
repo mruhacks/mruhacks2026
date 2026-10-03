@@ -29,9 +29,10 @@ const REQUIRED_ENV_VARS = [
   'APPLE_WALLET_SIGNER_CERT',
   'APPLE_WALLET_SIGNER_KEY',
   'CHECK_IN_SIGNING_PRIVATE_KEY',
-  // Bearer token the /api/cron/* routes require; without it the scheduled
-  // RSVP waves and invitation sweep reject every Vercel Cron invocation.
-  'CRON_SECRET',
+  // Bearer token the Cloudflare Worker scheduler (workers/rsvp-cron) sends to
+  // /api/cron/*; without it the scheduled RSVP waves and invitation sweep
+  // reject every invocation.
+  'CRON_MANUAL_SECRET',
 ] as const;
 
 type CheckResult = { ok: boolean; latencyMs: number; detail?: string };

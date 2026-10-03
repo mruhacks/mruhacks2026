@@ -13,7 +13,7 @@
  *    system:read:all or a matching x-health-access-key header.
  *  - /api/wallet/pass/[eventId], /api/wallet/qr/[eventId], and
  *    /api/wallet/google/[eventId]: session-gated, and only issue a
- *    pass/code/save-link to a caller who is an approved applicant or a
+ *    pass/code/save-link to a caller who is an accepted applicant or a
  *    registered attendee of that specific (top-level) event — all three
  *    share the same authorization lookup (src/lib/wallet/participation.ts).
  */
@@ -35,10 +35,13 @@ import {
   permission,
   userPermission,
   events,
-  eventAttendees,
-  eventApplications,
-  applicationStatuses,
+  eventParticipants,
 } from '@/db/schema';
+import {
+  insertAttendees,
+  insertParticipant,
+  setStatus,
+} from '@/tests/participation-fixtures';
 
 vi.mock('@/utils/auth', () => ({ getUser: vi.fn() }));
 vi.mock('@/utils/mail', () => ({
@@ -371,28 +374,6 @@ describe('/api/wallet/pass/[eventId] GET', () => {
   let unregisteredUserId: string;
   let approvedUserId: string;
   let pendingUserId: string;
-  let approvedStatusId: number;
-  let pendingStatusId: number;
-
-  async function statusIdFor(label: string) {
-    const [existing] = await db
-      .select({ id: applicationStatuses.id })
-      .from(applicationStatuses)
-      .where(eq(applicationStatuses.label, label))
-      .limit(1);
-    if (existing) return existing.id;
-    const [inserted] = await db
-      .insert(applicationStatuses)
-      .values({
-        label,
-        title: label,
-        description: label,
-        variant: 'default',
-        isFinal: label !== 'pending_review',
-      })
-      .returning({ id: applicationStatuses.id });
-    return inserted.id;
-  }
 
   function callRoute(eventId: string) {
     return getWalletPass(new Request('http://x'), {
@@ -427,9 +408,6 @@ describe('/api/wallet/pass/[eventId] GET', () => {
       .returning({ id: events.id });
     appEventId = app.id;
 
-    approvedStatusId = await statusIdFor('approved');
-    pendingStatusId = await statusIdFor('pending_review');
-
     const [registered, unregistered, approved, pending] = await db
       .insert(user)
       .values([
@@ -460,32 +438,27 @@ describe('/api/wallet/pass/[eventId] GET', () => {
     approvedUserId = approved.id;
     pendingUserId = pending.id;
 
-    await db
-      .insert(eventAttendees)
-      .values({ eventId: openEventId, userId: registeredUserId });
-    await db.insert(eventApplications).values([
-      {
-        eventId: appEventId,
-        userId: approvedUserId,
-        statusId: approvedStatusId,
-        responses: {},
-      },
-      {
-        eventId: appEventId,
-        userId: pendingUserId,
-        statusId: pendingStatusId,
-        responses: {},
-      },
-    ]);
+    await insertAttendees({ eventId: openEventId, userId: registeredUserId });
+    // `approvedUserId` starts out holding a spot; individual tests move it.
+    await insertParticipant({
+      eventId: appEventId,
+      userId: approvedUserId,
+      status: 'accepted',
+    });
+    await insertParticipant({
+      eventId: appEventId,
+      userId: pendingUserId,
+      status: 'pending_review',
+    });
   });
 
   afterAll(async () => {
     await db
-      .delete(eventAttendees)
-      .where(eq(eventAttendees.eventId, openEventId));
+      .delete(eventParticipants)
+      .where(eq(eventParticipants.eventId, openEventId));
     await db
-      .delete(eventApplications)
-      .where(eq(eventApplications.eventId, appEventId));
+      .delete(eventParticipants)
+      .where(eq(eventParticipants.eventId, appEventId));
     await db.delete(events).where(eq(events.id, childEventId));
     await db.delete(events).where(eq(events.id, openEventId));
     await db.delete(events).where(eq(events.id, appEventId));
@@ -573,7 +546,7 @@ describe('/api/wallet/pass/[eventId] GET', () => {
     );
   });
 
-  test('issues a pass to an approved applicant', async () => {
+  test('issues a pass to an applicant who accepted their RSVP', async () => {
     vi.mocked(getUser).mockResolvedValue({
       id: approvedUserId,
       name: 'Wallet Approved',
@@ -582,6 +555,23 @@ describe('/api/wallet/pass/[eventId] GET', () => {
     expect(res.status).toBe(200);
     expect(generateParticipantPass).toHaveBeenCalledTimes(1);
   });
+
+  // A passed review alone isn't a spot: the applicant still has to accept
+  // their RSVP, and one who declined or let it expire never holds one.
+  test.each(['waitlisted', 'invited', 'declined', 'timed_out'] as const)(
+    'rejects an applicant whose status is %s',
+    async (status) => {
+      await setStatus(appEventId, approvedUserId, status);
+      try {
+        vi.mocked(getUser).mockResolvedValue({ id: approvedUserId } as never);
+        const res = await callRoute(appEventId);
+        expect(res.status).toBe(404);
+        expect(generateParticipantPass).not.toHaveBeenCalled();
+      } finally {
+        await setStatus(appEventId, approvedUserId, 'accepted');
+      }
+    },
+  );
 });
 
 // ─── /api/wallet/qr/[eventId] ───────────────────────────────────────────────
@@ -622,15 +612,13 @@ describe('/api/wallet/qr/[eventId] GET', () => {
     registeredUserId = registered.id;
     unregisteredUserId = unregistered.id;
 
-    await db
-      .insert(eventAttendees)
-      .values({ eventId: openEventId, userId: registeredUserId });
+    await insertAttendees({ eventId: openEventId, userId: registeredUserId });
   });
 
   afterAll(async () => {
     await db
-      .delete(eventAttendees)
-      .where(eq(eventAttendees.eventId, openEventId));
+      .delete(eventParticipants)
+      .where(eq(eventParticipants.eventId, openEventId));
     await db.delete(events).where(eq(events.id, openEventId));
     await db.delete(user).where(eq(user.id, registeredUserId));
     await db.delete(user).where(eq(user.id, unregisteredUserId));
@@ -715,15 +703,13 @@ describe('/api/wallet/google/[eventId] GET', () => {
     registeredUserId = registered.id;
     unregisteredUserId = unregistered.id;
 
-    await db
-      .insert(eventAttendees)
-      .values({ eventId: openEventId, userId: registeredUserId });
+    await insertAttendees({ eventId: openEventId, userId: registeredUserId });
   });
 
   afterAll(async () => {
     await db
-      .delete(eventAttendees)
-      .where(eq(eventAttendees.eventId, openEventId));
+      .delete(eventParticipants)
+      .where(eq(eventParticipants.eventId, openEventId));
     await db.delete(events).where(eq(events.id, openEventId));
     await db.delete(user).where(eq(user.id, registeredUserId));
     await db.delete(user).where(eq(user.id, unregisteredUserId));

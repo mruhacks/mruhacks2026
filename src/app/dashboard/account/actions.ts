@@ -31,10 +31,10 @@ import {
   userProfileAbout,
   userInterests,
   userDietaryRestrictions,
-  eventApplications,
-  eventAttendees,
+  eventParticipants,
+  participationStatuses,
   checkIns,
-  eventRsvpResponses,
+  eventInvitations,
   teamMembers,
   teams,
   events,
@@ -286,10 +286,9 @@ export async function exportMyData(): Promise<ActionResult<unknown>> {
       profileAbout,
       interests,
       dietaryRestrictions,
-      applications,
-      attendance,
+      participation,
       checkInRows,
-      rsvpResponses,
+      rsvpInvitations,
       teamMemberships,
       termsHistory,
       privacyHistory,
@@ -307,15 +306,32 @@ export async function exportMyData(): Promise<ActionResult<unknown>> {
         .from(userDietaryRestrictions)
         .where(eq(userDietaryRestrictions.userId, uid)),
       db
-        .select()
-        .from(eventApplications)
-        .where(eq(eventApplications.userId, uid)),
-      db.select().from(eventAttendees).where(eq(eventAttendees.userId, uid)),
+        .select({
+          id: eventParticipants.id,
+          eventId: eventParticipants.eventId,
+          status: participationStatuses.label,
+          responses: eventParticipants.responses,
+          reviewedAt: eventParticipants.reviewedAt,
+          waitlistPosition: eventParticipants.waitlistPosition,
+          createdAt: eventParticipants.createdAt,
+          updatedAt: eventParticipants.updatedAt,
+        })
+        .from(eventParticipants)
+        .innerJoin(
+          participationStatuses,
+          eq(eventParticipants.statusId, participationStatuses.id),
+        )
+        .where(eq(eventParticipants.userId, uid)),
       db.select().from(checkIns).where(eq(checkIns.userId, uid)),
       db
-        .select()
-        .from(eventRsvpResponses)
-        .where(eq(eventRsvpResponses.userId, uid)),
+        .select({ invitation: eventInvitations })
+        .from(eventInvitations)
+        .innerJoin(
+          eventParticipants,
+          eq(eventInvitations.participantId, eventParticipants.id),
+        )
+        .where(eq(eventParticipants.userId, uid))
+        .then((rows) => rows.map((row) => row.invitation)),
       db
         .select({
           eventId: teams.eventId,
@@ -378,10 +394,9 @@ export async function exportMyData(): Promise<ActionResult<unknown>> {
         : null,
       interests,
       dietaryRestrictions,
-      eventApplications: applications,
-      eventAttendance: attendance,
+      eventParticipation: participation,
       checkIns: checkInRows,
-      rsvpResponses,
+      rsvpInvitations,
       teamMemberships,
     };
 

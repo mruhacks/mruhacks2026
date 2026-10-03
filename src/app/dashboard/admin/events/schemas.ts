@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { QUESTION_MAX_LENGTH_LIMIT } from '@/types/application';
-import { applicationStatusesList, rsvpStatusesList } from '@/types/lookups';
+import { participationStatusesList } from '@/types/lookups';
 import {
   SLUG_MAX_LENGTH,
   isValidSlug,
@@ -311,20 +311,12 @@ export type UpdateArticleInput = z.infer<typeof updateArticleSchema>;
 // Validate their canonical shape; the action checks exact event membership.
 export const reorderArticlesSchema = z.array(z.guid()).min(1).max(10_000);
 
-export const updateApplicationStatusSchema = z.object({
+export const updateParticipantStatusSchema = z.object({
   eventId: z.guid(),
-  applicationId: z.guid(),
-  status: z.enum(applicationStatusesList),
+  participantId: z.guid(),
+  status: z.enum(participationStatusesList),
 });
 
-export type UpdateApplicationStatusInput = z.infer<
-  typeof updateApplicationStatusSchema
+export type UpdateParticipantStatusInput = z.infer<
+  typeof updateParticipantStatusSchema
 >;
-
-export const updateRsvpStatusSchema = z.object({
-  eventId: z.guid(),
-  applicationId: z.guid(),
-  status: z.enum(rsvpStatusesList),
-});
-
-export type UpdateRsvpStatusInput = z.infer<typeof updateRsvpStatusSchema>;

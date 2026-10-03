@@ -4,10 +4,11 @@ import { eq } from 'drizzle-orm';
 import {
   user,
   events,
-  eventApplications,
+  eventParticipants,
   permission,
   userPermission,
 } from '@/db/schema';
+import { insertParticipant } from '@/tests/participation-fixtures';
 import {
   createEvent,
   addQuestion,
@@ -100,8 +101,8 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await db
-    .delete(eventApplications)
-    .where(eq(eventApplications.eventId, testEventId));
+    .delete(eventParticipants)
+    .where(eq(eventParticipants.eventId, testEventId));
   await db.delete(events).where(eq(events.id, testEventId));
   await db.delete(userPermission).where(eq(userPermission.userId, adminUserId));
   await db.delete(user).where(eq(user.id, adminUserId));
@@ -491,9 +492,11 @@ describe('removeQuestion', () => {
         emailVerified: true,
       })
       .returning({ id: user.id });
-    await db
-      .insert(eventApplications)
-      .values({ eventId: testEventId, userId: appUser.id, responses: {} });
+    await insertParticipant({
+      eventId: testEventId,
+      userId: appUser.id,
+      status: 'pending_review',
+    });
 
     const result = await removeQuestion(testEventId, qId);
     expect(result.success).toBe(true);
@@ -506,8 +509,8 @@ describe('removeQuestion', () => {
     expect(q?.active).toBe(false);
 
     await db
-      .delete(eventApplications)
-      .where(eq(eventApplications.userId, appUser.id));
+      .delete(eventParticipants)
+      .where(eq(eventParticipants.userId, appUser.id));
     await db.delete(user).where(eq(user.id, appUser.id));
   });
 
@@ -537,17 +540,19 @@ describe('removeQuestion', () => {
         emailVerified: true,
       })
       .returning({ id: user.id });
-    await db
-      .insert(eventApplications)
-      .values({ eventId: testEventId, userId: appUser.id, responses: {} });
+    await insertParticipant({
+      eventId: testEventId,
+      userId: appUser.id,
+      status: 'pending_review',
+    });
 
     const result = await removeQuestion(testEventId, qId);
     expect(result.success).toBe(true);
     expect((result as { data: unknown }).data).toContain('deleted');
 
     await db
-      .delete(eventApplications)
-      .where(eq(eventApplications.userId, appUser.id));
+      .delete(eventParticipants)
+      .where(eq(eventParticipants.userId, appUser.id));
     await db.delete(user).where(eq(user.id, appUser.id));
   });
 });
@@ -613,9 +618,11 @@ describe('reactivateQuestion', () => {
         emailVerified: true,
       })
       .returning({ id: user.id });
-    await db
-      .insert(eventApplications)
-      .values({ eventId: testEventId, userId: appUser.id, responses: {} });
+    await insertParticipant({
+      eventId: testEventId,
+      userId: appUser.id,
+      status: 'pending_review',
+    });
 
     await removeQuestion(testEventId, qId);
 
@@ -628,8 +635,8 @@ describe('reactivateQuestion', () => {
     expect(q?.active).toBe(true);
 
     await db
-      .delete(eventApplications)
-      .where(eq(eventApplications.userId, appUser.id));
+      .delete(eventParticipants)
+      .where(eq(eventParticipants.userId, appUser.id));
     await db.delete(user).where(eq(user.id, appUser.id));
   });
 
@@ -912,6 +919,7 @@ describe('sendEventRsvpWave', () => {
         respondBy: new Date('2099-08-01T23:59:00.000Z'),
         createdAt: new Date(),
       },
+      closedWave: null,
       eligibleApplicantCount: 3,
       responsesCreated: 3,
       invitationsQueued: 2,
@@ -931,6 +939,7 @@ describe('sendEventRsvpWave', () => {
 
     expect(result.data).toEqual({
       waveNumber: 1,
+      closedWave: null,
       eligibleApplicantCount: 3,
       responsesCreated: 3,
       invitationsQueued: 2,
@@ -945,7 +954,9 @@ describe('sendEventRsvpWave', () => {
     expect(revalidatePath).toHaveBeenCalledWith(
       `/dashboard/admin/events/${testEventId}`,
     );
-    expect(sendRsvpWave).toHaveBeenCalledWith(testEventId);
+    expect(sendRsvpWave).toHaveBeenCalledWith(testEventId, {
+      closeActiveWave: false,
+    });
   });
 
   test('surfaces sendRsvpWave errors', async () => {

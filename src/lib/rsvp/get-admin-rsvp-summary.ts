@@ -3,16 +3,20 @@ import 'server-only';
 import { desc, eq, inArray } from 'drizzle-orm';
 
 import {
-  eventRsvpResponses,
+  eventInvitations,
+  eventParticipants,
   eventRsvpWaves,
   events,
-  rsvpStatuses,
+  participationStatuses,
   user,
 } from '@/db/schema';
+import {
+  isInvitationStatus,
+  resolveEffectiveStatus,
+  type InvitationStatus,
+} from '@/lib/participation/status';
 import { isRsvpWaveActive } from '@/lib/rsvp/compute-rsvp-respond-by';
 import { getEligibleRsvpApplicants } from '@/lib/rsvp/eligible-rsvp-applicants';
-import { resolveEffectiveRsvpStatus } from '@/lib/rsvp/effective-rsvp-status';
-import type { RsvpStatus } from '@/types/lookups';
 import { db } from '@/utils/db';
 
 export type AdminRsvpLifecycle =
@@ -37,7 +41,8 @@ export type AdminRsvpParticipant = {
   userId: string;
   name: string;
   email: string;
-  statusLabel: RsvpStatus;
+  /** The participant's effective status — always an invitation outcome. */
+  statusLabel: InvitationStatus;
   respondedAt: Date | null;
   termsAcceptedAt: Date | null;
   invitationEmailStatus: RsvpInvitationEmailStatus;
@@ -70,8 +75,8 @@ export type AdminRsvpSummary = {
   previousWaves: AdminRsvpWaveSummary[];
 };
 
-const STATUS_SORT_ORDER: Record<RsvpStatus, number> = {
-  pending: 0,
+const STATUS_SORT_ORDER: Record<InvitationStatus, number> = {
+  invited: 0,
   accepted: 1,
   declined: 2,
   timed_out: 3,
@@ -113,21 +118,26 @@ function summarizeWave(options: {
     invitationEmailStatus: string;
   }[];
 }): AdminRsvpWaveSummary {
-  const participants: AdminRsvpParticipant[] = options.rows.map((row) => ({
-    responseId: row.responseId,
-    userId: row.userId,
-    name: row.name,
-    email: row.email,
-    statusLabel: resolveEffectiveRsvpStatus(
+  const participants: AdminRsvpParticipant[] = options.rows.map((row) => {
+    const status = resolveEffectiveStatus(
       row.storedLabel,
       options.respondBy,
       options.now,
-    ),
-    respondedAt: row.respondedAt,
-    termsAcceptedAt: row.termsAcceptedAt,
-    invitationEmailStatus:
-      row.invitationEmailStatus as RsvpInvitationEmailStatus,
-  }));
+    );
+    return {
+      responseId: row.responseId,
+      userId: row.userId,
+      name: row.name,
+      email: row.email,
+      // An invitation always moves its participant to an invitation outcome;
+      // anything else would be a hand-edited row, shown as still waiting.
+      statusLabel: isInvitationStatus(status) ? status : 'invited',
+      respondedAt: row.respondedAt,
+      termsAcceptedAt: row.termsAcceptedAt,
+      invitationEmailStatus:
+        row.invitationEmailStatus as RsvpInvitationEmailStatus,
+    };
+  });
 
   participants.sort((a, b) => {
     const statusDiff =
@@ -163,8 +173,8 @@ function summarizeWave(options: {
 }
 
 /**
- * Read-only RSVP overview for an event, derived from existing waves,
- * responses, attendees, and eligibility — no extra tables.
+ * Read-only RSVP overview for an event, derived from its waves, invitations,
+ * participant statuses and eligibility — no extra tables.
  */
 export async function getAdminRsvpSummary(
   eventId: string,
@@ -224,23 +234,27 @@ export async function getAdminRsvpSummary(
       ? []
       : await db
           .select({
-            responseId: eventRsvpResponses.id,
-            waveId: eventRsvpResponses.rsvpWaveId,
+            responseId: eventInvitations.id,
+            waveId: eventInvitations.rsvpWaveId,
             userId: user.id,
             name: user.name,
             email: user.email,
-            storedLabel: rsvpStatuses.label,
-            respondedAt: eventRsvpResponses.respondedAt,
-            termsAcceptedAt: eventRsvpResponses.termsAcceptedAt,
-            invitationEmailStatus: eventRsvpResponses.invitationEmailStatus,
+            storedLabel: participationStatuses.label,
+            respondedAt: eventInvitations.respondedAt,
+            termsAcceptedAt: eventInvitations.termsAcceptedAt,
+            invitationEmailStatus: eventInvitations.invitationEmailStatus,
           })
-          .from(eventRsvpResponses)
-          .innerJoin(user, eq(eventRsvpResponses.userId, user.id))
-          .leftJoin(
-            rsvpStatuses,
-            eq(eventRsvpResponses.statusId, rsvpStatuses.id),
+          .from(eventInvitations)
+          .innerJoin(
+            eventParticipants,
+            eq(eventInvitations.participantId, eventParticipants.id),
           )
-          .where(inArray(eventRsvpResponses.rsvpWaveId, waveIds));
+          .innerJoin(
+            participationStatuses,
+            eq(eventParticipants.statusId, participationStatuses.id),
+          )
+          .innerJoin(user, eq(eventParticipants.userId, user.id))
+          .where(inArray(eventInvitations.rsvpWaveId, waveIds));
 
   const rowsByWaveId = new Map<string, typeof responseRows>();
   for (const row of responseRows) {

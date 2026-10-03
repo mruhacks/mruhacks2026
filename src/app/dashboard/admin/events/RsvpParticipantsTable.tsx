@@ -16,14 +16,13 @@ import { LocalDateTime } from '@/components/local-date-time';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { rsvpStatusFilterFn } from '@/lib/rsvp/rsvp-status-filter';
-import { rsvpStatusDisplayList, type RsvpStatus } from '@/types/lookups';
+import {
+  STATIC_STATUS_DISPLAY,
+  type InvitationStatus,
+} from '@/lib/participation/status';
 
-const RSVP_DISPLAY = Object.fromEntries(
-  rsvpStatusDisplayList.map((item) => [item.label, item]),
-) as Record<RsvpStatus, (typeof rsvpStatusDisplayList)[number]>;
-
-const STATUS_FILTER_OPTIONS: { label: string; value: RsvpStatus }[] = [
-  { label: 'Waiting', value: 'pending' },
+const STATUS_FILTER_OPTIONS: { label: string; value: InvitationStatus }[] = [
+  { label: 'Waiting', value: 'invited' },
   { label: 'Accepted', value: 'accepted' },
   { label: 'Declined', value: 'declined' },
   { label: 'Timed out', value: 'timed_out' },
@@ -34,8 +33,8 @@ const DELIVERY_FILTER_OPTIONS: {
   value: RsvpInvitationEmailStatus;
 }[] = [{ label: 'Delivery failed', value: 'failed' }];
 
-function StatusBadge({ status }: { status: RsvpStatus }) {
-  const display = RSVP_DISPLAY[status];
+function StatusBadge({ status }: { status: InvitationStatus }) {
+  const display = STATIC_STATUS_DISPLAY[status];
   return <Badge variant={display.variant}>{display.title}</Badge>;
 }
 
@@ -66,7 +65,7 @@ function ResendButton({
 }) {
   const [isSending, setIsSending] = React.useState(false);
 
-  if (participant.statusLabel !== 'pending') {
+  if (participant.statusLabel !== 'invited') {
     return null;
   }
 
@@ -110,7 +109,7 @@ function ParticipantTiming({
   participant: AdminRsvpParticipant;
   respondBy: Date | string;
 }) {
-  if (participant.statusLabel === 'pending') {
+  if (participant.statusLabel === 'invited') {
     return (
       <>
         Respond by{' '}
@@ -161,9 +160,9 @@ export function RsvpParticipantsTable({ eventId, wave }: Props) {
   // Resend only ever flips a row to 'sent' — applied locally so a resend
   // doesn't have to trigger a full summary refetch (and its loading state)
   // just to reflect one row's delivery status.
-  const [sentOverrides, setSentOverrides] = React.useState<
-    ReadonlySet<string>
-  >(new Set());
+  const [sentOverrides, setSentOverrides] = React.useState<ReadonlySet<string>>(
+    new Set(),
+  );
   const handleResent = React.useCallback((responseId: string) => {
     setSentOverrides((current) => new Set(current).add(responseId));
   }, []);

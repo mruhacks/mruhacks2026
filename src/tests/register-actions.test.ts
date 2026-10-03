@@ -1,7 +1,8 @@
 import { describe, test, expect, beforeAll, afterAll, vi } from 'vitest';
 import { db } from '@/utils/db';
 import { eq, and } from 'drizzle-orm';
-import { user, events, eventAttendees } from '@/db/schema';
+import { user, events, eventParticipants } from '@/db/schema';
+import { insertAttendees } from '@/tests/participation-fixtures';
 import {
   registerForEvent,
   registerForEventFormAction,
@@ -53,7 +54,9 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await db.delete(eventAttendees).where(eq(eventAttendees.userId, testUserId));
+  await db
+    .delete(eventParticipants)
+    .where(eq(eventParticipants.userId, testUserId));
   await db.delete(events).where(eq(events.id, testEventId));
   await db.delete(events).where(eq(events.id, elapsedEventId));
   await db.delete(user).where(eq(user.id, testUserId));
@@ -73,11 +76,11 @@ describe('registerForEvent', () => {
 
     const rows = await db
       .select()
-      .from(eventAttendees)
+      .from(eventParticipants)
       .where(
         and(
-          eq(eventAttendees.userId, testUserId),
-          eq(eventAttendees.eventId, testEventId),
+          eq(eventParticipants.userId, testUserId),
+          eq(eventParticipants.eventId, testEventId),
         ),
       );
     expect(rows).toHaveLength(1);
@@ -89,11 +92,11 @@ describe('registerForEvent', () => {
 
     const rows = await db
       .select()
-      .from(eventAttendees)
+      .from(eventParticipants)
       .where(
         and(
-          eq(eventAttendees.userId, testUserId),
-          eq(eventAttendees.eventId, testEventId),
+          eq(eventParticipants.userId, testUserId),
+          eq(eventParticipants.eventId, testEventId),
         ),
       );
     expect(rows).toHaveLength(1);
@@ -116,11 +119,11 @@ describe('registerForEventFormAction', () => {
 
   test('registers when valid eventId is in FormData', async () => {
     await db
-      .delete(eventAttendees)
+      .delete(eventParticipants)
       .where(
         and(
-          eq(eventAttendees.userId, testUserId),
-          eq(eventAttendees.eventId, testEventId),
+          eq(eventParticipants.userId, testUserId),
+          eq(eventParticipants.eventId, testEventId),
         ),
       );
     const formData = new FormData();
@@ -139,20 +142,17 @@ describe('unregisterFromEvent', () => {
   });
 
   test('removes the attendee row', async () => {
-    await db
-      .insert(eventAttendees)
-      .values({ userId: testUserId, eventId: testEventId })
-      .onConflictDoNothing();
+    await insertAttendees({ userId: testUserId, eventId: testEventId });
     const result = await unregisterFromEvent(testEventId);
     expect(result.success).toBe(true);
 
     const rows = await db
       .select()
-      .from(eventAttendees)
+      .from(eventParticipants)
       .where(
         and(
-          eq(eventAttendees.userId, testUserId),
-          eq(eventAttendees.eventId, testEventId),
+          eq(eventParticipants.userId, testUserId),
+          eq(eventParticipants.eventId, testEventId),
         ),
       );
     expect(rows).toHaveLength(0);
@@ -164,10 +164,7 @@ describe('unregisterFromEvent', () => {
   });
 
   test('rejects unregistering from an event that has already ended', async () => {
-    await db
-      .insert(eventAttendees)
-      .values({ userId: testUserId, eventId: elapsedEventId })
-      .onConflictDoNothing();
+    await insertAttendees({ userId: testUserId, eventId: elapsedEventId });
     const result = await unregisterFromEvent(elapsedEventId);
     expect(result.success).toBe(false);
     expect((result as { error: string }).error).toContain('ended');

@@ -1,20 +1,18 @@
 import 'server-only';
 
 import { cacheLife, cacheTag } from 'next/cache';
-import { asc, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, sql } from 'drizzle-orm';
 
 import {
-  applicationStatuses,
   checkIns,
-  eventApplications,
-  eventAttendees,
-  eventRsvpResponses,
+  eventParticipants,
+  eventInvitations,
   eventRsvpWaves,
   events,
   eventTerms,
   genders,
   majors,
-  rsvpStatuses,
+  participationStatuses,
   teamMembers,
   teams,
   universities,
@@ -31,7 +29,8 @@ import {
   type StatsBucket,
 } from '@/lib/application-stats';
 import { EVENT_TIME_ZONE } from '@/lib/datetime';
-import { resolveEffectiveRsvpStatus } from '@/lib/rsvp/effective-rsvp-status';
+import { hasStatus } from '@/lib/participation/server';
+import { resolveEffectiveStatus } from '@/lib/participation/status';
 import type { ApplicationQuestion } from '@/types/application';
 import { db } from '@/utils/db';
 
@@ -243,12 +242,14 @@ export async function getEventSummaryCounts(
     await Promise.all([
       db
         .select({ c: countOf })
-        .from(eventApplications)
-        .where(eq(eventApplications.eventId, eventId)),
+        .from(eventParticipants)
+        .where(eq(eventParticipants.eventId, eventId)),
       db
         .select({ c: countOf })
-        .from(eventAttendees)
-        .where(eq(eventAttendees.eventId, eventId)),
+        .from(eventParticipants)
+        .where(
+          and(eq(eventParticipants.eventId, eventId), hasStatus('accepted')),
+        ),
       db
         .select({ c: countOf })
         .from(checkIns)
@@ -271,27 +272,31 @@ export async function getEventSummaryCounts(
         ),
       db
         .select({
-          label: rsvpStatuses.label,
+          label: participationStatuses.label,
           respondBy: eventRsvpWaves.respondBy,
           c: countOf,
         })
-        .from(eventRsvpResponses)
+        .from(eventInvitations)
         .innerJoin(
           eventRsvpWaves,
-          eq(eventRsvpWaves.id, eventRsvpResponses.rsvpWaveId),
+          eq(eventRsvpWaves.id, eventInvitations.rsvpWaveId),
         )
-        .leftJoin(
-          rsvpStatuses,
-          eq(rsvpStatuses.id, eventRsvpResponses.statusId),
+        .innerJoin(
+          eventParticipants,
+          eq(eventParticipants.id, eventInvitations.participantId),
+        )
+        .innerJoin(
+          participationStatuses,
+          eq(participationStatuses.id, eventParticipants.statusId),
         )
         .where(eq(eventRsvpWaves.eventId, eventId))
-        .groupBy(rsvpStatuses.label, eventRsvpWaves.respondBy),
+        .groupBy(participationStatuses.label, eventRsvpWaves.respondBy),
     ]);
 
   const rsvp = { accepted: 0, pending: 0, declined: 0, timedOut: 0 };
   const now = new Date();
   for (const row of rsvpRows) {
-    const status = resolveEffectiveRsvpStatus(row.label, row.respondBy, now);
+    const status = resolveEffectiveStatus(row.label, row.respondBy, now);
     if (status === 'accepted') rsvp.accepted += row.c;
     else if (status === 'declined') rsvp.declined += row.c;
     else if (status === 'timed_out') rsvp.timedOut += row.c;
@@ -351,28 +356,28 @@ export async function getEventApplicationStats(
 
   const rows = await db
     .select({
-      responses: eventApplications.responses,
-      status: applicationStatuses.label,
+      responses: eventParticipants.responses,
+      status: participationStatuses.label,
       university: universities.label,
       major: majors.label,
       yearOfStudy: yearsOfStudy.label,
       gender: genders.label,
     })
-    .from(eventApplications)
-    .leftJoin(userProfiles, eq(eventApplications.userId, userProfiles.userId))
+    .from(eventParticipants)
+    .leftJoin(userProfiles, eq(eventParticipants.userId, userProfiles.userId))
     .leftJoin(
       userProfileAbout,
-      eq(eventApplications.userId, userProfileAbout.userId),
+      eq(eventParticipants.userId, userProfileAbout.userId),
     )
     .leftJoin(genders, eq(userProfiles.genderId, genders.id))
     .leftJoin(universities, eq(userProfileAbout.universityId, universities.id))
     .leftJoin(majors, eq(userProfileAbout.majorId, majors.id))
     .leftJoin(yearsOfStudy, eq(userProfileAbout.yearOfStudyId, yearsOfStudy.id))
-    .leftJoin(
-      applicationStatuses,
-      eq(eventApplications.statusId, applicationStatuses.id),
+    .innerJoin(
+      participationStatuses,
+      eq(eventParticipants.statusId, participationStatuses.id),
     )
-    .where(eq(eventApplications.eventId, eventId));
+    .where(eq(eventParticipants.eventId, eventId));
 
   const statsRows: ApplicationStatsRow[] = rows.map((row) => ({
     responses: (row.responses as Record<string, unknown> | null) ?? null,
@@ -419,15 +424,15 @@ export async function getApplicationsOverTime(
   // type at parse time). `EVENT_TIME_ZONE` is a module constant, never user
   // input, so there's nothing to inject here.
   const zone = sql.raw(`'${EVENT_TIME_ZONE}'`);
-  const dayExpr = sql`date_trunc('day', ${eventApplications.createdAt} AT TIME ZONE ${zone}) AT TIME ZONE ${zone}`;
+  const dayExpr = sql`date_trunc('day', ${eventParticipants.createdAt} AT TIME ZONE ${zone}) AT TIME ZONE ${zone}`;
 
   const rows = await db
     .select({
-      day: sql<Date>`${dayExpr}`.mapWith(eventApplications.createdAt),
+      day: sql<Date>`${dayExpr}`.mapWith(eventParticipants.createdAt),
       count: sql<number>`COUNT(*)`.mapWith(Number),
     })
-    .from(eventApplications)
-    .where(eq(eventApplications.eventId, eventId))
+    .from(eventParticipants)
+    .where(eq(eventParticipants.eventId, eventId))
     .groupBy(dayExpr)
     .orderBy(asc(dayExpr));
 
@@ -439,14 +444,13 @@ export async function getApplicationsOverTime(
 }
 
 export type AdminApplicationRow = {
-  applicationId: string;
+  participantId: string;
   userId: string;
   fullName: string;
   email: string;
   university: string | null;
   major: string | null;
   yearOfStudy: string | null;
-  status: string | null;
   submittedAt: Date;
   /**
    * The applicant's team join code, or null. Teams have no name in the
@@ -466,6 +470,10 @@ export type AdminApplicationRow = {
  * This is individual-level data, so its only legitimate caller is a cell
  * gated on `application:read:all`. Keep it out of anything that only holds
  * `application:stats`.
+ *
+ * Status is deliberately not here: it changes without touching this cache
+ * (an RSVP wave from cron, a deadline passing), so callers read it fresh
+ * through `getParticipantStatuses`.
  */
 export async function getApplicationRoster(
   eventId: string,
@@ -476,50 +484,44 @@ export async function getApplicationRoster(
 
   const rows = await db
     .select({
-      applicationId: eventApplications.id,
-      userId: eventApplications.userId,
+      participantId: eventParticipants.id,
+      userId: eventParticipants.userId,
       fullName: userProfiles.fullName,
       email: user.email,
       university: universities.label,
       major: majors.label,
       yearOfStudy: yearsOfStudy.label,
-      status: applicationStatuses.label,
-      submittedAt: eventApplications.createdAt,
+      submittedAt: eventParticipants.createdAt,
       teamCode: teams.code,
       resumeFile: userProfiles.resumeFile,
-      responses: eventApplications.responses,
+      responses: eventParticipants.responses,
     })
-    .from(eventApplications)
-    .innerJoin(user, eq(eventApplications.userId, user.id))
-    .leftJoin(userProfiles, eq(eventApplications.userId, userProfiles.userId))
+    .from(eventParticipants)
+    .innerJoin(user, eq(eventParticipants.userId, user.id))
+    .leftJoin(userProfiles, eq(eventParticipants.userId, userProfiles.userId))
     .leftJoin(
       userProfileAbout,
-      eq(eventApplications.userId, userProfileAbout.userId),
+      eq(eventParticipants.userId, userProfileAbout.userId),
     )
     .leftJoin(universities, eq(userProfileAbout.universityId, universities.id))
     .leftJoin(majors, eq(userProfileAbout.majorId, majors.id))
     .leftJoin(yearsOfStudy, eq(userProfileAbout.yearOfStudyId, yearsOfStudy.id))
     .leftJoin(
-      applicationStatuses,
-      eq(eventApplications.statusId, applicationStatuses.id),
-    )
-    .leftJoin(
       teamMembers,
-      sql`${teamMembers.userId} = ${eventApplications.userId} AND ${teamMembers.eventId} = ${eventApplications.eventId}`,
+      sql`${teamMembers.userId} = ${eventParticipants.userId} AND ${teamMembers.eventId} = ${eventParticipants.eventId}`,
     )
     .leftJoin(teams, eq(teams.id, teamMembers.teamId))
-    .where(eq(eventApplications.eventId, eventId))
-    .orderBy(asc(eventApplications.createdAt));
+    .where(eq(eventParticipants.eventId, eventId))
+    .orderBy(asc(eventParticipants.createdAt));
 
   return rows.map((row) => ({
-    applicationId: row.applicationId,
+    participantId: row.participantId,
     userId: row.userId,
     fullName: row.fullName || 'Unknown',
     email: row.email,
     university: row.university ?? null,
     major: row.major ?? null,
     yearOfStudy: row.yearOfStudy ?? null,
-    status: row.status ?? null,
     submittedAt: row.submittedAt,
     teamCode: row.teamCode ?? null,
     hasResume: Boolean(row.resumeFile),
@@ -548,16 +550,16 @@ export async function getEventAttendeeRoster(
 
   const rows = await db
     .select({
-      userId: eventAttendees.userId,
+      userId: eventParticipants.userId,
       fullName: userProfiles.fullName,
       email: user.email,
-      registeredAt: eventAttendees.registeredAt,
+      registeredAt: eventParticipants.createdAt,
     })
-    .from(eventAttendees)
-    .innerJoin(user, eq(eventAttendees.userId, user.id))
-    .leftJoin(userProfiles, eq(eventAttendees.userId, userProfiles.userId))
-    .where(eq(eventAttendees.eventId, eventId))
-    .orderBy(asc(eventAttendees.registeredAt));
+    .from(eventParticipants)
+    .innerJoin(user, eq(eventParticipants.userId, user.id))
+    .leftJoin(userProfiles, eq(eventParticipants.userId, userProfiles.userId))
+    .where(and(eq(eventParticipants.eventId, eventId), hasStatus('accepted')))
+    .orderBy(asc(eventParticipants.createdAt));
 
   return rows.map((row) => ({
     userId: row.userId,
@@ -565,4 +567,50 @@ export async function getEventAttendeeRoster(
     email: row.email,
     registeredAt: row.registeredAt,
   }));
+}
+
+export type ParticipantStatusRow = {
+  participantId: string;
+  statusLabel: string;
+  respondBy: Date | null;
+  checkedIn: boolean;
+};
+
+/**
+ * Every participant's stored status, invitation deadline and door check-in
+ * for an event — uncached, so the roster always shows the live status next
+ * to the cached `getApplicationRoster` details. Resolve with
+ * `resolveEffectiveStatus` / `deriveAttendance`.
+ */
+export async function getParticipantStatuses(
+  eventId: string,
+): Promise<ParticipantStatusRow[]> {
+  return db
+    .select({
+      participantId: eventParticipants.id,
+      statusLabel: participationStatuses.label,
+      respondBy: eventRsvpWaves.respondBy,
+      checkedIn: sql<boolean>`${checkIns.userId} IS NOT NULL`,
+    })
+    .from(eventParticipants)
+    .innerJoin(
+      participationStatuses,
+      eq(eventParticipants.statusId, participationStatuses.id),
+    )
+    .leftJoin(
+      eventInvitations,
+      eq(eventInvitations.participantId, eventParticipants.id),
+    )
+    .leftJoin(
+      eventRsvpWaves,
+      eq(eventInvitations.rsvpWaveId, eventRsvpWaves.id),
+    )
+    .leftJoin(
+      checkIns,
+      and(
+        eq(checkIns.eventId, eventParticipants.eventId),
+        eq(checkIns.userId, eventParticipants.userId),
+      ),
+    )
+    .where(eq(eventParticipants.eventId, eventId));
 }

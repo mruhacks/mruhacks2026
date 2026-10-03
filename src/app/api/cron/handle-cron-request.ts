@@ -1,18 +1,30 @@
 /**
+ * Bearer tokens accepted by every `/api/cron/*` route: `CRON_MANUAL_SECRET`
+ * (the Cloudflare Worker scheduler in `workers/rsvp-cron`, or manual curl
+ * triggers) and, optionally, `CRON_SECRET`.
+ */
+function configuredCronSecrets(): string[] {
+  return [process.env.CRON_SECRET, process.env.CRON_MANUAL_SECRET]
+    .map((value) => value?.trim())
+    .filter((value): value is string => Boolean(value));
+}
+
+/**
  * Shared request shell for `/api/cron/*` routes: bearer auth, 401, run, 200, or 500.
  */
 export async function handleCronRequest<T>(
   request: Request,
   options: {
     logLabel: string;
-    extraSecrets?: string[];
     run: () => Promise<T>;
     failureBody: unknown;
   },
 ): Promise<Response> {
-  const secret = process.env.CRON_SECRET?.trim();
-  if (!secret) {
-    console.error(`${options.logLabel} CRON_SECRET is not configured`);
+  const secrets = configuredCronSecrets();
+  if (secrets.length === 0) {
+    console.error(
+      `${options.logLabel} no cron secret configured (CRON_SECRET or CRON_MANUAL_SECRET)`,
+    );
     return Response.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -22,10 +34,10 @@ export async function handleCronRequest<T>(
   }
 
   const [scheme, token] = authorization.split(' ');
-  const extraSecrets = options.extraSecrets ?? [];
   const authorized =
     scheme?.toLowerCase() === 'bearer' &&
-    (token === secret || extraSecrets.includes(token));
+    token !== undefined &&
+    secrets.includes(token);
 
   if (!authorized) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 });

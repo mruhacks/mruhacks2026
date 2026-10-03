@@ -2,8 +2,13 @@ import 'server-only';
 
 import { and, eq, lt } from 'drizzle-orm';
 
-import { eventRsvpResponses, eventRsvpWaves, rsvpStatuses } from '@/db/schema';
-import { isEffectivePendingRsvp } from '@/lib/rsvp/effective-rsvp-status';
+import {
+  eventInvitations,
+  eventParticipants,
+  eventRsvpWaves,
+  participationStatuses,
+} from '@/db/schema';
+import { resolveEffectiveStatus } from '@/lib/participation/status';
 import { publishRsvpInvitation } from '@/lib/rsvp/rsvp-invitation-queue';
 import { db } from '@/utils/db';
 
@@ -23,7 +28,7 @@ export type RequeuePendingRsvpInvitationsResult = {
 };
 
 /**
- * Republishes queue messages for `unsent` RSVP responses whose original
+ * Republishes queue messages for `unsent` RSVP invitations whose original
  * publish likely failed or never happened. Only touches `unsent` rows older
  * than the safety threshold — `legacy`, `queued`, `sent`, and `failed` rows
  * are left alone. Never sends email directly; only republishes queue jobs.
@@ -36,20 +41,27 @@ export async function requeuePendingRsvpInvitations(
 
   const candidates = await db
     .select({
-      responseId: eventRsvpResponses.id,
-      statusLabel: rsvpStatuses.label,
+      responseId: eventInvitations.id,
+      statusLabel: participationStatuses.label,
       respondBy: eventRsvpWaves.respondBy,
     })
-    .from(eventRsvpResponses)
+    .from(eventInvitations)
     .innerJoin(
       eventRsvpWaves,
-      eq(eventRsvpResponses.rsvpWaveId, eventRsvpWaves.id),
+      eq(eventInvitations.rsvpWaveId, eventRsvpWaves.id),
     )
-    .leftJoin(rsvpStatuses, eq(eventRsvpResponses.statusId, rsvpStatuses.id))
+    .innerJoin(
+      eventParticipants,
+      eq(eventInvitations.participantId, eventParticipants.id),
+    )
+    .innerJoin(
+      participationStatuses,
+      eq(eventParticipants.statusId, participationStatuses.id),
+    )
     .where(
       and(
-        eq(eventRsvpResponses.invitationEmailStatus, 'unsent'),
-        lt(eventRsvpResponses.createdAt, staleBefore),
+        eq(eventInvitations.invitationEmailStatus, 'unsent'),
+        lt(eventInvitations.createdAt, staleBefore),
       ),
     );
 
@@ -59,7 +71,11 @@ export async function requeuePendingRsvpInvitations(
 
   for (const candidate of candidates) {
     if (
-      !isEffectivePendingRsvp(candidate.statusLabel, candidate.respondBy, now)
+      resolveEffectiveStatus(
+        candidate.statusLabel,
+        candidate.respondBy,
+        now,
+      ) !== 'invited'
     ) {
       skipped += 1;
       continue;
@@ -70,15 +86,15 @@ export async function requeuePendingRsvpInvitations(
       // Consumer may already have processed and marked this 'sent' by the
       // time this update runs — never regress it back to 'queued'.
       await db
-        .update(eventRsvpResponses)
+        .update(eventInvitations)
         .set({
           invitationEmailStatus: 'queued',
           invitationEmailQueuedAt: new Date(),
         })
         .where(
           and(
-            eq(eventRsvpResponses.id, candidate.responseId),
-            eq(eventRsvpResponses.invitationEmailStatus, 'unsent'),
+            eq(eventInvitations.id, candidate.responseId),
+            eq(eventInvitations.invitationEmailStatus, 'unsent'),
           ),
         );
       queued += 1;

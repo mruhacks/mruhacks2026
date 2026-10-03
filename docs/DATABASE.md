@@ -112,9 +112,9 @@ Our database schema is split across multiple files to be more manageable.
 - `src/db/schema.ts`: Main export file
 - `src/db/auth-schema.ts`: Defines authentication (who you are) related tables.
 - `src/db/lookups.ts`: Defines reference/lookup tables (genders, universities, majors, event_types, etc.).
-- `src/db/events-and-participation.ts`: Defines events (with `parent_event_id`, `event_type_id` FK to `event_types`, `capacity`, `rsvp_response_window_hours`), user profiles, event applications (with `id`, `status_id`, `reviewed_at`, `reviewed_by`, `waitlist_position`), event RSVP waves and responses, user interests/dietary (user-level), event attendees, check-ins, groups, group members, submissions, and application views
+- `src/db/events-and-participation.ts`: Defines events (with `parent_event_id`, `event_type_id` FK to `event_types`, `capacity`, `rsvp_response_window_hours`), user profiles, event participants (with `id`, `status_id`, `reviewed_at`, `reviewed_by`, `waitlist_position`), event RSVP waves and invitations, user interests/dietary (user-level), check-ins, groups, group members, submissions, and application views
 - `src/db/authz.ts`: Defines authorization (what you can do) related tables.
-- `scripts/seed-static.ts`: Seeds static lookup/reference data (including `application_statuses`, `rsvp_statuses`) into the lookup tables defined in `src/db/lookups.ts`.
+- `scripts/seed-static.ts`: Seeds static lookup/reference data (including `participation_statuses`) into the lookup tables defined in `src/db/lookups.ts`.
 - `src/types/lookups.ts`: Defines the TypeScript types and source lists of valid values for the reference/lookup tables used by `scripts/seed-static.ts`.
 
 Every `timestamp` column is declared `timestamp('col_name', { withTimezone: true })` — a naive `timestamp without time zone` can't tell UTC apart from any other zone, which caused real bugs (see the "Datetimes" section in `AGENTS.md`). New timestamp columns must follow the same pattern.
@@ -128,10 +128,8 @@ erDiagram
     user ||--o{ session : "has"
     user ||--o{ account : "has"
     user ||--o| user_profiles : "has"
-    user ||--o{ event_applications : "submits"
-    user ||--o{ event_attendees : "registers"
+    user ||--o{ event_participants : "participates"
     user ||--o{ check_ins : "checked_in_at"
-    user ||--o{ event_rsvp_responses : "responds"
     user ||--o{ user_interests : "has"
     user ||--o{ user_dietary_restrictions : "has"
     user ||--o{ group_members : "in"
@@ -139,18 +137,17 @@ erDiagram
     user ||--o{ authz_user_permission : "has"
 
     events ||--o{ events : "parent_of"
-    events ||--o{ event_applications : "receives"
-    events ||--o{ event_attendees : "hosts"
+    events ||--o{ event_participants : "has"
     events ||--o{ check_ins : "has"
     events ||--o{ event_rsvp_waves : "has"
     events ||--o{ groups : "hosts"
     events ||--o{ submissions : "receives"
 
-    event_rsvp_waves ||--o{ event_rsvp_responses : "has"
+    event_rsvp_waves ||--o{ event_invitations : "has"
+    event_participants ||--o| event_invitations : "invited_by"
 
     event_types ||--o{ events : "referenced_by"
-    application_statuses ||--o{ event_applications : "referenced_by"
-    rsvp_statuses ||--o{ event_rsvp_responses : "referenced_by"
+    participation_statuses ||--o{ event_participants : "referenced_by"
 
     groups ||--o{ group_members : "contains"
     groups ||--o{ submissions : "makes"
@@ -232,15 +229,15 @@ erDiagram
         int year_of_study_id FK
     }
 
-    event_applications {
+    event_participants {
         uuid id PK
         uuid event_id FK
         uuid user_id FK
-        int status_id FK "nullable"
+        int status_id FK
         timestamp reviewed_at "nullable"
         uuid reviewed_by FK "nullable"
         int waitlist_position "nullable"
-        jsonb responses
+        jsonb responses "nullable"
         timestamp created_at
         timestamp updated_at
     }
@@ -253,12 +250,14 @@ erDiagram
         timestamp created_at
     }
 
-    event_rsvp_responses {
+    event_invitations {
         uuid id PK
         uuid rsvp_wave_id FK
-        uuid user_id FK
-        int status_id FK "nullable"
+        uuid participant_id FK "unique"
         timestamp responded_at "nullable"
+        uuid accepted_terms_id FK "nullable"
+        timestamp terms_accepted_at "nullable"
+        text invitation_email_status
         timestamp created_at
         timestamp updated_at
     }
@@ -271,12 +270,6 @@ erDiagram
     user_dietary_restrictions {
         uuid user_id FK
         int restriction_id FK
-    }
-
-    event_attendees {
-        uuid event_id PK, FK
-        uuid user_id PK, FK
-        timestamp registered_at
     }
 
     groups {
@@ -334,18 +327,12 @@ erDiagram
         varchar label
     }
 
-    application_statuses {
+    participation_statuses {
         serial id PK
         varchar label
         varchar title
         varchar description
         varchar variant
-        boolean is_final
-    }
-
-    rsvp_statuses {
-        serial id PK
-        varchar label
     }
 
     authz_permission {
@@ -379,9 +366,9 @@ erDiagram
 **Notes:**
 
 - The diagram shows **base tables** only. Entities prefixed with `authz_` (e.g. `authz_permission`, `authz_role`, `authz_user_role`) are in the `authz` schema; all others are in `public`.
-- The database also has two **views** (not shown): `application_view` and `application_form_view`. They are denormalized views over `event_applications`, `user_profiles`, and lookup tables. See [ARCHITECTURE.md](./ARCHITECTURE.md) under "Database Views" for details.
+- The database also has two **views** (not shown): `application_view` and `application_form_view`. They are denormalized views over `event_participants`, `user_profiles`, and lookup tables. See [ARCHITECTURE.md](./ARCHITECTURE.md) under "Database Views" for details.
 - The `heard_from_sources` lookup table has no foreign keys from other tables in the current schema.
-- `application_statuses` (labels: pending_review, approved, denied, waitlisted) is referenced by `event_applications.status_id`. Unlike the other lookup tables, it also carries the UI display config for each status: `title`, `description`, `variant` (badge style), and `is_final` (whether the decision is final). These columns are read on the server via `getApplicationStatusDisplayMap()` in `src/app/dashboard/events/application-status.ts` and seeded from `applicationStatusDisplayList` in `src/types/lookups.ts`. `rsvp_statuses` (labels: pending, accepted, declined, timed_out) is referenced by `event_rsvp_responses.status_id`.
+- `participation_statuses` (labels: pending_review, waitlisted, denied, invited, accepted, declined, timed_out) is referenced by `event_participants.status_id` — the **one** status of a person for an event, covering application review, the RSVP and attendance (see the registration flow in [ARCHITECTURE.md](./ARCHITECTURE.md)). It also carries the UI display config for each status (`title`, `description`, `variant`), read on the server via `getStatusDisplayMap()` in `src/lib/participation/server.ts` and seeded from `participationStatusDisplayList` in `src/types/lookups.ts`. What each status means (who holds a spot, who may form a team, what an expired invitation reads as) and which transitions are allowed live in `src/lib/participation/`. A stored `invited` past its wave's `respond_by` reads as `timed_out`; checked-in and no-show are derived from `accepted` plus `check_ins`, never stored. `event_invitations` has no status of its own: it records the wave, email delivery and Event Terms consent for the participant it belongs to.
 - `event_types` (labels: meal, workshop, hackathon) is referenced by `events.event_type_id`. Meals and workshops are typically child events (`parent_event_id` set to the main event). `check_ins` records one row per user per event (main event = door check-in; child event = e.g. meal check-in).
 
 ## Drizzle Studio

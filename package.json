@@ -23,7 +23,7 @@
     "knip": "knip",
     "check-health": "tsx scripts/check-health.ts",
     "test:rsvp-wave": "tsx --require ./scripts/preload-server-only-mock.cjs scripts/test-send-rsvp-wave.ts",
-    "rsvp:reset": "tsx scripts/reset-rsvps.ts"
+    "event:reset": "tsx --require ./scripts/preload-server-only-mock.cjs scripts/reset-event.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1116.0",

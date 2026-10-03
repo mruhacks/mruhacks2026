@@ -1,26 +1,25 @@
 import 'server-only';
 
-import { and, desc, eq, ne, sql } from 'drizzle-orm';
+import { and, eq, ne, sql } from 'drizzle-orm';
 
 import {
   events,
-  eventRsvpResponses,
+  eventInvitations,
+  eventParticipants,
   eventRsvpWaves,
-  rsvpStatuses,
   user,
 } from '@/db/schema';
+import { hasStatus } from '@/lib/participation/server';
+import { resolveEffectiveStatus } from '@/lib/participation/status';
 import { sendRsvpMagicLink } from '@/lib/rsvp/send-rsvp-magic-link';
-import { isEffectivePendingRsvp } from '@/lib/rsvp/effective-rsvp-status';
 import { db } from '@/utils/db';
-
-const PENDING_RSVP_STATUS_LABEL = 'pending';
 
 export type ResendRsvpMagicLinkSuccess = {
   success: true;
   eventId: string;
   userId: string;
   email: string;
-  /** Existing pending response that was left unchanged. */
+  /** Existing open invitation that was left unchanged. */
   responseId: string;
   waveId: string;
 };
@@ -42,8 +41,9 @@ export type ResendRsvpMagicLinkOptions = {
 };
 
 /**
- * Sends a fresh magic link for an existing pending RSVP. Token lifetime is
- * remaining time until the wave `respondBy`. Does not create a wave or response.
+ * Sends a fresh magic link for an existing open invitation (participant
+ * still `invited`). Token lifetime is remaining time until the wave
+ * `respondBy`. Does not create a wave or invitation.
  */
 export async function resendRsvpMagicLink(
   options: ResendRsvpMagicLinkOptions,
@@ -62,54 +62,38 @@ export async function resendRsvpMagicLink(
     };
   }
 
-  const [pendingStatus] = await db
-    .select({ id: rsvpStatuses.id })
-    .from(rsvpStatuses)
-    .where(eq(rsvpStatuses.label, PENDING_RSVP_STATUS_LABEL))
-    .limit(1);
-
-  if (!pendingStatus) {
-    return {
-      success: false,
-      error: 'RSVP statuses are not configured (missing pending).',
-    };
-  }
-
-  const whereClause = userId
-    ? and(
-        eq(eventRsvpWaves.eventId, eventId),
-        eq(eventRsvpResponses.userId, userId),
-        eq(eventRsvpResponses.statusId, pendingStatus.id),
-      )
-    : and(
-        eq(eventRsvpWaves.eventId, eventId),
-        eq(user.email, email!),
-        eq(eventRsvpResponses.statusId, pendingStatus.id),
-      );
+  const whereClause = and(
+    eq(eventParticipants.eventId, eventId),
+    userId ? eq(eventParticipants.userId, userId) : eq(user.email, email!),
+    hasStatus('invited'),
+  );
 
   const [pending] = await db
     .select({
-      responseId: eventRsvpResponses.id,
+      responseId: eventInvitations.id,
       waveId: eventRsvpWaves.id,
-      userId: eventRsvpResponses.userId,
+      userId: eventParticipants.userId,
       email: user.email,
       eventName: events.name,
       respondBy: eventRsvpWaves.respondBy,
     })
-    .from(eventRsvpResponses)
+    .from(eventInvitations)
     .innerJoin(
       eventRsvpWaves,
-      eq(eventRsvpResponses.rsvpWaveId, eventRsvpWaves.id),
+      eq(eventInvitations.rsvpWaveId, eventRsvpWaves.id),
     )
-    .innerJoin(events, eq(eventRsvpWaves.eventId, events.id))
-    .innerJoin(user, eq(eventRsvpResponses.userId, user.id))
+    .innerJoin(
+      eventParticipants,
+      eq(eventInvitations.participantId, eventParticipants.id),
+    )
+    .innerJoin(events, eq(eventParticipants.eventId, events.id))
+    .innerJoin(user, eq(eventParticipants.userId, user.id))
     .where(whereClause)
-    .orderBy(desc(eventRsvpWaves.wave))
     .limit(1);
 
   if (
     !pending ||
-    !isEffectivePendingRsvp(PENDING_RSVP_STATUS_LABEL, pending.respondBy)
+    resolveEffectiveStatus('invited', pending.respondBy) !== 'invited'
   ) {
     return {
       success: false,
@@ -133,23 +117,23 @@ export async function resendRsvpMagicLink(
     );
     // Guard against a stale write if a concurrent delivery already sent it.
     await db
-      .update(eventRsvpResponses)
+      .update(eventInvitations)
       .set({
         invitationEmailStatus: 'failed',
-        invitationEmailAttempts: sql`${eventRsvpResponses.invitationEmailAttempts} + 1`,
+        invitationEmailAttempts: sql`${eventInvitations.invitationEmailAttempts} + 1`,
         invitationEmailLastError: message,
       })
       .where(
         and(
-          eq(eventRsvpResponses.id, pending.responseId),
-          ne(eventRsvpResponses.invitationEmailStatus, 'sent'),
+          eq(eventInvitations.id, pending.responseId),
+          ne(eventInvitations.invitationEmailStatus, 'sent'),
         ),
       );
     return { success: false, error: message };
   }
 
   await db
-    .update(eventRsvpResponses)
+    .update(eventInvitations)
     .set({
       invitationEmailStatus: 'sent',
       invitationEmailSentAt: new Date(),
@@ -157,8 +141,8 @@ export async function resendRsvpMagicLink(
     })
     .where(
       and(
-        eq(eventRsvpResponses.id, pending.responseId),
-        ne(eventRsvpResponses.invitationEmailStatus, 'sent'),
+        eq(eventInvitations.id, pending.responseId),
+        ne(eventInvitations.invitationEmailStatus, 'sent'),
       ),
     );
 

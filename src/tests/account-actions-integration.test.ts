@@ -333,8 +333,10 @@ describe('exportMyData', () => {
     expect(data).toHaveProperty('account');
     expect(data).toHaveProperty('consent');
     expect(data).toHaveProperty('profile');
-    expect(data).toHaveProperty('eventApplications');
+    expect(data).toHaveProperty('eventParticipation');
+    expect(data).toHaveProperty('rsvpInvitations');
     expect(data).toHaveProperty('linkedAccounts');
-    expect(Array.isArray(data.eventApplications)).toBe(true);
+    expect(Array.isArray(data.eventParticipation)).toBe(true);
+    expect(Array.isArray(data.rsvpInvitations)).toBe(true);
   });
 });

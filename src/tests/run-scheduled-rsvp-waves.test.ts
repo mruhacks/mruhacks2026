@@ -3,16 +3,19 @@ import { count, eq } from 'drizzle-orm';
 
 import { db } from '@/utils/db';
 import {
-  applicationStatuses,
-  eventApplications,
-  eventAttendees,
-  eventRsvpResponses,
+  eventInvitations,
+  eventParticipants,
   eventRsvpWaves,
   events,
-  rsvpStatuses,
   user,
 } from '@/db/schema';
 import { runScheduledRsvpWaves } from '@/lib/rsvp/run-scheduled-rsvp-waves';
+import {
+  getStatus,
+  insertInvitation,
+  insertParticipant,
+  setStatus,
+} from '@/tests/participation-fixtures';
 
 const { publishRsvpInvitation } = vi.hoisted(() => ({
   publishRsvpInvitation: vi.fn(),
@@ -21,57 +24,7 @@ vi.mock('@/lib/rsvp/rsvp-invitation-queue', () => ({
   publishRsvpInvitation,
 }));
 
-let approvedStatusId: number;
-let pendingRsvpStatusId: number;
-let declinedRsvpStatusId: number;
-let timedOutRsvpStatusId: number;
-
-async function ensureApplicationStatus(label: string): Promise<number> {
-  const [inserted] = await db
-    .insert(applicationStatuses)
-    .values({
-      label,
-      title: label,
-      description: label,
-      variant: 'default',
-      isFinal: label === 'approved',
-    })
-    .onConflictDoNothing()
-    .returning({ id: applicationStatuses.id });
-  if (inserted) return inserted.id;
-  const [existing] = await db
-    .select({ id: applicationStatuses.id })
-    .from(applicationStatuses)
-    .where(eq(applicationStatuses.label, label))
-    .limit(1);
-  return existing.id;
-}
-
-async function ensureRsvpStatus(
-  label: string,
-  isFinal: boolean,
-): Promise<number> {
-  const [inserted] = await db
-    .insert(rsvpStatuses)
-    .values({
-      label,
-      title: label,
-      description: label,
-      variant: 'default',
-      isFinal,
-    })
-    .onConflictDoNothing()
-    .returning({ id: rsvpStatuses.id });
-  if (inserted) return inserted.id;
-  const [existing] = await db
-    .select({ id: rsvpStatuses.id })
-    .from(rsvpStatuses)
-    .where(eq(rsvpStatuses.label, label))
-    .limit(1);
-  return existing.id;
-}
-
-async function insertApprovedUser(
+async function insertWaitlistedUser(
   eventId: string,
   email: string,
   createdAt?: Date,
@@ -84,11 +37,11 @@ async function insertApprovedUser(
       emailVerified: true,
     })
     .returning({ id: user.id });
-  await db.insert(eventApplications).values({
+  await insertParticipant({
     eventId,
     userId: row.id,
-    statusId: approvedStatusId,
-    ...(createdAt ? { createdAt } : {}),
+    status: 'waitlisted',
+    createdAt,
   });
   return row.id;
 }
@@ -103,10 +56,6 @@ async function waveCount(eventId: string): Promise<number> {
 
 beforeAll(async () => {
   process.env.BETTER_AUTH_URL = 'http://localhost:3000';
-  approvedStatusId = await ensureApplicationStatus('approved');
-  pendingRsvpStatusId = await ensureRsvpStatus('pending', false);
-  declinedRsvpStatusId = await ensureRsvpStatus('declined', true);
-  timedOutRsvpStatusId = await ensureRsvpStatus('timed_out', true);
 });
 
 beforeEach(() => {
@@ -146,11 +95,11 @@ describe('runScheduledRsvpWaves', () => {
       })
       .returning({ id: events.id });
 
-    const pendingUserId = await insertApprovedUser(
+    const pendingUserId = await insertWaitlistedUser(
       eventRow.id,
       'scheduled-active-pending@example.com',
     );
-    const waitingUserId = await insertApprovedUser(
+    const waitingUserId = await insertWaitlistedUser(
       eventRow.id,
       'scheduled-active-waiting@example.com',
     );
@@ -165,10 +114,11 @@ describe('runScheduledRsvpWaves', () => {
       })
       .returning({ id: eventRsvpWaves.id });
 
-    await db.insert(eventRsvpResponses).values({
+    await insertInvitation({
       rsvpWaveId: wave.id,
+      eventId: eventRow.id,
       userId: pendingUserId,
-      statusId: pendingRsvpStatusId,
+      status: 'invited',
     });
 
     try {
@@ -181,8 +131,8 @@ describe('runScheduledRsvpWaves', () => {
         .delete(eventRsvpWaves)
         .where(eq(eventRsvpWaves.eventId, eventRow.id));
       await db
-        .delete(eventApplications)
-        .where(eq(eventApplications.eventId, eventRow.id));
+        .delete(eventParticipants)
+        .where(eq(eventParticipants.eventId, eventRow.id));
       await db.delete(events).where(eq(events.id, eventRow.id));
       await db.delete(user).where(eq(user.id, pendingUserId));
       await db.delete(user).where(eq(user.id, waitingUserId));
@@ -200,11 +150,11 @@ describe('runScheduledRsvpWaves', () => {
       })
       .returning({ id: events.id });
 
-    const declinedUserId = await insertApprovedUser(
+    const declinedUserId = await insertWaitlistedUser(
       eventRow.id,
       'scheduled-early-decline@example.com',
     );
-    const waitingUserId = await insertApprovedUser(
+    const waitingUserId = await insertWaitlistedUser(
       eventRow.id,
       'scheduled-early-waiting@example.com',
     );
@@ -219,10 +169,11 @@ describe('runScheduledRsvpWaves', () => {
       })
       .returning({ id: eventRsvpWaves.id });
 
-    await db.insert(eventRsvpResponses).values({
+    await insertInvitation({
       rsvpWaveId: wave.id,
+      eventId: eventRow.id,
       userId: declinedUserId,
-      statusId: declinedRsvpStatusId,
+      status: 'declined',
       respondedAt: new Date('2026-08-10T14:00:00.000Z'),
     });
 
@@ -237,8 +188,8 @@ describe('runScheduledRsvpWaves', () => {
         .delete(eventRsvpWaves)
         .where(eq(eventRsvpWaves.eventId, eventRow.id));
       await db
-        .delete(eventApplications)
-        .where(eq(eventApplications.eventId, eventRow.id));
+        .delete(eventParticipants)
+        .where(eq(eventParticipants.eventId, eventRow.id));
       await db.delete(events).where(eq(events.id, eventRow.id));
       await db.delete(user).where(eq(user.id, declinedUserId));
       await db.delete(user).where(eq(user.id, waitingUserId));
@@ -259,11 +210,11 @@ describe('runScheduledRsvpWaves', () => {
       })
       .returning({ id: events.id });
 
-    const expiredUserId = await insertApprovedUser(
+    const expiredUserId = await insertWaitlistedUser(
       eventRow.id,
       'scheduled-rsvp@example.com',
     );
-    const nextUserId = await insertApprovedUser(
+    const nextUserId = await insertWaitlistedUser(
       eventRow.id,
       'scheduled-rsvp-next@example.com',
       new Date('2026-07-01T00:00:00.000Z'),
@@ -279,10 +230,11 @@ describe('runScheduledRsvpWaves', () => {
       })
       .returning({ id: eventRsvpWaves.id });
 
-    await db.insert(eventRsvpResponses).values({
+    await insertInvitation({
       rsvpWaveId: priorWave.id,
+      eventId: eventRow.id,
       userId: expiredUserId,
-      statusId: pendingRsvpStatusId,
+      status: 'invited',
     });
 
     try {
@@ -294,11 +246,7 @@ describe('runScheduledRsvpWaves', () => {
       expect(firstMatch?.responsesCreated).toBe(1);
       expect(firstMatch?.invitationsQueued).toBe(1);
 
-      const [expiredRow] = await db
-        .select({ statusId: eventRsvpResponses.statusId })
-        .from(eventRsvpResponses)
-        .where(eq(eventRsvpResponses.userId, expiredUserId));
-      expect(expiredRow?.statusId).toBe(timedOutRsvpStatusId);
+      expect(await getStatus(eventRow.id, expiredUserId)).toBe('timed_out');
 
       expect(await waveCount(eventRow.id)).toBe(2);
 
@@ -311,8 +259,8 @@ describe('runScheduledRsvpWaves', () => {
         .delete(eventRsvpWaves)
         .where(eq(eventRsvpWaves.eventId, eventRow.id));
       await db
-        .delete(eventApplications)
-        .where(eq(eventApplications.eventId, eventRow.id));
+        .delete(eventParticipants)
+        .where(eq(eventParticipants.eventId, eventRow.id));
       await db.delete(events).where(eq(events.id, eventRow.id));
       await db.delete(user).where(eq(user.id, expiredUserId));
       await db.delete(user).where(eq(user.id, nextUserId));
@@ -329,19 +277,16 @@ describe('runScheduledRsvpWaves', () => {
       })
       .returning({ id: events.id });
 
-    const attendeeId = await insertApprovedUser(
+    const attendeeId = await insertWaitlistedUser(
       eventRow.id,
       'scheduled-full-attendee@example.com',
     );
-    const eligibleId = await insertApprovedUser(
+    const eligibleId = await insertWaitlistedUser(
       eventRow.id,
       'scheduled-full-eligible@example.com',
     );
 
-    await db.insert(eventAttendees).values({
-      eventId: eventRow.id,
-      userId: attendeeId,
-    });
+    await setStatus(eventRow.id, attendeeId, 'accepted');
     await db.insert(eventRsvpWaves).values({
       eventId: eventRow.id,
       wave: 1,
@@ -361,11 +306,8 @@ describe('runScheduledRsvpWaves', () => {
         .delete(eventRsvpWaves)
         .where(eq(eventRsvpWaves.eventId, eventRow.id));
       await db
-        .delete(eventAttendees)
-        .where(eq(eventAttendees.eventId, eventRow.id));
-      await db
-        .delete(eventApplications)
-        .where(eq(eventApplications.eventId, eventRow.id));
+        .delete(eventParticipants)
+        .where(eq(eventParticipants.eventId, eventRow.id));
       await db.delete(events).where(eq(events.id, eventRow.id));
       await db.delete(user).where(eq(user.id, attendeeId));
       await db.delete(user).where(eq(user.id, eligibleId));
@@ -382,12 +324,12 @@ describe('runScheduledRsvpWaves', () => {
       })
       .returning({ id: events.id });
 
-    const userAId = await insertApprovedUser(
+    const userAId = await insertWaitlistedUser(
       eventRow.id,
       'scheduled-overflow-a@example.com',
       new Date('2026-07-01T00:00:00.000Z'),
     );
-    const userBId = await insertApprovedUser(
+    const userBId = await insertWaitlistedUser(
       eventRow.id,
       'scheduled-overflow-b@example.com',
       new Date('2026-07-02T00:00:00.000Z'),
@@ -410,13 +352,13 @@ describe('runScheduledRsvpWaves', () => {
       expect(match?.responsesCreated).toBe(1);
 
       const invited = await db
-        .select({ userId: eventRsvpResponses.userId })
-        .from(eventRsvpResponses)
+        .select({ userId: eventParticipants.userId })
+        .from(eventInvitations)
         .innerJoin(
-          eventRsvpWaves,
-          eq(eventRsvpResponses.rsvpWaveId, eventRsvpWaves.id),
+          eventParticipants,
+          eq(eventInvitations.participantId, eventParticipants.id),
         )
-        .where(eq(eventRsvpWaves.eventId, eventRow.id));
+        .where(eq(eventParticipants.eventId, eventRow.id));
       expect(invited.map((row) => row.userId)).toContain(userAId);
       expect(invited.map((row) => row.userId)).not.toContain(userBId);
     } finally {
@@ -424,8 +366,8 @@ describe('runScheduledRsvpWaves', () => {
         .delete(eventRsvpWaves)
         .where(eq(eventRsvpWaves.eventId, eventRow.id));
       await db
-        .delete(eventApplications)
-        .where(eq(eventApplications.eventId, eventRow.id));
+        .delete(eventParticipants)
+        .where(eq(eventParticipants.eventId, eventRow.id));
       await db.delete(events).where(eq(events.id, eventRow.id));
       await db.delete(user).where(eq(user.id, userAId));
       await db.delete(user).where(eq(user.id, userBId));
@@ -442,7 +384,7 @@ describe('runScheduledRsvpWaves', () => {
       })
       .returning({ id: events.id });
 
-    const applicantId = await insertApprovedUser(
+    const applicantId = await insertWaitlistedUser(
       eventRow.id,
       'scheduled-still-pending@example.com',
     );
@@ -457,10 +399,11 @@ describe('runScheduledRsvpWaves', () => {
       })
       .returning({ id: eventRsvpWaves.id });
 
-    await db.insert(eventRsvpResponses).values({
+    await insertInvitation({
       rsvpWaveId: priorWave.id,
+      eventId: eventRow.id,
       userId: applicantId,
-      statusId: pendingRsvpStatusId,
+      status: 'invited',
     });
 
     try {
@@ -471,18 +414,14 @@ describe('runScheduledRsvpWaves', () => {
       expect(match?.action).toBe('skipped_no_eligible');
       expect(await waveCount(eventRow.id)).toBe(1);
 
-      const [expiredRow] = await db
-        .select({ statusId: eventRsvpResponses.statusId })
-        .from(eventRsvpResponses)
-        .where(eq(eventRsvpResponses.userId, applicantId));
-      expect(expiredRow?.statusId).toBe(timedOutRsvpStatusId);
+      expect(await getStatus(eventRow.id, applicantId)).toBe('timed_out');
     } finally {
       await db
         .delete(eventRsvpWaves)
         .where(eq(eventRsvpWaves.eventId, eventRow.id));
       await db
-        .delete(eventApplications)
-        .where(eq(eventApplications.eventId, eventRow.id));
+        .delete(eventParticipants)
+        .where(eq(eventParticipants.eventId, eventRow.id));
       await db.delete(events).where(eq(events.id, eventRow.id));
       await db.delete(user).where(eq(user.id, applicantId));
     }
@@ -499,7 +438,7 @@ describe('runScheduledRsvpWaves', () => {
       })
       .returning({ id: events.id });
 
-    const applicantId = await insertApprovedUser(
+    const applicantId = await insertWaitlistedUser(
       eventRow.id,
       'scheduled-started@example.com',
     );
@@ -521,8 +460,8 @@ describe('runScheduledRsvpWaves', () => {
         .delete(eventRsvpWaves)
         .where(eq(eventRsvpWaves.eventId, eventRow.id));
       await db
-        .delete(eventApplications)
-        .where(eq(eventApplications.eventId, eventRow.id));
+        .delete(eventParticipants)
+        .where(eq(eventParticipants.eventId, eventRow.id));
       await db.delete(events).where(eq(events.id, eventRow.id));
       await db.delete(user).where(eq(user.id, applicantId));
     }
@@ -539,7 +478,7 @@ describe('runScheduledRsvpWaves', () => {
       })
       .returning({ id: events.id });
 
-    const applicantId = await insertApprovedUser(
+    const applicantId = await insertWaitlistedUser(
       eventRow.id,
       'scheduled-concurrent@example.com',
     );
@@ -567,8 +506,8 @@ describe('runScheduledRsvpWaves', () => {
         .delete(eventRsvpWaves)
         .where(eq(eventRsvpWaves.eventId, eventRow.id));
       await db
-        .delete(eventApplications)
-        .where(eq(eventApplications.eventId, eventRow.id));
+        .delete(eventParticipants)
+        .where(eq(eventParticipants.eventId, eventRow.id));
       await db.delete(events).where(eq(events.id, eventRow.id));
       await db.delete(user).where(eq(user.id, applicantId));
     }

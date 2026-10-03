@@ -1,16 +1,15 @@
 import { and, asc, desc, eq, inArray } from 'drizzle-orm';
 import {
-  applicationStatuses,
   checkIns,
-  eventApplications,
-  eventAttendees,
-  eventRsvpResponses,
+  eventInvitations,
+  eventParticipants,
   eventRsvpWaves,
   events,
-  rsvpStatuses,
+  participationStatuses,
   teamMembers,
   teams,
 } from '@/db/schema';
+import { canFormTeam, resolveStoredStatus } from '@/lib/participation/status';
 import { generateTeamCode } from '@/lib/team-code';
 import { db } from '@/utils/db';
 
@@ -31,55 +30,49 @@ export function createParticipationSeeder(now: Date, adminId?: string) {
         .from(events)
         .where(eq(events.id, eventId));
       if (!event) throw new Error(`Missing seed event ${eventId}`);
-      const statuses = await tx.select().from(rsvpStatuses);
-      const applications = await tx
+      const statuses = await tx.select().from(participationStatuses);
+      const statusId = (label: string) => {
+        const status = statuses.find((row) => row.label === label);
+        if (!status) throw new Error(`Missing participation status ${label}`);
+        return status.id;
+      };
+      const participants = await tx
         .select({
-          userId: eventApplications.userId,
-          status: applicationStatuses.label,
+          id: eventParticipants.id,
+          userId: eventParticipants.userId,
+          status: participationStatuses.label,
         })
-        .from(eventApplications)
-        .leftJoin(
-          applicationStatuses,
-          eq(eventApplications.statusId, applicationStatuses.id),
+        .from(eventParticipants)
+        .innerJoin(
+          participationStatuses,
+          eq(eventParticipants.statusId, participationStatuses.id),
         )
         .where(
           and(
-            eq(eventApplications.eventId, eventId),
-            inArray(eventApplications.userId, userIds),
+            eq(eventParticipants.eventId, eventId),
+            inArray(eventParticipants.userId, userIds),
           ),
         )
-        .orderBy(asc(eventApplications.createdAt), asc(eventApplications.id));
-      const existingResponses = await tx
-        .select({ userId: eventRsvpResponses.userId })
-        .from(eventRsvpResponses)
-        .innerJoin(
-          eventRsvpWaves,
-          eq(eventRsvpResponses.rsvpWaveId, eventRsvpWaves.id),
-        )
+        .orderBy(asc(eventParticipants.createdAt), asc(eventParticipants.id));
+      const attending = await tx
+        .select({ userId: eventParticipants.userId })
+        .from(eventParticipants)
         .where(
           and(
-            eq(eventRsvpWaves.eventId, eventId),
-            inArray(eventRsvpResponses.userId, userIds),
+            eq(eventParticipants.eventId, eventId),
+            eq(eventParticipants.statusId, statusId('accepted')),
           ),
         );
-      const invited = new Set(existingResponses.map((row) => row.userId));
-      const attendees = await tx
-        .select()
-        .from(eventAttendees)
-        .where(eq(eventAttendees.eventId, eventId));
-      const registered = new Set(attendees.map((row) => row.userId));
+      const registered = new Set(attending.map((row) => row.userId));
       let spots =
         event.capacity === null
           ? Infinity
-          : Math.max(0, event.capacity - attendees.length);
+          : Math.max(0, event.capacity - attending.length);
 
-      for (const application of applications) {
-        if (
-          application.status !== 'approved' ||
-          invited.has(application.userId) ||
-          registered.has(application.userId)
-        )
-          continue;
+      for (const application of participants) {
+        // Only the waitlist goes out in a wave; anyone already invited has
+        // moved off it.
+        if (application.status !== 'waitlisted') continue;
         // Accepted, open, declined, expired, and still eligible for a future wave.
         const scenario =
           application.userId === adminId ? 0 : participantIndex++ % 8;
@@ -88,12 +81,10 @@ export function createParticipationSeeder(now: Date, adminId?: string) {
           scenario < 4
             ? 'accepted'
             : scenario === 4
-              ? 'pending'
+              ? 'invited'
               : scenario === 5
                 ? 'declined'
                 : 'timed_out';
-        const status = statuses.find((row) => row.label === label);
-        if (!status) throw new Error(`Missing RSVP status ${label}`);
         const expired = label === 'timed_out';
         const key = `${eventId}:${expired ? 'expired' : 'open'}`;
         let wave = waves.get(key);
@@ -129,10 +120,13 @@ export function createParticipationSeeder(now: Date, adminId?: string) {
           label === 'accepted' || label === 'declined'
             ? new Date(now.getTime() - DAY)
             : null;
-        await tx.insert(eventRsvpResponses).values({
+        await tx
+          .update(eventParticipants)
+          .set({ statusId: statusId(label), waitlistPosition: null })
+          .where(eq(eventParticipants.id, application.id));
+        await tx.insert(eventInvitations).values({
           rsvpWaveId: wave.id,
-          userId: application.userId,
-          statusId: status.id,
+          participantId: application.id,
           respondedAt,
           termsAcceptedAt:
             label === 'accepted' && event.termsId ? respondedAt : null,
@@ -143,14 +137,10 @@ export function createParticipationSeeder(now: Date, adminId?: string) {
           updatedAt: expired ? wave.respondBy : (respondedAt ?? wave.createdAt),
         });
         if (label === 'accepted') {
-          await tx.insert(eventAttendees).values({
-            eventId,
-            userId: application.userId,
-            registeredAt: respondedAt!,
-          });
           registered.add(application.userId);
           spots--;
         }
+        application.status = label;
       }
 
       // Only confirmed attendees get check-ins; leave some available for scanning.
@@ -178,8 +168,8 @@ export function createParticipationSeeder(now: Date, adminId?: string) {
         );
       const alreadyOnTeam = new Set(memberships.map((row) => row.userId));
       const eligible = new Set([
-        ...applications
-          .filter((row) => row.status !== 'denied')
+        ...participants
+          .filter((row) => canFormTeam(resolveStoredStatus(row.status)))
           .map((row) => row.userId),
         ...eligibleAttendees,
       ]);

@@ -8,12 +8,7 @@ import { cacheLife } from 'next/cache';
 
 import { getUser } from '@/utils/auth';
 import { db } from '@/utils/db';
-import {
-  eventApplications,
-  eventAttendees,
-  events,
-  user as authUser,
-} from '@/db/schema';
+import { eventParticipants, events, user as authUser } from '@/db/schema';
 import { and, eq } from 'drizzle-orm';
 import { getConsentStatus } from '@/app/dashboard/account/actions';
 import { getUserProfile } from '@/app/dashboard/profile/actions';
@@ -75,34 +70,19 @@ export async function getOnboardingProgress(): Promise<OnboardingProgress> {
 
   let featuredEvent: FeaturedOnboardingEvent | undefined;
   if (featured) {
-    const [existingApplication, existingAttendance] = await Promise.all([
-      featured.hasApplication
-        ? db
-            .select({ id: eventApplications.id })
-            .from(eventApplications)
-            .where(
-              and(
-                eq(eventApplications.eventId, featured.id),
-                eq(eventApplications.userId, user.id),
-              ),
-            )
-            .limit(1)
-        : Promise.resolve([]),
-      featured.hasApplication
-        ? Promise.resolve([])
-        : db
-            .select({ userId: eventAttendees.userId })
-            .from(eventAttendees)
-            .where(
-              and(
-                eq(eventAttendees.eventId, featured.id),
-                eq(eventAttendees.userId, user.id),
-              ),
-            )
-            .limit(1),
-    ]);
+    // Applied or registered — either way they already have a participant row.
+    const [existingParticipation] = await db
+      .select({ id: eventParticipants.id })
+      .from(eventParticipants)
+      .where(
+        and(
+          eq(eventParticipants.eventId, featured.id),
+          eq(eventParticipants.userId, user.id),
+        ),
+      )
+      .limit(1);
 
-    if (existingApplication.length === 0 && existingAttendance.length === 0) {
+    if (!existingParticipation) {
       featuredEvent = {
         ...featured,
         applicationQuestions: featured.applicationQuestions ?? [],

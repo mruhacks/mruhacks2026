@@ -13,16 +13,15 @@ import {
   userProfileAbout,
   userInterests,
   userDietaryRestrictions,
-  eventApplications,
+  eventParticipants,
   eventArticles,
-  eventAttendees,
   genders,
   universities,
   majors,
   yearsOfStudy,
   interests,
   dietaryRestrictions,
-  applicationStatuses,
+  participationStatuses,
   userRole,
   userPermission,
 } from '@/db/schema';
@@ -109,8 +108,7 @@ type UserProfileInsert = InferInsertModel<typeof userProfiles>;
 type UserProfileAboutInsert = InferInsertModel<typeof userProfileAbout>;
 type UserInterestInsert = InferInsertModel<typeof userInterests>;
 type UserDietaryInsert = InferInsertModel<typeof userDietaryRestrictions>;
-type EventApplicationInsert = InferInsertModel<typeof eventApplications>;
-type EventAttendeeInsert = InferInsertModel<typeof eventAttendees>;
+type EventParticipantInsert = InferInsertModel<typeof eventParticipants>;
 type UserRoleInsert = InferInsertModel<typeof userRole>;
 type UserPermissionInsert = InferInsertModel<typeof userPermission>;
 
@@ -830,27 +828,35 @@ export async function seedDemoData() {
     db.select().from(yearsOfStudy),
     db.select().from(interests),
     db.select().from(dietaryRestrictions),
-    db.select().from(applicationStatuses),
+    db.select().from(participationStatuses),
   ]);
 
   const pendingReviewStatus = applicationStatusRows.find(
     (s) => s.label === 'pending_review',
   );
   const pendingReviewStatusId = pendingReviewStatus?.id ?? null;
-  const approvedStatusId =
-    applicationStatusRows.find((s) => s.label === 'approved')?.id ?? null;
   const deniedStatusId =
     applicationStatusRows.find((s) => s.label === 'denied')?.id ?? null;
   const waitlistedStatusId =
     applicationStatusRows.find((s) => s.label === 'waitlisted')?.id ?? null;
+  const acceptedStatusId = applicationStatusRows.find(
+    (s) => s.label === 'accepted',
+  )?.id;
+  if (
+    !pendingReviewStatusId ||
+    !deniedStatusId ||
+    !waitlistedStatusId ||
+    !acceptedStatusId
+  ) {
+    throw new Error('Seed static tables (participation_statuses) first.');
+  }
 
   // Skewed status distribution so the admin stats status filter has
   // something real to filter, instead of every row being pending_review.
   const STATUS_WEIGHTS = [
     { weight: 30, value: pendingReviewStatusId },
-    { weight: 40, value: approvedStatusId },
     { weight: 15, value: deniedStatusId },
-    { weight: 15, value: waitlistedStatusId },
+    { weight: 55, value: waitlistedStatusId },
   ];
 
   // Monotonic across the whole run (not per-chunk), so waitlist positions
@@ -908,8 +914,8 @@ export async function seedDemoData() {
     const profilesAbout: UserProfileAboutInsert[] = [];
     const interestLinks: UserInterestInsert[] = [];
     const dietaryLinks: UserDietaryInsert[] = [];
-    const applicationData: EventApplicationInsert[] = [];
-    const attendeeData: EventAttendeeInsert[] = [];
+    const applicationData: EventParticipantInsert[] = [];
+    const attendeeData: EventParticipantInsert[] = [];
     const userRoles: UserRoleInsert[] = [];
     const userPerms: UserPermissionInsert[] = [];
 
@@ -1079,10 +1085,14 @@ export async function seedDemoData() {
         noAppEvent.id !== applicationEvent.id &&
         faker.datatype.boolean({ probability: 0.3 })
       ) {
+        // A signup for an event without an application is a participant
+        // who is `accepted` from the start.
         attendeeData.push({
           eventId: noAppEvent.id,
           userId: id,
-          registeredAt: applicationWindowEnd,
+          statusId: acceptedStatusId,
+          createdAt: applicationWindowEnd,
+          updatedAt: applicationWindowEnd,
         });
       }
 
@@ -1129,13 +1139,13 @@ export async function seedDemoData() {
         await tx.insert(userInterests).values(interestLinks);
       if (dietaryLinks.length > 0)
         await tx.insert(userDietaryRestrictions).values(dietaryLinks);
-      await tx.insert(eventApplications).values(applicationData);
+      await tx.insert(eventParticipants).values(applicationData);
       if (attendeeData.length > 0)
         await tx
-          .insert(eventAttendees)
+          .insert(eventParticipants)
           .values(attendeeData)
           .onConflictDoNothing({
-            target: [eventAttendees.eventId, eventAttendees.userId],
+            target: [eventParticipants.eventId, eventParticipants.userId],
           });
       if (userRoles.length > 0) await tx.insert(userRole).values(userRoles);
       if (userPerms.length > 0)

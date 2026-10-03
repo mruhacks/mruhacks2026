@@ -3,7 +3,7 @@
  *
  * This file re-exports all database schemas from their respective modules:
  * - auth-schema: Better Auth authentication tables
- * - events-and-participation: Events, user profiles, event applications, and event attendees
+ * - events-and-participation: Events, user profiles, event participants, and RSVP invitations
  * - lookups: Reference/lookup tables for form options
  *
  * Import from this file to access all schema definitions in one place.

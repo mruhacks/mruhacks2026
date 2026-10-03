@@ -1,4 +1,6 @@
 import * as React from 'react';
+import { STATIC_STATUS_DISPLAY } from '@/lib/participation/status';
+import type { ParticipationStatus } from '@/types/lookups';
 import { redirect } from 'next/navigation';
 
 import {
@@ -23,18 +25,19 @@ export default function ApplicationsCell({ params }: Props) {
 }
 
 /**
- * Display order and wording for the status pills. `null` is a submitted
- * application nobody has triaged yet — the DB models status as a single
- * nullable FK, so "no status row" is the un-reviewed state rather than a
- * separate stored value.
+ * Display order and dot colour for the status pills — the whole participation
+ * lifecycle, so the review backlog and the RSVP outcome read in one row.
+ * Wording comes from the shared status titles.
  */
-const STATUS_ROWS = [
-  { key: 'unknown', label: 'Submitted', dot: 'bg-muted-foreground' },
-  { key: 'pending_review', label: 'In review', dot: 'bg-sky-500' },
-  { key: 'approved', label: 'Invited', dot: 'bg-emerald-500' },
-  { key: 'waitlisted', label: 'Waitlisted', dot: 'bg-amber-500' },
-  { key: 'denied', label: 'Declined', dot: 'bg-red-500' },
-] as const;
+const STATUS_ROWS: { key: ParticipationStatus; dot: string }[] = [
+  { key: 'pending_review', dot: 'bg-sky-500' },
+  { key: 'waitlisted', dot: 'bg-secondary' },
+  { key: 'denied', dot: 'bg-red-500' },
+  { key: 'invited', dot: 'bg-violet-500' },
+  { key: 'accepted', dot: 'bg-emerald-600' },
+  { key: 'declined', dot: 'bg-muted-foreground' },
+  { key: 'timed_out', dot: 'bg-muted-foreground/50' },
+];
 
 async function ApplicationsSection({
   paramsPromise,
@@ -78,8 +81,8 @@ async function ApplicationsSection({
       />
 
       {/* Status as a single wrapping row of pills rather than a stacked
-          list: it sits in the narrow column beside the description, where a
-          five-row table would double the card's height for five numbers. */}
+          list: it sits in the narrow column beside the description, where an
+          eight-row table would double the card's height for eight numbers. */}
       <ul className='mt-4 flex list-none flex-wrap gap-2 border-t p-0 pt-4'>
         {STATUS_ROWS.map((row) => (
           <li
@@ -90,7 +93,9 @@ async function ApplicationsSection({
               aria-hidden
               className={`size-1.5 shrink-0 rounded-full ${row.dot}`}
             />
-            <span className='text-muted-foreground'>{row.label}</span>
+            <span className='text-muted-foreground'>
+              {STATIC_STATUS_DISPLAY[row.key].title}
+            </span>
             <span className='font-semibold tabular-nums'>
               {(countByKey.get(row.key) ?? 0).toLocaleString()}
             </span>

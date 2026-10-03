@@ -1,0 +1,9 @@
+# Standalone workspace: this Worker is deployed separately from the Next app,
+# so it gets its own lockfile instead of joining the root workspace.
+
+# Match the root's 72-hour cooldown on freshly published package versions.
+minimumReleaseAge: 4320
+
+allowBuilds:
+  esbuild: true
+  workerd: true

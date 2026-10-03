@@ -21,14 +21,17 @@ vi.mock('@/utils/mail', () => ({
 
 import { db } from '@/utils/db';
 import {
-  applicationStatuses,
   events,
-  eventApplications,
-  eventRsvpResponses,
+  eventParticipants,
+  eventInvitations,
   eventRsvpWaves,
-  rsvpStatuses,
   user,
 } from '@/db/schema';
+import {
+  insertInvitation,
+  insertParticipant,
+  setStatus,
+} from '@/tests/participation-fixtures';
 import { sendRsvpWave } from '@/lib/rsvp/send-rsvp-wave';
 import { requeuePendingRsvpInvitations } from '@/lib/rsvp/requeue-pending-rsvp-invitations';
 
@@ -36,51 +39,28 @@ const FUTURE_RESPOND_BY = new Date('2099-08-01T23:59:59.000Z');
 
 let testEventId: string;
 let testUserId: string;
-let approvedStatusId: number;
-let pendingRsvpStatusId: number;
-
-async function ensureStatus(
-  table: typeof applicationStatuses | typeof rsvpStatuses,
-  label: string,
-  isFinal: boolean,
-): Promise<number> {
-  const [inserted] = await db
-    .insert(table)
-    .values({
-      label,
-      title: label,
-      description: label,
-      variant: 'default',
-      isFinal,
-    })
-    .onConflictDoNothing()
-    .returning({ id: table.id });
-  if (inserted) return inserted.id;
-  const [existing] = await db
-    .select({ id: table.id })
-    .from(table)
-    .where(eq(table.label, label))
-    .limit(1);
-  return existing.id;
-}
-
 async function getResponseStatus(userId: string) {
   const [row] = await db
-    .select({ invitationEmailStatus: eventRsvpResponses.invitationEmailStatus })
-    .from(eventRsvpResponses)
-    .where(eq(eventRsvpResponses.userId, userId))
+    .select({ invitationEmailStatus: eventInvitations.invitationEmailStatus })
+    .from(eventInvitations)
+    .innerJoin(
+      eventParticipants,
+      eq(eventInvitations.participantId, eventParticipants.id),
+    )
+    .where(eq(eventParticipants.userId, userId))
     .limit(1);
   return row?.invitationEmailStatus;
 }
 
-beforeAll(async () => {
-  approvedStatusId = await ensureStatus(applicationStatuses, 'approved', true);
-  pendingRsvpStatusId = await ensureStatus(rsvpStatuses, 'pending', false);
-  // sendRsvpWave times out expired responses before sending, which needs this
-  // row to exist. Seeded here rather than left to whichever other test file
-  // happened to run first and insert it.
-  await ensureStatus(rsvpStatuses, 'timed_out', true);
+/** Drops every wave (and invitation) and puts the applicant back in line. */
+async function resetToWaitlisted() {
+  await db
+    .delete(eventRsvpWaves)
+    .where(eq(eventRsvpWaves.eventId, testEventId));
+  await setStatus(testEventId, testUserId, 'waitlisted');
+}
 
+beforeAll(async () => {
   const [eventRow] = await db
     .insert(events)
     .values({ name: 'Publish Retry Integration Event', hasApplication: true })
@@ -97,10 +77,10 @@ beforeAll(async () => {
     .returning({ id: user.id });
   testUserId = userRow.id;
 
-  await db.insert(eventApplications).values({
+  await insertParticipant({
     eventId: testEventId,
     userId: testUserId,
-    statusId: approvedStatusId,
+    status: 'waitlisted',
   });
 });
 
@@ -108,9 +88,6 @@ afterAll(async () => {
   await db
     .delete(eventRsvpWaves)
     .where(eq(eventRsvpWaves.eventId, testEventId));
-  await db
-    .delete(eventApplications)
-    .where(eq(eventApplications.eventId, testEventId));
   await db.delete(events).where(eq(events.id, testEventId));
   await db.delete(user).where(eq(user.id, testUserId));
 });
@@ -136,9 +113,7 @@ describe('sendRsvpWave + publish retry integration', () => {
   }, 10_000);
 
   test('exhausting all publish attempts leaves the row unsent and reports the failure', async () => {
-    await db
-      .delete(eventRsvpWaves)
-      .where(eq(eventRsvpWaves.eventId, testEventId));
+    await resetToWaitlisted();
 
     send.mockRejectedValue(new Error('queue down'));
 
@@ -156,6 +131,7 @@ describe('sendRsvpWave + publish retry integration', () => {
 
 describe('requeuePendingRsvpInvitations + publish retry integration', () => {
   test('a stale unsent row is retried and ends up queued after a transient failure', async () => {
+    await resetToWaitlisted();
     const [wave] = await db
       .insert(eventRsvpWaves)
       .values({
@@ -165,16 +141,14 @@ describe('requeuePendingRsvpInvitations + publish retry integration', () => {
       })
       .returning({ id: eventRsvpWaves.id });
 
-    const [response] = await db
-      .insert(eventRsvpResponses)
-      .values({
-        rsvpWaveId: wave.id,
-        userId: testUserId,
-        statusId: pendingRsvpStatusId,
-        invitationEmailStatus: 'unsent',
-        createdAt: new Date(Date.now() - 10 * 60 * 1000),
-      })
-      .returning({ id: eventRsvpResponses.id });
+    const { invitationId } = await insertInvitation({
+      rsvpWaveId: wave.id,
+      eventId: testEventId,
+      userId: testUserId,
+      invitationEmailStatus: 'unsent',
+      createdAt: new Date(Date.now() - 10 * 60 * 1000),
+    });
+    const response = { id: invitationId };
 
     send
       .mockRejectedValueOnce(new Error('queue unavailable'))
@@ -188,10 +162,10 @@ describe('requeuePendingRsvpInvitations + publish retry integration', () => {
 
       const [row] = await db
         .select({
-          invitationEmailStatus: eventRsvpResponses.invitationEmailStatus,
+          invitationEmailStatus: eventInvitations.invitationEmailStatus,
         })
-        .from(eventRsvpResponses)
-        .where(eq(eventRsvpResponses.id, response.id))
+        .from(eventInvitations)
+        .where(eq(eventInvitations.id, response.id))
         .limit(1);
       expect(row?.invitationEmailStatus).toBe('queued');
     } finally {

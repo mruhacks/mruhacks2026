@@ -12,20 +12,11 @@ import { DataTable } from '@/components/data-table/data-table';
 import {
   Select,
   SelectContent,
-  SelectGroup,
   SelectItem,
-  SelectLabel,
-  SelectSeparator,
   SelectTrigger,
 } from '@/components/ui/select';
-import {
-  updateApplicationStatus,
-  updateRsvpStatus,
-} from '@/app/dashboard/admin/events/actions';
-import {
-  RSVP_DASHBOARD_LABELS,
-  getApplicationDisplayStatus,
-} from '@/app/dashboard/events/event-display-status';
+import { updateParticipantStatus } from '@/app/dashboard/admin/events/actions';
+import { getEventDisplayStatus } from '@/app/dashboard/events/event-display-status';
 import type { AdminApplicationRow } from '@/lib/admin-event';
 import { EMPTY_FILTER_VALUE } from '@/components/data-table/data-table-column-filter';
 import { isOtherOption, otherTextKey } from '@/lib/other-option';
@@ -34,16 +25,22 @@ import type {
   ApplicationQuestionOption,
 } from '@/types/application';
 import {
-  applicationStatusDisplayList,
-  rsvpStatusDisplayList,
-  type ApplicationStatus,
-  type ApplicationStatusBadgeVariant,
-  type RsvpStatus,
+  participationStatusesList,
+  type ParticipationStatus,
+  type StatusBadgeVariant,
 } from '@/types/lookups';
+import {
+  STATIC_STATUS_DISPLAY,
+  type AttendanceState,
+} from '@/lib/participation/status';
+import { adminStatusOptions } from '@/lib/participation/transitions';
+import type { CorePermissionSlug } from '@/lib/rbac/permissions';
 
 export type ApplicationsTableRow = AdminApplicationRow & {
-  /** Effective status of the applicant's latest-wave RSVP, if invited. */
-  rsvpStatus: RsvpStatus | null;
+  /** Effective participation status (an expired invitation reads as timed out). */
+  status: ParticipationStatus;
+  /** Checked in / no-show, derived for participants holding a spot. */
+  attendance: AttendanceState | null;
 };
 
 type Props = {
@@ -56,51 +53,22 @@ type Props = {
   canManageRsvp: boolean;
 };
 
-const STATUS_DISPLAY = new Map<
-  string,
-  { title: string; variant: ApplicationStatusBadgeVariant }
->(
-  applicationStatusDisplayList.map((status) => [
-    status.label,
-    { title: status.title, variant: status.variant },
-  ]),
-);
-
-const RSVP_STATUS_DISPLAY = new Map<
-  string,
-  { title: string; variant: ApplicationStatusBadgeVariant }
->(
-  rsvpStatusDisplayList.map((status) => [
-    status.label,
-    { title: status.title, variant: status.variant },
-  ]),
-);
-
-/**
- * The same badge the applicant sees on their dashboard: RSVP status wins
- * once they've been invited, otherwise the application's review status.
- * A row with neither is an untriaged submission.
- */
+/** The same badge the applicant sees on their dashboard. */
 function getStatusDisplay(row: ApplicationsTableRow): {
   label: string;
-  variant: ApplicationStatusBadgeVariant;
+  variant: StatusBadgeVariant;
 } {
-  const statusDisplay = row.status ? STATUS_DISPLAY.get(row.status) : undefined;
-  if (!row.rsvpStatus && !statusDisplay) {
-    return { label: row.status ?? 'Submitted', variant: 'secondary' };
-  }
-  const display = getApplicationDisplayStatus({
+  const display = getEventDisplayStatus({
     hasApplication: true,
-    userStatus: 'applied',
-    statusKey: statusDisplay ? (row.status as ApplicationStatus) : null,
-    statusDisplay: statusDisplay ?? null,
-    rsvpStatusLabel: row.rsvpStatus,
-    rsvpStatusDisplay: row.rsvpStatus
-      ? (RSVP_STATUS_DISPLAY.get(row.rsvpStatus) ?? null)
-      : null,
+    status: row.status,
   });
   return { label: display.label, variant: display.badgeVariant };
 }
+
+const ATTENDANCE_LABELS: Record<AttendanceState, string> = {
+  checked_in: 'Checked in',
+  no_show: 'No show',
+};
 
 /** Mirrors the renderer in the full responses view. */
 function getDisplayValue(
@@ -164,106 +132,63 @@ function getAnswerFilterMeta(
   return { filterVariant: 'text' };
 }
 
-const APPLICATION_STATUS_OPTIONS = applicationStatusDisplayList.map(
-  (status) => ({
-    value: `application:${status.label}`,
-    title: status.title,
-    variant: status.variant as ApplicationStatusBadgeVariant,
-  }),
-);
-
-/** Same wording the applicant's dashboard badge uses. */
-const RSVP_STATUS_OPTIONS = rsvpStatusDisplayList.map((status) => ({
-  value: `rsvp:${status.label}`,
-  title: RSVP_DASHBOARD_LABELS[status.label],
-  variant: status.variant as ApplicationStatusBadgeVariant,
-}));
-
-type StatusChange =
-  | { kind: 'application'; status: ApplicationStatus }
-  | { kind: 'rsvp'; status: RsvpStatus };
-
-function parseStatusValue(value: string): StatusChange {
-  const [kind, status] = value.split(':');
-  return kind === 'rsvp'
-    ? { kind: 'rsvp', status: status as RsvpStatus }
-    : { kind: 'application', status: status as ApplicationStatus };
-}
-
 /**
- * The status badge, as a dropdown of both application review statuses and
- * RSVP statuses. Which half is usable follows the badge's own precedence:
- * before an invitation only the review status means anything, and after
- * one the RSVP is the status of record — so the other half is disabled
- * (the server refuses those changes too).
+ * The status badge, as a dropdown of the statuses this viewer may move the
+ * participant to — the transition table decides, so review decisions are
+ * offered before an invitation and RSVP outcomes after, never both.
  */
 function StatusCell({
   row,
-  canReview,
-  canManageRsvp,
+  permissions,
   onChange,
 }: {
   row: ApplicationsTableRow;
-  canReview: boolean;
-  canManageRsvp: boolean;
-  onChange: (change: StatusChange) => void;
+  permissions: ReadonlySet<CorePermissionSlug>;
+  onChange: (status: ParticipationStatus) => void;
 }) {
   const display = getStatusDisplay(row);
-  const badge = <Badge variant={display.variant}>{display.label}</Badge>;
+  const badges = (
+    <span className='flex items-center gap-1'>
+      <Badge variant={display.variant}>{display.label}</Badge>
+      {row.attendance && (
+        <Badge variant='outline'>{ATTENDANCE_LABELS[row.attendance]}</Badge>
+      )}
+    </span>
+  );
 
-  if (!canReview && !canManageRsvp) return badge;
-
-  const invited = row.rsvpStatus !== null;
-  const value = row.rsvpStatus
-    ? `rsvp:${row.rsvpStatus}`
-    : row.status
-      ? `application:${row.status}`
-      : '';
+  const options = adminStatusOptions(
+    row.status,
+    permissions,
+    participationStatusesList,
+  );
+  if (options.length === 0) return badges;
 
   return (
     <Select
-      value={value}
-      onValueChange={(next) => onChange(parseStatusValue(next))}
+      value={row.status}
+      onValueChange={(next) => onChange(next as ParticipationStatus)}
     >
       <SelectTrigger
         size='sm'
         className='h-7 gap-1 border-none px-1 shadow-none'
         aria-label={`Status for ${row.fullName}`}
       >
-        {badge}
+        {badges}
       </SelectTrigger>
       <SelectContent>
-        <SelectGroup>
-          <SelectLabel>
-            Application
-            {invited && ' · locked after RSVP invitation'}
-          </SelectLabel>
-          {APPLICATION_STATUS_OPTIONS.map((option) => (
+        {participationStatusesList
+          .filter((status) => status === row.status || options.includes(status))
+          .map((status) => (
             <SelectItem
-              key={option.value}
-              value={option.value}
-              disabled={invited || !canReview}
+              key={status}
+              value={status}
+              disabled={status === row.status}
             >
-              <Badge variant={option.variant}>{option.title}</Badge>
+              <Badge variant={STATIC_STATUS_DISPLAY[status].variant}>
+                {STATIC_STATUS_DISPLAY[status].title}
+              </Badge>
             </SelectItem>
           ))}
-        </SelectGroup>
-        <SelectSeparator />
-        <SelectGroup>
-          <SelectLabel>
-            RSVP
-            {!invited && ' · send an RSVP invitation first'}
-          </SelectLabel>
-          {RSVP_STATUS_OPTIONS.map((option) => (
-            <SelectItem
-              key={option.value}
-              value={option.value}
-              disabled={!invited || !canManageRsvp}
-            >
-              <Badge variant={option.variant}>{option.title}</Badge>
-            </SelectItem>
-          ))}
-        </SelectGroup>
       </SelectContent>
     </Select>
   );
@@ -286,11 +211,18 @@ export function ApplicationsTable({
   canReview,
   canManageRsvp,
 }: Props) {
-  // Optimistic status edits, keyed by application. The server action's
+  const permissions = React.useMemo(() => {
+    const set = new Set<CorePermissionSlug>();
+    if (canReview) set.add('application:review:all');
+    if (canManageRsvp) set.add('rsvp:write:all');
+    return set;
+  }, [canReview, canManageRsvp]);
+
+  // Optimistic status edits, keyed by participant. The server action's
   // cache invalidation refreshes `serverRows` with the same value, so an
   // entry only matters for the moment between the click and that refresh.
   const [statusOverrides, setStatusOverrides] = React.useState<
-    ReadonlyMap<string, StatusChange>
+    ReadonlyMap<string, ParticipationStatus>
   >(new Map());
 
   const rows = React.useMemo(
@@ -298,40 +230,30 @@ export function ApplicationsTable({
       statusOverrides.size === 0
         ? serverRows
         : serverRows.map((row) => {
-            const change = statusOverrides.get(row.applicationId);
-            if (!change) return row;
-            return change.kind === 'rsvp'
-              ? { ...row, rsvpStatus: change.status }
-              : { ...row, status: change.status };
+            const status = statusOverrides.get(row.participantId);
+            return status ? { ...row, status } : row;
           }),
     [serverRows, statusOverrides],
   );
 
   const changeStatus = React.useCallback(
-    async (row: ApplicationsTableRow, change: StatusChange) => {
-      const current = change.kind === 'rsvp' ? row.rsvpStatus : row.status;
-      if (current === change.status) return;
-      const setOverride = (value: StatusChange | null) =>
+    async (row: ApplicationsTableRow, status: ParticipationStatus) => {
+      if (row.status === status) return;
+      const setOverride = (value: ParticipationStatus | null) =>
         setStatusOverrides((prev) => {
           const next = new Map(prev);
-          if (value) next.set(row.applicationId, value);
-          else next.delete(row.applicationId);
+          if (value) next.set(row.participantId, value);
+          else next.delete(row.participantId);
           return next;
         });
 
-      setOverride(change);
+      setOverride(status);
       try {
-        const input = {
+        const result = await updateParticipantStatus({
           eventId,
-          applicationId: row.applicationId,
-        };
-        const result =
-          change.kind === 'rsvp'
-            ? await updateRsvpStatus({ ...input, status: change.status })
-            : await updateApplicationStatus({
-                ...input,
-                status: change.status,
-              });
+          participantId: row.participantId,
+          status,
+        });
         if (!result.success) {
           setOverride(null);
           toast.error(result.error);
@@ -433,8 +355,7 @@ export function ApplicationsTable({
             cell: ({ row }) => (
               <StatusCell
                 row={row.original}
-                canReview={canReview}
-                canManageRsvp={canManageRsvp}
+                permissions={permissions}
                 onChange={(status) => changeStatus(row.original, status)}
               />
             ),
@@ -506,7 +427,7 @@ export function ApplicationsTable({
           ]
         : []),
     ],
-    [answerQuestions, eventId, canReview, canManageRsvp, changeStatus],
+    [answerQuestions, eventId, permissions, changeStatus],
   );
 
   /**

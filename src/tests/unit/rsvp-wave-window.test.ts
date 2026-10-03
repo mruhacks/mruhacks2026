@@ -5,6 +5,7 @@ import {
   computeRsvpRespondBy,
   isRsvpWaveActive,
 } from '@/lib/rsvp/compute-rsvp-respond-by';
+import type { EligibleRsvpApplicant } from '@/lib/rsvp/eligible-rsvp-applicants';
 import { selectRsvpWaveInvitees } from '@/lib/rsvp/select-rsvp-wave-invitees';
 
 describe('computeRsvpRespondBy', () => {
@@ -49,16 +50,12 @@ describe('selectRsvpWaveInvitees', () => {
     id: string,
     createdAt: string,
     userId = id,
-  ): {
-    userId: string;
-    email: string;
-    applicationId: string;
-    applicationCreatedAt: Date;
-  } {
+  ): EligibleRsvpApplicant {
     return {
       userId,
       email: `${userId}@example.com`,
-      applicationId: id,
+      waitlistPosition: null,
+      participantId: id,
       applicationCreatedAt: new Date(createdAt),
     };
   }
@@ -82,8 +79,8 @@ describe('selectRsvpWaveInvitees', () => {
     );
     const invitees = selectRsvpWaveInvitees(applicants, 20);
     expect(invitees).toHaveLength(8);
-    expect(invitees.map((row) => row.applicationId)).toEqual(
-      applicants.map((row) => row.applicationId),
+    expect(invitees.map((row) => row.participantId)).toEqual(
+      applicants.map((row) => row.participantId),
     );
   });
 
@@ -106,7 +103,7 @@ describe('selectRsvpWaveInvitees', () => {
     );
     const invitees = selectRsvpWaveInvitees(applicants, 20);
     expect(invitees).toHaveLength(20);
-    expect(invitees.map((row) => row.applicationId)).toEqual(
+    expect(invitees.map((row) => row.participantId)).toEqual(
       Array.from({ length: 20 }, (_, i) => `app-${String(i).padStart(2, '0')}`),
     );
   });

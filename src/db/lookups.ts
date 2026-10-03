@@ -11,7 +11,7 @@
  * - label: Unique, human-readable string value
  */
 
-import { pgTable, serial, varchar, boolean } from 'drizzle-orm/pg-core';
+import { pgTable, serial, varchar } from 'drizzle-orm/pg-core';
 
 /**
  * Gender options for participant profile and application form
@@ -94,37 +94,22 @@ export const heardFromSources = pgTable('heard_from_sources', {
 });
 
 /**
- * Application status (manual review outcome)
+ * Participation status — the one lifecycle status of a person for an event
+ * (application review, RSVP invitation and attendance). Referenced by
+ * `event_participants.status_id`.
  *
- * Values: pending_review, approved, denied, waitlisted.
+ * Values: pending_review, waitlisted, denied, invited, accepted, declined,
+ * timed_out.
  *
- * Display columns (title, description, variant, is_final) drive the UI badge
- * and status banner shown to applicants.
+ * Display columns (title, description, variant) drive the status badge and
+ * card shown to participants and organizers.
  */
-export const applicationStatuses = pgTable('application_statuses', {
+export const participationStatuses = pgTable('participation_statuses', {
   id: serial('id').primaryKey(),
   label: varchar('label', { length: 50 }).unique().notNull(),
   title: varchar('title', { length: 100 }).notNull(),
   description: varchar('description', { length: 500 }).notNull(),
   variant: varchar('variant', { length: 20 }).notNull(),
-  isFinal: boolean('is_final').notNull(),
-});
-
-/**
- * RSVP response status
- *
- * Values: pending, accepted, declined, timed_out.
- *
- * Display columns (title, description, variant, is_final) drive the UI badge
- * and status card shown to invited applicants.
- */
-export const rsvpStatuses = pgTable('rsvp_statuses', {
-  id: serial('id').primaryKey(),
-  label: varchar('label', { length: 50 }).unique().notNull(),
-  title: varchar('title', { length: 100 }).notNull(),
-  description: varchar('description', { length: 500 }).notNull(),
-  variant: varchar('variant', { length: 20 }).notNull(),
-  isFinal: boolean('is_final').notNull(),
 });
 
 /**

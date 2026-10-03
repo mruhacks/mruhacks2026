@@ -1,24 +1,10 @@
 'use client';
 
-import * as React from 'react';
-
 import type {
   AdminRsvpLifecycle,
   AdminRsvpSummary,
-  AdminRsvpWaveSummary,
 } from '@/app/dashboard/admin/events/actions';
-import { RsvpParticipantsTable } from '@/app/dashboard/admin/events/RsvpParticipantsTable';
-import { LocalDateTime } from '@/components/local-date-time';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import { useIsHydrated } from '@/lib/use-is-hydrated';
 import { formatRemaining, toDate } from '@/lib/rsvp/format-remaining';
 
@@ -59,29 +45,6 @@ function CapacityLine({ summary }: { summary: AdminRsvpSummary }) {
   );
 }
 
-function WaveCounts({ wave }: { wave: AdminRsvpWaveSummary }) {
-  return (
-    <div className='grid grid-cols-2 gap-3 sm:grid-cols-5'>
-      <CountStat label='Invited' value={wave.invitedCount} />
-      <CountStat label='Accepted' value={wave.acceptedCount} />
-      <CountStat label='Declined' value={wave.declinedCount} />
-      <CountStat label='Timed out' value={wave.timedOutCount} />
-      <CountStat label='Waiting' value={wave.waitingCount} />
-    </div>
-  );
-}
-
-function CountStat({ label, value }: { label: string; value: number }) {
-  return (
-    <div>
-      <p className='text-muted-foreground text-xs font-semibold uppercase'>
-        {label}
-      </p>
-      <p className='mt-1 text-lg font-semibold'>{value}</p>
-    </div>
-  );
-}
-
 function NextWaveCopy({ summary }: { summary: AdminRsvpSummary }) {
   const copy = LIFECYCLE_COPY[summary.lifecycle];
   if (!copy) return null;
@@ -101,20 +64,12 @@ function RemainingLabel({ respondBy }: { respondBy: Date | string }) {
 }
 
 type Props = {
-  eventId: string;
   summary: AdminRsvpSummary | null;
   loading: boolean;
   error: string | null;
 };
 
-export function AdminRsvpOverviewCard({
-  eventId,
-  summary,
-  loading,
-  error,
-}: Props) {
-  const [historyWaveId, setHistoryWaveId] = React.useState<string | null>(null);
-
+export function AdminRsvpOverviewCard({ summary, loading, error }: Props) {
   if (loading) {
     return (
       <Card>
@@ -146,150 +101,19 @@ export function AdminRsvpOverviewCard({
   }
 
   const latestWave = summary.latestWave;
-  const openHistoryWave =
-    summary.previousWaves.find((wave) => wave.id === historyWaveId) ?? null;
 
   return (
-    <>
-      <Card>
-        <CardHeader>
-          <CardTitle>RSVP Overview</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <CapacityLine summary={summary} />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Current Wave</CardTitle>
-        </CardHeader>
-        <CardContent className='flex flex-col gap-4'>
-          {latestWave ? (
-            <>
-              <p className='text-lg font-semibold'>Wave {latestWave.wave}</p>
-              <div className='grid grid-cols-1 gap-4 sm:grid-cols-2'>
-                <div>
-                  <p className='text-muted-foreground text-xs font-semibold uppercase'>
-                    Sent
-                  </p>
-                  <p className='mt-1 text-sm'>
-                    <LocalDateTime
-                      value={latestWave.createdAt}
-                      dateStyle='medium'
-                      timeStyle='short'
-                    />
-                  </p>
-                </div>
-                <div>
-                  <p className='text-muted-foreground text-xs font-semibold uppercase'>
-                    Closes
-                  </p>
-                  <p className='mt-1 text-sm'>
-                    <LocalDateTime
-                      value={latestWave.respondBy}
-                      dateStyle='medium'
-                      timeStyle='short'
-                    />
-                  </p>
-                  {latestWave.isActive && (
-                    <RemainingLabel respondBy={latestWave.respondBy} />
-                  )}
-                </div>
-              </div>
-              <NextWaveCopy summary={summary} />
-              <WaveCounts wave={latestWave} />
-            </>
-          ) : (
-            <p className='text-sm'>{LIFECYCLE_COPY.no_waves}</p>
-          )}
-        </CardContent>
-      </Card>
-
-      {latestWave && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Current Wave Participants</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <RsvpParticipantsTable eventId={eventId} wave={latestWave} />
-          </CardContent>
-        </Card>
-      )}
-
-      {summary.previousWaves.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Wave History</CardTitle>
-          </CardHeader>
-          <CardContent className='flex flex-col gap-3'>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Wave</TableHead>
-                  <TableHead>Sent</TableHead>
-                  <TableHead>Respond by</TableHead>
-                  <TableHead>Invited</TableHead>
-                  <TableHead>Accepted</TableHead>
-                  <TableHead>Declined</TableHead>
-                  <TableHead>Timed out</TableHead>
-                  <TableHead className='w-24'> </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {summary.previousWaves.map((wave) => (
-                  <TableRow key={wave.id}>
-                    <TableCell>{wave.wave}</TableCell>
-                    <TableCell>
-                      <LocalDateTime
-                        value={wave.createdAt}
-                        dateStyle='medium'
-                        timeStyle='short'
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <LocalDateTime
-                        value={wave.respondBy}
-                        dateStyle='medium'
-                        timeStyle='short'
-                      />
-                    </TableCell>
-                    <TableCell>{wave.invitedCount}</TableCell>
-                    <TableCell>{wave.acceptedCount}</TableCell>
-                    <TableCell>{wave.declinedCount}</TableCell>
-                    <TableCell>{wave.timedOutCount}</TableCell>
-                    <TableCell>
-                      <Button
-                        type='button'
-                        variant='outline'
-                        size='sm'
-                        onClick={() =>
-                          setHistoryWaveId((current) =>
-                            current === wave.id ? null : wave.id,
-                          )
-                        }
-                      >
-                        {historyWaveId === wave.id ? 'Hide' : 'View'}
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-            {openHistoryWave && (
-              <div className='flex flex-col gap-2'>
-                <p className='text-sm font-medium'>
-                  Wave {openHistoryWave.wave} participants
-                </p>
-                <RsvpParticipantsTable
-                  eventId={eventId}
-                  wave={openHistoryWave}
-                />
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
-    </>
+    <Card>
+      <CardHeader>
+        <CardTitle>RSVP Overview</CardTitle>
+      </CardHeader>
+      <CardContent className='flex flex-col gap-2'>
+        <CapacityLine summary={summary} />
+        <NextWaveCopy summary={summary} />
+        {latestWave?.isActive && (
+          <RemainingLabel respondBy={latestWave.respondBy} />
+        )}
+      </CardContent>
+    </Card>
   );
 }

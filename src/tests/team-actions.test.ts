@@ -4,12 +4,13 @@ import { db } from '@/utils/db';
 import {
   user,
   events,
-  eventAttendees,
+  eventParticipants,
   teams,
   permission,
   userPermission,
   auditLog,
 } from '@/db/schema';
+import { insertAttendees } from '@/tests/participation-fixtures';
 import {
   getMyTeam,
   joinTeamByCode,
@@ -96,7 +97,7 @@ beforeAll(async () => {
   userG = await makeUser('G');
   adminUser = await makeUser('Admin');
 
-  await db.insert(eventAttendees).values([
+  await insertAttendees([
     { eventId, userId: userA.id },
     { eventId, userId: userB.id },
     { eventId, userId: userC.id },
@@ -420,11 +421,11 @@ describe('removeMember participation', () => {
 
     // E unregisters (or is denied) but stays `teams.organizerId`.
     await db
-      .delete(eventAttendees)
+      .delete(eventParticipants)
       .where(
         and(
-          eq(eventAttendees.eventId, eventId),
-          eq(eventAttendees.userId, userE.id),
+          eq(eventParticipants.eventId, eventId),
+          eq(eventParticipants.userId, userE.id),
         ),
       );
 
@@ -441,7 +442,7 @@ describe('removeMember participation', () => {
     expect(fTeam.data.teamId).toBe(eTeam.data.teamId);
 
     // Re-registering restores the self-service grant.
-    await db.insert(eventAttendees).values({ eventId, userId: userE.id });
+    await insertAttendees({ eventId, userId: userE.id });
     loginAs(userE);
     const allowed = await removeMember(eventId, userF.id);
     expect(allowed.success).toBe(true);
@@ -482,7 +483,7 @@ describe('team actions on an elapsed event', () => {
       .returning({ id: events.id });
     elapsedEventId = e.id;
 
-    await db.insert(eventAttendees).values([
+    await insertAttendees([
       { eventId: elapsedEventId, userId: userA.id },
       { eventId: elapsedEventId, userId: userB.id },
     ]);

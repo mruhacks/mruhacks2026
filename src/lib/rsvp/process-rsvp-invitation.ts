@@ -5,12 +5,13 @@ import { APIError } from 'better-auth';
 
 import {
   events,
-  eventRsvpResponses,
+  eventInvitations,
+  eventParticipants,
   eventRsvpWaves,
-  rsvpStatuses,
+  participationStatuses,
   user,
 } from '@/db/schema';
-import { isEffectivePendingRsvp } from '@/lib/rsvp/effective-rsvp-status';
+import { resolveEffectiveStatus } from '@/lib/participation/status';
 import { sendRsvpMagicLink } from '@/lib/rsvp/send-rsvp-magic-link';
 import { db } from '@/utils/db';
 
@@ -35,22 +36,29 @@ export async function processRsvpInvitation(
 ): Promise<ProcessRsvpInvitationOutcome> {
   const [row] = await db
     .select({
-      invitationEmailStatus: eventRsvpResponses.invitationEmailStatus,
-      statusLabel: rsvpStatuses.label,
+      invitationEmailStatus: eventInvitations.invitationEmailStatus,
+      statusLabel: participationStatuses.label,
       respondBy: eventRsvpWaves.respondBy,
       eventId: eventRsvpWaves.eventId,
       eventName: events.name,
       email: user.email,
     })
-    .from(eventRsvpResponses)
+    .from(eventInvitations)
     .innerJoin(
       eventRsvpWaves,
-      eq(eventRsvpResponses.rsvpWaveId, eventRsvpWaves.id),
+      eq(eventInvitations.rsvpWaveId, eventRsvpWaves.id),
     )
     .innerJoin(events, eq(eventRsvpWaves.eventId, events.id))
-    .innerJoin(user, eq(eventRsvpResponses.userId, user.id))
-    .leftJoin(rsvpStatuses, eq(eventRsvpResponses.statusId, rsvpStatuses.id))
-    .where(eq(eventRsvpResponses.id, responseId))
+    .innerJoin(
+      eventParticipants,
+      eq(eventInvitations.participantId, eventParticipants.id),
+    )
+    .innerJoin(
+      participationStatuses,
+      eq(eventParticipants.statusId, participationStatuses.id),
+    )
+    .innerJoin(user, eq(eventParticipants.userId, user.id))
+    .where(eq(eventInvitations.id, responseId))
     .limit(1);
 
   if (!row) {
@@ -64,7 +72,7 @@ export async function processRsvpInvitation(
     return 'already_sent';
   }
 
-  if (!isEffectivePendingRsvp(row.statusLabel, row.respondBy)) {
+  if (resolveEffectiveStatus(row.statusLabel, row.respondBy) !== 'invited') {
     return 'not_pending';
   }
 
@@ -80,12 +88,12 @@ export async function processRsvpInvitation(
       error instanceof Error ? error.message : 'Unknown magic-link error';
 
     await db
-      .update(eventRsvpResponses)
+      .update(eventInvitations)
       .set({
-        invitationEmailAttempts: sql`${eventRsvpResponses.invitationEmailAttempts} + 1`,
+        invitationEmailAttempts: sql`${eventInvitations.invitationEmailAttempts} + 1`,
         invitationEmailLastError: message,
       })
-      .where(eq(eventRsvpResponses.id, responseId));
+      .where(eq(eventInvitations.id, responseId));
 
     // A validation error (e.g. malformed email) is never going to succeed on
     // redelivery — the request body doesn't change between attempts — so
@@ -93,15 +101,18 @@ export async function processRsvpInvitation(
     const isPermanentFailure =
       error instanceof APIError && error.body?.code === 'VALIDATION_ERROR';
 
-    if (isPermanentFailure || deliveryCount >= MAX_INVITATION_DELIVERY_ATTEMPTS) {
+    if (
+      isPermanentFailure ||
+      deliveryCount >= MAX_INVITATION_DELIVERY_ATTEMPTS
+    ) {
       // Guard against a stale write if a concurrent delivery already sent it.
       await db
-        .update(eventRsvpResponses)
+        .update(eventInvitations)
         .set({ invitationEmailStatus: 'failed' })
         .where(
           and(
-            eq(eventRsvpResponses.id, responseId),
-            ne(eventRsvpResponses.invitationEmailStatus, 'sent'),
+            eq(eventInvitations.id, responseId),
+            ne(eventInvitations.invitationEmailStatus, 'sent'),
           ),
         );
       console.error(
@@ -117,7 +128,7 @@ export async function processRsvpInvitation(
   }
 
   await db
-    .update(eventRsvpResponses)
+    .update(eventInvitations)
     .set({
       invitationEmailStatus: 'sent',
       invitationEmailSentAt: new Date(),
@@ -125,8 +136,8 @@ export async function processRsvpInvitation(
     })
     .where(
       and(
-        eq(eventRsvpResponses.id, responseId),
-        ne(eventRsvpResponses.invitationEmailStatus, 'sent'),
+        eq(eventInvitations.id, responseId),
+        ne(eventInvitations.invitationEmailStatus, 'sent'),
       ),
     );
 

@@ -2,6 +2,8 @@ import * as React from 'react';
 import { notFound } from 'next/navigation';
 
 import { resolveEventId } from '@/lib/events';
+import { hasPermission } from '@/lib/rbac/authorization';
+import { getUser } from '@/utils/auth';
 
 import { EventRsvpPage } from './rsvp-page';
 
@@ -33,8 +35,18 @@ async function RsvpContent({
   paramsPromise: Props['params'];
 }) {
   const { eventId: segment } = await paramsPromise;
-  const eventId = await resolveEventId(segment);
+  const [eventId, user] = await Promise.all([
+    resolveEventId(segment),
+    getUser(),
+  ]);
   if (!eventId) notFound();
 
-  return <EventRsvpPage eventId={eventId} />;
+  // Reordering the waitlist and closing an open wave early both override who
+  // gets (or keeps) an RSVP, so they're gated on `rsvp:write:all`; the
+  // actions re-check it.
+  const canManageRsvp = user
+    ? await hasPermission(user.id, 'rsvp:write:all')
+    : false;
+
+  return <EventRsvpPage eventId={eventId} canManageRsvp={canManageRsvp} />;
 }

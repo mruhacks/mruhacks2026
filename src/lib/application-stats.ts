@@ -19,14 +19,14 @@ import {
   type ApplicationQuestionType,
 } from '@/types/application';
 import { isOtherOption, otherTextKey } from '@/lib/other-option';
-import { applicationStatusesList } from '@/types/lookups';
+import { participationStatusesList } from '@/types/lookups';
 
 /**
  * Minimal row shape this module needs. The caller (a server action) maps its
  * joined DB query result onto this — kept intentionally narrow so that
  * mapping is a one-line projection away from whatever join shape it builds.
  *
- * `responses` mirrors `eventApplications.responses`: a nullable JSONB object
+ * `responses` mirrors `eventParticipants.responses`: a nullable JSONB object
  * keyed by question UUID (plus `${questionId}__other` sibling keys for
  * "Other" free text). `status`/`university`/`major`/`yearOfStudy`/`gender`
  * are already-resolved display strings (not lookup ids).
@@ -149,11 +149,7 @@ function buildSelectStats(
     for (const value of values) {
       const bucket = getOrCreateBucket(bucketMap, value);
       bucket.count++;
-      if (
-        bucket.isOther &&
-        typeof otherText === 'string' &&
-        otherText.trim()
-      ) {
+      if (bucket.isOther && typeof otherText === 'string' && otherText.trim()) {
         (bucket.otherTexts ??= []).push(otherText);
       }
     }
@@ -191,7 +187,12 @@ function buildBooleanStats(
 
   const answered = yes + no;
   const buckets: StatsBucket[] = [
-    { key: 'true', label: 'Yes', count: yes, percent: percentOf(yes, answered) },
+    {
+      key: 'true',
+      label: 'Yes',
+      count: yes,
+      percent: percentOf(yes, answered),
+    },
     { key: 'false', label: 'No', count: no, percent: percentOf(no, answered) },
   ];
 
@@ -222,7 +223,12 @@ function buildNumberHistogram(
   if (min === max) {
     const label = formatNumberForLabel(min);
     return [
-      { key: label, label, count: values.length, percent: percentOf(values.length, answered) },
+      {
+        key: label,
+        label,
+        count: values.length,
+        percent: percentOf(values.length, answered),
+      },
     ];
   }
 
@@ -237,7 +243,8 @@ function buildNumberHistogram(
 
   return counts.map((count, index) => {
     const rangeStart = min + index * width;
-    const rangeEnd = index === NUMBER_HISTOGRAM_BUCKETS - 1 ? max : min + (index + 1) * width;
+    const rangeEnd =
+      index === NUMBER_HISTOGRAM_BUCKETS - 1 ? max : min + (index + 1) * width;
     const label = `${formatNumberForLabel(rangeStart)}–${formatNumberForLabel(rangeEnd)}`;
     return {
       key: `bucket-${index}`,
@@ -342,16 +349,18 @@ export function buildQuestionStats(
 }
 
 /**
- * Application-status counts. Seeded from every known `ApplicationStatus`
+ * Participation-status counts. Seeded from every known `ParticipationStatus`
  * (`src/types/lookups.ts`) so a status with zero applications still renders
  * as an explicit 0 rather than vanishing from the breakdown — the same
  * "zero-count is retained" rule applied to question option buckets. A row
  * with a `status` outside the known set (or `null`) is bucketed under
  * `"unknown"` rather than dropped.
  */
-export function buildStatusBreakdown(rows: ApplicationStatsRow[]): StatsBucket[] {
+export function buildStatusBreakdown(
+  rows: ApplicationStatsRow[],
+): StatsBucket[] {
   const bucketMap = new Map<string, StatsBucket>();
-  for (const status of applicationStatusesList) {
+  for (const status of participationStatusesList) {
     bucketMap.set(status, { key: status, label: status, count: 0, percent: 0 });
   }
 

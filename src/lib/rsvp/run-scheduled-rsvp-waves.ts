@@ -9,7 +9,7 @@ import {
 } from '@/lib/rsvp/constants';
 import { isRsvpWaveActive } from '@/lib/rsvp/compute-rsvp-respond-by';
 import { sendRsvpWave } from '@/lib/rsvp/send-rsvp-wave';
-import { timeoutExpiredRsvpResponses } from '@/lib/rsvp/timeout-expired-rsvp-responses';
+import { timeoutExpiredInvitations } from '@/lib/rsvp/timeout-expired-invitations';
 import { db } from '@/utils/db';
 
 const NO_SPOTS_MESSAGE = 'No available spots remaining for this event.';
@@ -48,18 +48,19 @@ export type RunScheduledRsvpWavesOptions = {
 /**
  * Follow-up RSVP waves for events that already have an admin-started wave.
  *
- * Thin scheduler, invoked once daily. Skip when there is no prior wave or the
- * latest wave is still active (`respond_by > now`). Expired pending rows are
- * resolved with `timeoutExpiredRsvpResponses`, then `sendRsvpWave` owns
- * selection, window, locking, and invitations. Does not create a first wave.
- * A gap between `respond_by` and the next daily run is expected.
+ * Thin scheduler, invoked hourly via `runRsvpCron`. Skip when there is no
+ * prior wave or the latest wave is still active (`respond_by > now`). Expired
+ * invitations are resolved with `timeoutExpiredInvitations`, then
+ * `sendRsvpWave` owns selection, window, locking, and invitations. Does not
+ * create a first wave.
+ * A gap of up to an hour between `respond_by` and the next run is expected.
  */
 export async function runScheduledRsvpWaves(
   options: RunScheduledRsvpWavesOptions = {},
 ): Promise<RunScheduledRsvpWavesResult> {
   const now = options.now ?? new Date();
 
-  const { timedOutCount } = await timeoutExpiredRsvpResponses({ now });
+  const { timedOutCount } = await timeoutExpiredInvitations({ now });
 
   const candidateEvents = await db
     .select({

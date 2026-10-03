@@ -6,14 +6,16 @@ import { toast } from 'sonner';
 import {
   getEventDetails,
   getEventRsvpSummary,
+  getEventWaitlist,
 } from '@/app/dashboard/admin/events/actions';
 import type {
   AdminRsvpSummary,
   EventDetails,
+  WaitlistEntry,
 } from '@/app/dashboard/admin/events/actions';
 import { AdminRsvpOverviewCard } from '@/app/dashboard/admin/events/AdminRsvpOverviewCard';
 import { RsvpSettingsCard } from '@/app/dashboard/admin/events/RsvpSettingsCard';
-import { SendRsvpWaveCard } from '@/app/dashboard/admin/events/SendRsvpWaveCard';
+import { RsvpWavesCard } from '@/app/dashboard/admin/events/RsvpWavesCard';
 
 /**
  * Takes the event's uuid rather than the route's `params`: the `[eventId]`
@@ -23,7 +25,14 @@ import { SendRsvpWaveCard } from '@/app/dashboard/admin/events/SendRsvpWaveCard'
  * No breadcrumb registration here — the event layout above already maps this
  * segment to the event's name.
  */
-export function EventRsvpPage({ eventId }: { eventId: string }) {
+export function EventRsvpPage({
+  eventId,
+  canManageRsvp,
+}: {
+  eventId: string;
+  /** Viewer holds `rsvp:write:all`: may reorder the waitlist and close a wave early. */
+  canManageRsvp: boolean;
+}) {
   const [event, setEvent] = React.useState<EventDetails | null>(null);
   const [rsvpSummary, setRsvpSummary] = React.useState<AdminRsvpSummary | null>(
     null,
@@ -33,6 +42,8 @@ export function EventRsvpPage({ eventId }: { eventId: string }) {
   );
   const [rsvpSummaryLoading, setRsvpSummaryLoading] = React.useState(false);
   const [rsvpReloadToken, setRsvpReloadToken] = React.useState(0);
+  const [waitlist, setWaitlist] = React.useState<WaitlistEntry[] | null>(null);
+  const [waitlistError, setWaitlistError] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(true);
 
   React.useEffect(() => {
@@ -56,8 +67,17 @@ export function EventRsvpPage({ eventId }: { eventId: string }) {
       }
 
       setRsvpSummaryLoading(true);
-      const summaryResult = await getEventRsvpSummary(eventId);
+      const [summaryResult, waitlistResult] = await Promise.all([
+        getEventRsvpSummary(eventId),
+        getEventWaitlist(eventId),
+      ]);
       if (cancelled) return;
+      if (waitlistResult.success) {
+        setWaitlist(waitlistResult.data ?? []);
+        setWaitlistError(null);
+      } else {
+        setWaitlistError(waitlistResult.error || 'Failed to load waitlist');
+      }
       if (summaryResult.success && summaryResult.data) {
         setRsvpSummary(summaryResult.data);
         setRsvpSummaryError(null);
@@ -104,11 +124,23 @@ export function EventRsvpPage({ eventId }: { eventId: string }) {
       <h2 className='text-lg font-semibold'>RSVP</h2>
 
       <AdminRsvpOverviewCard
-        eventId={event.id}
         summary={rsvpSummary}
         loading={rsvpSummaryLoading}
         error={rsvpSummaryError}
       />
+
+      {rsvpSummary && (
+        <RsvpWavesCard
+          eventId={event.id}
+          summary={rsvpSummary}
+          waitlist={waitlist}
+          waitlistError={waitlistError}
+          rsvpResponseWindowHours={event.rsvpResponseWindowHours}
+          canManageRsvp={canManageRsvp}
+          onReordered={setWaitlist}
+          onWaveSent={() => setRsvpReloadToken((token) => token + 1)}
+        />
+      )}
 
       <RsvpSettingsCard
         eventId={event.id}
@@ -118,13 +150,6 @@ export function EventRsvpPage({ eventId }: { eventId: string }) {
             current ? { ...current, rsvpResponseWindowHours: hours } : current,
           );
         }}
-      />
-
-      <SendRsvpWaveCard
-        eventId={event.id}
-        hasApplication={event.hasApplication}
-        rsvpResponseWindowHours={event.rsvpResponseWindowHours}
-        onWaveSent={() => setRsvpReloadToken((token) => token + 1)}
       />
     </div>
   );

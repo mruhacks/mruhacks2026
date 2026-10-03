@@ -6,10 +6,13 @@ import {
   getApplicationRoster,
   getEventAttendeeRoster,
   getEventQuestions,
+  getParticipantStatuses,
 } from '@/lib/admin-event';
 import { resolveEventId } from '@/lib/events';
-import { resolveEffectiveRsvpStatus } from '@/lib/rsvp/effective-rsvp-status';
-import { findLatestEventRsvpResponses } from '@/lib/rsvp/latest-rsvp-response';
+import {
+  deriveAttendance,
+  resolveEffectiveStatus,
+} from '@/lib/participation/status';
 import { hasPermission, requirePermission } from '@/lib/rbac/authorization';
 import { getUser } from '@/utils/auth';
 
@@ -73,27 +76,39 @@ async function ApplicationsContent({
     );
   }
 
-  // RSVP status is read fresh rather than folded into the cached roster: a
-  // response (or a deadline passing) changes it without touching the
-  // application, so it can't sit behind the applications cache tag.
-  const [roster, questions, rsvpRows, canReview, canManageRsvp] =
+  // Status is read fresh rather than folded into the cached roster: an RSVP
+  // wave from cron, or a deadline passing, changes it without touching the
+  // applications cache tag.
+  const [roster, questions, statusRows, canReview, canManageRsvp] =
     await Promise.all([
       getApplicationRoster(eventId),
       getEventQuestions(eventId),
-      findLatestEventRsvpResponses(eventId),
+      getParticipantStatuses(eventId),
       hasPermission(user.id, 'application:review:all'),
       hasPermission(user.id, 'rsvp:write:all'),
     ]);
   const now = new Date();
-  const rsvpByUserId = new Map(
-    rsvpRows.map((r) => [
-      r.userId,
-      resolveEffectiveRsvpStatus(r.statusLabel, r.respondBy, now),
-    ]),
+  const statusById = new Map(
+    statusRows.map((r) => {
+      const status = resolveEffectiveStatus(r.statusLabel, r.respondBy, now);
+      return [
+        r.participantId,
+        {
+          status,
+          attendance: deriveAttendance({
+            status,
+            checkedIn: r.checkedIn,
+            eventEndsAt: event.endsAt,
+            now,
+          }),
+        },
+      ] as const;
+    }),
   );
   const rows = roster.map((row) => ({
     ...row,
-    rsvpStatus: rsvpByUserId.get(row.userId) ?? null,
+    status: statusById.get(row.participantId)?.status ?? 'pending_review',
+    attendance: statusById.get(row.participantId)?.attendance ?? null,
   }));
 
   return (
