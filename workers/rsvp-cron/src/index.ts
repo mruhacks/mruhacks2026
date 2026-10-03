@@ -6,7 +6,7 @@
 interface Env {
   /** Production origin of the Next app, e.g. `https://mruhacks.ca`. */
   APP_URL: string;
-  /** Same value as the app's CRON_MANUAL_SECRET (`wrangler secret put`). */
+  /** Same value as the app's CRON_SECRET (`wrangler secret put`). */
   CRON_SECRET: string;
 }
 

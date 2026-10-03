@@ -17,7 +17,7 @@ out of the root Next app's install and build.
 cd workers/rsvp-cron
 pnpm install
 pnpm exec wrangler login
-pnpm exec wrangler secret put CRON_MANUAL_SECRET   # paste the same value as Vercel
+pnpm exec wrangler secret put CRON_SECRET   # paste the same value as Vercel
 # set vars.APP_URL in wrangler.json to the production origin
 pnpm run deploy
 ```
@@ -28,7 +28,7 @@ Cron Events** and in Workers Logs.
 ## Local testing
 
 ```sh
-echo 'CRON_MANUAL_SECRET=<your local value>' > .dev.vars
+echo 'CRON_SECRET=<your local value>' > .dev.vars
 pnpm exec wrangler dev --test-scheduled --var APP_URL:http://localhost:3000
 curl "http://localhost:8787/__scheduled?cron=0+*+*+*+*"
 ```

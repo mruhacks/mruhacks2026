@@ -36,11 +36,9 @@ function request(token?: string): Request {
 
 describe('/api/cron/rsvp', () => {
   const originalSecret = process.env.CRON_SECRET;
-  const originalManualSecret = process.env.CRON_MANUAL_SECRET;
 
   beforeEach(() => {
     process.env.CRON_SECRET = 'test-cron-secret';
-    delete process.env.CRON_MANUAL_SECRET;
     runScheduledRsvpWaves.mockReset();
     runScheduledRsvpWaves.mockResolvedValue(WAVES_RESULT);
     requeuePendingRsvpInvitations.mockReset();
@@ -53,11 +51,6 @@ describe('/api/cron/rsvp', () => {
     } else {
       process.env.CRON_SECRET = originalSecret;
     }
-    if (originalManualSecret === undefined) {
-      delete process.env.CRON_MANUAL_SECRET;
-    } else {
-      process.env.CRON_MANUAL_SECRET = originalManualSecret;
-    }
   });
 
   test('rejects requests without a bearer token', async () => {
@@ -69,8 +62,6 @@ describe('/api/cron/rsvp', () => {
   });
 
   test('rejects a wrong bearer token', async () => {
-    process.env.CRON_MANUAL_SECRET = 'test-manual-secret';
-
     const { POST } = await import('@/app/api/cron/rsvp/route');
     const response = await POST(request('wrong-secret'));
     expect(response.status).toBe(401);
@@ -105,21 +96,6 @@ describe('/api/cron/rsvp', () => {
       waves: WAVES_RESULT,
       sweep: SWEEP_RESULT,
     });
-  });
-
-  test('accepts CRON_MANUAL_SECRET when CRON_SECRET is unset', async () => {
-    delete process.env.CRON_SECRET;
-    process.env.CRON_MANUAL_SECRET = 'test-manual-secret';
-
-    const { GET } = await import('@/app/api/cron/rsvp/route');
-    const response = await GET(
-      new Request('http://localhost/api/cron/rsvp', {
-        headers: { authorization: 'Bearer test-manual-secret' },
-      }),
-    );
-    expect(response.status).toBe(200);
-    expect(runScheduledRsvpWaves).toHaveBeenCalledTimes(1);
-    expect(requeuePendingRsvpInvitations).toHaveBeenCalledTimes(1);
   });
 
   test('still runs the sweep when the wave step throws, then returns 500', async () => {

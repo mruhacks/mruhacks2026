@@ -32,7 +32,7 @@ const REQUIRED_ENV_VARS = [
   // Bearer token the Cloudflare Worker scheduler (workers/rsvp-cron) sends to
   // /api/cron/*; without it the scheduled RSVP waves and invitation sweep
   // reject every invocation.
-  'CRON_MANUAL_SECRET',
+  'CRON_SECRET',
 ] as const;
 
 type CheckResult = { ok: boolean; latencyMs: number; detail?: string };

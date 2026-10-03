@@ -4,7 +4,7 @@ import { fail } from '@/utils/action-result';
 
 /**
  * Cron entrypoint for the scheduled RSVP step (follow-up waves + invitation
- * requeue sweep). Requires `Authorization: Bearer <CRON_SECRET | CRON_MANUAL_SECRET>`.
+ * requeue sweep). Requires `Authorization: Bearer <CRON_SECRET>`.
  * Schedule: hourly via `workers/rsvp-cron/wrangler.json`.
  */
 async function handle(request: Request): Promise<Response> {
