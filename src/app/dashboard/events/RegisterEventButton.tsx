@@ -5,9 +5,9 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { registerForEvent } from '@/app/register/actions';
 
-type Props = { eventId: string; className?: string };
+type Props = { eventId: string; className?: string; full?: boolean };
 
-export function RegisterEventButton({ eventId, className }: Props) {
+export function RegisterEventButton({ eventId, className, full }: Props) {
   const [isPending, startTransition] = useTransition();
 
   function handleClick() {
@@ -19,6 +19,14 @@ export function RegisterEventButton({ eventId, className }: Props) {
         toast.error(result?.error ?? 'Failed to register.');
       }
     });
+  }
+
+  if (full) {
+    return (
+      <Button className={className} disabled size='sm'>
+        Event full
+      </Button>
+    );
   }
 
   return (

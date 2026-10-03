@@ -9,6 +9,9 @@ import { formatDateRange } from './format';
 
 export { formatDateRange } from './format';
 
+/** How long before an event's start the pass should become relevant (lock-screen surfacing, geofence). */
+const RELEVANCE_LEAD_MS = 15 * 60 * 1000;
+
 const MODEL_PATH = path.join(
   process.cwd(),
   'src',
@@ -131,10 +134,13 @@ export async function generateParticipantPass(
     });
   }
 
-  const relevantDate = participant.startsAt ?? participant.endsAt;
-  if (participant.startsAt && participant.endsAt) {
+  const relevantStart = participant.startsAt
+    ? new Date(participant.startsAt.getTime() - RELEVANCE_LEAD_MS)
+    : null;
+  const relevantDate = relevantStart ?? participant.endsAt;
+  if (relevantStart && participant.endsAt) {
     pass.setRelevantDates([
-      { startDate: participant.startsAt, endDate: participant.endsAt },
+      { startDate: relevantStart, endDate: participant.endsAt },
     ]);
   } else if (relevantDate) {
     pass.setRelevantDate(relevantDate);

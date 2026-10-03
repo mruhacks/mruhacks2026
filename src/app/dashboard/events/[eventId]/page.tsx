@@ -9,6 +9,7 @@ import { BreadcrumbSegment } from '@/components/breadcrumb-context';
 import { MarkdownContent } from '@/components/markdown/markdown-content';
 import { events, eventTypes, eventArticles, eventTerms } from '@/db/schema';
 import { resolveEventId } from '@/lib/events';
+import { countAttending } from '@/lib/participation/server';
 import { eventPath } from '@/lib/event-slug';
 import { isScheduleVisible, listSubevents } from '@/lib/subevents';
 import { serializeInstant } from '@/lib/datetime';
@@ -244,6 +245,9 @@ async function EventEntryContent({ params, searchParams }: Props) {
   const isRegistered =
     participation != null && isAttending(participation.status);
 
+  const attendeeCount = await countAttending(eventId);
+  const isFull = row.capacity != null && attendeeCount >= row.capacity;
+
   return (
     <EventPageLayout
       event={row}
@@ -254,9 +258,13 @@ async function EventEntryContent({ params, searchParams }: Props) {
         isRegistered
           ? null
           : {
-              label: 'Register',
+              label: isFull ? 'Event full' : 'Register',
               control: (
-                <RegisterEventButton eventId={eventId} className='w-full' />
+                <RegisterEventButton
+                  eventId={eventId}
+                  className='w-full'
+                  full={isFull}
+                />
               ),
             }
       }
@@ -265,6 +273,12 @@ async function EventEntryContent({ params, searchParams }: Props) {
           eventId={eventId}
           checkInEnabled={row.checkInEnabled}
           isRegistered={isRegistered}
+          isFull={isFull}
+          spotsRemaining={
+            row.capacity != null
+              ? Math.max(row.capacity - attendeeCount, 0)
+              : null
+          }
           walletPlatform={walletPlatform}
         />
       }
@@ -449,11 +463,15 @@ function ApplicationParticipationPanel({
 function RegistrationParticipationPanel({
   eventId,
   isRegistered,
+  isFull,
+  spotsRemaining,
   walletPlatform,
   checkInEnabled,
 }: {
   eventId: string;
   isRegistered: boolean;
+  isFull: boolean;
+  spotsRemaining: number | null;
   walletPlatform: WalletPlatform;
   checkInEnabled: boolean;
 }) {
@@ -495,11 +513,19 @@ function RegistrationParticipationPanel({
       <CardHeader>
         <CardTitle>Registration</CardTitle>
         <CardDescription>
-          No application required — register now to save your spot.
+          {isFull
+            ? 'This event is full.'
+            : spotsRemaining != null
+              ? `No application required — ${spotsRemaining} spot${spotsRemaining === 1 ? '' : 's'} left.`
+              : 'No application required — register now to save your spot.'}
         </CardDescription>
       </CardHeader>
       <CardFooter>
-        <RegisterEventButton eventId={eventId} className='w-full' />
+        <RegisterEventButton
+          eventId={eventId}
+          className='w-full'
+          full={isFull}
+        />
       </CardFooter>
     </Card>
   );
