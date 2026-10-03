@@ -8,7 +8,7 @@
     "crons": ["0 * * * *"]
   },
   "vars": {
-    "APP_URLS": "https://REPLACE-WITH-PRODUCTION-ORIGIN,https://REPLACE-WITH-TEST-ORIGIN"
+    "APP_URLS": "https://mruhacks2026-test.vercel.app,https://mruhacks.ca"
   },
   "observability": {
     "enabled": true
