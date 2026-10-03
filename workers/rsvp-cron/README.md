@@ -5,8 +5,8 @@ A Cloudflare Worker that calls the app's `/api/cron/rsvp` route every hour
 requeues invitations whose original queue publish never landed. Vercel Hobby
 only allows daily crons, hence the Worker.
 
-It authenticates with `Authorization: Bearer <CRON_MANUAL_SECRET>`, which must
-match the `CRON_MANUAL_SECRET` env var on Vercel.
+It authenticates with `Authorization: Bearer <CRON_SECRET>`, which must match
+the `CRON_SECRET` env var on Vercel.
 
 This package is standalone: its own `pnpm-workspace.yaml` and lockfile keep it
 out of the root Next app's install and build.

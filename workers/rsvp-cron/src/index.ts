@@ -7,7 +7,7 @@ interface Env {
   /** Production origin of the Next app, e.g. `https://mruhacks.ca`. */
   APP_URL: string;
   /** Same value as the app's CRON_MANUAL_SECRET (`wrangler secret put`). */
-  CRON_MANUAL_SECRET: string;
+  CRON_SECRET: string;
 }
 
 const RSVP_CRON_PATH = '/api/cron/rsvp';
@@ -17,7 +17,7 @@ export default {
     const url = new URL(RSVP_CRON_PATH, env.APP_URL);
     const response = await fetch(url, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${env.CRON_MANUAL_SECRET}` },
+      headers: { Authorization: `Bearer ${env.CRON_SECRET}` },
     });
     const body = await response.text();
 
