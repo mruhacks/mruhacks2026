@@ -54,7 +54,9 @@ export function EventParticipationStatusCard({
           ))}
         </CardContent>
       )}
-      {footer && <CardFooter className='flex flex-row gap-2'>{footer}</CardFooter>}
+      {footer && (
+        <CardFooter className='flex flex-row gap-2'>{footer}</CardFooter>
+      )}
     </Card>
   );
 }

@@ -60,7 +60,10 @@ export function BentoCardSkeleton({ rows = 3 }: { rows?: number }) {
       </CardHeader>
       <CardContent className='space-y-3 px-6 py-5'>
         {Array.from({ length: rows }, (_, i) => (
-          <div key={i} className='bg-muted h-4 w-full animate-pulse rounded-sm' />
+          <div
+            key={i}
+            className='bg-muted h-4 w-full animate-pulse rounded-sm'
+          />
         ))}
       </CardContent>
     </Card>

@@ -76,7 +76,10 @@ export function QuestionStatsGrid({
               )}
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align='end' className='max-h-96 w-64 overflow-y-auto'>
+          <DropdownMenuContent
+            align='end'
+            className='max-h-96 w-64 overflow-y-auto'
+          >
             <DropdownMenuLabel>Show</DropdownMenuLabel>
             <DropdownMenuSeparator />
             {questions.map((question) => (

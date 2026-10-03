@@ -19,11 +19,7 @@ import { db } from '@/utils/db';
 export const MAX_INVITATION_DELIVERY_ATTEMPTS = 8;
 
 export type ProcessRsvpInvitationOutcome =
-  | 'sent'
-  | 'already_sent'
-  | 'not_found'
-  | 'not_pending'
-  | 'given_up';
+  'sent' | 'already_sent' | 'not_found' | 'not_pending' | 'given_up';
 
 /**
  * Queue-provider-agnostic consumer logic for one RSVP invitation message.

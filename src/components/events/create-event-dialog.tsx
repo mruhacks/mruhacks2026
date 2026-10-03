@@ -17,7 +17,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Field, FieldGroup, FieldLabel, FieldError } from '@/components/ui/field';
+import {
+  Field,
+  FieldGroup,
+  FieldLabel,
+  FieldError,
+} from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
@@ -76,9 +81,9 @@ export function CreateEventDialog() {
         <DialogHeader>
           <DialogTitle>Create New Event</DialogTitle>
           <DialogDescription>
-            Give it a name to get started — everything else (schedule,
-            location, capacity, application) can be set up afterward from the
-            event&apos;s settings.
+            Give it a name to get started — everything else (schedule, location,
+            capacity, application) can be set up afterward from the event&apos;s
+            settings.
           </DialogDescription>
         </DialogHeader>
 

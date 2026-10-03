@@ -16,7 +16,9 @@ function q(
   return { required: false, order: 0, active: true, ...overrides };
 }
 
-function row(overrides: Partial<ApplicationStatsRow> = {}): ApplicationStatsRow {
+function row(
+  overrides: Partial<ApplicationStatsRow> = {},
+): ApplicationStatsRow {
   return {
     responses: {},
     status: null,

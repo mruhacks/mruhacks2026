@@ -366,32 +366,30 @@ describe('scanCheckIn', () => {
 
   // Holding a spot is `accepted`, and nothing else: an applicant who never
   // answered their RSVP, declined it, or let it expire holds no spot.
-  test.each([
-    'invited',
-    'declined',
-    'timed_out',
-    'waitlisted',
-  ] as const)('rejects a %s participant, who holds no spot', async (status) => {
-    const userId = await createUser(
-      `Not attending ${status}`,
-      `check-in-${status}@test.dev`,
-    );
-    await insertParticipant({ eventId, userId, status });
-    try {
-      const scan = await scanCheckIn(eventId, passFor(eventId, userId));
-      expect(scan).toMatchObject({
-        success: false,
-        error: expect.stringContaining('not registered'),
-      });
-      const roster = await getCheckInRoster(eventId);
-      const ids = roster.success
-        ? (roster.data ?? []).map((row) => row.userId)
-        : [];
-      expect(ids).not.toContain(userId);
-    } finally {
-      await db.delete(user).where(eq(user.id, userId));
-    }
-  });
+  test.each(['invited', 'declined', 'timed_out', 'waitlisted'] as const)(
+    'rejects a %s participant, who holds no spot',
+    async (status) => {
+      const userId = await createUser(
+        `Not attending ${status}`,
+        `check-in-${status}@test.dev`,
+      );
+      await insertParticipant({ eventId, userId, status });
+      try {
+        const scan = await scanCheckIn(eventId, passFor(eventId, userId));
+        expect(scan).toMatchObject({
+          success: false,
+          error: expect.stringContaining('not registered'),
+        });
+        const roster = await getCheckInRoster(eventId);
+        const ids = roster.success
+          ? (roster.data ?? []).map((row) => row.userId)
+          : [];
+        expect(ids).not.toContain(userId);
+      } finally {
+        await db.delete(user).where(eq(user.id, userId));
+      }
+    },
+  );
 
   test('refuses a sub-event, which issues no passes of its own', async () => {
     const result = await scanCheckIn(

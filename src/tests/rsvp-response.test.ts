@@ -478,7 +478,10 @@ describe('withdrawParticipation', () => {
 
   test('refuses once the event has ended', async () => {
     restoreDefaultSession();
-    const { eventId } = await setupInvited({ status: 'accepted', endsAt: PAST });
+    const { eventId } = await setupInvited({
+      status: 'accepted',
+      endsAt: PAST,
+    });
     const result = await withdrawParticipation(eventId);
     expect(result).toMatchObject({
       success: false,
@@ -525,8 +528,14 @@ describe('timeoutExpiredInvitations', () => {
 
   test('does not time out accepted or declined participants', async () => {
     restoreDefaultSession();
-    const accepted = await setupInvited({ respondBy: PAST, status: 'accepted' });
-    const declined = await setupInvited({ respondBy: PAST, status: 'declined' });
+    const accepted = await setupInvited({
+      respondBy: PAST,
+      status: 'accepted',
+    });
+    const declined = await setupInvited({
+      respondBy: PAST,
+      status: 'declined',
+    });
 
     await timeoutExpiredInvitations({ eventId: accepted.eventId });
     await timeoutExpiredInvitations({ eventId: declined.eventId });
@@ -572,7 +581,10 @@ describe('RSVP Event Terms consent', () => {
     const invited = await setupInvited({ name: 'Terms RSVP' });
     const [terms] = await db
       .insert(eventTerms)
-      .values({ eventId: invited.eventId, markdown: '## Rules\nBe respectful.' })
+      .values({
+        eventId: invited.eventId,
+        markdown: '## Rules\nBe respectful.',
+      })
       .returning();
     await db
       .update(events)
@@ -640,7 +652,10 @@ describe('RSVP Event Terms consent', () => {
         markdown: eventTerms.markdown,
       })
       .from(eventInvitations)
-      .innerJoin(eventTerms, eq(eventInvitations.acceptedTermsId, eventTerms.id))
+      .innerJoin(
+        eventTerms,
+        eq(eventInvitations.acceptedTermsId, eventTerms.id),
+      )
       .where(eq(eventInvitations.id, invitationId));
     expect(consentRecord).toEqual({
       termsId: terms.id,

@@ -69,10 +69,7 @@ export default async function EventWikiArticlePage({ params }: Props) {
         })
         .from(eventArticles)
         .where(
-          and(
-            eq(eventArticles.eventId, eventId),
-            eq(eventArticles.slug, slug),
-          ),
+          and(eq(eventArticles.eventId, eventId), eq(eventArticles.slug, slug)),
         )
         .limit(1);
       article = row ?? null;
