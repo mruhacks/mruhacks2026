@@ -11,7 +11,10 @@ import {
  */
 
 export type EventDisplayPill =
-  ParticipationStatus | 'registered' | 'open_to_apply' | 'registration_open';
+  | ParticipationStatus
+  | 'registered'
+  | 'open_to_apply'
+  | 'registration_open';
 
 export type EventDisplayStatus = {
   label: string;

@@ -51,7 +51,9 @@ export default {
       throw new AggregateError(
         failures,
         `${failures.length}/${origins.length} deployments failed: ${failures
-          .map((error) => (error instanceof Error ? error.message : String(error)))
+          .map((error) =>
+            error instanceof Error ? error.message : String(error),
+          )
           .join('; ')}`,
       );
     }

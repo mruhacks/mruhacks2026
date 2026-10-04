@@ -20,6 +20,7 @@ export function runWithRsvpMagicLinkMailContext<T>(
 }
 
 export function getRsvpMagicLinkMailContext():
-  RsvpMagicLinkMailContext | undefined {
+  | RsvpMagicLinkMailContext
+  | undefined {
   return rsvpMagicLinkMailContext.getStore();
 }

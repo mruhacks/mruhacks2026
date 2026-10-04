@@ -30,7 +30,8 @@ export type ResendRsvpMagicLinkFailure = {
 };
 
 export type ResendRsvpMagicLinkResult =
-  ResendRsvpMagicLinkSuccess | ResendRsvpMagicLinkFailure;
+  | ResendRsvpMagicLinkSuccess
+  | ResendRsvpMagicLinkFailure;
 
 export type ResendRsvpMagicLinkOptions = {
   eventId: string;
