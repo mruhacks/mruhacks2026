@@ -14,15 +14,30 @@ type Props = {
   participation: ParticipationForUser;
   termsMarkdown: string | null;
   termsId: string | null;
+  /** The event is over: the status stays as a record, with no controls. */
+  hasEnded?: boolean;
   /** Wallet / ticket controls, shown while the participant holds a spot. */
   pass?: React.ReactNode;
 };
 
-function DateRow({ label, value }: { label: string; value: Date }) {
+function DateRow({
+  label,
+  value,
+  compact = false,
+}: {
+  label: string;
+  value: Date;
+  /** Numeric date, for the small-print footer stamps. */
+  compact?: boolean;
+}) {
   return (
     <>
       {label}{' '}
-      <LocalDateTime value={value} dateStyle='medium' timeStyle='short' />
+      <LocalDateTime
+        value={value}
+        dateStyle={compact ? 'short' : 'medium'}
+        timeStyle='short'
+      />
     </>
   );
 }
@@ -38,30 +53,31 @@ export function ParticipationStatusCard({
   participation,
   termsMarkdown,
   termsId,
+  hasEnded = false,
   pass,
 }: Props) {
   const { status, display, invitation, createdAt } = participation;
 
-  const infoRows: { key: string; content: React.ReactNode }[] = [
-    {
-      key: 'submitted',
-      content: <DateRow label='Applied' value={createdAt} />,
-    },
-  ];
+  const infoRows: { key: string; content: React.ReactNode }[] = [];
+  // Only the latest milestone: once they've responded, when they applied
+  // stops being interesting.
+  const stamp = invitation?.respondedAt ? (
+    <DateRow label='Responded' value={invitation.respondedAt} compact />
+  ) : (
+    <DateRow label='Applied' value={createdAt} compact />
+  );
   if (status === 'invited' && invitation) {
     infoRows.push({
       key: 'respond-by',
       content: <DateRow label='Respond by' value={invitation.respondBy} />,
     });
-  } else if (invitation?.respondedAt) {
-    infoRows.push({
-      key: 'responded',
-      content: <DateRow label='Responded' value={invitation.respondedAt} />,
-    });
   }
 
   let footer: React.ReactNode;
-  if (canEditApplication(status)) {
+  if (hasEnded) {
+    // Every action below is refused server-side once the event is over.
+    footer = null;
+  } else if (canEditApplication(status)) {
     footer = (
       <Button asChild size='sm' variant='outline'>
         <Link href={`${eventHref}/apply`}>Edit application</Link>
@@ -93,6 +109,7 @@ export function ParticipationStatusCard({
       badgeVariant={display.variant}
       description={display.description}
       infoRows={infoRows}
+      stamp={stamp}
       footer={footer}
     />
   );

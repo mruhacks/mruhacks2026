@@ -8,7 +8,7 @@ import { db } from '@/utils/db';
 import { BreadcrumbSegment } from '@/components/breadcrumb-context';
 import { MarkdownContent } from '@/components/markdown/markdown-content';
 import { events, eventTypes, eventArticles, eventTerms } from '@/db/schema';
-import { resolveEventId } from '@/lib/events';
+import { hasEventElapsed, resolveEventId } from '@/lib/events';
 import { countAttending } from '@/lib/participation/server';
 import { eventPath } from '@/lib/event-slug';
 import { isScheduleVisible, listSubevents } from '@/lib/subevents';
@@ -198,6 +198,9 @@ async function EventEntryContent({ params, searchParams }: Props) {
     : publishedArticlesRows;
 
   const participation = await getUserParticipation(eventId);
+  // Every participant action is refused server-side once the event is over,
+  // so the page drops the controls instead of offering ones that will fail.
+  const hasEnded = hasEventElapsed(row.endsAt);
 
   if (row.hasApplication) {
     const canManageTeam =
@@ -211,10 +214,12 @@ async function EventEntryContent({ params, searchParams }: Props) {
         segment={segment}
         articles={publishedArticles}
         schedule={schedule}
+        hasEnded={hasEnded}
         mobileAction={
           // Once the application is decided, the only thing left to act on
           // (an RSVP, giving up a spot) lives in the panel — no sticky bar.
-          participation && !canEditApplication(participation.status)
+          hasEnded ||
+          (participation && !canEditApplication(participation.status))
             ? null
             : {
                 label: participation ? 'Edit application' : 'Start application',
@@ -231,11 +236,16 @@ async function EventEntryContent({ params, searchParams }: Props) {
             checkInEnabled={row.checkInEnabled}
             participation={participation}
             walletPlatform={walletPlatform}
+            hasEnded={hasEnded}
           />
         }
         team={
           canManageTeam ? (
-            <TeamPanel eventId={eventId} joinCode={joinCode} />
+            <TeamPanel
+              eventId={eventId}
+              joinCode={joinCode}
+              hasEnded={hasEnded}
+            />
           ) : null
         }
       />
@@ -254,8 +264,9 @@ async function EventEntryContent({ params, searchParams }: Props) {
       segment={segment}
       articles={publishedArticles}
       schedule={schedule}
+      hasEnded={hasEnded}
       mobileAction={
-        isRegistered
+        isRegistered || hasEnded
           ? null
           : {
               label: isFull ? 'Event full' : 'Register',
@@ -280,11 +291,16 @@ async function EventEntryContent({ params, searchParams }: Props) {
               : null
           }
           walletPlatform={walletPlatform}
+          hasEnded={hasEnded}
         />
       }
       team={
         isRegistered && row.teamsEnabled ? (
-          <TeamPanel eventId={eventId} joinCode={joinCode} />
+          <TeamPanel
+            eventId={eventId}
+            joinCode={joinCode}
+            hasEnded={hasEnded}
+          />
         ) : null
       }
     />
@@ -299,6 +315,7 @@ function EventPageLayout({
   participation,
   team,
   mobileAction,
+  hasEnded,
 }: {
   event: EventDetails;
   /**
@@ -311,6 +328,7 @@ function EventPageLayout({
   schedule: ScheduleEntry[];
   participation: React.ReactNode;
   team: React.ReactNode;
+  hasEnded: boolean;
   mobileAction:
     | { label: string; href: string; control?: never }
     | { label: string; control: React.ReactNode; href?: never }
@@ -333,9 +351,12 @@ function EventPageLayout({
           </Link>
         </Button>
         <div className='flex flex-col gap-2'>
-          <h1 className='text-3xl font-semibold tracking-tight sm:text-4xl'>
-            {event.name}
-          </h1>
+          <div className='flex flex-wrap items-center gap-3'>
+            <h1 className='text-3xl font-semibold tracking-tight sm:text-4xl'>
+              {event.name}
+            </h1>
+            {hasEnded && <Badge variant='secondary'>Ended</Badge>}
+          </div>
           <EventMeta
             startsAt={event.startsAt}
             endsAt={event.endsAt}
@@ -398,6 +419,7 @@ function ApplicationParticipationPanel({
   termsId,
   walletPlatform,
   checkInEnabled,
+  hasEnded,
 }: {
   eventId: string;
   eventHref: string;
@@ -407,25 +429,29 @@ function ApplicationParticipationPanel({
   participation: ParticipationForUser | null;
   walletPlatform: WalletPlatform;
   checkInEnabled: boolean;
+  hasEnded: boolean;
 }) {
   if (participation) {
     return (
       <>
-        {participation.status === 'invited' && participation.invitation && (
-          <RsvpPendingPrompt
-            eventId={eventId}
-            eventName={eventName}
-            termsMarkdown={termsMarkdown}
-            termsId={termsId}
-            respondBy={participation.invitation.respondBy}
-          />
-        )}
+        {!hasEnded &&
+          participation.status === 'invited' &&
+          participation.invitation && (
+            <RsvpPendingPrompt
+              eventId={eventId}
+              eventName={eventName}
+              termsMarkdown={termsMarkdown}
+              termsId={termsId}
+              respondBy={participation.invitation.respondBy}
+            />
+          )}
         <ParticipationStatusCard
           eventId={eventId}
           eventHref={eventHref}
           participation={participation}
           termsMarkdown={termsMarkdown}
           termsId={termsId}
+          hasEnded={hasEnded}
           pass={
             checkInEnabled ? (
               <>
@@ -439,6 +465,19 @@ function ApplicationParticipationPanel({
           }
         />
       </>
+    );
+  }
+
+  if (hasEnded) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Application</CardTitle>
+          <CardDescription>
+            This event has ended. Applications are closed.
+          </CardDescription>
+        </CardHeader>
+      </Card>
     );
   }
 
@@ -467,6 +506,7 @@ function RegistrationParticipationPanel({
   spotsRemaining,
   walletPlatform,
   checkInEnabled,
+  hasEnded,
 }: {
   eventId: string;
   isRegistered: boolean;
@@ -474,7 +514,37 @@ function RegistrationParticipationPanel({
   spotsRemaining: number | null;
   walletPlatform: WalletPlatform;
   checkInEnabled: boolean;
+  hasEnded: boolean;
 }) {
+  if (isRegistered && hasEnded) {
+    return (
+      <Card>
+        <CardHeader>
+          <div className='flex items-center justify-between gap-2'>
+            <CardTitle>You were registered</CardTitle>
+            <Badge variant='success'>Registered</Badge>
+          </div>
+          <CardDescription>
+            This event has ended. Thanks for signing up!
+          </CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
+
+  if (hasEnded) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Registration</CardTitle>
+          <CardDescription>
+            This event has ended. Registration is closed.
+          </CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
+
   if (isRegistered) {
     return (
       <Card>

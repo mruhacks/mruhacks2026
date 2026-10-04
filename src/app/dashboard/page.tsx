@@ -13,7 +13,7 @@ import {
   SectionEyebrow,
 } from '@/app/dashboard/events/EventTileList';
 import { Button } from '@/components/ui/button';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, ChevronRight } from 'lucide-react';
 
 /**
  * Each admin tile is gated on its own direct permission — the one that gates
@@ -373,11 +373,38 @@ function EventsSkeleton() {
 // boundary so the page shell above ships immediately.
 async function DashboardEvents() {
   const events = await getEventsWithUserStatus();
+  const upcoming = events.filter((e) => !e.hasEnded);
+  // Most recently finished first — the one someone is most likely looking
+  // back on.
+  const past = events
+    .filter((e) => e.hasEnded)
+    .sort((a, b) => (b.endsAt?.getTime() ?? 0) - (a.endsAt?.getTime() ?? 0));
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
       <SectionEyebrow color='var(--black)'>My events</SectionEyebrow>
-      <EventTileList events={events} />
+      <EventTileList events={upcoming} />
+      {past.length > 0 && (
+        // Collapsed by default: nothing on a past event can be acted on
+        // anymore, so it shouldn't push the live ones down the page.
+        <details className='group' style={{ marginTop: '8px' }}>
+          <summary
+            className='flex w-fit cursor-pointer list-none items-center gap-1.5 [&::-webkit-details-marker]:hidden'
+            style={{ color: 'var(--ink-500)' }}
+          >
+            <ChevronRight
+              aria-hidden
+              className='size-4 transition-transform group-open:rotate-90'
+            />
+            <SectionEyebrow color='var(--ink-500)'>
+              Past events ({past.length})
+            </SectionEyebrow>
+          </summary>
+          <div style={{ marginTop: '12px' }}>
+            <EventTileList events={past} />
+          </div>
+        </details>
+      )}
     </div>
   );
 }

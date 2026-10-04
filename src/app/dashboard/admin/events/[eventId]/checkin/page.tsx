@@ -3,7 +3,7 @@ import { notFound, redirect } from 'next/navigation';
 
 import { requirePermission } from '@/lib/rbac/authorization';
 import { getUser } from '@/utils/auth';
-import { resolveEventId } from '@/lib/events';
+import { hasEventElapsed, resolveEventId } from '@/lib/events';
 import { getAdminEventHeader } from '@/lib/admin-event';
 import { getParentEventId, listSubevents } from '@/lib/subevents';
 import { serializeInstant } from '@/lib/datetime';
@@ -117,6 +117,7 @@ async function CheckInContent({
       subevents={subevents}
       targetId={armed?.id ?? eventId}
       unknownTarget={unknownTarget}
+      hasEnded={hasEventElapsed(event.endsAt)}
     />
   );
 }

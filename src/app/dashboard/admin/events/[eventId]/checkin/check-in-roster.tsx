@@ -20,6 +20,8 @@ type CheckInRosterProps = {
    * the door-arrival state is worth showing per row.
    */
   requiresDoorCheckIn?: boolean;
+  /** The event is over and check-in is frozen: rows are read-only. */
+  frozen?: boolean;
   onCheckIn: (row: CheckInRosterRow) => void;
   onUndo: (row: CheckInRosterRow) => void;
 };
@@ -28,6 +30,7 @@ export function CheckInRoster({
   rows,
   pendingUserId,
   requiresDoorCheckIn = false,
+  frozen = false,
   onCheckIn,
   onUndo,
 }: CheckInRosterProps) {
@@ -118,6 +121,7 @@ export function CheckInRoster({
               row={row}
               pending={pendingUserId === row.userId}
               requiresDoorCheckIn={requiresDoorCheckIn}
+              frozen={frozen}
               onCheckIn={onCheckIn}
               onUndo={onUndo}
             />
@@ -143,6 +147,7 @@ type RosterRowProps = {
   row: CheckInRosterRow;
   pending: boolean;
   requiresDoorCheckIn: boolean;
+  frozen: boolean;
   onCheckIn: (row: CheckInRosterRow) => void;
   onUndo: (row: CheckInRosterRow) => void;
 };
@@ -151,6 +156,7 @@ function RosterRow({
   row,
   pending,
   requiresDoorCheckIn,
+  frozen,
   onCheckIn,
   onUndo,
 }: RosterRowProps) {
@@ -185,7 +191,7 @@ function RosterRow({
           </Badge>
         )}
 
-        {row.checkedInAt ? (
+        {frozen ? null : row.checkedInAt ? (
           <Button
             type='button'
             variant='ghost'

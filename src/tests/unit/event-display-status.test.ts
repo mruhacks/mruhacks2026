@@ -67,6 +67,30 @@ describe('getEventDisplayStatus', () => {
       getEventDisplayStatus({ hasApplication: false, status: null }).pill,
     ).toBe('registration_open');
   });
+
+  test('a past event reads as ended unless the user took part', () => {
+    expect(
+      getEventDisplayStatus({
+        hasApplication: true,
+        status: null,
+        hasEnded: true,
+      }).pill,
+    ).toBe('ended');
+    expect(
+      getEventDisplayStatus({
+        hasApplication: false,
+        status: null,
+        hasEnded: true,
+      }).pill,
+    ).toBe('ended');
+    expect(
+      getEventDisplayStatus({
+        hasApplication: true,
+        status: 'accepted',
+        hasEnded: true,
+      }).pill,
+    ).toBe('accepted');
+  });
 });
 
 describe('participation status rules', () => {
