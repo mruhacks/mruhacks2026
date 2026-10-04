@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 
 import {
@@ -14,6 +15,9 @@ import {
   type Step,
 } from './onboarding-progress';
 import { WelcomeStepNav, type WelcomeStep } from './welcome-layout';
+
+// Account/app pages aren't useful search results; keep them out of the index.
+export const metadata: Metadata = { robots: { index: false } };
 
 export default async function WelcomeRouteLayout({
   children,

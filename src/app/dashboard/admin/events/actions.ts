@@ -712,7 +712,7 @@ export async function updateEventSettings(
       .where(eq(events.id, eventId));
   });
 
-  // Homepage register-link lookup and the events list are both cached; bust
+  // Homepage featured-event lookups and the events list are both cached; bust
   // them so edits show up immediately.
   updateTag(FEATURED_EVENT_CACHE_TAG);
   updateTag(EVENTS_CACHE_TAG);

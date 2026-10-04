@@ -1,8 +1,12 @@
+import type { Metadata } from 'next';
 import { getUser } from '@/utils/auth';
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ShieldAlert } from 'lucide-react';
+
+// Account/app pages aren't useful search results; keep them out of the index.
+export const metadata: Metadata = { robots: { index: false } };
 
 export default async function ForbiddenPage() {
   const user = await getUser();

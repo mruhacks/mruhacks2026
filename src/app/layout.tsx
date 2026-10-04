@@ -5,6 +5,7 @@ import { Toaster } from '@/components/ui/sonner';
 import { QueryProvider } from '@/components/providers/query-provider';
 import { Analytics } from '@vercel/analytics/next';
 import { SpeedInsights } from '@vercel/speed-insights/next';
+import { SITE_URL } from '@/content';
 import './globals.css';
 
 const dmSans = DM_Sans({
@@ -31,7 +32,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: 'MRUHacks',
+  openGraph: { siteName: 'MRUHacks', locale: 'en_CA', type: 'website' },
 };
 
 // This app is an authenticated dashboard where nearly every route needs a

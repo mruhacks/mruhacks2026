@@ -1,6 +1,28 @@
 export const EVENT_START_DATE = new Date('2026-10-23T00:00:00-06:00'); // October 23, 2026 (MDT — DST ends Nov 1, 2026)
 export const EVENT_DATE_DISPLAY = 'October 23-25, 2026';
-export const EVENT_LOCATION_DISPLAY = 'In-Person Event @ Riddell Library';
+export const EVENT_LOCATION_DISPLAY =
+  'In-Person @ Riddell Library, Mount Royal University · Calgary, AB';
+/** Fallback end for structured data when the featured event has no endsAt. */
+export const EVENT_END_DATE = new Date('2026-10-25T23:59:59-06:00');
+
+/** Canonical origin for metadata, the sitemap, and structured data. */
+export const SITE_URL = 'https://mruhacks.ca';
+export const SITE_TITLE =
+  "MRUHacks 2026 — Calgary's Student Hackathon | October 23–25";
+export const SITE_DESCRIPTION =
+  'A free, three-day, in-person hackathon for post-secondary students at Mount Royal University in Calgary, Alberta. Beginners welcome — food, workshops, mentors, and prizes included.';
+
+/** Venue details for the homepage's Event structured data. */
+export const EVENT_VENUE = {
+  name: 'Riddell Library and Learning Centre, Mount Royal University',
+  address: {
+    streetAddress: '4825 Mount Royal Gate SW',
+    addressLocality: 'Calgary',
+    addressRegion: 'AB',
+    postalCode: 'T3E 6K6',
+    addressCountry: 'CA',
+  },
+};
 
 export const REGISTRATION_OPEN = true;
 export const LOGIN_ENABLED = true;
@@ -9,11 +31,12 @@ export const LOGIN_ENABLED = true;
 export const MRUHACKS_LOGO_URL = 'https://static.mruhacks.ca/color_chevron.png';
 
 export const INTRO_BLURB: string = `
-MRUHacks is Mount Royal University’s largest hackathon, bringing
-students together for an immersive three-day experience focused on
-hands-on building, collaboration, and innovation. Hosted at the
-Riddell Library and Learning Centre, the event welcomes designers,
-developers, and tech enthusiasts of all skill levels.
+MRUHacks is Mount Royal University’s largest hackathon and one of
+Calgary’s biggest student coding events, bringing students together for
+a free, immersive three-day experience focused on hands-on building,
+collaboration, and innovation. Hosted at the Riddell Library and
+Learning Centre, the event welcomes designers, developers, and tech
+enthusiasts from schools across Alberta, at every skill level.
 `;
 
 /**
@@ -29,12 +52,12 @@ export const FAQs: FAQItem[] = [
   {
     question: 'When is MRUHacks?',
     answer:
-      'MRUHacks will be held from October 23rd - 25th 2026 in the Riddell Library and Learning Centre.',
+      'MRUHacks will be held from October 23rd - 25th 2026 in the Riddell Library and Learning Centre at Mount Royal University in Calgary, Alberta.',
   },
   {
     question: 'Who can participate?',
     answer:
-      "MRUHacks is open to any and all post-secondary students! Graduated recently? No worries, you're invited too!",
+      "MRUHacks is open to any and all post-secondary students — you don't need to attend Mount Royal. Students from the University of Calgary, SAIT, Bow Valley College, and schools across Alberta and beyond are all welcome. Graduated recently? No worries, you're invited too!",
   },
   {
     question: 'How many people can be on a team?',

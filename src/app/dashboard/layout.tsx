@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import { Suspense } from 'react';
 import { ImpersonationBanner } from '@/components/impersonation-banner';
 import { DashboardHeader } from '@/components/dashboard-header';
@@ -7,6 +8,9 @@ import { getUser } from '@/utils/auth';
 import { getConsentStatus } from '@/app/dashboard/account/actions';
 import { getUserProfile } from '@/app/dashboard/profile/actions';
 import { redirect } from 'next/navigation';
+
+// Account/app pages aren't useful search results; keep them out of the index.
+export const metadata: Metadata = { robots: { index: false } };
 
 export const instant = false;
 
