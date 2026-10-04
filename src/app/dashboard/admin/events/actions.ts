@@ -1128,13 +1128,14 @@ export type SendEventRsvpWaveResult = {
 
 /**
  * Read-only RSVP wave/capacity summary for admin RSVP surfaces.
- * Requires event:manage permission (satisfied by event:manage:all).
+ * Requires rsvp:read:all, the permission the RSVP page is gated on.
  */
 export async function getEventRsvpSummary(
   eventId: string,
 ): Promise<ActionResult<AdminRsvpSummary>> {
-  const user = await getAuthorizedUser();
+  const user = await getUser();
   if (!user) return fail('Not authenticated');
+  await requirePermission(user.id, 'rsvp:read:all');
 
   if (!eventId.trim()) return fail('Event ID is required.');
 
@@ -1249,13 +1250,14 @@ export async function sendEventRsvpWave(
 
 /**
  * Admin: the event's waitlist in queue order — the order RSVP waves invite
- * in. Requires event:manage, like the rest of the RSVP page.
+ * in. Requires rsvp:read:all, like the rest of the RSVP page.
  */
 export async function getEventWaitlist(
   eventId: string,
 ): Promise<ActionResult<WaitlistEntry[]>> {
-  const user = await getAuthorizedUser();
+  const user = await getUser();
   if (!user) return fail('Not authenticated');
+  await requirePermission(user.id, 'rsvp:read:all');
   if (!eventId.trim()) return fail('Event ID is required.');
   return ok(await getWaitlist(eventId));
 }

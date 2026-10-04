@@ -15,8 +15,12 @@ import { EditUserForm, type EditUserFormData } from './edit-user-form';
 
 interface EditUserModalClientProps {
   user: EditUserFormData;
-  allRoles: { id: number; slug: string | null }[];
-  allPermissions: { id: number; slug: string; description: string | null }[];
+  /** Null when the viewer can't read roles: the Roles tab is hidden. */
+  allRoles: { id: number; slug: string | null }[] | null;
+  /** Null when the viewer can't read permissions: that tab is hidden. */
+  allPermissions:
+    | { id: number; slug: string; description: string | null }[]
+    | null;
 }
 
 export function EditUserModalClient({

@@ -7,13 +7,9 @@ import { Eye, UserMinus } from 'lucide-react';
 
 import {
   canModerateTeams,
-  getEventDetails,
   getFormedTeamsForEvent,
 } from '@/app/dashboard/admin/events/actions';
-import type {
-  EventDetails,
-  FormedTeamRow,
-} from '@/app/dashboard/admin/events/actions';
+import type { FormedTeamRow } from '@/app/dashboard/admin/events/actions';
 import { removeMember } from '@/app/dashboard/events/team-actions';
 import { DataTable } from '@/components/data-table/data-table';
 import { Badge } from '@/components/ui/badge';
@@ -29,10 +25,19 @@ import {
 /**
  * Takes the event's uuid rather than the route's `params`: the `[eventId]`
  * segment may be the event's custom slug, and `page.tsx` resolves it on the
- * server so the team actions are keyed by the stored id.
+ * server so the team actions are keyed by the stored id. The event's team
+ * settings come from there too, rather than from `getEventDetails`, which
+ * needs event:manage — more than this page's own `team:read:all`.
  */
-export function TeamsPage({ eventId }: { eventId: string }) {
-  const [event, setEvent] = React.useState<EventDetails | null>(null);
+export function TeamsPage({
+  eventId,
+  teamsEnabled,
+  maxTeamSize,
+}: {
+  eventId: string;
+  teamsEnabled: boolean;
+  maxTeamSize: number | null;
+}) {
   const [teamRows, setTeamRows] = React.useState<FormedTeamRow[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [loadError, setLoadError] = React.useState<string | null>(null);
@@ -51,20 +56,13 @@ export function TeamsPage({ eventId }: { eventId: string }) {
 
     async function fetchData() {
       try {
-        const [eventResult, teamsResult, moderate] = await Promise.all([
-          getEventDetails(eventId),
+        const [teamsResult, moderate] = await Promise.all([
           getFormedTeamsForEvent(eventId),
           canModerateTeams(),
         ]);
         if (cancelled) return;
 
         setCanModerate(moderate);
-
-        if (eventResult.success && eventResult.data) {
-          setEvent(eventResult.data);
-        } else if (!eventResult.success) {
-          toast.error(eventResult.error || 'Failed to load event');
-        }
 
         if (teamsResult.success && teamsResult.data) {
           setTeamRows(teamsResult.data);
@@ -194,7 +192,7 @@ export function TeamsPage({ eventId }: { eventId: string }) {
     );
   }
 
-  if (event && !event.teamsEnabled) {
+  if (!teamsEnabled) {
     return (
       <div className='text-muted-foreground py-8 text-center'>
         Teams are not enabled for this event.
@@ -208,7 +206,7 @@ export function TeamsPage({ eventId }: { eventId: string }) {
         <h2 className='text-lg font-semibold'>Teams</h2>
         <p className='text-muted-foreground mt-1 text-sm'>
           {teamRows.length} formed team{teamRows.length !== 1 ? 's' : ''}
-          {event?.maxTeamSize != null ? ` · max size ${event.maxTeamSize}` : ''}
+          {maxTeamSize != null ? ` · max size ${maxTeamSize}` : ''}
         </p>
       </div>
 

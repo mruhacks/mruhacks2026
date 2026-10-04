@@ -2,7 +2,8 @@ import { Suspense } from 'react';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { getUser } from '@/utils/auth';
-import { hasPermission, requirePermission } from '@/lib/rbac/authorization';
+import { hasPermission, requireAnyPermission } from '@/lib/rbac/authorization';
+import { EVENT_DASHBOARD_PERMISSIONS } from '@/lib/rbac/event-access';
 import { getAllEvents, getEventParticipationCounts } from '@/lib/events';
 import { adminEventPath } from '@/lib/event-slug';
 import { Card, CardContent } from '@/components/ui/card';
@@ -29,13 +30,12 @@ function EventListSkeleton() {
  * Each is gated on the permission that page gates itself on — never a shared
  * "is this an admin" bundle. See AGENTS.md.
  *
- * Applications aren't listed: the card itself already links to the event
- * dashboard, where the applications table lives.
+ * Applications and the wiki aren't listed: the card itself already links to
+ * the event dashboard, where the applications table and wiki cell live.
  */
 const EVENT_TOOLS = [
   { label: 'Check-in', path: 'checkin', permission: 'checkin:write:all' },
   { label: 'Sub-events', path: 'subevents', permission: 'event:manage:all' },
-  { label: 'Wiki', path: 'wiki', permission: 'article:read:all' },
 ] as const;
 
 // Permission check reads the session; the event list is cached but keyed
@@ -43,15 +43,17 @@ const EVENT_TOOLS = [
 async function EventList() {
   const user = await getUser();
   if (!user) redirect('/signin');
-  await requirePermission(user.id, 'event:manage');
+  // The same check as the event dashboard each card links to.
+  await requireAnyPermission(user.id, [...EVENT_DASHBOARD_PERMISSIONS]);
 
-  // TODO: Add event:manage:all permission check to ensure user can access all events,
-  // or implement event-level scoping (e.g., event:manage:{eventId}) for organizers
-  // who manage specific events only.
+  // TODO: implement event-level scoping (e.g., event:manage:{eventId}) for
+  // organizers who manage specific events only.
 
-  const [allEvents, counts, ...toolAccess] = await Promise.all([
+  const [allEvents, counts, canSeeCounts, ...toolAccess] = await Promise.all([
     getAllEvents(),
     getEventParticipationCounts(),
+    // Cohort numbers, gated like the dashboard's stats cells.
+    hasPermission(user.id, 'application:stats:all'),
     ...EVENT_TOOLS.map((tool) => hasPermission(user.id, tool.permission)),
   ]);
 
@@ -97,30 +99,34 @@ async function EventList() {
                   >
                     {event.name}
                   </p>
-                  <p
-                    style={{
-                      fontFamily: 'var(--font-display)',
-                      fontWeight: 'var(--fw-semibold)',
-                      fontSize: '30px',
-                      lineHeight: 'var(--lh-tight)',
-                      letterSpacing: 'var(--track-display)',
-                      margin: '10px 0 0',
-                    }}
-                  >
-                    {value.toLocaleString()}
-                  </p>
-                  <p
-                    style={{
-                      fontFamily: 'var(--font-ds-mono)',
-                      fontSize: '12px',
-                      letterSpacing: '0.04em',
-                      textTransform: 'uppercase',
-                      color: 'var(--ink-500)',
-                      margin: '6px 0 0',
-                    }}
-                  >
-                    {value === 1 ? unit : `${unit}s`}
-                  </p>
+                  {canSeeCounts && (
+                    <>
+                      <p
+                        style={{
+                          fontFamily: 'var(--font-display)',
+                          fontWeight: 'var(--fw-semibold)',
+                          fontSize: '30px',
+                          lineHeight: 'var(--lh-tight)',
+                          letterSpacing: 'var(--track-display)',
+                          margin: '10px 0 0',
+                        }}
+                      >
+                        {value.toLocaleString()}
+                      </p>
+                      <p
+                        style={{
+                          fontFamily: 'var(--font-ds-mono)',
+                          fontSize: '12px',
+                          letterSpacing: '0.04em',
+                          textTransform: 'uppercase',
+                          color: 'var(--ink-500)',
+                          margin: '6px 0 0',
+                        }}
+                      >
+                        {value === 1 ? unit : `${unit}s`}
+                      </p>
+                    </>
+                  )}
                 </div>
                 <ExternalLink
                   aria-hidden
@@ -161,6 +167,13 @@ async function EventList() {
   );
 }
 
+// Creating an event runs `createEvent`, which requires event:manage.
+async function CreateEventButton() {
+  const user = await getUser();
+  if (!user || !(await hasPermission(user.id, 'event:manage:all'))) return null;
+  return <CreateEventDialog />;
+}
+
 export default function AdminEventsMealsPage() {
   return (
     <div className='space-y-6'>
@@ -171,7 +184,9 @@ export default function AdminEventsMealsPage() {
             Manage events, applications, and questions.
           </p>
         </div>
-        <CreateEventDialog />
+        <Suspense fallback={null}>
+          <CreateEventButton />
+        </Suspense>
       </div>
 
       <Suspense fallback={<EventListSkeleton />}>

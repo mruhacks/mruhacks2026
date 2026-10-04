@@ -1,7 +1,10 @@
 import * as React from 'react';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 
+import { getAdminEventSettings } from '@/lib/admin-event';
 import { resolveEventId } from '@/lib/events';
+import { requirePermission } from '@/lib/rbac/authorization';
+import { getUser } from '@/utils/auth';
 
 import { TeamsPage } from './teams-page';
 
@@ -34,6 +37,20 @@ async function TeamsContent({
   const { eventId: segment } = await paramsPromise;
   const eventId = await resolveEventId(segment);
   if (!eventId) notFound();
+  const user = await getUser();
+  if (!user) redirect('/signin');
+  // The same permission `getFormedTeamsForEvent` checks, and the one the
+  // dashboard's Teams tile is shown on.
+  await requirePermission(user.id, 'team:read:all');
 
-  return <TeamsPage eventId={eventId} />;
+  const event = await getAdminEventSettings(eventId);
+  if (!event) notFound();
+
+  return (
+    <TeamsPage
+      eventId={eventId}
+      teamsEnabled={event.teamsEnabled}
+      maxTeamSize={event.maxTeamSize}
+    />
+  );
 }

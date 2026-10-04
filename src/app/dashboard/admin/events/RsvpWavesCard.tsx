@@ -39,6 +39,8 @@ type Props = {
   waitlist: WaitlistEntry[] | null;
   waitlistError: string | null;
   rsvpResponseWindowHours: number;
+  /** Viewer holds `event:manage:all`: may send a wave and resend invitations. */
+  canManageEvent: boolean;
   /** Viewer holds `rsvp:write:all`: may close an open wave early to send the next one. */
   canManageRsvp: boolean;
   onWaveSent: () => void;
@@ -56,6 +58,7 @@ export function RsvpWavesCard({
   waitlist,
   waitlistError,
   rsvpResponseWindowHours,
+  canManageEvent,
   canManageRsvp,
   onWaveSent,
 }: Props) {
@@ -99,7 +102,11 @@ export function RsvpWavesCard({
             }
             summary={<SentWaveSummary wave={wave} />}
           >
-            <RsvpParticipantsTable eventId={eventId} wave={wave} />
+            <RsvpParticipantsTable
+              eventId={eventId}
+              wave={wave}
+              canResend={canManageEvent}
+            />
           </WaveSection>
         ))}
 
@@ -122,6 +129,7 @@ export function RsvpWavesCard({
               }
               disabled={nextWave.length === 0}
               action={
+                canManageEvent &&
                 nextWave.length > 0 && (
                   <SendNextWaveButton
                     eventId={eventId}

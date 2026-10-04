@@ -3,7 +3,7 @@
  *
  * Two scenarios per exported function:
  *  1. Unauthenticated (getUser → null) → fail('Not authenticated')
- *  2. Authenticated without event:manage → throws REDIRECT:/forbidden
+ *  2. Authenticated without the action's permission → throws REDIRECT:/forbidden
  *
  * Happy-path and functional correctness are covered in admin-events.test.ts.
  */
@@ -28,6 +28,7 @@ import {
   updateEventSettings,
   getApplicationResponses,
   getEventRsvpSummary,
+  getEventWaitlist,
 } from '@/app/dashboard/admin/events/actions';
 
 type MockUser = {
@@ -39,6 +40,8 @@ type MockUser = {
 
 const FORBIDDEN =
   'REDIRECT:/forbidden?reason=missing_permission&permission=event:manage';
+const RSVP_READ_FORBIDDEN =
+  'REDIRECT:/forbidden?reason=missing_permission&permission=rsvp:read:all';
 
 let noPermUserId: string;
 let noPermUser: MockUser;
@@ -136,8 +139,27 @@ describe('getEventRsvpSummary', () => {
     });
   });
 
-  test('redirects to /forbidden without event:manage', async () => {
-    await expect(getEventRsvpSummary(testEventId)).rejects.toThrow(FORBIDDEN);
+  test('redirects to /forbidden without rsvp:read:all', async () => {
+    await expect(getEventRsvpSummary(testEventId)).rejects.toThrow(
+      RSVP_READ_FORBIDDEN,
+    );
+  });
+});
+
+// ─── getEventWaitlist ────────────────────────────────────────────────────────
+
+describe('getEventWaitlist', () => {
+  test('fails when unauthenticated', async () => {
+    vi.mocked(getUser).mockResolvedValueOnce(null as never);
+    await expect(getEventWaitlist(testEventId)).resolves.toMatchObject({
+      success: false,
+    });
+  });
+
+  test('redirects to /forbidden without rsvp:read:all', async () => {
+    await expect(getEventWaitlist(testEventId)).rejects.toThrow(
+      RSVP_READ_FORBIDDEN,
+    );
   });
 });
 

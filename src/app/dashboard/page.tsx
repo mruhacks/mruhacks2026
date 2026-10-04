@@ -7,6 +7,7 @@ import { getAdminCounts } from '@/lib/admin-counts';
 import { adminEventPath } from '@/lib/event-slug';
 import { getAuthenticatedUserPermissions } from '@/lib/rbac/guards';
 import { anyPermissionMatches } from '@/lib/rbac/permissions';
+import { canOpenEventDashboard } from '@/lib/rbac/event-access';
 import { getEventsWithUserStatus } from '@/app/dashboard/events/actions';
 import {
   EventTileList,
@@ -16,9 +17,10 @@ import { Button } from '@/components/ui/button';
 import { ArrowRight, ChevronRight } from 'lucide-react';
 
 /**
- * Each admin tile is gated on its own direct permission — the one that gates
- * the page it links to — not a shared "is this an admin" list. See AGENTS.md:
- * permissions, not roles, gate UI.
+ * Each admin tile is gated on exactly what gates the page it links to — not a
+ * shared "is this an admin" list. See AGENTS.md: permissions, not roles, gate
+ * UI. The events list opens for anyone who can use any part of an event
+ * dashboard (a check-in volunteer included), so its tile does too.
  */
 const ADMIN_TILES = [
   {
@@ -26,14 +28,15 @@ const ADMIN_TILES = [
     countKey: 'events' as const,
     unit: 'Event',
     href: '/dashboard/admin/events',
-    permission: 'event:manage:all',
+    visible: canOpenEventDashboard,
   },
   {
     label: 'Users',
     countKey: 'users' as const,
     unit: 'User',
     href: '/dashboard/admin/users',
-    permission: 'user:read:all',
+    visible: (permissions: Set<string>) =>
+      anyPermissionMatches(permissions, 'user:read:all'),
   },
 ];
 
@@ -59,8 +62,12 @@ const USER_TILE_LINKS = [
   },
 ];
 
-/** The featured event's own tile links into its admin page, gated the same way. */
-const FEATURED_EVENT_PERMISSION = 'event:manage:all';
+/**
+ * The featured event's tile shows its application count, which is cohort
+ * statistics, gated like the dashboard's own stats cells. Without it the tile
+ * still shows, as a link with no number.
+ */
+const FEATURED_EVENT_COUNT_PERMISSION = 'application:stats:all';
 
 /**
  * Buttons inside the featured event's tile. `path` deep-links to the tool's
@@ -110,7 +117,8 @@ function AdminTile({
   children,
 }: {
   label: string;
-  value: number;
+  /** Omitted when the viewer may not see the number behind the tile. */
+  value?: number;
   unit: string;
   href: string;
   children?: React.ReactNode;
@@ -164,30 +172,34 @@ function AdminTile({
           >
             {label}
           </p>
-          <p
-            style={{
-              fontFamily: 'var(--font-display)',
-              fontWeight: 'var(--fw-semibold)',
-              fontSize: '30px',
-              lineHeight: 'var(--lh-tight)',
-              letterSpacing: 'var(--track-display)',
-              margin: '6px 0 0',
-            }}
-          >
-            {value.toLocaleString()}
-          </p>
-          <p
-            style={{
-              fontFamily: 'var(--font-ds-mono)',
-              fontSize: '12px',
-              letterSpacing: '0.04em',
-              textTransform: 'uppercase',
-              color: 'var(--ink-500)',
-              margin: '6px 0 0',
-            }}
-          >
-            {pluralize(value, unit)}
-          </p>
+          {value !== undefined && (
+            <>
+              <p
+                style={{
+                  fontFamily: 'var(--font-display)',
+                  fontWeight: 'var(--fw-semibold)',
+                  fontSize: '30px',
+                  lineHeight: 'var(--lh-tight)',
+                  letterSpacing: 'var(--track-display)',
+                  margin: '6px 0 0',
+                }}
+              >
+                {value.toLocaleString()}
+              </p>
+              <p
+                style={{
+                  fontFamily: 'var(--font-ds-mono)',
+                  fontSize: '12px',
+                  letterSpacing: '0.04em',
+                  textTransform: 'uppercase',
+                  color: 'var(--ink-500)',
+                  margin: '6px 0 0',
+                }}
+              >
+                {pluralize(value, unit)}
+              </p>
+            </>
+          )}
         </div>
         <ArrowRight
           aria-hidden
@@ -246,16 +258,15 @@ function AdminPanelSkeleton() {
 }
 
 async function AdminPanel({ permissions }: { permissions: Set<string> }) {
-  const visibleTiles = ADMIN_TILES.filter((t) =>
-    anyPermissionMatches(permissions, t.permission),
-  );
+  const visibleTiles = ADMIN_TILES.filter((t) => t.visible(permissions));
   const canSeeUsers = anyPermissionMatches(permissions, 'user:read:all');
   const visibleUserLinks = USER_TILE_LINKS.filter((l) =>
     anyPermissionMatches(permissions, l.permission),
   );
-  const canSeeFeaturedEvent = anyPermissionMatches(
+  const canSeeFeaturedEvent = canOpenEventDashboard(permissions);
+  const canSeeFeaturedCount = anyPermissionMatches(
     permissions,
-    FEATURED_EVENT_PERMISSION,
+    FEATURED_EVENT_COUNT_PERMISSION,
   );
 
   const counts = await getAdminCounts();
@@ -279,7 +290,7 @@ async function AdminPanel({ permissions }: { permissions: Set<string> }) {
         {featured && (
           <AdminTile
             label={featured.name}
-            value={featured.applications}
+            value={canSeeFeaturedCount ? featured.applications : undefined}
             unit='Application'
             href={adminEventPath(featured)}
           >
@@ -331,7 +342,7 @@ async function AdminSection() {
   const { permissions } = await getAuthenticatedUserPermissions();
 
   const hasAnyAccess =
-    ADMIN_TILES.some((t) => anyPermissionMatches(permissions, t.permission)) ||
+    ADMIN_TILES.some((t) => t.visible(permissions)) ||
     USER_TILE_LINKS.some((l) =>
       anyPermissionMatches(permissions, l.permission),
     );

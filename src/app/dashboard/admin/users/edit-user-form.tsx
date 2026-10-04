@@ -27,8 +27,12 @@ export interface EditUserFormData {
 
 interface EditUserFormProps {
   user: EditUserFormData;
-  allRoles: { id: number; slug: string | null }[];
-  allPermissions: { id: number; slug: string; description: string | null }[];
+  /** Null when the viewer can't read roles: the Roles tab is hidden. */
+  allRoles: { id: number; slug: string | null }[] | null;
+  /** Null when the viewer can't read permissions: that tab is hidden. */
+  allPermissions:
+    | { id: number; slug: string; description: string | null }[]
+    | null;
   onSaved: () => void;
   footer?: React.ReactNode;
 }
@@ -74,24 +78,30 @@ export function EditUserForm({
       toast.error(profileRes.error);
       return;
     }
-    const rolesRes = await updateUserRoles(
-      user.id,
-      Array.from(selectedRoleIds),
-    );
-    if (!rolesRes.success) {
-      setSaving(false);
-      toast.error(rolesRes.error);
-      return;
+    // A tab the viewer can't see has nothing to save.
+    if (allRoles) {
+      const rolesRes = await updateUserRoles(
+        user.id,
+        Array.from(selectedRoleIds),
+      );
+      if (!rolesRes.success) {
+        setSaving(false);
+        toast.error(rolesRes.error);
+        return;
+      }
     }
-    const permsRes = await updateUserDirectPermissions(
-      user.id,
-      Array.from(selectedPermIds),
-    );
+    if (allPermissions) {
+      const permsRes = await updateUserDirectPermissions(
+        user.id,
+        Array.from(selectedPermIds),
+      );
+      if (!permsRes.success) {
+        setSaving(false);
+        toast.error(permsRes.error);
+        return;
+      }
+    }
     setSaving(false);
-    if (!permsRes.success) {
-      toast.error(permsRes.error);
-      return;
-    }
     toast.success('User updated');
     onSaved();
   };
@@ -115,10 +125,12 @@ export function EditUserForm({
   return (
     <div className='space-y-4'>
       <Tabs defaultValue='profile' className='w-full'>
-        <TabsList className='grid w-full grid-cols-4'>
+        <TabsList className='flex w-full'>
           <TabsTrigger value='profile'>Profile</TabsTrigger>
-          <TabsTrigger value='roles'>Roles</TabsTrigger>
-          <TabsTrigger value='permissions'>Direct perms</TabsTrigger>
+          {allRoles && <TabsTrigger value='roles'>Roles</TabsTrigger>}
+          {allPermissions && (
+            <TabsTrigger value='permissions'>Direct perms</TabsTrigger>
+          )}
           <TabsTrigger value='password'>Password</TabsTrigger>
         </TabsList>
 
@@ -144,68 +156,72 @@ export function EditUserForm({
           </label>
         </TabsContent>
 
-        <TabsContent value='roles' className='space-y-3 pt-4'>
-          <p className='text-muted-foreground text-xs'>
-            A user inherits every permission of the roles they hold.
-          </p>
-          <div className='max-h-72 space-y-2 overflow-y-auto rounded-md border p-3'>
-            {allRoles.map((r) => (
-              <label
-                key={r.id}
-                className='hover:bg-muted/50 flex items-center gap-2 rounded-md p-1 text-sm'
-              >
-                <Checkbox
-                  checked={selectedRoleIds.has(r.id)}
-                  onCheckedChange={(v) =>
-                    toggle(setSelectedRoleIds)(r.id, Boolean(v))
-                  }
-                />
-                <span className='font-medium'>{r.slug ?? 'unnamed'}</span>
-              </label>
-            ))}
-            {allRoles.length === 0 && (
-              <div className='text-muted-foreground text-xs'>
-                No roles defined.
-              </div>
-            )}
-          </div>
-        </TabsContent>
+        {allRoles && (
+          <TabsContent value='roles' className='space-y-3 pt-4'>
+            <p className='text-muted-foreground text-xs'>
+              A user inherits every permission of the roles they hold.
+            </p>
+            <div className='max-h-72 space-y-2 overflow-y-auto rounded-md border p-3'>
+              {allRoles.map((r) => (
+                <label
+                  key={r.id}
+                  className='hover:bg-muted/50 flex items-center gap-2 rounded-md p-1 text-sm'
+                >
+                  <Checkbox
+                    checked={selectedRoleIds.has(r.id)}
+                    onCheckedChange={(v) =>
+                      toggle(setSelectedRoleIds)(r.id, Boolean(v))
+                    }
+                  />
+                  <span className='font-medium'>{r.slug ?? 'unnamed'}</span>
+                </label>
+              ))}
+              {allRoles.length === 0 && (
+                <div className='text-muted-foreground text-xs'>
+                  No roles defined.
+                </div>
+              )}
+            </div>
+          </TabsContent>
+        )}
 
-        <TabsContent value='permissions' className='space-y-3 pt-4'>
-          <p className='text-muted-foreground text-xs'>
-            Grant ad-hoc permissions beyond what the user&apos;s roles provide.
-            Prefer role-based grants.
-          </p>
-          <div className='max-h-72 space-y-2 overflow-y-auto rounded-md border p-3'>
-            {allPermissions.map((p) => (
-              <label
-                key={p.id}
-                className='hover:bg-muted/50 flex items-start gap-2 rounded-md p-1 text-sm'
-              >
-                <Checkbox
-                  checked={selectedPermIds.has(p.id)}
-                  onCheckedChange={(v) =>
-                    toggle(setSelectedPermIds)(p.id, Boolean(v))
-                  }
-                  className='mt-0.5'
-                />
-                <span>
-                  <span className='font-mono font-medium'>{p.slug}</span>
-                  {p.description && (
-                    <span className='text-muted-foreground block text-xs'>
-                      {p.description}
-                    </span>
-                  )}
-                </span>
-              </label>
-            ))}
-            {allPermissions.length === 0 && (
-              <div className='text-muted-foreground text-xs'>
-                No permissions defined.
-              </div>
-            )}
-          </div>
-        </TabsContent>
+        {allPermissions && (
+          <TabsContent value='permissions' className='space-y-3 pt-4'>
+            <p className='text-muted-foreground text-xs'>
+              Grant ad-hoc permissions beyond what the user&apos;s roles
+              provide. Prefer role-based grants.
+            </p>
+            <div className='max-h-72 space-y-2 overflow-y-auto rounded-md border p-3'>
+              {allPermissions.map((p) => (
+                <label
+                  key={p.id}
+                  className='hover:bg-muted/50 flex items-start gap-2 rounded-md p-1 text-sm'
+                >
+                  <Checkbox
+                    checked={selectedPermIds.has(p.id)}
+                    onCheckedChange={(v) =>
+                      toggle(setSelectedPermIds)(p.id, Boolean(v))
+                    }
+                    className='mt-0.5'
+                  />
+                  <span>
+                    <span className='font-mono font-medium'>{p.slug}</span>
+                    {p.description && (
+                      <span className='text-muted-foreground block text-xs'>
+                        {p.description}
+                      </span>
+                    )}
+                  </span>
+                </label>
+              ))}
+              {allPermissions.length === 0 && (
+                <div className='text-muted-foreground text-xs'>
+                  No permissions defined.
+                </div>
+              )}
+            </div>
+          </TabsContent>
+        )}
 
         <TabsContent value='password' className='space-y-4 pt-4'>
           <p className='text-muted-foreground text-xs'>
