@@ -1,11 +1,15 @@
 import * as React from 'react';
 import { notFound, redirect } from 'next/navigation';
 
-import { requirePermission } from '@/lib/rbac/authorization';
+import { hasPermission, requirePermission } from '@/lib/rbac/authorization';
 import { getUser } from '@/utils/auth';
 import { hasEventElapsed, resolveEventId } from '@/lib/events';
 import { getAdminEventHeader } from '@/lib/admin-event';
-import { getParentEventId, listSubevents } from '@/lib/subevents';
+import {
+  getParentEventId,
+  isSubeventRunning,
+  listSubevents,
+} from '@/lib/subevents';
 import { serializeInstant } from '@/lib/datetime';
 
 import { CheckInPage } from './check-in-page';
@@ -76,15 +80,21 @@ async function CheckInContent({
   // A repeated `?target=` arrives as an array; take the first.
   const requestedTarget = Array.isArray(rawTarget) ? rawTarget[0] : rawTarget;
 
-  const [event, subeventRows] = await Promise.all([
+  const [event, subeventRows, canPickAnyTarget] = await Promise.all([
     getAdminEventHeader(eventId),
     listSubevents(eventId),
+    hasPermission(user.id, 'checkin:override:all'),
   ]);
   if (!event) notFound();
   if (!event.checkInEnabled) return <p>Check-in is disabled for this event.</p>;
 
-  const subevents: CheckInTargetOption[] = subeventRows
-    .filter((row) => row.checkInEnabled)
+  // Without the override, only what's on right now is offered: a volunteer
+  // at the meal table has no business arming anything else, and a shorter
+  // list is one less way to arm the wrong entry. The actions enforce the
+  // same rule, so this is about the picker, not about security.
+  const enabledRows = subeventRows.filter((row) => row.checkInEnabled);
+  const subevents: CheckInTargetOption[] = enabledRows
+    .filter((row) => canPickAnyTarget || isSubeventRunning(row))
     .map((row) => ({
       id: row.id,
       name: row.name,
@@ -104,6 +114,10 @@ async function CheckInContent({
   const unknownTarget = Boolean(
     requestedTarget && requestedTarget !== eventId && !armed,
   );
+  // A real entry that just isn't on right now (a stale link, or a tab left
+  // open past the slot) gets its own message rather than "doesn't belong".
+  const targetNotRunning =
+    unknownTarget && enabledRows.some((row) => row.id === requestedTarget);
 
   return (
     <CheckInPage
@@ -117,6 +131,7 @@ async function CheckInContent({
       subevents={subevents}
       targetId={armed?.id ?? eventId}
       unknownTarget={unknownTarget}
+      targetNotRunning={targetNotRunning}
       hasEnded={hasEventElapsed(event.endsAt)}
     />
   );

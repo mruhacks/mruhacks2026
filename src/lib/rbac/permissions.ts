@@ -37,6 +37,7 @@ export type PermissionAction =
   | 'join'
   | 'write'
   | 'vote'
+  | 'override'
   | 'all';
 
 export type PermissionScope = 'all' | 'any' | 'self' | (string & {});
@@ -118,6 +119,10 @@ const CORE_PERMISSIONS = [
     description: 'Remove any team member (moderation override)',
   },
   { slug: 'checkin:write:all', description: 'Check participants in or out' },
+  {
+    slug: 'checkin:override:all',
+    description: 'Check in to schedule entries outside their scheduled time',
+  },
   {
     slug: 'rsvp:read:all',
     description: "View an event's RSVP waves and responses",
