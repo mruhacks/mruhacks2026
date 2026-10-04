@@ -25,6 +25,7 @@ import {
 } from '@/lib/participation/status';
 import { writeAuditLog } from '@/utils/audit-log';
 import { generateTeamCode } from '@/lib/team-code';
+import { syncWaitlistForEvent } from '@/lib/rsvp/waitlist';
 import { joinTeamSchema } from './team-schemas';
 import {
   events,
@@ -196,6 +197,20 @@ async function cleanUpOldTeam(
   }
 }
 
+/**
+ * Team changes move the review tally's inputs: a joiner is pulled onto the
+ * waitlist with a teammate's yes, and every team ranks by its best member.
+ * Best effort — the membership change already committed, and the next vote
+ * resyncs anyway.
+ */
+async function resyncWaitlist(eventId: string): Promise<void> {
+  try {
+    await syncWaitlistForEvent(eventId);
+  } catch (error) {
+    console.error('Waitlist sync after team change failed:', error);
+  }
+}
+
 // ── Public actions ──────────────────────────────────────────────────────
 
 export type TeamMemberView = {
@@ -350,6 +365,7 @@ export async function joinTeamByCode(
     });
 
     if (result.success) {
+      await resyncWaitlist(eventId);
       updateTag(eventApplicationsCacheTag(eventId));
       revalidatePath(`/dashboard/events/${eventId}`);
     }
@@ -418,6 +434,7 @@ export async function leaveTeam(eventId: string): Promise<ActionResult> {
     });
 
     if (result.success) {
+      await resyncWaitlist(eventId);
       updateTag(eventApplicationsCacheTag(eventId));
       revalidatePath(`/dashboard/events/${eventId}`);
     }
@@ -515,6 +532,7 @@ export async function removeMember(
     });
 
     if (result.success) {
+      await resyncWaitlist(eventId);
       updateTag(eventApplicationsCacheTag(eventId));
       revalidatePath(`/dashboard/events/${eventId}`);
       if (isAdminOverride) {

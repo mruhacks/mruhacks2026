@@ -667,7 +667,7 @@ export async function withdrawParticipation(
 
       await tx
         .update(eventParticipants)
-        .set({ statusId: statusIdOf('declined'), waitlistPosition: null })
+        .set({ statusId: statusIdOf('declined') })
         .where(
           and(
             eq(eventParticipants.id, row.participantId),

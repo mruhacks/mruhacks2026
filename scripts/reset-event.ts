@@ -1,8 +1,14 @@
 import 'dotenv/config';
 
-import { eq, inArray, sql } from 'drizzle-orm';
+import { eq, inArray, or } from 'drizzle-orm';
 import { client, db } from '@/utils/db';
-import { events, eventRsvpWaves } from '@/db/schema';
+import {
+  checkIns,
+  eventParticipants,
+  events,
+  eventRsvpWaves,
+} from '@/db/schema';
+import { statusIdOf } from '@/lib/participation/server';
 import { isEventUuid } from '@/lib/event-slug';
 
 const USAGE = `
@@ -13,13 +19,14 @@ Arguments:
   eventId    UUID or slug of a single event to reset. Omit to reset every
              event that requires an application.
 
-Puts the event back to before any RSVP wave went out: deletes all of its
-event_rsvp_waves (which cascades to their event_invitations) and moves every
-participant, whatever their status, onto the waitlist in application order
-(oldest first). check_ins and teams/team_members are untouched.
+Puts the event back to before review started: deletes all of its
+event_rsvp_waves (which cascades to their event_invitations), moves every
+participant, whatever their status, back to "under review" (pending_review),
+and deletes every check-in for the event and its sub-events (meals,
+workshops). application_votes and teams/team_members are untouched.
 
 Only events that require an application can be reset: without one there is
-no waitlist and no waves.
+no review to go back to.
 
 Examples:
   pnpm event:reset
@@ -56,7 +63,11 @@ async function resolveEventId(segment: string): Promise<string | null> {
 async function main(): Promise<void> {
   assertNotProduction();
 
-  const arg = process.argv[2]?.trim();
+  // pnpm forwards the `--` in `pnpm event:reset -- <id>`; skip it.
+  const arg = process.argv
+    .slice(2)
+    .find((a) => a !== '--')
+    ?.trim();
 
   let eventIds: string[];
   if (arg) {
@@ -73,7 +84,7 @@ async function main(): Promise<void> {
       .where(eq(events.id, eventId));
     if (!event.hasApplication) {
       console.error(
-        `Event ${eventId} doesn't require an application, so it has no waitlist to reset.`,
+        `Event ${eventId} doesn't require an application, so it has no review to reset.`,
       );
       process.exitCode = 1;
       return;
@@ -92,39 +103,45 @@ async function main(): Promise<void> {
     return;
   }
 
-  const { deletedWaves, resetCount } = await db.transaction(async (tx) => {
-    const deleted = await tx
-      .delete(eventRsvpWaves)
-      .where(inArray(eventRsvpWaves.eventId, eventIds))
-      .returning({ id: eventRsvpWaves.id });
+  const { deletedWaves, deletedCheckIns, resetCount } = await db.transaction(
+    async (tx) => {
+      const deleted = await tx
+        .delete(eventRsvpWaves)
+        .where(inArray(eventRsvpWaves.eventId, eventIds))
+        .returning({ id: eventRsvpWaves.id });
 
-    const ids = sql.join(
-      eventIds.map((id) => sql`${id}::uuid`),
-      sql`, `,
-    );
-    const reset = await tx.execute(sql`
-      UPDATE event_participants AS p
-      SET
-        status_id = (
-          SELECT id FROM participation_statuses WHERE label = 'waitlisted'
-        ),
-        waitlist_position = ranked.position,
-        updated_at = now()
-      FROM (
-        SELECT
-          id,
-          ROW_NUMBER() OVER (
-            PARTITION BY event_id ORDER BY created_at, id
-          ) AS position
-        FROM event_participants
-        WHERE event_id IN (${ids})
-      ) AS ranked
-      WHERE p.id = ranked.id
-      RETURNING p.id
-    `);
+      // The event's own door check-ins plus its sub-events' (meals, workshops).
+      const subEvents = tx
+        .select({ id: events.id })
+        .from(events)
+        .where(inArray(events.parentEventId, eventIds));
+      const checkInsDeleted = await tx
+        .delete(checkIns)
+        .where(
+          or(
+            inArray(checkIns.eventId, eventIds),
+            inArray(checkIns.eventId, subEvents),
+          ),
+        )
+        .returning({ userId: checkIns.userId });
 
-    return { deletedWaves: deleted.length, resetCount: reset.length };
-  });
+      const reset = await tx
+        .update(eventParticipants)
+        .set({
+          statusId: statusIdOf('pending_review'),
+          reviewedAt: null,
+          reviewedBy: null,
+        })
+        .where(inArray(eventParticipants.eventId, eventIds))
+        .returning({ id: eventParticipants.id });
+
+      return {
+        deletedWaves: deleted.length,
+        deletedCheckIns: checkInsDeleted.length,
+        resetCount: reset.length,
+      };
+    },
+  );
 
   console.log(
     arg
@@ -132,7 +149,8 @@ async function main(): Promise<void> {
       : `Reset ${eventIds.length} application event${eventIds.length === 1 ? '' : 's'}.`,
   );
   console.log(`  Waves deleted (with their invitations): ${deletedWaves}`);
-  console.log(`  Participants moved to the waitlist: ${resetCount}`);
+  console.log(`  Check-ins deleted: ${deletedCheckIns}`);
+  console.log(`  Participants moved back to under review: ${resetCount}`);
 }
 
 main()

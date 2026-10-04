@@ -41,9 +41,8 @@ async function RsvpContent({
   ]);
   if (!eventId) notFound();
 
-  // Reordering the waitlist and closing an open wave early both override who
-  // gets (or keeps) an RSVP, so they're gated on `rsvp:write:all`; the
-  // actions re-check it.
+  // Closing an open wave early overrides who keeps an RSVP, so it's gated on
+  // `rsvp:write:all`; the action re-checks it.
   const canManageRsvp = user
     ? await hasPermission(user.id, 'rsvp:write:all')
     : false;

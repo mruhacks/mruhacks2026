@@ -1,11 +1,9 @@
 'use client';
 
 import * as React from 'react';
-import { ArrowDown, ArrowUp, ChevronRight } from 'lucide-react';
-import { toast } from 'sonner';
+import { ChevronRight } from 'lucide-react';
 
 import {
-  moveWaitlistParticipant,
   type AdminRsvpSummary,
   type AdminRsvpWaveSummary,
   type WaitlistEntry,
@@ -14,7 +12,6 @@ import { RsvpParticipantsTable } from '@/app/dashboard/admin/events/RsvpParticip
 import { SendNextWaveButton } from '@/app/dashboard/admin/events/SendNextWaveButton';
 import { LocalDateTime } from '@/components/local-date-time';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import {
   Card,
   CardContent,
@@ -22,13 +19,6 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { FieldError } from '@/components/ui/field';
-import { Input } from '@/components/ui/input';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
 import {
   Table,
   TableBody,
@@ -49,12 +39,8 @@ type Props = {
   waitlist: WaitlistEntry[] | null;
   waitlistError: string | null;
   rsvpResponseWindowHours: number;
-  /**
-   * Viewer holds `rsvp:write:all`: may reorder the waitlist and close an open
-   * wave early to send the next one.
-   */
+  /** Viewer holds `rsvp:write:all`: may close an open wave early to send the next one. */
   canManageRsvp: boolean;
-  onReordered: (entries: WaitlistEntry[]) => void;
   onWaveSent: () => void;
 };
 
@@ -71,10 +57,8 @@ export function RsvpWavesCard({
   waitlistError,
   rsvpResponseWindowHours,
   canManageRsvp,
-  onReordered,
   onWaveSent,
 }: Props) {
-  const canReorder = canManageRsvp;
   const sentWaves = [...summary.previousWaves, summary.latestWave]
     .filter((wave): wave is AdminRsvpWaveSummary => wave !== null)
     .sort((a, b) => a.wave - b.wave);
@@ -96,9 +80,9 @@ export function RsvpWavesCard({
       <CardHeader>
         <CardTitle>Waves</CardTitle>
         <CardDescription>
-          Accepted applications wait on the waitlist, and each wave invites from
-          the top of it to fill the open spots. Expand a wave to see who is in
-          it.
+          Accepted applications wait on the waitlist, ranked by their review
+          votes, and each wave invites from the top of it to fill the open
+          spots. Expand a wave to see who is in it.
         </CardDescription>
       </CardHeader>
       <CardContent className='flex flex-col gap-2'>
@@ -159,13 +143,7 @@ export function RsvpWavesCard({
                 )
               }
             >
-              <WaitlistTable
-                eventId={eventId}
-                entries={nextWave}
-                queueLength={queue.length}
-                canReorder={canReorder}
-                onReordered={onReordered}
-              />
+              <WaitlistTable entries={nextWave} />
             </WaveSection>
 
             {later.length > 0 && (
@@ -174,13 +152,7 @@ export function RsvpWavesCard({
                 badge={<Badge variant='secondary'>Waitlist</Badge>}
                 summary={`${later.length} ${later.length === 1 ? 'person' : 'people'}, invited in order as spots open up.`}
               >
-                <WaitlistTable
-                  eventId={eventId}
-                  entries={later}
-                  queueLength={queue.length}
-                  canReorder={canReorder}
-                  onReordered={onReordered}
-                />
+                <WaitlistTable entries={later} />
               </WaveSection>
             )}
           </>
@@ -367,45 +339,7 @@ function WaveSection({
   );
 }
 
-function WaitlistTable({
-  eventId,
-  entries,
-  queueLength,
-  canReorder,
-  onReordered,
-}: {
-  eventId: string;
-  entries: WaitlistEntry[];
-  /** Length of the whole waitlist, not just this wave's slice. */
-  queueLength: number;
-  canReorder: boolean;
-  onReordered: (entries: WaitlistEntry[]) => void;
-}) {
-  const [movingId, setMovingId] = React.useState<string | null>(null);
-
-  async function move(participantId: string, position: number) {
-    setMovingId(participantId);
-    try {
-      const result = await moveWaitlistParticipant({
-        eventId,
-        participantId,
-        position,
-      });
-      if (!result.success) return result.error;
-      onReordered(result.data ?? []);
-      return null;
-    } catch {
-      return 'Failed to move participant.';
-    } finally {
-      setMovingId(null);
-    }
-  }
-
-  async function nudge(participantId: string, position: number) {
-    const moveError = await move(participantId, position);
-    if (moveError) toast.error(moveError);
-  }
-
+function WaitlistTable({ entries }: { entries: WaitlistEntry[] }) {
   return (
     <Table>
       <TableHeader>
@@ -413,7 +347,6 @@ function WaitlistTable({
           <TableHead className='w-16'>Place</TableHead>
           <TableHead>Applicant</TableHead>
           <TableHead>Applied</TableHead>
-          {canReorder && <TableHead className='w-40'> </TableHead>}
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -433,128 +366,9 @@ function WaitlistTable({
             <TableCell>
               <LocalDateTime value={entry.appliedAt} dateStyle='medium' />
             </TableCell>
-            {canReorder && (
-              <TableCell>
-                <div className='flex justify-end gap-1'>
-                  <Button
-                    type='button'
-                    variant='ghost'
-                    size='icon-sm'
-                    aria-label={`Move ${entry.name} up`}
-                    disabled={movingId !== null || entry.position === 1}
-                    onClick={() =>
-                      nudge(entry.participantId, entry.position - 1)
-                    }
-                  >
-                    <ArrowUp />
-                  </Button>
-                  <Button
-                    type='button'
-                    variant='ghost'
-                    size='icon-sm'
-                    aria-label={`Move ${entry.name} down`}
-                    disabled={
-                      movingId !== null || entry.position === queueLength
-                    }
-                    onClick={() =>
-                      nudge(entry.participantId, entry.position + 1)
-                    }
-                  >
-                    <ArrowDown />
-                  </Button>
-                  <MoveToPositionButton
-                    entry={entry}
-                    max={queueLength}
-                    disabled={movingId !== null}
-                    onMove={(position) => move(entry.participantId, position)}
-                  />
-                </div>
-              </TableCell>
-            )}
           </TableRow>
         ))}
       </TableBody>
     </Table>
-  );
-}
-
-function MoveToPositionButton({
-  entry,
-  max,
-  disabled,
-  onMove,
-}: {
-  entry: WaitlistEntry;
-  max: number;
-  disabled: boolean;
-  /** Resolves to an error message, or null on success. */
-  onMove: (position: number) => Promise<string | null>;
-}) {
-  const [open, setOpen] = React.useState(false);
-  const [value, setValue] = React.useState(String(entry.position));
-  const [error, setError] = React.useState<string | null>(null);
-  const [submitting, setSubmitting] = React.useState(false);
-
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const position = Number(value);
-    if (!Number.isInteger(position) || position < 1 || position > max) {
-      setError(`Enter a place from 1 to ${max}.`);
-      return;
-    }
-    setSubmitting(true);
-    const moveError = await onMove(position);
-    setSubmitting(false);
-    if (moveError) {
-      setError(moveError);
-      return;
-    }
-    setOpen(false);
-  }
-
-  return (
-    <Popover
-      open={open}
-      onOpenChange={(next) => {
-        setOpen(next);
-        if (next) {
-          setValue(String(entry.position));
-          setError(null);
-        }
-      }}
-    >
-      <PopoverTrigger asChild>
-        <Button type='button' variant='outline' size='sm' disabled={disabled}>
-          Move to…
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent align='end' className='w-56'>
-        <form onSubmit={handleSubmit} className='flex flex-col gap-2'>
-          <label
-            htmlFor={`waitlist-place-${entry.participantId}`}
-            className='text-sm font-medium'
-          >
-            Place in waitlist (1–{max})
-          </label>
-          <Input
-            id={`waitlist-place-${entry.participantId}`}
-            type='number'
-            inputMode='numeric'
-            min={1}
-            max={max}
-            value={value}
-            onChange={(event) => {
-              setValue(event.target.value);
-              setError(null);
-            }}
-            aria-invalid={error !== null}
-          />
-          {error && <FieldError errors={[{ message: error }]} />}
-          <Button type='submit' size='sm' disabled={submitting}>
-            {submitting ? 'Moving…' : 'Move'}
-          </Button>
-        </form>
-      </PopoverContent>
-    </Popover>
   );
 }

@@ -36,6 +36,7 @@ export type PermissionAction =
   | 'review'
   | 'join'
   | 'write'
+  | 'vote'
   | 'all';
 
 export type PermissionScope = 'all' | 'any' | 'self' | (string & {});
@@ -133,6 +134,10 @@ const CORE_PERMISSIONS = [
   {
     slug: 'application:stats:all',
     description: 'View aggregate application statistics',
+  },
+  {
+    slug: 'application:vote:all',
+    description: 'Vote yes/no on applications in the blind swipe review',
   },
   {
     slug: 'article:read:all',

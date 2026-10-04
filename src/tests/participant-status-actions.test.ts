@@ -18,6 +18,7 @@ import {
   insertInvitation,
   insertParticipant,
 } from '@/tests/participation-fixtures';
+import { getWaitlist } from '@/lib/rsvp/waitlist';
 
 vi.mock('@/utils/auth', () => ({ getUser: vi.fn() }));
 vi.mock('@/lib/rsvp/rsvp-invitation-queue', () => ({
@@ -167,7 +168,7 @@ describe('updateParticipantStatus — review decisions', () => {
     expect(row.reviewedBy).toBe(actors.reviewer);
   });
 
-  test('waitlisting goes to the back of the queue; leaving it clears the position', async () => {
+  test('waitlisting by hand joins the queue in application order; leaving it drops them', async () => {
     actAs('reviewer');
     const eventId = await createEvent();
     const ids: string[] = [];
@@ -177,6 +178,7 @@ describe('updateParticipantStatus — review decisions', () => {
           eventId,
           userId: await createUser(`Waitlist ${i}`),
           status: 'pending_review',
+          createdAt: new Date(Date.UTC(2026, 0, i + 1)),
         }),
       );
     }
@@ -188,25 +190,16 @@ describe('updateParticipantStatus — review decisions', () => {
         status: 'waitlisted',
       });
     }
-    const positions = async () =>
-      (
-        await db
-          .select({
-            id: eventParticipants.id,
-            position: eventParticipants.waitlistPosition,
-          })
-          .from(eventParticipants)
-          .where(inArray(eventParticipants.id, ids))
-      ).sort((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id));
-
-    expect((await positions()).map((r) => r.position)).toEqual([1, 2]);
+    const queue = async () =>
+      (await getWaitlist(eventId)).map((e) => e.participantId);
+    expect(await queue()).toEqual(ids);
 
     await updateParticipantStatus({
       eventId,
       participantId: ids[0],
       status: 'denied',
     });
-    expect((await positions()).map((r) => r.position)).toEqual([null, 2]);
+    expect(await queue()).toEqual([ids[1]]);
   });
 
   test('an RSVP-only organizer cannot make review decisions', async () => {

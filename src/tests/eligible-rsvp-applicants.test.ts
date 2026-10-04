@@ -125,34 +125,34 @@ describe('selectRsvpWaveInvitees', () => {
   const base = { email: 'x@example.com' };
   const at = (day: number) => new Date(Date.UTC(2026, 0, day));
 
-  test('orders by waitlist position (unranked last), then application time', () => {
+  test('orders by waitlist rank, then application time', () => {
     const applicants = [
       {
         ...base,
         userId: 'unranked-late',
         participantId: 'p1',
-        waitlistPosition: null,
+        rank: 3,
         applicationCreatedAt: at(2),
       },
       {
         ...base,
         userId: 'unranked-early',
         participantId: 'p2',
-        waitlistPosition: null,
+        rank: 3,
         applicationCreatedAt: at(1),
       },
       {
         ...base,
         userId: 'w-2',
         participantId: 'p3',
-        waitlistPosition: 2,
+        rank: 2,
         applicationCreatedAt: at(3),
       },
       {
         ...base,
         userId: 'w-1',
         participantId: 'p4',
-        waitlistPosition: 1,
+        rank: 1,
         applicationCreatedAt: at(4),
       },
     ];

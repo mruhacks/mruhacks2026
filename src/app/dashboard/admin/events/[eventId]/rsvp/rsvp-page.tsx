@@ -30,7 +30,7 @@ export function EventRsvpPage({
   canManageRsvp,
 }: {
   eventId: string;
-  /** Viewer holds `rsvp:write:all`: may reorder the waitlist and close a wave early. */
+  /** Viewer holds `rsvp:write:all`: may close an open wave early. */
   canManageRsvp: boolean;
 }) {
   const [event, setEvent] = React.useState<EventDetails | null>(null);
@@ -137,7 +137,6 @@ export function EventRsvpPage({
           waitlistError={waitlistError}
           rsvpResponseWindowHours={event.rsvpResponseWindowHours}
           canManageRsvp={canManageRsvp}
-          onReordered={setWaitlist}
           onWaveSent={() => setRsvpReloadToken((token) => token + 1)}
         />
       )}

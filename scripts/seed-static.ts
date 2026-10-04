@@ -189,6 +189,10 @@ async function seedRolesAndPermissions() {
       description: 'View aggregate application statistics',
     },
     {
+      slug: 'application:vote:all',
+      description: 'Vote yes/no on applications in the blind swipe review',
+    },
+    {
       slug: 'article:read:all',
       description: 'View unpublished event wiki articles',
     },
@@ -267,6 +271,10 @@ async function seedRolesAndPermissions() {
       {
         roleId: findRole('organizer').id,
         permissionId: findPerm('application:stats:all').id,
+      },
+      {
+        roleId: findRole('organizer').id,
+        permissionId: findPerm('application:vote:all').id,
       },
       {
         roleId: findRole('organizer').id,

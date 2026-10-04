@@ -120,7 +120,7 @@ export const participationStatusDisplayList = [
   },
   {
     label: 'denied',
-    title: 'Not accepted',
+    title: 'Denied',
     description:
       'Thanks for applying — unfortunately we were not able to offer you a spot. Please contact us if you think this was a mistake.',
     variant: 'destructive',

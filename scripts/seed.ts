@@ -859,10 +859,6 @@ export async function seedDemoData() {
     { weight: 55, value: waitlistedStatusId },
   ];
 
-  // Monotonic across the whole run (not per-chunk), so waitlist positions
-  // never repeat.
-  let waitlistCounter = 0;
-
   const now = new Date();
   const admin = await seedEnvAdminUser(insertedRoles);
   const seedParticipation = createParticipationSeeder(now, admin?.id);
@@ -999,8 +995,6 @@ export async function seedDemoData() {
           : appUpdatedAt
         : null;
       const reviewedBy = isDecided ? (admin?.id ?? null) : null;
-      const waitlistPosition =
-        statusId === waitlistedStatusId ? ++waitlistCounter : null;
 
       // ── Question answers (skewed, with some left unanswered) ────────────
       const attendedBefore = faker.helpers.weightedArrayElement([
@@ -1063,7 +1057,6 @@ export async function seedDemoData() {
         updatedAt: appUpdatedAt,
         reviewedAt: appReviewedAt,
         reviewedBy,
-        waitlistPosition,
         responses,
       });
 
