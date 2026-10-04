@@ -88,7 +88,7 @@ async function ArticleContent({
         <div className='space-y-4'>
           <h2 className='text-2xl font-semibold'>{article.title}</h2>
           {article.bodyMarkdown.trim() ? (
-            <MarkdownContent markdown={article.bodyMarkdown} />
+            <MarkdownContent markdown={article.bodyMarkdown} allowEmbeds />
           ) : (
             <p className='text-muted-foreground text-sm'>
               This article has no content yet.

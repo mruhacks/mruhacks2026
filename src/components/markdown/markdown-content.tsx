@@ -3,8 +3,41 @@ import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import rehypeSanitize from 'rehype-sanitize';
 
+import {
+  EMBED_IFRAME_ALLOW,
+  EMBED_IFRAME_REFERRER_POLICY,
+  EMBED_IFRAME_SANDBOX,
+  getAllowedEmbedSrc,
+  parseEmbedDimension,
+} from '@/lib/embeds';
 import { cn } from '@/lib/utils';
-import { MARKDOWN_SANITIZE_SCHEMA } from './sanitize-schema';
+import {
+  MARKDOWN_EMBED_SANITIZE_SCHEMA,
+  MARKDOWN_SANITIZE_SCHEMA,
+} from './sanitize-schema';
+
+type TreeNode = { type: string; value?: unknown; children?: TreeNode[] };
+
+const SELF_CLOSING_IFRAME = /<iframe\b([^>]*?)\s*\/>/gi;
+
+/**
+ * `<iframe … />` is JSX, not HTML: an HTML parser ignores the slash, leaves
+ * the frame open, and swallows the rest of the document as fallback text.
+ * The editor always writes the paired form, but an author typing in source
+ * mode easily won't — so close any such tag before `rehype-raw` parses it.
+ */
+function rehypeCloseSelfClosingIframes() {
+  const walk = (node: TreeNode) => {
+    if (node.type === 'raw' && typeof node.value === 'string') {
+      node.value = node.value.replace(
+        SELF_CLOSING_IFRAME,
+        '<iframe$1></iframe>',
+      );
+    }
+    node.children?.forEach(walk);
+  };
+  return walk;
+}
 
 /**
  * Renders stored markdown (event descriptions, wiki articles) as read-only
@@ -20,19 +53,35 @@ import { MARKDOWN_SANITIZE_SCHEMA } from './sanitize-schema';
  * sanitizer sees real element nodes rather than an opaque `raw` node. Anything
  * outside the list, including `<script>` and every event-handler attribute, is
  * dropped before it reaches React.
+ *
+ * `allowEmbeds` additionally lets `<iframe>` through, for surfaces whose
+ * authors are allowed to embed (wiki articles). Even then a frame renders only
+ * if its src is on the provider allow-list in `@/lib/embeds`, and it always
+ * gets our fixed sandbox — never attributes from the source.
  */
 export function MarkdownContent({
   markdown,
   className,
+  allowEmbeds = false,
 }: {
   markdown: string;
   className?: string;
+  allowEmbeds?: boolean;
 }) {
   return (
     <div className={cn('mdx-prose', className)}>
       <Markdown
         remarkPlugins={[remarkGfm]}
-        rehypePlugins={[rehypeRaw, [rehypeSanitize, MARKDOWN_SANITIZE_SCHEMA]]}
+        rehypePlugins={[
+          rehypeCloseSelfClosingIframes,
+          rehypeRaw,
+          [
+            rehypeSanitize,
+            allowEmbeds
+              ? MARKDOWN_EMBED_SANITIZE_SCHEMA
+              : MARKDOWN_SANITIZE_SCHEMA,
+          ],
+        ]}
         components={{
           // `node` is the hast node react-markdown hands to every custom
           // component. It is discarded rather than spread — left in, React
@@ -63,6 +112,28 @@ export function MarkdownContent({
               loading='lazy'
             />
           ),
+          // Only reachable when `allowEmbeds` let the tag past the sanitizer.
+          // Nothing is spread from the source: every attribute is rebuilt here
+          // from the validated src/size, so author markup cannot widen the
+          // sandbox or add `srcdoc`/`allow` even if the schema ever loosens.
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          iframe: ({ node: _node, src, title, width, height }) => {
+            const embedSrc = allowEmbeds ? getAllowedEmbedSrc(src) : null;
+            if (!embedSrc) return null;
+            return (
+              <iframe
+                src={embedSrc}
+                title={title || 'Embedded content'}
+                width={parseEmbedDimension(width)}
+                height={parseEmbedDimension(height)}
+                sandbox={EMBED_IFRAME_SANDBOX}
+                allow={EMBED_IFRAME_ALLOW}
+                referrerPolicy={EMBED_IFRAME_REFERRER_POLICY}
+                loading='lazy'
+                allowFullScreen
+              />
+            );
+          },
         }}
       >
         {markdown}

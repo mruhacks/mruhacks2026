@@ -111,6 +111,7 @@ export function ArticleEditor({ eventId, eventHref, article }: Props) {
         onChange={setBody}
         uploadAttachment={uploadAttachment}
         onUploadError={setError}
+        allowEmbeds
         placeholder='Write the article…'
       />
 

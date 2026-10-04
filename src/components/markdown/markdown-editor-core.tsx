@@ -40,6 +40,7 @@ import {
 import '@mdxeditor/editor/style.css';
 
 import { cn } from '@/lib/utils';
+import { InsertEmbed, embedPlugin } from './embed-plugin';
 
 /** Languages offered in the code-block dropdown. */
 const CODE_BLOCK_LANGUAGES = {
@@ -61,6 +62,8 @@ export type MarkdownEditorCoreProps = {
   onChange: (markdown: string) => void;
   /** Returns the URL to embed for an uploaded image. */
   onUploadImage: (file: File) => Promise<string>;
+  /** Offer `<iframe>` embeds — only where the renderer also allows them. */
+  allowEmbeds?: boolean;
   placeholder?: string;
   className?: string;
 };
@@ -69,6 +72,7 @@ export default function MarkdownEditorCore({
   markdown,
   onChange,
   onUploadImage,
+  allowEmbeds = false,
   placeholder,
   className,
 }: MarkdownEditorCoreProps) {
@@ -88,6 +92,8 @@ export default function MarkdownEditorCore({
         linkDialogPlugin(),
         tablePlugin(),
         imagePlugin({ imageUploadHandler: onUploadImage }),
+        // Always registered, even when embeds are off — see `./embed-plugin`.
+        embedPlugin({ enabled: allowEmbeds }),
         codeBlockPlugin({ defaultCodeBlockLanguage: 'text' }),
         codeMirrorPlugin({ codeBlockLanguages: CODE_BLOCK_LANGUAGES }),
         markdownShortcutPlugin(),
@@ -116,6 +122,7 @@ export default function MarkdownEditorCore({
                       <Separator />
                       <CreateLink />
                       <InsertImage />
+                      {allowEmbeds && <InsertEmbed />}
                       <Separator />
                       <InsertTable />
                       <InsertThematicBreak />

@@ -37,6 +37,11 @@ export type MarkdownEditorProps = {
    * host form can show it inline next to the editor.
    */
   onUploadError?: (message: string) => void;
+  /**
+   * Offer `<iframe>` embeds. Pair it with `allowEmbeds` on the
+   * `MarkdownContent` that renders this field, or readers won't see them.
+   */
+  allowEmbeds?: boolean;
   placeholder?: string;
   className?: string;
 };
@@ -46,6 +51,7 @@ export function MarkdownEditor({
   onChange,
   uploadAttachment,
   onUploadError,
+  allowEmbeds,
   placeholder,
   className,
 }: MarkdownEditorProps) {
@@ -75,6 +81,7 @@ export function MarkdownEditor({
       markdown={value}
       onChange={onChange}
       onUploadImage={handleUpload}
+      allowEmbeds={allowEmbeds}
       placeholder={placeholder}
       className={className}
     />

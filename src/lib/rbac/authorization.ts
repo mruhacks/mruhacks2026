@@ -1,5 +1,5 @@
 import { db } from '@/utils/db';
-import { eq, inArray, sql } from 'drizzle-orm';
+import { eq, inArray, or, sql } from 'drizzle-orm';
 import {
   permission,
   role,
@@ -150,4 +150,59 @@ export async function requireAnyPermission(
       `/forbidden?reason=missing_permission&permission=${permissionStrings.join(',')}`,
     );
   }
+}
+
+/**
+ * Returns a refusal message when `callerId` would be granting a permission it
+ * doesn't hold itself, either directly (`permissionIds`/`permissionSlugs`) or
+ * via what `roleIds` carry. Null means the grant is allowed.
+ *
+ * Every action that hands out roles or permissions (to anyone, including the
+ * caller) must check this, so holding a write permission over users/roles/
+ * permissions can't be turned into holding everything. Pass only what is being
+ * *added*: removing access, or keeping something already assigned, is never
+ * an escalation.
+ */
+export async function grantDeniedReason(
+  callerId: string,
+  grant: {
+    roleIds?: number[];
+    permissionIds?: number[];
+    permissionSlugs?: string[];
+  },
+): Promise<string | null> {
+  const roleIds = grant.roleIds ?? [];
+  const permissionIds = grant.permissionIds ?? [];
+  const granted = new Set(grant.permissionSlugs ?? []);
+
+  if (roleIds.length > 0 || permissionIds.length > 0) {
+    const rows = await db
+      .selectDistinct({ slug: permission.slug })
+      .from(permission)
+      .where(
+        or(
+          permissionIds.length > 0
+            ? inArray(permission.id, permissionIds)
+            : undefined,
+          roleIds.length > 0
+            ? inArray(
+                permission.id,
+                db
+                  .select({ id: rolePermissions.permissionId })
+                  .from(rolePermissions)
+                  .where(inArray(rolePermissions.roleId, roleIds)),
+              )
+            : undefined,
+        ),
+      );
+    for (const row of rows) granted.add(row.slug);
+  }
+  if (granted.size === 0) return null;
+
+  const held = await loadUserPermissions(callerId);
+  const missing = [...granted].filter(
+    (slug) => !anyPermissionMatches(held, slug),
+  );
+  if (missing.length === 0) return null;
+  return `You can't grant permissions you don't have yourself: ${missing.sort().join(', ')}`;
 }

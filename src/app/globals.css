@@ -432,6 +432,25 @@
     max-width: 100%;
   }
 
+  /* Wiki embeds. Without an explicit size, fill the column at 16:9 — the
+     shape of every video provider on the allow-list. */
+  & iframe {
+    border: 0;
+    border-radius: var(--radius-card);
+    display: block;
+    margin: var(--space-4) 0;
+    max-width: 100%;
+  }
+
+  & iframe:not([width]) {
+    width: 100%;
+  }
+
+  & iframe:not([height]) {
+    aspect-ratio: 16 / 9;
+    height: auto;
+  }
+
   & hr {
     border: 0;
     border-top: var(--border-hairline);

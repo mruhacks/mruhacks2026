@@ -47,6 +47,9 @@ vi.mock('next/navigation', () => ({
 vi.mock('next/cache', () => ({ updateTag: vi.fn() }));
 
 let userId: string;
+// Separate from `userId`: granting a permission requires already holding it,
+// so the user under test can't be the one handing out its permissions.
+let actorId: string;
 let roleId: number;
 let altRoleId: number;
 let permIdA: number;
@@ -62,6 +65,15 @@ beforeAll(async () => {
     })
     .returning({ id: user.id });
   userId = u.id;
+  const [actor] = await db
+    .insert(user)
+    .values({
+      name: 'Authz Extended Actor',
+      email: 'authz-ext-actor@example.com',
+      emailVerified: true,
+    })
+    .returning({ id: user.id });
+  actorId = actor.id;
   const privilegeSlugs = ['role:all:all', 'permission:all:all', 'user:all:all'];
   for (const slug of privilegeSlugs) {
     const [created] = await db
@@ -83,7 +95,25 @@ beforeAll(async () => {
       .values({ userId, permissionId })
       .onConflictDoNothing();
   }
-  vi.mocked(getUser).mockResolvedValue({ id: userId } as never);
+  const [superPerm] = await db
+    .insert(permission)
+    .values({ slug: 'all:all:all' })
+    .onConflictDoNothing()
+    .returning({ id: permission.id });
+  const superPermId =
+    superPerm?.id ??
+    (
+      await db
+        .select({ id: permission.id })
+        .from(permission)
+        .where(eq(permission.slug, 'all:all:all'))
+        .limit(1)
+    )[0]!.id;
+  await db
+    .insert(userPermission)
+    .values({ userId: actorId, permissionId: superPermId })
+    .onConflictDoNothing();
+  vi.mocked(getUser).mockResolvedValue({ id: actorId } as never);
 
   roleId = unwrap(await createRole('ext-test-role-a', 'Extended test role A'));
   altRoleId = unwrap(
@@ -111,6 +141,8 @@ afterAll(async () => {
   await db.delete(permission).where(eq(permission.id, permIdA));
   await db.delete(permission).where(eq(permission.id, permIdB));
   await db.delete(user).where(eq(user.id, userId));
+  await db.delete(user).where(eq(user.id, actorId));
+  await db.delete(permission).where(eq(permission.slug, 'all:all:all'));
 });
 
 describe('getUserRoles', () => {

@@ -23,3 +23,22 @@ export const MARKDOWN_SANITIZE_SCHEMA: SanitizeSchema = {
     img: [...(defaultSchema.attributes?.img ?? []), 'width', 'height'],
   },
 };
+
+/**
+ * `MARKDOWN_SANITIZE_SCHEMA` plus `<iframe>`, for surfaces that opt into
+ * embeds (wiki articles).
+ *
+ * Only the tag and four inert attributes get through here; `srcdoc`, `name`,
+ * `sandbox`, `allow` and `style` are all dropped. This schema cannot check the
+ * src against the provider allow-list — that, and forcing the sandbox, happens
+ * in `MarkdownContent`'s `iframe` component, which drops any frame whose src
+ * is not on `EMBED_PROVIDERS` (`@/lib/embeds`).
+ */
+export const MARKDOWN_EMBED_SANITIZE_SCHEMA: SanitizeSchema = {
+  ...MARKDOWN_SANITIZE_SCHEMA,
+  tagNames: [...(MARKDOWN_SANITIZE_SCHEMA.tagNames ?? []), 'iframe'],
+  attributes: {
+    ...MARKDOWN_SANITIZE_SCHEMA.attributes,
+    iframe: ['src', 'title', 'width', 'height'],
+  },
+};

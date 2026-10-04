@@ -33,7 +33,10 @@ import { ok, fail, type ActionResult } from '@/utils/action-result';
 import { auth, getUser } from '@/utils/auth';
 import { headers } from 'next/headers';
 import {
+  grantDeniedReason,
   hasPermission,
+  loadDirectUserPermissions,
+  loadUserRoles,
   requirePermission,
   loadRolesForUsers,
 } from '@/lib/rbac/authorization';
@@ -295,6 +298,12 @@ export async function updateUserRoles(
     if (!caller) return fail('Not authenticated');
     await requirePermission(caller.id, 'user:write:all');
 
+    const current = new Set((await loadUserRoles(userId)).map((r) => r.id));
+    const denied = await grantDeniedReason(caller.id, {
+      roleIds: roleIds.filter((id) => !current.has(id)),
+    });
+    if (denied) return fail(denied);
+
     await replaceUserRoles(userId, roleIds);
     await writeAuditLog({
       actorId: caller.id,
@@ -322,6 +331,14 @@ export async function updateUserDirectPermissions(
     const caller = await getUser();
     if (!caller) return fail('Not authenticated');
     await requirePermission(caller.id, 'user:write:all');
+
+    const current = new Set(
+      (await loadDirectUserPermissions(userId)).map((p) => p.id),
+    );
+    const denied = await grantDeniedReason(caller.id, {
+      permissionIds: permissionIds.filter((id) => !current.has(id)),
+    });
+    if (denied) return fail(denied);
 
     await replaceUserDirectPermissions(userId, permissionIds);
     await writeAuditLog({
@@ -444,6 +461,9 @@ export async function inviteUser(
     if (!normalized || !normalized.includes('@')) {
       return fail('Enter a valid email');
     }
+
+    const denied = await grantDeniedReason(caller.id, { roleIds });
+    if (denied) return fail(denied);
 
     await db
       .insert(invite)

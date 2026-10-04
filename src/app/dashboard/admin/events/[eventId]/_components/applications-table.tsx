@@ -194,11 +194,23 @@ function StatusCell({
   );
 }
 
+/**
+ * Applicant-supplied text (names, answers) lands in these cells, and a
+ * spreadsheet opening the export evaluates any cell starting with one of
+ * these as a formula, e.g. a `=HYPERLINK(...)` leaking neighbouring rows.
+ * A leading `'` makes it plain text.
+ */
+const FORMULA_TRIGGER = /^\s*[=+\-@\t\r]/;
+
 function toCsv(rows: string[][]): string {
   return rows
     .map((row) =>
       row
-        .map((cell) => `"${String(cell ?? '').replace(/"/g, '""')}"`)
+        .map((cell) => {
+          let text = String(cell ?? '');
+          if (FORMULA_TRIGGER.test(text)) text = `'${text}`;
+          return `"${text.replace(/"/g, '""')}"`;
+        })
         .join(','),
     )
     .join('\n');

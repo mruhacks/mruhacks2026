@@ -1,6 +1,8 @@
 import type { NextConfig } from 'next';
 import { execSync } from 'child_process';
 
+import { embedFrameSources } from './src/lib/embeds';
+
 const isDev = process.env.NODE_ENV !== 'production';
 
 /**
@@ -66,7 +68,9 @@ const nextConfig: NextConfig = {
               // fetches its wasm binary from there by default.
               `connect-src 'self' https://challenges.cloudflare.com https://cloudflareinsights.com https://fastly.jsdelivr.net${s3Origin ? ` ${s3Origin}` : ''}`,
               // Cloudflare Turnstile renders its challenge in an iframe from this origin.
-              'frame-src https://challenges.cloudflare.com',
+              // The rest are the wiki-embed providers (src/lib/embeds.ts), so a frame
+              // that gets past the renderer's allow-list still can't load elsewhere.
+              `frame-src https://challenges.cloudflare.com ${embedFrameSources().join(' ')}`,
               "frame-ancestors 'none'",
               "base-uri 'self'",
               "form-action 'self'",
