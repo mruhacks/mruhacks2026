@@ -15,7 +15,7 @@ import { revalidatePath, updateTag } from 'next/cache';
 import { eventApplicationsCacheTag } from '@/lib/admin-event';
 import { hasEventElapsed } from '@/lib/events';
 import {
-  attendingCountSql,
+  countAttending,
   hasStatus,
   statusIdOf,
 } from '@/lib/participation/server';
@@ -66,10 +66,7 @@ export async function registerForEvent(eventId: string): Promise<ActionResult> {
       // could both read the pre-registration count and both pass, overflowing
       // capacity (same race handled for teams in joinTeamByCode).
       const [eventRow] = await tx
-        .select({
-          capacity: events.capacity,
-          attendingCount: attendingCountSql(eventId),
-        })
+        .select({ capacity: events.capacity })
         .from(events)
         .where(eq(events.id, eventId))
         .for('update')
@@ -92,7 +89,7 @@ export async function registerForEvent(eventId: string): Promise<ActionResult> {
       if (
         !existing &&
         eventRow.capacity != null &&
-        eventRow.attendingCount >= eventRow.capacity
+        (await countAttending(eventId, tx)) >= eventRow.capacity
       ) {
         return fail('This event is full.');
       }

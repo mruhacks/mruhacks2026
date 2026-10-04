@@ -52,7 +52,7 @@ import {
 } from '@/lib/participation/status';
 import { canParticipantTransition } from '@/lib/participation/transitions';
 import {
-  attendingCountSql,
+  countAttending,
   getStatusDisplayMap,
   statusIdOf,
 } from '@/lib/participation/server';
@@ -474,7 +474,6 @@ export async function submitRsvpResponse(
         .select({
           capacity: events.capacity,
           termsId: events.termsId,
-          attendingCount: attendingCountSql(eventId),
         })
         .from(events)
         .where(eq(events.id, eventId))
@@ -538,7 +537,7 @@ export async function submitRsvpResponse(
 
         if (
           eventRow.capacity !== null &&
-          eventRow.attendingCount >= eventRow.capacity
+          (await countAttending(eventId, tx)) >= eventRow.capacity
         ) {
           throw new ParticipationError(EVENT_AT_CAPACITY_MESSAGE);
         }

@@ -43,8 +43,10 @@ describe('formatDateRange', () => {
   });
 
   it('includes the year on both ends of a cross-year range', () => {
+    // Midday instants, so the venue date is the same whether the runtime's
+    // tzdata puts Alberta at UTC-7 or (2026c+) UTC-6 in winter.
     const startsAt = new Date('2026-12-31T09:00:00-07:00');
-    const endsAt = new Date('2027-01-02T23:59:59-07:00');
+    const endsAt = new Date('2027-01-02T17:00:00-07:00');
     expect(formatDateRange(startsAt, endsAt)).toBe('Dec 31, 2026–Jan 2, 2027');
   });
 
