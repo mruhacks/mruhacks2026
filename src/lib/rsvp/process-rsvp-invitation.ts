@@ -19,7 +19,11 @@ import { db } from '@/utils/db';
 export const MAX_INVITATION_DELIVERY_ATTEMPTS = 8;
 
 export type ProcessRsvpInvitationOutcome =
-  'sent' | 'already_sent' | 'not_found' | 'not_pending' | 'given_up';
+  | 'sent'
+  | 'already_sent'
+  | 'not_found'
+  | 'not_pending'
+  | 'given_up';
 
 /**
  * Queue-provider-agnostic consumer logic for one RSVP invitation message.
@@ -58,7 +62,7 @@ export async function processRsvpInvitation(
     .limit(1);
 
   if (!row) {
-    console.warn('[processRsvpInvitation] response not found', {
+    console.warn('[rsvp/process-invitation] response not found', {
       responseId,
     });
     return 'not_found';
@@ -113,8 +117,8 @@ export async function processRsvpInvitation(
         );
       console.error(
         isPermanentFailure
-          ? '[processRsvpInvitation] giving up after non-retryable error'
-          : '[processRsvpInvitation] giving up after max delivery attempts',
+          ? '[rsvp/process-invitation] giving up after non-retryable error'
+          : '[rsvp/process-invitation] giving up after max delivery attempts',
         { responseId, deliveryCount, error },
       );
       return 'given_up';

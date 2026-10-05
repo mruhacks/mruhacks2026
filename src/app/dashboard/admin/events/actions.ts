@@ -1076,7 +1076,7 @@ export async function updateParticipantStatus(
     });
   } catch (error) {
     if (error instanceof StatusChangeError) return fail(error.message);
-    console.error('Participant status change error:', error);
+    console.error('[admin/events] failed to change participant status', error);
     return fail('Failed to update status.');
   }
 
@@ -1102,7 +1102,7 @@ export async function updateParticipantStatus(
           ),
         );
     } catch (error) {
-      console.error('Failed to queue RSVP invitation:', error);
+      console.error('[admin/events] failed to queue RSVP invitation', error);
     }
   }
 
@@ -1338,7 +1338,7 @@ export async function getFormedTeamsForEvent(
   try {
     return await listFormedTeams(eventId);
   } catch (error) {
-    console.error('getFormedTeamsForEvent error:', error);
+    console.error('[admin/events] failed to load teams', error);
     return fail('Failed to load teams.');
   }
 }

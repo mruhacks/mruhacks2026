@@ -151,7 +151,7 @@ export default function ProfileForm({
           onSuccess();
         }
       } catch (err) {
-        console.error('Profile submission error:', err);
+        console.error('[profile-form] submission failed', err);
         toast.error(errorMessage);
       }
     },
@@ -177,7 +177,7 @@ export default function ProfileForm({
       });
       if (!isValid) return;
     } catch (e) {
-      console.error(e);
+      console.error('[profile-form] failed to validate personal fields', e);
     }
 
     setTab('about');

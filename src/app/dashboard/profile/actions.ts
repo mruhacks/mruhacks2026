@@ -155,12 +155,11 @@ async function processProfilePicture(
     return ok(new Uint8Array(output));
   } catch (error) {
     const isTimeout = error instanceof Error && error.message === 'timeout';
-    console.error(
-      isTimeout
-        ? 'Profile picture processing timed out'
-        : 'Profile picture processing error:',
-      isTimeout ? undefined : error,
-    );
+    if (isTimeout) {
+      console.error('[profile] picture processing timed out');
+    } else {
+      console.error('[profile] picture processing failed', error);
+    }
     return fail('That file could not be read as an image.');
   }
 }
@@ -349,7 +348,7 @@ export async function savePersonalProfile(
     revalidateProfile();
     return ok('Profile saved successfully.');
   } catch (error) {
-    console.error('Personal profile save error:', error);
+    console.error('[profile] failed to save personal profile', error);
     return fail('Failed to save profile.');
   }
 }
@@ -378,7 +377,7 @@ export async function saveAboutProfile(
     revalidateProfile();
     return ok('Profile saved successfully.');
   } catch (error) {
-    console.error('About profile save error:', error);
+    console.error('[profile] failed to save about profile', error);
     return fail('Failed to save profile.');
   }
 }
@@ -409,7 +408,7 @@ export async function saveFullProfile(
     revalidateProfile();
     return ok('Profile saved successfully.');
   } catch (error) {
-    console.error('Full profile save error:', error);
+    console.error('[profile] failed to save profile', error);
     return fail('Failed to save profile.');
   }
 }
@@ -455,7 +454,7 @@ export async function uploadProfilePicture(
     revalidateProfile();
     return ok();
   } catch (error) {
-    console.error('Profile picture upload error:', error);
+    console.error('[profile] failed to upload profile picture', error);
     return fail('Unable to upload your profile picture.');
   }
 }
@@ -480,7 +479,7 @@ export async function removeProfilePicture(): Promise<ActionResult> {
     revalidateProfile();
     return ok();
   } catch (error) {
-    console.error('Profile picture removal error:', error);
+    console.error('[profile] failed to remove profile picture', error);
     return fail('Unable to remove your profile picture.');
   }
 }
@@ -531,7 +530,7 @@ export async function uploadResume(formData: FormData): Promise<ActionResult> {
     revalidateProfile();
     return ok();
   } catch (error) {
-    console.error('Resume upload error:', error);
+    console.error('[profile] failed to upload resume', error);
     return fail('Unable to upload your resume.');
   }
 }
@@ -562,7 +561,7 @@ export async function removeResume(): Promise<ActionResult> {
     revalidateProfile();
     return ok();
   } catch (error) {
-    console.error('Resume removal error:', error);
+    console.error('[profile] failed to remove resume', error);
     return fail('Unable to remove your resume.');
   }
 }

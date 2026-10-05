@@ -30,7 +30,8 @@ export type ResendRsvpMagicLinkFailure = {
 };
 
 export type ResendRsvpMagicLinkResult =
-  ResendRsvpMagicLinkSuccess | ResendRsvpMagicLinkFailure;
+  | ResendRsvpMagicLinkSuccess
+  | ResendRsvpMagicLinkFailure;
 
 export type ResendRsvpMagicLinkOptions = {
   eventId: string;
@@ -110,10 +111,10 @@ export async function resendRsvpMagicLink(
   } catch (error) {
     const message =
       error instanceof Error ? error.message : 'Unknown magic-link error';
-    console.error(
-      `[resendRsvpMagicLink] failed for user ${pending.userId}:`,
+    console.error('[rsvp/resend-magic-link] failed to send magic link', {
+      userId: pending.userId,
       error,
-    );
+    });
     // Guard against a stale write if a concurrent delivery already sent it.
     await db
       .update(eventInvitations)

@@ -238,7 +238,7 @@ async function registerParticipant(
     revalidatePath('/welcome', 'layout');
     return ok('Application saved successfully.');
   } catch (error) {
-    console.error('Application save error:', error);
+    console.error('[events] failed to save application', error);
     return fail('Failed to save event application.');
   }
 }
@@ -579,7 +579,7 @@ export async function submitRsvpResponse(
     if (error instanceof ParticipationError) {
       return fail(error.message);
     }
-    console.error('RSVP response error:', error);
+    console.error('[events] failed to submit RSVP response', error);
     return fail('Failed to submit RSVP response.');
   }
 }
@@ -688,7 +688,7 @@ export async function withdrawParticipation(
     if (error instanceof ParticipationError) {
       return fail(error.message);
     }
-    console.error('Withdraw participation error:', error);
+    console.error('[events] failed to withdraw participation', error);
     return fail('Failed to update your participation.');
   }
 }

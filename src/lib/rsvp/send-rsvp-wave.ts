@@ -340,7 +340,7 @@ export async function sendRsvpWave(
     if (error instanceof SendRsvpWaveError) {
       return { success: false, error: error.message };
     }
-    console.error('[sendRsvpWave] database error:', error);
+    console.error('[rsvp/send-rsvp-wave] database error', error);
     return {
       success: false,
       error: 'Failed to create RSVP wave and responses.',
@@ -387,10 +387,10 @@ export async function sendRsvpWave(
       result.reason instanceof Error
         ? result.reason.message
         : 'Unknown queue publish error';
-    console.error(
-      `[sendRsvpWave] failed to queue invitation for user ${response.userId}:`,
-      result.reason,
-    );
+    console.error('[rsvp/send-rsvp-wave] failed to queue invitation', {
+      userId: response.userId,
+      error: result.reason,
+    });
     queueFailures.push({
       userId: response.userId,
       email: emailByUserId.get(response.userId) ?? '',

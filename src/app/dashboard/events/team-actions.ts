@@ -153,7 +153,7 @@ async function ensurePersonalTeam(
       .limit(1);
     if (existing) return { teamId: existing.teamId };
 
-    console.error('ensurePersonalTeam error:', error);
+    console.error('[events/teams] failed to ensure personal team', error);
     return null;
   }
 }
@@ -267,7 +267,7 @@ export async function getMyTeam(
       })),
     });
   } catch (error) {
-    console.error('getMyTeam error:', error);
+    console.error('[events/teams] failed to load team', error);
     return fail('Failed to load your team.');
   }
 }
@@ -355,7 +355,7 @@ export async function joinTeamByCode(
     }
     return result;
   } catch (error) {
-    console.error('joinTeamByCode error:', error);
+    console.error('[events/teams] failed to join team', error);
     return fail('Failed to join team.');
   }
 }
@@ -423,7 +423,7 @@ export async function leaveTeam(eventId: string): Promise<ActionResult> {
     }
     return result;
   } catch (error) {
-    console.error('leaveTeam error:', error);
+    console.error('[events/teams] failed to leave team', error);
     return fail('Failed to leave team.');
   }
 }
@@ -529,7 +529,7 @@ export async function removeMember(
     }
     return result;
   } catch (error) {
-    console.error('removeMember error:', error);
+    console.error('[events/teams] failed to remove member', error);
     return fail('Failed to remove member.');
   }
 }

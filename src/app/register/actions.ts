@@ -120,7 +120,7 @@ export async function registerForEvent(eventId: string): Promise<ActionResult> {
     }
     return result;
   } catch (error) {
-    console.error('Register for event error:', error);
+    console.error('[register] failed to register for event', error);
     return fail('Failed to register for event.');
   }
 }
@@ -172,7 +172,7 @@ export async function unregisterFromEvent(
     updateTag(eventApplicationsCacheTag(eventId));
     return ok('Unregistered from event.');
   } catch (error) {
-    console.error('Unregister from event error:', error);
+    console.error('[register] failed to unregister from event', error);
     return fail('Failed to unregister from event.');
   }
 }

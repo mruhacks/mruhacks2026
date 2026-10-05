@@ -45,7 +45,7 @@ export async function publishRsvpInvitation(
       lastError = error;
       const delayMs = PUBLISH_RETRY_DELAYS_MS[attempt - 1];
       if (delayMs === undefined) break;
-      console.warn('[publishRsvpInvitation] publish attempt failed, retrying', {
+      console.warn('[rsvp/invitation-queue] publish attempt failed, retrying', {
         responseId,
         attempt,
         error,

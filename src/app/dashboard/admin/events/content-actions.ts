@@ -97,7 +97,7 @@ async function storeAttachment(
     });
     return ok({ url: eventAttachmentUrl(key) });
   } catch (error) {
-    console.error('Event attachment upload error:', error);
+    console.error('[admin/events/content] failed to upload attachment', error);
     return fail('Unable to upload that image.');
   }
 }
@@ -629,7 +629,7 @@ async function deleteOrphanedAttachments(
         .map((key) => deleteObject(key)),
     );
   } catch (error) {
-    console.error('[wiki] failed to clean up article attachments', {
+    console.error('[admin/events/content] failed to clean up attachments', {
       eventId,
       error,
     });

@@ -75,7 +75,7 @@ export function TeamsPage({ eventId }: { eventId: string }) {
       } catch (error) {
         // Without this the awaited Promise.all rejects, `setLoading(false)`
         // never runs, and the tab sits on "Loading..." forever.
-        console.error('Failed to load teams tab:', error);
+        console.error('[admin/events/teams] failed to load teams tab', error);
         if (!cancelled) setLoadError('Failed to load teams.');
       } finally {
         if (!cancelled) setLoading(false);
