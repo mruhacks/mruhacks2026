@@ -32,9 +32,10 @@ export default async function AdminUsersPage() {
       ? rolesRes.data.map((r) => ({ id: r.id, slug: r.slug }))
       : [];
 
-  const canWrite = await hasAnyPermission(caller.id, [
-    'user:write:all',
-    'user:all:all',
+  const [canWrite, canPurge] = await Promise.all([
+    hasAnyPermission(caller.id, ['user:write:all', 'user:all:all']),
+    // The full-wipe action checks exactly this, and nothing else.
+    hasPermission(caller.id, 'user:purge:all'),
   ]);
 
   return (
@@ -56,6 +57,7 @@ export default async function AdminUsersPage() {
         roles={roles}
         currentUserId={caller.id}
         canWrite={canWrite}
+        canPurge={canPurge}
       />
     </div>
   );

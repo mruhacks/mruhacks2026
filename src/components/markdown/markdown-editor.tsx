@@ -42,6 +42,13 @@ export type MarkdownEditorProps = {
    * `MarkdownContent` that renders this field, or readers won't see them.
    */
   allowEmbeds?: boolean;
+  /**
+   * Let the editor write raw HTML — today only `<img width height>` for a
+   * resized image. Turn it off for a field rendered with
+   * `allowRawHtml={false}`, so authors can't resize an image into markup
+   * readers will never see.
+   */
+  allowRawHtml?: boolean;
   placeholder?: string;
   className?: string;
 };
@@ -52,6 +59,7 @@ export function MarkdownEditor({
   uploadAttachment,
   onUploadError,
   allowEmbeds,
+  allowRawHtml,
   placeholder,
   className,
 }: MarkdownEditorProps) {
@@ -82,6 +90,7 @@ export function MarkdownEditor({
       onChange={onChange}
       onUploadImage={handleUpload}
       allowEmbeds={allowEmbeds}
+      allowRawHtml={allowRawHtml}
       placeholder={placeholder}
       className={className}
     />

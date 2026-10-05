@@ -32,6 +32,7 @@ import {
 import { RegisterEventButton } from '@/app/dashboard/events/RegisterEventButton';
 import { UnregisterEventButton } from '@/app/dashboard/events/UnregisterEventButton';
 import { TeamPanel } from '@/app/dashboard/events/team/TeamPanel';
+import { ProjectPanel } from '@/app/dashboard/events/project/ProjectPanel';
 import { AddToWalletButton } from '@/components/add-to-wallet-button';
 import { AddToGoogleWalletButton } from '@/components/add-to-google-wallet-button';
 import { EventTicketButton } from '@/components/event-ticket-button';
@@ -241,11 +242,16 @@ async function EventEntryContent({ params, searchParams }: Props) {
         }
         team={
           canManageTeam ? (
-            <TeamPanel
-              eventId={eventId}
-              joinCode={joinCode}
-              hasEnded={hasEnded}
-            />
+            <>
+              <TeamPanel
+                eventId={eventId}
+                joinCode={joinCode}
+                hasEnded={hasEnded}
+              />
+              {/* Gates itself: renders only for eligible members of an event
+                  that takes project submissions. */}
+              <ProjectPanel eventId={eventId} eventHref={eventHref} />
+            </>
           ) : null
         }
       />
