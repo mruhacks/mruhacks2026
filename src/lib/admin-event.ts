@@ -5,28 +5,33 @@ import { and, asc, eq, sql } from 'drizzle-orm';
 
 import {
   checkIns,
+  dietaryRestrictions,
   eventParticipants,
   eventInvitations,
   eventRsvpWaves,
   events,
   eventTerms,
   genders,
+  interests,
   majors,
   participationStatuses,
   teamMembers,
   teams,
   universities,
   user,
+  userDietaryRestrictions,
+  userInterests,
   userProfileAbout,
   userProfiles,
   yearsOfStudy,
 } from '@/db/schema';
 import {
-  buildQuestionStats,
+  buildProfileStatsByStatus,
+  buildQuestionStatsByStatus,
   buildStatusBreakdown,
   type ApplicationStatsRow,
-  type QuestionStats,
   type StatsBucket,
+  type StatusSplitStat,
 } from '@/lib/application-stats';
 import { EVENT_TIME_ZONE } from '@/lib/datetime';
 import { hasStatus } from '@/lib/participation/server';
@@ -315,16 +320,19 @@ export async function getEventSummaryCounts(
 export type EventApplicationStats = {
   hasApplication: boolean;
   total: number;
-  questionStats: QuestionStats[];
+  /** Per-question breakdowns, split by participation status. */
+  questionStats: StatusSplitStat[];
+  /** Per-profile-field breakdowns, split by participation status. */
+  profileStats: StatusSplitStat[];
   statusBreakdown: StatsBucket[];
 };
 
 /**
  * Cohort-level application statistics: the status list and the per-question
- * breakdown, built from one pass over the applications.
+ * and per-profile-field breakdowns, built from one pass over the
+ * applications.
  *
- * Both the "Applications overview" and "Application question breakdown"
- * cells call this. They're separate Suspense boundaries but share this one
+ * Both the "Applications overview" and "Stats" cells call this. They're separate Suspense boundaries but share this one
  * cache entry, so the second is a hit rather than a second scan.
  *
  * Aggregation happens here, on the server: raw per-applicant `responses`
@@ -362,6 +370,20 @@ export async function getEventApplicationStats(
       major: majors.label,
       yearOfStudy: yearsOfStudy.label,
       gender: genders.label,
+      hasProfile: sql<boolean>`${userProfiles.userId} IS NOT NULL`,
+      attendedHackathonBefore: userProfileAbout.attendedHackathonBefore,
+      // Correlated subqueries rather than joins: two many-to-many joins on
+      // one query would multiply each applicant's row by both list lengths.
+      interests: sql<string[]>`ARRAY(
+        SELECT ${interests.label}::text FROM ${userInterests}
+        INNER JOIN ${interests} ON ${interests.id} = ${userInterests.interestId}
+        WHERE ${userInterests.userId} = ${eventParticipants.userId}
+      )`,
+      dietaryRestrictions: sql<string[]>`ARRAY(
+        SELECT ${dietaryRestrictions.label}::text FROM ${userDietaryRestrictions}
+        INNER JOIN ${dietaryRestrictions} ON ${dietaryRestrictions.id} = ${userDietaryRestrictions.restrictionId}
+        WHERE ${userDietaryRestrictions.userId} = ${eventParticipants.userId}
+      )`,
     })
     .from(eventParticipants)
     .leftJoin(userProfiles, eq(eventParticipants.userId, userProfiles.userId))
@@ -386,12 +408,18 @@ export async function getEventApplicationStats(
     major: row.major ?? null,
     yearOfStudy: row.yearOfStudy ?? null,
     gender: row.gender ?? null,
+    attendedHackathonBefore: row.attendedHackathonBefore ?? null,
+    // Interests and dietary restrictions live with the profile, so with no
+    // profile row an empty list means "unknown", not "picked none".
+    interests: row.hasProfile ? row.interests : null,
+    dietaryRestrictions: row.hasProfile ? row.dietaryRestrictions : null,
   }));
 
   return {
     hasApplication: eventRow.hasApplication,
     total: statsRows.length,
-    questionStats: buildQuestionStats(questions, statsRows),
+    questionStats: buildQuestionStatsByStatus(questions, statsRows),
+    profileStats: buildProfileStatsByStatus(statsRows),
     statusBreakdown: buildStatusBreakdown(statsRows),
   };
 }

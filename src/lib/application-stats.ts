@@ -19,7 +19,15 @@ import {
   type ApplicationQuestionType,
 } from '@/types/application';
 import { isOtherOption, otherTextKey } from '@/lib/other-option';
-import { participationStatusesList } from '@/types/lookups';
+import {
+  dietaryRestrictionsList,
+  gendersList,
+  interestsList,
+  majorsList,
+  participationStatusesList,
+  universitiesList,
+  yearsOfStudyList,
+} from '@/types/lookups';
 
 /**
  * Minimal row shape this module needs. The caller (a server action) maps its
@@ -38,6 +46,14 @@ export type ApplicationStatsRow = {
   major: string | null;
   yearOfStudy: string | null;
   gender: string | null;
+  /**
+   * Optional profile fields read only by `buildProfileStatsByStatus`. `null`
+   * means the applicant has no profile row to read them from; an empty array
+   * is a real "picked none".
+   */
+  attendedHackathonBefore?: boolean | null;
+  interests?: string[] | null;
+  dietaryRestrictions?: string[] | null;
 };
 
 export type StatsBucket = {
@@ -212,10 +228,11 @@ function formatNumberForLabel(value: number): string {
   return Number.isInteger(value) ? String(value) : value.toFixed(1);
 }
 
+type NumberRange = { min: number; max: number };
+
 function buildNumberHistogram(
   values: number[],
-  min: number,
-  max: number,
+  { min, max }: NumberRange,
   answered: number,
 ): StatsBucket[] {
   if (values.length === 0) return [];
@@ -255,10 +272,16 @@ function buildNumberHistogram(
   });
 }
 
+/**
+ * `range` pins the histogram's bin edges instead of deriving them from these
+ * rows — how a per-status split keeps every status's counts in the same bins
+ * as the whole cohort's, so they can be summed back together.
+ */
 function buildNumberStats(
   question: ApplicationQuestion,
   rows: ApplicationStatsRow[],
   total: number,
+  range?: NumberRange,
 ): QuestionStats {
   const values: number[] = [];
 
@@ -296,7 +319,7 @@ function buildNumberStats(
     type: question.type,
     total,
     answered,
-    buckets: buildNumberHistogram(values, numeric.min, numeric.max, answered),
+    buckets: buildNumberHistogram(values, range ?? numeric, answered),
     numeric,
   };
 }
@@ -420,4 +443,205 @@ export function buildDemographicStats(
     yearOfStudy: buildFieldBreakdown(rows, 'yearOfStudy'),
     gender: buildFieldBreakdown(rows, 'gender'),
   };
+}
+
+/**
+ * One bucket of a status-split stat: its count within each participation
+ * status, keyed by status label. A status with no count is simply absent.
+ */
+export type StatusSplitBucket = {
+  key: string;
+  label: string;
+  inactive?: boolean;
+  counts: Record<string, number>;
+};
+
+/**
+ * A breakdown pre-aggregated per participation status, so the dashboard can
+ * narrow it to any set of statuses by summing — no per-applicant data, and
+ * no round trip, needed to re-filter. Summing is exact because every row has
+ * exactly one status: a respondent is counted in one status's `answered`,
+ * and a multi-select respondent's several buckets all sit under that status.
+ */
+export type StatusSplitStat = {
+  id: string;
+  label: string;
+  /** Respondents per status — the percent denominator once summed. */
+  answered: Record<string, number>;
+  buckets: StatusSplitBucket[];
+};
+
+type Aggregate = { answered: number; buckets: StatsBucket[] };
+
+function statusKey(row: ApplicationStatsRow): string {
+  return row.status ?? UNKNOWN_KEY;
+}
+
+/**
+ * Runs `aggregate` over the whole cohort (for bucket order and labels) and
+ * then over each status's rows (for the counts). The cohort run sees every
+ * row, so it has already created any bucket a single status could produce.
+ */
+function splitByStatus(
+  id: string,
+  label: string,
+  rows: ApplicationStatsRow[],
+  aggregate: (rows: ApplicationStatsRow[]) => Aggregate,
+): StatusSplitStat {
+  const groups = new Map<string, ApplicationStatsRow[]>();
+  for (const row of rows) {
+    const key = statusKey(row);
+    const group = groups.get(key);
+    if (group) group.push(row);
+    else groups.set(key, [row]);
+  }
+
+  const buckets: StatusSplitBucket[] = aggregate(rows).buckets.map(
+    (bucket) => ({
+      key: bucket.key,
+      label: bucket.label,
+      ...(bucket.inactive ? { inactive: true } : {}),
+      counts: {},
+    }),
+  );
+  const byKey = new Map(buckets.map((bucket) => [bucket.key, bucket]));
+
+  const answered: Record<string, number> = {};
+  for (const [status, group] of groups) {
+    const result = aggregate(group);
+    if (result.answered > 0) answered[status] = result.answered;
+    for (const bucket of result.buckets) {
+      const target = byKey.get(bucket.key);
+      if (target && bucket.count > 0) target.counts[status] = bucket.count;
+    }
+  }
+
+  return { id, label, answered, buckets };
+}
+
+/**
+ * `buildQuestionStats`, split by participation status. Same question set
+ * (only `resolveShowInReports` questions), same buckets and order; number
+ * questions keep the cohort's histogram bins in every status.
+ */
+export function buildQuestionStatsByStatus(
+  questions: ApplicationQuestion[],
+  rows: ApplicationStatsRow[],
+): StatusSplitStat[] {
+  return questions
+    .filter((question) => resolveShowInReports(question))
+    .map((question) => {
+      const range =
+        question.type === 'number'
+          ? buildNumberStats(question, rows, rows.length).numeric
+          : undefined;
+      return splitByStatus(question.id, question.label, rows, (group) =>
+        question.type === 'number'
+          ? buildNumberStats(question, group, group.length, range)
+          : buildOneQuestionStats(question, group, group.length),
+      );
+    });
+}
+
+/**
+ * Counts a profile field's values into buckets seeded from its canonical
+ * option list (so zero-count options still render, in the order the profile
+ * form shows them). A value outside the list — a lookup row added straight to
+ * the DB — gets its own bucket rather than being dropped. `NONE` stands for
+ * an empty multi-select when that's a meaningful answer ("no dietary
+ * restrictions") rather than a skipped one.
+ */
+function countProfileValues(
+  rows: ApplicationStatsRow[],
+  seed: readonly string[],
+  read: (row: ApplicationStatsRow) => string[] | null,
+  noneLabel?: string,
+): Aggregate {
+  const bucketMap = new Map<string, StatsBucket>();
+  for (const label of seed) {
+    bucketMap.set(label, { key: label, label, count: 0, percent: 0 });
+  }
+  const noneKey = '__none';
+  if (noneLabel) {
+    bucketMap.set(noneKey, {
+      key: noneKey,
+      label: noneLabel,
+      count: 0,
+      percent: 0,
+    });
+  }
+
+  let answered = 0;
+  for (const row of rows) {
+    const values = read(row);
+    if (values === null) continue;
+    if (values.length === 0) {
+      if (!noneLabel) continue;
+      answered++;
+      bucketMap.get(noneKey)!.count++;
+      continue;
+    }
+    answered++;
+    for (const value of values) getOrCreateBucket(bucketMap, value).count++;
+  }
+
+  return { answered, buckets: finalizeBuckets(bucketMap, answered) };
+}
+
+function single(value: string | null | undefined): string[] | null {
+  return typeof value === 'string' && value.trim() ? [value] : null;
+}
+
+/**
+ * Breakdowns of the applicant profile fields that are a fixed set of choices
+ * — free text (name, links, "Other" write-ins) and the resume are left out.
+ * Ids are prefixed so they can't collide with question UUIDs when both share
+ * one "Choose stats" list.
+ */
+export function buildProfileStatsByStatus(
+  rows: ApplicationStatsRow[],
+): StatusSplitStat[] {
+  const field = (
+    id: string,
+    label: string,
+    seed: readonly string[],
+    read: (row: ApplicationStatsRow) => string[] | null,
+    noneLabel?: string,
+  ) =>
+    splitByStatus(`profile:${id}`, label, rows, (group) =>
+      countProfileValues(group, seed, read, noneLabel),
+    );
+
+  return [
+    field('gender', 'Gender', gendersList, (row) => single(row.gender)),
+    field('university', 'University', universitiesList, (row) =>
+      single(row.university),
+    ),
+    field('major', 'Major', majorsList, (row) => single(row.major)),
+    field('yearOfStudy', 'Year of study', yearsOfStudyList, (row) =>
+      single(row.yearOfStudy),
+    ),
+    field(
+      'attendedHackathonBefore',
+      'Attended a hackathon before',
+      ['Yes', 'No'],
+      (row) =>
+        row.attendedHackathonBefore == null
+          ? null
+          : [row.attendedHackathonBefore ? 'Yes' : 'No'],
+    ),
+    field(
+      'interests',
+      'Interests',
+      interestsList,
+      (row) => row.interests ?? null,
+    ),
+    field(
+      'dietaryRestrictions',
+      'Dietary restrictions',
+      dietaryRestrictionsList,
+      (row) => row.dietaryRestrictions ?? null,
+      'None',
+    ),
+  ];
 }
