@@ -25,6 +25,8 @@ import {
 } from '@/lib/participation/status';
 import { writeAuditLog } from '@/utils/audit-log';
 import { generateTeamCode } from '@/lib/team-code';
+import { isPastSubmissionDeadline } from '@/lib/submissions';
+import { getOrCreatePersonalTeam, type Queryable } from '@/lib/team-membership';
 import { syncWaitlistForEvent } from '@/lib/rsvp/waitlist';
 import { joinTeamSchema } from './team-schemas';
 import {
@@ -33,13 +35,11 @@ import {
   eventInvitations,
   eventRsvpWaves,
   participationStatuses,
+  submissions,
   teams,
   teamMembers,
   user as authUser,
 } from '@/db/schema';
-
-/** Anything with the query methods used below: `db` itself, or a `db.transaction` handle. */
-type Queryable = Pick<typeof db, 'select' | 'insert' | 'update' | 'delete'>;
 
 // ── Internal helpers ────────────────────────────────────────────────────
 
@@ -47,12 +47,14 @@ async function getEventTeamSettings(eventId: string): Promise<{
   teamsEnabled: boolean;
   maxTeamSize: number | null;
   endsAt: Date | null;
+  submissionsCloseAt: Date | null;
 } | null> {
   const [row] = await db
     .select({
       teamsEnabled: events.teamsEnabled,
       maxTeamSize: events.maxTeamSize,
       endsAt: events.endsAt,
+      submissionsCloseAt: events.submissionsCloseAt,
     })
     .from(events)
     .where(eq(events.id, eventId))
@@ -101,32 +103,6 @@ async function isEventParticipant(
   );
 }
 
-/** Loads (or lazily creates) the caller's current team-of-one/team for this event. */
-async function getOrCreatePersonalTeam(
-  userId: string,
-  eventId: string,
-  dbHandle: Queryable = db,
-): Promise<{ teamId: string }> {
-  const [existing] = await dbHandle
-    .select({ teamId: teamMembers.teamId })
-    .from(teamMembers)
-    .where(
-      and(eq(teamMembers.userId, userId), eq(teamMembers.eventId, eventId)),
-    )
-    .limit(1);
-  if (existing) return { teamId: existing.teamId };
-
-  const code = await generateTeamCode(eventId, dbHandle);
-  const [newTeam] = await dbHandle
-    .insert(teams)
-    .values({ eventId, organizerId: userId, code })
-    .returning({ id: teams.id });
-  await dbHandle
-    .insert(teamMembers)
-    .values({ teamId: newTeam!.id, userId, eventId });
-  return { teamId: newTeam!.id };
-}
-
 /**
  * Transactional wrapper around `getOrCreatePersonalTeam` for callers that
  * aren't already inside a transaction. Without one, the SELECT -> INSERT
@@ -162,7 +138,9 @@ async function ensurePersonalTeam(
 /**
  * Cleans up the team a user just left/was removed from: dissolves it if
  * empty, and reassigns Organizer status to the earliest-joined remaining
- * member if the departing user was the organizer. A no-op when the
+ * member if the departing user was the organizer. Dissolving a team that
+ * holds a submission fails on its FK, so callers that can empty a team check
+ * for one first. A no-op when the
  * departing user wasn't the organizer, or when nobody else remains to
  * reassign to (the sole remaining member already keeps their code/status
  * since `organizerId` is untouched in that case).
@@ -225,10 +203,18 @@ export type TeamMemberView = {
 export type TeamView = {
   teamId: string;
   code: string;
-  organizerId: string;
+  organizerId: string | null;
   maxTeamSize: number | null;
+  /**
+   * Past the project submission deadline: the roster is what gets credited,
+   * so joining, leaving and removing are closed.
+   */
+  rosterLocked: boolean;
   members: TeamMemberView[];
 };
+
+const ROSTER_LOCKED_MESSAGE =
+  'The project submission deadline has passed, so teams are locked.';
 
 /** Story 5: view the caller's team roster for an event. */
 export async function getMyTeam(
@@ -276,6 +262,7 @@ export async function getMyTeam(
       code: teamRow.code,
       organizerId: teamRow.organizerId,
       maxTeamSize: settings.maxTeamSize,
+      rosterLocked: isPastSubmissionDeadline(settings.submissionsCloseAt),
       members: memberRows.map((m) => ({
         ...m,
         isOrganizer: m.userId === teamRow.organizerId,
@@ -307,6 +294,9 @@ export async function joinTeamByCode(
   if (hasEventElapsed(settings.endsAt)) {
     return fail('This event has already ended.');
   }
+  if (isPastSubmissionDeadline(settings.submissionsCloseAt)) {
+    return fail(ROSTER_LOCKED_MESSAGE);
+  }
 
   if (!(await isEventParticipant(currentUser.id, eventId))) {
     return fail('You must be registered for this event to manage a team.');
@@ -336,6 +326,27 @@ export async function joinTeamByCode(
       // Re-entering your own team's code is a no-op, not an error.
       if (currentTeamId === targetTeam.id) {
         return ok('You are already on this team.');
+      }
+
+      // Leaving as the last member dissolves the old team (`cleanUpOldTeam`),
+      // and a team holding a project can't be dissolved — the FK refuses it.
+      // Say so up front: the project is theirs to delete first, not ours to
+      // silently drop.
+      const [{ total: currentCount }] = await tx
+        .select({ total: count() })
+        .from(teamMembers)
+        .where(eq(teamMembers.teamId, currentTeamId));
+      if (currentCount <= 1) {
+        const [ownSubmission] = await tx
+          .select({ id: submissions.id })
+          .from(submissions)
+          .where(eq(submissions.teamId, currentTeamId))
+          .limit(1);
+        if (ownSubmission) {
+          return fail(
+            'Your team has a project. Delete it before joining another team.',
+          );
+        }
       }
 
       const [{ total: targetCount }] = await tx
@@ -387,6 +398,9 @@ export async function leaveTeam(eventId: string): Promise<ActionResult> {
     return fail('Teams are not enabled for this event.');
   if (hasEventElapsed(settings.endsAt)) {
     return fail('This event has already ended.');
+  }
+  if (isPastSubmissionDeadline(settings.submissionsCloseAt)) {
+    return fail(ROSTER_LOCKED_MESSAGE);
   }
 
   if (!(await isEventParticipant(currentUser.id, eventId))) {
@@ -500,14 +514,42 @@ export async function removeMember(
     targetTeam.organizerId !== targetUserId &&
     (await isEventParticipant(currentUser.id, eventId));
 
+  // Past the submission deadline only moderation may change a roster, so an
+  // organizer who also holds `team:manage:all` acts as a moderator there.
+  const rosterLocked = isPastSubmissionDeadline(settings.submissionsCloseAt);
   let isAdminOverride = false;
-  if (!isSelfServiceOrganizer) {
+  if (!isSelfServiceOrganizer || rosterLocked) {
     isAdminOverride = await hasPermission(currentUser.id, 'team:manage:all');
-    if (!isAdminOverride) return fail('Not authorized to remove this member.');
+    if (!isAdminOverride) {
+      return fail(
+        rosterLocked && isSelfServiceOrganizer
+          ? ROSTER_LOCKED_MESSAGE
+          : 'Not authorized to remove this member.',
+      );
+    }
   }
 
   try {
     const result = await db.transaction(async (tx) => {
+      // Only a moderator can reach a solo team here, and moving its one
+      // member out dissolves it — which a team holding a project can't be.
+      const [{ total: targetTeamCount }] = await tx
+        .select({ total: count() })
+        .from(teamMembers)
+        .where(eq(teamMembers.teamId, targetMembership.teamId));
+      if (targetTeamCount <= 1) {
+        const [teamSubmission] = await tx
+          .select({ id: submissions.id })
+          .from(submissions)
+          .where(eq(submissions.teamId, targetMembership.teamId))
+          .limit(1);
+        if (teamSubmission) {
+          return fail(
+            'That user is on their own team, which has a project. Delete the project instead.',
+          );
+        }
+      }
+
       await tx
         .delete(teamMembers)
         .where(

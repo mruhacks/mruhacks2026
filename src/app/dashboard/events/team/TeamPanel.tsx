@@ -32,8 +32,11 @@ export async function TeamPanel({
   const result = await getMyTeam(eventId);
   if (!result.success || !result.data) return null;
 
-  const { code, organizerId, maxTeamSize, members } = result.data;
+  const { code, organizerId, maxTeamSize, rosterLocked, members } = result.data;
   const isOrganizer = organizerId === currentUser.id;
+  // After the event, or once the project deadline has passed, the roster is
+  // final and only shows.
+  const frozen = hasEnded || rosterLocked;
   const memberCount = members.length;
   const memberCountLabel =
     maxTeamSize != null
@@ -50,18 +53,20 @@ export async function TeamPanel({
         <CardDescription>
           {hasEnded
             ? 'This event has ended. Your team is final.'
-            : "Group up with the people you're attending with."}
+            : rosterLocked
+              ? 'The project deadline has passed. Your team is final.'
+              : "Group up with the people you're attending with."}
         </CardDescription>
       </CardHeader>
       <CardContent className='space-y-4'>
-        {!hasEnded && <TeamCodeDisplay code={code} />}
+        {!frozen && <TeamCodeDisplay code={code} />}
         <TeamRoster
           eventId={eventId}
           members={members}
           currentUserId={currentUser.id}
-          canRemoveMembers={isOrganizer && !hasEnded}
+          canRemoveMembers={isOrganizer && !frozen}
         />
-        {!hasEnded && (
+        {!frozen && (
           <div className='flex flex-wrap gap-2'>
             <ShareInviteButton eventId={eventId} code={code} />
             <JoinTeamDialog

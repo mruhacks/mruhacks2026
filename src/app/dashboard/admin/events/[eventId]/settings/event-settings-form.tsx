@@ -62,8 +62,13 @@ export function EventSettingsForm({ event }: { event: AdminEventSettings }) {
       checkInEnabled: event.checkInEnabled,
       capacity: event.capacity ?? null,
       capacityVisible: event.capacityVisible,
-      startsAt: event.startsAt ? event.startsAt.toISOString() : undefined,
-      endsAt: event.endsAt ? event.endsAt.toISOString() : undefined,
+      // null rather than undefined, so the client-side submission-deadline
+      // check (which needs to know all three) runs on every save.
+      startsAt: event.startsAt ? event.startsAt.toISOString() : null,
+      endsAt: event.endsAt ? event.endsAt.toISOString() : null,
+      submissionsCloseAt: event.submissionsCloseAt
+        ? event.submissionsCloseAt.toISOString()
+        : null,
       location: event.location ?? undefined,
       latitude: event.latitude ?? null,
       longitude: event.longitude ?? null,
@@ -86,24 +91,35 @@ export function EventSettingsForm({ event }: { event: AdminEventSettings }) {
     defaultValues: defaults,
   });
 
-  const [teamsEnabled, startsAt, endsAt, name, slug, capacityVisible] =
-    useWatch({
-      control,
-      name: [
-        'teamsEnabled',
-        'startsAt',
-        'endsAt',
-        'name',
-        'slug',
-        'capacityVisible',
-      ],
-    });
+  const [
+    teamsEnabled,
+    startsAt,
+    endsAt,
+    name,
+    slug,
+    capacityVisible,
+    submissionsCloseAt,
+  ] = useWatch({
+    control,
+    name: [
+      'teamsEnabled',
+      'startsAt',
+      'endsAt',
+      'name',
+      'slug',
+      'capacityVisible',
+      'submissionsCloseAt',
+    ],
+  });
   // What the participant URL will look like once saved — the uuid is the
   // fallback for an event with no slug.
   const urlSegment = slug?.trim() || event.id;
   const suggestedSlug = slugify(name ?? '');
   const startsAtAbbr = useZoneAbbreviation(startsAt ?? undefined);
   const endsAtAbbr = useZoneAbbreviation(endsAt ?? undefined);
+  const submissionsCloseAtAbbr = useZoneAbbreviation(
+    submissionsCloseAt ?? undefined,
+  );
 
   async function onSubmit(data: UpdateEventSettingsInput) {
     setSubmitError(null);
@@ -567,6 +583,57 @@ export function EventSettingsForm({ event }: { event: AdminEventSettings }) {
                     </Field>
                   )}
                 </FieldGroup>
+              </CardContent>
+            </Card>
+            <Card className='gap-4 py-5'>
+              <CardHeader className='gap-1 px-5'>
+                <CardTitle>Project submissions</CardTitle>
+                <CardDescription>
+                  Teams write up what they built. Needs an application, teams,
+                  and a start and end time.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className='px-5'>
+                <Field
+                  className='gap-1.5'
+                  data-invalid={!!errors.submissionsCloseAt}
+                >
+                  <FieldLabel htmlFor='submissionsCloseAt'>
+                    Submission deadline ({submissionsCloseAtAbbr}, optional)
+                  </FieldLabel>
+                  <Controller
+                    name='submissionsCloseAt'
+                    control={control}
+                    render={({ field }) => (
+                      <Input
+                        {...field}
+                        id='submissionsCloseAt'
+                        aria-invalid={!!errors.submissionsCloseAt}
+                        type='datetime-local'
+                        value={
+                          field.value
+                            ? toDateTimeLocalValue(new Date(field.value))
+                            : ''
+                        }
+                        onChange={(e) =>
+                          field.onChange(
+                            fromDateTimeLocalValue(
+                              e.target.value,
+                            )?.toISOString() ?? null,
+                          )
+                        }
+                      />
+                    )}
+                  />
+                  <FieldDescription>
+                    Submissions open when the event starts and freeze at this
+                    time. Must fall between the start and end. Leave blank to
+                    take no submissions.
+                  </FieldDescription>
+                  {errors.submissionsCloseAt && (
+                    <FieldError errors={[errors.submissionsCloseAt]} />
+                  )}
+                </Field>
               </CardContent>
             </Card>
           </FieldGroup>

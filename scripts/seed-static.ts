@@ -152,6 +152,10 @@ async function seedRolesAndPermissions() {
       slug: 'user:all:all',
       description: 'Full user management (create/update/delete)',
     },
+    {
+      slug: 'user:purge:all',
+      description: 'Fully wipe a user account on a compliance request',
+    },
     { slug: 'role:read:all', description: 'View roles and their permissions' },
     { slug: 'role:write:all', description: 'Create, update and delete roles' },
     { slug: 'permission:read:all', description: 'View permissions' },
@@ -203,6 +207,16 @@ async function seedRolesAndPermissions() {
     {
       slug: 'article:write:all',
       description: 'Create, edit, publish and delete event wiki articles',
+    },
+    {
+      slug: 'submission:read:all',
+      description:
+        'View every project submission for an event, drafts included',
+    },
+    {
+      slug: 'submission:delete:all',
+      description:
+        'Delete any project submission (moderation, takedown requests)',
     },
     {
       slug: 'system:read:all',
@@ -311,6 +325,14 @@ async function seedRolesAndPermissions() {
       {
         roleId: findRole('organizer').id,
         permissionId: findPerm('article:write:all').id,
+      },
+      {
+        roleId: findRole('organizer').id,
+        permissionId: findPerm('submission:read:all').id,
+      },
+      {
+        roleId: findRole('organizer').id,
+        permissionId: findPerm('submission:delete:all').id,
       },
       {
         roleId: findRole('volunteer').id,
