@@ -8,7 +8,6 @@ import {
   bigint,
   index,
   jsonb,
-  check,
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
@@ -43,20 +42,8 @@ export const user = pgTable(
     banned: boolean('banned').default(false),
     banReason: text('ban_reason'),
     banExpires: timestamp('ban_expires', { withTimezone: true }),
-    /**
-     * Set by the MRUHacks 2025 import: `created` when the import made this
-     * user, `linked` when it matched an existing 2026 user by email. Null for
-     * everyone else.
-     */
-    legacyImport2025: text('legacy_import_2025', {
-      enum: ['created', 'linked'],
-    }),
   },
   (table) => [
-    check(
-      'user_legacy_import_2025_check',
-      sql`${table.legacyImport2025} IN ('created', 'linked')`,
-    ),
     index('user_name_idx').on(table.name),
     index('user_created_at_idx').on(table.createdAt.desc()),
     index('user_email_trgm_idx').using('gin', table.email.op('gin_trgm_ops')),
