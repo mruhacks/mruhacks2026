@@ -12,6 +12,8 @@ import { lt, sql } from 'drizzle-orm';
 import { resolveMagicLinkMailOptions } from '@/lib/auth/resolve-magic-link-email';
 import { remainingMagicLinkExpiresInSeconds } from '@/lib/rsvp/rsvp-magic-link-expires-in';
 import { getRsvpMagicLinkMailContext } from '@/lib/rsvp/rsvp-magic-link-context';
+import { getJudgeInviteMailContext } from '@/lib/judging/judge-invite-mail';
+import { linkJudgeRosterRows } from '@/lib/judging/server';
 import { db } from '@/utils/db';
 import * as schema from '@/db/schema';
 import { sendMail } from '@/utils/mail';
@@ -81,6 +83,19 @@ function getTurnstileSecretKey(): string {
 }
 
 /**
+ * A judge added to a roster by email is linked to their account the first
+ * time they sign in with it. Best effort: it must never block a sign-in, and
+ * roster reads also match unlinked rows by email in the meantime.
+ */
+async function linkRosterOnSignIn(userId: string): Promise<void> {
+  try {
+    await linkJudgeRosterRows(userId);
+  } catch (error) {
+    console.error('[auth] linking judge roster rows failed', error);
+  }
+}
+
+/**
  * Better Auth instance configured with Drizzle ORM adapter
  *
  * Configuration:
@@ -124,6 +139,7 @@ export const auth = betterAuth({
     session: {
       create: {
         after: async (session) => {
+          await linkRosterOnSignIn(session.userId);
           const impersonatedBy = session.impersonatedBy;
           if (typeof impersonatedBy === 'string') {
             await writeAuditLog({
@@ -264,8 +280,9 @@ export const auth = betterAuth({
         // already deduplicated by `invitation_email_status` — so the sign-in
         // cooldown below, which exists to absorb a human double-submitting the
         // public form, must not reject it. A user who signed in moments before
-        // a wave goes out would otherwise silently never get invited.
-        if (getRsvpMagicLinkMailContext()) {
+        // a wave goes out would otherwise silently never get invited. A judge
+        // invite is the same: sent by an organizer, never by the public form.
+        if (getRsvpMagicLinkMailContext() || getJudgeInviteMailContext()) {
           await sendMail(mail);
           return;
         }

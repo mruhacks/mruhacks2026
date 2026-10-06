@@ -5,7 +5,10 @@ import { DashboardFooter } from '@/components/dashboard-footer';
 import { BreadcrumbProvider } from '@/components/breadcrumb-context';
 import { getUser } from '@/utils/auth';
 import { getConsentStatus } from '@/app/dashboard/account/actions';
-import { getUserProfile } from '@/app/dashboard/profile/actions';
+import {
+  getProfessionalProfile,
+  getUserProfile,
+} from '@/app/dashboard/profile/actions';
 import { redirect } from 'next/navigation';
 
 export const instant = false;
@@ -148,14 +151,22 @@ async function DashboardHeaderLoader() {
 
   // Bounce back into onboarding if it was never finished — e.g. the user
   // closed the tab mid-welcome-flow, or typed a dashboard URL directly.
-  const [consentRes, profileRes] = await Promise.all([
+  const [consentRes, profileRes, professionalRes] = await Promise.all([
     getConsentStatus(),
     getUserProfile(),
+    getProfessionalProfile(),
   ]);
   const needsConsent =
     consentRes.success && consentRes.data ? consentRes.data.needsConsent : true;
   const needsProfile = !profileRes.success || profileRes.data == null;
-  if (needsConsent || needsProfile) redirect('/welcome');
+  // Participants finish About; judges finish Professional instead. Either
+  // one gets you in.
+  const hasAbout = profileRes.success && profileRes.data?.universityId != null;
+  const hasProfessional =
+    professionalRes.success && professionalRes.data != null;
+  if (needsConsent || needsProfile || (!hasAbout && !hasProfessional)) {
+    redirect('/welcome');
+  }
 
   return (
     <DashboardHeader

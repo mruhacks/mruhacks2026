@@ -23,6 +23,7 @@ export type PermissionEntity =
   | 'application'
   | 'article'
   | 'submission'
+  | 'judging'
   | 'system';
 
 export type PermissionAction =
@@ -40,6 +41,8 @@ export type PermissionAction =
   | 'vote'
   | 'override'
   | 'purge'
+  | 'results'
+  | 'award'
   | 'all';
 
 export type PermissionScope = 'all' | 'any' | 'self' | (string & {});
@@ -166,6 +169,19 @@ const CORE_PERMISSIONS = [
     slug: 'submission:delete:all',
     description:
       'Delete any project submission (moderation, takedown requests)',
+  },
+  {
+    slug: 'judging:manage:all',
+    description:
+      'Manage expo judging criteria, weights and the judge roster, and deactivate projects',
+  },
+  {
+    slug: 'judging:results:all',
+    description: 'View live expo judging rankings',
+  },
+  {
+    slug: 'judging:award:all',
+    description: 'Flag finalists and record overall placements',
   },
   {
     slug: 'system:read:all',

@@ -10,6 +10,7 @@ import {
   user as authUser,
   userProfiles,
   userProfileAbout,
+  userProfileProfessional,
   userDietaryRestrictions,
 } from '@/db/schema';
 import { getUser } from '@/utils/auth';
@@ -21,6 +22,7 @@ import sharp from 'sharp';
 import { ActionResult, fail, ok } from '@/utils/action-result';
 import {
   personalSchema,
+  professionalSchema,
   welcomeAboutSchema,
   profileFormSchema,
   type ProfileFormValues,
@@ -56,6 +58,7 @@ export type UserProfileData = {
 
 export type PersonalProfileValues = z.infer<typeof personalSchema>;
 export type AboutProfileValues = z.infer<typeof welcomeAboutSchema>;
+export type ProfessionalProfileValues = z.input<typeof professionalSchema>;
 
 const MAX_PROFILE_PICTURE_BYTES = 2 * 1024 * 1024;
 const MAX_RESUME_BYTES = 5 * 1024 * 1024;
@@ -378,6 +381,64 @@ export async function saveAboutProfile(
     return ok('Profile saved successfully.');
   } catch (error) {
     console.error('[profile] failed to save about profile', error);
+    return fail('Failed to save profile.');
+  }
+}
+
+/** The signed-in user's professional profile (judges), or null if not filled in. */
+export async function getProfessionalProfile(): Promise<
+  ActionResult<{
+    company: string;
+    jobTitle: string;
+    linkedinUrl: string;
+  } | null>
+> {
+  const user = await getUser();
+  if (!user) return fail('User not authenticated');
+  const [row] = await db
+    .select({
+      company: userProfileProfessional.company,
+      jobTitle: userProfileProfessional.jobTitle,
+      linkedinUrl: userProfileProfessional.linkedinUrl,
+    })
+    .from(userProfileProfessional)
+    .where(eq(userProfileProfessional.userId, user.id))
+    .limit(1);
+  return ok(row ? { ...row, linkedinUrl: row.linkedinUrl ?? '' } : null);
+}
+
+/**
+ * Saves the Professional step (user_profile_professional): company, job
+ * title and an optional LinkedIn. Judges fill this in instead of About.
+ */
+export async function saveProfessionalProfile(
+  formData: ProfessionalProfileValues,
+): Promise<ActionResult> {
+  const user = await getUser();
+  if (!user) return fail('User not authenticated');
+
+  const parsed = professionalSchema.safeParse(formData);
+  if (!parsed.success) {
+    return fail(parsed.error.issues[0]?.message ?? 'Validation failed.');
+  }
+  const values = {
+    company: parsed.data.company,
+    jobTitle: parsed.data.jobTitle,
+    linkedinUrl: parsed.data.linkedinUrl || null,
+  };
+
+  try {
+    await db
+      .insert(userProfileProfessional)
+      .values({ userId: user.id, ...values })
+      .onConflictDoUpdate({
+        target: userProfileProfessional.userId,
+        set: { ...values, updatedAt: new Date() },
+      });
+    revalidateProfile();
+    return ok('Profile saved successfully.');
+  } catch (error) {
+    console.error('Professional profile save error:', error);
     return fail('Failed to save profile.');
   }
 }

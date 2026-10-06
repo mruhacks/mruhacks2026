@@ -81,6 +81,21 @@ export const aboutSchema = z.object({
   githubUrl: githubUrlSchema,
 });
 
+/** Professional-step payload: what judges fill in instead of the About step. */
+export const professionalSchema = z.object({
+  company: z
+    .string()
+    .trim()
+    .min(1, 'Enter your company or organization.')
+    .max(255, 'Keep it under 255 characters.'),
+  jobTitle: z
+    .string()
+    .trim()
+    .min(1, 'Enter your job title.')
+    .max(255, 'Keep it under 255 characters.'),
+  linkedinUrl: linkedinUrlSchema,
+});
+
 /** About-step payload, including the onboarding-only hackathon-history field. */
 export const welcomeAboutSchema = aboutSchema.extend({
   attendedHackathonBefore: z.boolean(),

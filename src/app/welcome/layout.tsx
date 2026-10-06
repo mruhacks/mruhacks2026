@@ -37,12 +37,20 @@ export default async function WelcomeRouteLayout({
       completed: !progress.needsPersonal,
       reviewable: canReviewStep(progress, 'personal'),
     },
-    {
-      id: 'about' satisfies Step,
-      label: 'About you',
-      completed: !progress.needsAbout,
-      reviewable: canReviewStep(progress, 'about'),
-    },
+    // Judges fill in their professional details instead of About.
+    progress.isJudge
+      ? {
+          id: 'professional' satisfies Step,
+          label: 'Professional',
+          completed: !progress.needsProfessional,
+          reviewable: canReviewStep(progress, 'professional'),
+        }
+      : {
+          id: 'about' satisfies Step,
+          label: 'About you',
+          completed: !progress.needsAbout,
+          reviewable: canReviewStep(progress, 'about'),
+        },
     ...(progress.featuredEvent
       ? [
           {
