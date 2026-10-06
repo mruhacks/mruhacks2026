@@ -63,7 +63,7 @@ async function SubmissionsContent({
     );
   }
   const rows = result.data;
-  const base = `/dashboard/admin/events/${segment}/submissions`;
+  const backHref = `/dashboard/admin/events/${segment}/submissions`;
 
   return (
     <div className='flex flex-col gap-4'>
@@ -107,7 +107,10 @@ async function SubmissionsContent({
                 <TableRow key={row.id}>
                   <TableCell className='font-medium'>
                     <Link
-                      href={`${base}/${row.id}`}
+                      href={{
+                        pathname: `/dashboard/events/${segment}/projects/${row.id}`,
+                        query: { back: backHref },
+                      }}
                       className='hover:underline'
                     >
                       {row.title}

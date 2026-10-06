@@ -23,6 +23,7 @@ import { LocalDateTime } from '@/components/local-date-time';
 import { MarkdownEditor } from '@/components/markdown/markdown-editor';
 import {
   DELETED_USER_LABEL,
+  SubmissionBanner,
   SubmissionStatusBadge,
 } from '@/components/submissions/submission-view';
 import { Button } from '@/components/ui/button';
@@ -46,7 +47,6 @@ import {
   SUBMISSION_HEARTBEAT_INTERVAL_MS,
   SUBMISSION_TITLE_MAX_LENGTH,
 } from '@/lib/submissions';
-import { cn } from '@/lib/utils';
 
 /** A submission as the editor holds it — instants as ISO strings. */
 export type EditableSubmission = {
@@ -338,50 +338,17 @@ export function SubmissionEditor({
 
   return (
     <div className='flex flex-col gap-6'>
-      <header
-        className={cn(
-          'relative isolate flex flex-col gap-3 overflow-hidden rounded-xl border p-6',
-          content.coverImageUrl && 'min-h-56 justify-end',
-        )}
+      <SubmissionBanner
+        title={saved.title}
+        coverImageUrl={content.coverImageUrl}
+        action={<DeleteProjectButton eventId={eventId} />}
       >
-        {content.coverImageUrl ? (
-          <>
-            {/* Served from `/api/assets`, which needs the session cookie — see
-                MarkdownContent for why the Next image optimizer can't be used. */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={content.coverImageUrl}
-              alt=''
-              className='absolute inset-0 -z-10 size-full object-cover'
-            />
-            <div
-              aria-hidden
-              className='from-background via-background/80 to-background/20 absolute inset-0 -z-10 bg-linear-to-t'
-            />
-          </>
-        ) : (
-          // The default avatar's brand gradient, washed right out.
-          <div
-            aria-hidden
-            className='absolute inset-0 -z-10 opacity-10 dark:opacity-15'
-            style={{ background: 'var(--gradient-brand)' }}
+        <div>
+          <SubmissionStatusBadge
+            published={saved.published}
+            onToggle={togglePublic}
+            disabled={isPublishing || isSaving}
           />
-        )}
-        <DeleteProjectButton
-          eventId={eventId}
-          className='absolute top-3 right-3'
-        />
-        <div className='flex min-w-0 flex-col gap-2 pr-12'>
-          <h1 className='text-3xl font-semibold tracking-tight wrap-break-word'>
-            {saved.title || "Your team's project"}
-          </h1>
-          <div>
-            <SubmissionStatusBadge
-              published={saved.published}
-              onToggle={togglePublic}
-              disabled={isPublishing || isSaving}
-            />
-          </div>
         </div>
         {!saved.published && (
           <p className='flex items-start gap-2 text-sm text-amber-700 dark:text-amber-300'>
@@ -399,7 +366,7 @@ export function SubmissionEditor({
             </span>
           </p>
         )}
-      </header>
+      </SubmissionBanner>
 
       {others.length > 0 && (
         <div
@@ -702,13 +669,7 @@ function RemoveCoverButton({ onConfirm }: { onConfirm: () => void }) {
   );
 }
 
-function DeleteProjectButton({
-  eventId,
-  className,
-}: {
-  eventId: string;
-  className?: string;
-}) {
+function DeleteProjectButton({ eventId }: { eventId: string }) {
   const [open, setOpen] = React.useState(false);
   const [isDeleting, setIsDeleting] = React.useState(false);
 
@@ -733,10 +694,7 @@ function DeleteProjectButton({
         size='icon'
         aria-label='Delete project'
         title='Delete project'
-        className={cn(
-          'bg-background/80 hover:text-destructive backdrop-blur-sm',
-          className,
-        )}
+        className='bg-background/80 hover:text-destructive backdrop-blur-sm'
         onClick={() => setOpen(true)}
       >
         <Trash2 />

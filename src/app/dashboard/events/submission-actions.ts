@@ -1,7 +1,7 @@
 /**
  * Server actions for a team's project submission: the participant editor at
- * dashboard/events/:id/project, and the read-only admin views under
- * dashboard/admin/events/:id/submissions.
+ * dashboard/events/:id/project, and the read-only organizer views at
+ * dashboard/admin/events/:id/submissions and dashboard/events/:id/projects/:id.
  *
  * A submission belongs to a team (every participant has one — a team-of-one is
  * a normal team), at most one per team. Only *eligible* members

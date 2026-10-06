@@ -24,12 +24,12 @@ export function AdminDeleteSubmissionButton({
   eventId,
   submissionId,
   title,
-  listHref,
+  backHref,
 }: {
   eventId: string;
   submissionId: string;
   title: string;
-  listHref: string;
+  backHref: string;
 }) {
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
@@ -46,14 +46,21 @@ export function AdminDeleteSubmissionButton({
     }
     setOpen(false);
     toast.success('Submission deleted');
-    router.replace(listHref);
+    router.replace(backHref);
   }
 
   return (
     <>
-      <Button type='button' variant='destructive' onClick={() => setOpen(true)}>
-        <Trash2 data-icon='inline-start' />
-        Delete submission
+      <Button
+        type='button'
+        variant='outline'
+        size='icon'
+        aria-label='Delete submission'
+        title='Delete submission'
+        className='bg-background/80 hover:text-destructive backdrop-blur-sm'
+        onClick={() => setOpen(true)}
+      >
+        <Trash2 />
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className='sm:max-w-md'>

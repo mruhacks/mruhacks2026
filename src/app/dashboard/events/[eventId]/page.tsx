@@ -243,14 +243,12 @@ async function EventEntryContent({ params, searchParams }: Props) {
         team={
           canManageTeam ? (
             <>
+              <ProjectPanel eventId={eventId} eventHref={eventHref} />
               <TeamPanel
                 eventId={eventId}
                 joinCode={joinCode}
                 hasEnded={hasEnded}
               />
-              {/* Gates itself: renders only for eligible members of an event
-                  that takes project submissions. */}
-              <ProjectPanel eventId={eventId} eventHref={eventHref} />
             </>
           ) : null
         }

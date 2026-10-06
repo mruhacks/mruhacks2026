@@ -74,20 +74,11 @@ async function ProjectContent({
       </Button>
 
       <div className='flex flex-col gap-6'>
-        {/* The editor renders its own title row, next to its publish/delete controls. */}
-        {!isEditing && (
-          <header className='flex flex-col gap-2'>
-            <h1 className='text-3xl font-semibold tracking-tight wrap-break-word'>
-              {submission?.title || "Your team's project"}
-            </h1>
-            {submissionWindow === 'closed' && submission && (
-              <p className='text-muted-foreground text-sm'>
-                The submission deadline has passed — this is final.
-                {!submission.published &&
-                  " It was still a draft at the deadline, so it won't be judged."}
-              </p>
-            )}
-          </header>
+        {/* The editor and the read-only view each render their own banner. */}
+        {!isEditing && !(submissionWindow === 'closed' && submission) && (
+          <h1 className='text-3xl font-semibold tracking-tight wrap-break-word'>
+            Your team&apos;s project
+          </h1>
         )}
 
         {submissionWindow === 'not_open' && (
@@ -153,9 +144,16 @@ async function ProjectContent({
 
         {submissionWindow === 'closed' &&
           (submission ? (
-            <Card className='p-6'>
-              <SubmissionView submission={submission} />
-            </Card>
+            <SubmissionView
+              submission={submission}
+              notice={
+                <>
+                  The submission deadline has passed — this is final.
+                  {!submission.published &&
+                    " It was still a draft at the deadline, so it won't be judged."}
+                </>
+              }
+            />
           ) : (
             <Card>
               <CardHeader>
