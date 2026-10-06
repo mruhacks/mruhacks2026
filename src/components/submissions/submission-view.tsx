@@ -1,4 +1,4 @@
-import { Code2, ExternalLink, PlayCircle } from 'lucide-react';
+import { Code2, ExternalLink, Eye, EyeOff, PlayCircle } from 'lucide-react';
 
 import { LocalDateTime } from '@/components/local-date-time';
 import { MarkdownContent } from '@/components/markdown/markdown-content';
@@ -20,12 +20,54 @@ export type SubmissionDisplay = {
   lastEditedByName: string | null;
 };
 
-/** "Draft" / "Published", the same everywhere a submission's state shows. */
-export function SubmissionStatusBadge({ published }: { published: boolean }) {
-  return published ? (
-    <Badge variant='success'>Published</Badge>
+/**
+ * "Private" / "Public", the same everywhere a submission's state shows. Only
+ * a public project is judged; the `published` column is the same flag.
+ * With `onToggle` the pill is a button that flips it.
+ */
+export function SubmissionStatusBadge({
+  published,
+  onToggle,
+  disabled,
+}: {
+  published: boolean;
+  onToggle?: () => void;
+  disabled?: boolean;
+}) {
+  const content = published ? (
+    <>
+      <Eye aria-hidden />
+      Public
+    </>
   ) : (
-    <Badge variant='secondary'>Draft</Badge>
+    <>
+      <EyeOff aria-hidden />
+      Private
+    </>
+  );
+  const variant = published ? 'success' : 'secondary';
+
+  if (!onToggle) return <Badge variant={variant}>{content}</Badge>;
+  return (
+    <Badge
+      asChild
+      variant={variant}
+      className='cursor-pointer hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-50'
+    >
+      <button
+        type='button'
+        onClick={onToggle}
+        disabled={disabled}
+        title={published ? 'Make private' : 'Make public'}
+        aria-label={
+          published
+            ? 'Public — click to make private'
+            : 'Private — click to make public'
+        }
+      >
+        {content}
+      </button>
+    </Badge>
   );
 }
 

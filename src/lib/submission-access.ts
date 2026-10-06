@@ -34,7 +34,7 @@ export type SubmissionRow = typeof submissions.$inferSelect;
 
 export type SubmissionAccess = {
   event: SubmissionEvent;
-  window: SubmissionWindow;
+  submissionWindow: SubmissionWindow;
   /**
    * Has reached the event's final positive state (`canSubmitProject`). Only
    * eligible members ever see, edit, publish or delete their team's project.
@@ -146,7 +146,7 @@ export async function loadSubmissionAccess(
 
   return {
     event: eventFields,
-    window: getSubmissionWindow(eventFields, now),
+    submissionWindow: getSubmissionWindow(eventFields, now),
     eligible,
     teamId,
     submission: submission ?? null,

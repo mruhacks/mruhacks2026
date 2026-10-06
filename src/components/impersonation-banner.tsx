@@ -30,7 +30,7 @@ export function ImpersonationBanner() {
       </span>
       <button
         onClick={handleStop}
-        className='rounded bg-amber-950/20 px-3 py-1 text-xs font-semibold transition-colors hover:bg-amber-950/30'
+        className='cursor-pointer rounded bg-amber-950/20 px-3 py-1 text-xs font-semibold transition-colors hover:bg-amber-950/30'
       >
         Stop impersonating
       </button>

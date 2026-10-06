@@ -496,7 +496,7 @@ describe('the deadline', () => {
     await setDeadlinePassed(eventId, true);
     loginAs(userA);
     const submission = await currentSubmission(eventId);
-    expect(unwrap(await getMySubmission(eventId)).window).toBe('closed');
+    expect(unwrap(await getMySubmission(eventId)).submissionWindow).toBe('closed');
     expect((await saveSubmission(eventId, saveInput(submission))).success).toBe(
       false,
     );
@@ -504,7 +504,7 @@ describe('the deadline', () => {
     expect((await deleteSubmission(eventId)).success).toBe(false);
 
     await setDeadlinePassed(eventId, false);
-    expect(unwrap(await getMySubmission(eventId)).window).toBe('open');
+    expect(unwrap(await getMySubmission(eventId)).submissionWindow).toBe('open');
   });
 
   test('locks self-service team changes, but not moderation', async () => {

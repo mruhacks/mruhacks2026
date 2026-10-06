@@ -15,6 +15,7 @@ import {
   type SubmissionEditorPresence,
 } from '@/app/dashboard/events/submission-actions';
 import {
+  publishSubmissionSchema,
   saveSubmissionSchema,
   type SubmissionField,
 } from '@/app/dashboard/events/submission-schemas';
@@ -25,7 +26,7 @@ import {
   SubmissionStatusBadge,
 } from '@/components/submissions/submission-view';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -36,18 +37,16 @@ import {
 } from '@/components/ui/dialog';
 import {
   Field,
-  FieldDescription,
   FieldError,
   FieldGroup,
   FieldLabel,
 } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import {
-  REPO_HOSTS,
   SUBMISSION_HEARTBEAT_INTERVAL_MS,
   SUBMISSION_TITLE_MAX_LENGTH,
-  VIDEO_HOSTS,
 } from '@/lib/submissions';
+import { cn } from '@/lib/utils';
 
 /** A submission as the editor holds it — instants as ISO strings. */
 export type EditableSubmission = {
@@ -89,6 +88,37 @@ function sameContent(a: Content, b: Content): boolean {
   );
 }
 
+/** Field order on the page, for focusing the first invalid one. */
+const FIELD_ORDER: SubmissionField[] = [
+  'title',
+  'repoUrl',
+  'demoUrl',
+  'videoUrl',
+  'coverImageUrl',
+  'markdown',
+];
+
+/** The focusable input per field; the markdown editor has none to target. */
+const FIELD_INPUT_IDS: Record<SubmissionField, string | null> = {
+  title: 'title',
+  repoUrl: 'repoUrl',
+  demoUrl: 'demoUrl',
+  videoUrl: 'videoUrl',
+  coverImageUrl: 'cover',
+  markdown: null,
+};
+
+function issuesByField(
+  issues: { path: PropertyKey[]; message: string }[],
+): Partial<Record<SubmissionField, string>> {
+  const errors: Partial<Record<SubmissionField, string>> = {};
+  for (const issue of issues) {
+    const field = issue.path[0] as SubmissionField;
+    errors[field] ??= issue.message;
+  }
+  return errors;
+}
+
 type Conflict = { updatedAt: string; lastEditedByName: string | null };
 
 /**
@@ -96,9 +126,9 @@ type Conflict = { updatedAt: string; lastEditedByName: string | null };
  * save from a stale copy is refused (the server compares `updatedAt`) so a
  * teammate's newer version isn't overwritten without asking.
  *
- * Every save/validation error renders inline next to the field or the save
- * button; only the publish and delete buttons, which have no field to anchor
- * to, report through toasts. See AGENTS.md.
+ * Every save/publish/validation error renders inline next to the field or
+ * the save button; only unpublish and delete, which have no input to fix,
+ * report through toasts. See AGENTS.md.
  */
 export function SubmissionEditor({
   eventId,
@@ -152,9 +182,8 @@ export function SubmissionEditor({
     [],
   );
 
-  async function save(force: boolean) {
-    setFormError(null);
-    const input = {
+  function saveInput(force: boolean) {
+    return {
       ...content,
       repoUrl: content.repoUrl ?? '',
       demoUrl: content.demoUrl ?? '',
@@ -162,16 +191,28 @@ export function SubmissionEditor({
       expectedUpdatedAt: saved.updatedAt,
       force,
     };
+  }
+
+  /** Shows `errors` inline and focuses the first field that has one. */
+  function showFieldErrors(errors: Partial<Record<SubmissionField, string>>) {
+    setFieldErrors(errors);
+    const first = FIELD_ORDER.find((field) => errors[field]);
+    const id = first && FIELD_INPUT_IDS[first];
+    if (id) document.getElementById(id)?.focus();
+  }
+
+  /** Resolves true once the content is saved; errors are shown inline. */
+  async function save(
+    force: boolean,
+    { silent = false }: { silent?: boolean } = {},
+  ): Promise<boolean> {
+    setFormError(null);
+    const input = saveInput(force);
 
     const parsed = saveSubmissionSchema.safeParse(input);
     if (!parsed.success) {
-      const errors: Partial<Record<SubmissionField, string>> = {};
-      for (const issue of parsed.error.issues) {
-        const field = issue.path[0] as SubmissionField;
-        errors[field] ??= issue.message;
-      }
-      setFieldErrors(errors);
-      return;
+      showFieldErrors(issuesByField(parsed.error.issues));
+      return false;
     }
 
     setIsSaving(true);
@@ -179,14 +220,14 @@ export function SubmissionEditor({
       const result = await saveSubmission(eventId, input);
       if (!result.success) {
         setFormError(result.error);
-        return;
+        return false;
       }
       if (result.data?.status === 'conflict') {
         setConflict({
           updatedAt: new Date(result.data.updatedAt).toISOString(),
           lastEditedByName: result.data.lastEditedByName,
         });
-        return;
+        return false;
       }
       setConflict(null);
       setSaved({
@@ -200,9 +241,11 @@ export function SubmissionEditor({
         updatedAt: new Date(result.data!.updatedAt).toISOString(),
         lastEditedByName: currentUserName,
       });
-      toast.success('Project saved');
+      if (!silent) toast.success('Project saved');
+      return true;
     } catch {
       setFormError('Unable to save your project. Please try again.');
+      return false;
     } finally {
       setIsSaving(false);
     }
@@ -231,18 +274,50 @@ export function SubmissionEditor({
     setEditorKey((key) => key + 1);
   }
 
-  async function togglePublished() {
+  /**
+   * Checks everything publishing needs, marking each missing or invalid
+   * field inline, then saves any pending edits and publishes.
+   */
+  async function publish() {
+    setFormError(null);
+    const ready = publishSubmissionSchema.safeParse(content);
+    if (!ready.success) {
+      showFieldErrors(issuesByField(ready.error.issues));
+      return;
+    }
+    if (isDirty && !(await save(false, { silent: true }))) return;
+
     setIsPublishing(true);
-    const next = !saved.published;
-    const result = await setSubmissionPublished(eventId, next);
+    try {
+      const result = await setSubmissionPublished(eventId, true);
+      if (!result.success) {
+        setFormError(result.error);
+        return;
+      }
+      setSaved((current) => ({ ...current, published: true }));
+      toast.success('Project is now public');
+    } catch {
+      setFormError('Unable to make your project public. Please try again.');
+    } finally {
+      setIsPublishing(false);
+    }
+  }
+
+  async function unpublish() {
+    setIsPublishing(true);
+    const result = await setSubmissionPublished(eventId, false);
     setIsPublishing(false);
     if (!result.success) {
       // A button-only action with no field to anchor an inline error to.
       toast.error(result.error);
       return;
     }
-    setSaved((current) => ({ ...current, published: next }));
-    toast.success(next ? 'Project published' : 'Project unpublished');
+    setSaved((current) => ({ ...current, published: false }));
+    toast.success('Project is now private');
+  }
+
+  function togglePublic() {
+    void (saved.published ? unpublish() : publish());
   }
 
   async function handleCoverFile(file: File) {
@@ -261,16 +336,71 @@ export function SubmissionEditor({
     update('coverImageUrl', result.data.url);
   }
 
-  const canPublish = !!saved.repoUrl && !isDirty;
-
   return (
-    <form
-      className='flex flex-col gap-6'
-      onSubmit={(event) => {
-        event.preventDefault();
-        void save(false);
-      }}
-    >
+    <div className='flex flex-col gap-6'>
+      <header
+        className={cn(
+          'relative isolate flex flex-col gap-3 overflow-hidden rounded-xl border p-6',
+          content.coverImageUrl && 'min-h-56 justify-end',
+        )}
+      >
+        {content.coverImageUrl ? (
+          <>
+            {/* Served from `/api/assets`, which needs the session cookie — see
+                MarkdownContent for why the Next image optimizer can't be used. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={content.coverImageUrl}
+              alt=''
+              className='absolute inset-0 -z-10 size-full object-cover'
+            />
+            <div
+              aria-hidden
+              className='from-background via-background/80 to-background/20 absolute inset-0 -z-10 bg-linear-to-t'
+            />
+          </>
+        ) : (
+          // The default avatar's brand gradient, washed right out.
+          <div
+            aria-hidden
+            className='absolute inset-0 -z-10 opacity-10 dark:opacity-15'
+            style={{ background: 'var(--gradient-brand)' }}
+          />
+        )}
+        <DeleteProjectButton
+          eventId={eventId}
+          className='absolute top-3 right-3'
+        />
+        <div className='flex min-w-0 flex-col gap-2 pr-12'>
+          <h1 className='text-3xl font-semibold tracking-tight wrap-break-word'>
+            {saved.title || "Your team's project"}
+          </h1>
+          <div>
+            <SubmissionStatusBadge
+              published={saved.published}
+              onToggle={togglePublic}
+              disabled={isPublishing || isSaving}
+            />
+          </div>
+        </div>
+        {!saved.published && (
+          <p className='flex items-start gap-2 text-sm text-amber-700 dark:text-amber-300'>
+            <AlertTriangle className='mt-0.5 size-4 shrink-0' aria-hidden />
+            <span>
+              Private projects won&apos;t be judged.
+              <br /> Make it public before{' '}
+              <LocalDateTime
+                value={closesAt}
+                dateStyle='medium'
+                timeStyle='short'
+                timeZoneName='short'
+              />
+              , don&apos;t worry you can still keep editing after.
+            </span>
+          </p>
+        )}
+      </header>
+
       {others.length > 0 && (
         <div
           role='status'
@@ -285,255 +415,198 @@ export function SubmissionEditor({
         </div>
       )}
 
-      <Card>
-        <CardContent className='flex flex-col gap-4'>
-          <div className='flex flex-wrap items-center justify-between gap-3'>
-            <div className='flex items-center gap-2'>
-              <SubmissionStatusBadge published={saved.published} />
-              <span className='text-muted-foreground text-sm'>
-                Closes{' '}
+      <Card className='p-6'>
+        <form
+          className='flex flex-col gap-6'
+          onSubmit={(event) => {
+            event.preventDefault();
+            void save(false);
+          }}
+        >
+          <FieldGroup className='gap-4'>
+            <Field data-invalid={!!fieldErrors.title}>
+              <FieldLabel htmlFor='title'>
+                Project title <span className='text-destructive'>*</span>
+              </FieldLabel>
+              <Input
+                id='title'
+                value={content.title}
+                maxLength={SUBMISSION_TITLE_MAX_LENGTH}
+                aria-invalid={!!fieldErrors.title}
+                onChange={(event) => update('title', event.target.value)}
+              />
+              {fieldErrors.title && (
+                <FieldError>{fieldErrors.title}</FieldError>
+              )}
+            </Field>
+
+            <div className='grid gap-4 md:grid-cols-3'>
+              <Field data-invalid={!!fieldErrors.repoUrl}>
+                <FieldLabel htmlFor='repoUrl'>
+                  Repository <span className='text-destructive'>*</span>
+                </FieldLabel>
+                <Input
+                  id='repoUrl'
+                  type='url'
+                  inputMode='url'
+                  placeholder='https://github.com/…'
+                  value={content.repoUrl ?? ''}
+                  aria-invalid={!!fieldErrors.repoUrl}
+                  onChange={(event) => update('repoUrl', event.target.value)}
+                />
+                {fieldErrors.repoUrl && (
+                  <FieldError>{fieldErrors.repoUrl}</FieldError>
+                )}
+              </Field>
+              <Field data-invalid={!!fieldErrors.demoUrl}>
+                <FieldLabel htmlFor='demoUrl'>Live demo</FieldLabel>
+                <Input
+                  id='demoUrl'
+                  type='url'
+                  inputMode='url'
+                  placeholder='https://…'
+                  value={content.demoUrl ?? ''}
+                  aria-invalid={!!fieldErrors.demoUrl}
+                  onChange={(event) => update('demoUrl', event.target.value)}
+                />
+                {fieldErrors.demoUrl && (
+                  <FieldError>{fieldErrors.demoUrl}</FieldError>
+                )}
+              </Field>
+              <Field data-invalid={!!fieldErrors.videoUrl}>
+                <FieldLabel htmlFor='videoUrl'>Video</FieldLabel>
+                <Input
+                  id='videoUrl'
+                  type='url'
+                  inputMode='url'
+                  placeholder='https://youtu.be/…'
+                  value={content.videoUrl ?? ''}
+                  aria-invalid={!!fieldErrors.videoUrl}
+                  onChange={(event) => update('videoUrl', event.target.value)}
+                />
+                {fieldErrors.videoUrl && (
+                  <FieldError>{fieldErrors.videoUrl}</FieldError>
+                )}
+              </Field>
+            </div>
+
+            <Field data-invalid={!!fieldErrors.coverImageUrl}>
+              <FieldLabel htmlFor='cover'>Cover image</FieldLabel>
+              <div className='flex flex-wrap gap-2'>
+                <input
+                  ref={coverInput}
+                  id='cover'
+                  type='file'
+                  accept='image/jpeg,image/png,image/webp,image/gif,image/avif'
+                  className='sr-only'
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    event.target.value = '';
+                    if (file) void handleCoverFile(file);
+                  }}
+                />
+                <Button
+                  type='button'
+                  variant='outline'
+                  size='sm'
+                  disabled={isUploadingCover}
+                  onClick={() => coverInput.current?.click()}
+                >
+                  <ImagePlus data-icon='inline-start' />
+                  {isUploadingCover
+                    ? 'Uploading…'
+                    : content.coverImageUrl
+                      ? 'Replace cover'
+                      : 'Upload cover'}
+                </Button>
+                {content.coverImageUrl && (
+                  <RemoveCoverButton
+                    onConfirm={() => update('coverImageUrl', null)}
+                  />
+                )}
+              </div>
+              {fieldErrors.coverImageUrl && (
+                <FieldError>{fieldErrors.coverImageUrl}</FieldError>
+              )}
+            </Field>
+
+            <Field data-invalid={!!fieldErrors.markdown}>
+              <FieldLabel>Write-up</FieldLabel>
+              <MarkdownEditor
+                key={editorKey}
+                value={content.markdown}
+                onChange={onMarkdownChange}
+                uploadAttachment={uploadAttachment}
+                onUploadError={onUploadError}
+                allowRawHtml={false}
+                placeholder='What you built, how it works, and what it looks like. Paste or drop images straight in.'
+              />
+              {fieldErrors.markdown && (
+                <FieldError>{fieldErrors.markdown}</FieldError>
+              )}
+            </Field>
+          </FieldGroup>
+
+          {conflict && (
+            <div
+              role='alert'
+              className='border-destructive/40 bg-destructive/5 flex flex-col gap-3 rounded-md border px-4 py-3 text-sm'
+            >
+              <p>
+                A teammate saved a newer version
+                {conflict.lastEditedByName
+                  ? ` (${conflict.lastEditedByName})`
+                  : ` (${DELETED_USER_LABEL})`}{' '}
+                at{' '}
                 <LocalDateTime
-                  value={closesAt}
+                  value={conflict.updatedAt}
                   dateStyle='medium'
                   timeStyle='short'
-                  timeZoneName='short'
                 />
-              </span>
+                . Your changes weren&apos;t saved.
+              </p>
+              <div className='flex flex-wrap gap-2'>
+                <Button
+                  type='button'
+                  variant='destructive'
+                  size='sm'
+                  disabled={isSaving}
+                  onClick={() => void save(true)}
+                >
+                  Overwrite with mine
+                </Button>
+                <Button
+                  type='button'
+                  variant='outline'
+                  size='sm'
+                  disabled={isSaving}
+                  onClick={() => void discardAndReload()}
+                >
+                  Discard mine and reload
+                </Button>
+              </div>
             </div>
-            <div className='flex flex-wrap gap-2'>
-              <Button
-                type='button'
-                variant={saved.published ? 'outline' : 'default'}
-                disabled={isPublishing || (!saved.published && !canPublish)}
-                onClick={togglePublished}
-              >
-                {isPublishing
-                  ? 'Updating…'
-                  : saved.published
-                    ? 'Unpublish'
-                    : 'Publish'}
+          )}
+
+          <div className='flex flex-col gap-3'>
+            {formError && <FieldError role='alert'>{formError}</FieldError>}
+            <div className='flex flex-wrap items-center justify-between gap-2'>
+              <p className='text-muted-foreground text-xs'>
+                Last saved by {saved.lastEditedByName ?? DELETED_USER_LABEL} on{' '}
+                <LocalDateTime
+                  value={saved.updatedAt}
+                  dateStyle='medium'
+                  timeStyle='short'
+                />
+              </p>
+              <Button type='submit' disabled={isSaving || !isDirty}>
+                {isSaving ? 'Saving…' : isDirty ? 'Save project' : 'Saved'}
               </Button>
-              <DeleteProjectButton eventId={eventId} />
             </div>
           </div>
-          {!saved.published && (
-            <p className='flex items-start gap-2 text-sm text-amber-700 dark:text-amber-300'>
-              <AlertTriangle className='mt-0.5 size-4 shrink-0' aria-hidden />
-              <span>
-                Drafts at the deadline won&apos;t be judged.{' '}
-                {!saved.repoUrl
-                  ? 'Add a repository link and save to publish.'
-                  : isDirty
-                    ? 'Save your changes to publish.'
-                    : 'Publish when you’re ready — you can keep editing after.'}
-              </span>
-            </p>
-          )}
-        </CardContent>
+        </form>
       </Card>
-
-      <FieldGroup className='gap-4'>
-        <Field data-invalid={!!fieldErrors.title}>
-          <FieldLabel htmlFor='title'>
-            Project title <span className='text-destructive'>*</span>
-          </FieldLabel>
-          <Input
-            id='title'
-            value={content.title}
-            maxLength={SUBMISSION_TITLE_MAX_LENGTH}
-            aria-invalid={!!fieldErrors.title}
-            onChange={(event) => update('title', event.target.value)}
-          />
-          {fieldErrors.title && <FieldError>{fieldErrors.title}</FieldError>}
-        </Field>
-
-        <div className='grid gap-4 md:grid-cols-3'>
-          <Field data-invalid={!!fieldErrors.repoUrl}>
-            <FieldLabel htmlFor='repoUrl'>Repository</FieldLabel>
-            <Input
-              id='repoUrl'
-              type='url'
-              inputMode='url'
-              placeholder='https://github.com/…'
-              value={content.repoUrl ?? ''}
-              aria-invalid={!!fieldErrors.repoUrl}
-              onChange={(event) => update('repoUrl', event.target.value)}
-            />
-            <FieldDescription>
-              Required to publish. {REPO_HOSTS.join(', ')}.
-            </FieldDescription>
-            {fieldErrors.repoUrl && (
-              <FieldError>{fieldErrors.repoUrl}</FieldError>
-            )}
-          </Field>
-          <Field data-invalid={!!fieldErrors.demoUrl}>
-            <FieldLabel htmlFor='demoUrl'>Live demo (optional)</FieldLabel>
-            <Input
-              id='demoUrl'
-              type='url'
-              inputMode='url'
-              placeholder='https://…'
-              value={content.demoUrl ?? ''}
-              aria-invalid={!!fieldErrors.demoUrl}
-              onChange={(event) => update('demoUrl', event.target.value)}
-            />
-            <FieldDescription>Any https:// link.</FieldDescription>
-            {fieldErrors.demoUrl && (
-              <FieldError>{fieldErrors.demoUrl}</FieldError>
-            )}
-          </Field>
-          <Field data-invalid={!!fieldErrors.videoUrl}>
-            <FieldLabel htmlFor='videoUrl'>Video (optional)</FieldLabel>
-            <Input
-              id='videoUrl'
-              type='url'
-              inputMode='url'
-              placeholder='https://youtu.be/…'
-              value={content.videoUrl ?? ''}
-              aria-invalid={!!fieldErrors.videoUrl}
-              onChange={(event) => update('videoUrl', event.target.value)}
-            />
-            <FieldDescription>{VIDEO_HOSTS.join(', ')}.</FieldDescription>
-            {fieldErrors.videoUrl && (
-              <FieldError>{fieldErrors.videoUrl}</FieldError>
-            )}
-          </Field>
-        </div>
-
-        <Field data-invalid={!!fieldErrors.coverImageUrl}>
-          <FieldLabel htmlFor='cover'>Cover image (optional)</FieldLabel>
-          {content.coverImageUrl && (
-            // Served from `/api/assets`, which needs the session cookie — see
-            // MarkdownContent for why the Next image optimizer can't be used.
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={content.coverImageUrl}
-              alt=''
-              className='max-h-64 w-full rounded-md border object-cover'
-            />
-          )}
-          <div className='flex flex-wrap gap-2'>
-            <input
-              ref={coverInput}
-              id='cover'
-              type='file'
-              accept='image/jpeg,image/png,image/webp,image/gif,image/avif'
-              className='sr-only'
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                event.target.value = '';
-                if (file) void handleCoverFile(file);
-              }}
-            />
-            <Button
-              type='button'
-              variant='outline'
-              size='sm'
-              disabled={isUploadingCover}
-              onClick={() => coverInput.current?.click()}
-            >
-              <ImagePlus data-icon='inline-start' />
-              {isUploadingCover
-                ? 'Uploading…'
-                : content.coverImageUrl
-                  ? 'Replace cover'
-                  : 'Upload cover'}
-            </Button>
-            {content.coverImageUrl && (
-              <Button
-                type='button'
-                variant='ghost'
-                size='sm'
-                onClick={() => update('coverImageUrl', null)}
-              >
-                Remove cover
-              </Button>
-            )}
-          </div>
-          {fieldErrors.coverImageUrl && (
-            <FieldError>{fieldErrors.coverImageUrl}</FieldError>
-          )}
-        </Field>
-
-        <Field data-invalid={!!fieldErrors.markdown}>
-          <FieldLabel>Write-up</FieldLabel>
-          <FieldDescription>
-            What you built, how it works, and what it looks like. Paste or drop
-            images straight in.
-          </FieldDescription>
-          <MarkdownEditor
-            key={editorKey}
-            value={content.markdown}
-            onChange={onMarkdownChange}
-            uploadAttachment={uploadAttachment}
-            onUploadError={onUploadError}
-            allowRawHtml={false}
-            placeholder='Tell the judges about your project…'
-          />
-          {fieldErrors.markdown && (
-            <FieldError>{fieldErrors.markdown}</FieldError>
-          )}
-        </Field>
-      </FieldGroup>
-
-      {conflict && (
-        <div
-          role='alert'
-          className='border-destructive/40 bg-destructive/5 flex flex-col gap-3 rounded-md border px-4 py-3 text-sm'
-        >
-          <p>
-            A teammate saved a newer version
-            {conflict.lastEditedByName
-              ? ` (${conflict.lastEditedByName})`
-              : ` (${DELETED_USER_LABEL})`}{' '}
-            at{' '}
-            <LocalDateTime
-              value={conflict.updatedAt}
-              dateStyle='medium'
-              timeStyle='short'
-            />
-            . Your changes weren&apos;t saved.
-          </p>
-          <div className='flex flex-wrap gap-2'>
-            <Button
-              type='button'
-              variant='destructive'
-              size='sm'
-              disabled={isSaving}
-              onClick={() => void save(true)}
-            >
-              Overwrite with mine
-            </Button>
-            <Button
-              type='button'
-              variant='outline'
-              size='sm'
-              disabled={isSaving}
-              onClick={() => void discardAndReload()}
-            >
-              Discard mine and reload
-            </Button>
-          </div>
-        </div>
-      )}
-
-      <div className='flex flex-col gap-3'>
-        {formError && <FieldError role='alert'>{formError}</FieldError>}
-        <div className='flex flex-wrap items-center justify-between gap-2'>
-          <p className='text-muted-foreground text-xs'>
-            Last saved by {saved.lastEditedByName ?? DELETED_USER_LABEL} on{' '}
-            <LocalDateTime
-              value={saved.updatedAt}
-              dateStyle='medium'
-              timeStyle='short'
-            />
-          </p>
-          <Button type='submit' disabled={isSaving || !isDirty}>
-            {isSaving ? 'Saving…' : isDirty ? 'Save project' : 'Saved'}
-          </Button>
-        </div>
-      </div>
-    </form>
+    </div>
   );
 }
 
@@ -580,7 +653,62 @@ function usePresence(eventId: string): SubmissionEditorPresence[] {
   return others;
 }
 
-function DeleteProjectButton({ eventId }: { eventId: string }) {
+function RemoveCoverButton({ onConfirm }: { onConfirm: () => void }) {
+  const [open, setOpen] = React.useState(false);
+
+  return (
+    <>
+      <Button
+        type='button'
+        variant='ghost'
+        size='icon-sm'
+        aria-label='Remove cover'
+        title='Remove cover'
+        className='hover:text-destructive'
+        onClick={() => setOpen(true)}
+      >
+        <Trash2 />
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className='sm:max-w-md'>
+          <DialogHeader>
+            <DialogTitle>Remove the cover image?</DialogTitle>
+            <DialogDescription>
+              Your project will show without a cover once you save.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type='button'
+              variant='outline'
+              onClick={() => setOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type='button'
+              variant='destructive'
+              onClick={() => {
+                onConfirm();
+                setOpen(false);
+              }}
+            >
+              Remove cover
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+function DeleteProjectButton({
+  eventId,
+  className,
+}: {
+  eventId: string;
+  className?: string;
+}) {
   const [open, setOpen] = React.useState(false);
   const [isDeleting, setIsDeleting] = React.useState(false);
 
@@ -602,11 +730,16 @@ function DeleteProjectButton({ eventId }: { eventId: string }) {
       <Button
         type='button'
         variant='outline'
+        size='icon'
         aria-label='Delete project'
+        title='Delete project'
+        className={cn(
+          'bg-background/80 hover:text-destructive backdrop-blur-sm',
+          className,
+        )}
         onClick={() => setOpen(true)}
       >
-        <Trash2 data-icon='inline-start' />
-        Delete
+        <Trash2 />
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className='sm:max-w-md'>

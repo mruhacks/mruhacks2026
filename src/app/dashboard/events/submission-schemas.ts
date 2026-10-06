@@ -20,7 +20,8 @@ const linkSchema = (kind: SubmissionLinkKind) =>
     })
     .transform((value) => value || null);
 
-export const saveSubmissionSchema = z.object({
+/** Rules every project field follows, whether it's being saved or made public. */
+const contentShape = {
   title: z
     .string()
     .trim()
@@ -37,6 +38,10 @@ export const saveSubmissionSchema = z.object({
     ),
   /** One of this submission's own `/api/assets/submission-content/…` URLs. */
   coverImageUrl: z.string().max(512).nullable(),
+};
+
+export const saveSubmissionSchema = z.object({
+  ...contentShape,
   repoUrl: linkSchema('repo'),
   demoUrl: linkSchema('demo'),
   videoUrl: linkSchema('video'),
@@ -44,6 +49,30 @@ export const saveSubmissionSchema = z.object({
   expectedUpdatedAt: z.iso.datetime({ offset: true }),
   /** "Overwrite with mine": skip the stale-save check. */
   force: z.boolean().default(false),
+});
+
+/** A stored link column: null means "none", which a blank string also does. */
+const storedLink = <T extends z.ZodType<unknown, string>>(schema: T) =>
+  z
+    .string()
+    .nullable()
+    .transform((value) => value ?? '')
+    .pipe(schema);
+
+/**
+ * What a project needs before it can be made public. The editor checks its
+ * current fields on "Make public", and `setSubmissionPublished` checks the saved
+ * row, so a teammate's stale tab can't make an incomplete project public.
+ */
+export const publishSubmissionSchema = z.object({
+  ...contentShape,
+  repoUrl: storedLink(
+    linkSchema('repo').refine((value) => value !== null, {
+      message: 'Add a repository link to make your project public.',
+    }),
+  ),
+  demoUrl: storedLink(linkSchema('demo')),
+  videoUrl: storedLink(linkSchema('video')),
 });
 
 export type SaveSubmissionInput = z.input<typeof saveSubmissionSchema>;

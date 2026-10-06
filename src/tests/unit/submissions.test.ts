@@ -8,7 +8,10 @@ import {
   submissionLinkError,
 } from '@/lib/submissions';
 import { submissionsCloseAtError } from '@/app/dashboard/admin/events/schemas';
-import { saveSubmissionSchema } from '@/app/dashboard/events/submission-schemas';
+import {
+  publishSubmissionSchema,
+  saveSubmissionSchema,
+} from '@/app/dashboard/events/submission-schemas';
 
 const START = new Date('2026-10-17T15:00:00Z');
 const CLOSE = new Date('2026-10-18T18:00:00Z');
@@ -211,6 +214,43 @@ describe('saveSubmissionSchema', () => {
       videoUrl: 'https://example.com/v',
     });
     expect(result.success).toBe(false);
+    expect(result.error?.issues[0]?.path).toEqual(['videoUrl']);
+  });
+});
+
+describe('publishSubmissionSchema', () => {
+  const ready = {
+    title: 'Project',
+    markdown: '',
+    coverImageUrl: null,
+    repoUrl: 'https://github.com/team/project',
+    demoUrl: null,
+    videoUrl: null,
+  };
+
+  test('accepts a stored row with only a repository link', () => {
+    expect(publishSubmissionSchema.safeParse(ready).success).toBe(true);
+  });
+
+  test('requires a repository link, null or blank', () => {
+    for (const repoUrl of [null, '', '  ']) {
+      const result = publishSubmissionSchema.safeParse({ ...ready, repoUrl });
+      expect(result.success).toBe(false);
+      expect(result.error?.issues[0]?.path).toEqual(['repoUrl']);
+      expect(result.error?.issues[0]?.message).toBe(
+        'Add a repository link to make your project public.',
+      );
+    }
+  });
+
+  test('applies the same field rules as saving', () => {
+    expect(
+      publishSubmissionSchema.safeParse({ ...ready, title: ' ' }).success,
+    ).toBe(false);
+    const result = publishSubmissionSchema.safeParse({
+      ...ready,
+      videoUrl: 'https://example.com/v',
+    });
     expect(result.error?.issues[0]?.path).toEqual(['videoUrl']);
   });
 });

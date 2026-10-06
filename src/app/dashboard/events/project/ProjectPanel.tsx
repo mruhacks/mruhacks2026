@@ -29,14 +29,14 @@ export async function ProjectPanel({
 }) {
   const result = await getMySubmission(eventId);
   if (!result.success || !result.data) return null;
-  const { window, opensAt, closesAt, submission } = result.data;
+  const { submissionWindow, opensAt, closesAt, submission } = result.data;
 
   const action =
-    window === 'open'
+    submissionWindow === 'open'
       ? submission
         ? 'Edit project'
         : 'Start project'
-      : window === 'closed' && submission
+      : submissionWindow === 'closed' && submission
         ? 'View project'
         : null;
 
@@ -50,7 +50,7 @@ export async function ProjectPanel({
           )}
         </div>
         <CardDescription>
-          {window === 'closed' ? (
+          {submissionWindow === 'closed' ? (
             submission ? (
               'Submissions are closed. Your project is final.'
             ) : (
@@ -63,7 +63,7 @@ export async function ProjectPanel({
           )}
         </CardDescription>
       </CardHeader>
-      {window === 'open' && (
+      {submissionWindow === 'open' && (
         <CardContent className='flex flex-col gap-2 text-sm'>
           {submission && (
             <p className='truncate font-medium'>{submission.title}</p>
@@ -72,7 +72,7 @@ export async function ProjectPanel({
             <p className='flex items-start gap-2 text-amber-700 dark:text-amber-300'>
               <AlertTriangle className='mt-0.5 size-4 shrink-0' aria-hidden />
               <span>
-                Drafts at the deadline won&apos;t be judged. Publish before{' '}
+                Private projects won&apos;t be judged. Make it public before{' '}
                 <LocalDateTime
                   value={closesAt}
                   dateStyle='medium'

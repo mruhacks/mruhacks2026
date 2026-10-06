@@ -54,6 +54,7 @@ import {
   submissionAttachmentPrefix,
 } from '@/utils/object-storage';
 import {
+  publishSubmissionSchema,
   saveSubmissionSchema,
   type SaveSubmissionInput,
 } from './submission-schemas';
@@ -81,7 +82,7 @@ export type SubmissionView = {
 };
 
 export type MySubmissionState = {
-  window: SubmissionWindow;
+  submissionWindow: SubmissionWindow;
   opensAt: Date | null;
   closesAt: Date | null;
   submission: SubmissionView | null;
@@ -115,7 +116,7 @@ async function toView(row: SubmissionRow): Promise<SubmissionView> {
 /** Why the caller can't change their team's submission right now, or null. */
 function editBlockedReason(access: SubmissionAccess): string | null {
   if (!access.eligible) return 'Project submissions are not available to you.';
-  switch (access.window) {
+  switch (access.submissionWindow) {
     case 'disabled':
       return 'This event is not taking project submissions.';
     case 'not_open':
@@ -189,12 +190,12 @@ export async function getMySubmission(
 
   const access = await loadSubmissionAccess(currentUser.id, eventId);
   if (!access) return fail('Event not found.');
-  if (!access.eligible || access.window === 'disabled') {
+  if (!access.eligible || access.submissionWindow === 'disabled') {
     return fail('Project submissions are not available to you.');
   }
 
   return ok({
-    window: access.window,
+    submissionWindow: access.submissionWindow,
     opensAt: access.event.startsAt,
     closesAt: access.event.submissionsCloseAt,
     submission: access.submission ? await toView(access.submission) : null,
@@ -333,7 +334,7 @@ export async function saveSubmission(
       }
       if (row.published && !data.repoUrl) {
         return fail(
-          'A published project needs a repository link. Unpublish it first to remove the link.',
+          'A public project needs a repository link. Make it private first to remove the link.',
         );
       }
 
@@ -365,8 +366,9 @@ export async function saveSubmission(
 }
 
 /**
- * Publishes or unpublishes the team's project. Any eligible member may, any
- * time the window is open. Publishing needs a repository link.
+ * Makes the team's project public (judged) or private again. Any eligible
+ * member may, any time the window is open. Going public needs a repository
+ * link.
  */
 export async function setSubmissionPublished(
   eventId: string,
@@ -380,8 +382,11 @@ export async function setSubmissionPublished(
   const blocked = editBlockedReason(access);
   if (blocked) return fail(blocked);
   if (!access.submission) return fail('Start your project first.');
-  if (published && !access.submission.repoUrl) {
-    return fail('Add a repository link and save before publishing.');
+  if (published) {
+    const ready = publishSubmissionSchema.safeParse(access.submission);
+    if (!ready.success) {
+      return fail(ready.error.issues[0]?.message ?? 'Invalid project');
+    }
   }
 
   try {
@@ -396,7 +401,7 @@ export async function setSubmissionPublished(
       })
       .where(eq(submissions.id, access.submission.id));
     await revalidateSubmissionPaths(eventId);
-    return ok(published ? 'Project published.' : 'Project unpublished.');
+    return ok(published ? 'Project is now public.' : 'Project is now private.');
   } catch (error) {
     console.error('setSubmissionPublished error:', error);
     return fail('Failed to update your project.');
