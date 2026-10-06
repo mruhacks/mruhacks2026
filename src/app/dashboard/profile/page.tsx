@@ -22,10 +22,9 @@ export default async function DashboardProfilePage() {
     getOptions(),
   ]);
 
-  // This page is only reachable once onboarding (including the About step)
-  // is fully complete, so these are never actually null here in practice —
-  // still, the type is nullable at the source, so normalize to `undefined`
-  // for ProfileForm's Partial<ProfileFormValues> initial values.
+  // Null for a judge, who onboards without the About step: the form asks
+  // for it here, so normalize to `undefined` for ProfileForm's
+  // Partial<ProfileFormValues> initial values.
   const initial =
     profileResult.success && profileResult.data != null
       ? {

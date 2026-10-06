@@ -219,6 +219,19 @@ async function seedRolesAndPermissions() {
         'Delete any project submission (moderation, takedown requests)',
     },
     {
+      slug: 'judging:manage:all',
+      description:
+        'Manage expo judging criteria, weights and the judge roster, and deactivate projects',
+    },
+    {
+      slug: 'judging:results:all',
+      description: 'View live expo judging rankings',
+    },
+    {
+      slug: 'judging:award:all',
+      description: 'Flag finalists and record overall placements',
+    },
+    {
       slug: 'system:read:all',
       description: 'View system health and diagnostics',
     },
@@ -334,6 +347,16 @@ async function seedRolesAndPermissions() {
         roleId: findRole('organizer').id,
         permissionId: findPerm('submission:delete:all').id,
       },
+      ...(
+        [
+          'judging:manage:all',
+          'judging:results:all',
+          'judging:award:all',
+        ] as const
+      ).map((slug) => ({
+        roleId: findRole('organizer').id,
+        permissionId: findPerm(slug).id,
+      })),
       {
         roleId: findRole('volunteer').id,
         permissionId: findPerm('participant:read:all').id,

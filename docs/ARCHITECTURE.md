@@ -15,7 +15,8 @@ Use these terms consistently across UI, code, and docs:
 7. **Attendee** – A participant whose status is `accepted` (holds a spot).
 8. **Group** – A team associated with an event; members are in `group_members`. Use for "group" or "team" in UI and docs.
 9. **Submission** – A group's submission to an event (e.g. project); stored in `submissions`. Distinct from "event application" (user applying to attend).
-10. **Check-in** – Physical verification that an attendee is present (e.g. at event start or at a meal). One row per user per event in `check_ins`; the event can be the main event or a sub-event (e.g. meal). UI: "Check in", "Checked in", etc.
+10. **Expo judging** – Judges walk the expo comparing a team's **submission** with the previous one they saw, on organizer-defined **criteria**. Rankings come from the Crowd-BT model (ported from Gavel, `src/lib/judging/`). A **judge** is anyone on an event's roster (`event_judges`), not a role.
+11. **Check-in** – Physical verification that an attendee is present (e.g. at event start or at a meal). One row per user per event in `check_ins`; the event can be the main event or a sub-event (e.g. meal). UI: "Check in", "Checked in", etc.
 
 In authz, the entity **"application"** means event application (permissions: approve, reject, read).
 
@@ -98,6 +99,12 @@ The database schema is organized into three main modules:
 - `team_members`: Junction `(team_id, user_id)`, plus `event_id`; a user is on at most one team per event (a team-of-one is a normal team)
 - `submissions`: A team's project write-up, at most one per team — title, markdown, cover image, repo/demo/video links, `published` + `published_at`, `last_edited_by` (`set null` on account deletion). `team_id` is `ON DELETE NO ACTION`, so only deleting the event (which cascades to both) can remove a team that holds one
 - `submission_editors`: Editor presence `(submission_id, user_id, last_seen_at)`, refreshed by the editor's heartbeat
+- `judging_criteria`: What judges compare on, per event (name, one-line description, position, weight). Only renamable/reweightable once any vote exists
+- `event_judges`: The judge roster — added by email, linked to the user on sign-in; outlives account deletion (email and user cleared) so votes stay grouped
+- `judging_votes`: One row per criterion per comparison (winner, loser). `judge_id`/`criterion_id` are `NO ACTION` FKs: a judge or criterion with votes can't be deleted, but deleting the event still cascades
+- `judge_reliability` / `submission_scores`: Online Crowd-BT state (α, β per judge per criterion; μ, σ² per project per criterion), used only to dispatch judges. Results replay the in-pool votes instead
+- `judge_state` / `judge_skips` / `judge_notes`: Each judge's current and previous project, their skips ("not here" or conflict of interest), and private notes (keyed on the user)
+- `user_profile_professional`: A judge's company, job title and LinkedIn — the Professional welcome step judges take instead of About
 
 ### Database Views
 

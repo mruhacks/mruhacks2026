@@ -3,6 +3,7 @@ import 'server-only';
 import { and, asc, eq, ne } from 'drizzle-orm';
 
 import {
+  eventJudges,
   submissions,
   teamMembers,
   teams,
@@ -27,6 +28,9 @@ import {
  * (`voterId` → null). The FKs do that on their own; this handles what they
  * can't:
  *
+ * - Judge roster rows keep their votes and reliability grouped, so they stay
+ *   — but lose the email as well as the user link (the FK clears that), and
+ *   show as "Deleted judge #…". Their private judging notes cascade away.
  * - Teams they organize pass to the earliest-joined remaining member, the
  *   same rule as leaving a team. (`organizerId` is `set null` only as the
  *   backstop for a team left empty.)
@@ -36,6 +40,11 @@ import {
  */
 export async function prepareUserDeletion(userId: string): Promise<void> {
   await db.transaction(async (tx) => {
+    await tx
+      .update(eventJudges)
+      .set({ email: null })
+      .where(eq(eventJudges.userId, userId));
+
     const memberships = await tx
       .select({ teamId: teamMembers.teamId, organizerId: teams.organizerId })
       .from(teamMembers)

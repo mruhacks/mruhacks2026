@@ -365,6 +365,13 @@
       "when": 1791236115277,
       "tag": "0051_project_submissions",
       "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1791316014256,
+      "tag": "0052_expo_judging",
+      "breakpoints": true
     }
   ]
 }

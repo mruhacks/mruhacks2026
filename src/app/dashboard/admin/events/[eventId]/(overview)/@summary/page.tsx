@@ -4,12 +4,15 @@ import {
   CalendarCheck,
   CircleCheckBig,
   FileCode2,
+  Gavel,
   ThumbsUp,
+  Trophy,
   Users,
 } from 'lucide-react';
 
 import { getAdminEventHeader, getEventSummaryCounts } from '@/lib/admin-event';
 import { resolveEventId } from '@/lib/events';
+import { getJudgingTileCounts } from '@/lib/judging/server';
 import { isSubmissionsEnabled } from '@/lib/submissions';
 import { hasPermission } from '@/lib/rbac/authorization';
 import { getUser } from '@/utils/auth';
@@ -70,6 +73,10 @@ async function SummaryTiles({
     canReadTeams,
     canReadRsvp,
     canReadSubmissions,
+    canManageJudging,
+    canViewResults,
+    canAward,
+    judging,
   ] = await Promise.all([
     getAdminEventHeader(eventId),
     getEventSummaryCounts(eventId),
@@ -78,6 +85,10 @@ async function SummaryTiles({
     hasPermission(user.id, 'team:read:all'),
     hasPermission(user.id, 'rsvp:read:all'),
     hasPermission(user.id, 'submission:read:all'),
+    hasPermission(user.id, 'judging:manage:all'),
+    hasPermission(user.id, 'judging:results:all'),
+    hasPermission(user.id, 'judging:award:all'),
+    getJudgingTileCounts(eventId),
   ]);
 
   if (!event) return null;
@@ -88,6 +99,12 @@ async function SummaryTiles({
   const showCheckIn = canCheckIn && event.checkInEnabled;
   const showTeams = canReadTeams && event.teamsEnabled;
   const showSubmissions = canReadSubmissions && isSubmissionsEnabled(event);
+  // Judging needs projects to judge, so it follows submissions being on.
+  const judgingEnabled = isSubmissionsEnabled(event);
+  const showJudging = canManageJudging && judgingEnabled;
+  // The results page serves both the rankings and the awards controls, and
+  // gates itself on either permission; the tile mirrors that.
+  const showResults = (canViewResults || canAward) && judgingEnabled;
 
   // Nothing visible to this viewer: render no grid at all rather than an
   // empty shell.
@@ -96,7 +113,9 @@ async function SummaryTiles({
     !showCheckIn &&
     !showTeams &&
     !showRsvp &&
-    !showSubmissions
+    !showSubmissions &&
+    !showJudging &&
+    !showResults
   )
     return null;
 
@@ -167,6 +186,25 @@ async function SummaryTiles({
             </>
           }
           href={`${base}/submissions`}
+        />
+      )}
+
+      {showJudging && (
+        <StatTile
+          icon={<Gavel className='size-4' />}
+          label='Judges'
+          value={judging.judges.toLocaleString()}
+          href={`${base}/judging`}
+        />
+      )}
+
+      {showResults && (
+        <StatTile
+          icon={<Trophy className='size-4' />}
+          label={canViewResults ? 'Judging results' : 'Awards'}
+          value={judging.votes.toLocaleString()}
+          footnote='votes cast'
+          href={`${base}/judging/results`}
         />
       )}
     </TileGrid>

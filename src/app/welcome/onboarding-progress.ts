@@ -8,13 +8,30 @@ import { cacheLife } from 'next/cache';
 
 import { getUser } from '@/utils/auth';
 import { db } from '@/utils/db';
-import { eventParticipants, events, user as authUser } from '@/db/schema';
+import {
+  eventParticipants,
+  events,
+  user as authUser,
+  userProfileProfessional,
+} from '@/db/schema';
 import { and, eq } from 'drizzle-orm';
 import { getConsentStatus } from '@/app/dashboard/account/actions';
 import { getUserProfile } from '@/app/dashboard/profile/actions';
+import { isOnAnyJudgeRoster } from '@/lib/judging/server';
 import type { FeaturedOnboardingEvent } from './featured-event-step';
 
-export const STEPS = ['legal', 'personal', 'about', 'event'] as const;
+/**
+ * Every step, in order. Participants go legal → personal → about → event;
+ * judges (anyone on an expo judging roster) go legal → personal →
+ * professional, skipping About and the featured-event application.
+ */
+export const STEPS = [
+  'legal',
+  'personal',
+  'about',
+  'professional',
+  'event',
+] as const;
 export type Step = (typeof STEPS)[number];
 
 export const isStep = (value: unknown): value is Step =>
@@ -25,6 +42,9 @@ export type OnboardingProgress = {
   needsConsent: boolean;
   needsPersonal: boolean;
   needsAbout: boolean;
+  /** On an expo judging roster: takes the judge path. */
+  isJudge?: boolean;
+  needsProfessional?: boolean;
   featuredEvent?: FeaturedOnboardingEvent;
   isFirstLogin: boolean;
 };
@@ -36,7 +56,14 @@ export async function getOnboardingProgress(): Promise<OnboardingProgress> {
   const user = await getUser();
   if (!user) redirect('/signin');
 
-  const [consentRes, profileRes, [userRow], [featured]] = await Promise.all([
+  const [
+    consentRes,
+    profileRes,
+    [userRow],
+    [featured],
+    isJudge,
+    [professional],
+  ] = await Promise.all([
     getConsentStatus(),
     getUserProfile(),
     db
@@ -56,6 +83,12 @@ export async function getOnboardingProgress(): Promise<OnboardingProgress> {
       .from(events)
       .where(eq(events.isFeatured, true))
       .limit(1),
+    isOnAnyJudgeRoster(user),
+    db
+      .select({ userId: userProfileProfessional.userId })
+      .from(userProfileProfessional)
+      .where(eq(userProfileProfessional.userId, user.id))
+      .limit(1),
   ]);
 
   // Fail safe: if we can't read consent/profile state, prompt for it
@@ -69,7 +102,7 @@ export async function getOnboardingProgress(): Promise<OnboardingProgress> {
     profileRes.data.universityId == null;
 
   let featuredEvent: FeaturedOnboardingEvent | undefined;
-  if (featured) {
+  if (featured && !isJudge) {
     // Applied or registered — either way they already have a participant row.
     const [existingParticipation] = await db
       .select({ id: eventParticipants.id })
@@ -95,6 +128,8 @@ export async function getOnboardingProgress(): Promise<OnboardingProgress> {
     needsConsent,
     needsPersonal,
     needsAbout,
+    isJudge,
+    needsProfessional: professional == null,
     featuredEvent,
     isFirstLogin: userRow?.onboardingCompletedAt == null,
   };
@@ -107,9 +142,11 @@ function stepNeeded(progress: OnboardingProgress, step: Step): boolean {
     case 'personal':
       return progress.needsPersonal;
     case 'about':
-      return progress.needsAbout;
+      return !progress.isJudge && progress.needsAbout;
+    case 'professional':
+      return progress.isJudge === true && progress.needsProfessional === true;
     case 'event':
-      return progress.featuredEvent != null;
+      return !progress.isJudge && progress.featuredEvent != null;
   }
 }
 

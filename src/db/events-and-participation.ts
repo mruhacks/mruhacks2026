@@ -10,6 +10,7 @@
  * - event_rsvp_waves / event_invitations: RSVP invitation batches and per-participant delivery/consent
  * - event_articles: Per-event wiki pages authored in markdown by organizers
  * - submissions / submission_editors: A team's project write-up, and who has it open
+ * - user_profile_professional: A judge's company and job title (expo judging lives in ./judging)
  * - application_form_view: Denormalized view for form pre-fill
  *
  * Event participation: every event uses event_participants. An event with an application starts a
@@ -222,6 +223,27 @@ export const userProfileAbout = pgTable('user_profile_about', {
   /** Optional social links, shown to organizers/sponsors reviewing applications. */
   linkedinUrl: varchar('linkedin_url', { length: 255 }),
   githubUrl: varchar('github_url', { length: 255 }),
+  createdAt: timestamp('created_at', { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true })
+    .defaultNow()
+    .$onUpdate(() => new Date())
+    .notNull(),
+});
+
+/**
+ * Professional profile, filled in by judges during onboarding in place of
+ * the About step. Like `user_profile_about`, the row existing is what
+ * "Professional step done" means.
+ */
+export const userProfileProfessional = pgTable('user_profile_professional', {
+  userId: uuid('user_id')
+    .primaryKey()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  company: varchar('company', { length: 255 }).notNull(),
+  jobTitle: varchar('job_title', { length: 255 }).notNull(),
+  linkedinUrl: varchar('linkedin_url', { length: 255 }),
   createdAt: timestamp('created_at', { withTimezone: true })
     .defaultNow()
     .notNull(),
@@ -629,6 +651,16 @@ export const submissions = pgTable(
     lastEditedBy: uuid('last_edited_by').references(() => user.id, {
       onDelete: 'set null',
     }),
+    /**
+     * Set by an organizer (`judging:manage:all`) when a project shouldn't be
+     * judged — team left, disqualified. Never dispatched again and left out
+     * of results; its votes are kept.
+     */
+    deactivatedAt: timestamp('deactivated_at', { withTimezone: true }),
+    /** Flagged from the judging results for the offline panel round. */
+    finalist: boolean('finalist').notNull().default(false),
+    /** Overall placement (1st, 2nd, …); unique per event where set. */
+    placement: integer('placement'),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -644,6 +676,9 @@ export const submissions = pgTable(
   (table) => ({
     teamUnique: uniqueIndex('submissions_team_id_unique').on(table.teamId),
     idxEventId: index('idx_submissions_event_id').on(table.eventId),
+    eventPlacementUnique: uniqueIndex('submissions_event_id_placement_unique')
+      .on(table.eventId, table.placement)
+      .where(sql`${table.placement} IS NOT NULL`),
   }),
 );
 

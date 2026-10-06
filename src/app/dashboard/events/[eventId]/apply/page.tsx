@@ -141,7 +141,10 @@ export default async function ApplyEventPage({ params }: Props) {
     user,
   );
 
-  if (!hasProfile && !previousApplication.success) {
+  // No profile yet — or a judge, who onboarded without the About step and is
+  // asked for it now, the first time they apply as a participant.
+  const needsAbout = profileData != null && profileData.universityId == null;
+  if ((!hasProfile || needsAbout) && !previousApplication.success) {
     redirect(`/dashboard/profile?next=/dashboard/events/${segment}/apply`);
   }
 
