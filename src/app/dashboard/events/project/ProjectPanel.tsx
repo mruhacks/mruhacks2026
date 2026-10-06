@@ -1,9 +1,11 @@
 import Link from 'next/link';
-import { AlertTriangle } from 'lucide-react';
 
 import { getMySubmission } from '@/app/dashboard/events/submission-actions';
-import { LocalDateTime } from '@/components/local-date-time';
-import { SubmissionStatusBadge } from '@/components/submissions/submission-view';
+import {
+  ProjectStageDescription,
+  ProjectStageWarning,
+  SubmissionStatusBadge,
+} from '@/components/submissions/submission-view';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -12,6 +14,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { getProjectStage, PROJECT_STAGE_COPY } from '@/lib/submission-copy';
 
 import { ProjectStatusToggle } from './project-status-toggle';
 
@@ -30,16 +33,9 @@ export async function ProjectPanel({
 }) {
   const result = await getMySubmission(eventId);
   if (!result.success || !result.data) return null;
-  const { submissionWindow, closesAt, submission } = result.data;
-
-  const action =
-    submissionWindow === 'open'
-      ? submission
-        ? 'Edit project'
-        : 'Start project'
-      : submissionWindow === 'closed' && submission
-        ? 'View project'
-        : null;
+  const { submissionWindow, opensAt, closesAt, submission } = result.data;
+  const stage = getProjectStage(submissionWindow, submission);
+  const { action } = PROJECT_STAGE_COPY[stage];
 
   return (
     <Card>
@@ -58,33 +54,13 @@ export async function ProjectPanel({
               <SubmissionStatusBadge published={submission.published} />
             ))}
         </div>
-        {submissionWindow === 'open' && !submission?.published && (
-          <p className='flex items-start gap-2 text-sm text-amber-700 dark:text-amber-300'>
-            <AlertTriangle className='mt-0.5 size-4 shrink-0' aria-hidden />
-            <span>
-              Private projects won&apos;t be judged. Make it public before
-              submissions close.
-            </span>
-          </p>
-        )}
+        <ProjectStageWarning stage={stage} />
         <CardDescription>
-          {submissionWindow === 'closed' ? (
-            submission ? (
-              'Submissions are closed. Your project is final.'
-            ) : (
-              "Submissions are closed. Your team didn't submit a project."
-            )
-          ) : (
-            <>
-              Submissions close{' '}
-              <LocalDateTime
-                value={closesAt}
-                dateStyle='medium'
-                timeStyle='short'
-                timeZoneName='short'
-              />
-            </>
-          )}
+          <ProjectStageDescription
+            stage={stage}
+            opensAt={opensAt}
+            closesAt={closesAt}
+          />
         </CardDescription>
       </CardHeader>
       {action && (

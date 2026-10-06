@@ -14,6 +14,14 @@ import { ShareInviteButton } from './ShareInviteButton';
 import { JoinTeamDialog } from './JoinTeamDialog';
 import { LeaveTeamButton } from './LeaveTeamButton';
 
+type TeamStage = 'open' | 'roster_locked' | 'ended';
+
+const TEAM_STAGE_DESCRIPTION: Record<TeamStage, string> = {
+  open: "Group up with the people you're attending with.",
+  roster_locked: 'The project deadline has passed. Your team is final.',
+  ended: 'This event has ended. Your team is final.',
+};
+
 type Props = {
   eventId: string;
   joinCode?: string;
@@ -36,7 +44,12 @@ export async function TeamPanel({
   const isOrganizer = organizerId === currentUser.id;
   // After the event, or once the project deadline has passed, the roster is
   // final and only shows.
-  const frozen = hasEnded || rosterLocked;
+  const teamStage: TeamStage = hasEnded
+    ? 'ended'
+    : rosterLocked
+      ? 'roster_locked'
+      : 'open';
+  const frozen = teamStage !== 'open';
   const memberCount = members.length;
   const memberCountLabel =
     maxTeamSize != null
@@ -50,13 +63,7 @@ export async function TeamPanel({
           <CardTitle className='text-base'>Your Team</CardTitle>
           <Badge variant='outline'>{memberCountLabel}</Badge>
         </div>
-        <CardDescription>
-          {hasEnded
-            ? 'This event has ended. Your team is final.'
-            : rosterLocked
-              ? 'The project deadline has passed. Your team is final.'
-              : "Group up with the people you're attending with."}
-        </CardDescription>
+        <CardDescription>{TEAM_STAGE_DESCRIPTION[teamStage]}</CardDescription>
       </CardHeader>
       <CardContent className='space-y-4'>
         {!frozen && <TeamCodeDisplay code={code} />}

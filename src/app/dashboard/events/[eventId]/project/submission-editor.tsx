@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { toast } from 'sonner';
-import { AlertTriangle, ImagePlus, Trash2, Users } from 'lucide-react';
+import { ImagePlus, Trash2, Users } from 'lucide-react';
 
 import {
   deleteSubmission,
@@ -23,6 +23,8 @@ import { LocalDateTime } from '@/components/local-date-time';
 import { MarkdownEditor } from '@/components/markdown/markdown-editor';
 import {
   DELETED_USER_LABEL,
+  ProjectStageDescription,
+  ProjectStageWarning,
   SubmissionBanner,
   SubmissionStatusBadge,
 } from '@/components/submissions/submission-view';
@@ -43,6 +45,7 @@ import {
   FieldLabel,
 } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
+import { PROJECT_VISIBILITY_COPY } from '@/lib/submission-copy';
 import {
   SUBMISSION_HEARTBEAT_INTERVAL_MS,
   SUBMISSION_TITLE_MAX_LENGTH,
@@ -295,7 +298,7 @@ export function SubmissionEditor({
         return;
       }
       setSaved((current) => ({ ...current, published: true }));
-      toast.success('Project is now public');
+      toast.success(PROJECT_VISIBILITY_COPY.public.madeToast);
     } catch {
       setFormError('Unable to make your project public. Please try again.');
     } finally {
@@ -313,7 +316,7 @@ export function SubmissionEditor({
       return;
     }
     setSaved((current) => ({ ...current, published: false }));
-    toast.success('Project is now private');
+    toast.success(PROJECT_VISIBILITY_COPY.private.madeToast);
   }
 
   function togglePublic() {
@@ -336,6 +339,9 @@ export function SubmissionEditor({
     update('coverImageUrl', result.data.url);
   }
 
+  // The editor only exists while the window is open.
+  const stage = saved.published ? 'public' : 'private';
+
   return (
     <div className='flex flex-col gap-6'>
       <SubmissionBanner
@@ -350,22 +356,14 @@ export function SubmissionEditor({
             disabled={isPublishing || isSaving}
           />
         </div>
-        {!saved.published && (
-          <p className='flex items-start gap-2 text-sm text-amber-700 dark:text-amber-300'>
-            <AlertTriangle className='mt-0.5 size-4 shrink-0' aria-hidden />
-            <span>
-              Private projects won&apos;t be judged.
-              <br /> Make it public before{' '}
-              <LocalDateTime
-                value={closesAt}
-                dateStyle='medium'
-                timeStyle='short'
-                timeZoneName='short'
-              />
-              , don&apos;t worry you can still keep editing after.
-            </span>
-          </p>
-        )}
+        <p className='text-muted-foreground text-sm'>
+          <ProjectStageDescription
+            stage={stage}
+            opensAt={null}
+            closesAt={closesAt}
+          />
+        </p>
+        <ProjectStageWarning stage={stage} />
       </SubmissionBanner>
 
       {others.length > 0 && (

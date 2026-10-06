@@ -82,7 +82,8 @@ export type SubmissionView = {
 };
 
 export type MySubmissionState = {
-  submissionWindow: SubmissionWindow;
+  /** Never `disabled`: `getMySubmission` refuses those events outright. */
+  submissionWindow: Exclude<SubmissionWindow, 'disabled'>;
   opensAt: Date | null;
   closesAt: Date | null;
   submission: SubmissionView | null;
@@ -190,12 +191,13 @@ export async function getMySubmission(
 
   const access = await loadSubmissionAccess(currentUser.id, eventId);
   if (!access) return fail('Event not found.');
-  if (!access.eligible || access.submissionWindow === 'disabled') {
+  const { submissionWindow } = access;
+  if (!access.eligible || submissionWindow === 'disabled') {
     return fail('Project submissions are not available to you.');
   }
 
   return ok({
-    submissionWindow: access.submissionWindow,
+    submissionWindow,
     opensAt: access.event.startsAt,
     closesAt: access.event.submissionsCloseAt,
     submission: access.submission ? await toView(access.submission) : null,
@@ -377,31 +379,48 @@ export async function setSubmissionPublished(
   const currentUser = await getUser();
   if (!currentUser) return fail('Not authenticated');
 
-  const access = await loadSubmissionAccess(currentUser.id, eventId);
-  if (!access) return fail('Event not found.');
-  const blocked = editBlockedReason(access);
-  if (blocked) return fail(blocked);
-  if (!access.submission) return fail('Start your project first.');
-  if (published) {
-    const ready = publishSubmissionSchema.safeParse(access.submission);
-    if (!ready.success) {
-      return fail(ready.error.issues[0]?.message ?? 'Invalid project');
-    }
-  }
-
   try {
-    await db
-      .update(submissions)
-      .set({
-        published,
-        publishedAt: published ? new Date() : null,
-        // `updatedAt` tracks content saves for the stale-save check; flipping
-        // the flag isn't one, so a teammate mid-edit isn't told to reload.
-        updatedAt: sql`${submissions.updatedAt}`,
-      })
-      .where(eq(submissions.id, access.submission.id));
-    await revalidateSubmissionPaths(eventId);
-    return ok(published ? 'Project is now public.' : 'Project is now private.');
+    const result = await db.transaction(async (tx) => {
+      const access = await loadSubmissionAccess(currentUser.id, eventId, tx);
+      if (!access) return fail('Event not found.');
+      const blocked = editBlockedReason(access);
+      if (blocked) return fail(blocked);
+      if (!access.submission) return fail('Start your project first.');
+
+      // Checked against the locked row, as `saveSubmission` does: otherwise a
+      // teammate's concurrent save clearing the repo link could land between
+      // this check and the write, leaving a public project without one.
+      const [row] = await tx
+        .select()
+        .from(submissions)
+        .where(eq(submissions.id, access.submission.id))
+        .limit(1)
+        .for('update');
+      if (!row) return fail('Your project no longer exists.');
+      if (published) {
+        const ready = publishSubmissionSchema.safeParse(row);
+        if (!ready.success) {
+          return fail(ready.error.issues[0]?.message ?? 'Invalid project');
+        }
+      }
+
+      await tx
+        .update(submissions)
+        .set({
+          published,
+          publishedAt: published ? new Date() : null,
+          // `updatedAt` tracks content saves for the stale-save check;
+          // flipping the flag isn't one, so a teammate mid-edit isn't told
+          // to reload.
+          updatedAt: sql`${submissions.updatedAt}`,
+        })
+        .where(eq(submissions.id, row.id));
+      return ok(
+        published ? 'Project is now public.' : 'Project is now private.',
+      );
+    });
+    if (result.success) await revalidateSubmissionPaths(eventId);
+    return result;
   } catch (error) {
     console.error('setSubmissionPublished error:', error);
     return fail('Failed to update your project.');

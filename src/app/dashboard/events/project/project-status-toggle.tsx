@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 
 import { setSubmissionPublished } from '@/app/dashboard/events/submission-actions';
 import { SubmissionStatusBadge } from '@/components/submissions/submission-view';
+import { PROJECT_VISIBILITY_COPY } from '@/lib/submission-copy';
 
 /**
  * The project panel's Public/Private pill, clickable while submissions are
@@ -31,7 +32,9 @@ export function ProjectStatusToggle({
         toast.error(result.error);
         return;
       }
-      toast.success(next ? 'Project is now public' : 'Project is now private');
+      toast.success(
+        PROJECT_VISIBILITY_COPY[next ? 'public' : 'private'].madeToast,
+      );
     });
   }
 

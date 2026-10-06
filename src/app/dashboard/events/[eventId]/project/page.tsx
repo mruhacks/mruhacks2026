@@ -5,8 +5,10 @@ import { ArrowLeft } from 'lucide-react';
 
 import { getMySubmission } from '@/app/dashboard/events/submission-actions';
 import { BreadcrumbSegment } from '@/components/breadcrumb-context';
-import { LocalDateTime } from '@/components/local-date-time';
-import { SubmissionView } from '@/components/submissions/submission-view';
+import {
+  ProjectStageDescription,
+  SubmissionView,
+} from '@/components/submissions/submission-view';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -17,6 +19,7 @@ import {
 } from '@/components/ui/card';
 import { serializeInstant } from '@/lib/datetime';
 import { resolveEventId } from '@/lib/events';
+import { getProjectStage, PROJECT_STAGE_COPY } from '@/lib/submission-copy';
 import { getUser } from '@/utils/auth';
 
 import { StartProjectButton } from './start-project-button';
@@ -56,7 +59,12 @@ async function ProjectContent({
 
   const eventHref = `/dashboard/events/${segment}`;
 
-  const isEditing = submissionWindow === 'open' && !!submission;
+  const stage = getProjectStage(submissionWindow, submission);
+  const copy = PROJECT_STAGE_COPY[stage];
+  // These stages render the editor or the read-only project, each with its
+  // own title banner; the rest are a single status card.
+  const isEditing = stage === 'private' || stage === 'public';
+  const isFinal = stage === 'closed_private' || stage === 'closed_public';
 
   return (
     <div className='flex flex-col gap-3'>
@@ -74,54 +82,32 @@ async function ProjectContent({
       </Button>
 
       <div className='flex flex-col gap-6'>
-        {/* The editor and the read-only view each render their own banner. */}
-        {!isEditing && !(submissionWindow === 'closed' && submission) && (
-          <h1 className='text-3xl font-semibold tracking-tight wrap-break-word'>
-            Your team&apos;s project
-          </h1>
+        {!isEditing && !isFinal && (
+          <>
+            <h1 className='text-3xl font-semibold tracking-tight wrap-break-word'>
+              Your team&apos;s project
+            </h1>
+            <Card>
+              <CardHeader>
+                <CardTitle>{copy.title}</CardTitle>
+                <CardDescription>
+                  <ProjectStageDescription
+                    stage={stage}
+                    opensAt={opensAt}
+                    closesAt={closesAt}
+                  />
+                </CardDescription>
+              </CardHeader>
+              {stage === 'not_started' && (
+                <CardFooter>
+                  <StartProjectButton eventId={eventId} />
+                </CardFooter>
+              )}
+            </Card>
+          </>
         )}
 
-        {submissionWindow === 'not_open' && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Submissions aren&apos;t open yet</CardTitle>
-              <CardDescription>
-                You can start your write-up once the event begins, at{' '}
-                <LocalDateTime
-                  value={opensAt}
-                  dateStyle='medium'
-                  timeStyle='short'
-                  timeZoneName='short'
-                />
-                .
-              </CardDescription>
-            </CardHeader>
-          </Card>
-        )}
-
-        {submissionWindow === 'open' && !submission && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Start your project</CardTitle>
-              <CardDescription>
-                One write-up per team, shared by every teammate. Submissions
-                close{' '}
-                <LocalDateTime
-                  value={closesAt}
-                  dateStyle='medium'
-                  timeStyle='short'
-                  timeZoneName='short'
-                />
-                .
-              </CardDescription>
-            </CardHeader>
-            <CardFooter>
-              <StartProjectButton eventId={eventId} />
-            </CardFooter>
-          </Card>
-        )}
-
-        {isEditing && (
+        {isEditing && submission && (
           <SubmissionEditor
             // A new row (after a delete and restart) is a fresh editor.
             key={submission.id}
@@ -142,28 +128,16 @@ async function ProjectContent({
           />
         )}
 
-        {submissionWindow === 'closed' &&
-          (submission ? (
-            <SubmissionView
-              submission={submission}
-              notice={
-                <>
-                  The submission deadline has passed — this is final.
-                  {!submission.published &&
-                    " It was still a draft at the deadline, so it won't be judged."}
-                </>
-              }
-            />
-          ) : (
-            <Card>
-              <CardHeader>
-                <CardTitle>Submissions are closed</CardTitle>
-                <CardDescription>
-                  Your team didn&apos;t submit a project before the deadline.
-                </CardDescription>
-              </CardHeader>
-            </Card>
-          ))}
+        {isFinal && submission && (
+          <SubmissionView
+            submission={submission}
+            notice={
+              <>
+                {copy.description} {copy.warning}
+              </>
+            }
+          />
+        )}
       </div>
     </div>
   );

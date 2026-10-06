@@ -496,7 +496,9 @@ describe('the deadline', () => {
     await setDeadlinePassed(eventId, true);
     loginAs(userA);
     const submission = await currentSubmission(eventId);
-    expect(unwrap(await getMySubmission(eventId)).submissionWindow).toBe('closed');
+    expect(unwrap(await getMySubmission(eventId)).submissionWindow).toBe(
+      'closed',
+    );
     expect((await saveSubmission(eventId, saveInput(submission))).success).toBe(
       false,
     );
@@ -504,7 +506,9 @@ describe('the deadline', () => {
     expect((await deleteSubmission(eventId)).success).toBe(false);
 
     await setDeadlinePassed(eventId, false);
-    expect(unwrap(await getMySubmission(eventId)).submissionWindow).toBe('open');
+    expect(unwrap(await getMySubmission(eventId)).submissionWindow).toBe(
+      'open',
+    );
   });
 
   test('locks self-service team changes, but not moderation', async () => {
@@ -814,5 +818,18 @@ describe('account deletion', () => {
       );
     expect(log).toBeDefined();
     expect(JSON.stringify(log!.metadata ?? {})).not.toContain(target.email);
+  });
+
+  test('purgeUser without user:all:all cannot wipe an administrator', async () => {
+    const superAdmin = await makeUser('PurgeSuperAdmin');
+    await grant(superAdmin.id, ['user:all:all']);
+
+    loginAs(admin);
+    const result = await purgeUser(superAdmin.id);
+    expect(result.success).toBe(false);
+    expect((result as { error: string }).error).toContain('administrator');
+    expect(
+      await db.select().from(user).where(eq(user.id, superAdmin.id)),
+    ).toHaveLength(1);
   });
 });

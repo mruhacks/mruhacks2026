@@ -1,11 +1,23 @@
 import type * as React from 'react';
-import { Code2, Eye, EyeOff, Globe, PlayCircle } from 'lucide-react';
+import {
+  AlertTriangle,
+  Code2,
+  Eye,
+  EyeOff,
+  Globe,
+  PlayCircle,
+} from 'lucide-react';
 
 import { LocalDateTime } from '@/components/local-date-time';
 import { MarkdownContent } from '@/components/markdown/markdown-content';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import {
+  PROJECT_STAGE_COPY,
+  PROJECT_VISIBILITY_COPY,
+  type ProjectStage,
+} from '@/lib/submission-copy';
 import { cn } from '@/lib/utils';
 
 /** Shown wherever a submission's last editor has since deleted their account. */
@@ -37,15 +49,12 @@ export function SubmissionStatusBadge({
   onToggle?: () => void;
   disabled?: boolean;
 }) {
-  const content = published ? (
+  const copy = PROJECT_VISIBILITY_COPY[published ? 'public' : 'private'];
+  const Icon = published ? Eye : EyeOff;
+  const content = (
     <>
-      <Eye aria-hidden />
-      Public
-    </>
-  ) : (
-    <>
-      <EyeOff aria-hidden />
-      Private
+      <Icon aria-hidden />
+      {copy.label}
     </>
   );
   const variant = published ? 'success' : 'secondary';
@@ -61,16 +70,55 @@ export function SubmissionStatusBadge({
         type='button'
         onClick={onToggle}
         disabled={disabled}
-        title={published ? 'Make private' : 'Make public'}
-        aria-label={
-          published
-            ? 'Public — click to make private'
-            : 'Private — click to make public'
-        }
+        title={copy.toggleHint}
+        aria-label={`${copy.label} — ${copy.toggleHint.toLowerCase()}`}
       >
         {content}
       </button>
     </Badge>
+  );
+}
+
+/**
+ * A project stage's one-line status from `PROJECT_STAGE_COPY`, followed by
+ * the deadline it names, if any.
+ */
+export function ProjectStageDescription({
+  stage,
+  opensAt,
+  closesAt,
+}: {
+  stage: ProjectStage;
+  opensAt: Date | string | null;
+  closesAt: Date | string | null;
+}) {
+  const { description, date } = PROJECT_STAGE_COPY[stage];
+  const value =
+    date === 'opensAt' ? opensAt : date === 'closesAt' ? closesAt : null;
+  if (!value) return <>{description}</>;
+  return (
+    <>
+      {description}{' '}
+      <LocalDateTime
+        value={value}
+        dateStyle='medium'
+        timeStyle='short'
+        timeZoneName='short'
+      />
+      .
+    </>
+  );
+}
+
+/** A project stage's warning from `PROJECT_STAGE_COPY`; nothing if it has none. */
+export function ProjectStageWarning({ stage }: { stage: ProjectStage }) {
+  const { warning } = PROJECT_STAGE_COPY[stage];
+  if (!warning) return null;
+  return (
+    <p className='flex items-start gap-2 text-sm text-amber-700 dark:text-amber-300'>
+      <AlertTriangle className='mt-0.5 size-4 shrink-0' aria-hidden />
+      <span>{warning}</span>
+    </p>
   );
 }
 

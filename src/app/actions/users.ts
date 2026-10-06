@@ -421,6 +421,14 @@ export async function purgeUser(userId: string): Promise<ActionResult> {
       .limit(1);
     if (!target) return fail('User not found');
 
+    // Same guard as deleteUser: `user:purge:all` is meant to be grantable on
+    // its own (e.g. a compliance role), which must not reach administrators.
+    const targetIsAdmin = await hasPermission(userId, 'user:all:all');
+    const callerIsAdmin = await hasPermission(caller.id, 'user:all:all');
+    if (targetIsAdmin && !callerIsAdmin) {
+      return fail('You cannot purge an administrator');
+    }
+
     await prepareUserDeletion(userId);
     await db.delete(user).where(eq(user.id, userId));
     await writeAuditLog({

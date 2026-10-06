@@ -240,16 +240,18 @@ async function EventEntryContent({ params, searchParams }: Props) {
             hasEnded={hasEnded}
           />
         }
+        project={
+          canManageTeam ? (
+            <ProjectPanel eventId={eventId} eventHref={eventHref} />
+          ) : null
+        }
         team={
           canManageTeam ? (
-            <>
-              <ProjectPanel eventId={eventId} eventHref={eventHref} />
-              <TeamPanel
-                eventId={eventId}
-                joinCode={joinCode}
-                hasEnded={hasEnded}
-              />
-            </>
+            <TeamPanel
+              eventId={eventId}
+              joinCode={joinCode}
+              hasEnded={hasEnded}
+            />
           ) : null
         }
       />
@@ -317,6 +319,7 @@ function EventPageLayout({
   articles,
   schedule,
   participation,
+  project = null,
   team,
   mobileAction,
   hasEnded,
@@ -331,6 +334,8 @@ function EventPageLayout({
   articles: PublishedArticle[];
   schedule: ScheduleEntry[];
   participation: React.ReactNode;
+  /** The team's project submission panel; application events only. */
+  project?: React.ReactNode;
   team: React.ReactNode;
   hasEnded: boolean;
   mobileAction:
@@ -381,6 +386,7 @@ function EventPageLayout({
 
         <aside className='order-first flex flex-col gap-4 lg:sticky lg:top-24 lg:order-0 lg:self-start'>
           {participation}
+          {project}
           {team}
         </aside>
       </div>
