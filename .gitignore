@@ -48,3 +48,6 @@ next-env.d.ts
 
 !.env.example
 /.pnpm-store/v11
+
+# Python bytecode (vendor/gavel, if run outside the oracle's container)
+__pycache__/

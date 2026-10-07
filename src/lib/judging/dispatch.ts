@@ -27,6 +27,8 @@ import {
 export const MIN_VIEWS = 2;
 /** Gavel's TIMEOUT: how long an assignment keeps a project off other judges' lists. */
 export const BUSY_WINDOW_MS = 5 * 60 * 1000;
+/** Relative difference below which two information gains are a tie. */
+const GAIN_TIE_TOLERANCE = 1e-12;
 
 export type DispatchCandidate = {
   id: string;
@@ -93,7 +95,10 @@ export function chooseNext(input: DispatchInput): string | null {
   // A first assignment has nothing to compare against: Gavel picks at random.
   if (!input.previous || random() < EPSILON) return items[0].id;
 
-  // Shuffled first, so ties break randomly — as in Gavel.
+  // Shuffled first, so ties break randomly — as in Gavel. A tie is often
+  // exact in theory but not in floating point (two projects mirrored around
+  // the previous one's μ), so gains within rounding noise count as tied
+  // rather than letting the last bit decide.
   let best = items[0];
   let bestGain = -Infinity;
   for (const item of items) {
@@ -103,7 +108,7 @@ export function chooseNext(input: DispatchInput): string | null {
       input.previous.estimates,
       item.estimates,
     );
-    if (gain > bestGain) {
+    if (gain - bestGain > GAIN_TIE_TOLERANCE * Math.abs(gain)) {
       best = item;
       bestGain = gain;
     }

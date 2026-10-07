@@ -241,7 +241,10 @@ async function loadPoolIds(
   const rows = await dbHandle
     .select({ id: submissions.id })
     .from(submissions)
-    .where(and(eq(submissions.eventId, eventId), inPoolCondition()));
+    .where(and(eq(submissions.eventId, eventId), inPoolCondition()))
+    // A fixed order, so the same random stream always dispatches the same way
+    // (src/tests/gavel-differential.test.ts replays one against Gavel).
+    .orderBy(asc(submissions.createdAt), asc(submissions.id));
   return new Set(rows.map((row) => row.id));
 }
 

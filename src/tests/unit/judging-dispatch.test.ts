@@ -108,6 +108,27 @@ describe('chooseNext', () => {
     expect(next).toBe('open');
   });
 
+  it('breaks a tie by shuffled order, not by rounding noise', () => {
+    // Mirrored around the previous project's μ, these two gain exactly the
+    // same in theory, but not in floating point.
+    const above = { mu: 0.40909090909090906, sigmaSq: 0.8326446280991735 };
+    const below = { mu: -above.mu, sigmaSq: above.sigmaSq };
+    const pick = (first: ProjectEstimate, second: ProjectEstimate) =>
+      chooseNext({
+        candidates: [
+          candidate('first', { estimates: { design: first, tech: first } }),
+          candidate('second', { estimates: { design: second, tech: second } }),
+        ],
+        criterionIds: CRITERIA,
+        previous: { estimates: new Map() },
+        reliability: new Map(),
+        // The shuffle keeps the order; 0.99 ≥ EPSILON: exploit.
+        random: sequence(0.99),
+      });
+    expect(pick(below, above)).toBe('first');
+    expect(pick(above, below)).toBe('first');
+  });
+
   it('explores with probability epsilon', () => {
     const previous = { estimates: new Map<string, ProjectEstimate>() };
     const settled = { mu: 6, sigmaSq: 0.01 };
