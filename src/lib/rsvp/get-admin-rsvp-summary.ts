@@ -30,7 +30,11 @@ export type AdminRsvpLifecycle =
 
 /** Invitation email delivery state, separate from the RSVP decision itself. */
 export type RsvpInvitationEmailStatus =
-  'legacy' | 'unsent' | 'queued' | 'sent' | 'failed';
+  | 'legacy'
+  | 'unsent'
+  | 'queued'
+  | 'sent'
+  | 'failed';
 
 export type AdminRsvpParticipant = {
   responseId: string;

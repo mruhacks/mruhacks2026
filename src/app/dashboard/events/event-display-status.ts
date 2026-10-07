@@ -11,7 +11,11 @@ import {
  */
 
 export type EventDisplayPill =
-  ParticipationStatus | 'registered' | 'open_to_apply' | 'registration_open';
+  | ParticipationStatus
+  | 'registered'
+  | 'open_to_apply'
+  | 'registration_open'
+  | 'ended';
 
 export type EventDisplayStatus = {
   label: string;
@@ -22,6 +26,12 @@ export type EventDisplayStatus = {
 export type EventDisplayStatusInput = {
   hasApplication: boolean;
   status: ParticipationStatus | null;
+  /**
+   * The event is over. Only changes the badge for a user who never took
+   * part — an "open" badge on a past event advertises an action the server
+   * refuses; a real status is still worth showing as a record.
+   */
+  hasEnded?: boolean;
   /** DB display config; falls back to the seeded copy when absent. */
   statusDisplay?: Pick<StatusDisplay, 'title' | 'variant'> | null;
 };
@@ -45,6 +55,10 @@ export function getEventDisplayStatus(
       pill: input.status,
       badgeVariant: display.variant,
     };
+  }
+
+  if (input.hasEnded) {
+    return { label: 'Ended', pill: 'ended', badgeVariant: 'secondary' };
   }
 
   if (input.hasApplication) {

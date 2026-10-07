@@ -81,6 +81,21 @@ beforeAll(async () => {
     .values({ userId: adminUserId, permissionId: eventManagePermId })
     .onConflictDoNothing();
 
+  // The RSVP page's read actions are gated on their own permission.
+  await db
+    .insert(permission)
+    .values({ slug: 'rsvp:read:all' })
+    .onConflictDoNothing();
+  const [rsvpRead] = await db
+    .select({ id: permission.id })
+    .from(permission)
+    .where(eq(permission.slug, 'rsvp:read:all'))
+    .limit(1);
+  await db
+    .insert(userPermission)
+    .values({ userId: adminUserId, permissionId: rsvpRead.id })
+    .onConflictDoNothing();
+
   const [e] = await db
     .insert(events)
     .values({

@@ -7,7 +7,7 @@ import {
   afterAll,
   vi,
 } from 'vitest';
-import { eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { db } from '@/utils/db';
 import {
   user,
@@ -30,6 +30,7 @@ import type { ParticipationStatus } from '@/types/lookups';
 import {
   getStatus,
   insertParticipant,
+  insertVotes,
   statusId,
 } from '@/tests/participation-fixtures';
 
@@ -83,7 +84,7 @@ let userCounter = 0;
 async function createApplicant(
   eventId: string,
   status: ParticipationStatus,
-  extra: { createdAt?: Date; waitlistPosition?: number | null } = {},
+  extra: { createdAt?: Date } = {},
 ): Promise<string> {
   const email = `wave-${Date.now()}-${userCounter++}@example.com`;
   const [row] = await db
@@ -418,25 +419,51 @@ describe('sendRsvpWave', () => {
     });
   });
 
-  test('invites the waitlist in position order, unranked last', async () => {
+  test('invites the waitlist in vote order, unvoted last', async () => {
     const eventId = await createEvent({ capacity: 3 });
-    // Position wins over application time; unranked go after the ranked queue.
+    // Reviewers are any users; denied applicants don't touch the order.
+    const voters = await Promise.all(
+      [0, 1, 2].map(() => createApplicant(eventId, 'denied')),
+    );
+    // Votes win over application time; unvoted go after the ranked queue.
     const unranked = await createApplicant(eventId, 'waitlisted', {
       createdAt: new Date('2025-12-01T00:00:00.000Z'),
-      waitlistPosition: null,
     });
     const waitlistedThird = await createApplicant(eventId, 'waitlisted', {
       createdAt: new Date('2026-01-01T00:00:00.000Z'),
-      waitlistPosition: 3,
     });
     const waitlistedFirst = await createApplicant(eventId, 'waitlisted', {
       createdAt: new Date('2026-02-01T00:00:00.000Z'),
-      waitlistPosition: 1,
     });
     const waitlistedSecond = await createApplicant(eventId, 'waitlisted', {
       createdAt: new Date('2026-02-02T00:00:00.000Z'),
-      waitlistPosition: 2,
     });
+    const voteOn = async (userId: string, yes: number) => {
+      const [{ participantId }] = await db
+        .select({ participantId: eventParticipants.id })
+        .from(eventParticipants)
+        .where(
+          and(
+            eq(eventParticipants.eventId, eventId),
+            eq(eventParticipants.userId, userId),
+          ),
+        );
+      await insertVotes({
+        eventId,
+        participantId,
+        voterIds: voters.slice(0, yes),
+        approve: true,
+      });
+      await insertVotes({
+        eventId,
+        participantId,
+        voterIds: voters.slice(yes),
+        approve: false,
+      });
+    };
+    await voteOn(waitlistedFirst, 3);
+    await voteOn(waitlistedSecond, 2);
+    await voteOn(waitlistedThird, 1);
 
     const result = await sendRsvpWave(eventId, { now: frozenNow });
     expect(result.success).toBe(true);
@@ -448,13 +475,6 @@ describe('sendRsvpWave', () => {
     expect(await getStatus(eventId, waitlistedSecond)).toBe('invited');
     expect(await getStatus(eventId, waitlistedThird)).toBe('invited');
     expect(await getStatus(eventId, unranked)).toBe('waitlisted');
-
-    // Invited participants leave the waitlist queue.
-    const [row] = await db
-      .select({ waitlistPosition: eventParticipants.waitlistPosition })
-      .from(eventParticipants)
-      .where(eq(eventParticipants.userId, waitlistedFirst));
-    expect(row.waitlistPosition).toBeNull();
   });
 
   test('skips an applicant a reviewer moved after eligibility was read', async () => {

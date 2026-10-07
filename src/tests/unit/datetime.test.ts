@@ -80,13 +80,21 @@ describe('toZonedOffsetString', () => {
   });
 
   test('uses the offset in effect at that instant, not a fixed one', () => {
-    // Same zone, opposite sides of the DST boundary.
+    // Opposite sides of a DST boundary. Not EVENT_TIME_ZONE: tzdata 2026c
+    // moved Alberta to year-round UTC-6, so its winter offset depends on the
+    // runtime's tz database version.
+    expect(
+      toZonedOffsetString(
+        parseInstant('2026-07-14T22:31:00Z')!,
+        'America/Toronto',
+      ),
+    ).toBe('2026-07-14T18:31:00-04:00');
     expect(
       toZonedOffsetString(
         parseInstant('2026-12-14T22:31:00Z')!,
-        EVENT_TIME_ZONE,
+        'America/Toronto',
       ),
-    ).toBe('2026-12-14T15:31:00-07:00');
+    ).toBe('2026-12-14T17:31:00-05:00');
   });
 
   test('rolls the date back when the venue day differs from the UTC day', () => {

@@ -79,6 +79,7 @@ async function createEvent(
   name: string,
   parentEventId?: string,
   endsAt?: Date,
+  startsAt?: Date,
 ): Promise<string> {
   const [row] = await db
     .insert(events)
@@ -88,6 +89,7 @@ async function createEvent(
       applicationQuestions: [],
       ...(parentEventId ? { parentEventId } : {}),
       ...(endsAt ? { endsAt } : {}),
+      ...(startsAt ? { startsAt } : {}),
     })
     .returning({ id: events.id });
   return row.id;
@@ -130,11 +132,19 @@ beforeAll(async () => {
 
   eventId = await createEvent('Check-in Test Event');
   otherEventId = await createEvent('Check-in Other Event');
-  childEventId = await createEvent('Check-in Lunch', eventId);
+  // Running now: a scanner without the override can only write to an entry
+  // that's on.
+  childEventId = await createEvent(
+    'Check-in Lunch',
+    eventId,
+    new Date(Date.now() + 3_600_000),
+    new Date(Date.now() - 3_600_000),
+  );
   pastChildEventId = await createEvent(
     'Check-in Breakfast',
     eventId,
     new Date(Date.now() - 60_000),
+    new Date(Date.now() - 7_200_000),
   );
   foreignChildEventId = await createEvent('Check-in Other Lunch', otherEventId);
   expiredEventId = await createEvent(
@@ -750,15 +760,69 @@ describe('sub-event check-in', () => {
     expect(subeventRows).toHaveLength(1);
   });
 
-  // Freeze is the parent's end, not the sub-event's — a lunch line at 13:05 for
-  // a 13:00 lunch is the normal case, and corrections have to stay possible.
-  test('allows check-in for a sub-event that has already ended', async () => {
+  test('rejects a sub-event that is not running without the override', async () => {
     await clearAll();
     await atDoor();
 
     await expect(
       scanCheckIn(eventId, passFor(eventId, participantId), pastChildEventId),
-    ).resolves.toMatchObject({ success: true });
+    ).resolves.toMatchObject({
+      success: false,
+      error: expect.stringContaining("isn't running"),
+    });
+    await expect(
+      checkInParticipant(eventId, participantId, pastChildEventId),
+    ).resolves.toMatchObject({ success: false });
+    await expect(
+      undoCheckIn(eventId, participantId, pastChildEventId),
+    ).resolves.toMatchObject({
+      success: false,
+      error: expect.stringContaining("isn't running"),
+    });
+  });
+
+  // Freeze is the parent's end, not the sub-event's: with the override, a
+  // missed scan at an entry that's already over can still be corrected.
+  test('allows an ended sub-event with checkin:override:all', async () => {
+    await clearAll();
+    await atDoor();
+
+    const [created] = await db
+      .insert(permission)
+      .values({ slug: 'checkin:override:all' })
+      .onConflictDoNothing()
+      .returning({ id: permission.id });
+    const overrideId =
+      created?.id ??
+      (
+        await db
+          .select({ id: permission.id })
+          .from(permission)
+          .where(eq(permission.slug, 'checkin:override:all'))
+          .limit(1)
+      )[0]!.id;
+    await db
+      .insert(userPermission)
+      .values({ userId: scanner.id, permissionId: overrideId })
+      .onConflictDoNothing();
+
+    try {
+      await expect(
+        scanCheckIn(eventId, passFor(eventId, participantId), pastChildEventId),
+      ).resolves.toMatchObject({ success: true });
+    } finally {
+      await db
+        .delete(userPermission)
+        .where(
+          and(
+            eq(userPermission.userId, scanner.id),
+            eq(userPermission.permissionId, overrideId),
+          ),
+        );
+      if (created) {
+        await db.delete(permission).where(eq(permission.id, overrideId));
+      }
+    }
   });
 
   test('freezes once the parent event has ended', async () => {

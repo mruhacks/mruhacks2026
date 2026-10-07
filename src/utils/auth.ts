@@ -24,7 +24,10 @@ import { headers } from 'next/headers';
 import { cacheLife } from 'next/cache';
 import { after } from 'next/server';
 import { writeAuditLog } from '@/utils/audit-log';
-import { deleteObject, parseProfilePictureKey } from '@/utils/object-storage';
+import {
+  deleteObject,
+  parseOwnedProfilePictureKey,
+} from '@/utils/object-storage';
 
 /** Verification links expire after this many seconds (24 hours). */
 const EMAIL_VERIFICATION_EXPIRES_IN = 86400;
@@ -113,6 +116,13 @@ export const auth = betterAuth({
       '/reset-password': { window: 300, max: 5 },
     },
   },
+  /**
+   * The app never calls Better Auth's `/update-user`; profile fields go
+   * through our own server actions. Left enabled, it lets any signed-in user
+   * write an arbitrary `user.image`, which other code treats as a pointer to
+   * an object this app uploaded for them.
+   */
+  disabledPaths: ['/update-user'],
   databaseHooks: {
     session: {
       create: {
@@ -198,7 +208,7 @@ export const auth = betterAuth({
           .where(eq(schema.userProfiles.userId, user.id))
           .limit(1);
 
-        const pictureKey = parseProfilePictureKey(user.image);
+        const pictureKey = parseOwnedProfilePictureKey(user.image, user.id);
         await Promise.all([
           pictureKey ? deleteObject(pictureKey) : Promise.resolve(),
           profile?.resumeFile

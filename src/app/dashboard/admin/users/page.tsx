@@ -1,5 +1,5 @@
 import { requireAuthWithPermission } from '@/lib/rbac/guards';
-import { hasAnyPermission } from '@/lib/rbac/authorization';
+import { hasAnyPermission, hasPermission } from '@/lib/rbac/authorization';
 import { listUsers } from '@/app/actions/users';
 import { listRoles } from '@/app/actions/roles';
 import { UsersTable } from './users-table';
@@ -11,9 +11,12 @@ export default async function AdminUsersPage() {
     'user:all:all',
   ]);
 
+  // The role filter and the invite dialog's role picker need the role list,
+  // which is its own permission; without it they go without.
+  const canReadRoles = await hasPermission(caller.id, 'role:read:all');
   const [usersRes, rolesRes] = await Promise.all([
     listUsers({ page: 1, pageSize: 25 }),
-    listRoles(),
+    canReadRoles ? listRoles() : null,
   ]);
 
   if (!usersRes.success || !usersRes.data) {
@@ -25,7 +28,7 @@ export default async function AdminUsersPage() {
   }
 
   const roles =
-    rolesRes.success && rolesRes.data
+    rolesRes?.success && rolesRes.data
       ? rolesRes.data.map((r) => ({ id: r.id, slug: r.slug }))
       : [];
 

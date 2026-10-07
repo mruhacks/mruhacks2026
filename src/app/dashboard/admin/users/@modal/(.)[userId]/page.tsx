@@ -1,7 +1,8 @@
 import { notFound } from 'next/navigation';
 
 import { getUserDetails } from '@/app/actions/users';
-import { listRoles, listPermissions } from '@/app/actions/roles';
+import { requireAuthWithPermission } from '@/lib/rbac/guards';
+import { loadAssignableGrants } from '../../assignable-grants';
 import { EditUserModalClient } from '../../edit-user-modal-client';
 
 export default async function InterceptedUserEditPage({
@@ -11,22 +12,22 @@ export default async function InterceptedUserEditPage({
 }) {
   const { userId } = await params;
 
-  const [userRes, rolesRes, permsRes] = await Promise.all([
+  // Same gate as the full-page /users/[userId] this intercepts: it's an
+  // edit form, so reading users isn't enough.
+  const caller = await requireAuthWithPermission([
+    'user:write:all',
+    'user:all:all',
+  ]);
+
+  const [userRes, { allRoles, allPermissions }] = await Promise.all([
     getUserDetails(userId),
-    listRoles(),
-    listPermissions(),
+    loadAssignableGrants(caller.id),
   ]);
 
   if (!userRes.success || !userRes.data) notFound();
 
   const { id, name, email, emailVerified, roles, directPermissions } =
     userRes.data;
-
-  const allRoles =
-    rolesRes.success && rolesRes.data
-      ? rolesRes.data.map((r) => ({ id: r.id, slug: r.slug }))
-      : [];
-  const allPermissions = permsRes.success && permsRes.data ? permsRes.data : [];
 
   return (
     <EditUserModalClient

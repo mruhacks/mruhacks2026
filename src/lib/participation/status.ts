@@ -31,7 +31,7 @@ export type InvitationStatus = (typeof INVITATION_STATUSES)[number];
 
 /**
  * Statuses an RSVP wave draws from. Accepting an application puts it on the
- * waitlist; waves invite from there in `waitlist_position` order.
+ * waitlist; waves invite from there in vote-ranked order (`@/lib/rsvp/waitlist`).
  */
 export const WAVE_ELIGIBLE_STATUSES = [
   'waitlisted',

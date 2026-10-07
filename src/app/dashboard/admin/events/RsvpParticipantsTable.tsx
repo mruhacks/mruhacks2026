@@ -154,9 +154,11 @@ function timingSortValue(participant: AdminRsvpParticipant): number {
 type Props = {
   eventId: string;
   wave: AdminRsvpWaveSummary;
+  /** Viewer holds `event:manage:all`, which `resendRsvpInvitation` checks. */
+  canResend: boolean;
 };
 
-export function RsvpParticipantsTable({ eventId, wave }: Props) {
+export function RsvpParticipantsTable({ eventId, wave, canResend }: Props) {
   // Resend only ever flips a row to 'sent' — applied locally so a resend
   // doesn't have to trigger a full summary refetch (and its loading state)
   // just to reflect one row's delivery status.
@@ -241,22 +243,26 @@ export function RsvpParticipantsTable({ eventId, wave }: Props) {
           <DeliveryBadge status={row.original.invitationEmailStatus} />
         ),
       },
-      {
-        id: 'actions',
-        header: '',
-        enableColumnFilter: false,
-        enableSorting: false,
-        cell: ({ row }) => (
-          <ResendButton
-            eventId={eventId}
-            participant={row.original}
-            hasResent={sentOverrides.has(row.original.responseId)}
-            onResent={handleResent}
-          />
-        ),
-      },
+      ...(canResend
+        ? [
+            {
+              id: 'actions',
+              header: '',
+              enableColumnFilter: false,
+              enableSorting: false,
+              cell: ({ row }) => (
+                <ResendButton
+                  eventId={eventId}
+                  participant={row.original}
+                  hasResent={sentOverrides.has(row.original.responseId)}
+                  onResent={handleResent}
+                />
+              ),
+            } satisfies ColumnDef<AdminRsvpParticipant>,
+          ]
+        : []),
     ],
-    [eventId, handleResent, sentOverrides, wave.respondBy],
+    [canResend, eventId, handleResent, sentOverrides, wave.respondBy],
   );
 
   return (

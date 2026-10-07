@@ -103,15 +103,12 @@ export function InviteUserDialog({ roles, onInvited }: InviteUserDialogProps) {
             />
           </div>
 
-          <div className='space-y-2'>
-            <Label>Roles</Label>
-            <div className='max-h-56 space-y-2 overflow-y-auto rounded-md border p-3'>
-              {roles.length === 0 ? (
-                <div className='text-muted-foreground text-xs'>
-                  No roles defined.
-                </div>
-              ) : (
-                roles.map((r) => (
+          {/* Empty when the viewer can't read roles: invite without any. */}
+          {roles.length > 0 && (
+            <div className='space-y-2'>
+              <Label>Roles</Label>
+              <div className='max-h-56 space-y-2 overflow-y-auto rounded-md border p-3'>
+                {roles.map((r) => (
                   <label
                     key={r.id}
                     className='hover:bg-muted/50 flex items-center gap-2 rounded-md p-1 text-sm'
@@ -123,10 +120,10 @@ export function InviteUserDialog({ roles, onInvited }: InviteUserDialogProps) {
                     />
                     <span className='font-medium'>{r.slug ?? 'unnamed'}</span>
                   </label>
-                ))
-              )}
+                ))}
+              </div>
             </div>
-          </div>
+          )}
         </form>
 
         <DialogFooter>

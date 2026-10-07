@@ -246,8 +246,6 @@ export const eventParticipants = pgTable(
     reviewedBy: uuid('reviewed_by').references(() => user.id, {
       onDelete: 'set null',
     }),
-    /** Queue order while `waitlisted`; null otherwise. */
-    waitlistPosition: integer('waitlist_position'),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -271,6 +269,46 @@ export const eventParticipants = pgTable(
       table.statusId,
     ),
     idxUserId: index('idx_event_participants_user_id').on(table.userId),
+  }),
+);
+
+// ---------------------------------------------------------------------------
+// Application votes (blind yes/no review; one vote per reviewer per applicant)
+// ---------------------------------------------------------------------------
+
+/**
+ * A reviewer's yes/no on one application, cast from the swipe review screen.
+ * The first yes moves a `pending_review` applicant onto the waitlist, and the
+ * tally ranks the waitlist — see `@/lib/application-votes`.
+ */
+export const applicationVotes = pgTable(
+  'application_votes',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    participantId: uuid('participant_id')
+      .notNull()
+      .references(() => eventParticipants.id, { onDelete: 'cascade' }),
+    // Denormalized so an event's whole tally is one indexed scan.
+    eventId: uuid('event_id')
+      .notNull()
+      .references(() => events.id, { onDelete: 'cascade' }),
+    voterId: uuid('voter_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    approve: boolean('approve').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => ({
+    participantVoterUnique: uniqueIndex(
+      'application_votes_participant_id_voter_id_unique',
+    ).on(table.participantId, table.voterId),
+    idxEventId: index('idx_application_votes_event_id').on(table.eventId),
   }),
 );
 

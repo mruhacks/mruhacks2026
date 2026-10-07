@@ -89,7 +89,8 @@ class SendRsvpWaveError extends Error {
  *
  * `respond_by` is `created_at + events.rsvp_response_window_hours`. Refuses
  * when a wave is still active (unless `closeActiveWave`), the event has started, remaining spots are 0,
- * or nobody is eligible. Invitee order (waitlist position) lives in
+ * or nobody is eligible. Invitee order is the derived
+ * waitlist order (see `@/lib/rsvp/waitlist`), capped by
  * `selectRsvpWaveInvitees`.
  */
 export async function sendRsvpWave(
@@ -277,7 +278,7 @@ export async function sendRsvpWave(
       // rather than invited out from under that decision.
       const moved = await tx
         .update(eventParticipants)
-        .set({ statusId: statusIdOf('invited'), waitlistPosition: null })
+        .set({ statusId: statusIdOf('invited') })
         .where(
           and(
             eq(eventParticipants.eventId, eventId),

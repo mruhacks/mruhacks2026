@@ -11,7 +11,13 @@ import {
 } from '@/db/schema';
 import { ok, fail, type ActionResult } from '@/utils/action-result';
 import { getUser } from '@/utils/auth';
-import { requirePermission } from '@/lib/rbac/authorization';
+import {
+  grantDeniedReason,
+  loadDirectUserPermissions,
+  loadRolePermissions,
+  loadUserRoles,
+  requirePermission,
+} from '@/lib/rbac/authorization';
 import {
   replaceRolePermissions,
   replaceUserDirectPermissions,
@@ -27,6 +33,15 @@ async function authorize(permission: string) {
   if (!caller) return false;
   await requirePermission(caller.id, permission);
   return true;
+}
+
+/** See `grantDeniedReason`: refuses handing out permissions the caller lacks. */
+async function grantDenied(
+  grant: Parameters<typeof grantDeniedReason>[1],
+): Promise<string | null> {
+  const caller = await getUser();
+  if (!caller) return 'Not authenticated';
+  return grantDeniedReason(caller.id, grant);
 }
 
 async function audit(
@@ -201,6 +216,8 @@ export async function assignRoleToUser(
 ): Promise<ActionResult> {
   if (!(await authorize('role:write:all'))) return fail('Not authenticated');
   try {
+    const denied = await grantDenied({ roleIds: [roleId] });
+    if (denied) return fail(denied);
     await db.insert(userRole).values({ userId, roleId }).onConflictDoNothing();
     await audit('role.assigned', 'user', userId, { roleId });
     updateTag(ADMIN_COUNTS_CACHE_TAG);
@@ -291,6 +308,12 @@ export async function updatePermission(
     if (typeof patch.slug === 'string') changes.slug = patch.slug.toLowerCase();
     if ('description' in patch) changes.description = patch.description ?? null;
     if (Object.keys(changes).length === 0) return ok();
+    // Renaming a permission changes what every holder of it is granted, so
+    // the new slug is a grant like any other.
+    if (typeof changes.slug === 'string') {
+      const denied = await grantDenied({ permissionSlugs: [changes.slug] });
+      if (denied) return fail(denied);
+    }
     await db
       .update(permission)
       .set(changes)
@@ -313,6 +336,8 @@ export async function grantPermissionToRole(
 ): Promise<ActionResult> {
   if (!(await authorize('role:write:all'))) return fail('Not authenticated');
   try {
+    const denied = await grantDenied({ permissionIds: [permissionId] });
+    if (denied) return fail(denied);
     await db
       .insert(rolePermissions)
       .values({ roleId, permissionId })
@@ -359,6 +384,8 @@ export async function grantPermissionToUser(
   if (!(await authorize('permission:write:all')))
     return fail('Not authenticated');
   try {
+    const denied = await grantDenied({ permissionIds: [permissionId] });
+    if (denied) return fail(denied);
     await db
       .insert(userPermission)
       .values({ userId, permissionId })
@@ -408,6 +435,11 @@ export async function setUserRoles(
 ): Promise<ActionResult> {
   if (!(await authorize('role:write:all'))) return fail('Not authenticated');
   try {
+    const current = new Set((await loadUserRoles(userId)).map((r) => r.id));
+    const denied = await grantDenied({
+      roleIds: roleIds.filter((id) => !current.has(id)),
+    });
+    if (denied) return fail(denied);
     await replaceUserRoles(userId, roleIds);
     await audit('user.roles.replaced', 'user', userId, { roleIds });
     updateTag(ADMIN_COUNTS_CACHE_TAG);
@@ -427,6 +459,13 @@ export async function setUserDirectPermissions(
   if (!(await authorize('permission:write:all')))
     return fail('Not authenticated');
   try {
+    const current = new Set(
+      (await loadDirectUserPermissions(userId)).map((p) => p.id),
+    );
+    const denied = await grantDenied({
+      permissionIds: permissionIds.filter((id) => !current.has(id)),
+    });
+    if (denied) return fail(denied);
     await replaceUserDirectPermissions(userId, permissionIds);
     await audit('user.permissions.replaced', 'user', userId, { permissionIds });
     return ok();
@@ -444,6 +483,13 @@ export async function setRolePermissions(
 ): Promise<ActionResult> {
   if (!(await authorize('role:write:all'))) return fail('Not authenticated');
   try {
+    const current = new Set(
+      (await loadRolePermissions(roleId)).map((p) => p.id),
+    );
+    const denied = await grantDenied({
+      permissionIds: permissionIds.filter((id) => !current.has(id)),
+    });
+    if (denied) return fail(denied);
     await replaceRolePermissions(roleId, permissionIds);
     await audit('role.permissions.replaced', 'role', roleId, { permissionIds });
     return ok();

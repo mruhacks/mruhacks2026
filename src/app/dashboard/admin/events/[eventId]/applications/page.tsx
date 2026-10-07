@@ -1,5 +1,9 @@
 import * as React from 'react';
+import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
+import { Layers } from 'lucide-react';
+
+import { Button } from '@/components/ui/button';
 
 import {
   getAdminEventHeader,
@@ -79,13 +83,14 @@ async function ApplicationsContent({
   // Status is read fresh rather than folded into the cached roster: an RSVP
   // wave from cron, or a deadline passing, changes it without touching the
   // applications cache tag.
-  const [roster, questions, statusRows, canReview, canManageRsvp] =
+  const [roster, questions, statusRows, canReview, canManageRsvp, canVote] =
     await Promise.all([
       getApplicationRoster(eventId),
       getEventQuestions(eventId),
       getParticipantStatuses(eventId),
       hasPermission(user.id, 'application:review:all'),
       hasPermission(user.id, 'rsvp:write:all'),
+      hasPermission(user.id, 'application:vote:all'),
     ]);
   const now = new Date();
   const statusById = new Map(
@@ -113,12 +118,22 @@ async function ApplicationsContent({
 
   return (
     <div className='space-y-4'>
-      <div>
-        <h2 className='text-lg font-semibold'>All applications</h2>
-        <p className='text-muted-foreground mt-1 text-sm'>
-          {rows.length.toLocaleString()}{' '}
-          {rows.length === 1 ? 'application' : 'applications'} submitted.
-        </p>
+      <div className='flex flex-wrap items-start justify-between gap-4'>
+        <div>
+          <h2 className='text-lg font-semibold'>All applications</h2>
+          <p className='text-muted-foreground mt-1 text-sm'>
+            {rows.length.toLocaleString()}{' '}
+            {rows.length === 1 ? 'application' : 'applications'} submitted.
+          </p>
+        </div>
+        {canVote && (
+          <Button asChild>
+            <Link href={`/dashboard/admin/events/${segment}/review`}>
+              <Layers />
+              Review applications
+            </Link>
+          </Button>
+        )}
       </div>
       <ApplicationsTable
         eventId={eventId}

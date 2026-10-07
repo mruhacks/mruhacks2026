@@ -117,6 +117,33 @@ export function parseProfilePictureKey(
 }
 
 /**
+ * Like `parseProfilePictureKey`, but only returns a key that `userId`'s own
+ * upload could have produced (`profile-pictures/<userId>/<uuid>.webp`). Use
+ * this before deleting anything derived from `user.image`: that column is
+ * user-writable, so without the ownership check a user could point it at
+ * someone else's object (another avatar, an event attachment) and have the
+ * server delete it.
+ */
+export function parseOwnedProfilePictureKey(
+  image: string | null | undefined,
+  userId: string,
+): string | null {
+  const key = parseProfilePictureKey(image);
+  if (!key) return null;
+  const [prefix, owner, file, ...rest] = key.split('/');
+  if (
+    rest.length > 0 ||
+    prefix !== 'profile-pictures' ||
+    owner !== userId ||
+    !file ||
+    !/^[0-9a-f-]{36}\.webp$/.test(file)
+  ) {
+    return null;
+  }
+  return key;
+}
+
+/**
  * Attachment keys are always `event-content/<eventId>/<uuid><ext>`. Both the
  * upload action and the serving route check against this so a hand-typed
  * `/api/assets/event-content/...` can only ever name an object this app wrote.

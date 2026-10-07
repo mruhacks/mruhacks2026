@@ -13,6 +13,11 @@ import { MarkdownContent } from '@/components/markdown/markdown-content';
 const render = (markdown: string) =>
   renderToStaticMarkup(<MarkdownContent markdown={markdown} />);
 
+const renderWithEmbeds = (markdown: string) =>
+  renderToStaticMarkup(<MarkdownContent markdown={markdown} allowEmbeds />);
+
+const YOUTUBE_EMBED = 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ';
+
 const ATTACHMENT_SRC =
   '/api/assets/event-content/a0d4c82f-c7b5-4064-8515-1cf235a15e4c/bb383d2c-1cdc-4c73-a4a9-250fde4aa24f.png';
 
@@ -88,7 +93,7 @@ describe('sanitization', () => {
     expect(html).not.toContain('onerror');
   });
 
-  test('drops iframes', () => {
+  test('drops iframes unless embeds are allowed', () => {
     const html = render('<iframe src="https://evil.test"></iframe>');
     expect(html).not.toContain('<iframe');
   });
@@ -106,5 +111,57 @@ describe('sanitization', () => {
   test('strips style attributes that could cover the page', () => {
     const html = render('<p style="position:fixed;inset:0;z-index:9999">x</p>');
     expect(html).not.toContain('position:fixed');
+  });
+});
+
+describe('embeds', () => {
+  test('drops even allow-listed iframes when embeds are off', () => {
+    const html = render(`<iframe src="${YOUTUBE_EMBED}"></iframe>`);
+    expect(html).not.toContain('<iframe');
+  });
+
+  test('renders an allow-listed iframe with the fixed sandbox', () => {
+    const html = renderWithEmbeds(
+      `<iframe src="${YOUTUBE_EMBED}" title="Intro" width="560" height="315"></iframe>`,
+    );
+    expect(html).toContain(`src="${YOUTUBE_EMBED}"`);
+    expect(html).toContain('title="Intro"');
+    expect(html).toContain('width="560"');
+    expect(html).toContain('sandbox="allow-scripts allow-same-origin');
+    expect(html).not.toContain('allow-top-navigation');
+  });
+
+  test('ignores author-supplied sandbox, srcdoc, allow and handlers', () => {
+    const html = renderWithEmbeds(
+      `<iframe src="${YOUTUBE_EMBED}" sandbox="allow-top-navigation" srcdoc="<script>x</script>" allow="camera" onload="alert(1)" style="position:fixed"></iframe>`,
+    );
+    expect(html).toContain('<iframe');
+    expect(html).not.toContain('allow-top-navigation');
+    expect(html).not.toContain('srcdoc');
+    expect(html).not.toContain('camera');
+    expect(html).not.toContain('onload');
+    expect(html).not.toContain('position:fixed');
+  });
+
+  test.each([
+    ['an unlisted host', 'https://evil.test/embed/'],
+    ['a relative URL (our own origin)', '/dashboard'],
+    ['plain http', 'http://www.youtube-nocookie.com/embed/dQw4w9WgXcQ'],
+    [
+      'a listed host outside its allowed path',
+      'https://www.google.com/search?q=x',
+    ],
+    ['javascript:', 'javascript:alert(1)'],
+  ])('drops an iframe pointing at %s', (_label, src) => {
+    const html = renderWithEmbeds(`<iframe src="${src}"></iframe>`);
+    expect(html).not.toContain('<iframe');
+  });
+
+  test('a self-closing iframe does not swallow the rest of the article', () => {
+    const html = renderWithEmbeds(
+      `<iframe src="${YOUTUBE_EMBED}" />\n\nafter **bold**`,
+    );
+    expect(html).toContain('<iframe');
+    expect(html).toContain('<strong>bold</strong>');
   });
 });

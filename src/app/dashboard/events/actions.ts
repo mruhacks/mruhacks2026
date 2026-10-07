@@ -52,7 +52,7 @@ import {
 } from '@/lib/participation/status';
 import { canParticipantTransition } from '@/lib/participation/transitions';
 import {
-  attendingCountSql,
+  countAttending,
   getStatusDisplayMap,
   statusIdOf,
 } from '@/lib/participation/server';
@@ -474,13 +474,16 @@ export async function submitRsvpResponse(
         .select({
           capacity: events.capacity,
           termsId: events.termsId,
-          attendingCount: attendingCountSql(eventId),
+          endsAt: events.endsAt,
         })
         .from(events)
         .where(eq(events.id, eventId))
         .for('update')
         .limit(1);
       if (!eventRow) throw new ParticipationError('No RSVP invitation found.');
+      if (hasEventElapsed(eventRow.endsAt)) {
+        throw new ParticipationError('This event has already ended.');
+      }
 
       const [row] = await tx
         .select({
@@ -538,7 +541,7 @@ export async function submitRsvpResponse(
 
         if (
           eventRow.capacity !== null &&
-          eventRow.attendingCount >= eventRow.capacity
+          (await countAttending(eventId, tx)) >= eventRow.capacity
         ) {
           throw new ParticipationError(EVENT_AT_CAPACITY_MESSAGE);
         }
@@ -664,7 +667,7 @@ export async function withdrawParticipation(
 
       await tx
         .update(eventParticipants)
-        .set({ statusId: statusIdOf('declined'), waitlistPosition: null })
+        .set({ statusId: statusIdOf('declined') })
         .where(
           and(
             eq(eventParticipants.id, row.participantId),
@@ -705,6 +708,8 @@ export type EventWithUserStatus = {
   hasApplication: boolean;
   startsAt: Date | null;
   endsAt: Date | null;
+  /** Past its end instant — every participant action on it is frozen. */
+  hasEnded: boolean;
   /** The user's effective participation status, or null if not involved. */
   status: ParticipationStatus | null;
   statusDisplay: StatusDisplay | null;
@@ -766,6 +771,7 @@ export async function getEventsWithUserStatus(): Promise<
       hasApplication: e.hasApplication,
       startsAt: e.startsAt,
       endsAt: e.endsAt,
+      hasEnded: hasEventElapsed(e.endsAt),
       status,
       statusDisplay: status ? displayMap[status] : null,
     };

@@ -4,7 +4,7 @@ import { notFound, redirect } from 'next/navigation';
 import { serializeInstant } from '@/lib/datetime';
 import { getAdminEventHeader } from '@/lib/admin-event';
 import { resolveEventId } from '@/lib/events';
-import { hasPermission } from '@/lib/rbac/authorization';
+import { hasPermission, requirePermission } from '@/lib/rbac/authorization';
 import { getSubeventCheckInCounts, listSubevents } from '@/lib/subevents';
 import { getUser } from '@/utils/auth';
 
@@ -39,7 +39,7 @@ async function SubeventsContent({
   // Sub-events are `events` rows, so managing them is the same authority as
   // managing any other part of an event — not a bundle, and not a new slug for
   // something this permission already covers.
-  if (!(await hasPermission(user.id, 'event:manage'))) return null;
+  await requirePermission(user.id, 'event:manage');
 
   const [event, subevents] = await Promise.all([
     getAdminEventHeader(eventId),

@@ -86,6 +86,7 @@ const STATUS_COLORS: Record<EventDisplayPill, { bg: string; fg: string }> = {
   registered: { bg: 'var(--blue)', fg: 'var(--white)' },
   open_to_apply: { bg: 'var(--green)', fg: 'var(--white)' },
   registration_open: { bg: 'var(--green)', fg: 'var(--white)' },
+  ended: { bg: 'var(--ink-200)', fg: 'var(--ink-700)' },
 };
 
 function EventStatusPill({ e }: { e: EventWithUserStatus }) {
@@ -119,7 +120,7 @@ export function EventTileList({ events }: { events: EventWithUserStatus[] }) {
             margin: 0,
           }}
         >
-          No events yet
+          No upcoming events
         </p>
         <p style={{ fontSize: '14px', color: 'var(--ink-500)', margin: 0 }}>
           Check back later — events will appear here once they&apos;re live.

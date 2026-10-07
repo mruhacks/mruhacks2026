@@ -46,6 +46,9 @@ vi.mock('next/cache', () => ({ updateTag: vi.fn() }));
 
 describe('Authorization system', () => {
   let userId: string;
+  // Separate from `userId`: granting a permission requires already holding
+  // it, so the user under test can't be the one handing out its permissions.
+  let actorId: string;
   let roleId: number;
   let permIdEditSelf: number;
   let permIdAllAll: number;
@@ -61,6 +64,15 @@ describe('Authorization system', () => {
       })
       .returning({ id: user.id });
     userId = u.id;
+    const [actor] = await db
+      .insert(user)
+      .values({
+        name: 'Test Actor',
+        email: 'actor@test.com',
+        emailVerified: true,
+      })
+      .returning({ id: user.id });
+    actorId = actor.id;
     // Clear any pre-existing roles / perms
     await db.delete(userRole);
     await db.delete(userPermission);
@@ -83,7 +95,14 @@ describe('Authorization system', () => {
         .insert(userPermission)
         .values({ userId, permissionId: created.id });
     }
-    vi.mocked(getUser).mockResolvedValue({ id: userId } as never);
+    const [superPerm] = await db
+      .insert(permission)
+      .values({ slug: 'all:all:all' })
+      .returning({ id: permission.id });
+    await db
+      .insert(userPermission)
+      .values({ userId: actorId, permissionId: superPerm.id });
+    vi.mocked(getUser).mockResolvedValue({ id: actorId } as never);
     await db.delete(role);
   });
 
@@ -97,6 +116,7 @@ describe('Authorization system', () => {
     await db.delete(permission);
     await db.delete(role);
     await db.delete(permission);
+    await db.delete(user).where(eq(user.id, actorId));
   });
 
   // ─────────────────────────────────────────────
@@ -207,6 +227,13 @@ describe('Authorization system', () => {
         .where(eq(permission.slug, slug));
       await db.insert(userPermission).values({ userId, permissionId: row.id });
     }
+    const [superPerm] = await db
+      .select({ id: permission.id })
+      .from(permission)
+      .where(eq(permission.slug, 'all:all:all'));
+    await db
+      .insert(userPermission)
+      .values({ userId: actorId, permissionId: superPerm.id });
   });
 
   test('requirePermission should allow authorized user', async () => {

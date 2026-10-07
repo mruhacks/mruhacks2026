@@ -1,6 +1,6 @@
 import 'server-only';
 
-import nodemailer from 'nodemailer';
+import nodemailer, { type Transporter } from 'nodemailer';
 
 export type SendMailOptions = {
   to: string;
@@ -40,10 +40,10 @@ function getTransportConfig() {
   };
 }
 
-let transporter: nodemailer.Transporter | null = null;
+let transporter: Transporter | null = null;
 
 /** Creates a singleton SMTP transporter */
-function getTransporter(): nodemailer.Transporter {
+function getTransporter(): Transporter {
   if (!transporter) {
     const { host, port, auth } = getTransportConfig();
     transporter = nodemailer.createTransport({

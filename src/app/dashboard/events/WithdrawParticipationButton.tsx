@@ -49,7 +49,11 @@ export function WithdrawParticipationButton({ eventId, kind }: Props) {
 
   return (
     <>
-      <Button size='sm' variant='outline' onClick={() => setOpen(true)}>
+      <Button
+        size='sm'
+        variant={kind === 'spot' ? 'destructive' : 'outline'}
+        onClick={() => setOpen(true)}
+      >
         {label}
       </Button>
       <Dialog open={open} onOpenChange={(next) => !isPending && setOpen(next)}>

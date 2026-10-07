@@ -312,7 +312,6 @@ export async function exportMyData(): Promise<ActionResult<unknown>> {
           status: participationStatuses.label,
           responses: eventParticipants.responses,
           reviewedAt: eventParticipants.reviewedAt,
-          waitlistPosition: eventParticipants.waitlistPosition,
           createdAt: eventParticipants.createdAt,
           updatedAt: eventParticipants.updatedAt,
         })

@@ -449,7 +449,6 @@ describe('withdrawParticipation', () => {
       eventId: event.id,
       userId: testUserId,
       status: 'waitlisted',
-      waitlistPosition: 3,
     });
 
     expect((await withdrawParticipation(event.id)).success).toBe(true);

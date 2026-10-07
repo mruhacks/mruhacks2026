@@ -122,7 +122,7 @@ export function createParticipationSeeder(now: Date, adminId?: string) {
             : null;
         await tx
           .update(eventParticipants)
-          .set({ statusId: statusId(label), waitlistPosition: null })
+          .set({ statusId: statusId(label) })
           .where(eq(eventParticipants.id, application.id));
         await tx.insert(eventInvitations).values({
           rsvpWaveId: wave.id,

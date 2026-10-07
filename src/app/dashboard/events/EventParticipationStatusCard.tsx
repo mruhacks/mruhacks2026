@@ -19,6 +19,11 @@ type Props = {
    * acceptance line) — rendered with the same muted, text-sm styling.
    */
   infoRows?: { key: string; content: React.ReactNode }[];
+  /**
+   * A record-keeping timestamp (e.g. "Applied …") — tucked at the very
+   * bottom of the card in small print, below any actions.
+   */
+  stamp?: React.ReactNode;
   footer?: React.ReactNode;
 };
 
@@ -26,7 +31,7 @@ type Props = {
  * Shared card template for every status card in the event page's
  * participation sidebar (RSVP, application, and any future status of that
  * kind) — title + badge header read as a sentence, a description, a list of
- * info rows, and an optional action footer.
+ * info rows, an optional action footer and small-print timestamps.
  */
 export function EventParticipationStatusCard({
   title,
@@ -34,6 +39,7 @@ export function EventParticipationStatusCard({
   badgeVariant,
   description,
   infoRows = [],
+  stamp,
   footer,
 }: Props) {
   return (
@@ -54,8 +60,15 @@ export function EventParticipationStatusCard({
           ))}
         </CardContent>
       )}
-      {footer && (
-        <CardFooter className='flex flex-row gap-2'>{footer}</CardFooter>
+      {(footer || stamp) && (
+        <CardFooter className='flex flex-col items-start gap-3'>
+          {footer && <div className='flex flex-row gap-2'>{footer}</div>}
+          {stamp && (
+            <p className='text-muted-foreground text-[10px] leading-tight'>
+              {stamp}
+            </p>
+          )}
+        </CardFooter>
       )}
     </Card>
   );

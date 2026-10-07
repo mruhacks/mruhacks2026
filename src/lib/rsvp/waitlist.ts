@@ -1,15 +1,31 @@
 import 'server-only';
 
-import { and, asc, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 
-import { eventParticipants, events, user } from '@/db/schema';
-import { hasStatus } from '@/lib/participation/server';
+import {
+  applicationVotes,
+  eventParticipants,
+  events,
+  participationStatuses,
+  teamMembers,
+  user,
+} from '@/db/schema';
+import {
+  orderWaitlist,
+  planReviewTransitions,
+  type VoteTally,
+  type WaitlistCandidate,
+} from '@/lib/application-vote-ranking';
+import { hasStatus, statusIdOf } from '@/lib/participation/server';
+import { resolveStoredStatus } from '@/lib/participation/status';
 import { db } from '@/utils/db';
 
 /**
- * The waitlist is the RSVP queue: accepting an application puts it here, and
- * each wave invites from the front (see `selectRsvpWaveInvitees`). This is the
- * one place that reads it in queue order and the one place that reorders it.
+ * The waitlist is the RSVP queue: a yes in the swipe review (or an organizer
+ * accepting an application) puts it here, and each wave invites from the
+ * front. Its order is never stored — it's derived from the review votes on
+ * every read (see `orderWaitlist`), so what an organizer sees and who the
+ * next wave invites always come from the same tally.
  */
 
 export type WaitlistEntry = {
@@ -22,101 +38,167 @@ export type WaitlistEntry = {
   appliedAt: Date;
 };
 
-/**
- * Queue order: `waitlist_position` (unranked last), then oldest application,
- * then id. Must match `selectRsvpWaveInvitees`, so what an organizer sees is
- * exactly who the next wave will invite.
- */
-const QUEUE_ORDER = [
-  sql`${eventParticipants.waitlistPosition} ASC NULLS LAST`,
-  asc(eventParticipants.createdAt),
-  asc(eventParticipants.id),
-];
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+type Executor = Pick<typeof db, 'select'>;
 
-export async function getWaitlist(eventId: string): Promise<WaitlistEntry[]> {
-  const rows = await db
-    .select({
-      participantId: eventParticipants.id,
-      userId: eventParticipants.userId,
-      name: user.name,
-      email: user.email,
-      appliedAt: eventParticipants.createdAt,
-    })
-    .from(eventParticipants)
-    .innerJoin(user, eq(eventParticipants.userId, user.id))
-    .where(and(eq(eventParticipants.eventId, eventId), hasStatus('waitlisted')))
-    .orderBy(...QUEUE_ORDER);
+/** Every participant in the event (oldest first) and every vote tally. */
+async function loadTallyInputs(
+  executor: Executor,
+  eventId: string,
+): Promise<{
+  participants: WaitlistCandidate[];
+  tallies: Map<string, VoteTally>;
+}> {
+  const [participants, voteRows] = await Promise.all([
+    executor
+      .select({
+        participantId: eventParticipants.id,
+        teamId: teamMembers.teamId,
+        statusLabel: participationStatuses.label,
+      })
+      .from(eventParticipants)
+      .innerJoin(
+        participationStatuses,
+        eq(eventParticipants.statusId, participationStatuses.id),
+      )
+      .leftJoin(
+        teamMembers,
+        and(
+          eq(teamMembers.eventId, eventParticipants.eventId),
+          eq(teamMembers.userId, eventParticipants.userId),
+        ),
+      )
+      .where(eq(eventParticipants.eventId, eventId))
+      .orderBy(asc(eventParticipants.createdAt), asc(eventParticipants.id)),
+    executor
+      .select({
+        participantId: applicationVotes.participantId,
+        yes: sql<number>`count(*) FILTER (WHERE ${applicationVotes.approve})`.mapWith(
+          Number,
+        ),
+        no: sql<number>`count(*) FILTER (WHERE NOT ${applicationVotes.approve})`.mapWith(
+          Number,
+        ),
+      })
+      .from(applicationVotes)
+      .where(eq(applicationVotes.eventId, eventId))
+      .groupBy(applicationVotes.participantId),
+  ]);
 
-  return rows.map((row, index) => ({ ...row, position: index + 1 }));
+  return {
+    participants: participants.map((p) => ({
+      participantId: p.participantId,
+      teamId: p.teamId,
+      status: resolveStoredStatus(p.statusLabel),
+    })),
+    tallies: new Map(
+      voteRows.map((row) => [row.participantId, { yes: row.yes, no: row.no }]),
+    ),
+  };
 }
 
-export type MoveWaitlistEntryResult =
-  | { success: true; from: number; to: number }
-  | { success: false; error: string };
+/** Waitlisted participant ids in queue order — the order waves invite in. */
+export async function getWaitlistOrder(
+  eventId: string,
+  executor: Executor = db,
+): Promise<string[]> {
+  const { participants, tallies } = await loadTallyInputs(executor, eventId);
+  return orderWaitlist(participants, tallies);
+}
+
+export async function getWaitlist(eventId: string): Promise<WaitlistEntry[]> {
+  const [order, rows] = await Promise.all([
+    getWaitlistOrder(eventId),
+    db
+      .select({
+        participantId: eventParticipants.id,
+        userId: eventParticipants.userId,
+        name: user.name,
+        email: user.email,
+        appliedAt: eventParticipants.createdAt,
+      })
+      .from(eventParticipants)
+      .innerJoin(user, eq(eventParticipants.userId, user.id))
+      .where(
+        and(eq(eventParticipants.eventId, eventId), hasStatus('waitlisted')),
+      ),
+  ]);
+
+  const byId = new Map(rows.map((row) => [row.participantId, row]));
+  return order.flatMap((id, index) => {
+    const row = byId.get(id);
+    return row ? [{ ...row, position: index + 1 }] : [];
+  });
+}
+
+export type WaitlistSyncResult = {
+  /** Moved from `pending_review` onto the waitlist. */
+  promoted: string[];
+  /** Sent back from the waitlist to `pending_review`. */
+  demoted: string[];
+};
 
 /**
- * Move one waitlisted participant to `toPosition` (1-based, clamped to the
- * queue), shifting everyone between. The whole queue is renumbered 1..n, so
- * unranked entries get a real position the first time anyone is moved.
+ * Apply the status changes the tally implies (see `planReviewTransitions`):
+ * promote applicants whose team has earned a yes, and demote a group that
+ * just lost its last one (`demoteGroupOf`). Order needs no write — it's
+ * derived on read.
  *
- * Holds the event row lock, the same lock `sendRsvpWave` takes, so a reorder
- * never interleaves with a wave choosing its invitees.
+ * The caller must hold the event row lock — the same lock `sendRsvpWave`
+ * takes — so a sync never interleaves with a wave inviting from the list.
  */
-export async function moveWaitlistEntry(
+export async function syncWaitlist(
+  tx: Tx,
   eventId: string,
-  participantId: string,
-  toPosition: number,
-): Promise<MoveWaitlistEntryResult> {
-  if (!Number.isInteger(toPosition) || toPosition < 1) {
-    return {
-      success: false,
-      error: 'Position must be a whole number of 1 or more.',
-    };
+  options: { actorId?: string | null; demoteGroupOf?: string } = {},
+): Promise<WaitlistSyncResult> {
+  const { participants, tallies } = await loadTallyInputs(tx, eventId);
+  const { promote, demote } = planReviewTransitions(participants, tallies, {
+    demoteGroupOf: options.demoteGroupOf,
+  });
+
+  const reviewed = {
+    reviewedAt: new Date(),
+    reviewedBy: options.actorId ?? null,
+  };
+  if (promote.length > 0) {
+    await tx
+      .update(eventParticipants)
+      .set({ statusId: statusIdOf('waitlisted'), ...reviewed })
+      .where(
+        and(
+          inArray(eventParticipants.id, promote),
+          hasStatus('pending_review'),
+        ),
+      );
+  }
+  if (demote.length > 0) {
+    await tx
+      .update(eventParticipants)
+      .set({ statusId: statusIdOf('pending_review'), ...reviewed })
+      .where(
+        and(inArray(eventParticipants.id, demote), hasStatus('waitlisted')),
+      );
   }
 
+  return { promoted: promote, demoted: demote };
+}
+
+/**
+ * `syncWaitlist` in its own transaction, for changes that move the tally's
+ * inputs without casting a vote — a team joined or left, an applicant marked
+ * "Denied". Takes the event lock itself.
+ */
+export async function syncWaitlistForEvent(
+  eventId: string,
+  actorId: string | null = null,
+): Promise<WaitlistSyncResult> {
   return db.transaction(async (tx) => {
-    const [event] = await tx
+    await tx
       .select({ id: events.id })
       .from(events)
       .where(eq(events.id, eventId))
-      .for('update')
-      .limit(1);
-    if (!event) return { success: false, error: 'Event not found.' };
-
-    const queue = await tx
-      .select({ id: eventParticipants.id })
-      .from(eventParticipants)
-      .where(
-        and(eq(eventParticipants.eventId, eventId), hasStatus('waitlisted')),
-      )
-      .orderBy(...QUEUE_ORDER)
       .for('update');
-
-    const ids = queue.map((row) => row.id);
-    const fromIndex = ids.indexOf(participantId);
-    if (fromIndex === -1) {
-      return {
-        success: false,
-        error: 'That participant is no longer on the waitlist.',
-      };
-    }
-    const toIndex = Math.min(toPosition, ids.length) - 1;
-
-    ids.splice(fromIndex, 1);
-    ids.splice(toIndex, 0, participantId);
-
-    const ordered = sql.join(
-      ids.map((id, index) => sql`(${id}::uuid, ${index + 1}::integer)`),
-      sql`, `,
-    );
-    await tx.execute(sql`
-      UPDATE event_participants AS p
-      SET waitlist_position = ordered.position, updated_at = now()
-      FROM (VALUES ${ordered}) AS ordered(id, position)
-      WHERE p.id = ordered.id
-        AND p.waitlist_position IS DISTINCT FROM ordered.position
-    `);
-
-    return { success: true, from: fromIndex + 1, to: toIndex + 1 };
+    return syncWaitlist(tx, eventId, { actorId });
   });
 }

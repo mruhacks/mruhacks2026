@@ -5,7 +5,7 @@ import { BreadcrumbSegment } from '@/components/breadcrumb-context';
 
 import { requireAuthWithPermission } from '@/lib/rbac/guards';
 import { getUserDetails } from '@/app/actions/users';
-import { listRoles, listPermissions } from '@/app/actions/roles';
+import { loadAssignableGrants } from '../assignable-grants';
 import {
   Card,
   CardContent,
@@ -23,24 +23,20 @@ export default async function UserEditPage({
 }) {
   const { userId } = await params;
 
-  await requireAuthWithPermission(['user:write:all', 'user:all:all']);
+  const caller = await requireAuthWithPermission([
+    'user:write:all',
+    'user:all:all',
+  ]);
 
-  const [userRes, rolesRes, permsRes] = await Promise.all([
+  const [userRes, { allRoles, allPermissions }] = await Promise.all([
     getUserDetails(userId),
-    listRoles(),
-    listPermissions(),
+    loadAssignableGrants(caller.id),
   ]);
 
   if (!userRes.success || !userRes.data) notFound();
 
   const { id, name, email, emailVerified, roles, directPermissions } =
     userRes.data;
-
-  const allRoles =
-    rolesRes.success && rolesRes.data
-      ? rolesRes.data.map((r) => ({ id: r.id, slug: r.slug }))
-      : [];
-  const allPermissions = permsRes.success && permsRes.data ? permsRes.data : [];
 
   return (
     <div className='space-y-4'>

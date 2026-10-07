@@ -14,8 +14,12 @@ import {
 } from '@/db/schema';
 import { eventApplicationsCacheTag } from '@/lib/admin-event';
 import { parseInstant } from '@/lib/datetime';
-import { resolveCheckInTarget, type CheckInTarget } from '@/lib/subevents';
-import { requirePermission } from '@/lib/rbac/authorization';
+import {
+  isSubeventRunning,
+  resolveCheckInTarget,
+  type CheckInTarget,
+} from '@/lib/subevents';
+import { hasPermission, requirePermission } from '@/lib/rbac/authorization';
 import { verifyCheckInPayload } from '@/lib/wallet/check-in-token';
 import {
   getEventParticipation,
@@ -269,6 +273,27 @@ async function checkInUser(
 /** The failure every action shares when a target isn't this event's sub-event. */
 const UNKNOWN_TARGET = 'That schedule entry does not belong to this event.';
 
+const TARGET_NOT_RUNNING =
+  "That schedule entry isn't running right now, so it can't take check-ins.";
+
+/**
+ * Whether `actorId` may write against `target` at this moment. The door is
+ * always open (until the event's end, checked separately); a schedule entry
+ * only while it's running, unless the actor holds `checkin:override:all` —
+ * which is what lets an organizer fix a missed scan after lunch has ended.
+ *
+ * Enforced here, not just by hiding the entry in the picker: the picker is a
+ * convenience, and a stale tab or hand-edited `?target=` would otherwise walk
+ * straight past it.
+ */
+async function canWriteToTarget(
+  actorId: string,
+  target: CheckInTarget,
+): Promise<boolean> {
+  if (!target.isSubevent || isSubeventRunning(target)) return true;
+  return hasPermission(actorId, 'checkin:override:all');
+}
+
 /**
  * Checks a participant in from their pass QR code.
  *
@@ -303,6 +328,9 @@ export async function scanCheckIn(
 
   const target = await resolveCheckInTarget(eventId, targetEventId);
   if (!target) return fail(UNKNOWN_TARGET);
+  if (!(await canWriteToTarget(actor.id, target))) {
+    return fail(TARGET_NOT_RUNNING);
+  }
 
   return checkInUser(eventId, claims.userId, actor.id, target);
 }
@@ -326,6 +354,9 @@ export async function checkInParticipant(
 
   const target = await resolveCheckInTarget(eventId, targetEventId);
   if (!target) return fail(UNKNOWN_TARGET);
+  if (!(await canWriteToTarget(actor.id, target))) {
+    return fail(TARGET_NOT_RUNNING);
+  }
 
   return checkInUser(eventId, userId, actor.id, target);
 }
@@ -353,6 +384,9 @@ export async function undoCheckIn(
 
   const target = await resolveCheckInTarget(eventId, targetEventId);
   if (!target) return fail(UNKNOWN_TARGET);
+  if (!(await canWriteToTarget(actor.id, target))) {
+    return fail(TARGET_NOT_RUNNING);
+  }
 
   // The main event's end, deliberately, even when undoing a sub-event row —
   // undo has to stay available for exactly as long as check-in does, or a

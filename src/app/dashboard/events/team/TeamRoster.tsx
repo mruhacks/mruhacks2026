@@ -10,14 +10,15 @@ type Props = {
   eventId: string;
   members: TeamMemberView[];
   currentUserId: string;
-  isOrganizer: boolean;
+  /** The viewer organizes this team and the event is still running. */
+  canRemoveMembers: boolean;
 };
 
 export function TeamRoster({
   eventId,
   members,
   currentUserId,
-  isOrganizer,
+  canRemoveMembers,
 }: Props) {
   return (
     <ul className='space-y-2'>
@@ -47,7 +48,7 @@ export function TeamRoster({
           </div>
           <div className='flex shrink-0 items-center gap-2'>
             {member.isOrganizer && <Badge variant='outline'>Organizer</Badge>}
-            {isOrganizer && member.userId !== currentUserId && (
+            {canRemoveMembers && member.userId !== currentUserId && (
               <RemoveMemberButton
                 eventId={eventId}
                 targetUserId={member.userId}

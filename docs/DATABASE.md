@@ -112,7 +112,7 @@ Our database schema is split across multiple files to be more manageable.
 - `src/db/schema.ts`: Main export file
 - `src/db/auth-schema.ts`: Defines authentication (who you are) related tables.
 - `src/db/lookups.ts`: Defines reference/lookup tables (genders, universities, majors, event_types, etc.).
-- `src/db/events-and-participation.ts`: Defines events (with `parent_event_id`, `event_type_id` FK to `event_types`, `capacity`, `rsvp_response_window_hours`), user profiles, event participants (with `id`, `status_id`, `reviewed_at`, `reviewed_by`, `waitlist_position`), event RSVP waves and invitations, user interests/dietary (user-level), check-ins, groups, group members, submissions, and application views
+- `src/db/events-and-participation.ts`: Defines events (with `parent_event_id`, `event_type_id` FK to `event_types`, `capacity`, `rsvp_response_window_hours`), user profiles, event participants (with `id`, `status_id`, `reviewed_at`, `reviewed_by`), application votes (one yes/no per reviewer per participant; the waitlist's order is derived from them, never stored), event RSVP waves and invitations, user interests/dietary (user-level), check-ins, groups, group members, submissions, and application views
 - `src/db/authz.ts`: Defines authorization (what you can do) related tables.
 - `scripts/seed-static.ts`: Seeds static lookup/reference data (including `participation_statuses`) into the lookup tables defined in `src/db/lookups.ts`.
 - `src/types/lookups.ts`: Defines the TypeScript types and source lists of valid values for the reference/lookup tables used by `scripts/seed-static.ts`.
@@ -236,7 +236,6 @@ erDiagram
         int status_id FK
         timestamp reviewed_at "nullable"
         uuid reviewed_by FK "nullable"
-        int waitlist_position "nullable"
         jsonb responses "nullable"
         timestamp created_at
         timestamp updated_at

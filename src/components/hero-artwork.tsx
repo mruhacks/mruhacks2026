@@ -87,7 +87,11 @@ export function HeroArtwork() {
       const next = getCountdown(EVENT_START_DATE);
       setCountdown(next);
       const delay =
-        next.mode === 'time' ? 1000 : next.mode === 'days' ? 60 * 1000 : HOUR_MS;
+        next.mode === 'time'
+          ? 1000
+          : next.mode === 'days'
+            ? 60 * 1000
+            : HOUR_MS;
       timer = setTimeout(update, delay);
     }
 

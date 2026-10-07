@@ -6,7 +6,8 @@ import { BreadcrumbSegment } from '@/components/breadcrumb-context';
 import { LocalDateRange } from '@/components/local-date-time';
 import { getAdminEventHeader } from '@/lib/admin-event';
 import { resolveEventId } from '@/lib/events';
-import { requirePermission } from '@/lib/rbac/authorization';
+import { hasPermission, requireAnyPermission } from '@/lib/rbac/authorization';
+import { EVENT_DASHBOARD_PERMISSIONS } from '@/lib/rbac/event-access';
 import { getUser } from '@/utils/auth';
 
 import { EditEventButton } from './_components/edit-event-button';
@@ -63,9 +64,15 @@ async function EventHeader({
 
   const user = await getUser();
   if (!user) redirect('/signin');
-  await requirePermission(user.id, 'event:manage');
+  // Any one tool under this event is enough to get in; each page and cell
+  // below gates itself on its own permission.
+  await requireAnyPermission(user.id, [...EVENT_DASHBOARD_PERMISSIONS]);
 
-  const event = await getAdminEventHeader(eventId);
+  const [event, canEditEvent] = await Promise.all([
+    getAdminEventHeader(eventId),
+    // Same permission the settings page gates on.
+    hasPermission(user.id, 'event:manage:all'),
+  ]);
 
   if (!event) notFound();
 
@@ -113,7 +120,7 @@ async function EventHeader({
         <div className='flex shrink-0 flex-wrap items-center gap-2'>
           <ShareEventButton eventId={event.id} slug={event.slug} />
 
-          <EditEventButton />
+          {canEditEvent && <EditEventButton />}
         </div>
       </div>
     </header>

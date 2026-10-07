@@ -1,8 +1,9 @@
 import * as React from 'react';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 
+import { getAdminEventSettings } from '@/lib/admin-event';
 import { resolveEventId } from '@/lib/events';
-import { hasPermission } from '@/lib/rbac/authorization';
+import { hasPermission, requirePermission } from '@/lib/rbac/authorization';
 import { getUser } from '@/utils/auth';
 
 import { EventRsvpPage } from './rsvp-page';
@@ -40,13 +41,29 @@ async function RsvpContent({
     getUser(),
   ]);
   if (!eventId) notFound();
+  if (!user) redirect('/signin');
+  // The same permission the read actions behind this page check, and the one
+  // the dashboard's RSVP tile is shown on.
+  await requirePermission(user.id, 'rsvp:read:all');
 
-  // Reordering the waitlist and closing an open wave early both override who
-  // gets (or keeps) an RSVP, so they're gated on `rsvp:write:all`; the
-  // actions re-check it.
-  const canManageRsvp = user
-    ? await hasPermission(user.id, 'rsvp:write:all')
-    : false;
+  const [event, canManageEvent, canManageRsvp] = await Promise.all([
+    getAdminEventSettings(eventId),
+    // Sending a wave, resending an invitation and the response window are
+    // event management; the actions re-check it.
+    hasPermission(user.id, 'event:manage:all'),
+    // Closing an open wave early overrides who keeps an RSVP, so it's gated
+    // on `rsvp:write:all`; the action re-checks it.
+    hasPermission(user.id, 'rsvp:write:all'),
+  ]);
+  if (!event) notFound();
 
-  return <EventRsvpPage eventId={eventId} canManageRsvp={canManageRsvp} />;
+  return (
+    <EventRsvpPage
+      eventId={eventId}
+      hasApplication={event.hasApplication}
+      rsvpResponseWindowHours={event.rsvpResponseWindowHours}
+      canManageEvent={canManageEvent}
+      canManageRsvp={canManageRsvp}
+    />
+  );
 }

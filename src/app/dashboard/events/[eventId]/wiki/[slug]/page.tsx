@@ -81,7 +81,7 @@ export default async function EventWikiArticlePage({ params }: Props) {
     <Card className='p-6'>
       <article className='max-w-3xl space-y-6'>
         {article.bodyMarkdown.trim() ? (
-          <MarkdownContent markdown={article.bodyMarkdown} />
+          <MarkdownContent markdown={article.bodyMarkdown} allowEmbeds />
         ) : (
           <p className='text-muted-foreground text-sm'>
             This article has no content yet.

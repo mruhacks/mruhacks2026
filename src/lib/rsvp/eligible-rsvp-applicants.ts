@@ -10,6 +10,7 @@ import {
 } from '@/db/schema';
 import { countAttending } from '@/lib/participation/server';
 import { WAVE_ELIGIBLE_STATUSES } from '@/lib/participation/status';
+import { getWaitlistOrder } from '@/lib/rsvp/waitlist';
 import { db } from '@/utils/db';
 
 export type EligibleRsvpApplicant = {
@@ -17,8 +18,8 @@ export type EligibleRsvpApplicant = {
   email: string;
   /** `event_participants.id` — the row the invitation is created against. */
   participantId: string;
-  /** Queue order on the waitlist; null when unranked (invited last). */
-  waitlistPosition: number | null;
+  /** 1-based place in the vote-ranked waitlist (see `@/lib/rsvp/waitlist`). */
+  rank: number;
   /** `event_participants.created_at` — original application submission. */
   applicationCreatedAt: Date;
 };
@@ -56,29 +57,39 @@ export async function getEligibleRsvpApplicants(
   const availableSpots =
     capacity === null ? null : Math.max(0, capacity - attendeeCount);
 
-  const rows = await db
-    .select({
-      userId: eventParticipants.userId,
-      email: user.email,
-      participantId: eventParticipants.id,
-      waitlistPosition: eventParticipants.waitlistPosition,
-      applicationCreatedAt: eventParticipants.createdAt,
-    })
-    .from(eventParticipants)
-    .innerJoin(
-      participationStatuses,
-      eq(eventParticipants.statusId, participationStatuses.id),
-    )
-    .innerJoin(user, eq(eventParticipants.userId, user.id))
-    .where(
-      and(
-        eq(eventParticipants.eventId, eventId),
-        inArray(participationStatuses.label, [...WAVE_ELIGIBLE_STATUSES]),
+  const [order, rows] = await Promise.all([
+    getWaitlistOrder(eventId),
+    db
+      .select({
+        userId: eventParticipants.userId,
+        email: user.email,
+        participantId: eventParticipants.id,
+        applicationCreatedAt: eventParticipants.createdAt,
+      })
+      .from(eventParticipants)
+      .innerJoin(
+        participationStatuses,
+        eq(eventParticipants.statusId, participationStatuses.id),
+      )
+      .innerJoin(user, eq(eventParticipants.userId, user.id))
+      .where(
+        and(
+          eq(eventParticipants.eventId, eventId),
+          inArray(participationStatuses.label, [...WAVE_ELIGIBLE_STATUSES]),
+        ),
       ),
-    );
+  ]);
+
+  const rank = new Map(order.map((id, index) => [id, index + 1]));
+  const applicants = rows
+    .map((row) => ({
+      ...row,
+      rank: rank.get(row.participantId) ?? Number.POSITIVE_INFINITY,
+    }))
+    .sort((a, b) => a.rank - b.rank);
 
   return {
-    applicants: rows,
+    applicants,
     capacity,
     attendeeCount,
     availableSpots,

@@ -19,11 +19,9 @@ import { updateParticipantStatus } from '@/app/dashboard/admin/events/actions';
 import { getEventDisplayStatus } from '@/app/dashboard/events/event-display-status';
 import type { AdminApplicationRow } from '@/lib/admin-event';
 import { EMPTY_FILTER_VALUE } from '@/components/data-table/data-table-column-filter';
-import { isOtherOption, otherTextKey } from '@/lib/other-option';
-import type {
-  ApplicationQuestion,
-  ApplicationQuestionOption,
-} from '@/types/application';
+import { getAnswerDisplayValue } from '@/lib/application-answer-display';
+import { otherTextKey } from '@/lib/other-option';
+import type { ApplicationQuestion } from '@/types/application';
 import {
   participationStatusesList,
   type ParticipationStatus,
@@ -69,39 +67,6 @@ const ATTENDANCE_LABELS: Record<AttendanceState, string> = {
   checked_in: 'Checked in',
   no_show: 'No show',
 };
-
-/** Mirrors the renderer in the full responses view. */
-function getDisplayValue(
-  value: unknown,
-  type: ApplicationQuestion['type'],
-  options: ApplicationQuestionOption[] = [],
-  otherText?: unknown,
-): string {
-  if (value === null || value === undefined) return '—';
-
-  const withOtherText = (label: string) =>
-    isOtherOption(label) && typeof otherText === 'string' && otherText
-      ? `${label} (${otherText})`
-      : label;
-
-  if (type === 'single_select') {
-    const option = options.find((item) => item.value === value);
-    return withOtherText(option ? option.label : String(value));
-  }
-
-  if (type === 'multi_select' && Array.isArray(value)) {
-    return value
-      .map((item) => {
-        const option = options.find((o) => o.value === item);
-        return withOtherText(option ? option.label : String(item));
-      })
-      .join(', ');
-  }
-
-  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
-  if (Array.isArray(value)) return value.map(String).join(', ');
-  return String(value);
-}
 
 /** Single-select, multi-select and yes/no answers filter by choice. */
 function getAnswerFilterMeta(
@@ -194,11 +159,23 @@ function StatusCell({
   );
 }
 
+/**
+ * Applicant-supplied text (names, answers) lands in these cells, and a
+ * spreadsheet opening the export evaluates any cell starting with one of
+ * these as a formula, e.g. a `=HYPERLINK(...)` leaking neighbouring rows.
+ * A leading `'` makes it plain text.
+ */
+const FORMULA_TRIGGER = /^\s*[=+\-@\t\r]/;
+
 function toCsv(rows: string[][]): string {
   return rows
     .map((row) =>
       row
-        .map((cell) => `"${String(cell ?? '').replace(/"/g, '""')}"`)
+        .map((cell) => {
+          let text = String(cell ?? '');
+          if (FORMULA_TRIGGER.test(text)) text = `'${text}`;
+          return `"${text.replace(/"/g, '""')}"`;
+        })
         .join(','),
     )
     .join('\n');
@@ -406,7 +383,7 @@ export function ApplicationsTable({
                     accessorFn: (row) =>
                       meta?.filterVariant === 'select'
                         ? row.responses[question.id]
-                        : getDisplayValue(
+                        : getAnswerDisplayValue(
                             row.responses[question.id],
                             question.type,
                             question.options,
@@ -414,7 +391,7 @@ export function ApplicationsTable({
                           ),
                     meta,
                     cell: ({ row }) =>
-                      getDisplayValue(
+                      getAnswerDisplayValue(
                         row.original.responses[question.id],
                         question.type,
                         question.options,
@@ -469,7 +446,7 @@ export function ApplicationsTable({
       row.teamCode ?? '',
       row.hasResume ? 'yes' : 'no',
       ...answerQuestions.map((q) =>
-        getDisplayValue(
+        getAnswerDisplayValue(
           row.responses[q.id],
           q.type,
           q.options,

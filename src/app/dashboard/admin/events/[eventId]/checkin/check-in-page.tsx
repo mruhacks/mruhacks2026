@@ -106,6 +106,10 @@ type CheckInPageProps = {
   targetId: string;
   /** `?target=` named something that isn't a sub-event of this event. */
   unknownTarget?: boolean;
+  /** …and specifically, it's a real schedule entry that isn't running now. */
+  targetNotRunning?: boolean;
+  /** The event is over: the server refuses every check-in and undo. */
+  hasEnded?: boolean;
 };
 
 /**
@@ -129,6 +133,8 @@ export function CheckInPage({
   subevents,
   targetId,
   unknownTarget = false,
+  targetNotRunning = false,
+  hasEnded = false,
 }: CheckInPageProps) {
   const [roster, setRoster] = React.useState<CheckInRosterRow[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -314,8 +320,10 @@ export function CheckInPage({
   );
 
   const isSubeventArmed = targetId !== eventId;
+  // Shown for an unknown target even with nothing else to offer: it's the
+  // only way back to the door from a dead link.
   const selector =
-    subevents.length > 0 ? (
+    subevents.length > 0 || unknownTarget ? (
       <CheckInTargetSelector
         eventId={eventId}
         eventName={eventName}
@@ -332,8 +340,10 @@ export function CheckInPage({
       <div className='space-y-6'>
         {selector}
         <p className='text-destructive py-8 text-center text-sm'>
-          That schedule entry doesn&apos;t belong to this event. Pick a check-in
-          target above to start scanning.
+          {targetNotRunning
+            ? "That schedule entry isn't running right now."
+            : "That schedule entry doesn't belong to this event."}{' '}
+          Pick a check-in target above to start scanning.
         </p>
       </div>
     );
@@ -388,14 +398,25 @@ export function CheckInPage({
 
       <div className='grid gap-6 lg:grid-cols-[minmax(0,400px)_1fr] lg:items-start'>
         <div className='space-y-3 lg:sticky lg:top-6'>
-          <CheckInScanner onPayload={handlePayload} />
-          {feedback && <ScanFeedbackPanel feedback={feedback} />}
+          {hasEnded ? (
+            // No camera at all: every scan would only come back rejected.
+            <div className='text-muted-foreground rounded-xl border p-4 text-sm'>
+              This event has ended. Check-in is frozen — the roster below is the
+              final record.
+            </div>
+          ) : (
+            <>
+              <CheckInScanner onPayload={handlePayload} />
+              {feedback && <ScanFeedbackPanel feedback={feedback} />}
+            </>
+          )}
         </div>
 
         <CheckInRoster
           rows={roster}
           pendingUserId={pendingUserId}
           requiresDoorCheckIn={isSubeventArmed}
+          frozen={hasEnded}
           onCheckIn={handleManualCheckIn}
           onUndo={handleUndo}
         />

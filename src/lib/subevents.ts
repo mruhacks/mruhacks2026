@@ -67,6 +67,23 @@ export function isScheduleVisible(row: Pick<SubeventRow, 'startsAt'>): boolean {
 }
 
 /**
+ * Whether a schedule entry is happening at `now` (epoch ms, default the present): started, and not
+ * yet over. An entry with no start time is never running; one with no end
+ * runs from its start onward.
+ *
+ * This is what a scanner without `checkin:override:all` is limited to — the
+ * check-in desk only offers them what's on right now, so a volunteer can't arm
+ * tomorrow's breakfast by mistake.
+ */
+export function isSubeventRunning(
+  row: { startsAt: Date | null; endsAt: Date | null },
+  now: number = Date.now(),
+): boolean {
+  if (!row.startsAt || row.startsAt.getTime() > now) return false;
+  return !row.endsAt || row.endsAt.getTime() > now;
+}
+
+/**
  * Check-ins per sub-event, keyed by sub-event id. Sub-events with none are
  * absent from the map rather than zero, so callers should default.
  */
@@ -93,6 +110,9 @@ export type CheckInTarget = {
   isSubevent: boolean;
   /** The sub-event's name, or null when the target is the main event. */
   name: string | null;
+  /** The sub-event's schedule slot; null for the main event. */
+  startsAt: Date | null;
+  endsAt: Date | null;
 };
 
 /**
@@ -119,11 +139,22 @@ export async function resolveCheckInTarget(
     !targetEventId ||
     targetEventId.toLowerCase() === mainEventId.toLowerCase()
   ) {
-    return { targetId: mainEventId, isSubevent: false, name: null };
+    return {
+      targetId: mainEventId,
+      isSubevent: false,
+      name: null,
+      startsAt: null,
+      endsAt: null,
+    };
   }
 
   const [row] = await db
-    .select({ id: events.id, name: events.name })
+    .select({
+      id: events.id,
+      name: events.name,
+      startsAt: events.startsAt,
+      endsAt: events.endsAt,
+    })
     .from(events)
     .where(
       and(eq(events.id, targetEventId), eq(events.parentEventId, mainEventId)),
@@ -132,7 +163,13 @@ export async function resolveCheckInTarget(
 
   if (!row) return null;
 
-  return { targetId: row.id, isSubevent: true, name: row.name };
+  return {
+    targetId: row.id,
+    isSubevent: true,
+    name: row.name,
+    startsAt: row.startsAt,
+    endsAt: row.endsAt,
+  };
 }
 
 /**

@@ -28,7 +28,7 @@ import {
 import {
   deleteObject,
   isObjectStorageKey,
-  parseProfilePictureKey,
+  parseOwnedProfilePictureKey,
   profilePictureUrl,
   putObject,
 } from '@/utils/object-storage';
@@ -449,7 +449,10 @@ export async function uploadProfilePicture(
       .update(authUser)
       .set({ image: profilePictureUrl(key) })
       .where(eq(authUser.id, currentUser.id));
-    const previousKey = parseProfilePictureKey(existing?.image);
+    const previousKey = parseOwnedProfilePictureKey(
+      existing?.image,
+      currentUser.id,
+    );
     if (previousKey) await deleteObject(previousKey);
     revalidateProfile();
     return ok();
@@ -474,7 +477,7 @@ export async function removeProfilePicture(): Promise<ActionResult> {
       .update(authUser)
       .set({ image: null })
       .where(eq(authUser.id, currentUser.id));
-    const key = parseProfilePictureKey(existing?.image);
+    const key = parseOwnedProfilePictureKey(existing?.image, currentUser.id);
     if (key) await deleteObject(key);
     revalidateProfile();
     return ok();

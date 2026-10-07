@@ -37,23 +37,19 @@ export function hasAnyStatus(labels: readonly ParticipationStatus[]): SQL {
 }
 
 /**
- * Participants holding a spot (`accepted`) for `eventId`, as a scalar
- * subquery — selectable alongside a locked `events` row, so capacity is
- * measured inside the same statement that takes the lock. Bound by value
- * rather than correlated on a column: drizzle renders an outer column
- * unqualified inside `sql`, which would resolve against the inner table.
+ * Number of participants holding a spot (`accepted`) for one event.
+ *
+ * For a capacity check, pass the transaction and call this only *after* the
+ * `events` row is locked `FOR UPDATE`, as its own statement. Under READ
+ * COMMITTED a statement that waits on a lock still reads from the snapshot it
+ * took before waiting, so a count selected alongside the lock would miss the
+ * spot a concurrent transaction just committed and both would claim it.
  */
-export function attendingCountSql(eventId: string): SQL<number> {
-  return sql<number>`(
-    SELECT count(*)::int FROM ${eventParticipants}
-    WHERE ${eventParticipants.eventId} = ${eventId}
-      AND ${eventParticipants.statusId} = ${statusIdOf('accepted')}
-  )`.mapWith(Number);
-}
-
-/** Number of participants holding a spot for one event. */
-export async function countAttending(eventId: string): Promise<number> {
-  const [row] = await db
+export async function countAttending(
+  eventId: string,
+  executor: Pick<typeof db, 'select'> = db,
+): Promise<number> {
+  const [row] = await executor
     .select({ c: sql<number>`count(*)`.mapWith(Number) })
     .from(eventParticipants)
     .where(and(eq(eventParticipants.eventId, eventId), hasStatus('accepted')));

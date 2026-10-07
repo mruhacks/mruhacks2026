@@ -56,7 +56,8 @@ beforeAll(async () => {
     })
     .returning({ id: user.id });
   actorUserId = actor.id;
-  const privilegeSlugs = ['role:all:all', 'permission:all:all'];
+  // `all:all:all` because granting a permission requires holding it.
+  const privilegeSlugs = ['role:all:all', 'permission:all:all', 'all:all:all'];
   for (const slug of privilegeSlugs) {
     const [created] = await db
       .insert(permission)
@@ -88,6 +89,7 @@ afterAll(async () => {
   await db.delete(user).where(eq(user.id, actorUserId));
   await db.delete(permission).where(eq(permission.slug, 'role:all:all'));
   await db.delete(permission).where(eq(permission.slug, 'permission:all:all'));
+  await db.delete(permission).where(eq(permission.slug, 'all:all:all'));
 });
 
 describe('createRole', () => {

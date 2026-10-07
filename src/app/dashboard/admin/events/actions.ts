@@ -41,7 +41,7 @@ import { resendRsvpMagicLink } from '@/lib/rsvp/resend-rsvp-magic-link';
 import { getAdminRsvpSummary } from '@/lib/rsvp/get-admin-rsvp-summary';
 import {
   getWaitlist,
-  moveWaitlistEntry,
+  syncWaitlistForEvent,
   type WaitlistEntry,
 } from '@/lib/rsvp/waitlist';
 import type { AdminRsvpSummary } from '@/lib/rsvp/get-admin-rsvp-summary';
@@ -989,20 +989,6 @@ export async function updateParticipantStatus(
         }
       }
 
-      let waitlistPosition: number | null = null;
-      if (status === 'waitlisted') {
-        // Joining the waitlist goes to the back of the queue.
-        const [{ next }] = await tx
-          .select({
-            next: sql<number>`COALESCE(MAX(${eventParticipants.waitlistPosition}), 0) + 1`.mapWith(
-              Number,
-            ),
-          })
-          .from(eventParticipants)
-          .where(eq(eventParticipants.eventId, eventId));
-        waitlistPosition = next;
-      }
-
       let newInvitationId: string | null = null;
       const needsOpenWave =
         status === 'invited' &&
@@ -1053,7 +1039,6 @@ export async function updateParticipantStatus(
         .update(eventParticipants)
         .set({
           statusId: statusIdOf(status),
-          waitlistPosition,
           ...(toReview ? { reviewedAt: now, reviewedBy: authUser.id } : {}),
         })
         .where(eq(eventParticipants.id, participantId));
@@ -1081,6 +1066,16 @@ export async function updateParticipantStatus(
   }
 
   if (result.from === status) return ok({ status });
+
+  // A review decision moves the vote tally's inputs — "Denied" drops a
+  // member out of their team's score, and anyone leaving review frees or
+  // joins the waitlist — so re-rank. Best effort: the status change itself
+  // has committed, and the next vote resyncs anyway.
+  try {
+    await syncWaitlistForEvent(eventId, authUser.id);
+  } catch (error) {
+    console.error('Waitlist sync after status change failed:', error);
+  }
 
   updateTag(eventApplicationsCacheTag(eventId));
 
@@ -1133,13 +1128,14 @@ export type SendEventRsvpWaveResult = {
 
 /**
  * Read-only RSVP wave/capacity summary for admin RSVP surfaces.
- * Requires event:manage permission (satisfied by event:manage:all).
+ * Requires rsvp:read:all, the permission the RSVP page is gated on.
  */
 export async function getEventRsvpSummary(
   eventId: string,
 ): Promise<ActionResult<AdminRsvpSummary>> {
-  const user = await getAuthorizedUser();
+  const user = await getUser();
   if (!user) return fail('Not authenticated');
+  await requirePermission(user.id, 'rsvp:read:all');
 
   if (!eventId.trim()) return fail('Event ID is required.');
 
@@ -1254,58 +1250,19 @@ export async function sendEventRsvpWave(
 
 /**
  * Admin: the event's waitlist in queue order — the order RSVP waves invite
- * in. Requires event:manage, like the rest of the RSVP page.
+ * in. Requires rsvp:read:all, like the rest of the RSVP page.
  */
 export async function getEventWaitlist(
   eventId: string,
 ): Promise<ActionResult<WaitlistEntry[]>> {
-  const user = await getAuthorizedUser();
+  const user = await getUser();
   if (!user) return fail('Not authenticated');
+  await requirePermission(user.id, 'rsvp:read:all');
   if (!eventId.trim()) return fail('Event ID is required.');
   return ok(await getWaitlist(eventId));
 }
 
 export type { WaitlistEntry } from '@/lib/rsvp/waitlist';
-
-/**
- * Admin: move one waitlisted participant to a new place in the queue.
- * Requires `rsvp:write:all`: the queue decides who the next wave invites.
- */
-export async function moveWaitlistParticipant(input: {
-  eventId: string;
-  participantId: string;
-  position: number;
-}): Promise<ActionResult<WaitlistEntry[]>> {
-  const user = await getAuthorizedUser();
-  if (!user) return fail('Not authenticated');
-  if (!(await hasPermission(user.id, 'rsvp:write:all'))) {
-    return fail("You don't have permission to reorder the waitlist.");
-  }
-
-  const result = await moveWaitlistEntry(
-    input.eventId,
-    input.participantId,
-    input.position,
-  );
-  if (!result.success) return fail(result.error);
-
-  if (result.from !== result.to) {
-    updateTag(eventApplicationsCacheTag(input.eventId));
-    await writeAuditLog({
-      actorId: user.id,
-      action: 'event.waitlist_reordered',
-      targetType: 'event',
-      targetId: input.eventId,
-      metadata: {
-        participantId: input.participantId,
-        from: result.from,
-        to: result.to,
-      },
-    });
-  }
-
-  return ok(await getWaitlist(input.eventId));
-}
 
 export type FormedTeamMember = {
   userId: string;

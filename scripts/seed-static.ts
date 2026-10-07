@@ -172,6 +172,10 @@ async function seedRolesAndPermissions() {
     },
     { slug: 'checkin:write:all', description: 'Check participants in or out' },
     {
+      slug: 'checkin:override:all',
+      description: 'Check in to schedule entries outside their scheduled time',
+    },
+    {
       slug: 'rsvp:read:all',
       description: "View an event's RSVP waves and responses",
     },
@@ -187,6 +191,10 @@ async function seedRolesAndPermissions() {
     {
       slug: 'application:stats:all',
       description: 'View aggregate application statistics',
+    },
+    {
+      slug: 'application:vote:all',
+      description: 'Vote yes/no on applications in the blind swipe review',
     },
     {
       slug: 'article:read:all',
@@ -270,7 +278,15 @@ async function seedRolesAndPermissions() {
       },
       {
         roleId: findRole('organizer').id,
+        permissionId: findPerm('application:vote:all').id,
+      },
+      {
+        roleId: findRole('organizer').id,
         permissionId: findPerm('checkin:write:all').id,
+      },
+      {
+        roleId: findRole('organizer').id,
+        permissionId: findPerm('checkin:override:all').id,
       },
       {
         roleId: findRole('organizer').id,

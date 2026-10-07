@@ -15,7 +15,7 @@ import {
 } from '@/app/dashboard/profile/actions';
 import { db } from '@/utils/db';
 import { events } from '@/db/schema';
-import { resolveEventId } from '@/lib/events';
+import { hasEventElapsed, resolveEventId } from '@/lib/events';
 import { eq } from 'drizzle-orm';
 import {
   Card,
@@ -145,11 +145,39 @@ export default async function ApplyEventPage({ params }: Props) {
     redirect(`/dashboard/profile?next=/dashboard/events/${segment}/apply`);
   }
 
+  const hasEnded = hasEventElapsed(event.endsAt);
   const decisionIsFinal =
     applicationStatus != null && !canEditApplication(applicationStatus.status);
   const hasCustomQuestions = event.applicationQuestions.some(
     (question) => question.active && question.type !== 'section_divider',
   );
+
+  // Submitting is refused server-side once the event is over, so a past
+  // event never shows the form — just whatever status the user already has.
+  if (hasEnded) {
+    return (
+      <div className='space-y-4'>
+        <BreadcrumbSegment id={segment} label={event.name} />
+        {applicationStatus ? (
+          <ApplicationStatusBanner application={applicationStatus} standalone />
+        ) : (
+          <Card className='w-full sm:max-w-2xl'>
+            <CardHeader>
+              <CardTitle>Applications closed</CardTitle>
+              <CardDescription>
+                {event.name} has ended and is no longer accepting applications.
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        )}
+        <div className='sm:max-w-2xl'>
+          <Button asChild variant='outline' size='sm'>
+            <Link href='/dashboard'>← Back to events</Link>
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   if (decisionIsFinal && applicationStatus) {
     return (

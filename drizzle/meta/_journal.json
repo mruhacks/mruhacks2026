@@ -351,6 +351,13 @@
       "when": 1791065278508,
       "tag": "0049_remove_approved_status",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1791129659647,
+      "tag": "0050_application_votes",
+      "breakpoints": true
     }
   ]
 }

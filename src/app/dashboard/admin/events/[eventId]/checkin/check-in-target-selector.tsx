@@ -5,7 +5,13 @@ import { usePathname, useRouter } from 'next/navigation';
 
 import { LocalDateRange } from '@/components/local-date-time';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { useNow } from '@/lib/use-now';
 import { cn } from '@/lib/utils';
 
@@ -40,10 +46,9 @@ type Props = {
  * rather than being implied by which pill looks selected, and a sub-event gets
  * a colour the door doesn't, readable across a room.
  *
- * Every target is one tap away and all of them are visible at once, which is
- * why this is a pill row rather than a `Select` — the audience is a volunteer
- * holding a phone at a meal table, and a dropdown both costs a second tap and
- * hides what the options are.
+ * Targets are picked from a `Select`: an event can carry many schedule
+ * entries, and a pill row of them overflowed off-screen on a phone, hiding
+ * most of the options behind a horizontal scroll.
  */
 export function CheckInTargetSelector({
   eventId,
@@ -120,37 +125,32 @@ export function CheckInTargetSelector({
         </p>
       )}
 
-      <div className='no-scrollbar flex gap-2 overflow-x-auto'>
-        <Button
-          type='button'
-          size='sm'
-          variant={armed ? 'outline' : 'default'}
-          className='h-11 shrink-0 sm:h-9'
-          onClick={() => arm(eventId)}
+      <Select value={targetId} onValueChange={arm}>
+        <SelectTrigger
+          aria-label='Check-in target'
+          className='bg-background h-11 w-full sm:h-9'
         >
-          Main event
-        </Button>
-        {subevents.map((subevent) => {
-          const ended = hasEnded(subevent.endsAt);
-          return (
-            <Button
-              key={subevent.id}
-              type='button'
-              size='sm'
-              variant={subevent.id === targetId ? 'default' : 'outline'}
-              className={cn(
-                'h-11 shrink-0 sm:h-9',
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={eventId}>Main event</SelectItem>
+          {subevents.map((subevent) => {
+            const ended = hasEnded(subevent.endsAt);
+            return (
+              <SelectItem
+                key={subevent.id}
+                value={subevent.id}
                 // Past sub-events stay pickable — a missed scan gets fixed
                 // after the fact — but shouldn't read as today's choice.
-                ended && subevent.id !== targetId && 'text-muted-foreground',
-              )}
-              onClick={() => arm(subevent.id)}
-            >
-              {subevent.name}
-            </Button>
-          );
-        })}
-      </div>
+                className={cn(ended && 'text-muted-foreground')}
+              >
+                {subevent.name}
+                {ended ? ' (ended)' : ''}
+              </SelectItem>
+            );
+          })}
+        </SelectContent>
+      </Select>
     </div>
   );
 }

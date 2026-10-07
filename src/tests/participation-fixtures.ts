@@ -1,6 +1,7 @@
 import { and, count, eq } from 'drizzle-orm';
 
 import {
+  applicationVotes,
   eventInvitations,
   eventParticipants,
   participationStatuses,
@@ -28,7 +29,6 @@ export async function insertParticipant(input: {
   userId: string;
   status: ParticipationStatus;
   createdAt?: Date;
-  waitlistPosition?: number | null;
   responses?: Record<string, unknown> | null;
 }): Promise<string> {
   const [row] = await db
@@ -37,7 +37,6 @@ export async function insertParticipant(input: {
       eventId: input.eventId,
       userId: input.userId,
       statusId: await statusId(input.status),
-      waitlistPosition: input.waitlistPosition ?? null,
       responses: input.responses === undefined ? {} : input.responses,
       ...(input.createdAt
         ? { createdAt: input.createdAt, updatedAt: input.createdAt }
@@ -45,6 +44,24 @@ export async function insertParticipant(input: {
     })
     .returning({ id: eventParticipants.id });
   return row.id;
+}
+
+/** One swipe-review vote per voter on `participantId`. */
+export async function insertVotes(input: {
+  eventId: string;
+  participantId: string;
+  voterIds: string[];
+  approve: boolean;
+}): Promise<void> {
+  if (input.voterIds.length === 0) return;
+  await db.insert(applicationVotes).values(
+    input.voterIds.map((voterId) => ({
+      eventId: input.eventId,
+      participantId: input.participantId,
+      voterId,
+      approve: input.approve,
+    })),
+  );
 }
 
 /**

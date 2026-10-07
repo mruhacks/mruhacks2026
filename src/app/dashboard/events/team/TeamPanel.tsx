@@ -14,9 +14,18 @@ import { ShareInviteButton } from './ShareInviteButton';
 import { JoinTeamDialog } from './JoinTeamDialog';
 import { LeaveTeamButton } from './LeaveTeamButton';
 
-type Props = { eventId: string; joinCode?: string };
+type Props = {
+  eventId: string;
+  joinCode?: string;
+  /** Team changes are frozen once the event is over; only the roster shows. */
+  hasEnded?: boolean;
+};
 
-export async function TeamPanel({ eventId, joinCode }: Props) {
+export async function TeamPanel({
+  eventId,
+  joinCode,
+  hasEnded = false,
+}: Props) {
   const currentUser = await getUser();
   if (!currentUser) return null;
 
@@ -39,25 +48,29 @@ export async function TeamPanel({ eventId, joinCode }: Props) {
           <Badge variant='outline'>{memberCountLabel}</Badge>
         </div>
         <CardDescription>
-          Group up with the people you&apos;re attending with.
+          {hasEnded
+            ? 'This event has ended. Your team is final.'
+            : "Group up with the people you're attending with."}
         </CardDescription>
       </CardHeader>
       <CardContent className='space-y-4'>
-        <TeamCodeDisplay code={code} />
+        {!hasEnded && <TeamCodeDisplay code={code} />}
         <TeamRoster
           eventId={eventId}
           members={members}
           currentUserId={currentUser.id}
-          isOrganizer={isOrganizer}
+          canRemoveMembers={isOrganizer && !hasEnded}
         />
-        <div className='flex flex-wrap gap-2'>
-          <ShareInviteButton eventId={eventId} code={code} />
-          <JoinTeamDialog
-            eventId={eventId}
-            defaultCode={joinCode && joinCode !== code ? joinCode : undefined}
-          />
-          {memberCount > 1 && <LeaveTeamButton eventId={eventId} />}
-        </div>
+        {!hasEnded && (
+          <div className='flex flex-wrap gap-2'>
+            <ShareInviteButton eventId={eventId} code={code} />
+            <JoinTeamDialog
+              eventId={eventId}
+              defaultCode={joinCode && joinCode !== code ? joinCode : undefined}
+            />
+            {memberCount > 1 && <LeaveTeamButton eventId={eventId} />}
+          </div>
+        )}
       </CardContent>
     </Card>
   );

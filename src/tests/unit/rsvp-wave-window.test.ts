@@ -54,7 +54,7 @@ describe('selectRsvpWaveInvitees', () => {
     return {
       userId,
       email: `${userId}@example.com`,
-      waitlistPosition: null,
+      rank: 1,
       participantId: id,
       applicationCreatedAt: new Date(createdAt),
     };
