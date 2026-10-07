@@ -1,9 +1,16 @@
-import { defineConfig } from 'vitest/config';
+import { configDefaults, defineConfig } from 'vitest/config';
+
+/**
+ * Slow (~30s, needs Docker): left out of `pnpm test`, run by `pnpm test:gavel`
+ * (vitest.gavel.config.ts) and in CI.
+ */
+export const GAVEL_DIFFERENTIAL_TEST = 'src/tests/gavel-differential.test.ts';
 
 export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
+    exclude: [...configDefaults.exclude, GAVEL_DIFFERENTIAL_TEST],
     // Deliberately non-UTC, and deliberately not EVENT_TIME_ZONE
     // (America/Edmonton) either: a formatter that dropped its timeZone arg
     // and fell back to the ambient zone would render identically under
