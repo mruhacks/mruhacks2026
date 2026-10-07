@@ -52,13 +52,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import {
-  ArrowLeft,
-  ArrowRight,
-  BookOpen,
-  CalendarDays,
-  Users,
-} from 'lucide-react';
+import { ArrowRight, BookOpen, CalendarDays, Users } from 'lucide-react';
 
 type Props = {
   params: Promise<{ eventId: string }>;
@@ -87,7 +81,6 @@ function EventPageSkeleton() {
   return (
     <div className='flex flex-col gap-8'>
       <div className='flex flex-col gap-3'>
-        <div className='bg-muted h-4 w-24 animate-pulse rounded' />
         <div className='bg-muted h-10 w-2/3 animate-pulse rounded' />
         <div className='bg-muted h-4 w-40 animate-pulse rounded' />
       </div>
@@ -379,17 +372,6 @@ function EventPageLayout({
       <BreadcrumbSegment id={segment} label={event.name} />
 
       <header className='flex flex-col gap-3'>
-        <Button
-          asChild
-          variant='ghost'
-          size='sm'
-          className='text-muted-foreground -ml-2 w-fit'
-        >
-          <Link href='/dashboard'>
-            <ArrowLeft data-icon='inline-start' />
-            My events
-          </Link>
-        </Button>
         <div className='flex flex-col gap-2'>
           <div className='flex flex-wrap items-center gap-3'>
             <h1 className='text-3xl font-semibold tracking-tight sm:text-4xl'>

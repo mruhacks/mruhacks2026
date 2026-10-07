@@ -1,7 +1,5 @@
 import { Suspense } from 'react';
-import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
-import { ArrowLeft } from 'lucide-react';
 
 import { getMySubmission } from '@/app/dashboard/events/submission-actions';
 import { BreadcrumbSegment } from '@/components/breadcrumb-context';
@@ -9,7 +7,6 @@ import {
   ProjectStageDescription,
   SubmissionView,
 } from '@/components/submissions/submission-view';
-import { Button } from '@/components/ui/button';
 import {
   Card,
   CardDescription,
@@ -58,8 +55,6 @@ async function ProjectContent({
   if (!result.success || !result.data) notFound();
   const { submissionWindow, opensAt, closesAt, submission } = result.data;
 
-  const eventHref = `/dashboard/events/${segment}`;
-
   const stage = getProjectStage(submissionWindow, submission);
   const copy = PROJECT_STAGE_COPY[stage];
   // These stages render the editor or the read-only project, each with its
@@ -76,17 +71,6 @@ async function ProjectContent({
   return (
     <div className='flex flex-col gap-3'>
       <BreadcrumbSegment id='project' label='Project' />
-      <Button
-        asChild
-        variant='ghost'
-        size='sm'
-        className='text-muted-foreground -ml-2 w-fit'
-      >
-        <Link href={eventHref}>
-          <ArrowLeft data-icon='inline-start' />
-          Back to event
-        </Link>
-      </Button>
 
       <div className='flex flex-col gap-6'>
         {!isEditing && !isFinal && (
