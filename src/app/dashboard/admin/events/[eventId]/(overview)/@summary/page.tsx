@@ -3,7 +3,6 @@ import { redirect } from 'next/navigation';
 import {
   CalendarCheck,
   CircleCheckBig,
-  FileCode2,
   Gavel,
   ThumbsUp,
   Trophy,
@@ -97,6 +96,8 @@ async function SummaryTiles({
   const base = `/dashboard/admin/events/${segment}`;
   const showRsvp = canReadRsvp && event.hasApplication;
   const showCheckIn = canCheckIn && event.checkInEnabled;
+  // Teams and their projects share one screen and one tile; either
+  // permission shows it, and each half of it follows its own.
   const showTeams = canReadTeams && event.teamsEnabled;
   const showSubmissions = canReadSubmissions && isSubmissionsEnabled(event);
   // Judging needs projects to judge, so it follows submissions being on.
@@ -144,11 +145,32 @@ async function SummaryTiles({
         />
       )}
 
-      {showTeams && (
+      {(showTeams || showSubmissions) && (
         <StatTile
           icon={<Users className='size-4' />}
-          label='Teams'
-          value={counts.teams.toLocaleString()}
+          label={showTeams ? 'Teams' : 'Projects'}
+          value={(showTeams
+            ? counts.teams
+            : counts.submissions.published
+          ).toLocaleString()}
+          footnote={
+            showSubmissions ? (
+              <>
+                {showTeams && (
+                  <>
+                    <strong className='text-foreground'>
+                      {counts.submissions.published}
+                    </strong>{' '}
+                    projects ·{' '}
+                  </>
+                )}
+                <strong className='text-foreground'>
+                  {counts.submissions.total - counts.submissions.published}
+                </strong>{' '}
+                still drafts
+              </>
+            ) : undefined
+          }
           href={`${base}/teams`}
         />
       )}
@@ -169,23 +191,6 @@ async function SummaryTiles({
             </>
           }
           href={`${base}/rsvp`}
-        />
-      )}
-
-      {showSubmissions && (
-        <StatTile
-          icon={<FileCode2 className='size-4' />}
-          label='Projects'
-          value={counts.submissions.published.toLocaleString()}
-          footnote={
-            <>
-              <strong className='text-foreground'>
-                {counts.submissions.total - counts.submissions.published}
-              </strong>{' '}
-              still drafts
-            </>
-          }
-          href={`${base}/submissions`}
         />
       )}
 

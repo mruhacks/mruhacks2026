@@ -96,11 +96,7 @@ export function RosterCard({
     <Card>
       <CardHeader>
         <CardTitle>Judges</CardTitle>
-        <CardDescription>
-          Add judges by email. They get a link to set up their account and can
-          judge from the event&apos;s start to its end. Judges shouldn&apos;t be
-          participants of this event — that isn&apos;t checked for you.
-        </CardDescription>
+        <CardDescription>Add judges by email.</CardDescription>
       </CardHeader>
       <CardContent className='flex flex-col gap-4'>
         <form onSubmit={add}>

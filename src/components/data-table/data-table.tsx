@@ -225,7 +225,7 @@ export function DataTable<TData, TValue>({
                 placeholder={searchPlaceholder ?? 'Search…'}
                 value={globalFilter ?? ''}
                 onChange={(e) => setGlobalFilter(e.target.value)}
-                className='h-9 max-w-xs'
+                className='h-9 w-md'
               />
             )}
             {toolbar}

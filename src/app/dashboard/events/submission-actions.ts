@@ -1,7 +1,7 @@
 /**
  * Server actions for a team's project submission: the participant editor at
  * dashboard/events/:id/project, and the read-only organizer views at
- * dashboard/admin/events/:id/submissions and dashboard/events/:id/projects/:id.
+ * dashboard/admin/events/:id/teams and dashboard/events/:id/projects/:id.
  *
  * A submission belongs to a team (every participant has one — a team-of-one is
  * a normal team), at most one per team. Only *eligible* members
@@ -134,7 +134,7 @@ async function revalidateSubmissionPaths(eventId: string): Promise<void> {
   for (const segment of await eventUrlSegments(eventId)) {
     revalidatePath(`/dashboard/events/${segment}`);
     revalidatePath(`/dashboard/events/${segment}/project`);
-    revalidatePath(`/dashboard/admin/events/${segment}/submissions`);
+    revalidatePath(`/dashboard/admin/events/${segment}/teams`);
   }
 }
 
@@ -564,6 +564,7 @@ export async function leaveSubmissionEditor(
 
 export type AdminSubmissionRow = {
   id: string;
+  teamId: string;
   title: string;
   published: boolean;
   publishedAt: Date | null;
@@ -614,9 +615,9 @@ export async function listEventSubmissions(
 
   const names = await teamMemberNames(rows.map((row) => row.teamId));
   return ok(
-    rows.map(({ teamId, ...row }) => ({
+    rows.map((row) => ({
       ...row,
-      members: names.get(teamId) ?? [],
+      members: names.get(row.teamId) ?? [],
     })),
   );
 }
@@ -647,7 +648,7 @@ export async function getEventSubmission(
 }
 
 /**
- * True when the caller may take down any submission. The submissions pages
+ * True when the caller may take down any submission. The project pages
  * are readable with `submission:read:all` alone, so the delete control has
  * to be gated on the permission that actually backs it.
  */
