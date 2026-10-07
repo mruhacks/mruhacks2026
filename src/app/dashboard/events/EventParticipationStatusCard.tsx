@@ -61,10 +61,10 @@ export function EventParticipationStatusCard({
         </CardContent>
       )}
       {(footer || stamp) && (
-        <CardFooter className='flex flex-col items-start gap-3'>
+        <CardFooter className='flex flex-col items-center gap-3'>
           {footer && <div className='flex flex-row gap-2'>{footer}</div>}
           {stamp && (
-            <p className='text-muted-foreground text-[10px] leading-tight'>
+            <p className='text-muted-foreground mr-auto text-[10px] leading-tight'>
               {stamp}
             </p>
           )}

@@ -50,7 +50,7 @@ async function JudgeIntro({
         <CardHeader>
           <CardTitle>
             <h1 className='m-0 text-2xl font-semibold tracking-tight'>
-              How MRUHacks does judging
+              How MRUHacks Does Judging:
             </h1>
           </CardTitle>
         </CardHeader>
@@ -63,34 +63,21 @@ async function JudgeIntro({
           />
           <ol className='m-0 flex list-decimal flex-col gap-1.5 pl-5'>
             <li>
-              We&apos;ll send you to a <strong>specific table</strong>. Talk to
-              the team there and get to know them and their project.
+              We&apos;ll send you to a specific table. Talk to the team there
+              and get to know them and their project.
             </li>
             <li>
-              When you&apos;re done, we&apos;ll send you to the next table. The
-              first project is just a starting point — there&apos;s nothing to
-              vote on yet.
-            </li>
-            <li>
-              From then on, after each table we&apos;ll ask you which was better
-              for each criterion:{' '}
-              <strong>this project or the one before</strong>. No 1–10 scores.
+              When you&apos;re done, we&apos;ll send you to the next table.
+              You&apos;ll then have chance to rank them against the previous
+              team you saw.{' '}
             </li>
           </ol>
-          <p className='text-muted-foreground m-0 text-sm'>
-            If a team isn&apos;t at their table, or you know them personally,
-            tap <strong>Skip</strong>. Use <strong>Notes</strong> to jot down
-            anything you want to remember — only you can see them.
-          </p>
           <div className='flex items-start gap-2 rounded-lg bg-blue-50 px-3 py-2.5 text-sm text-blue-900'>
             <MessageCircleQuestion
               aria-hidden
               className='mt-0.5 size-4 shrink-0'
             />
-            <p className='m-0'>
-              If you have any questions, please ask us — find any MRUHacks
-              organizer on the floor.
-            </p>
+            <p className='m-0'>If you have any questions, please ask us.</p>
           </div>
           <p className='text-muted-foreground m-0 text-sm'>
             Rankings use the Crowd-BT model from{' '}
@@ -109,7 +96,7 @@ async function JudgeIntro({
         <CardFooter>
           <Button asChild className={cn(BIG, GO, 'w-full')}>
             <Link href={`/dashboard/events/${segment}/judge/table`}>
-              Got it
+              Get on with it!
               <ArrowRight />
             </Link>
           </Button>

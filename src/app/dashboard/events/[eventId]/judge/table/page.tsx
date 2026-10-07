@@ -56,22 +56,18 @@ async function JudgeTable({
   const { eventId: segment } = await paramsPromise;
   const event = await loadJudgeEvent(segment);
   const view = await getJudgeView(event.id);
-  const explainable =
-    view.kind !== 'not_judge' &&
-    view.kind !== 'disabled' &&
-    view.kind !== 'closed';
 
   return (
-    <JudgeFrame
-      segment={segment}
-      eventName={event.name}
-      action={
-        explainable && (
+    <JudgeFrame segment={segment} eventName={event.name}>
+      <Screen
+        eventId={event.id}
+        view={view}
+        help={
           <Button
             asChild
             variant='ghost'
-            size='icon'
-            className='text-muted-foreground -mr-2'
+            size='icon-sm'
+            className='text-muted-foreground'
           >
             <Link
               href={`/dashboard/events/${segment}/judge`}
@@ -80,15 +76,22 @@ async function JudgeTable({
               <CircleHelp className='size-5' />
             </Link>
           </Button>
-        )
-      }
-    >
-      <Screen eventId={event.id} view={view} />
+        }
+      />
     </JudgeFrame>
   );
 }
 
-function Screen({ eventId, view }: { eventId: string; view: JudgeView }) {
+/** `help` only shows on screens where how judging works is still relevant. */
+function Screen({
+  eventId,
+  view,
+  help,
+}: {
+  eventId: string;
+  view: JudgeView;
+  help: React.ReactNode;
+}) {
   const skip = skipJudgeProject.bind(null, eventId);
 
   switch (view.kind) {
@@ -107,7 +110,7 @@ function Screen({ eventId, view }: { eventId: string; view: JudgeView }) {
       );
     case 'not_open':
       return (
-        <Message title={`${view.eventName} hasn’t started`} poll>
+        <Message title={`${view.eventName} hasn’t started`} poll help={help}>
           Judging opens{' '}
           {view.opensAt ? (
             <LocalDateTime
@@ -130,21 +133,21 @@ function Screen({ eventId, view }: { eventId: string; view: JudgeView }) {
       );
     case 'no_criteria':
       return (
-        <Message title='Almost ready' poll>
+        <Message title='Almost ready' poll help={help}>
           Organizers are still setting up the judging criteria for{' '}
           {view.eventName}. This page will update on its own.
         </Message>
       );
     case 'waiting':
       return (
-        <Message title='Nothing to judge right now' poll>
-          You&apos;ve seen every project available to you. Hang tight — more may
+        <Message title='Nothing to judge right now' poll help={help}>
+          You&apos;ve seen every project available to you. Hang tight, more may
           open up as teams return to their tables.
         </Message>
       );
     case 'begin':
       return (
-        <JudgeCard>
+        <JudgeCard help={help}>
           <GoTo
             project={view.current}
             notes={
@@ -184,22 +187,26 @@ function Screen({ eventId, view }: { eventId: string; view: JudgeView }) {
         </JudgeCard>
       );
     case 'compare':
-      return <CompareScreen eventId={eventId} view={view} skip={skip} />;
+      return (
+        <CompareScreen eventId={eventId} view={view} skip={skip} help={help} />
+      );
   }
 }
 
 function Message({
   title,
   poll,
+  help,
   children,
 }: {
   title: string;
   /** Nothing to do yet: check back on a timer. */
   poll?: boolean;
+  help?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
-    <JudgeCard className='items-center py-8 text-center'>
+    <JudgeCard className='items-center py-8 text-center' help={help}>
       {poll && <AutoRefresh />}
       <h1 className='m-0 text-2xl font-semibold tracking-tight sm:text-3xl'>
         {title}
@@ -244,13 +251,15 @@ function CompareScreen({
   eventId,
   view,
   skip,
+  help,
 }: {
   eventId: string;
   view: Extract<JudgeView, { kind: 'compare' }>;
   skip: (formData: FormData) => Promise<{ success: boolean; error?: string }>;
+  help: React.ReactNode;
 }) {
   return (
-    <JudgeCard>
+    <JudgeCard help={help}>
       <ActionForm
         // A new pair is a fresh form, so no pick carries over to it.
         key={`${view.previous.id}:${view.current.id}`}

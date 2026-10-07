@@ -95,7 +95,7 @@ export function ParticipationStatusCard({
     footer = <WithdrawParticipationButton eventId={eventId} kind='waitlist' />;
   } else if (status === 'accepted') {
     footer = (
-      <div className='flex flex-col gap-2'>
+      <div className='my-auto flex flex-col gap-2'>
         {pass && <div className='flex flex-row gap-2'>{pass}</div>}
         <WithdrawParticipationButton eventId={eventId} kind='spot' />
       </div>

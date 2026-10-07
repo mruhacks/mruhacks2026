@@ -1,7 +1,5 @@
 import * as React from 'react';
-import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
-import { ArrowLeft } from 'lucide-react';
 
 import {
   canDeleteAnySubmission,
@@ -9,7 +7,6 @@ import {
 } from '@/app/dashboard/events/submission-actions';
 import { BreadcrumbSegment } from '@/components/breadcrumb-context';
 import { SubmissionView } from '@/components/submissions/submission-view';
-import { Button } from '@/components/ui/button';
 import { getAdminEventHeader } from '@/lib/admin-event';
 import { resolveEventId } from '@/lib/events';
 import { requirePermission } from '@/lib/rbac/authorization';
@@ -83,17 +80,6 @@ async function SubmissionContent({
           dashboard breadcrumb, which otherwise shows the raw segments. */}
       <BreadcrumbSegment id={segment} label={event.name} />
       <BreadcrumbSegment id={submissionId} label={submission.title} />
-      <Button
-        asChild
-        variant='ghost'
-        size='sm'
-        className='text-muted-foreground -ml-2 w-fit'
-      >
-        <Link href={backHref}>
-          <ArrowLeft data-icon='inline-start' />
-          Back
-        </Link>
-      </Button>
 
       <SubmissionView
         submission={submission}

@@ -11,7 +11,6 @@ import { EVENT_DASHBOARD_PERMISSIONS } from '@/lib/rbac/event-access';
 import { getUser } from '@/utils/auth';
 
 import { EditEventButton } from './_components/edit-event-button';
-import { EventBackLink } from './_components/event-back-link';
 import { EventLiveBadge } from './_components/event-live-badge';
 import { ShareEventButton } from './_components/share-event-button';
 import { Card } from '@/components/ui/card';
@@ -79,10 +78,7 @@ async function EventHeader({
 
   return (
     <Card className='p-6'>
-      <header className='flex flex-col gap-4'>
-        <nav aria-label='Event navigation'>
-          <EventBackLink />
-        </nav>
+      <header>
         <div className='flex flex-wrap items-start justify-between gap-4'>
           {/* Zero-render: feeds the event's name to the dashboard breadcrumb,
           which otherwise shows the raw uuid. */}
