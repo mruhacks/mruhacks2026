@@ -1,7 +1,7 @@
 /**
  * Tests for expo judging: the organizer actions in
  * src/app/dashboard/admin/events/judging-actions.ts and the judge flow in
- * src/app/judge/actions.ts, against a real database.
+ * src/app/dashboard/events/judge-actions.ts, against a real database.
  *
  * The invite mailer is mocked: these are about roster and judging logic.
  */
@@ -11,6 +11,7 @@ import { and, eq, inArray, or } from 'drizzle-orm';
 import { db } from '@/utils/db';
 import {
   eventJudges,
+  eventParticipants,
   events,
   judgeNotes,
   judgeState,
@@ -61,7 +62,8 @@ import {
   skipJudgeProject,
   submitJudgeVote,
   type JudgeView,
-} from '@/app/judge/actions';
+} from '@/app/dashboard/events/judge-actions';
+import { registerForEvent } from '@/app/register/actions';
 import { prepareUserDeletion } from '@/lib/account-deletion';
 import { getTableNumbers, linkJudgeRosterRows } from '@/lib/judging/server';
 import { unwrap } from './unwrap';
@@ -450,6 +452,37 @@ describe('roster', () => {
     const remaining = unwrap(await getJudgingAdmin(eventId)).judges;
     expect(remaining.map((j) => j.id)).toEqual([voterId]);
     expect(remaining[0].comparisons).toBe(1);
+  });
+});
+
+describe('signing up', () => {
+  test('a judge cannot register for the event they judge', async () => {
+    const eventId = await makeEvent({ hasApplication: false });
+    const other = await makeEvent({ hasApplication: false });
+    const judge = await makeUser('NoSignup');
+    const judgeId = await rosterJudge(eventId, judge, { link: false });
+    loginAs(judge);
+
+    // Matched by email before the roster row is linked, and still a judge
+    // once paused.
+    expect(await registerForEvent(eventId)).toEqual({
+      success: false,
+      error: 'You’re judging this event, so you can’t also sign up for it.',
+    });
+    await db
+      .update(eventJudges)
+      .set({ userId: judge.id, disabledAt: new Date() })
+      .where(eq(eventJudges.id, judgeId));
+    expect((await registerForEvent(eventId)).success).toBe(false);
+    expect(
+      await db
+        .select()
+        .from(eventParticipants)
+        .where(eq(eventParticipants.eventId, eventId)),
+    ).toHaveLength(0);
+
+    // Other events are unaffected.
+    unwrap(await registerForEvent(other));
   });
 });
 

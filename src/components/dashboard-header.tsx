@@ -33,6 +33,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   permissions: 'Permissions',
   register: 'Register',
   apply: 'Apply',
+  judge: 'Judging',
   applications: 'Applications',
   checkin: 'Check-in',
   subevents: 'Schedule',

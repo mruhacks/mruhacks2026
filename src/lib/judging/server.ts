@@ -100,6 +100,21 @@ export async function findJudgeForUser(
   return row ?? null;
 }
 
+/** Shown wherever a judge tries to sign up for the event they're judging. */
+export const JUDGE_SIGNUP_BLOCKED_MESSAGE =
+  'You’re judging this event, so you can’t also sign up for it.';
+
+/**
+ * On this event's roster, disabled or not. Judges may not also sign up for
+ * an event they judge: a paused judge is still one, and their votes count.
+ */
+export async function isJudgingEvent(
+  eventId: string,
+  user: { id: string; email: string },
+): Promise<boolean> {
+  return (await findJudgeForUser(eventId, user)) != null;
+}
+
 /** Every event whose roster the user is on. */
 export async function listJudgeEventsForUser(user: {
   id: string;

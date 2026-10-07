@@ -1,5 +1,5 @@
 /**
- * Server actions for the phone-first judge flow at /judge/:eventId.
+ * Server actions for the judge flow at /dashboard/events/:eventId/judge.
  *
  * Judges are authorized by roster membership — a non-disabled `event_judges`
  * row for the event matched to the signed-in user — never by a permission or

@@ -15,6 +15,10 @@ import { revalidatePath, updateTag } from 'next/cache';
 import { eventApplicationsCacheTag } from '@/lib/admin-event';
 import { hasEventElapsed } from '@/lib/events';
 import {
+  isJudgingEvent,
+  JUDGE_SIGNUP_BLOCKED_MESSAGE,
+} from '@/lib/judging/server';
+import {
   countAttending,
   hasStatus,
   statusIdOf,
@@ -57,6 +61,9 @@ export async function registerForEvent(eventId: string): Promise<ActionResult> {
   }
   if (hasEventElapsed(event.endsAt)) {
     return fail('This event has already ended.');
+  }
+  if (await isJudgingEvent(eventId, user)) {
+    return fail(JUDGE_SIGNUP_BLOCKED_MESSAGE);
   }
 
   try {
