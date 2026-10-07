@@ -1092,7 +1092,6 @@ export async function seedDemoData() {
       const roleSlug = (() => {
         const rnd = Math.random();
         if (rnd < 0.001) return 'admin'; // 0.1%
-        if (rnd < 0.002) return 'judge'; // 0.1%
         if (rnd < 0.03) return 'organizer'; // 3%
         if (rnd < 0.07) return 'volunteer'; // 4%
         return 'participant'; // ~92%

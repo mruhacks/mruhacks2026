@@ -28,6 +28,7 @@ import {
 vi.mock('@/utils/auth', () => ({ getUser: vi.fn() }));
 vi.mock('next/cache', () => ({
   revalidatePath: vi.fn(),
+  refresh: vi.fn(),
   updateTag: vi.fn(),
   cacheTag: vi.fn(),
   cacheLife: vi.fn(),
@@ -57,14 +58,13 @@ import {
 } from '@/app/dashboard/admin/events/judging-actions';
 import {
   beginJudging,
-  getJudgeView,
   saveJudgeNote,
   skipJudgeProject,
   submitJudgeVote,
-  type JudgeView,
 } from '@/app/dashboard/events/judge-actions';
 import { registerForEvent } from '@/app/register/actions';
 import { prepareUserDeletion } from '@/lib/account-deletion';
+import { getJudgeView, type JudgeView } from '@/lib/judging/judge-session';
 import { getTableNumbers, linkJudgeRosterRows } from '@/lib/judging/server';
 import { unwrap } from './unwrap';
 
@@ -215,18 +215,58 @@ function expectKind<K extends JudgeView['kind']>(
   return view as Extract<JudgeView, { kind: K }>;
 }
 
+/** The judge actions take what their forms post. */
+function formData(fields: Record<string, string>): FormData {
+  const data = new FormData();
+  for (const [key, value] of Object.entries(fields)) data.set(key, value);
+  return data;
+}
+
+function voteForm(
+  previousId: string,
+  currentId: string,
+  winners: Record<string, 'previous' | 'current'>,
+): FormData {
+  return formData({
+    previousId,
+    currentId,
+    ...Object.fromEntries(
+      Object.entries(winners).map(([id, side]) => [`winner:${id}`, side]),
+    ),
+  });
+}
+
+/** Each action refreshes the judge page; these return what it then shows. */
+async function begin(eventId: string, currentId: string) {
+  unwrap(await beginJudging(eventId, formData({ currentId })));
+  return getJudgeView(eventId);
+}
+
+async function skip(
+  eventId: string,
+  currentId: string,
+  reason: 'not_here' | 'conflict',
+) {
+  unwrap(await skipJudgeProject(eventId, formData({ currentId, reason })));
+  return getJudgeView(eventId);
+}
+
 async function voteAll(
   eventId: string,
   view: Extract<JudgeView, { kind: 'compare' }>,
   side: 'previous' | 'current',
 ) {
-  return unwrap(
-    await submitJudgeVote(eventId, {
-      previousId: view.previous.id,
-      currentId: view.current.id,
-      winners: Object.fromEntries(view.criteria.map((c) => [c.id, side])),
-    }),
+  unwrap(
+    await submitJudgeVote(
+      eventId,
+      voteForm(
+        view.previous.id,
+        view.current.id,
+        Object.fromEntries(view.criteria.map((c) => [c.id, side])),
+      ),
+    ),
   );
+  return getJudgeView(eventId);
 }
 
 let organizer: TestUser;
@@ -334,7 +374,7 @@ describe('criteria', () => {
     loginAs(judge);
     const first = expectKind(await getJudgeView(eventId), 'begin');
     const compare = expectKind(
-      unwrap(await beginJudging(eventId, first.current.id)),
+      await begin(eventId, first.current.id),
       'compare',
     );
     await voteAll(eventId, compare, 'current');
@@ -439,10 +479,7 @@ describe('roster', () => {
     const first = expectKind(await getJudgeView(eventId), 'begin');
     await voteAll(
       eventId,
-      expectKind(
-        unwrap(await beginJudging(eventId, first.current.id)),
-        'compare',
-      ),
+      expectKind(await begin(eventId, first.current.id), 'compare'),
       'previous',
     );
 
@@ -556,7 +593,7 @@ describe('judge flow', () => {
     );
 
     const compare = expectKind(
-      unwrap(await beginJudging(eventId, first.current.id)),
+      await begin(eventId, first.current.id),
       'compare',
     );
     expect(compare.previous.id).toBe(first.current.id);
@@ -565,11 +602,12 @@ describe('judge flow', () => {
     expect(compare.criteria[0].description).toBe('Design, briefly');
 
     // Missing a criterion is refused.
-    const partial = await submitJudgeVote(eventId, {
-      previousId: compare.previous.id,
-      currentId: compare.current.id,
-      winners: { [criteria[0].id]: 'current' },
-    });
+    const partial = await submitJudgeVote(
+      eventId,
+      voteForm(compare.previous.id, compare.current.id, {
+        [criteria[0].id]: 'current',
+      }),
+    );
     expect(partial.success).toBe(false);
 
     const next = await voteAll(eventId, compare, 'current');
@@ -611,7 +649,7 @@ describe('judge flow', () => {
     loginAs(judge);
     const first = expectKind(await getJudgeView(eventId), 'begin');
     const compare = expectKind(
-      unwrap(await beginJudging(eventId, first.current.id)),
+      await begin(eventId, first.current.id),
       'compare',
     );
     await Promise.all([
@@ -635,9 +673,7 @@ describe('judge flow', () => {
 
     loginAs(judge);
     expectKind(await getJudgeView(eventId), 'begin');
-    const afterNotHere = unwrap(
-      await skipJudgeProject(eventId, { currentId: only, reason: 'not_here' }),
-    );
+    const afterNotHere = await skip(eventId, only, 'not_here');
     expect(afterNotHere.kind).toBe('waiting');
 
     // Ten minutes on, the team may be back.
@@ -648,9 +684,7 @@ describe('judge flow', () => {
       only,
     );
 
-    const afterConflict = unwrap(
-      await skipJudgeProject(eventId, { currentId: only, reason: 'conflict' }),
-    );
+    const afterConflict = await skip(eventId, only, 'conflict');
     expect(afterConflict.kind).toBe('waiting');
     await db.execute(
       `UPDATE judge_skips SET created_at = now() - interval '1 day' WHERE judge_id = '${judgeId}'`,
@@ -688,7 +722,7 @@ describe('judge flow', () => {
     loginAs(judge);
     const first = expectKind(await getJudgeView(eventId), 'begin');
     expect(first.current.id).toBe(kept);
-    expect(unwrap(await beginJudging(eventId, kept)).kind).toBe('waiting');
+    expect((await begin(eventId, kept)).kind).toBe('waiting');
   });
 
   test('a project deactivated mid-visit is skipped without recording votes', async () => {
@@ -702,7 +736,7 @@ describe('judge flow', () => {
     loginAs(judge);
     const first = expectKind(await getJudgeView(eventId), 'begin');
     const compare = expectKind(
-      unwrap(await beginJudging(eventId, first.current.id)),
+      await begin(eventId, first.current.id),
       'compare',
     );
     loginAs(organizer);
@@ -786,9 +820,7 @@ describe('results and awards', () => {
     // Project 1 beats everything on both criteria.
     loginAs(judge);
     let view = await getJudgeView(eventId);
-    view = unwrap(
-      await beginJudging(eventId, expectKind(view, 'begin').current.id),
-    );
+    view = await begin(eventId, expectKind(view, 'begin').current.id);
     while (view.kind === 'compare') {
       const best = projects[0];
       const side = view.previous.id === best ? 'previous' : 'current';
@@ -929,10 +961,7 @@ describe('account deletion', () => {
     const first = expectKind(await getJudgeView(eventId), 'begin');
     await voteAll(
       eventId,
-      expectKind(
-        unwrap(await beginJudging(eventId, first.current.id)),
-        'compare',
-      ),
+      expectKind(await begin(eventId, first.current.id), 'compare'),
       'current',
     );
 
@@ -970,10 +999,7 @@ describe('account deletion', () => {
     const first = expectKind(await getJudgeView(eventId), 'begin');
     await voteAll(
       eventId,
-      expectKind(
-        unwrap(await beginJudging(eventId, first.current.id)),
-        'compare',
-      ),
+      expectKind(await begin(eventId, first.current.id), 'compare'),
       'current',
     );
 
