@@ -7,7 +7,7 @@
  * - `judging:results:all`: the live rankings.
  * - `judging:award:all`: finalists and overall placements.
  *
- * Judges themselves never come through here; see `@/app/judge/actions`.
+ * Judges themselves never come through here; see `@/app/dashboard/events/judge-actions`.
  */
 
 'use server';

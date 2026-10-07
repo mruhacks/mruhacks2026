@@ -24,6 +24,7 @@
     "knip": "knip",
     "check-health": "tsx scripts/check-health.ts",
     "test:rsvp-wave": "tsx --require ./scripts/preload-server-only-mock.cjs scripts/test-send-rsvp-wave.ts",
+    "db:seed:judging": "tsx scripts/seed-judging.ts",
     "event:reset": "tsx --require ./scripts/preload-server-only-mock.cjs scripts/reset-event.ts"
   },
   "dependencies": {

@@ -5,8 +5,12 @@ import { auth } from '@/utils/auth';
 
 import { judgeInviteMailContext } from './judge-invite-mail';
 
-/** Where the judge's magic link lands; it routes them on from there. */
-const JUDGE_SIGNUP_PATH = '/judge/signup';
+/**
+ * Where the judge's magic link lands. The dashboard sends anyone not yet
+ * onboarded through the judge welcome path first, and lists the event they
+ * judge once they're through.
+ */
+const JUDGE_SIGNUP_PATH = '/dashboard';
 
 /**
  * Emails a "You're judging <event>" magic link. For an address with no
