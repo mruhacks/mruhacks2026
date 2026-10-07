@@ -23,9 +23,10 @@ overrides:
   path-to-regexp@>=4 <6.3.0: ^6.3.0
   path-to-regexp@>=8 <8.4.0: ^8.4.0
   minimatch@>=10 <10.2.3: ^10.2.3
-  smol-toml@<1.7.1: ^1.7.1
+  smol-toml@<1.8.1: ^1.9.0
   ajv@>=7 <8.18.0: ^8.18.0
   '@tootallnate/once@<2.0.1': ^2.0.1
+  source-map-js@>=1 <1.2.2: ^1.2.2
 
 importers:
 
@@ -6861,8 +6862,8 @@ packages:
   sisteransi@1.0.5:
     resolution: {integrity: sha512-bLGGlR1QxBcynn2d5YmDX4MGjlZvy2MRBDRNHLJ8VI6l6+9FUiyTFNJ0IveOSP0bcXgVDPRcfGqA0pjaqUpfVg==}
 
-  smol-toml@1.8.0:
-    resolution: {integrity: sha512-kCZr2V3ch9i00x8zXRhjUNVcjG9ijES5dDudkXvUVCT5QlJNQWElSJdZqyPemffHoLNUYwOcou0Fy+ojN0uHSQ==}
+  smol-toml@1.9.0:
+    resolution: {integrity: sha512-hpd+HLON7HdZXqYchMM/+LaTTbdK0AU3NngIJ4KVyWbY9bfQqdL9cD+4yf6dUoU2Ap4VsU0JkQi6FxAI1B2mXQ==}
     engines: {node: '>= 18'}
 
   socket.io-adapter@2.5.8:
@@ -10854,7 +10855,7 @@ snapshots:
   '@vercel/container@11.0.1(@vercel/build-utils@14.13.1)':
     dependencies:
       '@vercel/build-utils': 14.13.1
-      smol-toml: 1.8.0
+      smol-toml: 1.9.0
       tar: 7.5.22
 
   '@vercel/detect-agent@1.2.5': {}
@@ -11081,7 +11082,7 @@ snapshots:
       fs-extra: 11.1.1
       js-yaml: 4.3.2
       minimatch: 10.2.5
-      smol-toml: 1.8.0
+      smol-toml: 1.9.0
       zod: 3.22.4
 
   '@vercel/python@17.0.1(@vercel/build-utils@14.13.1)':
@@ -11135,7 +11136,7 @@ snapshots:
       '@vercel/build-utils': 14.13.1
       execa: 5.1.1
       get-port: 5.1.1
-      smol-toml: 1.8.0
+      smol-toml: 1.9.0
 
   '@vercel/sandbox@3.1.0':
     dependencies:
@@ -13097,7 +13098,7 @@ snapshots:
       oxc-parser: 0.137.0
       oxc-resolver: 11.21.3
       picomatch: 4.0.5
-      smol-toml: 1.8.0
+      smol-toml: 1.9.0
       strip-json-comments: 5.0.3
       tinyglobby: 0.2.17
       unbash: 4.0.2
@@ -14763,7 +14764,7 @@ snapshots:
 
   sisteransi@1.0.5: {}
 
-  smol-toml@1.8.0: {}
+  smol-toml@1.9.0: {}
 
   socket.io-adapter@2.5.8:
     dependencies:
@@ -15306,7 +15307,7 @@ snapshots:
       jsonc-parser: 3.3.1
       luxon: 3.7.2
       sandbox: 4.1.0
-      smol-toml: 1.8.0
+      smol-toml: 1.9.0
       undici: 6.29.0
       uuid: 14.0.1
       zod: 4.1.11
