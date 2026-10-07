@@ -207,7 +207,10 @@ async function resyncWaitlist(eventId: string): Promise<void> {
   try {
     await syncWaitlistForEvent(eventId);
   } catch (error) {
-    console.error('[events/teams] Waitlist sync after team change failed:', error);
+    console.error(
+      '[events/teams] Waitlist sync after team change failed:',
+      error,
+    );
   }
 }
 
