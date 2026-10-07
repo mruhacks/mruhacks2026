@@ -372,6 +372,13 @@
       "when": 1791316014256,
       "tag": "0052_expo_judging",
       "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1791390645738,
+      "tag": "0053_remove_judge_role",
+      "breakpoints": true
     }
   ]
 }

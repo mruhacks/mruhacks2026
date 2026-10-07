@@ -1,13 +1,21 @@
 import { Suspense } from 'react';
-import { notFound } from 'next/navigation';
-import { eq } from 'drizzle-orm';
+import Image from 'next/image';
+import Link from 'next/link';
+import { ArrowRight, ExternalLink, MessageCircleQuestion } from 'lucide-react';
 
-import { BreadcrumbSegment } from '@/components/breadcrumb-context';
-import { events } from '@/db/schema';
-import { resolveEventId } from '@/lib/events';
-import { db } from '@/utils/db';
+import curtLecturing from '@/assets/crt_lecturing.png';
+import { Button } from '@/components/ui/button';
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import { cn } from '@/lib/utils';
 
-import { JudgeConsole } from './judge-console';
+import { JudgeFrame, loadJudgeEvent } from './judge-frame';
+import { BIG, GO } from './judge-styles';
 
 type Props = { params: Promise<{ eventId: string }> };
 
@@ -15,43 +23,98 @@ type Props = { params: Promise<{ eventId: string }> };
 export const instant = false;
 
 /**
- * The judge's screen during the expo, inside the normal dashboard so judges
- * keep their nav, profile and events. Roster membership is checked by the
- * actions themselves: everything after this is client-driven, each action
- * returning the next screen.
+ * Where every link into judging lands: how it works, before the judge is
+ * sent anywhere. The help button on the judging screen comes back here.
  */
-export default function JudgePage({ params }: Props) {
+export default function JudgeIntroPage({ params }: Props) {
   return (
     <Suspense
       fallback={<div className='bg-muted h-96 animate-pulse rounded-xl' />}
     >
-      <JudgeContent paramsPromise={params} />
+      <JudgeIntro paramsPromise={params} />
     </Suspense>
   );
 }
 
-async function JudgeContent({
+async function JudgeIntro({
   paramsPromise,
 }: {
   paramsPromise: Props['params'];
 }) {
   const { eventId: segment } = await paramsPromise;
-  const eventId = await resolveEventId(segment);
-  if (!eventId) notFound();
-  const [event] = await db
-    .select({ name: events.name })
-    .from(events)
-    .where(eq(events.id, eventId))
-    .limit(1);
-  if (!event) notFound();
+  const event = await loadJudgeEvent(segment);
 
   return (
-    <div className='mx-auto w-full max-w-2xl'>
-      <BreadcrumbSegment id={segment} label={event.name} />
-      <JudgeConsole
-        eventId={eventId}
-        backHref={`/dashboard/events/${segment}`}
-      />
-    </div>
+    <JudgeFrame segment={segment} eventName={event.name}>
+      <Card className='gap-4'>
+        <CardHeader>
+          <CardTitle>
+            <h1 className='m-0 text-2xl font-semibold tracking-tight'>
+              How MRUHacks does judging
+            </h1>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className='flex flex-col gap-3'>
+          <Image
+            src={curtLecturing}
+            alt='Curt the CRT, pointing at the explanation'
+            className='mx-auto h-auto w-36'
+            priority
+          />
+          <ol className='m-0 flex list-decimal flex-col gap-1.5 pl-5'>
+            <li>
+              We&apos;ll send you to a <strong>specific table</strong>. Talk to
+              the team there and get to know them and their project.
+            </li>
+            <li>
+              When you&apos;re done, we&apos;ll send you to the next table. The
+              first project is just a starting point — there&apos;s nothing to
+              vote on yet.
+            </li>
+            <li>
+              From then on, after each table we&apos;ll ask you which was better
+              for each criterion:{' '}
+              <strong>this project or the one before</strong>. No 1–10 scores.
+            </li>
+          </ol>
+          <p className='text-muted-foreground m-0 text-sm'>
+            If a team isn&apos;t at their table, or you know them personally,
+            tap <strong>Skip</strong>. Use <strong>Notes</strong> to jot down
+            anything you want to remember — only you can see them.
+          </p>
+          <div className='flex items-start gap-2 rounded-lg bg-blue-50 px-3 py-2.5 text-sm text-blue-900'>
+            <MessageCircleQuestion
+              aria-hidden
+              className='mt-0.5 size-4 shrink-0'
+            />
+            <p className='m-0'>
+              If you have any questions, please ask us — find any MRUHacks
+              organizer on the floor.
+            </p>
+          </div>
+          <p className='text-muted-foreground m-0 text-sm'>
+            Rankings use the Crowd-BT model from{' '}
+            <a
+              href='http://people.stern.nyu.edu/xchen3/images/crowd_pairwise.pdf'
+              target='_blank'
+              rel='noreferrer'
+              className='inline-flex items-center gap-0.5 underline underline-offset-2'
+            >
+              Chen et al., 2013
+              <ExternalLink aria-hidden className='size-3' />
+            </a>
+            .
+          </p>
+        </CardContent>
+        <CardFooter>
+          <Button asChild className={cn(BIG, GO, 'w-full')}>
+            <Link href={`/dashboard/events/${segment}/judge/table`}>
+              Got it
+              <ArrowRight />
+            </Link>
+          </Button>
+        </CardFooter>
+      </Card>
+    </JudgeFrame>
   );
 }
