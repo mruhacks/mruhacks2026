@@ -379,6 +379,13 @@
       "when": 1791390645738,
       "tag": "0053_remove_judge_role",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1791390800378,
+      "tag": "0054_remove_participant_role",
+      "breakpoints": true
     }
   ]
 }

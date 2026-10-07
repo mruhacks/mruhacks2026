@@ -196,7 +196,6 @@ const CORE_ROLES = [
   { slug: 'admin', description: 'Full system administrator' },
   { slug: 'organizer', description: 'Manages event logistics and users' },
   { slug: 'volunteer', description: 'Supports event operations' },
-  { slug: 'participant', description: 'Registered hackathon attendee' },
 ] as const;
 
 export type CoreRoleSlug = (typeof CORE_ROLES)[number]['slug'];
