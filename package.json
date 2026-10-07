@@ -13,6 +13,7 @@
     "format:check": "prettier --check .",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
+    "test:gavel": "vitest run --config vitest.gavel.config.ts",
     "services:start": "echo 'Starting database and mailhog services...' && docker compose up -d && echo 'Services started.'",
     "services:stop": "echo 'Stopping database and mailhog services...' && docker compose down && echo 'Services stopped.'",
     "services:reset": "echo 'Resetting database and mailhog services (dropping volumes)...' && docker compose down -v && echo 'Starting fresh services...' && docker compose up -d && pnpm db:wait && echo 'Running migrations...' && drizzle-kit migrate && tsx scripts/seed.ts && echo 'Services reset complete.'",

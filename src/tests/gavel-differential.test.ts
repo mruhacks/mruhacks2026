@@ -23,6 +23,8 @@
  * criteria), no deactivation mid-visit, and skips as "conflict" — Gavel's Skip
  * is permanent, whereas our "not here" deliberately comes back after a while.
  *
+ * Slow, so not part of `pnpm test`: run it with `pnpm test:gavel` (CI does).
+ *
  * The oracle runs in Docker (vendor/gavel-oracle/Dockerfile), built on first
  * use and cached after; without Docker these tests skip, except in CI.
  * GAVEL_FUZZ_SEED=<n> replays one scenario, GAVEL_FUZZ_RUNS=<n> runs more.
