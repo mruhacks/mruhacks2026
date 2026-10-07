@@ -85,7 +85,7 @@ export async function voteOnApplication(
   try {
     result = await castApplicationVote({ ...parsed.data, voterId: voter.id });
   } catch (error) {
-    console.error('Application vote error:', error);
+    console.error('[admin/events/review] Application vote error:', error);
     return fail('Failed to record your vote.');
   }
   if (!result.success) return fail(result.error);
@@ -121,7 +121,7 @@ export async function undoApplicationVote(
       voterId: voter.id,
     });
   } catch (error) {
-    console.error('Application vote undo error:', error);
+    console.error('[admin/events/review] Application vote undo error:', error);
     return fail('Failed to undo your vote.');
   }
   if (!result.success) return fail(result.error);

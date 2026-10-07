@@ -1074,7 +1074,7 @@ export async function updateParticipantStatus(
   try {
     await syncWaitlistForEvent(eventId, authUser.id);
   } catch (error) {
-    console.error('Waitlist sync after status change failed:', error);
+    console.error('[admin/events] Waitlist sync after status change failed:', error);
   }
 
   updateTag(eventApplicationsCacheTag(eventId));
