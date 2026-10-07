@@ -158,7 +158,7 @@ export async function setMarketingConsent(
     await upsertMarketingConsent(user.id, optIn);
     return getConsent();
   } catch (error) {
-    console.error('setMarketingConsent error:', error);
+    console.error('[account] failed to set marketing consent', error);
     return fail('Failed to update your preferences.');
   }
 }
@@ -214,7 +214,7 @@ export async function recordOnboardingConsent(
 
     return getConsent();
   } catch (error) {
-    console.error('recordOnboardingConsent error:', error);
+    console.error('[account] failed to record onboarding consent', error);
     return fail('Failed to record your consent.');
   }
 }
@@ -250,7 +250,7 @@ export async function completeWelcomeOnboarding(): Promise<ActionResult> {
     revalidatePath('/welcome', 'layout');
     return ok();
   } catch (error) {
-    console.error('completeWelcomeOnboarding error:', error);
+    console.error('[account] failed to complete welcome onboarding', error);
     return fail('Unable to complete onboarding.');
   }
 }
@@ -401,7 +401,7 @@ export async function exportMyData(): Promise<ActionResult<unknown>> {
 
     return ok(exportPayload);
   } catch (error) {
-    console.error('exportMyData error:', error);
+    console.error('[account] failed to export data', error);
     return fail('Failed to export your data. Please try again.');
   }
 }

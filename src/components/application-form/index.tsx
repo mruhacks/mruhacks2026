@@ -466,7 +466,7 @@ export default function ApplicationForm({
           toast.error(result.error ?? errorMessage);
         }
       } catch (err) {
-        console.error('Application submission error:', err);
+        console.error('[application-form] submission failed', err);
         toast.error(errorMessage);
       }
     },

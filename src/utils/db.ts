@@ -107,7 +107,7 @@ async function closeDatabase(): Promise<void> {
   try {
     await client.end();
   } catch (error) {
-    console.error('Error closing database connection:', error);
+    console.error('[db] failed to close connection', error);
   }
 }
 

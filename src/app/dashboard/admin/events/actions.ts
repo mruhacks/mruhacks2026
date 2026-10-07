@@ -1061,7 +1061,7 @@ export async function updateParticipantStatus(
     });
   } catch (error) {
     if (error instanceof StatusChangeError) return fail(error.message);
-    console.error('Participant status change error:', error);
+    console.error('[admin/events] failed to change participant status', error);
     return fail('Failed to update status.');
   }
 
@@ -1074,7 +1074,10 @@ export async function updateParticipantStatus(
   try {
     await syncWaitlistForEvent(eventId, authUser.id);
   } catch (error) {
-    console.error('Waitlist sync after status change failed:', error);
+    console.error(
+      '[admin/events] Waitlist sync after status change failed:',
+      error,
+    );
   }
 
   updateTag(eventApplicationsCacheTag(eventId));
@@ -1097,7 +1100,7 @@ export async function updateParticipantStatus(
           ),
         );
     } catch (error) {
-      console.error('Failed to queue RSVP invitation:', error);
+      console.error('[admin/events] failed to queue RSVP invitation', error);
     }
   }
 
@@ -1295,7 +1298,7 @@ export async function getFormedTeamsForEvent(
   try {
     return await listFormedTeams(eventId);
   } catch (error) {
-    console.error('getFormedTeamsForEvent error:', error);
+    console.error('[admin/events] failed to load teams', error);
     return fail('Failed to load teams.');
   }
 }

@@ -53,7 +53,7 @@ export async function GET(
       },
     });
   } catch (error) {
-    console.error('[wallet] failed to generate pass', error);
+    console.error('[wallet/pass] failed to generate pass', error);
     return new Response('Could not generate pass', { status: 500 });
   }
 }

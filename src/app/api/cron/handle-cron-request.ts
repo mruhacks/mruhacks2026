@@ -20,9 +20,9 @@ export async function handleCronRequest<T>(
 ): Promise<Response> {
   const secret = configuredCronSecret();
   if (!secret) {
-    console.error(
-      `${options.logLabel} no cron secret configured (CRON_SECRET)`,
-    );
+    console.error('[cron] no cron secret configured (CRON_SECRET)', {
+      route: options.logLabel,
+    });
     return Response.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -45,7 +45,7 @@ export async function handleCronRequest<T>(
     const result = await options.run();
     return Response.json(result);
   } catch (error) {
-    console.error(`${options.logLabel} failed`, error);
+    console.error('[cron] failed', { route: options.logLabel, error });
     return Response.json(options.failureBody, { status: 500 });
   }
 }
