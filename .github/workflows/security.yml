@@ -50,6 +50,12 @@ jobs:
         if: ${{ !cancelled() }}
         uses: gitleaks/gitleaks-action@v2
 
+      # Dev tooling never ships, so it doesn't gate PRs above, but the weekly
+      # run still goes red (and notifies) when a dev dependency needs a fix.
+      - name: Audit all dependencies
+        if: ${{ !cancelled() && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') }}
+        run: pnpm audit --audit-level high
+
   codeql:
     name: CodeQL
     runs-on: ubuntu-latest
