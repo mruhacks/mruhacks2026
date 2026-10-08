@@ -254,7 +254,7 @@ export async function createSubmission(
     await revalidateSubmissionPaths(eventId);
     return ok({ id: created.id });
   } catch (error) {
-    console.error('createSubmission error:', error);
+    console.error('[team/submission] createSubmission error:', error);
     return fail('Failed to start your project.');
   }
 }
@@ -362,7 +362,7 @@ export async function saveSubmission(
     }
     return result;
   } catch (error) {
-    console.error('saveSubmission error:', error);
+    console.error('[team/submission] saveSubmission error:', error);
     return fail('Failed to save your project.');
   }
 }
@@ -422,7 +422,7 @@ export async function setSubmissionPublished(
     if (result.success) await revalidateSubmissionPaths(eventId);
     return result;
   } catch (error) {
-    console.error('setSubmissionPublished error:', error);
+    console.error('[team/submission] setSubmissionPublished error:', error);
     return fail('Failed to update your project.');
   }
 }
@@ -447,7 +447,7 @@ export async function deleteSubmission(eventId: string): Promise<ActionResult> {
     await revalidateSubmissionPaths(eventId);
     return ok('Project deleted.');
   } catch (error) {
-    console.error('deleteSubmission error:', error);
+    console.error('[team/submission] deleteSubmission error:', error);
     return fail('Failed to delete your project.');
   }
 }
@@ -479,7 +479,10 @@ export async function uploadSubmissionAttachment(
     });
     return ok({ url: eventAttachmentUrl(key) });
   } catch (error) {
-    console.error('Submission attachment upload error:', error);
+    console.error(
+      '[team/submission] Submission attachment upload error:',
+      error,
+    );
     return fail('Unable to upload that image.');
   }
 }
@@ -531,7 +534,7 @@ export async function heartbeatSubmissionEditor(
       .orderBy(asc(authUser.name));
     return ok(others);
   } catch (error) {
-    console.error('heartbeatSubmissionEditor error:', error);
+    console.error('[team/submission] heartbeatSubmissionEditor error:', error);
     return fail('Failed to update editor presence.');
   }
 }
@@ -689,7 +692,7 @@ export async function adminDeleteSubmission(
     });
     return ok('Submission deleted.');
   } catch (error) {
-    console.error('adminDeleteSubmission error:', error);
+    console.error('[team/submission] adminDeleteSubmission error:', error);
     return fail('Failed to delete the submission.');
   }
 }
