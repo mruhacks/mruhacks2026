@@ -365,6 +365,41 @@
       "when": 1791236115277,
       "tag": "0051_project_submissions",
       "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1791316014256,
+      "tag": "0052_expo_judging",
+      "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1791390645738,
+      "tag": "0053_remove_judge_role",
+      "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1791390800378,
+      "tag": "0054_remove_participant_role",
+      "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1791414805600,
+      "tag": "0055_judging_tables_and_invites",
+      "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1791418402682,
+      "tag": "0056_shared_linkedin",
+      "breakpoints": true
     }
   ]
 }

@@ -1,7 +1,5 @@
 import { Suspense } from 'react';
-import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
-import { ArrowLeft } from 'lucide-react';
 
 import { getMySubmission } from '@/app/dashboard/events/submission-actions';
 import { BreadcrumbSegment } from '@/components/breadcrumb-context';
@@ -9,7 +7,6 @@ import {
   ProjectStageDescription,
   SubmissionView,
 } from '@/components/submissions/submission-view';
-import { Button } from '@/components/ui/button';
 import {
   Card,
   CardDescription,
@@ -19,6 +16,7 @@ import {
 } from '@/components/ui/card';
 import { serializeInstant } from '@/lib/datetime';
 import { resolveEventId } from '@/lib/events';
+import { getTableLabels } from '@/lib/judging/server';
 import { getProjectStage, PROJECT_STAGE_COPY } from '@/lib/submission-copy';
 import { getUser } from '@/utils/auth';
 
@@ -57,29 +55,22 @@ async function ProjectContent({
   if (!result.success || !result.data) notFound();
   const { submissionWindow, opensAt, closesAt, submission } = result.data;
 
-  const eventHref = `/dashboard/events/${segment}`;
-
   const stage = getProjectStage(submissionWindow, submission);
   const copy = PROJECT_STAGE_COPY[stage];
   // These stages render the editor or the read-only project, each with its
   // own title banner; the rest are a single status card.
   const isEditing = stage === 'private' || stage === 'public';
   const isFinal = stage === 'closed_private' || stage === 'closed_public';
+  // Table numbers are visible to judges throughout, but to participants only
+  // once submissions close — and only for a project that will be judged.
+  const tableLabel =
+    stage === 'closed_public' && submission
+      ? (await getTableLabels(eventId)).get(submission.id)?.label
+      : undefined;
 
   return (
     <div className='flex flex-col gap-3'>
       <BreadcrumbSegment id='project' label='Project' />
-      <Button
-        asChild
-        variant='ghost'
-        size='sm'
-        className='text-muted-foreground -ml-2 w-fit'
-      >
-        <Link href={eventHref}>
-          <ArrowLeft data-icon='inline-start' />
-          Back to event
-        </Link>
-      </Button>
 
       <div className='flex flex-col gap-6'>
         {!isEditing && !isFinal && (
@@ -126,6 +117,17 @@ async function ProjectContent({
               lastEditedByName: submission.lastEditedByName,
             }}
           />
+        )}
+
+        {tableLabel !== undefined && (
+          <Card className='gap-1 p-5'>
+            <p className='text-muted-foreground m-0 text-sm'>
+              Set up for the expo at
+            </p>
+            <p className='m-0 text-3xl font-semibold tabular-nums'>
+              Table {tableLabel}
+            </p>
+          </Card>
         )}
 
         {isFinal && submission && (

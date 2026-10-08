@@ -65,3 +65,52 @@ describe('welcome onboarding progress', () => {
     );
   });
 });
+
+describe('judge onboarding path', () => {
+  function judge(
+    values: Pick<
+      OnboardingProgress,
+      'needsConsent' | 'needsPersonal' | 'needsAbout' | 'needsProfessional'
+    >,
+  ): OnboardingProgress {
+    return {
+      ...values,
+      isJudge: true,
+      featuredEvent: { id: 'featured' },
+    } as OnboardingProgress;
+  }
+
+  test('goes legal → personal → professional, skipping About and the featured event', () => {
+    const state = judge({
+      needsConsent: true,
+      needsPersonal: true,
+      needsAbout: true,
+      needsProfessional: true,
+    });
+    expect(getNextStep(state)).toBe('legal');
+    expect(getNextStep(state, 'legal')).toBe('personal');
+    expect(getNextStep(state, 'personal')).toBe('professional');
+    expect(getNextStep(state, 'professional')).toBeNull();
+  });
+
+  test('is done once Professional is, with About still empty', () => {
+    const state = judge({
+      needsConsent: false,
+      needsPersonal: false,
+      needsAbout: true,
+      needsProfessional: false,
+    });
+    expect(getNextStep(state)).toBeNull();
+  });
+
+  test('participants never see the Professional step', () => {
+    const state = progress({
+      needsConsent: false,
+      needsPersonal: false,
+      needsAbout: false,
+      featuredEvent: undefined,
+    });
+    expect(getNextStep(state)).toBeNull();
+    expect(canReviewStep(state, 'professional')).toBe(false);
+  });
+});

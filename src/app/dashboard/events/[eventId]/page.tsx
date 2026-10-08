@@ -10,6 +10,7 @@ import { MarkdownContent } from '@/components/markdown/markdown-content';
 import { events, eventTypes, eventArticles, eventTerms } from '@/db/schema';
 import { hasEventElapsed, resolveEventId } from '@/lib/events';
 import { countAttending } from '@/lib/participation/server';
+import { findJudgeForUser } from '@/lib/judging/server';
 import { eventPath } from '@/lib/event-slug';
 import { isScheduleVisible, listSubevents } from '@/lib/subevents';
 import { serializeInstant } from '@/lib/datetime';
@@ -51,13 +52,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import {
-  ArrowLeft,
-  ArrowRight,
-  BookOpen,
-  CalendarDays,
-  Users,
-} from 'lucide-react';
+import { ArrowRight, BookOpen, CalendarDays, Users } from 'lucide-react';
 
 type Props = {
   params: Promise<{ eventId: string }>;
@@ -86,7 +81,6 @@ function EventPageSkeleton() {
   return (
     <div className='flex flex-col gap-8'>
       <div className='flex flex-col gap-3'>
-        <div className='bg-muted h-4 w-24 animate-pulse rounded' />
         <div className='bg-muted h-10 w-2/3 animate-pulse rounded' />
         <div className='bg-muted h-4 w-40 animate-pulse rounded' />
       </div>
@@ -198,10 +192,40 @@ async function EventEntryContent({ params, searchParams }: Props) {
     ? [...publishedArticlesRows, { slug: 'terms', title: 'Event Terms' }]
     : publishedArticlesRows;
 
-  const participation = await getUserParticipation(eventId);
+  const [participation, judge] = await Promise.all([
+    getUserParticipation(eventId),
+    findJudgeForUser(eventId, user),
+  ]);
   // Every participant action is refused server-side once the event is over,
   // so the page drops the controls instead of offering ones that will fail.
   const hasEnded = hasEventElapsed(row.endsAt);
+
+  // Judges can't sign up for the event they judge, so they get the way into
+  // judging where everyone else gets an application or registration.
+  if (judge) {
+    return (
+      <EventPageLayout
+        event={row}
+        segment={segment}
+        articles={publishedArticles}
+        schedule={schedule}
+        hasEnded={hasEnded}
+        mobileAction={
+          hasEnded || judge.disabledAt
+            ? null
+            : { label: 'Start judging', href: `${eventHref}/judge` }
+        }
+        participation={
+          <JudgingPanel
+            eventHref={eventHref}
+            disabled={judge.disabledAt != null}
+            hasEnded={hasEnded}
+          />
+        }
+        team={null}
+      />
+    );
+  }
 
   if (row.hasApplication) {
     const canManageTeam =
@@ -348,17 +372,6 @@ function EventPageLayout({
       <BreadcrumbSegment id={segment} label={event.name} />
 
       <header className='flex flex-col gap-3'>
-        <Button
-          asChild
-          variant='ghost'
-          size='sm'
-          className='text-muted-foreground -ml-2 w-fit'
-        >
-          <Link href='/dashboard'>
-            <ArrowLeft data-icon='inline-start' />
-            My events
-          </Link>
-        </Button>
         <div className='flex flex-col gap-2'>
           <div className='flex flex-wrap items-center gap-3'>
             <h1 className='text-3xl font-semibold tracking-tight sm:text-4xl'>
@@ -505,6 +518,46 @@ function ApplicationParticipationPanel({
           <Link href={`${eventHref}/apply`}>Start application</Link>
         </Button>
       </CardFooter>
+    </Card>
+  );
+}
+
+function JudgingPanel({
+  eventHref,
+  disabled,
+  hasEnded,
+}: {
+  eventHref: string;
+  disabled: boolean;
+  hasEnded: boolean;
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <div className='flex items-center justify-between gap-2'>
+          <CardTitle>You&apos;re judging</CardTitle>
+          <Badge variant={disabled ? 'destructive' : 'default'}>
+            {disabled ? 'Paused' : 'Judge'}
+          </Badge>
+        </div>
+        <CardDescription>
+          {hasEnded
+            ? 'This event has ended. Thanks for judging!'
+            : disabled
+              ? 'An organizer has paused your judging. Your votes so far still count.'
+              : 'During the expo, open judging and the app will send you from table to table.'}
+        </CardDescription>
+      </CardHeader>
+      {!hasEnded && !disabled && (
+        <CardFooter>
+          <Button asChild variant='gradient' size='lg' className='w-full'>
+            <Link href={`${eventHref}/judge`}>
+              Start judging
+              <ArrowRight data-icon='inline-end' />
+            </Link>
+          </Button>
+        </CardFooter>
+      )}
     </Card>
   );
 }

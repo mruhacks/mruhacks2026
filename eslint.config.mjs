@@ -21,6 +21,8 @@ const eslintConfig = [
       'eslint-rules/**',
       // Standalone Cloudflare Worker with its own tsconfig/deps.
       'workers/**',
+      // Vendored upstream code (Gavel) and its Python test oracle.
+      'vendor/**',
     ],
   },
   {

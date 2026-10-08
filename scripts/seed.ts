@@ -1092,10 +1092,9 @@ export async function seedDemoData() {
       const roleSlug = (() => {
         const rnd = Math.random();
         if (rnd < 0.001) return 'admin'; // 0.1%
-        if (rnd < 0.002) return 'judge'; // 0.1%
         if (rnd < 0.03) return 'organizer'; // 3%
         if (rnd < 0.07) return 'volunteer'; // 4%
-        return 'participant'; // ~92%
+        return null; // ~93%: no role
       })();
 
       const roleObj = insertedRoles.find((r) => r.slug === roleSlug);
@@ -1109,7 +1108,10 @@ export async function seedDemoData() {
       }
 
       // ── Explicit user-permission overrides ──────────────────────────────
-      if (['admin', 'organizer'].includes(roleSlug) && Math.random() < 0.2) {
+      if (
+        (roleSlug === 'admin' || roleSlug === 'organizer') &&
+        Math.random() < 0.2
+      ) {
         const chosenPerms = faker.helpers.arrayElements(insertedPerms, {
           min: 1,
           max: 2,

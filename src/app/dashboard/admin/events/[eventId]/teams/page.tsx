@@ -3,7 +3,8 @@ import { notFound, redirect } from 'next/navigation';
 
 import { getAdminEventSettings } from '@/lib/admin-event';
 import { resolveEventId } from '@/lib/events';
-import { requirePermission } from '@/lib/rbac/authorization';
+import { hasPermission, requireAnyPermission } from '@/lib/rbac/authorization';
+import { isSubmissionsEnabled } from '@/lib/submissions';
 import { getUser } from '@/utils/auth';
 
 import { TeamsPage } from './teams-page';
@@ -11,9 +12,10 @@ import { TeamsPage } from './teams-page';
 type Props = { params: Promise<{ eventId: string }> };
 
 /**
- * Sync shell, with the segment resolution behind the boundary — the same
- * shape as every other page under this event. It turns a custom slug in the
- * URL into the event's uuid before the client page queries teams with it.
+ * Teams and their projects on one screen. Sync shell, with the segment
+ * resolution behind the boundary — the same shape as every other page under
+ * this event. It turns a custom slug in the URL into the event's uuid before
+ * the client page queries teams and projects with it.
  */
 export default function TeamsRoute({ params }: Props) {
   return (
@@ -39,18 +41,27 @@ async function TeamsContent({
   if (!eventId) notFound();
   const user = await getUser();
   if (!user) redirect('/signin');
-  // The same permission `getFormedTeamsForEvent` checks, and the one the
-  // dashboard's Teams tile is shown on.
-  await requirePermission(user.id, 'team:read:all');
+  // Either half of the screen is enough to land here — the same permissions
+  // `getFormedTeamsForEvent` and `listEventSubmissions` check, and the ones
+  // the dashboard's Teams tile is shown on. Each half is then gated on its
+  // own.
+  await requireAnyPermission(user.id, ['team:read:all', 'submission:read:all']);
 
-  const event = await getAdminEventSettings(eventId);
+  const [event, canReadTeams, canReadSubmissions] = await Promise.all([
+    getAdminEventSettings(eventId),
+    hasPermission(user.id, 'team:read:all'),
+    hasPermission(user.id, 'submission:read:all'),
+  ]);
   if (!event) notFound();
 
   return (
     <TeamsPage
       eventId={eventId}
-      teamsEnabled={event.teamsEnabled}
+      segment={segment}
+      showTeams={canReadTeams && event.teamsEnabled}
+      showProjects={canReadSubmissions && isSubmissionsEnabled(event)}
       maxTeamSize={event.maxTeamSize}
+      submissionsCloseAt={event.submissionsCloseAt}
     />
   );
 }

@@ -1,6 +1,4 @@
-import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
-import { ChevronLeft } from 'lucide-react';
 import { BreadcrumbSegment } from '@/components/breadcrumb-context';
 
 import { requireAuthWithPermission } from '@/lib/rbac/guards';
@@ -13,7 +11,6 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { EditUserFormStandalone } from './edit-user-form-standalone';
 
 export default async function UserEditPage({
@@ -41,14 +38,6 @@ export default async function UserEditPage({
   return (
     <div className='space-y-4'>
       <BreadcrumbSegment id={userId} label={name ?? email} />
-      <div className='flex items-center gap-2'>
-        <Button variant='ghost' size='sm' asChild>
-          <Link href='/dashboard/admin/users'>
-            <ChevronLeft className='size-4' />
-            Users
-          </Link>
-        </Button>
-      </div>
 
       <Card className='max-w-2xl'>
         <CardHeader>

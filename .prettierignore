@@ -16,3 +16,6 @@ yarn.lock
 coverage
 .idea
 *.log
+
+# Vendored upstream code, kept byte-for-byte
+vendor

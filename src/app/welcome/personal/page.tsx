@@ -62,6 +62,7 @@ async function PersonalStepContent({
               genderOtherText: savedProfile.genderOtherText,
               dietaryRestrictions: savedProfile.dietaryRestrictions,
               dietaryOtherText: savedProfile.dietaryOtherText,
+              linkedinUrl: savedProfile.linkedinUrl,
             }
           : prefillName
             ? { fullName: prefillName }

@@ -101,6 +101,11 @@ jobs:
       - name: Run tests with coverage
         run: pnpm test:coverage
 
+      # Our judging port against the vendored Gavel, run in Docker. Kept out
+      # of `pnpm test` because it's slow.
+      - name: Run Gavel differential tests
+        run: pnpm test:gavel
+
       - name: Post coverage report on PR
         uses: davelosert/vitest-coverage-report-action@v2
         if: always()

@@ -16,6 +16,11 @@ import {
 import { db } from '@/utils/db';
 import { events } from '@/db/schema';
 import { hasEventElapsed, resolveEventId } from '@/lib/events';
+import { eventPath } from '@/lib/event-slug';
+import {
+  isJudgingEvent,
+  JUDGE_SIGNUP_BLOCKED_MESSAGE,
+} from '@/lib/judging/server';
 import { eq } from 'drizzle-orm';
 import {
   Card,
@@ -109,6 +114,22 @@ export default async function ApplyEventPage({ params }: Props) {
     .limit(1);
 
   if (!event) notFound();
+  if (await isJudgingEvent(eventId, user)) {
+    return (
+      <Card className='w-full sm:max-w-2xl'>
+        <BreadcrumbSegment id={segment} label={event.name} />
+        <CardHeader>
+          <CardTitle>You&apos;re a judge</CardTitle>
+          <CardDescription>{JUDGE_SIGNUP_BLOCKED_MESSAGE}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button asChild>
+            <Link href={`${eventPath(event)}/judge`}>Go to judging</Link>
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
   if (!event.hasApplication) {
     return (
       <Card className='w-full sm:max-w-2xl'>
@@ -141,7 +162,10 @@ export default async function ApplyEventPage({ params }: Props) {
     user,
   );
 
-  if (!hasProfile && !previousApplication.success) {
+  // No profile yet — or a judge, who onboarded without the About step and is
+  // asked for it now, the first time they apply as a participant.
+  const needsAbout = profileData != null && profileData.universityId == null;
+  if ((!hasProfile || needsAbout) && !previousApplication.success) {
     redirect(`/dashboard/profile?next=/dashboard/events/${segment}/apply`);
   }
 

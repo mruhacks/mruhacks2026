@@ -43,7 +43,7 @@ export function DashboardFooter() {
                 background: 'var(--ink-050)',
                 fontFamily: 'var(--font-ui)',
                 fontWeight: 'var(--fw-semibold)',
-                fontSize: '13px',
+                fontSize: '12px',
                 color: 'var(--black)',
                 textDecoration: 'none',
               }}
