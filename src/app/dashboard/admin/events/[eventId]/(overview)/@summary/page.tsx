@@ -12,7 +12,10 @@ import {
 import { getAdminEventHeader, getEventSummaryCounts } from '@/lib/admin-event';
 import { resolveEventId } from '@/lib/events';
 import { getJudgingTileCounts } from '@/lib/judging/server';
-import { isSubmissionsEnabled } from '@/lib/submissions';
+import {
+  isSubmissionsEnabled,
+  type SubmissionEventFields,
+} from '@/lib/submissions';
 import { hasPermission } from '@/lib/rbac/authorization';
 import { getUser } from '@/utils/auth';
 
@@ -50,6 +53,26 @@ function SummaryTilesSkeleton() {
   );
 }
 
+type JudgingTilePermissions = {
+  canManage: boolean;
+  canViewResults: boolean;
+  canAward: boolean;
+};
+
+function judgingTileVisibility(
+  event: SubmissionEventFields,
+  { canManage, canViewResults, canAward }: JudgingTilePermissions,
+) {
+  // Judging needs projects to judge, so it follows submissions being on.
+  const judgingEnabled = isSubmissionsEnabled(event);
+  return {
+    showJudging: canManage && judgingEnabled,
+    // The results page serves both the rankings and the awards controls, and
+    // gates itself on either permission; the tile mirrors that.
+    showResults: (canViewResults || canAward) && judgingEnabled,
+  };
+}
+
 async function SummaryTiles({
   paramsPromise,
 }: {
@@ -64,6 +87,31 @@ async function SummaryTiles({
   // Each tile is gated on the permission behind the feature it summarizes —
   // never a shared "is this an admin" bundle, so a check-in volunteer with
   // no team access still sees their own tile. See AGENTS.md.
+  const eventPromise = getAdminEventHeader(eventId);
+  const canManageJudgingPromise = hasPermission(user.id, 'judging:manage:all');
+  const canViewResultsPromise = hasPermission(user.id, 'judging:results:all');
+  const canAwardPromise = hasPermission(user.id, 'judging:award:all');
+  // The judging counts only feed the Judges and results tiles, so they're
+  // fetched only once those tiles are known to be visible — chained off the
+  // same checks rather than awaited after them, so a viewer who does see
+  // them pays no extra round trip.
+  const judgingPromise = Promise.all([
+    eventPromise,
+    canManageJudgingPromise,
+    canViewResultsPromise,
+    canAwardPromise,
+  ]).then(([ev, canManage, canViewResults, canAward]) => {
+    if (!ev) return null;
+    const visible = judgingTileVisibility(ev, {
+      canManage,
+      canViewResults,
+      canAward,
+    });
+    return visible.showJudging || visible.showResults
+      ? getJudgingTileCounts(eventId)
+      : null;
+  });
+
   const [
     event,
     counts,
@@ -77,17 +125,17 @@ async function SummaryTiles({
     canAward,
     judging,
   ] = await Promise.all([
-    getAdminEventHeader(eventId),
+    eventPromise,
     getEventSummaryCounts(eventId),
     hasPermission(user.id, 'application:read:all'),
     hasPermission(user.id, 'checkin:write:all'),
     hasPermission(user.id, 'team:read:all'),
     hasPermission(user.id, 'rsvp:read:all'),
     hasPermission(user.id, 'submission:read:all'),
-    hasPermission(user.id, 'judging:manage:all'),
-    hasPermission(user.id, 'judging:results:all'),
-    hasPermission(user.id, 'judging:award:all'),
-    getJudgingTileCounts(eventId),
+    canManageJudgingPromise,
+    canViewResultsPromise,
+    canAwardPromise,
+    judgingPromise,
   ]);
 
   if (!event) return null;
@@ -100,12 +148,11 @@ async function SummaryTiles({
   // permission shows it, and each half of it follows its own.
   const showTeams = canReadTeams && event.teamsEnabled;
   const showSubmissions = canReadSubmissions && isSubmissionsEnabled(event);
-  // Judging needs projects to judge, so it follows submissions being on.
-  const judgingEnabled = isSubmissionsEnabled(event);
-  const showJudging = canManageJudging && judgingEnabled;
-  // The results page serves both the rankings and the awards controls, and
-  // gates itself on either permission; the tile mirrors that.
-  const showResults = (canViewResults || canAward) && judgingEnabled;
+  const { showJudging, showResults } = judgingTileVisibility(event, {
+    canManage: canManageJudging,
+    canViewResults,
+    canAward,
+  });
 
   // Nothing visible to this viewer: render no grid at all rather than an
   // empty shell.
@@ -194,7 +241,7 @@ async function SummaryTiles({
         />
       )}
 
-      {showJudging && (
+      {showJudging && judging && (
         <StatTile
           icon={<Gavel className='size-4' />}
           label='Judges'
@@ -203,7 +250,7 @@ async function SummaryTiles({
         />
       )}
 
-      {showResults && (
+      {showResults && judging && (
         <StatTile
           icon={<Trophy className='size-4' />}
           label={canViewResults ? 'Judging results' : 'Awards'}

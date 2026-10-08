@@ -1,14 +1,10 @@
 'use client';
 
 import * as React from 'react';
-import { ArrowDown, ArrowUp, Lock, Pencil, Trash2 } from 'lucide-react';
-import { toast } from 'sonner';
+import { ArrowDown, ArrowUp, Lock, Plus, Trash2 } from 'lucide-react';
 
 import {
-  createJudgingCriterion,
-  deleteJudgingCriterion,
-  moveJudgingCriterion,
-  updateJudgingCriterion,
+  saveJudgingCriteria,
   type JudgingCriterionRow,
 } from '@/app/dashboard/admin/events/judging-actions';
 import { Button } from '@/components/ui/button';
@@ -19,28 +15,60 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import {
-  Field,
-  FieldError,
-  FieldGroup,
-  FieldLabel,
-} from '@/components/ui/field';
+import { FieldError } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
 import {
+  Table,
+  TableBody,
+  TableCell,
+  TableFooter,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
   CRITERION_DESCRIPTION_MAX_LENGTH,
-  CRITERION_MAX_WEIGHT,
   CRITERION_NAME_MAX_LENGTH,
+  criterionWeightsSumToOne,
+  formatWeight,
+  MAX_CRITERIA,
+  roundedWeights,
 } from '@/lib/judging/limits';
 
-type Draft = { name: string; description: string; weight: string };
+type DraftRow = {
+  /** Stable React key and element-id suffix; the criterion id once saved. */
+  key: string;
+  /** Absent for a row added since the last save. */
+  id?: string;
+  name: string;
+  description: string;
+  weight: string;
+};
 
-const EMPTY_DRAFT: Draft = { name: '', description: '', weight: '1' };
+function toDraft(criteria: JudgingCriterionRow[]): DraftRow[] {
+  const weights = roundedWeights(criteria.map((c) => c.weight));
+  return criteria.map((criterion, index) => ({
+    key: criterion.id,
+    id: criterion.id,
+    name: criterion.name,
+    description: criterion.description,
+    weight: formatWeight(weights[index]),
+  }));
+}
+
+/** A typed weight, or null while it isn't a number. */
+function parseWeight(value: string): number | null {
+  if (value.trim() === '') return null;
+  const weight = Number(value);
+  return Number.isFinite(weight) ? weight : null;
+}
 
 /**
- * What judges compare on. Freely editable until the first vote; after that
- * only names, descriptions and weights change (weights only re-sort the
- * Overall results).
+ * What judges compare on, edited as one table and saved together. Weights are
+ * fractions of the Overall score and must add up to 1. Freely editable until
+ * the first vote; after that only names, descriptions and weights change
+ * (weights only re-sort the Overall results).
  */
 export function CriteriaCard({
   eventId,
@@ -51,19 +79,121 @@ export function CriteriaCard({
   criteria: JudgingCriterionRow[];
   structureLocked: boolean;
 }) {
-  const [editingId, setEditingId] = React.useState<string | null>(null);
-  const [adding, setAdding] = React.useState(false);
-  const [busyId, setBusyId] = React.useState<string | null>(null);
+  const baseId = React.useId();
+  const nextKey = React.useRef(0);
+  const [rows, setRows] = React.useState(() => toDraft(criteria));
+  const [error, setError] = React.useState<string>();
+  const [saving, setSaving] = React.useState(false);
 
-  async function runRowAction(
-    id: string,
-    action: () => Promise<{ success: boolean; error?: string }>,
-  ) {
-    setBusyId(id);
-    const result = await action();
-    setBusyId(null);
-    // Button-only actions: nothing to anchor an inline error to.
-    if (!result.success) toast.error(result.error);
+  // Take the server's list whenever it actually changes (after a save, or
+  // another organizer's), but not on every re-render of the page, which
+  // would wipe unsaved edits.
+  const savedKey = JSON.stringify(criteria);
+  const [syncedKey, setSyncedKey] = React.useState(savedKey);
+  if (syncedKey !== savedKey) {
+    setSyncedKey(savedKey);
+    setRows(toDraft(criteria));
+    setError(undefined);
+  }
+
+  const initial = React.useMemo(() => toDraft(criteria), [criteria]);
+  const dirty = JSON.stringify(rows) !== JSON.stringify(initial);
+  const weights = rows.map((row) => parseWeight(row.weight));
+  const sum = weights.reduce<number>((total, w) => total + (w ?? 0), 0);
+  const sumOk =
+    rows.length === 0 ||
+    (weights.every((w) => w !== null) &&
+      criterionWeightsSumToOne(weights as number[]));
+
+  function edit(index: number, patch: Partial<DraftRow>) {
+    setRows((prev) =>
+      prev.map((row, i) => (i === index ? { ...row, ...patch } : row)),
+    );
+    setError(undefined);
+  }
+
+  function move(index: number, by: -1 | 1) {
+    setRows((prev) => {
+      const next = [...prev];
+      [next[index], next[index + by]] = [next[index + by], next[index]];
+      return next;
+    });
+    setError(undefined);
+  }
+
+  function remove(index: number) {
+    setRows((prev) => prev.filter((_, i) => i !== index));
+    setError(undefined);
+  }
+
+  function add() {
+    nextKey.current += 1;
+    setRows((prev) => [
+      ...prev,
+      {
+        key: `new-${nextKey.current}`,
+        name: '',
+        description: '',
+        weight: prev.length === 0 ? '1' : '0',
+      },
+    ]);
+    setError(undefined);
+  }
+
+  function normalize() {
+    const next = roundedWeights(weights.map((w) => w ?? 0));
+    setRows((prev) =>
+      prev.map((row, i) => ({ ...row, weight: formatWeight(next[i]) })),
+    );
+    setError(undefined);
+  }
+
+  function discard() {
+    setRows(initial);
+    setError(undefined);
+  }
+
+  function validate(): string | null {
+    if (rows.some((row) => row.name.trim() === '')) {
+      return 'Give every criterion a name.';
+    }
+    if (weights.some((w) => w === null)) {
+      return 'Enter a weight for every criterion.';
+    }
+    if (weights.some((w) => w! < 0 || w! > 1)) {
+      return 'Each weight is a fraction of 1, like 0.25.';
+    }
+    if (!sumOk) {
+      return `Weights must add up to 1; these add up to ${formatWeight(sum)}.`;
+    }
+    return null;
+  }
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    const invalid = validate();
+    if (invalid) {
+      setError(invalid);
+      return;
+    }
+    setSaving(true);
+    try {
+      const result = await saveJudgingCriteria(
+        eventId,
+        rows.map((row, index) => ({
+          id: row.id,
+          name: row.name,
+          description: row.description,
+          weight: weights[index]!,
+        })),
+      );
+      if (!result.success) setError(result.error);
+    } catch (err) {
+      console.error('Failed to save criteria:', err);
+      setError('Couldn’t save the criteria. Try again.');
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -78,246 +208,175 @@ export function CriteriaCard({
               not added, removed or reordered.
             </span>
           ) : (
-            'Judges pick the better of two projects on each criterion. Judges can’t be sent out until there is at least one.'
+            'Judges pick the better of two projects on each criterion. Weights are each criterion’s share of the Overall score and add up to 1. Judges can’t be sent out until there is at least one criterion.'
           )}
         </CardDescription>
       </CardHeader>
-      <CardContent className='flex flex-col gap-3'>
-        {criteria.length === 0 && !adding && (
-          <p className='text-muted-foreground text-sm'>No criteria yet.</p>
-        )}
-        <ol className='flex flex-col gap-2'>
-          {criteria.map((criterion, index) =>
-            editingId === criterion.id ? (
-              <li key={criterion.id}>
-                <CriterionForm
-                  initial={{
-                    name: criterion.name,
-                    description: criterion.description,
-                    weight: String(criterion.weight),
-                  }}
-                  submitLabel='Save'
-                  onCancel={() => setEditingId(null)}
-                  onSubmit={(input) =>
-                    updateJudgingCriterion(eventId, criterion.id, input)
-                  }
-                  onDone={() => setEditingId(null)}
-                />
-              </li>
-            ) : (
-              <li
-                key={criterion.id}
-                className='flex items-start gap-3 rounded-lg border p-3'
-              >
-                <div className='min-w-0 flex-1'>
-                  <p className='m-0 font-medium'>
-                    {criterion.name}{' '}
-                    <span className='text-muted-foreground text-xs font-normal'>
-                      weight {criterion.weight}
-                    </span>
-                  </p>
-                  {criterion.description && (
-                    <p className='text-muted-foreground m-0 text-sm'>
-                      {criterion.description}
-                    </p>
-                  )}
-                </div>
-                <div className='flex shrink-0 items-center gap-1'>
-                  {!structureLocked && (
-                    <>
-                      <Button
-                        type='button'
-                        variant='ghost'
-                        size='icon-sm'
-                        aria-label={`Move ${criterion.name} up`}
-                        disabled={index === 0 || busyId !== null}
-                        onClick={() =>
-                          runRowAction(criterion.id, () =>
-                            moveJudgingCriterion(eventId, criterion.id, 'up'),
-                          )
-                        }
-                      >
-                        <ArrowUp />
-                      </Button>
-                      <Button
-                        type='button'
-                        variant='ghost'
-                        size='icon-sm'
-                        aria-label={`Move ${criterion.name} down`}
-                        disabled={
-                          index === criteria.length - 1 || busyId !== null
-                        }
-                        onClick={() =>
-                          runRowAction(criterion.id, () =>
-                            moveJudgingCriterion(eventId, criterion.id, 'down'),
-                          )
-                        }
-                      >
-                        <ArrowDown />
-                      </Button>
-                    </>
-                  )}
-                  <Button
-                    type='button'
-                    variant='ghost'
-                    size='icon-sm'
-                    aria-label={`Edit ${criterion.name}`}
-                    disabled={busyId !== null}
-                    onClick={() => setEditingId(criterion.id)}
-                  >
-                    <Pencil />
-                  </Button>
-                  {!structureLocked && (
-                    <Button
-                      type='button'
-                      variant='ghost'
-                      size='icon-sm'
-                      aria-label={`Remove ${criterion.name}`}
-                      className='hover:text-destructive'
-                      disabled={busyId !== null}
-                      onClick={() =>
-                        runRowAction(criterion.id, () =>
-                          deleteJudgingCriterion(eventId, criterion.id),
-                        )
-                      }
-                    >
-                      {busyId === criterion.id ? <Spinner /> : <Trash2 />}
-                    </Button>
-                  )}
-                </div>
-              </li>
-            ),
-          )}
-        </ol>
-
-        {!structureLocked &&
-          (adding ? (
-            <CriterionForm
-              initial={EMPTY_DRAFT}
-              submitLabel='Add criterion'
-              onCancel={() => setAdding(false)}
-              onSubmit={(input) => createJudgingCriterion(eventId, input)}
-              onDone={() => setAdding(false)}
-            />
+      <CardContent>
+        <form onSubmit={submit} className='flex flex-col gap-3'>
+          {rows.length === 0 ? (
+            <p className='text-muted-foreground text-sm'>No criteria yet.</p>
           ) : (
-            <Button
-              type='button'
-              variant='outline'
-              className='self-start'
-              onClick={() => setAdding(true)}
-            >
-              Add criterion
-            </Button>
-          ))}
+            <Table className='min-w-xl'>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className='w-1/3'>Name</TableHead>
+                  <TableHead>One-line description, shown to judges</TableHead>
+                  <TableHead className='w-24'>Weight</TableHead>
+                  {!structureLocked && (
+                    <TableHead className='w-28'>
+                      <span className='sr-only'>Order and remove</span>
+                    </TableHead>
+                  )}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rows.map((row, index) => {
+                  const label = row.name.trim() || `criterion ${index + 1}`;
+                  const rowId = `${baseId}-${row.key}`;
+                  return (
+                    <TableRow key={row.key}>
+                      <TableCell className='align-top'>
+                        <Input
+                          id={`${rowId}-name`}
+                          aria-label={`Name of ${label}`}
+                          value={row.name}
+                          maxLength={CRITERION_NAME_MAX_LENGTH}
+                          placeholder='Technical execution'
+                          onChange={(e) =>
+                            edit(index, { name: e.target.value })
+                          }
+                        />
+                      </TableCell>
+                      <TableCell className='align-top'>
+                        <Input
+                          id={`${rowId}-description`}
+                          aria-label={`Description of ${label}`}
+                          value={row.description}
+                          maxLength={CRITERION_DESCRIPTION_MAX_LENGTH}
+                          placeholder='Does it work? Was it hard to build?'
+                          onChange={(e) =>
+                            edit(index, { description: e.target.value })
+                          }
+                        />
+                      </TableCell>
+                      <TableCell className='align-top'>
+                        <Input
+                          id={`${rowId}-weight`}
+                          aria-label={`Weight of ${label}`}
+                          type='number'
+                          inputMode='decimal'
+                          min={0}
+                          max={1}
+                          step='any'
+                          aria-invalid={!sumOk || weights[index] === null}
+                          value={row.weight}
+                          onChange={(e) =>
+                            edit(index, { weight: e.target.value })
+                          }
+                        />
+                      </TableCell>
+                      {!structureLocked && (
+                        <TableCell className='align-top'>
+                          <div className='flex items-center justify-end gap-1'>
+                            <Button
+                              type='button'
+                              variant='ghost'
+                              size='icon-sm'
+                              aria-label={`Move ${label} up`}
+                              disabled={index === 0 || saving}
+                              onClick={() => move(index, -1)}
+                            >
+                              <ArrowUp />
+                            </Button>
+                            <Button
+                              type='button'
+                              variant='ghost'
+                              size='icon-sm'
+                              aria-label={`Move ${label} down`}
+                              disabled={index === rows.length - 1 || saving}
+                              onClick={() => move(index, 1)}
+                            >
+                              <ArrowDown />
+                            </Button>
+                            <Button
+                              type='button'
+                              variant='ghost'
+                              size='icon-sm'
+                              aria-label={`Remove ${label}`}
+                              className='hover:text-destructive'
+                              disabled={saving}
+                              onClick={() => remove(index)}
+                            >
+                              <Trash2 />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      )}
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+              <TableFooter>
+                <TableRow>
+                  <TableCell colSpan={2} className='text-right'>
+                    Total
+                  </TableCell>
+                  <TableCell
+                    className={sumOk ? undefined : 'text-destructive'}
+                    aria-live='polite'
+                  >
+                    {formatWeight(sum)}
+                  </TableCell>
+                  {!structureLocked && <TableCell />}
+                </TableRow>
+              </TableFooter>
+            </Table>
+          )}
+
+          {error && <FieldError>{error}</FieldError>}
+
+          <div className='flex flex-wrap items-center gap-2'>
+            {!structureLocked && (
+              <Button
+                type='button'
+                variant='outline'
+                onClick={add}
+                disabled={saving || rows.length >= MAX_CRITERIA}
+              >
+                <Plus data-icon='inline-start' />
+                Add criterion
+              </Button>
+            )}
+            {rows.length > 0 && (
+              <Button
+                type='button'
+                variant='ghost'
+                onClick={normalize}
+                disabled={saving || sumOk}
+              >
+                Make weights add up to 1
+              </Button>
+            )}
+            <div className='ml-auto flex gap-2'>
+              {dirty && (
+                <Button
+                  type='button'
+                  variant='ghost'
+                  onClick={discard}
+                  disabled={saving}
+                >
+                  Discard changes
+                </Button>
+              )}
+              <Button type='submit' disabled={saving || !dirty}>
+                {saving && <Spinner data-icon='inline-start' />}
+                Save criteria
+              </Button>
+            </div>
+          </div>
+        </form>
       </CardContent>
     </Card>
-  );
-}
-
-function CriterionForm({
-  initial,
-  submitLabel,
-  onSubmit,
-  onCancel,
-  onDone,
-}: {
-  initial: Draft;
-  submitLabel: string;
-  onSubmit: (input: {
-    name: string;
-    description: string;
-    weight: number;
-  }) => Promise<{ success: boolean; error?: string }>;
-  onCancel: () => void;
-  onDone: () => void;
-}) {
-  const [draft, setDraft] = React.useState(initial);
-  const [error, setError] = React.useState<string>();
-  const [saving, setSaving] = React.useState(false);
-
-  function change(field: keyof Draft, value: string) {
-    setDraft((prev) => ({ ...prev, [field]: value }));
-    setError(undefined);
-  }
-
-  async function submit(event: React.FormEvent) {
-    event.preventDefault();
-    const weight = Number(draft.weight);
-    if (draft.weight.trim() === '' || !Number.isFinite(weight)) {
-      setError('Enter a weight.');
-      return;
-    }
-    setSaving(true);
-    const result = await onSubmit({
-      name: draft.name,
-      description: draft.description,
-      weight,
-    });
-    setSaving(false);
-    if (!result.success) {
-      setError(result.error);
-      return;
-    }
-    onDone();
-  }
-
-  return (
-    <form onSubmit={submit} className='rounded-lg border p-3'>
-      <FieldGroup className='gap-3'>
-        <div className='grid gap-3 sm:grid-cols-[1fr_7rem]'>
-          <Field>
-            <FieldLabel htmlFor='criterion-name'>Name</FieldLabel>
-            <Input
-              id='criterion-name'
-              value={draft.name}
-              maxLength={CRITERION_NAME_MAX_LENGTH}
-              placeholder='Technical execution'
-              onChange={(e) => change('name', e.target.value)}
-              autoFocus
-            />
-          </Field>
-          <Field>
-            <FieldLabel htmlFor='criterion-weight'>Weight</FieldLabel>
-            <Input
-              id='criterion-weight'
-              type='number'
-              inputMode='decimal'
-              min={0}
-              max={CRITERION_MAX_WEIGHT}
-              step='any'
-              value={draft.weight}
-              onChange={(e) => change('weight', e.target.value)}
-            />
-          </Field>
-        </div>
-        <Field>
-          <FieldLabel htmlFor='criterion-description'>
-            One-line description, shown to judges
-          </FieldLabel>
-          <Input
-            id='criterion-description'
-            value={draft.description}
-            maxLength={CRITERION_DESCRIPTION_MAX_LENGTH}
-            placeholder='Does it work? Was it hard to build?'
-            onChange={(e) => change('description', e.target.value)}
-          />
-        </Field>
-        {error && <FieldError>{error}</FieldError>}
-        <div className='flex justify-end gap-2'>
-          <Button
-            type='button'
-            variant='ghost'
-            onClick={onCancel}
-            disabled={saving}
-          >
-            Cancel
-          </Button>
-          <Button type='submit' disabled={saving}>
-            {saving && <Spinner data-icon='inline-start' />}
-            {submitLabel}
-          </Button>
-        </div>
-      </FieldGroup>
-    </form>
   );
 }

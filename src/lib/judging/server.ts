@@ -15,14 +15,17 @@ import {
 
 import {
   eventJudges,
+  eventParticipants,
   events,
   judgeReliability,
   judgeSkips,
   judgeState,
   judgingCriteria,
   judgingVotes,
+  participationStatuses,
   submissionScores,
   submissions,
+  teamMembers,
   user,
 } from '@/db/schema';
 import type { Queryable } from '@/lib/team-membership';
@@ -37,6 +40,11 @@ import {
 } from './crowd-bt';
 import { BUSY_WINDOW_MS, chooseNext, type DispatchCandidate } from './dispatch';
 import { replayVotes, type ReplayResult } from './results';
+import {
+  DEFAULT_TABLE_LAYOUT,
+  formatTableLabel,
+  type TableLayout,
+} from './table-label';
 
 /**
  * Database side of expo judging: who is a judge, what's in the pool, where to
@@ -113,6 +121,37 @@ export async function isJudgingEvent(
   user: { id: string; email: string },
 ): Promise<boolean> {
   return (await findJudgeForUser(eventId, user)) != null;
+}
+
+/** Shown when an organizer tries to add one of the event's own participants. */
+export const JUDGE_IS_PARTICIPANT_MESSAGE =
+  'That person is taking part in this event, so they can’t judge it.';
+
+/**
+ * Taking part in the event, so not allowed to judge it: on a team, or
+ * registered and not yet out of the running (denied, declined or timed
+ * out). A stored `invited` past its deadline still counts — it may simply
+ * not have been swept to `timed_out` yet, and erring towards "conflict" is
+ * the safe side.
+ */
+export async function isParticipatingInEvent(
+  eventId: string,
+  userId: string,
+): Promise<boolean> {
+  const [row] = await db.execute<{ participating: boolean }>(sql`
+    SELECT EXISTS (
+             SELECT 1 FROM ${teamMembers}
+              WHERE event_id = ${eventId} AND user_id = ${userId}
+           )
+        OR EXISTS (
+             SELECT 1 FROM ${eventParticipants} p
+               JOIN ${participationStatuses} st ON st.id = p.status_id
+              WHERE p.event_id = ${eventId}
+                AND p.user_id = ${userId}
+                AND st.label NOT IN ('denied', 'declined', 'timed_out')
+           ) AS participating
+  `);
+  return Boolean(row?.participating);
 }
 
 /** Every event whose roster the user is on. */
@@ -192,6 +231,24 @@ export async function loadCriteria(
     .orderBy(asc(judgingCriteria.position), asc(judgingCriteria.createdAt));
 }
 
+/**
+ * Takes the event row's shared criteria lock for a vote: concurrent votes
+ * don't block each other, but a criteria save, which locks the row FOR
+ * UPDATE, waits for them (and they for it). Reading the criteria after this,
+ * in the same transaction, gives a set no save can change before commit.
+ * FOR KEY SHARE rather than FOR SHARE so ordinary event edits aren't blocked.
+ */
+export async function lockCriteriaShared(
+  tx: Queryable,
+  eventId: string,
+): Promise<void> {
+  await tx
+    .select({ id: events.id })
+    .from(events)
+    .where(eq(events.id, eventId))
+    .for('key share');
+}
+
 /** Once any vote exists, criteria can only be renamed or reweighted. */
 export async function eventHasVotes(
   eventId: string,
@@ -209,21 +266,90 @@ export async function eventHasVotes(
   return row != null;
 }
 
-/**
- * submission id → table number: 1-based rank by `(created_at, id)` among
- * *all* of the event's submissions, drafts included. Derived, never stored;
- * ranked in SQL so microsecond timestamps order exactly as Postgres sees them.
- */
-export async function getTableNumbers(
+/** The event's expo floor layout; the default for an unknown event. */
+export async function loadTableLayout(
   eventId: string,
-  dbHandle: Pick<typeof db, 'execute'> = db,
-): Promise<Map<string, number>> {
-  const rows = await dbHandle.execute<{ id: string; table_number: number }>(sql`
-    SELECT id, row_number() OVER (ORDER BY created_at, id)::int AS table_number
-      FROM ${submissions}
-     WHERE event_id = ${eventId}
+  dbHandle: Queryable = db,
+): Promise<TableLayout> {
+  const [row] = await dbHandle
+    .select({
+      rows: events.judgingTableRows,
+      rowAlphabet: events.judgingTableRowAlphabet,
+      columnAlphabet: events.judgingTableColumnAlphabet,
+    })
+    .from(events)
+    .where(eq(events.id, eventId))
+    .limit(1);
+  return row ?? DEFAULT_TABLE_LAYOUT;
+}
+
+export type TableAssignment = { slot: number; label: string };
+
+/**
+ * submission id → its stored table slot and the label the event's layout
+ * gives it. Submissions never published have no table and are left out.
+ */
+export async function getTableLabels(
+  eventId: string,
+  dbHandle: Queryable = db,
+): Promise<Map<string, TableAssignment>> {
+  const [layout, rows] = await Promise.all([
+    loadTableLayout(eventId, dbHandle),
+    dbHandle
+      .select({ id: submissions.id, slot: submissions.tableSlot })
+      .from(submissions)
+      .where(
+        and(eq(submissions.eventId, eventId), isNotNull(submissions.tableSlot)),
+      ),
+  ]);
+  return new Map(
+    rows.map((row) => [
+      row.id,
+      { slot: row.slot!, label: formatTableLabel(row.slot!, layout) },
+    ]),
+  );
+}
+
+/** Orders by table slot, projects without a table last. */
+export function byTableSlot(
+  a: { tableSlot: number | null },
+  b: { tableSlot: number | null },
+): number {
+  return (a.tableSlot ?? Infinity) - (b.tableSlot ?? Infinity);
+}
+
+/**
+ * Gives a submission its expo table, if it doesn't have one yet. Called in
+ * the publish transaction, so a project takes a table the first time it goes
+ * public — a draft never does — and keeps it through unpublish/republish.
+ *
+ * The slot comes from the event's counter, incremented in the same statement:
+ * the row lock serializes concurrent publishers, and since the counter only
+ * goes up a deleted project's slot is never handed to anyone else (the
+ * unique index on `(event_id, table_slot)` is the backstop).
+ */
+export async function assignTableSlot(
+  tx: Pick<typeof db, 'execute'>,
+  eventId: string,
+  submissionId: string,
+): Promise<void> {
+  // Raw SQL so the counter bump doesn't touch `events.updated_at`.
+  await tx.execute(sql`
+    WITH target AS (
+      SELECT id FROM ${submissions}
+       WHERE id = ${submissionId}
+         AND event_id = ${eventId}
+         AND table_slot IS NULL
+    ), claimed AS (
+      UPDATE ${events}
+         SET judging_next_table_slot = judging_next_table_slot + 1
+       WHERE id = ${eventId} AND EXISTS (SELECT 1 FROM target)
+      RETURNING judging_next_table_slot - 1 AS slot
+    )
+    UPDATE ${submissions}
+       SET table_slot = (SELECT slot FROM claimed)
+     WHERE id IN (SELECT id FROM target)
   `);
-  return new Map(rows.map((row) => [row.id, Number(row.table_number)]));
 }
 
 /** Projects judges can be sent to: published and not deactivated. */
@@ -281,8 +407,8 @@ async function loadReliability(
 
 /**
  * Projects this judge must not be sent to: everything they've compared or
- * begun on, conflicts of interest, and "not here" skips still inside the
- * retry window.
+ * begun on, conflicts of interest, "not here" skips still inside the retry
+ * window, and their own team's project.
  */
 async function loadExcludedForJudge(
   judgeId: string,
@@ -290,7 +416,7 @@ async function loadExcludedForJudge(
   now: Date,
   dbHandle: Queryable,
 ): Promise<Set<string>> {
-  const [voted, skipped] = await Promise.all([
+  const [voted, skipped, ownTeam] = await Promise.all([
     dbHandle
       .select({
         winner: judgingVotes.winnerSubmissionId,
@@ -313,6 +439,30 @@ async function loadExcludedForJudge(
           ),
         ),
       ),
+    // Adding a participant as a judge is refused, but someone could still
+    // end up on both sides (a team joined under a second address the roster
+    // later matched), so dispatch never relies on that alone.
+    dbHandle
+      .select({ submissionId: submissions.id })
+      .from(submissions)
+      .innerJoin(teamMembers, eq(teamMembers.teamId, submissions.teamId))
+      .innerJoin(user, eq(user.id, teamMembers.userId))
+      .innerJoin(
+        eventJudges,
+        and(
+          eq(eventJudges.id, judgeId),
+          eq(eventJudges.eventId, teamMembers.eventId),
+        ),
+      )
+      .where(
+        or(
+          eq(teamMembers.userId, eventJudges.userId),
+          and(
+            isNull(eventJudges.userId),
+            eq(sql`lower(${user.email})`, eventJudges.email),
+          ),
+        ),
+      ),
   ]);
   const excluded = new Set<string>();
   for (const row of voted) {
@@ -320,6 +470,7 @@ async function loadExcludedForJudge(
     excluded.add(row.loser);
   }
   for (const row of skipped) excluded.add(row.submissionId);
+  for (const row of ownTeam) excluded.add(row.submissionId);
   if (previousId) excluded.add(previousId);
   return excluded;
 }
@@ -524,16 +675,19 @@ export async function recordComparison(
  * published" is exactly "was published at close"; before it, the set is
  * provisional.
  */
-export async function loadResultsPool(
-  eventId: string,
-): Promise<
-  { id: string; title: string; finalist: boolean; placement: number | null }[]
+export async function loadResultsPool(eventId: string): Promise<
+  {
+    id: string;
+    title: string;
+    tableSlot: number | null;
+    placement: number | null;
+  }[]
 > {
   return db
     .select({
       id: submissions.id,
       title: submissions.title,
-      finalist: submissions.finalist,
+      tableSlot: submissions.tableSlot,
       placement: submissions.placement,
     })
     .from(submissions)

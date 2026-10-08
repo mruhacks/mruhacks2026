@@ -132,10 +132,20 @@ class Oracle {
     message: Record<string, unknown>,
   ): Promise<OracleReply & { result: T }> {
     const line = await new Promise<string>((resolve, reject) => {
-      this.pending.push(resolve);
-      this.child.once('exit', (code) =>
-        reject(new Error(`oracle exited (${code}): ${this.stderr}`)),
-      );
+      const exited = (code: number | null) =>
+        new Error(`oracle exited (${code}): ${this.stderr}`);
+      // An already-dead process never emits 'exit' again, so waiting on it
+      // would hang forever.
+      if (this.child.exitCode !== null || this.child.signalCode !== null) {
+        reject(exited(this.child.exitCode));
+        return;
+      }
+      const onExit = (code: number | null) => reject(exited(code));
+      this.child.once('exit', onExit);
+      this.pending.push((reply) => {
+        this.child.off('exit', onExit);
+        resolve(reply);
+      });
       this.child.stdin!.write(JSON.stringify(message) + '\n');
     });
     const reply = JSON.parse(line) as

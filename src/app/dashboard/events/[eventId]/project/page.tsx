@@ -16,7 +16,7 @@ import {
 } from '@/components/ui/card';
 import { serializeInstant } from '@/lib/datetime';
 import { resolveEventId } from '@/lib/events';
-import { getTableNumbers } from '@/lib/judging/server';
+import { getTableLabels } from '@/lib/judging/server';
 import { getProjectStage, PROJECT_STAGE_COPY } from '@/lib/submission-copy';
 import { getUser } from '@/utils/auth';
 
@@ -63,9 +63,9 @@ async function ProjectContent({
   const isFinal = stage === 'closed_private' || stage === 'closed_public';
   // Table numbers are visible to judges throughout, but to participants only
   // once submissions close — and only for a project that will be judged.
-  const tableNumber =
+  const tableLabel =
     stage === 'closed_public' && submission
-      ? (await getTableNumbers(eventId)).get(submission.id)
+      ? (await getTableLabels(eventId)).get(submission.id)?.label
       : undefined;
 
   return (
@@ -119,13 +119,13 @@ async function ProjectContent({
           />
         )}
 
-        {tableNumber !== undefined && (
+        {tableLabel !== undefined && (
           <Card className='gap-1 p-5'>
             <p className='text-muted-foreground m-0 text-sm'>
               Set up for the expo at
             </p>
             <p className='m-0 text-3xl font-semibold tabular-nums'>
-              Table {tableNumber}
+              Table {tableLabel}
             </p>
           </Card>
         )}

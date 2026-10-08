@@ -27,6 +27,7 @@ import {
 } from '@/db/schema';
 import { eventApplicationsCacheTag } from '@/lib/admin-event';
 import { eventUrlSegments } from '@/lib/events';
+import { assignTableSlot } from '@/lib/judging/server';
 import { collectAttachmentKeys } from '@/lib/markdown-attachments';
 import { readImageUpload } from '@/lib/image-attachments';
 import { requirePermission, hasPermission } from '@/lib/rbac/authorization';
@@ -409,12 +410,17 @@ export async function setSubmissionPublished(
         .set({
           published,
           publishedAt: published ? new Date() : null,
+          // Leaving the results pool gives up any placement, so the place
+          // isn't stuck on a project the awards page no longer lists.
+          ...(published ? {} : { placement: null }),
           // `updatedAt` tracks content saves for the stale-save check;
           // flipping the flag isn't one, so a teammate mid-edit isn't told
           // to reload.
           updatedAt: sql`${submissions.updatedAt}`,
         })
         .where(eq(submissions.id, row.id));
+      // First time public: the project takes its expo table for good.
+      if (published) await assignTableSlot(tx, eventId, row.id);
       return ok(
         published ? 'Project is now public.' : 'Project is now private.',
       );

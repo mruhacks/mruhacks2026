@@ -461,6 +461,32 @@ describe('publishing', () => {
     const result = await saveSubmission(eventId, saveInput(submission));
     expect(result.success).toBe(false);
   });
+
+  test('takes a table at first publish and keeps it; going private gives up a placement', async () => {
+    loginAs(userA);
+    const { id } = await currentSubmission(eventId);
+    const row = async () =>
+      (
+        await db
+          .select({
+            tableSlot: submissions.tableSlot,
+            placement: submissions.placement,
+          })
+          .from(submissions)
+          .where(eq(submissions.id, id))
+      )[0]!;
+    const { tableSlot } = await row();
+    expect(tableSlot).not.toBeNull();
+
+    await db
+      .update(submissions)
+      .set({ placement: 1 })
+      .where(eq(submissions.id, id));
+    unwrap(await setSubmissionPublished(eventId, false));
+    expect(await row()).toEqual({ tableSlot, placement: null });
+    unwrap(await setSubmissionPublished(eventId, true));
+    expect((await row()).tableSlot).toBe(tableSlot);
+  });
 });
 
 describe('editor presence', () => {

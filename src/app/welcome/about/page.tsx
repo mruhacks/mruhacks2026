@@ -60,7 +60,6 @@ async function AboutStepContent({
               majorId: profile.majorId ?? undefined,
               majorOtherText: profile.majorOtherText,
               yearOfStudyId: profile.yearOfStudyId ?? undefined,
-              linkedinUrl: profile.linkedinUrl,
               githubUrl: profile.githubUrl,
               attendedHackathonBefore: profile.attendedHackathonBefore,
             }

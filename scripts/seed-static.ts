@@ -220,7 +220,7 @@ async function seedRolesAndPermissions() {
     {
       slug: 'judging:manage:all',
       description:
-        'Manage expo judging criteria, weights and the judge roster, and deactivate projects',
+        'Manage expo judging criteria, weights, table layout and the judge roster, and deactivate projects',
     },
     {
       slug: 'judging:results:all',
@@ -228,7 +228,7 @@ async function seedRolesAndPermissions() {
     },
     {
       slug: 'judging:award:all',
-      description: 'Flag finalists and record overall placements',
+      description: 'Record overall placements',
     },
     {
       slug: 'system:read:all',

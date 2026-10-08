@@ -25,8 +25,10 @@ import {
   professionalSchema,
   welcomeAboutSchema,
   profileFormSchema,
-  type ProfileFormValues,
+  profileFormOptionalAboutSchema,
+  type ProfileFormInput,
 } from '@/components/profile-form/schema';
+import { isOnAnyJudgeRoster } from '@/lib/judging/server';
 import {
   deleteObject,
   isObjectStorageKey,
@@ -195,13 +197,13 @@ export async function getUserProfile(): Promise<
       resumeFile: userProfiles.resumeFile,
       resumeFileName: userProfiles.resumeFileName,
       resumeFileType: userProfiles.resumeFileType,
+      linkedinUrl: userProfiles.linkedinUrl,
       universityId: userProfileAbout.universityId,
       universityOtherText: userProfileAbout.universityOtherText,
       majorId: userProfileAbout.majorId,
       majorOtherText: userProfileAbout.majorOtherText,
       yearOfStudyId: userProfileAbout.yearOfStudyId,
       attendedHackathonBefore: userProfileAbout.attendedHackathonBefore,
-      linkedinUrl: userProfileAbout.linkedinUrl,
       githubUrl: userProfileAbout.githubUrl,
     })
     .from(userProfiles)
@@ -248,7 +250,6 @@ async function upsertAboutProfile(
     majorId: number;
     majorOtherText?: string;
     yearOfStudyId: number;
-    linkedinUrl?: string;
     githubUrl?: string;
   },
   attendedHackathonBefore?: boolean,
@@ -262,7 +263,6 @@ async function upsertAboutProfile(
       majorId: data.majorId,
       majorOtherText: data.majorOtherText || null,
       yearOfStudyId: data.yearOfStudyId,
-      linkedinUrl: data.linkedinUrl || null,
       githubUrl: data.githubUrl || null,
       ...(attendedHackathonBefore !== undefined && {
         attendedHackathonBefore,
@@ -276,7 +276,6 @@ async function upsertAboutProfile(
         majorId: data.majorId,
         majorOtherText: data.majorOtherText || null,
         yearOfStudyId: data.yearOfStudyId,
-        linkedinUrl: data.linkedinUrl || null,
         githubUrl: data.githubUrl || null,
         ...(attendedHackathonBefore !== undefined && {
           attendedHackathonBefore,
@@ -288,7 +287,7 @@ async function upsertAboutProfile(
 
 /**
  * Saves the Personal-owned fields (user_profiles + user_dietary_restrictions):
- * name, gender, dietary. Independent of the About step — creates the profile
+ * name, gender, dietary, LinkedIn. Independent of the About step — creates the profile
  * row on its own.
  */
 export async function savePersonalProfile(
@@ -314,6 +313,7 @@ export async function savePersonalProfile(
           genderId: data.genderId,
           genderOtherText: data.genderOtherText || null,
           dietaryOtherText: data.dietaryOtherText || null,
+          linkedinUrl: data.linkedinUrl || null,
         })
         .onConflictDoUpdate({
           target: userProfiles.userId,
@@ -322,6 +322,7 @@ export async function savePersonalProfile(
             genderId: data.genderId,
             genderOtherText: data.genderOtherText || null,
             dietaryOtherText: data.dietaryOtherText || null,
+            linkedinUrl: data.linkedinUrl || null,
             updatedAt: new Date(),
           },
         });
@@ -357,7 +358,7 @@ export async function savePersonalProfile(
 }
 
 /**
- * Saves the About-owned fields (user_profile_about): academic info + socials
+ * Saves the About-owned fields (user_profile_about): academic info + GitHub
  * + attendedHackathonBefore. Independent of the Personal step.
  */
 export async function saveAboutProfile(
@@ -390,7 +391,6 @@ export async function getProfessionalProfile(): Promise<
   ActionResult<{
     company: string;
     jobTitle: string;
-    linkedinUrl: string;
   } | null>
 > {
   const user = await getUser();
@@ -399,17 +399,17 @@ export async function getProfessionalProfile(): Promise<
     .select({
       company: userProfileProfessional.company,
       jobTitle: userProfileProfessional.jobTitle,
-      linkedinUrl: userProfileProfessional.linkedinUrl,
     })
     .from(userProfileProfessional)
     .where(eq(userProfileProfessional.userId, user.id))
     .limit(1);
-  return ok(row ? { ...row, linkedinUrl: row.linkedinUrl ?? '' } : null);
+  return ok(row ?? null);
 }
 
 /**
- * Saves the Professional step (user_profile_professional): company, job
- * title and an optional LinkedIn. Judges fill this in instead of About.
+ * Saves the Professional step (user_profile_professional): company and job
+ * title. Judges fill this in instead of About; their LinkedIn is the shared
+ * one on the Personal step.
  */
 export async function saveProfessionalProfile(
   formData: ProfessionalProfileValues,
@@ -424,7 +424,6 @@ export async function saveProfessionalProfile(
   const values = {
     company: parsed.data.company,
     jobTitle: parsed.data.jobTitle,
-    linkedinUrl: parsed.data.linkedinUrl || null,
   };
 
   try {
@@ -447,25 +446,44 @@ export async function saveProfessionalProfile(
  * Saves both halves in one go, for the dashboard's single-page edit form.
  * Never touches attendedHackathonBefore (the dashboard form doesn't collect
  * it) — that stays whatever the welcome wizard originally set.
+ *
+ * A judge (anyone on a judging roster) may leave the student half blank: they
+ * onboard without the About step, so it's only saved once they fill it in.
+ * Everyone else must fill in both halves, as before.
  */
 export async function saveFullProfile(
-  formData: ProfileFormValues,
+  formData: ProfileFormInput,
 ): Promise<ActionResult> {
-  // Validate the whole dashboard payload before either half is persisted. A
-  // malformed About field must not partially save the Personal half.
-  const parsed = profileFormSchema.safeParse(formData);
-  if (!parsed.success) {
-    return fail(`Validation failed: ${parsed.error.message}`);
-  }
-
-  const personalResult = await savePersonalProfile(parsed.data);
-  if (!personalResult.success) return personalResult;
-
   const user = await getUser();
   if (!user) return fail('User not authenticated');
 
+  // Validate the whole dashboard payload before either half is persisted. A
+  // malformed About field must not partially save the Personal half.
+  const aboutOptional = await isOnAnyJudgeRoster(user);
+  const parsed = (
+    aboutOptional ? profileFormOptionalAboutSchema : profileFormSchema
+  ).safeParse(formData);
+  if (!parsed.success) {
+    return fail(parsed.error.issues[0]?.message ?? 'Validation failed.');
+  }
+  const data = parsed.data;
+
+  const personalResult = await savePersonalProfile(data);
+  if (!personalResult.success) return personalResult;
+
+  const { universityId, majorId, yearOfStudyId } = data;
+  if (universityId == null || majorId == null || yearOfStudyId == null) {
+    // Only reachable for a judge who left the student half blank.
+    return personalResult;
+  }
+
   try {
-    await upsertAboutProfile(user.id, parsed.data);
+    await upsertAboutProfile(user.id, {
+      ...data,
+      universityId,
+      majorId,
+      yearOfStudyId,
+    });
     revalidateProfile();
     return ok('Profile saved successfully.');
   } catch (error) {

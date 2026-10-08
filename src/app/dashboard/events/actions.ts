@@ -170,6 +170,7 @@ async function registerParticipant(
           genderId: profile.genderId,
           genderOtherText: profile.genderOtherText || null,
           dietaryOtherText: profile.dietaryOtherText || null,
+          linkedinUrl: profile.linkedinUrl || null,
         })
         .onConflictDoUpdate({
           target: userProfiles.userId,
@@ -178,6 +179,7 @@ async function registerParticipant(
             genderId: profile.genderId,
             genderOtherText: profile.genderOtherText || null,
             dietaryOtherText: profile.dietaryOtherText || null,
+            linkedinUrl: profile.linkedinUrl || null,
             updatedAt: new Date(),
           },
         });
@@ -191,7 +193,6 @@ async function registerParticipant(
           majorId: profile.majorId,
           majorOtherText: profile.majorOtherText || null,
           yearOfStudyId: profile.yearOfStudyId,
-          linkedinUrl: profile.linkedinUrl || null,
           githubUrl: profile.githubUrl || null,
         })
         .onConflictDoUpdate({
@@ -202,7 +203,6 @@ async function registerParticipant(
             majorId: profile.majorId,
             majorOtherText: profile.majorOtherText || null,
             yearOfStudyId: profile.yearOfStudyId,
-            linkedinUrl: profile.linkedinUrl || null,
             githubUrl: profile.githubUrl || null,
             updatedAt: new Date(),
           },

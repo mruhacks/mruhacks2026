@@ -73,6 +73,8 @@ export const eventJudges = pgTable(
     userId: uuid('user_id').references(() => user.id, {
       onDelete: 'set null',
     }),
+    /** When the invite email went out; null while it hasn't been sent. */
+    inviteSentAt: timestamp('invite_sent_at', { withTimezone: true }),
     /** A disabled judge isn't dispatched; their votes still count. */
     disabledAt: timestamp('disabled_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true })

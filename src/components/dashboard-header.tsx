@@ -38,6 +38,8 @@ const SEGMENT_LABELS: Record<string, string> = {
   register: 'Register',
   apply: 'Apply',
   judge: 'Judging',
+  judging: 'Judging',
+  results: 'Results',
   applications: 'Applications',
   checkin: 'Check-in',
   subevents: 'Schedule',

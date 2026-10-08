@@ -231,7 +231,7 @@ function GoTo({
         Go to
       </p>
       <p className='m-0 text-4xl/tight font-bold tabular-nums'>
-        Table {project.tableNumber}
+        Table {project.tableLabel}
       </p>
       <p className='m-0 line-clamp-1 max-w-full px-16 font-medium'>
         <em>{project.title}</em>
@@ -291,7 +291,7 @@ function CompareScreen({
                   {side === 'previous' ? 'Previous' : 'Current'}
                 </p>
                 <p className='m-0 truncate text-sm font-medium'>
-                  Table {project.tableNumber} · <em>{project.title}</em>
+                  Table {project.tableLabel} · <em>{project.title}</em>
                 </p>
               </div>
             );

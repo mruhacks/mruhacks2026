@@ -151,21 +151,24 @@ async function DashboardHeaderLoader() {
 
   // Bounce back into onboarding if it was never finished — e.g. the user
   // closed the tab mid-welcome-flow, or typed a dashboard URL directly.
-  const [consentRes, profileRes, professionalRes] = await Promise.all([
+  const [consentRes, profileRes] = await Promise.all([
     getConsentStatus(),
     getUserProfile(),
-    getProfessionalProfile(),
   ]);
   const needsConsent =
     consentRes.success && consentRes.data ? consentRes.data.needsConsent : true;
   const needsProfile = !profileRes.success || profileRes.data == null;
+  if (needsConsent || needsProfile) redirect('/welcome');
+
   // Participants finish About; judges finish Professional instead. Either
-  // one gets you in.
+  // one gets you in — so the professional profile is only read for someone
+  // without an About, rather than on every dashboard render.
   const hasAbout = profileRes.success && profileRes.data?.universityId != null;
-  const hasProfessional =
-    professionalRes.success && professionalRes.data != null;
-  if (needsConsent || needsProfile || (!hasAbout && !hasProfessional)) {
-    redirect('/welcome');
+  if (!hasAbout) {
+    const professionalRes = await getProfessionalProfile();
+    if (!professionalRes.success || professionalRes.data == null) {
+      redirect('/welcome');
+    }
   }
 
   return (

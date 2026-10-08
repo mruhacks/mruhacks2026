@@ -13,12 +13,13 @@ import { getUser } from '@/utils/auth';
 import { CriteriaCard } from './criteria-card';
 import { JudgingProjectsCard } from './projects-card';
 import { RosterCard } from './roster-card';
+import { TableLayoutCard } from './table-layout-card';
 
 type Props = { params: Promise<{ eventId: string }> };
 
 /**
- * Expo judging setup: criteria, the judge roster, and which projects are in
- * play. Sync shell, with the session and reads behind Suspense like every
+ * Expo judging setup: criteria, the judge roster, the table layout, and which
+ * projects are in play. Sync shell, with the session and reads behind Suspense like every
  * page here.
  */
 export default function JudgingRoute({ params }: Props) {
@@ -88,6 +89,11 @@ async function JudgingContent({
         structureLocked={data.structureLocked}
       />
       <RosterCard eventId={eventId} judges={data.judges} />
+      <TableLayoutCard
+        eventId={eventId}
+        layout={data.tableLayout}
+        locked={data.structureLocked}
+      />
       <JudgingProjectsCard eventId={eventId} projects={data.projects} />
     </div>
   );

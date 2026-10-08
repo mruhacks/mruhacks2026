@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { Controller, useForm, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 import type { SingleValue, MultiValue } from 'react-select';
@@ -10,6 +11,7 @@ import type { SingleValue, MultiValue } from 'react-select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Field,
+  FieldDescription,
   FieldGroup,
   FieldLabel,
   FieldError,
@@ -24,8 +26,9 @@ import { ProfileAssets } from '@/app/dashboard/profile/profile-assets';
 import { uploadResume } from '@/app/dashboard/profile/actions';
 
 import {
+  profileFormOptionalAboutSchema,
   profileFormSchema,
-  type ProfileFormValues,
+  type ProfileFormInput,
 } from '@/components/profile-form/schema';
 import { type ProfileFormOptions } from '@/components/profile-form/schema';
 
@@ -35,10 +38,18 @@ const tabLabels: Record<string, string> = {
   about: 'About you',
 };
 
+/** A tab beside Personal / About you that saves on its own (its own form). */
+export type ProfileFormExtraTab = {
+  value: string;
+  label: string;
+  content: React.ReactNode;
+};
+
 const PERSONAL_FIELDS = [
   'fullName',
   'genderId',
   'dietaryRestrictions',
+  'linkedinUrl',
 ] as const;
 const ABOUT_FIELDS = ['universityId', 'majorId', 'yearOfStudyId'] as const;
 
@@ -48,17 +59,33 @@ const getMultiValues = (opts: MultiValue<{ value: number; label: string }>) =>
   opts.map((o) => o.value);
 
 type ProfileFormProps = {
-  initial?: Partial<ProfileFormValues>;
+  initial?: Partial<ProfileFormInput>;
   options: ProfileFormOptions;
-  onSubmit: (data: ProfileFormValues) => Promise<ActionResult | void>;
+  onSubmit: (data: ProfileFormInput) => Promise<ActionResult | void>;
+  /**
+   * The About you half may be left blank (all-or-nothing) — for judges, who
+   * onboard without it. The server applies the same rule on its own.
+   */
+  aboutOptional?: boolean;
   submitLabel?: string;
   successMessage?: string;
   errorMessage?: string;
   /** Called after a successful save. */
   onSuccess?: () => void;
+  /**
+   * Where to go after a successful save (e.g. back to the event application
+   * that sent the user here). Must already be a sanitized same-origin path.
+   */
+  successHref?: string;
   /** Resume upload state, shown in the About you tab. */
   hasResume: boolean;
   resumeFileName: string | null;
+  /** Renames the About you tab (e.g. "Student profile" beside a professional one). */
+  aboutLabel?: string;
+  /** Rendered as a third tab, outside this form so it can hold its own. */
+  extraTab?: ProfileFormExtraTab;
+  /** Which tab opens first; defaults to Personal. */
+  defaultTab?: string;
 };
 
 const DEFAULT_SUBMIT_LABEL = 'Save Changes';
@@ -77,9 +104,15 @@ export default function ProfileForm({
   successMessage = DEFAULT_SUCCESS_MESSAGE,
   errorMessage = DEFAULT_ERROR_MESSAGE,
   onSuccess,
+  successHref,
+  aboutOptional = false,
   hasResume,
   resumeFileName,
+  aboutLabel = tabLabels.about,
+  extraTab,
+  defaultTab = 'personal',
 }: ProfileFormProps) {
+  const router = useRouter();
   const {
     control,
     register,
@@ -87,8 +120,10 @@ export default function ProfileForm({
     trigger,
     formState: { errors, isSubmitting },
     reset,
-  } = useForm<ProfileFormValues>({
-    resolver: zodResolver(profileFormSchema) as Resolver<ProfileFormValues>,
+  } = useForm<ProfileFormInput>({
+    resolver: zodResolver(
+      aboutOptional ? profileFormOptionalAboutSchema : profileFormSchema,
+    ) as Resolver<ProfileFormInput>,
     mode: 'onChange',
     reValidateMode: 'onChange',
     criteriaMode: 'firstError',
@@ -115,18 +150,21 @@ export default function ProfileForm({
     }));
   }, [initial, reset]);
 
-  const [tab, setTab] = React.useState<'personal' | 'about'>('personal');
+  const [tab, setTab] = React.useState(defaultTab);
   const [queuedResume, setQueuedResume] = React.useState<File | null>(null);
   const [uploadingResume, setUploadingResume] = React.useState(false);
   const [dietaryNoneSelected, setDietaryNoneSelected] = React.useState(false);
+  const [submitError, setSubmitError] = React.useState<string>();
+  const formRef = React.useRef<HTMLFormElement>(null);
 
   const submitHandler = React.useCallback(
-    async (data: ProfileFormValues) => {
+    async (data: ProfileFormInput) => {
+      setSubmitError(undefined);
       try {
         const result = await onSubmit(data);
 
         if (isActionResult(result) && !result.success) {
-          toast.error(result.error ?? errorMessage);
+          setSubmitError(result.error ?? errorMessage);
           return;
         }
 
@@ -140,7 +178,7 @@ export default function ProfileForm({
           const uploadResult = await uploadResume(formData);
           setUploadingResume(false);
           if (!uploadResult.success) {
-            toast.error(uploadResult.error ?? 'Failed to upload resume.');
+            setSubmitError(uploadResult.error ?? 'Failed to upload resume.');
             return;
           }
           setQueuedResume(null);
@@ -150,19 +188,31 @@ export default function ProfileForm({
         if (onSuccess) {
           onSuccess();
         }
+        if (successHref) {
+          router.push(successHref);
+        }
       } catch (err) {
         console.error('[profile-form] submission failed', err);
         toast.error(errorMessage);
       }
     },
-    [onSubmit, successMessage, errorMessage, onSuccess, queuedResume],
+    [
+      onSubmit,
+      successMessage,
+      errorMessage,
+      onSuccess,
+      successHref,
+      router,
+      queuedResume,
+    ],
   );
 
   const focusActiveSection = () => {
     requestAnimationFrame(() => {
-      const nextPanel = document.querySelector(
+      // Scoped to this form: the extra tab's panel sits outside it.
+      const nextPanel = formRef.current?.querySelector<HTMLElement>(
         `[role="tabpanel"][data-state="active"]`,
-      ) as HTMLElement | null;
+      );
       const focusable = nextPanel?.querySelector<HTMLElement>(
         'input, select, textarea, button, [tabindex]:not([tabindex="-1"])',
       );
@@ -184,7 +234,7 @@ export default function ProfileForm({
     focusActiveSection();
   };
 
-  const tabHasError = (fields: readonly (keyof ProfileFormValues)[]) =>
+  const tabHasError = (fields: readonly (keyof ProfileFormInput)[]) =>
     fields.some((key) => errors[key]);
 
   const personalFields = (
@@ -280,6 +330,22 @@ export default function ProfileForm({
             );
           }}
         />
+
+        <Field>
+          <FieldLabel htmlFor='linkedinUrl'>
+            LinkedIn{' '}
+            <span className='text-muted-foreground font-normal'>
+              (optional)
+            </span>
+          </FieldLabel>
+          <Input
+            {...register('linkedinUrl')}
+            id='linkedinUrl'
+            type='url'
+            placeholder='https://linkedin.com/in/janedoe'
+          />
+          {errors.linkedinUrl && <FieldError errors={[errors.linkedinUrl]} />}
+        </Field>
       </FieldGroup>
       <div className='mt-6 flex justify-end'>
         <Button type='button' onClick={handleNext}>
@@ -291,6 +357,13 @@ export default function ProfileForm({
 
   const aboutFields = (
     <>
+      {aboutOptional && (
+        <FieldDescription className='mb-6'>
+          Only needed if you also take part in events as a hacker. Leave it
+          blank otherwise, or fill in your university, program and year
+          together.
+        </FieldDescription>
+      )}
       <FieldGroup>
         <Controller
           name='universityId'
@@ -303,7 +376,7 @@ export default function ProfileForm({
               <Field data-invalid={fieldState.invalid}>
                 <FieldLabel>
                   University / Institution
-                  <RequiredAsterisk />
+                  {!aboutOptional && <RequiredAsterisk />}
                 </FieldLabel>
                 <Select
                   id='universityId'
@@ -336,7 +409,7 @@ export default function ProfileForm({
               <Field data-invalid={fieldState.invalid}>
                 <FieldLabel>
                   Major / Program
-                  <RequiredAsterisk />
+                  {!aboutOptional && <RequiredAsterisk />}
                 </FieldLabel>
                 <Select
                   id='majorId'
@@ -365,7 +438,7 @@ export default function ProfileForm({
             <Field data-invalid={fieldState.invalid}>
               <FieldLabel>
                 Year of Study
-                <RequiredAsterisk />
+                {!aboutOptional && <RequiredAsterisk />}
               </FieldLabel>
               <Select
                 id='yearOfStudyId'
@@ -380,22 +453,6 @@ export default function ProfileForm({
             </Field>
           )}
         />
-
-        <Field>
-          <FieldLabel htmlFor='linkedinUrl'>
-            LinkedIn{' '}
-            <span className='text-muted-foreground font-normal'>
-              (optional)
-            </span>
-          </FieldLabel>
-          <Input
-            {...register('linkedinUrl')}
-            id='linkedinUrl'
-            type='url'
-            placeholder='https://linkedin.com/in/janedoe'
-          />
-          {errors.linkedinUrl && <FieldError errors={[errors.linkedinUrl]} />}
-        </Field>
 
         <Field>
           <FieldLabel htmlFor='githubUrl'>
@@ -443,39 +500,58 @@ export default function ProfileForm({
           )}
         </Button>
       </div>
+      {submitError && (
+        <FieldError className='mt-2 text-right'>{submitError}</FieldError>
+      )}
     </>
   );
 
   return (
-    <form onSubmit={handleSubmit(submitHandler)}>
-      <Tabs
-        value={tab}
-        onValueChange={(v) => setTab(v as 'personal' | 'about')}
-        className='w-full'
+    <Tabs value={tab} onValueChange={setTab} className='w-full'>
+      <TabsList
+        className={`mb-6 grid w-full ${extraTab ? 'grid-cols-3' : 'grid-cols-2'}`}
       >
-        <TabsList className='mb-6 grid w-full grid-cols-2'>
-          <TabsTrigger
-            value='personal'
-            className={
-              tabHasError(PERSONAL_FIELDS) ? 'text-destructive underline' : ''
-            }
-          >
-            {tabLabels.personal}
-          </TabsTrigger>
-          <TabsTrigger
-            value='about'
-            className={
-              tabHasError(ABOUT_FIELDS) ? 'text-destructive underline' : ''
-            }
-          >
-            {tabLabels.about}
-          </TabsTrigger>
-        </TabsList>
+        <TabsTrigger
+          value='personal'
+          className={
+            tabHasError(PERSONAL_FIELDS) ? 'text-destructive underline' : ''
+          }
+        >
+          {tabLabels.personal}
+        </TabsTrigger>
+        <TabsTrigger
+          value='about'
+          className={
+            tabHasError(ABOUT_FIELDS) ? 'text-destructive underline' : ''
+          }
+        >
+          {aboutLabel}
+        </TabsTrigger>
+        {extraTab && (
+          <TabsTrigger value={extraTab.value}>{extraTab.label}</TabsTrigger>
+        )}
+      </TabsList>
 
+      <form
+        ref={formRef}
+        onSubmit={handleSubmit(submitHandler)}
+        onChange={() => setSubmitError(undefined)}
+      >
         <TabsContent value='personal'>{personalFields}</TabsContent>
 
         <TabsContent value='about'>{aboutFields}</TabsContent>
-      </Tabs>
-    </form>
+      </form>
+
+      {extraTab && (
+        // Kept mounted so switching tabs doesn't drop its unsaved edits.
+        <TabsContent
+          value={extraTab.value}
+          forceMount
+          className='data-[state=inactive]:hidden'
+        >
+          {extraTab.content}
+        </TabsContent>
+      )}
+    </Tabs>
   );
 }

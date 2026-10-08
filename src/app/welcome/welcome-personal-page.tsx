@@ -49,6 +49,7 @@ export function WelcomePersonalPage({
       genderOtherText: initial?.genderOtherText ?? '',
       dietaryRestrictions: initial?.dietaryRestrictions ?? [],
       dietaryOtherText: initial?.dietaryOtherText ?? '',
+      linkedinUrl: initial?.linkedinUrl ?? '',
     },
   });
   const [dietaryNoneSelected, setDietaryNoneSelected] = React.useState(false);
@@ -183,6 +184,19 @@ export function WelcomePersonalPage({
             );
           }}
         />
+        <Field data-invalid={Boolean(form.formState.errors.linkedinUrl)}>
+          <FieldLabel htmlFor='linkedinUrl'>LinkedIn</FieldLabel>
+          <Input
+            id='linkedinUrl'
+            type='url'
+            placeholder='https://linkedin.com/in/janedoe'
+            aria-invalid={Boolean(form.formState.errors.linkedinUrl)}
+            {...form.register('linkedinUrl')}
+          />
+          {form.formState.errors.linkedinUrl && (
+            <FieldError errors={[form.formState.errors.linkedinUrl]} />
+          )}
+        </Field>
       </FieldGroup>
       <Separator />
       <div className='flex flex-col gap-2'>
