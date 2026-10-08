@@ -3,10 +3,12 @@
  *
  * Attachments are uploaded before the markdown that embeds them is saved, so
  * an upload the author then undid leaves an orphan in the bucket. Deleting a
- * whole article is the one point where we can cheaply tell which objects are
- * now unreachable — this scan is what makes that possible.
+ * whole article (or project submission) is the one point where we can
+ * cheaply tell which objects are now unreachable — this scan is what makes
+ * that possible.
  *
- * It matches the URL shape written by `eventAttachmentUrl`, in whatever
+ * It matches the URL shape written by `eventAttachmentUrl` — under either
+ * `event-content/` or `submission-content/` — in whatever
  * syntax the editor emitted (`![alt](url)`, a bare `<url>`, or an `<img
  * src="url">` if raw HTML ever slips in), rather than parsing the markdown
  * into an AST: a superset of "URLs that appear in this text" is exactly right
@@ -15,7 +17,7 @@
  */
 
 const ATTACHMENT_URL_PATTERN =
-  /\/api\/assets\/(event-content\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.[a-z0-9]{1,10})/gi;
+  /\/api\/assets\/((?:event|submission)-content\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.[a-z0-9]{1,10})/gi;
 
 export function collectAttachmentKeys(
   markdown: string | null | undefined,

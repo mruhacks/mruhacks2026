@@ -27,11 +27,14 @@ import { markCurrentWelcomeStepReviewable } from './welcome-navigation';
 export function WelcomeConsentPage({
   nextHref,
   isFinalStep,
+  isReacceptance = false,
   initialAcceptLegal = false,
   initialMarketing = false,
 }: {
   nextHref: string;
   isFinalStep: boolean;
+  /** Accepted an earlier version; asked again because a document changed. */
+  isReacceptance?: boolean;
   initialAcceptLegal?: boolean;
   initialMarketing?: boolean;
 }) {
@@ -85,10 +88,24 @@ export function WelcomeConsentPage({
             className='mx-auto mb-5 h-auto w-40'
             priority
           />
-          <h2 className='text-lg font-semibold'>Welcome to MRUHacks!</h2>
-          <p className='text-muted-foreground mt-1 text-sm'>
-            First, some legal stuff.
-          </p>
+          {isReacceptance ? (
+            <>
+              <h2 className='text-lg font-semibold'>
+                We&apos;ve updated our terms
+              </h2>
+              <p className='text-muted-foreground mt-1 text-sm'>
+                Our Terms of Use or Privacy Policy changed since you last
+                agreed. Please review and accept them to continue.
+              </p>
+            </>
+          ) : (
+            <>
+              <h2 className='text-lg font-semibold'>Welcome to MRUHacks!</h2>
+              <p className='text-muted-foreground mt-1 text-sm'>
+                First, some legal stuff.
+              </p>
+            </>
+          )}
         </div>
         <FieldGroup className='gap-3'>
           <Field

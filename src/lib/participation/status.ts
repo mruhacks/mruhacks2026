@@ -97,6 +97,25 @@ export function canFormTeam(status: ParticipationStatus): boolean {
   return status !== 'denied' && status !== 'declined' && status !== 'timed_out';
 }
 
+/**
+ * Has reached the event's final positive state, and so may work on (view,
+ * edit, publish, delete) their team's project submission. What "final" means
+ * depends on how far the event's own pipeline goes:
+ *
+ * 1. check-in enabled → checked in at the door;
+ * 2. otherwise, once any RSVP wave has gone out → `accepted`;
+ * 3. otherwise → anyone still able to form a team (`canFormTeam`).
+ */
+export function canSubmitProject(
+  event: { checkInEnabled: boolean; hasSentRsvpWave: boolean },
+  status: ParticipationStatus,
+  checkedIn: boolean,
+): boolean {
+  if (event.checkInEnabled) return checkedIn;
+  if (event.hasSentRsvpWave) return isAttending(status);
+  return canFormTeam(status);
+}
+
 /** Application answers stay editable only until a review decision is made. */
 export function canEditApplication(status: ParticipationStatus): boolean {
   return status === 'pending_review';

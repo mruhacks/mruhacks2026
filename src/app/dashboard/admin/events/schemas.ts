@@ -106,6 +106,30 @@ const GEOFENCE_ISSUE = {
 const eventInstantSchema = z.iso.datetime({ offset: true });
 
 /**
+ * Why a project submission deadline doesn't fit the event, or null when it
+ * does (or isn't set). Submissions open at the start, so the deadline has to
+ * fall strictly between the start and the end.
+ */
+export function submissionsCloseAtError(event: {
+  startsAt: Date | null;
+  endsAt: Date | null;
+  submissionsCloseAt: Date | null;
+}): string | null {
+  const { startsAt, endsAt, submissionsCloseAt } = event;
+  if (!submissionsCloseAt) return null;
+  if (!startsAt || !endsAt) {
+    return 'Set the event start and end before a submission deadline.';
+  }
+  if (
+    submissionsCloseAt.getTime() <= startsAt.getTime() ||
+    submissionsCloseAt.getTime() >= endsAt.getTime()
+  ) {
+    return 'The submission deadline must be after the event starts and before it ends.';
+  }
+  return null;
+}
+
+/**
  * An event's optional custom URL slug (`/dashboard/events/mruhacks-2026`).
  * An empty string is how a form says "no slug" — it normalizes to null on the
  * way into the DB, leaving the event addressed by its uuid.
@@ -184,6 +208,7 @@ export const updateEventSettingsSchema = z
     teamsEnabled: z.boolean().optional(),
     checkInEnabled: z.boolean().optional(),
     maxTeamSize: z.number().int().positive().nullish(),
+    submissionsCloseAt: eventInstantSchema.nullish(),
   })
   .refine(
     (data) => {
@@ -194,7 +219,22 @@ export const updateEventSettingsSchema = z
       message: 'Start date must be before end date',
       path: ['startsAt'],
     },
-  );
+  )
+  .superRefine((data, ctx) => {
+    // Like start/end above, only checkable here when the payload carries all
+    // three; `updateEventSettings` re-checks against the merged row.
+    if (data.startsAt === undefined || data.endsAt === undefined) return;
+    const message = submissionsCloseAtError({
+      startsAt: data.startsAt ? new Date(data.startsAt) : null,
+      endsAt: data.endsAt ? new Date(data.endsAt) : null,
+      submissionsCloseAt: data.submissionsCloseAt
+        ? new Date(data.submissionsCloseAt)
+        : null,
+    });
+    if (message) {
+      ctx.addIssue({ code: 'custom', message, path: ['submissionsCloseAt'] });
+    }
+  });
 // Note: this is a partial update, so latitude/longitude/radiusMeters pairing
 // can't be fully validated here — a payload touching only `radiusMeters`
 // doesn't know today's lat/long. `updateEventSettings` re-checks the

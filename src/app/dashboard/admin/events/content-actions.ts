@@ -31,6 +31,7 @@ import {
   putObject,
 } from '@/utils/object-storage';
 import { collectAttachmentKeys } from '@/lib/markdown-attachments';
+import { readImageUpload } from '@/lib/image-attachments';
 import { slugify, uniqueSlug, RESERVED_ARTICLE_SLUGS } from '@/lib/slug';
 import {
   createArticleSchema,
@@ -44,20 +45,6 @@ import {
 
 // ── Attachment uploads ────────────────────────────────────────────────────
 
-const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
-/**
- * Attachments are re-served verbatim from `/api/assets`, so the allow-list is
- * limited to formats a browser renders as an image and never executes. SVG is
- * deliberately excluded: it can carry script, and it would run same-origin.
- */
-const ATTACHMENT_TYPES = new Map([
-  ['image/jpeg', '.jpg'],
-  ['image/png', '.png'],
-  ['image/webp', '.webp'],
-  ['image/gif', '.gif'],
-  ['image/avif', '.avif'],
-]);
-
 async function storeAttachment(
   eventId: string,
   formData: FormData,
@@ -69,31 +56,16 @@ async function storeAttachment(
     .limit(1);
   if (!eventRow) return fail('Event not found');
 
-  const value = formData.get('file');
-  if (
-    !value ||
-    typeof value === 'string' ||
-    typeof value.arrayBuffer !== 'function'
-  ) {
-    return fail('Choose an image to upload.');
-  }
-
-  const extension = ATTACHMENT_TYPES.get(value.type);
-  if (!extension) {
-    return fail('Images must be JPEG, PNG, WebP, GIF or AVIF.');
-  }
-  if (value.size === 0 || value.size > MAX_ATTACHMENT_BYTES) {
-    return fail(
-      `Images must be smaller than ${MAX_ATTACHMENT_BYTES / 1024 / 1024} MB.`,
-    );
-  }
+  const read = await readImageUpload(formData);
+  if ('error' in read) return fail(read.error);
+  const { upload } = read;
 
   try {
-    const key = `event-content/${eventId}/${randomUUID()}${extension}`;
+    const key = `event-content/${eventId}/${randomUUID()}${upload.extension}`;
     await putObject({
       key,
-      body: new Uint8Array(await value.arrayBuffer()),
-      contentType: value.type,
+      body: upload.bytes,
+      contentType: upload.contentType,
     });
     return ok({ url: eventAttachmentUrl(key) });
   } catch (error) {
@@ -589,8 +561,12 @@ async function deleteOrphanedAttachments(
   eventId: string,
   removedMarkdown: string,
 ) {
-  const candidates = collectAttachmentKeys(removedMarkdown);
-  if (candidates.size === 0) return;
+  // Only this event's own attachments are candidates: a submission image
+  // pasted into an article belongs to that project, not to the wiki.
+  const candidates = [...collectAttachmentKeys(removedMarkdown)].filter((key) =>
+    key.startsWith(`event-content/${eventId}/`),
+  );
+  if (candidates.length === 0) return;
 
   try {
     const [remainingArticles, [eventRow], termsVersions] = await Promise.all([
@@ -624,7 +600,7 @@ async function deleteOrphanedAttachments(
     }
 
     await Promise.all(
-      [...candidates]
+      candidates
         .filter((key) => !stillReferenced.has(key))
         .map((key) => deleteObject(key)),
     );

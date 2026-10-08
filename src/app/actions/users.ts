@@ -49,6 +49,7 @@ import { revalidatePath, updateTag } from 'next/cache';
 import { serverActionError } from '@/utils/server-action-error';
 import { writeAuditLog } from '@/utils/audit-log';
 import { ADMIN_COUNTS_CACHE_TAG } from '@/lib/admin-counts';
+import { prepareUserDeletion } from '@/lib/account-deletion';
 
 // ─────────────────────────────────────────────
 // TYPES
@@ -375,6 +376,7 @@ export async function deleteUser(userId: string): Promise<ActionResult> {
       return fail('You cannot delete an administrator');
     }
 
+    await prepareUserDeletion(userId);
     await db.delete(user).where(eq(user.id, userId));
     await writeAuditLog({
       actorId: caller.id,
@@ -387,6 +389,59 @@ export async function deleteUser(userId: string): Promise<ActionResult> {
     return ok();
   } catch (e) {
     return serverActionError('delete user', e);
+  }
+}
+
+/**
+ * Compliance "full wipe": erases a user's account and personal data on an
+ * erasure request, the same way self-service deletion does — including its
+ * object-storage files, which a plain row delete would leave behind. It
+ * deliberately doesn't guess which team content was theirs; an admin removes
+ * specific submissions case by case with `submission:delete:all`.
+ *
+ * Audit-logged by user id only: the log must not keep the name or email the
+ * request asked us to erase.
+ * Requires user:purge:all permission.
+ */
+export async function purgeUser(userId: string): Promise<ActionResult> {
+  try {
+    const caller = await getUser();
+    if (!caller) return fail('Not authenticated');
+    if (caller.id === userId) {
+      return fail('Delete your own account from Account & Privacy instead.');
+    }
+    if (!(await hasPermission(caller.id, 'user:purge:all'))) {
+      return fail('Not authorized to purge users.');
+    }
+
+    const [target] = await db
+      .select({ id: user.id })
+      .from(user)
+      .where(eq(user.id, userId))
+      .limit(1);
+    if (!target) return fail('User not found');
+
+    // Same guard as deleteUser: `user:purge:all` is meant to be grantable on
+    // its own (e.g. a compliance role), which must not reach administrators.
+    const targetIsAdmin = await hasPermission(userId, 'user:all:all');
+    const callerIsAdmin = await hasPermission(caller.id, 'user:all:all');
+    if (targetIsAdmin && !callerIsAdmin) {
+      return fail('You cannot purge an administrator');
+    }
+
+    await prepareUserDeletion(userId);
+    await db.delete(user).where(eq(user.id, userId));
+    await writeAuditLog({
+      actorId: caller.id,
+      action: 'user.purged',
+      targetType: 'user',
+      targetId: userId,
+    });
+    revalidatePath('/dashboard/admin/users');
+    updateTag(ADMIN_COUNTS_CACHE_TAG);
+    return ok();
+  } catch (e) {
+    return serverActionError('purge user', e);
   }
 }
 
