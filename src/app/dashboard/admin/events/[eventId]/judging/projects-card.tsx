@@ -26,7 +26,7 @@ import {
 } from '@/components/ui/table';
 
 /**
- * Every submission with its table number. Only published, active projects
+ * Every submission with its table. Only published, active projects
  * are judged; deactivating one (team left, disqualified) takes it out of
  * dispatch and results while keeping its votes.
  */
@@ -41,16 +41,18 @@ export function JudgingProjectsCard({
 
   async function toggle(project: JudgingProjectRow) {
     setBusyId(project.id);
-    const result = await setSubmissionDeactivated(
-      eventId,
-      project.id,
-      !project.deactivated,
-    );
-    setBusyId(null);
-    // A button-only action: nothing to anchor an inline error to.
-    if (!result.success) {
-      toast.error(result.error);
-      return;
+    try {
+      const result = await setSubmissionDeactivated(
+        eventId,
+        project.id,
+        !project.deactivated,
+      );
+      // A button-only action: nothing to anchor an inline error to.
+      if (!result.success) toast.error(result.error);
+    } catch {
+      toast.error('Something went wrong. Try again.');
+    } finally {
+      setBusyId(null);
     }
   }
 
@@ -59,8 +61,8 @@ export function JudgingProjectsCard({
       <CardHeader>
         <CardTitle>Projects</CardTitle>
         <CardDescription>
-          Table numbers follow the order teams started their projects, drafts
-          included, so the floor may have gaps.
+          A project takes the next table the first time it&apos;s published and
+          keeps it, so tables never move once handed out.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -84,7 +86,7 @@ export function JudgingProjectsCard({
               {projects.map((project) => (
                 <TableRow key={project.id}>
                   <TableCell className='tabular-nums'>
-                    {project.tableNumber}
+                    {project.tableLabel ?? '—'}
                   </TableCell>
                   <TableCell className='font-medium whitespace-normal'>
                     {project.title}

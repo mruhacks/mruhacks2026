@@ -205,6 +205,10 @@ async function main(): Promise<void> {
         startsAt: new Date(now.getTime() - 24 * HOUR),
         submissionsCloseAt: new Date(now.getTime() - HOUR),
         endsAt: new Date(now.getTime() + 24 * HOUR),
+        // Three rows, so the demo shows row/column labels (A1, B1, C1, A2…).
+        judgingTableRows: 3,
+        // Every project but the last is published, each taking the next table.
+        judgingNextTableSlot: PROJECTS === 1 ? 1 : PROJECTS - 1,
       })
       .returning();
 
@@ -305,10 +309,8 @@ async function main(): Promise<void> {
           ? ` ${Math.floor(p / PROJECT_TITLES.length) + 1}`
           : '');
       const repo = slugify(title);
-      // The last team never published: it gets a table number but stays out
-      // of the judging pool.
+      // The last team never published: no table, and out of the judging pool.
       const published = p !== PROJECTS - 1 || PROJECTS === 1;
-      // Staggered so table numbers (ranked by created_at) follow `p`.
       const createdAt = new Date(formedAt.getTime() + p * 60_000);
       const publishedAt = new Date(
         event.submissionsCloseAt!.getTime() - (PROJECTS - p) * 60_000,
@@ -327,6 +329,8 @@ async function main(): Promise<void> {
           : null,
         published,
         publishedAt: published ? publishedAt : null,
+        // Tables are handed out at first publish, which here follows `p`.
+        tableSlot: published ? p : null,
         lastEditedBy: roster[0],
         createdAt,
         updatedAt: published ? publishedAt : createdAt,
@@ -369,15 +373,13 @@ async function main(): Promise<void> {
         acceptedAt: now,
       })),
     );
-    await tx
-      .insert(marketingConsents)
-      .values(
-        judges.map((row) => ({
-          userId: row.id!,
-          optedIn: false,
-          changedAt: now,
-        })),
-      );
+    await tx.insert(marketingConsents).values(
+      judges.map((row) => ({
+        userId: row.id!,
+        optedIn: false,
+        changedAt: now,
+      })),
+    );
     await tx.insert(userProfileProfessional).values(
       judges.map((row) => ({
         userId: row.id!,

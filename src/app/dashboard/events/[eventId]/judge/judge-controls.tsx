@@ -228,7 +228,7 @@ export function NotesButton({
           {previous?.note && (
             <div className='bg-muted rounded-lg p-3'>
               <p className='text-muted-foreground m-0 text-xs font-medium uppercase'>
-                Your note on Table {previous.tableNumber}
+                Your note on Table {previous.tableLabel}
               </p>
               <p className='m-0 text-sm whitespace-pre-wrap'>{previous.note}</p>
             </div>
@@ -274,7 +274,7 @@ function NoteEditor({
   return (
     <form onSubmit={save} className='flex flex-col gap-2'>
       <label htmlFor={`note-${project.id}`} className='text-sm font-medium'>
-        Table {project.tableNumber} · <em>{project.title}</em>
+        Table {project.tableLabel} · <em>{project.title}</em>
       </label>
       <Textarea
         id={`note-${project.id}`}

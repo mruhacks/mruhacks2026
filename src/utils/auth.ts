@@ -8,7 +8,7 @@
 import { betterAuth, APIError } from 'better-auth';
 import { admin, captcha, magicLink } from 'better-auth/plugins';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
-import { lt, sql } from 'drizzle-orm';
+import { claimMagicLinkCooldown } from '@/lib/auth/magic-link-cooldown';
 import { resolveMagicLinkMailOptions } from '@/lib/auth/resolve-magic-link-email';
 import { remainingMagicLinkExpiresInSeconds } from '@/lib/rsvp/rsvp-magic-link-expires-in';
 import { getRsvpMagicLinkMailContext } from '@/lib/rsvp/rsvp-magic-link-context';
@@ -24,7 +24,6 @@ import { DeleteAccountEmail } from '@/emails/DeleteAccountEmail';
 import React from 'react';
 import { headers } from 'next/headers';
 import { cacheLife } from 'next/cache';
-import { after } from 'next/server';
 import { writeAuditLog } from '@/utils/audit-log';
 import { prepareUserDeletion } from '@/lib/account-deletion';
 
@@ -291,39 +290,10 @@ export const auth = betterAuth({
         // last 60s (double submit, multiple tabs, retries). Better Auth has
         // already minted the verification token by this point, so the
         // caller still sees a normal success response either way.
-        const [allowed] = await db
-          .insert(schema.magicLinkCooldown)
-          .values({ email })
-          .onConflictDoUpdate({
-            target: schema.magicLinkCooldown.email,
-            set: { lastSentAt: new Date() },
-            where: lt(
-              schema.magicLinkCooldown.lastSentAt,
-              sql`now() - interval '60 seconds'`,
-            ),
-          })
-          .returning();
-        if (!allowed) {
+        if (!(await claimMagicLinkCooldown(email))) {
           throw new APIError('TOO_MANY_REQUESTS', {
             message:
               'A sign-in link was already sent to this address. Check your inbox, or try again in a minute.',
-          });
-        }
-
-        // Self-cleaning: occasionally piggyback on a send to prune rows
-        // whose cooldown has already lapsed, so the table doesn't grow
-        // forever without needing a separate cron job. Probabilistic so a
-        // burst of sends doesn't turn into a burst of cleanup deletes.
-        if (Math.random() < 0.1) {
-          after(async () => {
-            await db
-              .delete(schema.magicLinkCooldown)
-              .where(
-                lt(
-                  schema.magicLinkCooldown.lastSentAt,
-                  sql`now() - interval '60 seconds'`,
-                ),
-              );
           });
         }
 

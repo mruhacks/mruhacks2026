@@ -1,11 +1,9 @@
 'use client';
 
 import * as React from 'react';
-import { toast } from 'sonner';
 
 import {
   getJudgingResults,
-  setSubmissionFinalist,
   setSubmissionPlacement,
   type JudgingResults,
   type ResultsProjectRow,
@@ -13,7 +11,6 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Checkbox } from '@/components/ui/checkbox';
 import { FieldError } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import {
@@ -50,8 +47,9 @@ export function ResultsView({
   const [results, setResults] = React.useState(initial);
 
   const refresh = React.useCallback(async () => {
-    const next = await getJudgingResults(eventId);
-    if (next.success && next.data) setResults(next.data);
+    // A failed poll keeps what's on screen; the next one tries again.
+    const next = await getJudgingResults(eventId).catch(() => null);
+    if (next?.success && next.data) setResults(next.data);
   }, [eventId]);
 
   React.useEffect(() => {
@@ -76,7 +74,7 @@ export function ResultsView({
             : 'Only projects published at the submission deadline, and not deactivated, are included. '}
           {canViewRankings
             ? 'Updates every few seconds while this page is open.'
-            : 'Flag finalists and record placements once the panel has decided.'}
+            : 'Record placements once the panel has decided.'}
         </p>
       </div>
 
@@ -127,7 +125,7 @@ export function ResultsView({
                           {index + 1}
                         </TableCell>
                         <TableCell className='tabular-nums'>
-                          {row.tableNumber}
+                          {row.tableLabel}
                         </TableCell>
                         <TableCell className='font-medium whitespace-normal'>
                           {row.title}
@@ -226,7 +224,6 @@ function ProjectTable({
           <TableHead className='w-16'>Table</TableHead>
           <TableHead>Project</TableHead>
           {showScore && <TableHead className='text-right'>Score</TableHead>}
-          <TableHead>Finalist</TableHead>
           <TableHead>Placement</TableHead>
         </TableRow>
       </TableHeader>
@@ -236,7 +233,7 @@ function ProjectTable({
             {showScore && (
               <TableCell className='tabular-nums'>{index + 1}</TableCell>
             )}
-            <TableCell className='tabular-nums'>{row.tableNumber}</TableCell>
+            <TableCell className='tabular-nums'>{row.tableLabel}</TableCell>
             <TableCell className='font-medium whitespace-normal'>
               {row.title}
             </TableCell>
@@ -246,46 +243,12 @@ function ProjectTable({
               </TableCell>
             )}
             <TableCell>
-              <FinalistToggle row={row} award={award} />
-            </TableCell>
-            <TableCell>
               <PlacementInput row={row} award={award} />
             </TableCell>
           </TableRow>
         ))}
       </TableBody>
     </Table>
-  );
-}
-
-function FinalistToggle({
-  row,
-  award,
-}: {
-  row: ResultsProjectRow;
-  award: AwardControls;
-}) {
-  const [saving, setSaving] = React.useState(false);
-  if (!award)
-    return row.finalist ? <Badge variant='purple'>Finalist</Badge> : null;
-
-  async function toggle(checked: boolean) {
-    if (!award) return;
-    setSaving(true);
-    const result = await setSubmissionFinalist(award.eventId, row.id, checked);
-    // A checkbox with no input of its own: failures toast.
-    if (!result.success) toast.error(result.error);
-    await award.onChanged();
-    setSaving(false);
-  }
-
-  return (
-    <Checkbox
-      checked={row.finalist}
-      disabled={saving}
-      aria-label={`Finalist: ${row.title}`}
-      onCheckedChange={(checked) => toggle(checked === true)}
-    />
   );
 }
 
@@ -321,17 +284,22 @@ function PlacementInput({
       return;
     }
     setSaving(true);
-    const result = await setSubmissionPlacement(
-      award.eventId,
-      row.id,
-      placement,
-    );
-    if (!result.success) {
-      setError(result.error);
-    } else {
-      await award.onChanged();
+    try {
+      const result = await setSubmissionPlacement(
+        award.eventId,
+        row.id,
+        placement,
+      );
+      if (!result.success) {
+        setError(result.error);
+      } else {
+        await award.onChanged();
+      }
+    } catch {
+      setError('Something went wrong. Try again.');
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   }
 
   return (

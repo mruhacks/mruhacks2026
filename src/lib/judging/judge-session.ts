@@ -22,7 +22,7 @@ import {
   dispatchNext,
   findJudgeForUser,
   getJudgingWindow,
-  getTableNumbers,
+  getTableLabels,
   inPoolCondition,
   loadCriteria,
   type JudgeRow,
@@ -33,7 +33,8 @@ import { db } from '@/utils/db';
 export type JudgeProjectCard = {
   id: string;
   title: string;
-  tableNumber: number;
+  /** "B3" — every project a judge is sent to is published, so has one. */
+  tableLabel: string;
   /** The judge's own private note; empty when they haven't written one. */
   note: string;
 };
@@ -252,13 +253,13 @@ async function buildView(
           inArray(judgeNotes.submissionId, ids),
         ),
       ),
-    getTableNumbers(ctx.eventId),
+    getTableLabels(ctx.eventId),
     loadCriteria(ctx.eventId),
   ]);
   const card = (id: string): JudgeProjectCard => ({
     id,
     title: rows.find((row) => row.id === id)?.title ?? '',
-    tableNumber: tables.get(id) ?? 0,
+    tableLabel: tables.get(id)?.label ?? '—',
     note: notes.find((note) => note.submissionId === id)?.body ?? '',
   });
 

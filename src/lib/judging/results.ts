@@ -89,6 +89,19 @@ export function replayVotes(
 }
 
 /**
+ * Weights as fractions summing to 1. Saved weights already are, but older rows
+ * (default 1 each) aren't, so everything that reads them goes through here.
+ * Negatives count as 0; zero total weight falls back to equal weights.
+ */
+export function normalizeWeights(weights: readonly number[]): number[] {
+  const clamped = weights.map((w) => (Number.isFinite(w) ? Math.max(w, 0) : 0));
+  const total = clamped.reduce((sum, w) => sum + w, 0);
+  return total > 0
+    ? clamped.map((w) => w / total)
+    : clamped.map(() => 1 / Math.max(clamped.length, 1));
+}
+
+/**
  * The Overall score: the weighted mean of a project's per-criterion μ. Weights
  * only re-sort; they never feed back into the votes. Zero total weight falls
  * back to an unweighted mean so the table still sorts.
@@ -98,18 +111,11 @@ export function overallScore(
   criteria: readonly CriterionWeight[],
   submissionId: string,
 ): number {
-  const totalWeight = criteria.reduce(
-    (sum, c) => sum + Math.max(c.weight, 0),
-    0,
-  );
+  const weights = normalizeWeights(criteria.map((c) => c.weight));
   let total = 0;
-  for (const criterion of criteria) {
+  for (const [index, criterion] of criteria.entries()) {
     const mu = byCriterion.get(criterion.id)?.get(submissionId)?.mu ?? 0;
-    const weight =
-      totalWeight > 0
-        ? Math.max(criterion.weight, 0) / totalWeight
-        : 1 / criteria.length;
-    total += weight * mu;
+    total += weights[index] * mu;
   }
   return total;
 }

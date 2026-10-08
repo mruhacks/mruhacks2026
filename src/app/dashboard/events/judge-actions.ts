@@ -26,6 +26,7 @@ import { JUDGE_NOTE_MAX_LENGTH } from '@/lib/judging/limits';
 import {
   findJudgeForUser,
   loadCriteria,
+  lockCriteriaShared,
   recordComparison,
 } from '@/lib/judging/server';
 import { ActionResult, fail, ok } from '@/utils/action-result';
@@ -96,21 +97,27 @@ export async function submitJudgeVote(
     return ok();
   }
 
-  const criteria = await loadCriteria(eventId);
-  const choices = new Map<string, 'previous' | 'current'>();
-  for (const criterion of criteria) {
-    const choice = parsed.data.winners[criterion.id];
-    if (!choice) return fail(`Pick a project for “${criterion.name}”.`);
-    choices.set(criterion.id, choice);
-  }
+  const outcome = await db.transaction(async (tx) => {
+    // Shared lock on the event row: votes don't wait on each other, but a
+    // criteria save (FOR UPDATE) can't add or remove a criterion between
+    // reading the criteria here and recording a vote on each of them.
+    await lockCriteriaShared(tx, eventId);
+    const criteria = await loadCriteria(eventId, tx);
+    // All removed since the form was rendered: the refresh shows why.
+    if (criteria.length === 0) return ok();
+    const choices = new Map<string, 'previous' | 'current'>();
+    for (const criterion of criteria) {
+      const choice = parsed.data.winners[criterion.id];
+      if (!choice) return fail(`Pick a project for “${criterion.name}”.`);
+      choices.set(criterion.id, choice);
+    }
 
-  await db.transaction(async (tx) => {
     const state = await lockState(tx, ctx.judge.id);
     if (
       state.previousSubmissionId !== previousId ||
       state.currentSubmissionId !== currentId
     ) {
-      return;
+      return ok();
     }
 
     const active = await poolMembers(tx, eventId, [previousId, currentId]);
@@ -123,9 +130,12 @@ export async function submitJudgeVote(
       });
     }
     await advance(tx, ctx, currentId, currentId);
+    return ok();
   });
+  // Also on failure: a criterion added since the form was rendered shows up
+  // once the page refreshes, next to the error asking for it.
   refresh();
-  return ok();
+  return outcome;
 }
 
 const skipSchema = z.object({

@@ -5,18 +5,23 @@ import {
   user,
   userProfiles,
   userProfileAbout,
+  userProfileProfessional,
   userDietaryRestrictions,
   genders,
   universities,
   majors,
   yearsOfStudy,
   dietaryRestrictions,
+  events,
+  eventJudges,
 } from '@/db/schema';
 import {
   getUserProfile,
   savePersonalProfile,
   saveAboutProfile,
   saveFullProfile,
+  saveProfessionalProfile,
+  getProfessionalProfile,
   removeProfilePicture,
   removeResume,
   getOwnResume,
@@ -144,6 +149,9 @@ afterAll(async () => {
   await db
     .delete(userProfileAbout)
     .where(eq(userProfileAbout.userId, testUserId));
+  await db
+    .delete(userProfileProfessional)
+    .where(eq(userProfileProfessional.userId, testUserId));
   await db.delete(userProfiles).where(eq(userProfiles.userId, testUserId));
   await db.delete(user).where(eq(user.id, testUserId));
 });
@@ -153,6 +161,7 @@ function validPersonalData() {
     fullName: 'Alice Smith',
     genderId,
     dietaryRestrictions: [],
+    linkedinUrl: '',
   };
 }
 
@@ -161,7 +170,6 @@ function validAboutData() {
     universityId,
     majorId,
     yearOfStudyId,
-    linkedinUrl: '',
     githubUrl: '',
   };
 }
@@ -265,9 +273,8 @@ describe('savePersonalProfile', () => {
 
   test('returns validation error for invalid data', async () => {
     const result = await savePersonalProfile({
+      ...validPersonalData(),
       fullName: '',
-      genderId,
-      dietaryRestrictions: [],
     });
     expect(result.success).toBe(false);
     expect((result as { error: string }).error).toContain('Validation');
@@ -354,6 +361,59 @@ describe('savePersonalProfile', () => {
 
     await clearProfile();
   });
+
+  test('saves linkedin on the shared profile row, normalized to https without query params', async () => {
+    await savePersonalProfile({
+      ...validPersonalData(),
+      linkedinUrl: 'http://www.linkedin.com/in/alice/?utm_source=x&trk=y',
+    });
+
+    const [profile] = await db
+      .select()
+      .from(userProfiles)
+      .where(eq(userProfiles.userId, testUserId));
+    expect(profile.linkedinUrl).toBe('https://www.linkedin.com/in/alice');
+
+    const result = await getUserProfile();
+    if (!result.success) throw new Error(result.error);
+    expect(result.data?.linkedinUrl).toBe('https://www.linkedin.com/in/alice');
+  });
+
+  test('clears linkedin when saved blank', async () => {
+    await savePersonalProfile({ ...validPersonalData(), linkedinUrl: '' });
+
+    const [profile] = await db
+      .select()
+      .from(userProfiles)
+      .where(eq(userProfiles.userId, testUserId));
+    expect(profile.linkedinUrl).toBeNull();
+
+    await clearProfile();
+  });
+
+  test('validation fails for a non-linkedin host, even if it contains "linkedin.com"', async () => {
+    const result = await savePersonalProfile({
+      ...validPersonalData(),
+      linkedinUrl: 'https://linkedin.com.evil.com/in/alice',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  test('validation fails when a github url is put in the linkedin field', async () => {
+    const result = await savePersonalProfile({
+      ...validPersonalData(),
+      linkedinUrl: 'https://github.com/alice',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  test('validation fails for a malformed linkedin url', async () => {
+    const result = await savePersonalProfile({
+      ...validPersonalData(),
+      linkedinUrl: 'not-a-url',
+    });
+    expect(result.success).toBe(false);
+  });
 });
 
 describe('saveAboutProfile', () => {
@@ -371,7 +431,6 @@ describe('saveAboutProfile', () => {
       universityId: 0,
       majorId,
       yearOfStudyId,
-      linkedinUrl: '',
       githubUrl: '',
       attendedHackathonBefore: false,
     });
@@ -408,26 +467,9 @@ describe('saveAboutProfile', () => {
     expect(about.attendedHackathonBefore).toBe(false);
   });
 
-  test('saves linkedin and github urls', async () => {
+  test('saves the github url, stripping query params and the hash', async () => {
     await saveAboutProfile({
       ...validAboutData(),
-      linkedinUrl: 'https://linkedin.com/in/alice',
-      githubUrl: 'https://github.com/alice',
-      attendedHackathonBefore: false,
-    });
-
-    const [about] = await db
-      .select()
-      .from(userProfileAbout)
-      .where(eq(userProfileAbout.userId, testUserId));
-    expect(about.linkedinUrl).toBe('https://linkedin.com/in/alice');
-    expect(about.githubUrl).toBe('https://github.com/alice');
-  });
-
-  test('strips query params and normalizes to https', async () => {
-    await saveAboutProfile({
-      ...validAboutData(),
-      linkedinUrl: 'http://www.linkedin.com/in/alice/?utm_source=x&trk=y',
       githubUrl: 'https://github.com/alice?tab=repositories#readme',
       attendedHackathonBefore: false,
     });
@@ -436,34 +478,15 @@ describe('saveAboutProfile', () => {
       .select()
       .from(userProfileAbout)
       .where(eq(userProfileAbout.userId, testUserId));
-    expect(about.linkedinUrl).toBe('https://www.linkedin.com/in/alice');
     expect(about.githubUrl).toBe('https://github.com/alice');
 
     await clearProfile();
   });
 
-  test('validation fails for a non-linkedin host, even if it contains "linkedin.com"', async () => {
+  test('validation fails when a linkedin url is put in the github field', async () => {
     const result = await saveAboutProfile({
       ...validAboutData(),
-      linkedinUrl: 'https://linkedin.com.evil.com/in/alice',
-      attendedHackathonBefore: false,
-    });
-    expect(result.success).toBe(false);
-  });
-
-  test('validation fails when a github url is put in the linkedin field', async () => {
-    const result = await saveAboutProfile({
-      ...validAboutData(),
-      linkedinUrl: 'https://github.com/alice',
-      attendedHackathonBefore: false,
-    });
-    expect(result.success).toBe(false);
-  });
-
-  test('validation fails for a malformed linkedin url', async () => {
-    const result = await saveAboutProfile({
-      ...validAboutData(),
-      linkedinUrl: 'not-a-url',
+      githubUrl: 'https://linkedin.com/in/alice',
       attendedHackathonBefore: false,
     });
     expect(result.success).toBe(false);
@@ -534,6 +557,138 @@ describe('saveFullProfile', () => {
     expect(about.attendedHackathonBefore).toBe(true);
 
     await clearProfile();
+  });
+
+  test('requires the student half from someone who is not a judge', async () => {
+    await clearProfile();
+    const result = await saveFullProfile({
+      ...validPersonalData(),
+      githubUrl: '',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  describe('for a judge', () => {
+    let eventId: string;
+
+    beforeAll(async () => {
+      const [event] = await db
+        .insert(events)
+        .values({ name: 'Profile Judge Test Event' })
+        .returning({ id: events.id });
+      eventId = event.id;
+      await db.insert(eventJudges).values({
+        eventId,
+        userId: testUserId,
+        email: 'profile-test@example.com',
+      });
+    });
+
+    afterAll(async () => {
+      await db.delete(events).where(eq(events.id, eventId));
+    });
+
+    test('saves the personal half without any student fields', async () => {
+      await clearProfile();
+      const result = await saveFullProfile({
+        ...validPersonalData(),
+        githubUrl: '',
+      });
+      expect(result.success).toBe(true);
+
+      const [profile] = await db
+        .select()
+        .from(userProfiles)
+        .where(eq(userProfiles.userId, testUserId));
+      const [about] = await db
+        .select()
+        .from(userProfileAbout)
+        .where(eq(userProfileAbout.userId, testUserId));
+      expect(profile.fullName).toBe('Alice Smith');
+      expect(about).toBeUndefined();
+    });
+
+    test('rejects a partly filled student half', async () => {
+      await clearProfile();
+      const result = await saveFullProfile({
+        ...validPersonalData(),
+        universityId,
+        githubUrl: '',
+      });
+      expect(result.success).toBe(false);
+
+      const [profile] = await db
+        .select()
+        .from(userProfiles)
+        .where(eq(userProfiles.userId, testUserId));
+      expect(profile).toBeUndefined();
+    });
+
+    test('still saves a complete student half', async () => {
+      await clearProfile();
+      const result = await saveFullProfile(validProfileData());
+      expect(result.success).toBe(true);
+
+      const [about] = await db
+        .select()
+        .from(userProfileAbout)
+        .where(eq(userProfileAbout.userId, testUserId));
+      expect(about.universityId).toBe(universityId);
+      await clearProfile();
+    });
+
+    test('a linkedin alone is personal, not a partly filled student half', async () => {
+      await clearProfile();
+      const result = await saveFullProfile({
+        ...validPersonalData(),
+        linkedinUrl: 'https://linkedin.com/in/alice',
+        githubUrl: '',
+      });
+      expect(result.success).toBe(true);
+
+      const [profile] = await db
+        .select()
+        .from(userProfiles)
+        .where(eq(userProfiles.userId, testUserId));
+      const [about] = await db
+        .select()
+        .from(userProfileAbout)
+        .where(eq(userProfileAbout.userId, testUserId));
+      expect(profile.linkedinUrl).toBe('https://linkedin.com/in/alice');
+      expect(about).toBeUndefined();
+      await clearProfile();
+    });
+
+    test('the professional profile shares the personal linkedin instead of keeping its own', async () => {
+      await clearProfile();
+      await saveFullProfile({
+        ...validPersonalData(),
+        linkedinUrl: 'https://linkedin.com/in/alice',
+        githubUrl: '',
+      });
+      const saved = await saveProfessionalProfile({
+        company: 'Acme',
+        jobTitle: 'Engineer',
+      });
+      expect(saved.success).toBe(true);
+
+      const professional = await getProfessionalProfile();
+      if (!professional.success) throw new Error(professional.error);
+      expect(professional.data).toEqual({
+        company: 'Acme',
+        jobTitle: 'Engineer',
+      });
+
+      // Saving the professional half leaves the shared value alone.
+      const profile = await getUserProfile();
+      if (!profile.success) throw new Error(profile.error);
+      expect(profile.data?.linkedinUrl).toBe('https://linkedin.com/in/alice');
+
+      await db
+        .delete(userProfileProfessional)
+        .where(eq(userProfileProfessional.userId, testUserId));
+      await clearProfile();
+    });
   });
 });
 

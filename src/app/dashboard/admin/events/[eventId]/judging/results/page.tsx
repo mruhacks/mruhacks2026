@@ -12,8 +12,8 @@ type Props = { params: Promise<{ eventId: string }> };
 
 /**
  * Live expo results. `judging:results:all` sees the rankings;
- * `judging:award:all` flags finalists and records placements — from the
- * ranked tables when they can see them, from a plain list when they can't.
+ * `judging:award:all` records placements — from the ranked tables when they
+ * can see them, from a plain list when they can't.
  */
 export default function JudgingResultsRoute({ params }: Props) {
   return (

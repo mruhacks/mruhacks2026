@@ -12,14 +12,8 @@ import {
 } from '@/app/dashboard/profile/actions';
 import { completeWelcomeOnboarding } from '@/app/dashboard/account/actions';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import {
-  Field,
-  FieldError,
-  FieldGroup,
-  FieldLabel,
-  RequiredAsterisk,
-} from '@/components/ui/field';
+import { FieldError } from '@/components/ui/field';
+import { ProfessionalFields } from '@/components/profile-form/professional-fields';
 import { Separator } from '@/components/ui/separator';
 import { Spinner } from '@/components/ui/spinner';
 import { markCurrentWelcomeStepReviewable } from './welcome-navigation';
@@ -45,7 +39,6 @@ export function WelcomeProfessionalPage({
     defaultValues: {
       company: initial?.company ?? '',
       jobTitle: initial?.jobTitle ?? '',
-      linkedinUrl: initial?.linkedinUrl ?? '',
     },
   });
 
@@ -76,7 +69,6 @@ export function WelcomeProfessionalPage({
   };
 
   const busy = form.formState.isSubmitting;
-  const { errors } = form.formState;
 
   return (
     <form
@@ -91,45 +83,7 @@ export function WelcomeProfessionalPage({
         </p>
       </div>
 
-      <FieldGroup>
-        <Field data-invalid={Boolean(errors.company)}>
-          <FieldLabel htmlFor='company'>
-            Company or organization
-            <RequiredAsterisk />
-          </FieldLabel>
-          <Input
-            id='company'
-            autoComplete='organization'
-            aria-invalid={Boolean(errors.company)}
-            {...form.register('company')}
-          />
-          {errors.company && <FieldError errors={[errors.company]} />}
-        </Field>
-        <Field data-invalid={Boolean(errors.jobTitle)}>
-          <FieldLabel htmlFor='jobTitle'>
-            Job title
-            <RequiredAsterisk />
-          </FieldLabel>
-          <Input
-            id='jobTitle'
-            autoComplete='organization-title'
-            aria-invalid={Boolean(errors.jobTitle)}
-            {...form.register('jobTitle')}
-          />
-          {errors.jobTitle && <FieldError errors={[errors.jobTitle]} />}
-        </Field>
-        <Field data-invalid={Boolean(errors.linkedinUrl)}>
-          <FieldLabel htmlFor='linkedinUrl'>LinkedIn</FieldLabel>
-          <Input
-            id='linkedinUrl'
-            type='url'
-            placeholder='https://linkedin.com/in/janedoe'
-            aria-invalid={Boolean(errors.linkedinUrl)}
-            {...form.register('linkedinUrl')}
-          />
-          {errors.linkedinUrl && <FieldError errors={[errors.linkedinUrl]} />}
-        </Field>
-      </FieldGroup>
+      <ProfessionalFields form={form} />
 
       <Separator />
       <div className='flex flex-col gap-2'>
