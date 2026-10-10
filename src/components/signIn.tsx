@@ -27,6 +27,7 @@ import { authClient } from '@/utils/auth-client';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Turnstile, type TurnstileHandle } from '@/components/turnstile';
+import Chevron from '@/assets/Chevron';
 
 const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? '';
 
@@ -276,11 +277,26 @@ export default function SignInForm() {
   return (
     <Card className='w-full sm:max-w-md'>
       <CardHeader>
-        <CardTitle>Welcome</CardTitle>
+        <CardTitle>
+          <div className='flex flex-row items-center'>
+            Welcome to
+            <Chevron className='h-7 w-auto' />
+            <span
+              style={{
+                fontFamily: 'var(--font-display)',
+                fontWeight: 'var(--fw-semibold)',
+                fontSize: '16px',
+                letterSpacing: 'var(--track-display)',
+              }}
+            >
+              MRUHacks
+            </span>
+          </div>
+        </CardTitle>
         <CardDescription>
           {showPassword
             ? 'Enter your email and password to continue.'
-            : 'Enter your email and we’ll send you a link — new or returning.'}
+            : 'Enter your email and we’ll send you a link.'}
         </CardDescription>
       </CardHeader>
 
