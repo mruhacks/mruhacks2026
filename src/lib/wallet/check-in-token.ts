@@ -1,12 +1,11 @@
 import 'server-only';
 
+import { sign, verify, type KeyObject } from 'node:crypto';
+
 import {
-  createPrivateKey,
-  createPublicKey,
-  sign,
-  verify,
-  type KeyObject,
-} from 'node:crypto';
+  getAppSigningPrivateKey,
+  getAppSigningPublicKey,
+} from '@/lib/signing/app-signing-key';
 
 /** Fallback expiration for a wallet pass when its event has no end date — a
  *  wallet-metadata concern (`pass.setExpirationDate`), unrelated to the
@@ -73,45 +72,6 @@ function bytesToUuid(bytes: Buffer): string {
   ].join('-');
 }
 
-/** Same PEM-or-base64-of-PEM handling `generate-pass.ts` uses for the Apple certs. */
-function decodeKeyEnvVar(raw: string): Buffer {
-  return raw.startsWith('-----BEGIN')
-    ? Buffer.from(raw, 'utf8')
-    : Buffer.from(raw, 'base64');
-}
-
-// Not cached: reading process.env fresh on every call is cheap relative to
-// the sign/verify operation itself, and it means a runtime key rotation (or
-// swapping env vars, as tests do) takes effect immediately.
-function getPrivateKey(): KeyObject {
-  const raw = process.env.CHECK_IN_SIGNING_PRIVATE_KEY?.trim();
-  if (!raw) {
-    throw new Error(
-      'CHECK_IN_SIGNING_PRIVATE_KEY is required to sign check-in QR codes; see .env.example',
-    );
-  }
-  return createPrivateKey({ key: decodeKeyEnvVar(raw), format: 'pem' });
-}
-
-/**
- * The Ed25519 public key counterpart to the signing key — safe to hand to
- * anything that only needs to *verify* tokens (an offline check-in scanner
- * with no server access), since it can't be used to forge new ones.
- *
- * Prefers CHECK_IN_SIGNING_PUBLIC_KEY if it's set, so a verify-only
- * deployment (the offline scanner itself, or any environment that should
- * never hold the private key) can configure just the public key and this
- * still works with no private key present at all. Our own server doesn't
- * need to set it — it falls back to deriving the public key from the
- * private key it already has.
- */
-export function getCheckInPublicKey(): KeyObject {
-  const explicit = process.env.CHECK_IN_SIGNING_PUBLIC_KEY?.trim();
-  return explicit
-    ? createPublicKey({ key: decodeKeyEnvVar(explicit), format: 'pem' })
-    : createPublicKey(getPrivateKey());
-}
-
 /**
  * Builds the signed check-in token as raw bytes:
  *   [0..1)    version  (uint8, currently always TOKEN_VERSION)
@@ -135,7 +95,7 @@ export function buildCheckInToken(eventId: string, userId: string): Buffer {
     uuidToBytes(eventId),
     uuidToBytes(userId),
   ]);
-  const signature = sign(null, body, getPrivateKey());
+  const signature = sign(null, body, getAppSigningPrivateKey());
   return Buffer.concat([body, signature]);
 }
 
@@ -186,7 +146,7 @@ export function verifyCheckInToken(token: Buffer): CheckInClaims | null {
 
   let publicKey: KeyObject;
   try {
-    publicKey = getCheckInPublicKey();
+    publicKey = getAppSigningPublicKey();
   } catch {
     return null;
   }
