@@ -24,6 +24,7 @@ export type PermissionEntity =
   | 'article'
   | 'submission'
   | 'judging'
+  | 'display'
   | 'system';
 
 export type PermissionAction =
@@ -182,6 +183,10 @@ export const CORE_PERMISSIONS = [
   {
     slug: 'judging:award:all',
     description: 'Record overall placements',
+  },
+  {
+    slug: 'display:manage:all',
+    description: 'Configure the lobby displays (clock, theme)',
   },
   {
     slug: 'system:read:all',

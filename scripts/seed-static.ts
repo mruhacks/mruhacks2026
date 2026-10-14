@@ -231,6 +231,10 @@ async function seedRolesAndPermissions() {
       description: 'Record overall placements',
     },
     {
+      slug: 'display:manage:all',
+      description: 'Configure the lobby displays (clock, theme)',
+    },
+    {
       slug: 'system:read:all',
       description: 'View system health and diagnostics',
     },
@@ -356,6 +360,10 @@ async function seedRolesAndPermissions() {
         roleId: findRole('organizer').id,
         permissionId: findPerm(slug).id,
       })),
+      {
+        roleId: findRole('organizer').id,
+        permissionId: findPerm('display:manage:all').id,
+      },
       {
         roleId: findRole('volunteer').id,
         permissionId: findPerm('participant:read:all').id,

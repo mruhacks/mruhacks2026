@@ -83,6 +83,12 @@ const FEATURED_EVENT_LINKS = [
   },
 ];
 
+/**
+ * Lobby displays have no count on the tile: it would need invalidating from
+ * the refresh-token route, where `updateTag` isn't available.
+ */
+const DISPLAYS_PERMISSION = 'display:manage:all';
+
 function pluralize(count: number, unit: string) {
   return count === 1 ? unit : `${unit}s`;
 }
@@ -269,10 +275,17 @@ async function AdminPanel({ permissions }: { permissions: Set<string> }) {
     FEATURED_EVENT_COUNT_PERMISSION,
   );
 
+  const canSeeDisplays = anyPermissionMatches(permissions, DISPLAYS_PERMISSION);
+
   const counts = await getAdminCounts();
   const featured = canSeeFeaturedEvent ? counts.featuredEvent : null;
 
-  if (visibleTiles.length === 0 && visibleUserLinks.length === 0 && !featured) {
+  if (
+    visibleTiles.length === 0 &&
+    visibleUserLinks.length === 0 &&
+    !featured &&
+    !canSeeDisplays
+  ) {
     return null;
   }
 
@@ -333,6 +346,13 @@ async function AdminPanel({ permissions }: { permissions: Set<string> }) {
               href={href}
             />
           ))}
+        {canSeeDisplays && (
+          <AdminTile
+            label='Lobby displays'
+            unit='Display'
+            href='/dashboard/admin/displays'
+          />
+        )}
       </div>
     </section>
   );
@@ -345,7 +365,8 @@ async function AdminSection() {
     ADMIN_TILES.some((t) => t.visible(permissions)) ||
     USER_TILE_LINKS.some((l) =>
       anyPermissionMatches(permissions, l.permission),
-    );
+    ) ||
+    anyPermissionMatches(permissions, DISPLAYS_PERMISSION);
 
   if (!hasAnyAccess) return null;
 
