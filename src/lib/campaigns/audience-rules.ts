@@ -19,20 +19,11 @@ import { participationStatusesList } from '@/types/lookups';
  */
 
 /** Deepest nesting allowed (the root group is depth 1). */
-export const MAX_AUDIENCE_DEPTH = 5;
+const MAX_AUDIENCE_DEPTH = 5;
 /** Most rules and groups allowed in one tree, counted together. */
-export const MAX_AUDIENCE_NODES = 60;
+const MAX_AUDIENCE_NODES = 60;
 
-export const AUDIENCE_FIELDS = [
-  'participatedIn',
-  'checkedIn',
-  'onTeam',
-  'marketingConsent',
-  'hasRole',
-] as const;
-export type AudienceField = (typeof AUDIENCE_FIELDS)[number];
-
-export const AUDIENCE_OPERATORS = ['=', '!='] as const;
+const AUDIENCE_OPERATORS = ['=', '!='] as const;
 
 const id = z.string().max(100).optional();
 const operator = z.enum(AUDIENCE_OPERATORS);
@@ -82,7 +73,7 @@ const hasRoleRule = z.object({
   value: z.object({ roleId: z.number().int().positive() }),
 });
 
-export const audienceRuleSchema = z.discriminatedUnion('field', [
+const audienceRuleSchema = z.discriminatedUnion('field', [
   participatedInRule,
   checkedInRule,
   onTeamRule,
@@ -150,22 +141,4 @@ export const audienceRulesSchema = groupSchema.superRefine((tree, ctx) => {
 /** A new campaign's starting audience: no rules, so everyone the campaign type allows. */
 export function emptyAudience(): AudienceRuleGroup {
   return { combinator: 'and', rules: [] };
-}
-
-/** Every event and role id a tree refers to, for checking they still exist. */
-export function collectAudienceReferences(tree: AudienceRuleGroup): {
-  eventIds: Set<string>;
-  roleIds: Set<number>;
-} {
-  const eventIds = new Set<string>();
-  const roleIds = new Set<number>();
-  const visit = (group: AudienceRuleGroup) => {
-    for (const node of group.rules) {
-      if (isAudienceGroup(node)) visit(node);
-      else if (node.field === 'hasRole') roleIds.add(node.value.roleId);
-      else if ('eventId' in node.value) eventIds.add(node.value.eventId);
-    }
-  };
-  visit(tree);
-  return { eventIds, roleIds };
 }

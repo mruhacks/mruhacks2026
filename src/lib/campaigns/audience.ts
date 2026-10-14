@@ -208,7 +208,7 @@ const deliverable = and(
 )!;
 
 /** The full `WHERE` for an audience, forced conditions included. */
-export function compileAudience(
+function compileAudience(
   tree: AudienceRuleGroup,
   context: AudienceContext,
 ): SQL {

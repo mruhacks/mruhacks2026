@@ -11,8 +11,8 @@ import { send } from '@vercel/queue';
  *   campaign-deliveries  one message per delivery row: renders and sends one
  *                        email, paced with `delaySeconds`
  */
-export const CAMPAIGN_DISPATCH_TOPIC = 'campaign-dispatch';
-export const CAMPAIGN_DELIVERY_TOPIC = 'campaign-deliveries';
+const CAMPAIGN_DISPATCH_TOPIC = 'campaign-dispatch';
+const CAMPAIGN_DELIVERY_TOPIC = 'campaign-deliveries';
 
 export type CampaignDispatchMessage = { campaignId: string };
 export type CampaignDeliveryMessage = { deliveryId: string };
@@ -21,7 +21,7 @@ export type CampaignDeliveryMessage = { deliveryId: string };
  * About 10 emails a second. SES allows 14/s on this account; the gap leaves
  * room for sign-in and RSVP email sent while a campaign goes out.
  */
-export const DELIVERIES_PER_SECOND = 10;
+const DELIVERIES_PER_SECOND = 10;
 
 /** Delay for the `index`-th delivery of a dispatch: `floor(i / 10)` seconds. */
 export function deliveryDelaySeconds(index: number): number {

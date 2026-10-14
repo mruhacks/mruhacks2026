@@ -42,7 +42,7 @@ import { AudienceBuilder } from './audience-builder';
 import { CampaignComposer } from './campaign-composer';
 import { SendPanel } from './send-panel';
 
-export type CampaignEditorPermissions = {
+type CampaignEditorPermissions = {
   /** `campaign:write:all` */
   canWrite: boolean;
   /** `participant:read:all` — the recipient preview list. */
@@ -51,7 +51,7 @@ export type CampaignEditorPermissions = {
   canSend: boolean;
 };
 
-export type SavedAudienceOption = {
+type SavedAudienceOption = {
   id: string;
   name: string;
   rules: AudienceRuleGroup;
