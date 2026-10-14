@@ -102,6 +102,14 @@ const nextConfig: NextConfig = {
       bodySizeLimit: '6mb',
     },
   },
+  async rewrites() {
+    return [
+      // The hourly jobs moved to /api/cron/hourly. Keeps a Cloudflare Worker
+      // that still calls the old path working until it's redeployed
+      // everywhere; remove once that's confirmed (follow-up issue).
+      { source: '/api/cron/rsvp', destination: '/api/cron/hourly' },
+    ];
+  },
   async redirects() {
     return [
       {

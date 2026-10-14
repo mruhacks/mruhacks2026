@@ -92,6 +92,15 @@ async function CampaignList() {
                 <TableCell className='capitalize'>{row.type}</TableCell>
                 <TableCell>
                   <Badge variant={status.variant}>{status.label}</Badge>
+                  {row.status === 'scheduled' && row.scheduledFor && (
+                    <span className='text-muted-foreground mt-1 block text-xs'>
+                      <LocalDateTime
+                        value={row.scheduledFor}
+                        dateStyle='medium'
+                        timeStyle='short'
+                      />
+                    </span>
+                  )}
                 </TableCell>
                 <TableCell className='text-muted-foreground hidden text-xs sm:table-cell'>
                   <LocalDateTime

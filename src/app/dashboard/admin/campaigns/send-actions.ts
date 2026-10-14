@@ -154,6 +154,87 @@ export async function sendCampaignNow(
 }
 
 /**
+ * Schedules a draft for a whole hour (UTC instant, from the browser's
+ * `fromDateTimeLocalValue`). The hourly cron dispatches it at or after that
+ * hour; the audience is worked out then, not now.
+ */
+export async function scheduleCampaign(
+  campaignId: string,
+  scheduledForIso: string,
+): Promise<ActionResult> {
+  const row = await loadCampaign(campaignId);
+  const user = await requireSender(row?.campaign.type ?? null);
+  if (!user) return fail('Not authenticated');
+  if (!row) return fail('Campaign not found');
+
+  const parsed = z.iso.datetime({ offset: true }).safeParse(scheduledForIso);
+  if (!parsed.success) return fail('Choose a date and hour.');
+  const scheduledFor = new Date(parsed.data);
+  if (
+    scheduledFor.getUTCMinutes() !== 0 ||
+    scheduledFor.getUTCSeconds() !== 0 ||
+    scheduledFor.getUTCMilliseconds() !== 0
+  ) {
+    return fail('Campaigns can only be scheduled on the hour.');
+  }
+  if (scheduledFor.getTime() <= Date.now()) {
+    return fail('Choose an hour in the future.');
+  }
+
+  const problems = await campaignContentErrors(
+    { ...row.campaign, eventName: row.eventName },
+    row.campaign.eventId,
+    'send',
+  );
+  if (problems.length > 0) return fail(problems[0]);
+
+  const [scheduled] = await db
+    .update(campaigns)
+    .set({ status: 'scheduled', scheduledFor, updatedBy: user.id })
+    .where(and(eq(campaigns.id, campaignId), eq(campaigns.status, 'draft')))
+    .returning({ id: campaigns.id });
+  if (!scheduled) return fail('Only drafts can be scheduled.');
+
+  await writeAuditLog({
+    actorId: user.id,
+    action: 'campaign.schedule',
+    targetType: 'campaign',
+    targetId: campaignId,
+    metadata: { scheduledFor: scheduledFor.toISOString() },
+  });
+  refresh();
+  return ok();
+}
+
+/** Puts a scheduled campaign back to draft, as long as its dispatch hasn't started. */
+export async function unscheduleCampaign(
+  campaignId: string,
+): Promise<ActionResult> {
+  const row = await loadCampaign(campaignId);
+  const user = await requireSender(row?.campaign.type ?? null);
+  if (!user) return fail('Not authenticated');
+  if (!row) return fail('Campaign not found');
+
+  const [draft] = await db
+    .update(campaigns)
+    .set({ status: 'draft', scheduledFor: null, updatedBy: user.id })
+    .where(and(eq(campaigns.id, campaignId), eq(campaigns.status, 'scheduled')))
+    .returning({ id: campaigns.id });
+  if (!draft) {
+    return fail('It has already started sending. Use Stop instead.');
+  }
+
+  await writeAuditLog({
+    actorId: user.id,
+    action: 'campaign.unschedule',
+    targetType: 'campaign',
+    targetId: campaignId,
+  });
+  refresh();
+  return ok();
+}
+
+/**
  * Stops a scheduled or sending campaign. Deliveries not yet sent become
  * `skipped`; one already being sent at this instant still goes out.
  */
