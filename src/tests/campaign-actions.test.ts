@@ -464,3 +464,27 @@ describe('uploadCampaignImage', () => {
     await expect(uploadCampaignImage(svg)).rejects.toThrow(FORBIDDEN);
   });
 });
+
+describe('wallet block on save', () => {
+  test('is refused without an event that has check-in on', async () => {
+    actAs('writer');
+    const created = await createCampaign({
+      name: 'Wallet no event',
+      type: 'marketing',
+      eventId: null,
+    });
+    const id = created.success ? created.data!.id : '';
+    createdCampaigns.push(id);
+    expect(
+      await updateCampaignContent(id, {
+        name: 'Wallet no event',
+        subject: 'S',
+        previewText: '',
+        bodyMarkdown: 'Hi\n\n::wallet',
+      }),
+    ).toMatchObject({
+      success: false,
+      error: expect.stringMatching(/wallet block/),
+    });
+  });
+});

@@ -46,6 +46,8 @@ import { ImageDialog } from './image-dialog';
 import {
   CTA_DIRECTIVE_DESCRIPTOR,
   InsertCtaButton,
+  InsertWalletButton,
+  WALLET_DIRECTIVE_DESCRIPTOR,
 } from './email-blocks-plugin';
 
 /** Languages offered in the code-block dropdown. */
@@ -76,6 +78,8 @@ export type MarkdownEditorCoreProps = {
    * No embeds, code, tables, underline or raw-markdown source mode.
    */
   profile?: 'default' | 'email';
+  /** Email profile: offer the per-recipient wallet block (the campaign's event must allow it). */
+  allowWalletBlock?: boolean;
   placeholder?: string;
   className?: string;
 };
@@ -86,6 +90,7 @@ export default function MarkdownEditorCore({
   onUploadImage,
   allowEmbeds = false,
   profile = 'default',
+  allowWalletBlock = false,
   placeholder,
   className,
 }: MarkdownEditorCoreProps) {
@@ -112,7 +117,13 @@ export default function MarkdownEditorCore({
           // Still registered so a pasted iframe is claimed and kept inert.
           embedPlugin({ enabled: false }),
           directivesPlugin({
-            directiveDescriptors: [CTA_DIRECTIVE_DESCRIPTOR],
+            // The wallet descriptor is always registered so an existing
+            // block stays editable (and removable) even where it's no
+            // longer allowed; only inserting one is gated.
+            directiveDescriptors: [
+              CTA_DIRECTIVE_DESCRIPTOR,
+              WALLET_DIRECTIVE_DESCRIPTOR,
+            ],
           }),
           markdownShortcutPlugin(),
           toolbarPlugin({
@@ -131,6 +142,7 @@ export default function MarkdownEditorCore({
                 <InsertThematicBreak />
                 <Separator />
                 <InsertCtaButton />
+                {allowWalletBlock && <InsertWalletButton />}
               </>
             ),
           }),

@@ -45,6 +45,8 @@ export type MarkdownEditorProps = {
   allowEmbeds?: boolean;
   /** See `MarkdownEditorCoreProps.profile`. */
   profile?: 'default' | 'email';
+  /** See `MarkdownEditorCoreProps.allowWalletBlock`. */
+  allowWalletBlock?: boolean;
   placeholder?: string;
   className?: string;
 };
@@ -56,6 +58,7 @@ export function MarkdownEditor({
   onUploadError,
   allowEmbeds,
   profile,
+  allowWalletBlock,
   placeholder,
   className,
 }: MarkdownEditorProps) {
@@ -101,6 +104,7 @@ export function MarkdownEditor({
       onUploadImage={uploadAttachment ? handleUpload : undefined}
       allowEmbeds={allowEmbeds}
       profile={profile}
+      allowWalletBlock={allowWalletBlock}
       placeholder={placeholder}
       className={className}
     />

@@ -5,6 +5,7 @@
  * directives that `@/lib/campaigns/email-markdown` renders:
  *
  *   ::cta{label="…" href="…"}   a call-to-action button
+ *   ::wallet                    per-recipient Add to Apple / Google Wallet badges
  */
 
 import * as React from 'react';
@@ -18,9 +19,9 @@ import {
 } from '@mdxeditor/editor';
 import { usePublisher } from '@mdxeditor/gurx';
 import type { RootContent } from 'mdast';
-import { MousePointerClick, X } from 'lucide-react';
+import { MousePointerClick, Wallet, X } from 'lucide-react';
 
-import { CTA_DIRECTIVE } from '@/lib/campaigns/email-blocks';
+import { CTA_DIRECTIVE, WALLET_DIRECTIVE } from '@/lib/campaigns/email-blocks';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -109,6 +110,57 @@ export function InsertCtaButton() {
       }
     >
       <MousePointerClick className='size-5' />
+    </ButtonWithTooltip>
+  );
+}
+
+function WalletEditor() {
+  const remove = useLexicalNodeRemove();
+  return (
+    <div className='bg-muted/40 my-2 flex items-start justify-between gap-2 rounded-md border p-3'>
+      <div className='space-y-1'>
+        <span className='flex items-center gap-1.5 text-xs font-medium'>
+          <Wallet className='size-3.5' /> Wallet buttons
+        </span>
+        <p className='text-muted-foreground text-xs'>
+          Add to Apple Wallet / Google Wallet, with links made for each
+          recipient. People without a confirmed spot get the email without them.
+        </p>
+      </div>
+      <Button
+        type='button'
+        variant='ghost'
+        size='icon'
+        className='size-7'
+        onClick={remove}
+        aria-label='Remove wallet buttons'
+      >
+        <X />
+      </Button>
+    </div>
+  );
+}
+
+export const WALLET_DIRECTIVE_DESCRIPTOR: DirectiveDescriptor<LeafDirective> = {
+  name: WALLET_DIRECTIVE,
+  type: 'leafDirective',
+  testNode: (node) =>
+    node.type === 'leafDirective' && node.name === WALLET_DIRECTIVE,
+  attributes: [],
+  hasChildren: false,
+  Editor: WalletEditor,
+};
+
+export function InsertWalletButton() {
+  const insertDirective = usePublisher(insertDirective$);
+  return (
+    <ButtonWithTooltip
+      title='Insert wallet buttons'
+      onClick={() =>
+        insertDirective({ type: 'leafDirective', name: WALLET_DIRECTIVE })
+      }
+    >
+      <Wallet className='size-5' />
     </ButtonWithTooltip>
   );
 }

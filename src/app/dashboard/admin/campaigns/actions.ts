@@ -34,11 +34,16 @@ import {
   optimizeCampaignImage,
 } from '@/lib/campaigns/campaign-images';
 import { firstNameOf } from '@/lib/campaigns/merge-fields';
+import { campaignContentErrors } from '@/lib/campaigns/content-checks';
+import { hasWalletBlock } from '@/lib/campaigns/email-markdown';
 import {
-  draftContentErrors,
+  getAppBaseUrl,
   renderCampaignEmail,
-  sendContentErrors,
 } from '@/lib/campaigns/render-campaign-email';
+import {
+  walletBlockRenderers,
+  walletLinksFor,
+} from '@/lib/campaigns/wallet-block';
 import { buildCampaignMessage } from '@/lib/campaigns/unsubscribe';
 import { hasPermission, requirePermission } from '@/lib/rbac/authorization';
 import { fail, ok, type ActionResult } from '@/utils/action-result';
@@ -261,11 +266,16 @@ export async function updateCampaignContent(
 
   const parsed = contentSchema.safeParse(input);
   if (!parsed.success) return fail(firstIssue(parsed.error));
-  const [mergeError] = draftContentErrors(parsed.data);
-  if (mergeError) return fail(mergeError);
 
   const loaded = await loadEditableCampaign(campaignId);
   if (!loaded.ok) return fail(loaded.error);
+
+  const [contentError] = await campaignContentErrors(
+    parsed.data,
+    loaded.campaign.eventId,
+    'draft',
+  );
+  if (contentError) return fail(contentError);
 
   try {
     const [row] = await db
@@ -309,9 +319,11 @@ export async function previewCampaignEmail(
   if (!row) return fail('Campaign not found');
 
   try {
+    const baseUrl = getAppBaseUrl();
     const email = await renderCampaignEmail(
       { ...parsed.data, type: row.campaign.type, eventName: row.eventName },
       { firstName: firstNameOf(user.name) },
+      { baseUrl, blocks: walletBlockRenderers('placeholder', baseUrl) },
     );
     return ok({ subject: email.subject, html: email.html });
   } catch (error) {
@@ -340,15 +352,29 @@ export async function sendCampaignTest(
     bodyMarkdown: row.campaign.bodyMarkdown,
     eventName: row.eventName,
   };
-  const [problem] = sendContentErrors(content);
+  const [problem] = await campaignContentErrors(
+    content,
+    row.campaign.eventId,
+    'send',
+  );
   if (problem) return fail(problem);
 
   try {
+    // The tester's own wallet links if they hold a spot, so they can try
+    // them; otherwise inert badges, so they still see the block.
+    const baseUrl = getAppBaseUrl();
+    const walletLinks =
+      hasWalletBlock(content.bodyMarkdown) && row.campaign.eventId
+        ? await walletLinksFor(user.id, row.campaign.eventId, baseUrl)
+        : null;
     await sendMail(
       await buildCampaignMessage(
         content,
         { email: user.email, firstName: firstNameOf(user.name) },
-        { subjectPrefix: '[Test] ' },
+        {
+          subjectPrefix: '[Test] ',
+          blocks: walletBlockRenderers(walletLinks ?? 'placeholder', baseUrl),
+        },
       ),
     );
     await writeAuditLog({
