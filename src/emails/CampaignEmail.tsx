@@ -11,7 +11,7 @@ import { campaignImageWidth } from '@/utils/object-storage';
 import { CtaButton, EmailLayout } from './EmailLayout';
 
 /** Widest an image is drawn: the body column of the 600px layout, minus padding. */
-export const EMAIL_IMAGE_MAX_WIDTH = 520;
+const EMAIL_IMAGE_MAX_WIDTH = 520;
 
 type Props = {
   tree: Root;

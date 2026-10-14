@@ -11,7 +11,7 @@
 
 const MERGE_FIELD_PATTERN = /\{\{\s*([^{}|]*?)\s*(?:\|\s*([^{}]*?)\s*)?\}\}/g;
 
-export const DEFAULT_FIRST_NAME_FALLBACK = 'there';
+const DEFAULT_FIRST_NAME_FALLBACK = 'there';
 const KNOWN_FIELDS = new Set(['firstName']);
 
 /** Every distinct `{{…}}` in `text` that isn't a supported merge field, as written. */
