@@ -220,6 +220,7 @@ export function CampaignComposer({
                 uploadAttachment={uploadCampaignImage}
                 onUploadError={setUploadError}
                 profile='email'
+                allowWalletBlock={campaign.walletAllowed}
                 placeholder='Write your email…'
               />
             ) : (

@@ -6,6 +6,7 @@ import { hasPermission } from '@/lib/rbac/authorization';
 import { verifyMailConnection } from '@/utils/mail';
 import { checkObjectStorageConnection } from '@/utils/object-storage';
 import { MRUHACKS_LOGO_URL } from '@/content';
+import { WALLET_BADGE_PATHS } from '@/lib/campaigns/wallet-badges';
 import {
   APP_SIGNING_PRIVATE_KEY_ENV,
   readEnvWithFallback,
@@ -216,6 +217,43 @@ async function checkQrScannerWasm(): Promise<CheckResult> {
   }
 }
 
+/**
+ * Campaign emails embed the Add to Apple / Google Wallet badges by absolute
+ * URL on our own origin, and mail clients fetch them from there long after
+ * sending — a missing file or a wrong BETTER_AUTH_URL breaks every wallet
+ * block without any error on our side.
+ */
+async function checkWalletBadges(): Promise<CheckResult> {
+  const start = Date.now();
+  const origin = process.env.BETTER_AUTH_URL?.trim().replace(/\/$/, '');
+  if (!origin) return { ok: false, latencyMs: 0, detail: 'not configured' };
+  try {
+    const responses = await Promise.all(
+      Object.values(WALLET_BADGE_PATHS).map((path) =>
+        fetch(`${origin}${path}`, {
+          method: 'HEAD',
+          signal: AbortSignal.timeout(CHECK_TIMEOUT_MS),
+        }),
+      ),
+    );
+    const failed = responses.find((res) => !res.ok);
+    if (failed) {
+      return {
+        ok: false,
+        latencyMs: Date.now() - start,
+        detail: `badge unreachable (${failed.status})`,
+      };
+    }
+    return { ok: true, latencyMs: Date.now() - start };
+  } catch {
+    return {
+      ok: false,
+      latencyMs: Date.now() - start,
+      detail: 'badge unreachable',
+    };
+  }
+}
+
 function missingEnvVars(): string[] {
   return REQUIRED_ENV_VARS.flatMap((entry) => {
     const names = typeof entry === 'string' ? [entry] : entry;
@@ -234,6 +272,7 @@ type HealthReport = {
     appleWallet: CheckResult;
     checkInSigning: CheckResult;
     qrScannerWasm: CheckResult;
+    walletBadges: CheckResult;
   };
   missingEnv: string[];
   checkedAt: string;
@@ -257,6 +296,7 @@ async function buildReport(): Promise<HealthReport> {
     appleWallet,
     checkInSigning,
     qrScannerWasm,
+    walletBadges,
   ] = await Promise.all([
     checkDatabase(),
     checkMail(),
@@ -266,6 +306,7 @@ async function buildReport(): Promise<HealthReport> {
     checkAppleWallet(),
     checkCheckInSigning(),
     checkQrScannerWasm(),
+    checkWalletBadges(),
   ]);
   const missingEnv = missingEnvVars();
 
@@ -278,6 +319,7 @@ async function buildReport(): Promise<HealthReport> {
         appleWallet.ok &&
         checkInSigning.ok &&
         qrScannerWasm.ok &&
+        walletBadges.ok &&
         missingEnv.length === 0
       ? 'ok'
       : 'degraded';
@@ -293,6 +335,7 @@ async function buildReport(): Promise<HealthReport> {
       appleWallet,
       checkInSigning,
       qrScannerWasm,
+      walletBadges,
     },
     missingEnv,
     checkedAt: new Date().toISOString(),

@@ -50,6 +50,8 @@ export async function listCampaigns(): Promise<CampaignListRow[]> {
 
 export type CampaignDetail = typeof campaigns.$inferSelect & {
   eventName: string | null;
+  /** The event allows a wallet block: top-level (always, for a campaign event) with check-in on. */
+  walletAllowed: boolean;
   updatedByName: string | null;
 };
 
@@ -58,6 +60,8 @@ export async function getCampaign(id: string): Promise<CampaignDetail | null> {
     .select({
       campaign: campaigns,
       eventName: events.name,
+      eventCheckInEnabled: events.checkInEnabled,
+      eventParentId: events.parentEventId,
       updatedByName: editor.name,
     })
     .from(campaigns)
@@ -69,6 +73,9 @@ export async function getCampaign(id: string): Promise<CampaignDetail | null> {
   return {
     ...row.campaign,
     eventName: row.eventName,
+    walletAllowed: Boolean(
+      row.campaign.eventId && row.eventCheckInEnabled && !row.eventParentId,
+    ),
     updatedByName: row.updatedByName,
   };
 }
