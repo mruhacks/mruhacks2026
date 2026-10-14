@@ -1,9 +1,16 @@
 'use client';
 
 import * as React from 'react';
+import Link from 'next/link';
+import { BookmarkPlus, Unlink } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { updateCampaignAudience } from '@/app/dashboard/admin/campaigns/actions';
+import {
+  detachCampaignAudience,
+  linkCampaignAudience,
+  saveCampaignAudienceAs,
+} from '@/app/dashboard/admin/campaigns/audience-actions';
 import type { AudienceOptions } from '@/lib/campaigns/audience-options';
 import {
   emptyAudience,
@@ -21,6 +28,16 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { FieldError } from '@/components/ui/field';
+import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { AudienceBuilder } from './audience-builder';
 
 export type CampaignEditorPermissions = {
@@ -30,13 +47,27 @@ export type CampaignEditorPermissions = {
   canPreviewRecipients: boolean;
 };
 
+export type SavedAudienceOption = {
+  id: string;
+  name: string;
+  rules: AudienceRuleGroup;
+};
+
+const INLINE = '__inline__';
+
 type Props = {
   campaign: CampaignDetail;
   options: AudienceOptions;
+  savedAudiences: SavedAudienceOption[];
   permissions: CampaignEditorPermissions;
 };
 
-export function CampaignEditor({ campaign, options, permissions }: Props) {
+export function CampaignEditor({
+  campaign,
+  options,
+  savedAudiences,
+  permissions,
+}: Props) {
   const editable = permissions.canWrite && campaign.status === 'draft';
 
   return (
@@ -63,6 +94,7 @@ export function CampaignEditor({ campaign, options, permissions }: Props) {
       <AudienceCard
         campaign={campaign}
         options={options}
+        savedAudiences={savedAudiences}
         editable={editable}
         canPreview={permissions.canPreviewRecipients}
       />
@@ -73,20 +105,29 @@ export function CampaignEditor({ campaign, options, permissions }: Props) {
 function AudienceCard({
   campaign,
   options,
+  savedAudiences,
   editable,
   canPreview,
 }: {
   campaign: CampaignDetail;
   options: AudienceOptions;
+  savedAudiences: SavedAudienceOption[];
   editable: boolean;
   canPreview: boolean;
 }) {
+  const linked = savedAudiences.find((a) => a.id === campaign.savedAudienceId);
+  // A sent campaign shows the rules it was actually sent with, not whatever
+  // its audience says now.
   const initial =
-    campaign.audienceSnapshot ?? campaign.audienceRules ?? emptyAudience();
+    campaign.audienceSnapshot ??
+    linked?.rules ??
+    campaign.audienceRules ??
+    emptyAudience();
   const [rules, setRules] = React.useState<AudienceRuleGroup>(initial);
   const [dirty, setDirty] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
-  const [isSaving, setIsSaving] = React.useState(false);
+  const [isBusy, setIsBusy] = React.useState(false);
+  const [saveAsName, setSaveAsName] = React.useState<string | null>(null);
 
   const handleChange = React.useCallback((next: AudienceRuleGroup) => {
     setRules(next);
@@ -94,42 +135,194 @@ function AudienceCard({
     setError(null);
   }, []);
 
-  async function save() {
-    setIsSaving(true);
-    const result = await updateCampaignAudience(campaign.id, rules);
-    setIsSaving(false);
+  /** Runs an action, showing its error inline. Linking actions refresh the page's data themselves. */
+  async function run(
+    action: () => Promise<{ success: boolean; error?: string }>,
+    success: string,
+  ) {
+    setIsBusy(true);
+    setError(null);
+    const result = await action();
+    setIsBusy(false);
     if (!result.success) {
-      setError(result.error);
-      return;
+      setError(result.error ?? 'Something went wrong');
+      return false;
     }
     setDirty(false);
-    toast.success('Audience saved');
+    toast.success(success);
+    return true;
   }
+
+  const sourceValue = campaign.savedAudienceId ?? INLINE;
+  const showSnapshot = Boolean(campaign.audienceSnapshot);
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>Audience</CardTitle>
         <CardDescription>
-          Worked out again when the campaign is sent, so it always reflects who
-          matches at that moment.
+          {showSnapshot
+            ? 'The rules this campaign was sent with.'
+            : 'Worked out again when the campaign is sent, so it always reflects who matches at that moment.'}
         </CardDescription>
       </CardHeader>
       <CardContent className='space-y-3'>
+        {!showSnapshot && (
+          <div className='flex flex-wrap items-center gap-2'>
+            <Select
+              value={sourceValue}
+              disabled={!editable || isBusy}
+              onValueChange={(next) => {
+                if (next === sourceValue) return;
+                if (next === INLINE) {
+                  void run(
+                    () => detachCampaignAudience(campaign.id),
+                    'Detached — the rules are now this campaign’s own',
+                  );
+                } else {
+                  void run(
+                    () => linkCampaignAudience(campaign.id, next),
+                    'Linked to saved audience',
+                  );
+                }
+              }}
+            >
+              <SelectTrigger
+                className='w-full sm:w-72'
+                aria-label='Audience source'
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={INLINE}>
+                  This campaign’s own rules
+                </SelectItem>
+                {savedAudiences.length > 0 && (
+                  <SelectGroup>
+                    <SelectLabel>Saved audiences</SelectLabel>
+                    {savedAudiences.map((audience) => (
+                      <SelectItem key={audience.id} value={audience.id}>
+                        {audience.name}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                )}
+              </SelectContent>
+            </Select>
+            {linked && (
+              <>
+                {editable && (
+                  <Button
+                    variant='outline'
+                    size='sm'
+                    disabled={isBusy}
+                    onClick={() =>
+                      void run(
+                        () => detachCampaignAudience(campaign.id),
+                        'Detached — the rules are now this campaign’s own',
+                      )
+                    }
+                  >
+                    <Unlink /> Detach
+                  </Button>
+                )}
+                <Button asChild variant='ghost' size='sm'>
+                  <Link
+                    href={`/dashboard/admin/campaigns/audiences/${linked.id}`}
+                  >
+                    Edit audience
+                  </Link>
+                </Button>
+              </>
+            )}
+          </div>
+        )}
+        {linked && !showSnapshot && (
+          <p className='text-muted-foreground text-xs'>
+            Linked: this campaign always uses the saved audience’s current
+            rules. Detach to change them here only.
+          </p>
+        )}
+
         <AudienceBuilder
+          // Reload the tree whenever its source changes.
+          key={`${campaign.savedAudienceId ?? 'inline'}:${campaign.updatedAt.toString()}`}
           initialValue={initial}
           onChange={handleChange}
           options={options}
           type={campaign.type}
           eventId={campaign.eventId}
           canPreview={canPreview}
-          disabled={!editable}
+          disabled={!editable || Boolean(linked) || showSnapshot}
         />
         {error && <FieldError>{error}</FieldError>}
-        {editable && (
-          <div className='flex justify-end'>
-            <Button onClick={save} disabled={!dirty || isSaving}>
-              {isSaving ? 'Saving…' : 'Save audience'}
+
+        {editable && !linked && !showSnapshot && (
+          <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end'>
+            {saveAsName === null ? (
+              <Button
+                variant='outline'
+                disabled={isBusy}
+                onClick={() => setSaveAsName('')}
+              >
+                <BookmarkPlus /> Save as audience
+              </Button>
+            ) : (
+              <form
+                className='flex flex-1 flex-col gap-2 sm:flex-row sm:items-center sm:justify-end'
+                onSubmit={async (event) => {
+                  event.preventDefault();
+                  const name = saveAsName;
+                  const done = await run(async () => {
+                    // Store any unsaved edits first, so the audience gets
+                    // what's on screen.
+                    if (dirty) {
+                      const saved = await updateCampaignAudience(
+                        campaign.id,
+                        rules,
+                      );
+                      if (!saved.success) return saved;
+                    }
+                    return saveCampaignAudienceAs(campaign.id, name);
+                  }, 'Saved as a reusable audience');
+                  if (done) setSaveAsName(null);
+                }}
+              >
+                <Input
+                  autoFocus
+                  aria-label='Audience name'
+                  placeholder='Audience name'
+                  value={saveAsName}
+                  onChange={(e) => {
+                    setSaveAsName(e.target.value);
+                    setError(null);
+                  }}
+                  className='sm:max-w-64'
+                />
+                <div className='flex gap-2'>
+                  <Button type='submit' variant='outline' disabled={isBusy}>
+                    Save
+                  </Button>
+                  <Button
+                    type='button'
+                    variant='ghost'
+                    onClick={() => setSaveAsName(null)}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </form>
+            )}
+            <Button
+              onClick={() =>
+                void run(
+                  () => updateCampaignAudience(campaign.id, rules),
+                  'Audience saved',
+                )
+              }
+              disabled={!dirty || isBusy}
+            >
+              {isBusy ? 'Saving…' : 'Save audience'}
             </Button>
           </div>
         )}

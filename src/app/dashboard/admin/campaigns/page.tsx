@@ -1,5 +1,6 @@
 import { Suspense } from 'react';
 import Link from 'next/link';
+import { Users } from 'lucide-react';
 
 import { getAudienceOptions, listCampaigns } from '@/lib/campaigns/queries';
 import { hasPermission } from '@/lib/rbac/authorization';
@@ -8,6 +9,7 @@ import { NewCampaignDialog } from './_components/new-campaign-dialog';
 import { requireAuthWithPermission } from '@/lib/rbac/guards';
 import { LocalDateTime } from '@/components/local-date-time';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import {
   Table,
@@ -136,9 +138,16 @@ export default function AdminCampaignsPage() {
             Write emails and send them to rule-based audiences.
           </p>
         </div>
-        <Suspense fallback={null}>
-          <NewCampaignButton />
-        </Suspense>
+        <div className='flex flex-wrap gap-2'>
+          <Button asChild variant='outline'>
+            <Link href='/dashboard/admin/campaigns/audiences'>
+              <Users /> Saved audiences
+            </Link>
+          </Button>
+          <Suspense fallback={null}>
+            <NewCampaignButton />
+          </Suspense>
+        </div>
       </div>
 
       <Suspense fallback={<CampaignListSkeleton />}>
