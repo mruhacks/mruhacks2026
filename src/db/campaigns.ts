@@ -26,6 +26,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { relations, sql } from 'drizzle-orm';
 
+import type { AudienceRuleGroup } from '@/lib/campaigns/audience-rules';
 import { user } from './auth-schema';
 import { events } from './events-and-participation';
 
@@ -61,7 +62,7 @@ export const savedAudiences = pgTable('saved_audiences', {
   id: uuid('id').defaultRandom().primaryKey(),
   name: text('name').notNull(),
   /** Audience rule tree; validated by `audienceRulesSchema` before it's stored. */
-  rules: jsonb('rules').$type<unknown>().notNull(),
+  rules: jsonb('rules').$type<AudienceRuleGroup>().notNull(),
   createdBy: uuid('created_by').references(() => user.id, {
     onDelete: 'set null',
   }),
@@ -103,7 +104,7 @@ export const campaigns = pgTable(
     previewText: text('preview_text').notNull().default(''),
     bodyMarkdown: text('body_markdown').notNull().default(''),
     /** Inline audience rule tree. Exactly one of this and `savedAudienceId` is set. */
-    audienceRules: jsonb('audience_rules').$type<unknown>(),
+    audienceRules: jsonb('audience_rules').$type<AudienceRuleGroup>(),
     /**
      * A linked saved audience: the campaign always uses its current rules.
      * Deleting an audience a campaign still links to is refused (restrict).
@@ -113,7 +114,7 @@ export const campaigns = pgTable(
       { onDelete: 'restrict' },
     ),
     /** The rules actually used, copied when the send starts. */
-    audienceSnapshot: jsonb('audience_snapshot').$type<unknown>(),
+    audienceSnapshot: jsonb('audience_snapshot').$type<AudienceRuleGroup>(),
     status: text('status').$type<CampaignStatus>().notNull().default('draft'),
     scheduledFor: timestamp('scheduled_for', { withTimezone: true }),
     createdBy: uuid('created_by').references(() => user.id, {
