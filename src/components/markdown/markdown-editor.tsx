@@ -29,7 +29,7 @@ export type MarkdownEditorProps = {
    * Each caller passes the action carrying the permission check for *its*
    * feature, so the editor never has to know who is allowed to upload.
    */
-  uploadAttachment: (
+  uploadAttachment?: (
     formData: FormData,
   ) => Promise<ActionResult<{ url: string }>>;
   /**
@@ -42,6 +42,8 @@ export type MarkdownEditorProps = {
    * `MarkdownContent` that renders this field, or readers won't see them.
    */
   allowEmbeds?: boolean;
+  /** See `MarkdownEditorCoreProps.profile`. */
+  profile?: 'default' | 'email';
   placeholder?: string;
   className?: string;
 };
@@ -52,11 +54,13 @@ export function MarkdownEditor({
   uploadAttachment,
   onUploadError,
   allowEmbeds,
+  profile,
   placeholder,
   className,
 }: MarkdownEditorProps) {
   const handleUpload = React.useCallback(
     async (file: File) => {
+      if (!uploadAttachment) throw new Error('Image uploads are not enabled.');
       const formData = new FormData();
       formData.append('file', file);
       const result = await uploadAttachment(formData);
@@ -80,8 +84,9 @@ export function MarkdownEditor({
     <MarkdownEditorCore
       markdown={value}
       onChange={onChange}
-      onUploadImage={handleUpload}
+      onUploadImage={uploadAttachment ? handleUpload : undefined}
       allowEmbeds={allowEmbeds}
+      profile={profile}
       placeholder={placeholder}
       className={className}
     />

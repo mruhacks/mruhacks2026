@@ -304,6 +304,16 @@
   }
 }
 
+/* MDXEditor's toolbar scrolls sideways when it runs out of room, which hides
+   the last buttons (the campaign editor's "Insert button") off the edge of a
+   half-width card or a phone. Wrap onto a second row instead. Two classes
+   deep so it beats the editor's own stylesheet, which loads after this one. */
+.mdxeditor .mdxeditor-toolbar {
+  flex-wrap: wrap;
+  height: auto;
+  overflow: visible;
+}
+
 /* ── Markdown content ─────────────────────────────────────────────
    Shared by the MDX editor's writing surface (`contentEditableClassName`)
    and the read-only renderer, so what an organizer types is what a

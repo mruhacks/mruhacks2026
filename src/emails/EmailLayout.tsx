@@ -20,9 +20,14 @@ type Props = {
   preview: string;
   baseUrl: string;
   children: React.ReactNode;
+  /**
+   * Optional line(s) above the copyright: a marketing campaign's unsubscribe
+   * link, or an operational one's "you're receiving this because…".
+   */
+  footer?: React.ReactNode;
 };
 
-export function EmailLayout({ preview, baseUrl, children }: Props) {
+export function EmailLayout({ preview, baseUrl, children, footer }: Props) {
   const logoUrl = `${baseUrl}/email-logo.png`;
   return (
     <Html lang='en'>
@@ -182,6 +187,20 @@ export function EmailLayout({ preview, baseUrl, children }: Props) {
                 </Link>
               </Column>
             </Row>
+
+            {footer && (
+              <Section
+                style={{
+                  margin: '0 0 14px',
+                  fontFamily: 'Arial,Helvetica,sans-serif',
+                  fontSize: 12,
+                  lineHeight: '1.6',
+                  color: '#bbbbbb',
+                }}
+              >
+                {footer}
+              </Section>
+            )}
 
             <Text
               style={{
