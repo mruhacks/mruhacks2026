@@ -7,6 +7,22 @@
           "topic": "rsvp-invitations"
         }
       ]
+    },
+    "src/app/api/queues/campaign-dispatch/route.ts": {
+      "experimentalTriggers": [
+        {
+          "type": "queue/v2beta",
+          "topic": "campaign-dispatch"
+        }
+      ]
+    },
+    "src/app/api/queues/campaign-deliveries/route.ts": {
+      "experimentalTriggers": [
+        {
+          "type": "queue/v2beta",
+          "topic": "campaign-deliveries"
+        }
+      ]
     }
   }
 }

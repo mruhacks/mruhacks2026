@@ -40,12 +40,15 @@ import {
 } from '@/components/ui/select';
 import { AudienceBuilder } from './audience-builder';
 import { CampaignComposer } from './campaign-composer';
+import { SendPanel } from './send-panel';
 
 export type CampaignEditorPermissions = {
   /** `campaign:write:all` */
   canWrite: boolean;
   /** `participant:read:all` — the recipient preview list. */
   canPreviewRecipients: boolean;
+  /** `campaign:send:all`, plus `campaign:operational:all` for an operational campaign. */
+  canSend: boolean;
 };
 
 export type SavedAudienceOption = {
@@ -91,6 +94,12 @@ export function CampaignEditor({
           {campaign.status}
         </Badge>
       </div>
+
+      <SendPanel
+        campaignId={campaign.id}
+        status={campaign.status}
+        canSend={permissions.canSend}
+      />
 
       <CampaignComposer
         campaign={campaign}
