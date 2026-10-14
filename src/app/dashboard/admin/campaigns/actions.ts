@@ -28,11 +28,18 @@ import {
   emptyAudience,
   type AudienceRuleGroup,
 } from '@/lib/campaigns/audience-rules';
+import { firstNameOf } from '@/lib/campaigns/merge-fields';
+import {
+  draftContentErrors,
+  renderCampaignEmail,
+  sendContentErrors,
+} from '@/lib/campaigns/render-campaign-email';
 import { hasPermission, requirePermission } from '@/lib/rbac/authorization';
 import { fail, ok, type ActionResult } from '@/utils/action-result';
 import { writeAuditLog } from '@/utils/audit-log';
 import { getUser } from '@/utils/auth';
 import { db } from '@/utils/db';
+import { sendMail } from '@/utils/mail';
 import { serverActionError } from '@/utils/server-action-error';
 import {
   audienceQuerySchema,
@@ -218,5 +225,135 @@ export async function previewAudienceForBuilder(
     return ok(await sampleAudience(query.rules, query.context, PREVIEW_SIZE));
   } catch (error) {
     return serverActionError('preview recipients', error);
+  }
+}
+
+// ── Content ────────────────────────────────────────────────────────────────
+
+const contentSchema = z.object({
+  name: z.string().trim().min(1, 'Give the campaign a name.').max(200),
+  subject: z.string().max(300, 'Keep the subject under 300 characters.'),
+  previewText: z
+    .string()
+    .max(300, 'Keep the preview text under 300 characters.'),
+  bodyMarkdown: z.string().max(100_000, 'The email body is too long.'),
+});
+export type CampaignContentInput = z.input<typeof contentSchema>;
+
+/**
+ * Saves a draft's name, subject, preview text and body (the composer
+ * autosaves through this). An unknown `{{…}}` merge field is refused.
+ */
+export async function updateCampaignContent(
+  campaignId: string,
+  input: CampaignContentInput,
+): Promise<ActionResult<{ updatedAt: string }>> {
+  const user = await getUser();
+  if (!user) return fail('Not authenticated');
+  await requirePermission(user.id, 'campaign:write:all');
+
+  const parsed = contentSchema.safeParse(input);
+  if (!parsed.success) return fail(firstIssue(parsed.error));
+  const [mergeError] = draftContentErrors(parsed.data);
+  if (mergeError) return fail(mergeError);
+
+  const loaded = await loadEditableCampaign(campaignId);
+  if (!loaded.ok) return fail(loaded.error);
+
+  try {
+    const [row] = await db
+      .update(campaigns)
+      .set({ ...parsed.data, updatedBy: user.id })
+      .where(and(eq(campaigns.id, campaignId), eq(campaigns.status, 'draft')))
+      .returning({ updatedAt: campaigns.updatedAt });
+    if (!row) return fail('Only drafts can be edited. Unschedule it first.');
+    return ok({ updatedAt: row.updatedAt.toISOString() });
+  } catch (error) {
+    return serverActionError('save campaign', error);
+  }
+}
+
+async function loadCampaignWithEvent(campaignId: string) {
+  if (!z.uuid().safeParse(campaignId).success) return null;
+  const [row] = await db
+    .select({ campaign: campaigns, eventName: events.name })
+    .from(campaigns)
+    .leftJoin(events, eq(campaigns.eventId, events.id))
+    .where(eq(campaigns.id, campaignId))
+    .limit(1);
+  return row ?? null;
+}
+
+/**
+ * Renders the composer's current (possibly unsaved) content exactly as it
+ * will be sent, merge fields filled in for the signed-in user.
+ */
+export async function previewCampaignEmail(
+  campaignId: string,
+  input: Omit<CampaignContentInput, 'name'>,
+): Promise<ActionResult<{ subject: string; html: string }>> {
+  const user = await getUser();
+  if (!user) return fail('Not authenticated');
+  await requirePermission(user.id, 'campaign:read:all');
+
+  const parsed = contentSchema.omit({ name: true }).safeParse(input);
+  if (!parsed.success) return fail(firstIssue(parsed.error));
+  const row = await loadCampaignWithEvent(campaignId);
+  if (!row) return fail('Campaign not found');
+
+  try {
+    const email = await renderCampaignEmail(
+      { ...parsed.data, type: row.campaign.type, eventName: row.eventName },
+      { firstName: firstNameOf(user.name) },
+    );
+    return ok({ subject: email.subject, html: email.html });
+  } catch (error) {
+    return serverActionError('preview email', error);
+  }
+}
+
+/**
+ * Sends the campaign's saved content to the signed-in user only. Always
+ * available with `campaign:write:all` and in any status, and it ignores
+ * marketing consent: it's the author checking their own work.
+ */
+export async function sendCampaignTest(
+  campaignId: string,
+): Promise<ActionResult<{ to: string }>> {
+  const user = await getUser();
+  if (!user) return fail('Not authenticated');
+  await requirePermission(user.id, 'campaign:write:all');
+
+  const row = await loadCampaignWithEvent(campaignId);
+  if (!row) return fail('Campaign not found');
+  const content = {
+    type: row.campaign.type,
+    subject: row.campaign.subject,
+    previewText: row.campaign.previewText,
+    bodyMarkdown: row.campaign.bodyMarkdown,
+    eventName: row.eventName,
+  };
+  const [problem] = sendContentErrors(content);
+  if (problem) return fail(problem);
+
+  try {
+    const email = await renderCampaignEmail(content, {
+      firstName: firstNameOf(user.name),
+    });
+    await sendMail({
+      to: user.email,
+      subject: `[Test] ${email.subject}`,
+      html: email.html,
+      text: email.text,
+    });
+    await writeAuditLog({
+      actorId: user.id,
+      action: 'campaign.test_send',
+      targetType: 'campaign',
+      targetId: campaignId,
+    });
+    return ok({ to: user.email });
+  } catch (error) {
+    return serverActionError('send test email', error);
   }
 }

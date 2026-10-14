@@ -25,17 +25,24 @@ import {
 import { insertAttendees } from '@/tests/participation-fixtures';
 
 vi.mock('@/utils/auth', () => ({ getUser: vi.fn() }));
+vi.mock('@/utils/mail', () => ({
+  sendMail: vi.fn().mockResolvedValue(undefined),
+}));
 vi.mock('next/cache', async (importOriginal) => ({
   ...(await importOriginal<typeof import('next/cache')>()),
   updateTag: vi.fn(),
 }));
 
 import { getUser } from '@/utils/auth';
+import { sendMail } from '@/utils/mail';
 import {
   countAudienceForBuilder,
   createCampaign,
   previewAudienceForBuilder,
+  previewCampaignEmail,
+  sendCampaignTest,
   updateCampaignAudience,
+  updateCampaignContent,
 } from '@/app/dashboard/admin/campaigns/actions';
 
 const FORBIDDEN = /REDIRECT:\/forbidden/;
@@ -76,7 +83,7 @@ beforeAll(async () => {
       .returning({ id: user.id });
     userIds[name] = row.id;
   }
-  await grant(userIds.writer, ['campaign:write:all']);
+  await grant(userIds.writer, ['campaign:write:all', 'campaign:read:all']);
   await grant(userIds.previewer, [
     'campaign:write:all',
     'participant:read:all',
@@ -291,5 +298,94 @@ describe('audience builder count and preview', () => {
       context: { type: 'operational', eventId: null },
     });
     expect(result.success).toBe(false);
+  });
+});
+
+describe('campaign content', () => {
+  async function draft(): Promise<string> {
+    actAs('writer');
+    const created = await createCampaign({
+      name: 'Content test',
+      type: 'marketing',
+      eventId: null,
+    });
+    const id = created.success ? created.data!.id : '';
+    createdCampaigns.push(id);
+    return id;
+  }
+
+  test('saves content and refuses unknown merge fields', async () => {
+    const id = await draft();
+    const saved = await updateCampaignContent(id, {
+      name: 'Renamed',
+      subject: 'Hi {{firstName}}',
+      previewText: '',
+      bodyMarkdown: 'Hello {{firstName|friend}}',
+    });
+    expect(saved.success).toBe(true);
+    const [row] = await db.select().from(campaigns).where(eq(campaigns.id, id));
+    expect(row).toMatchObject({
+      name: 'Renamed',
+      subject: 'Hi {{firstName}}',
+      bodyMarkdown: 'Hello {{firstName|friend}}',
+    });
+
+    const refused = await updateCampaignContent(id, {
+      name: 'Renamed',
+      subject: 'Hi {{lastName}}',
+      previewText: '',
+      bodyMarkdown: '',
+    });
+    expect(refused).toMatchObject({
+      success: false,
+      error: expect.stringContaining('{{lastName}}'),
+    });
+  });
+
+  test('send test goes only to the signed-in user, and matches the preview', async () => {
+    const id = await draft();
+    await updateCampaignContent(id, {
+      name: 'Test send',
+      subject: 'Hi {{firstName}}',
+      previewText: 'Preview',
+      bodyMarkdown: '# Hello {{firstName}}\n\n<script>alert(1)</script>',
+    });
+    vi.mocked(getUser).mockResolvedValue({
+      id: userIds.writer,
+      name: 'Campaign action writer',
+      email: 'campaign-action-writer@example.com',
+    } as Awaited<ReturnType<typeof getUser>>);
+
+    vi.mocked(sendMail).mockClear();
+    const result = await sendCampaignTest(id);
+    expect(result).toEqual({
+      success: true,
+      data: { to: 'campaign-action-writer@example.com' },
+    });
+    expect(sendMail).toHaveBeenCalledTimes(1);
+    const mail = vi.mocked(sendMail).mock.calls[0][0];
+    expect(mail.to).toBe('campaign-action-writer@example.com');
+    expect(mail.subject).toBe('[Test] Hi Campaign');
+    expect(mail.html).not.toContain('<script');
+
+    const preview = await previewCampaignEmail(id, {
+      subject: 'Hi {{firstName}}',
+      previewText: 'Preview',
+      bodyMarkdown: '# Hello {{firstName}}\n\n<script>alert(1)</script>',
+    });
+    expect(preview.success && preview.data!.html).toBe(mail.html);
+  });
+
+  test('send test refuses an empty subject', async () => {
+    const id = await draft();
+    vi.mocked(getUser).mockResolvedValue({
+      id: userIds.writer,
+      name: 'W',
+      email: 'campaign-action-writer@example.com',
+    } as Awaited<ReturnType<typeof getUser>>);
+    expect(await sendCampaignTest(id)).toEqual({
+      success: false,
+      error: 'Add a subject line.',
+    });
   });
 });

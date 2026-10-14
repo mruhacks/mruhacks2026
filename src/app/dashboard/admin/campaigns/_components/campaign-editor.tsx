@@ -39,6 +39,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { AudienceBuilder } from './audience-builder';
+import { CampaignComposer } from './campaign-composer';
 
 export type CampaignEditorPermissions = {
   /** `campaign:write:all` */
@@ -90,6 +91,12 @@ export function CampaignEditor({
           {campaign.status}
         </Badge>
       </div>
+
+      <CampaignComposer
+        campaign={campaign}
+        editable={editable}
+        canSendTest={permissions.canWrite}
+      />
 
       <AudienceCard
         campaign={campaign}
