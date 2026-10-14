@@ -82,6 +82,7 @@
     "react-email": "^6.9.2",
     "react-hook-form": "^7.90.0",
     "react-markdown": "^10.1.0",
+    "react-querybuilder": "^8.24.4",
     "react-select": "^5.10.2",
     "recharts": "3.8.0",
     "rehype-raw": "^7.0.0",

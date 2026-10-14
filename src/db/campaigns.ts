@@ -27,29 +27,18 @@ import {
 import { relations, sql } from 'drizzle-orm';
 
 import type { AudienceRuleGroup } from '@/lib/campaigns/audience-rules';
+import {
+  CAMPAIGN_DELIVERY_STATUSES,
+  CAMPAIGN_STATUSES,
+  CAMPAIGN_TYPES,
+  type CampaignDeliveryStatus,
+  type CampaignStatus,
+  type CampaignType,
+} from '@/lib/campaigns/constants';
 import { user } from './auth-schema';
 import { events } from './events-and-participation';
 
-export const CAMPAIGN_TYPES = ['marketing', 'operational'] as const;
-export type CampaignType = (typeof CAMPAIGN_TYPES)[number];
-
-export const CAMPAIGN_STATUSES = [
-  'draft',
-  'scheduled',
-  'sending',
-  'sent',
-  'cancelled',
-] as const;
-export type CampaignStatus = (typeof CAMPAIGN_STATUSES)[number];
-
-export const CAMPAIGN_DELIVERY_STATUSES = [
-  'queued',
-  'sent',
-  'failed',
-  'skipped',
-] as const;
-export type CampaignDeliveryStatus =
-  (typeof CAMPAIGN_DELIVERY_STATUSES)[number];
+export type { CampaignDeliveryStatus, CampaignStatus, CampaignType };
 
 const inList = (values: readonly string[]) =>
   sql.raw(values.map((value) => `'${value}'`).join(', '));
