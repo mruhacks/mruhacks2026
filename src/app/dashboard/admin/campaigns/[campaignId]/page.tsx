@@ -70,6 +70,10 @@ async function CampaignContent({
             permissions,
             'participant:read:all',
           ),
+          canSend:
+            anyPermissionMatches(permissions, 'campaign:send:all') &&
+            (campaign.type !== 'operational' ||
+              anyPermissionMatches(permissions, 'campaign:operational:all')),
         }}
       />
     </>
