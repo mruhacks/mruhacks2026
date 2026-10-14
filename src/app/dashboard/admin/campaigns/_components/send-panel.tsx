@@ -2,18 +2,24 @@
 
 import * as React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { RotateCcw, Send, Square } from 'lucide-react';
+import { CalendarClock, RotateCcw, Send, Square, Undo2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 import {
   getCampaignResults,
   getSendSummary,
   retryFailedDeliveries,
+  scheduleCampaign,
   sendCampaignNow,
   stopCampaign,
+  unscheduleCampaign,
 } from '@/app/dashboard/admin/campaigns/send-actions';
+import { fromDateTimeLocalValue } from '@/lib/datetime';
 import type { CampaignStatus } from '@/lib/campaigns/constants';
-import { LocalDateTime } from '@/components/local-date-time';
+import {
+  LocalDateTime,
+  useZoneAbbreviation,
+} from '@/components/local-date-time';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -33,6 +39,13 @@ import {
 } from '@/components/ui/dialog';
 import { Field, FieldError, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
 import {
   Table,
@@ -46,14 +59,29 @@ import {
 type Props = {
   campaignId: string;
   status: CampaignStatus;
+  scheduledFor: Date | null;
   /** `campaign:send:all` (plus `campaign:operational:all` for operational). */
   canSend: boolean;
 };
 
 /** Send now / Stop controls and, once sending has started, the results. */
-export function SendPanel({ campaignId, status, canSend }: Props) {
+export function SendPanel({
+  campaignId,
+  status,
+  scheduledFor,
+  canSend,
+}: Props) {
   if (status === 'draft') {
     return canSend ? <SendNowCard campaignId={campaignId} /> : null;
+  }
+  if (status === 'scheduled') {
+    return (
+      <ScheduledCard
+        campaignId={campaignId}
+        scheduledFor={scheduledFor}
+        canSend={canSend}
+      />
+    );
   }
   return (
     <ResultsCard campaignId={campaignId} status={status} canSend={canSend} />
@@ -62,6 +90,7 @@ export function SendPanel({ campaignId, status, canSend }: Props) {
 
 function SendNowCard({ campaignId }: { campaignId: string }) {
   const [open, setOpen] = React.useState(false);
+  const [scheduling, setScheduling] = React.useState(false);
   return (
     <Card>
       <CardHeader className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
@@ -72,12 +101,23 @@ function SendNowCard({ campaignId }: { campaignId: string }) {
             at about 10 a second.
           </CardDescription>
         </div>
-        <Button onClick={() => setOpen(true)}>
-          <Send /> Send now
-        </Button>
+        <div className='flex flex-wrap gap-2'>
+          <Button variant='outline' onClick={() => setScheduling(true)}>
+            <CalendarClock /> Schedule
+          </Button>
+          <Button onClick={() => setOpen(true)}>
+            <Send /> Send now
+          </Button>
+        </div>
       </CardHeader>
       {open && (
         <SendNowDialog campaignId={campaignId} onClose={() => setOpen(false)} />
+      )}
+      {scheduling && (
+        <ScheduleDialog
+          campaignId={campaignId}
+          onClose={() => setScheduling(false)}
+        />
       )}
     </Card>
   );
@@ -186,6 +226,159 @@ function SendNowDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+const HOURS = Array.from({ length: 24 }, (_, h) => h);
+
+function hourLabel(hour: number): string {
+  const suffix = hour < 12 ? 'AM' : 'PM';
+  return `${hour % 12 === 0 ? 12 : hour % 12}:00 ${suffix}`;
+}
+
+/**
+ * Whole hours only: the hourly cron is what sends scheduled campaigns. The
+ * date and hour are the viewer's own wall clock, turned into an instant here
+ * in the browser (AGENTS.md).
+ */
+function ScheduleDialog({
+  campaignId,
+  onClose,
+}: {
+  campaignId: string;
+  onClose: () => void;
+}) {
+  const [date, setDate] = React.useState('');
+  const [hour, setHour] = React.useState('9');
+  const [error, setError] = React.useState<string | null>(null);
+  const [isSaving, setIsSaving] = React.useState(false);
+  const local = date ? `${date}T${hour.padStart(2, '0')}:00` : '';
+  const zone = useZoneAbbreviation(local);
+
+  async function save(event: React.FormEvent) {
+    event.preventDefault();
+    const instant = fromDateTimeLocalValue(local);
+    if (!instant) {
+      setError('Choose a date and hour.');
+      return;
+    }
+    setIsSaving(true);
+    setError(null);
+    const result = await scheduleCampaign(campaignId, instant.toISOString());
+    setIsSaving(false);
+    if (!result.success) {
+      setError(result.error);
+      return;
+    }
+    toast.success('Campaign scheduled');
+    onClose();
+  }
+
+  return (
+    <Dialog open onOpenChange={(next) => !next && onClose()}>
+      <DialogContent className='sm:max-w-md'>
+        <form onSubmit={save} className='space-y-4'>
+          <DialogHeader>
+            <DialogTitle>Schedule</DialogTitle>
+            <DialogDescription>
+              Sends on the hour. The audience is worked out then, and the
+              campaign can&apos;t be edited until it&apos;s unscheduled.
+            </DialogDescription>
+          </DialogHeader>
+          <div className='grid grid-cols-2 gap-3'>
+            <Field>
+              <FieldLabel htmlFor='schedule-date'>Date</FieldLabel>
+              <Input
+                id='schedule-date'
+                type='date'
+                value={date}
+                onChange={(e) => {
+                  setDate(e.target.value);
+                  setError(null);
+                }}
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor='schedule-hour'>Hour ({zone})</FieldLabel>
+              <Select
+                value={hour}
+                onValueChange={(next) => {
+                  setHour(next);
+                  setError(null);
+                }}
+              >
+                <SelectTrigger id='schedule-hour' className='w-full'>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {HOURS.map((h) => (
+                    <SelectItem key={h} value={String(h)}>
+                      {hourLabel(h)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+          </div>
+          {error && <FieldError>{error}</FieldError>}
+          <DialogFooter>
+            <Button type='button' variant='outline' onClick={onClose}>
+              Cancel
+            </Button>
+            <Button type='submit' disabled={isSaving}>
+              {isSaving ? 'Scheduling…' : 'Schedule'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ScheduledCard({
+  campaignId,
+  scheduledFor,
+  canSend,
+}: {
+  campaignId: string;
+  scheduledFor: Date | null;
+  canSend: boolean;
+}) {
+  const [busy, setBusy] = React.useState(false);
+  return (
+    <Card>
+      <CardHeader className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
+        <div>
+          <CardTitle>Scheduled</CardTitle>
+          <CardDescription>
+            Sends{' '}
+            <LocalDateTime
+              value={scheduledFor}
+              dateStyle='full'
+              timeStyle='short'
+              timeZoneName='short'
+            />
+            . Unschedule it to make changes.
+          </CardDescription>
+        </div>
+        {canSend && (
+          <Button
+            variant='outline'
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              const result = await unscheduleCampaign(campaignId);
+              setBusy(false);
+              // A button-only action: nothing to attach an inline error to.
+              if (!result.success) toast.error(result.error);
+              else toast.success('Back to draft');
+            }}
+          >
+            <Undo2 /> Unschedule
+          </Button>
+        )}
+      </CardHeader>
+    </Card>
   );
 }
 

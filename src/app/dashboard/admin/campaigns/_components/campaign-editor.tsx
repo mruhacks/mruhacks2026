@@ -98,6 +98,7 @@ export function CampaignEditor({
       <SendPanel
         campaignId={campaign.id}
         status={campaign.status}
+        scheduledFor={campaign.scheduledFor}
         canSend={permissions.canSend}
       />
 
