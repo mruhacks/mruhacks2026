@@ -142,6 +142,10 @@ async function seedRolesAndPermissions() {
     { slug: 'admin', description: 'Full system administrator' },
     { slug: 'organizer', description: 'Manages event logistics and users' },
     { slug: 'volunteer', description: 'Supports event operations' },
+    {
+      slug: 'marketing',
+      description: 'Writes and sends marketing email campaigns',
+    },
   ];
 
   const basePermissions: PermissionInsert[] = [
@@ -252,6 +256,23 @@ async function seedRolesAndPermissions() {
       description: 'View the audit log of administrative activity',
     },
     {
+      slug: 'campaign:read:all',
+      description: 'View email campaigns and their results',
+    },
+    {
+      slug: 'campaign:write:all',
+      description: 'Create and edit campaign drafts and saved audiences',
+    },
+    {
+      slug: 'campaign:send:all',
+      description: 'Send or schedule email campaigns',
+    },
+    {
+      slug: 'campaign:operational:all',
+      description:
+        "Send operational (non-marketing) email to an event's participants",
+    },
+    {
       slug: 'system:read:all',
       description: 'View system health and diagnostics',
     },
@@ -359,6 +380,26 @@ async function seedRolesAndPermissions() {
         roleId: findRole('organizer').id,
         permissionId: findPerm('article:write:all').id,
       },
+      ...[
+        'campaign:read:all',
+        'campaign:write:all',
+        'campaign:send:all',
+        'campaign:operational:all',
+      ].map((slug) => ({
+        roleId: findRole('organizer').id,
+        permissionId: findPerm(slug).id,
+      })),
+      // Marketing writes and sends campaigns and reads aggregate stats only:
+      // no event settings, applicant answers or operational email.
+      ...[
+        'campaign:read:all',
+        'campaign:write:all',
+        'campaign:send:all',
+        'application:stats:all',
+      ].map((slug) => ({
+        roleId: findRole('marketing').id,
+        permissionId: findPerm(slug).id,
+      })),
       {
         roleId: findRole('organizer').id,
         permissionId: findPerm('submission:read:all').id,

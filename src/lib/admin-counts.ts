@@ -8,6 +8,7 @@ import {
   userRole,
   events,
   eventParticipants,
+  campaigns,
 } from '@/db/schema';
 import { EVENTS_CACHE_TAG } from '@/lib/events';
 
@@ -19,6 +20,7 @@ export type AdminCounts = {
   permissions: number;
   assignments: number;
   events: number;
+  campaigns: number;
   /** The single isFeatured event plus its application total, or null if none is featured. */
   featuredEvent: {
     id: string;
@@ -32,8 +34,8 @@ export type AdminCounts = {
  * Sitewide counts shown on the admin overview tiles. Same numbers for every
  * admin, so cached instead of queried on every view. Invalidated by
  * updateTag(ADMIN_COUNTS_CACHE_TAG) wherever users, roles, permissions, or
- * role assignments change, and by updateTag(EVENTS_CACHE_TAG) wherever an
- * event is created or edited.
+ * role assignments change or a campaign is created or deleted, and by
+ * updateTag(EVENTS_CACHE_TAG) wherever an event is created or edited.
  */
 export async function getAdminCounts(): Promise<AdminCounts> {
   'use cache';
@@ -52,6 +54,7 @@ export async function getAdminCounts(): Promise<AdminCounts> {
     assignmentCount,
     eventCount,
     featuredRows,
+    campaignCount,
   ] = await Promise.all([
     db.select({ c: sql<number>`COUNT(*)`.mapWith(Number) }).from(user),
     db.select({ c: sql<number>`COUNT(*)`.mapWith(Number) }).from(role),
@@ -77,6 +80,7 @@ export async function getAdminCounts(): Promise<AdminCounts> {
       .where(eq(events.isFeatured, true))
       .groupBy(events.id, events.slug, events.name)
       .limit(1),
+    db.select({ c: sql<number>`COUNT(*)`.mapWith(Number) }).from(campaigns),
   ]);
 
   const featured = featuredRows[0];
@@ -87,6 +91,7 @@ export async function getAdminCounts(): Promise<AdminCounts> {
     permissions: permCount[0]?.c ?? 0,
     assignments: assignmentCount[0]?.c ?? 0,
     events: eventCount[0]?.c ?? 0,
+    campaigns: campaignCount[0]?.c ?? 0,
     featuredEvent: featured
       ? {
           id: featured.id,
