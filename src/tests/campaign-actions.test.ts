@@ -11,6 +11,7 @@ import {
   test,
   vi,
 } from 'vitest';
+import { generateKeyPairSync } from 'node:crypto';
 import { eq, inArray } from 'drizzle-orm';
 
 import { db } from '@/utils/db';
@@ -73,6 +74,11 @@ function actAs(name: string) {
 }
 
 beforeAll(async () => {
+  // Test sends sign an unsubscribe link.
+  process.env.APP_SIGNING_PRIVATE_KEY = generateKeyPairSync('ed25519', {
+    privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+    publicKeyEncoding: { type: 'spki', format: 'pem' },
+  }).privateKey as unknown as string;
   for (const name of ['writer', 'previewer', 'operator', 'reader', 'member']) {
     const [row] = await db
       .insert(user)
@@ -374,7 +380,17 @@ describe('campaign content', () => {
       previewText: 'Preview',
       bodyMarkdown: '# Hello {{firstName}}\n\n<script>alert(1)</script>',
     });
-    expect(preview.success && preview.data!.html).toBe(mail.html);
+    // Identical apart from the footer link: a preview has no signed token.
+    const unlink = (html: string) =>
+      html.replace(
+        /href="[^"]*(unsubscribe\?t=|dashboard\/account)[^"]*"/g,
+        'href=""',
+      );
+    expect(mail.html).toContain('/unsubscribe?t=');
+    expect(mail.listUnsubscribeUrl).toMatch(/\/api\/unsubscribe\?t=/);
+    expect(unlink(preview.success ? preview.data!.html : '')).toBe(
+      unlink(mail.html!),
+    );
   });
 
   test('send test refuses an empty subject', async () => {

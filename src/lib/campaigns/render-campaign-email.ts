@@ -57,10 +57,10 @@ function footerFor(
   }
   const because =
     "You're receiving this because you opted into email from MRUHacks.";
+  // Previews have no signed link; they point at the account page instead so
+  // the footer still reads exactly as it will when sent.
   const href = recipient.unsubscribeUrl ?? `${baseUrl}/dashboard/account`;
-  const label = recipient.unsubscribeUrl
-    ? 'Unsubscribe'
-    : 'Manage email preferences';
+  const label = 'Unsubscribe';
   return {
     html: React.createElement(
       React.Fragment,

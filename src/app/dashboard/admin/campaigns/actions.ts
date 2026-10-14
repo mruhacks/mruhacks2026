@@ -39,6 +39,7 @@ import {
   renderCampaignEmail,
   sendContentErrors,
 } from '@/lib/campaigns/render-campaign-email';
+import { buildCampaignMessage } from '@/lib/campaigns/unsubscribe';
 import { hasPermission, requirePermission } from '@/lib/rbac/authorization';
 import { fail, ok, type ActionResult } from '@/utils/action-result';
 import { writeAuditLog } from '@/utils/audit-log';
@@ -343,15 +344,13 @@ export async function sendCampaignTest(
   if (problem) return fail(problem);
 
   try {
-    const email = await renderCampaignEmail(content, {
-      firstName: firstNameOf(user.name),
-    });
-    await sendMail({
-      to: user.email,
-      subject: `[Test] ${email.subject}`,
-      html: email.html,
-      text: email.text,
-    });
+    await sendMail(
+      await buildCampaignMessage(
+        content,
+        { email: user.email, firstName: firstNameOf(user.name) },
+        { subjectPrefix: '[Test] ' },
+      ),
+    );
     await writeAuditLog({
       actorId: user.id,
       action: 'campaign.test_send',
