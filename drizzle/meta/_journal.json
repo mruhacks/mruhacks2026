@@ -365,6 +365,13 @@
       "when": 1791952147733,
       "tag": "0051_campaigns",
       "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1791952345044,
+      "tag": "0052_signing_public_keys",
+      "breakpoints": true
     }
   ]
 }
