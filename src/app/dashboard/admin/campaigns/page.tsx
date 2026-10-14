@@ -1,6 +1,10 @@
 import { Suspense } from 'react';
+import Link from 'next/link';
 
-import { listCampaigns } from '@/lib/campaigns/queries';
+import { getAudienceOptions, listCampaigns } from '@/lib/campaigns/queries';
+import { hasPermission } from '@/lib/rbac/authorization';
+import { getUser } from '@/utils/auth';
+import { NewCampaignDialog } from './_components/new-campaign-dialog';
 import { requireAuthWithPermission } from '@/lib/rbac/guards';
 import { LocalDateTime } from '@/components/local-date-time';
 import { Badge } from '@/components/ui/badge';
@@ -71,7 +75,12 @@ async function CampaignList() {
             return (
               <TableRow key={row.id}>
                 <TableCell className='max-w-56 truncate font-medium'>
-                  {row.name}
+                  <Link
+                    href={`/dashboard/admin/campaigns/${row.id}`}
+                    className='hover:underline'
+                  >
+                    {row.name}
+                  </Link>
                   {row.eventName && (
                     <span className='text-muted-foreground block truncate text-xs font-normal'>
                       {row.eventName}
@@ -99,14 +108,37 @@ async function CampaignList() {
   );
 }
 
+// Creating a draft runs `createCampaign`, which requires campaign:write:all.
+async function NewCampaignButton() {
+  const user = await getUser();
+  if (!user || !(await hasPermission(user.id, 'campaign:write:all'))) {
+    return null;
+  }
+  const [options, canSendOperational] = await Promise.all([
+    getAudienceOptions(),
+    hasPermission(user.id, 'campaign:operational:all'),
+  ]);
+  return (
+    <NewCampaignDialog
+      events={options.events.map(({ id, name }) => ({ id, name }))}
+      canSendOperational={canSendOperational}
+    />
+  );
+}
+
 export default function AdminCampaignsPage() {
   return (
     <div className='space-y-6'>
-      <div>
-        <h1 className='text-2xl font-semibold'>Campaigns</h1>
-        <p className='text-muted-foreground mt-1 text-sm'>
-          Write emails and send them to rule-based audiences.
-        </p>
+      <div className='flex flex-wrap items-center justify-between gap-4'>
+        <div>
+          <h1 className='text-2xl font-semibold'>Campaigns</h1>
+          <p className='text-muted-foreground mt-1 text-sm'>
+            Write emails and send them to rule-based audiences.
+          </p>
+        </div>
+        <Suspense fallback={null}>
+          <NewCampaignButton />
+        </Suspense>
       </div>
 
       <Suspense fallback={<CampaignListSkeleton />}>

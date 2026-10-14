@@ -1,16 +1,18 @@
 import 'server-only';
 
-import { desc, eq } from 'drizzle-orm';
+import { asc, desc, eq } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 
 import {
   campaigns,
   events,
+  role,
   user,
   type CampaignStatus,
   type CampaignType,
 } from '@/db/schema';
 import { db } from '@/utils/db';
+import type { AudienceOptions } from './audience-options';
 
 export type CampaignListRow = {
   id: string;
@@ -44,4 +46,65 @@ export async function listCampaigns(): Promise<CampaignListRow[]> {
     .leftJoin(events, eq(campaigns.eventId, events.id))
     .leftJoin(editor, eq(campaigns.updatedBy, editor.id))
     .orderBy(desc(campaigns.updatedAt));
+}
+
+export type CampaignDetail = typeof campaigns.$inferSelect & {
+  eventName: string | null;
+  updatedByName: string | null;
+};
+
+export async function getCampaign(id: string): Promise<CampaignDetail | null> {
+  const [row] = await db
+    .select({
+      campaign: campaigns,
+      eventName: events.name,
+      updatedByName: editor.name,
+    })
+    .from(campaigns)
+    .leftJoin(events, eq(campaigns.eventId, events.id))
+    .leftJoin(editor, eq(campaigns.updatedBy, editor.id))
+    .where(eq(campaigns.id, id))
+    .limit(1);
+  if (!row) return null;
+  return {
+    ...row.campaign,
+    eventName: row.eventName,
+    updatedByName: row.updatedByName,
+  };
+}
+
+/** Events and roles the audience builder's pickers offer. */
+export async function getAudienceOptions(): Promise<AudienceOptions> {
+  const [eventRows, roleRows] = await Promise.all([
+    db
+      .select({
+        id: events.id,
+        name: events.name,
+        parentEventId: events.parentEventId,
+        startsAt: events.startsAt,
+        checkInEnabled: events.checkInEnabled,
+      })
+      .from(events)
+      .orderBy(desc(events.startsAt), asc(events.name)),
+    db
+      .select({ id: role.id, slug: role.slug, description: role.description })
+      .from(role)
+      .orderBy(asc(role.slug)),
+  ]);
+
+  const topLevel = eventRows.filter((row) => !row.parentEventId);
+  return {
+    events: topLevel.map((event) => ({
+      id: event.id,
+      name: event.name,
+      checkInEnabled: event.checkInEnabled,
+      subevents: eventRows
+        .filter((row) => row.parentEventId === event.id)
+        .map((row) => ({ id: row.id, name: row.name })),
+    })),
+    roles: roleRows.map((row) => ({
+      id: row.id,
+      name: row.slug ?? `Role ${row.id}`,
+    })),
+  };
 }
