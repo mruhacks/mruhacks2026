@@ -7,6 +7,7 @@ import {
   safeHref,
   safeImageSrc,
 } from '@/lib/campaigns/email-markdown';
+import { campaignImageWidth } from '@/utils/object-storage';
 import { CtaButton, EmailLayout } from './EmailLayout';
 
 /** Widest an image is drawn: the body column of the 600px layout, minus padding. */
@@ -77,15 +78,23 @@ function renderPhrasing(
       }
       case 'image': {
         const src = safeImageSrc(node.url, ctx.baseUrl);
-        return src ? (
+        if (!src) return null;
+        // Our uploads record their pixel width; draw them no wider than the
+        // column (a 1200px upload is a 2x image for it) and never upscaled.
+        // An external image's size is unknown, so it's only capped by CSS.
+        const stored = campaignImageWidth(node.url);
+        const width = stored
+          ? Math.min(stored, EMAIL_IMAGE_MAX_WIDTH)
+          : undefined;
+        return (
           <Img
             key={i}
             src={src}
             alt={node.alt ?? ''}
-            width={EMAIL_IMAGE_MAX_WIDTH}
+            width={width}
             style={image}
           />
-        ) : null;
+        );
       }
       case 'textDirective':
         return (

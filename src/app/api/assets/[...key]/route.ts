@@ -1,6 +1,8 @@
 import { getUser } from '@/utils/auth';
 import {
+  campaignImageRedirect,
   eventAttachmentRedirect,
+  isCampaignImageKey,
   isEventAttachmentKey,
   profilePictureRedirect,
 } from '@/utils/object-storage';
@@ -17,6 +19,9 @@ import {
  * - `event-content/…` — attachments embedded in event descriptions and wiki
  *   articles. Requires a signed-in session, since the wiki lives behind the
  *   dashboard and so must its images.
+ * - `campaign-content/…` — images in campaign emails. No session: they're
+ *   loaded by mail clients, and the email can only ever hold this stable
+ *   URL, never a presigned one that would expire.
  */
 export async function GET(
   _request: Request,
@@ -24,6 +29,8 @@ export async function GET(
 ) {
   const { key } = await params;
   const objectKey = key.join('/');
+
+  if (isCampaignImageKey(objectKey)) return campaignImageRedirect(objectKey);
 
   const isAttachment: boolean = isEventAttachmentKey(objectKey);
 

@@ -28,6 +28,11 @@ import {
   emptyAudience,
   type AudienceRuleGroup,
 } from '@/lib/campaigns/audience-rules';
+import {
+  CAMPAIGN_IMAGE_INPUT_TYPES,
+  MAX_CAMPAIGN_IMAGE_BYTES,
+  optimizeCampaignImage,
+} from '@/lib/campaigns/campaign-images';
 import { firstNameOf } from '@/lib/campaigns/merge-fields';
 import {
   draftContentErrors,
@@ -40,6 +45,7 @@ import { writeAuditLog } from '@/utils/audit-log';
 import { getUser } from '@/utils/auth';
 import { db } from '@/utils/db';
 import { sendMail } from '@/utils/mail';
+import { campaignImageUrl, putObject } from '@/utils/object-storage';
 import { serverActionError } from '@/utils/server-action-error';
 import {
   audienceQuerySchema,
@@ -355,5 +361,59 @@ export async function sendCampaignTest(
     return ok({ to: user.email });
   } catch (error) {
     return serverActionError('send test email', error);
+  }
+}
+
+// ── Images ─────────────────────────────────────────────────────────────────
+
+/**
+ * Uploads an image for a campaign body to the public `campaign-content/`
+ * prefix, optimized for email. Returns the stable `/api/assets/…` URL the
+ * body embeds. Campaign images are never deleted while their campaign
+ * exists: nothing in the app deletes under this prefix.
+ */
+export async function uploadCampaignImage(
+  formData: FormData,
+): Promise<ActionResult<{ url: string }>> {
+  const user = await getUser();
+  if (!user) return fail('Not authenticated');
+  await requirePermission(user.id, 'campaign:write:all');
+
+  const value = formData.get('file');
+  if (
+    !value ||
+    typeof value === 'string' ||
+    typeof value.arrayBuffer !== 'function'
+  ) {
+    return fail('Choose an image to upload.');
+  }
+  if (!CAMPAIGN_IMAGE_INPUT_TYPES.has(value.type)) {
+    return fail('Images must be JPEG, PNG, WebP, GIF, AVIF or HEIC.');
+  }
+  if (value.size === 0 || value.size > MAX_CAMPAIGN_IMAGE_BYTES) {
+    return fail(
+      `Images must be smaller than ${MAX_CAMPAIGN_IMAGE_BYTES / 1024 / 1024} MB.`,
+    );
+  }
+
+  let image: Awaited<ReturnType<typeof optimizeCampaignImage>>;
+  try {
+    image = await optimizeCampaignImage(
+      new Uint8Array(await value.arrayBuffer()),
+    );
+  } catch (error) {
+    console.error('[campaigns] image processing failed', error);
+    return fail('That file could not be read as an image.');
+  }
+
+  try {
+    await putObject({
+      key: image.key,
+      body: image.body,
+      contentType: image.contentType,
+    });
+    return ok({ url: campaignImageUrl(image.key) });
+  } catch (error) {
+    return serverActionError('upload image', error);
   }
 }

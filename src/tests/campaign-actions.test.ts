@@ -43,6 +43,7 @@ import {
   sendCampaignTest,
   updateCampaignAudience,
   updateCampaignContent,
+  uploadCampaignImage,
 } from '@/app/dashboard/admin/campaigns/actions';
 
 const FORBIDDEN = /REDIRECT:\/forbidden/;
@@ -387,5 +388,63 @@ describe('campaign content', () => {
       success: false,
       error: 'Add a subject line.',
     });
+  });
+});
+
+describe('uploadCampaignImage', () => {
+  test('optimizes and stores an upload, returning its stable URL', async () => {
+    actAs('writer');
+    const png = await (
+      await import('sharp')
+    )
+      .default({
+        create: {
+          width: 2000,
+          height: 1000,
+          channels: 3,
+          background: { r: 1, g: 2, b: 3 },
+        },
+      })
+      .png()
+      .toBuffer();
+    const form = new FormData();
+    form.append(
+      'file',
+      new File([new Uint8Array(png)], 'x.png', { type: 'image/png' }),
+    );
+    const result = await uploadCampaignImage(form);
+    expect(result).toMatchObject({
+      success: true,
+      data: {
+        url: expect.stringMatching(
+          /^\/api\/assets\/campaign-content\/[0-9a-f-]{36}-w1200\.jpg$/,
+        ),
+      },
+    });
+  });
+
+  test('refuses SVG, oversize files, and non-writers', async () => {
+    actAs('writer');
+    const svg = new FormData();
+    svg.append(
+      'file',
+      new File(['<svg/>'], 'x.svg', { type: 'image/svg+xml' }),
+    );
+    expect((await uploadCampaignImage(svg)).success).toBe(false);
+
+    const big = new FormData();
+    big.append(
+      'file',
+      new File([new Uint8Array(5 * 1024 * 1024 + 1)], 'x.jpg', {
+        type: 'image/jpeg',
+      }),
+    );
+    expect(await uploadCampaignImage(big)).toEqual({
+      success: false,
+      error: 'Images must be smaller than 5 MB.',
+    });
+
+    actAs('reader');
+    await expect(uploadCampaignImage(svg)).rejects.toThrow(FORBIDDEN);
   });
 });
