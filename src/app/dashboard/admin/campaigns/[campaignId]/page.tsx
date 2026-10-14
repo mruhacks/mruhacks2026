@@ -5,6 +5,7 @@ import { ArrowLeft } from 'lucide-react';
 import { z } from 'zod';
 
 import { getAudienceOptions, getCampaign } from '@/lib/campaigns/queries';
+import { listSavedAudiences } from '@/lib/campaigns/saved-audiences';
 import { requireAuthWithPermission } from '@/lib/rbac/guards';
 import { loadUserPermissions } from '@/lib/rbac/authorization';
 import { anyPermissionMatches } from '@/lib/rbac/permissions';
@@ -43,9 +44,10 @@ async function CampaignContent({
   const user = await requireAuthWithPermission('campaign:read:all');
   if (!z.uuid().safeParse(campaignId).success) notFound();
 
-  const [campaign, options, permissions] = await Promise.all([
+  const [campaign, options, savedAudiences, permissions] = await Promise.all([
     getCampaign(campaignId),
     getAudienceOptions(),
+    listSavedAudiences(),
     loadUserPermissions(user.id),
   ]);
   if (!campaign) notFound();
@@ -57,6 +59,11 @@ async function CampaignContent({
         key={campaign.id}
         campaign={campaign}
         options={options}
+        savedAudiences={savedAudiences.map(({ id, name, rules }) => ({
+          id,
+          name,
+          rules,
+        }))}
         permissions={{
           canWrite: anyPermissionMatches(permissions, 'campaign:write:all'),
           canPreviewRecipients: anyPermissionMatches(
