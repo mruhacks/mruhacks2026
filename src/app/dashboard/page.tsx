@@ -31,6 +31,14 @@ const ADMIN_TILES = [
     visible: canOpenEventDashboard,
   },
   {
+    label: 'Campaigns',
+    countKey: 'campaigns' as const,
+    unit: 'Campaign',
+    href: '/dashboard/admin/campaigns',
+    visible: (permissions: Set<string>) =>
+      anyPermissionMatches(permissions, 'campaign:read:all'),
+  },
+  {
     label: 'Users',
     countKey: 'users' as const,
     unit: 'User',

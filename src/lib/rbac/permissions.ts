@@ -22,6 +22,7 @@ export type PermissionEntity =
   | 'checkin'
   | 'application'
   | 'article'
+  | 'campaign'
   | 'system';
 
 export type PermissionAction =
@@ -38,6 +39,8 @@ export type PermissionAction =
   | 'write'
   | 'vote'
   | 'override'
+  | 'send'
+  | 'operational'
   | 'all';
 
 export type PermissionScope = 'all' | 'any' | 'self' | (string & {});
@@ -153,6 +156,23 @@ const CORE_PERMISSIONS = [
     description: 'Create, edit, publish and delete event wiki articles',
   },
   {
+    slug: 'campaign:read:all',
+    description: 'View email campaigns and their results',
+  },
+  {
+    slug: 'campaign:write:all',
+    description: 'Create and edit campaign drafts and saved audiences',
+  },
+  {
+    slug: 'campaign:send:all',
+    description: 'Send or schedule email campaigns',
+  },
+  {
+    slug: 'campaign:operational:all',
+    description:
+      "Send operational (non-marketing) email to an event's participants",
+  },
+  {
     slug: 'system:read:all',
     description: 'View system health and diagnostics',
   },
@@ -167,6 +187,10 @@ const CORE_ROLES = [
   { slug: 'judge', description: 'Evaluates hackathon projects' },
   { slug: 'volunteer', description: 'Supports event operations' },
   { slug: 'participant', description: 'Registered hackathon attendee' },
+  {
+    slug: 'marketing',
+    description: 'Writes and sends marketing email campaigns',
+  },
 ] as const;
 
 export type CoreRoleSlug = (typeof CORE_ROLES)[number]['slug'];

@@ -358,6 +358,13 @@
       "when": 1791129659647,
       "tag": "0050_application_votes",
       "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1791952147733,
+      "tag": "0051_campaigns",
+      "breakpoints": true
     }
   ]
 }
