@@ -9,6 +9,7 @@ import {
   previewCampaignEmail,
   sendCampaignTest,
   updateCampaignContent,
+  uploadCampaignImage,
 } from '@/app/dashboard/admin/campaigns/actions';
 import { mergeFieldError } from '@/lib/campaigns/merge-fields';
 import type { CampaignDetail } from '@/lib/campaigns/queries';
@@ -76,6 +77,7 @@ export function CampaignComposer({
     kind: 'saved',
   });
   const [testError, setTestError] = React.useState<string | null>(null);
+  const [uploadError, setUploadError] = React.useState<string | null>(null);
   const [isSendingTest, setIsSendingTest] = React.useState(false);
 
   const fieldErrors = {
@@ -211,7 +213,12 @@ export function CampaignComposer({
             {editable ? (
               <MarkdownEditor
                 value={campaign.bodyMarkdown}
-                onChange={(bodyMarkdown) => update({ bodyMarkdown })}
+                onChange={(bodyMarkdown) => {
+                  update({ bodyMarkdown });
+                  setUploadError(null);
+                }}
+                uploadAttachment={uploadCampaignImage}
+                onUploadError={setUploadError}
                 profile='email'
                 placeholder='Write your email…'
               />
@@ -224,6 +231,7 @@ export function CampaignComposer({
             {fieldErrors.bodyMarkdown && (
               <FieldError>{fieldErrors.bodyMarkdown}</FieldError>
             )}
+            {uploadError && <FieldError>{uploadError}</FieldError>}
           </Field>
 
           <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
