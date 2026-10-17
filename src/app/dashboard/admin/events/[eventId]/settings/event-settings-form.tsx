@@ -31,8 +31,16 @@ import {
   FieldLegend,
 } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import type { AdminEventSettings } from '@/lib/admin-event';
+import type { EventTypeOption } from '@/lib/event-types';
 import { adminEventPath } from '@/lib/event-slug';
 import { slugify } from '@/lib/slug';
 import { fromDateTimeLocalValue, toDateTimeLocalValue } from '@/lib/datetime';
@@ -41,7 +49,15 @@ import { sanitizeReturnPath } from '@/utils/return-path';
 
 import { useEventBasePath } from '../_components/use-event-base-path';
 
-export function EventSettingsForm({ event }: { event: AdminEventSettings }) {
+const NO_TYPE = 'none';
+
+export function EventSettingsForm({
+  event,
+  eventTypes,
+}: {
+  event: AdminEventSettings;
+  eventTypes: EventTypeOption[];
+}) {
   const router = useRouter();
   const basePath = useEventBasePath();
   const searchParams = useSearchParams();
@@ -71,6 +87,7 @@ export function EventSettingsForm({ event }: { event: AdminEventSettings }) {
       isFeatured: event.isFeatured,
       teamsEnabled: event.teamsEnabled,
       maxTeamSize: event.maxTeamSize ?? null,
+      eventTypeId: event.eventTypeId,
     }),
     [event],
   );
@@ -192,6 +209,55 @@ export function EventSettingsForm({ event }: { event: AdminEventSettings }) {
                       . Leave blank to keep using the event id.
                     </FieldDescription>
                     {errors.slug && <FieldError errors={[errors.slug]} />}
+                  </Field>
+                  <Field
+                    className='gap-1.5'
+                    data-invalid={!!errors.eventTypeId}
+                  >
+                    <FieldLabel htmlFor='eventTypeId'>
+                      Type (optional)
+                    </FieldLabel>
+                    <Controller
+                      name='eventTypeId'
+                      control={control}
+                      render={({ field }) => (
+                        <Select
+                          value={field.value ? String(field.value) : NO_TYPE}
+                          onValueChange={(value) => {
+                            setSubmitError(null);
+                            field.onChange(
+                              value === NO_TYPE ? null : Number(value),
+                            );
+                          }}
+                        >
+                          <SelectTrigger
+                            id='eventTypeId'
+                            className='w-full'
+                            aria-invalid={!!errors.eventTypeId}
+                          >
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value={NO_TYPE}>None</SelectItem>
+                            {eventTypes.map((type) => (
+                              <SelectItem
+                                key={type.id}
+                                value={String(type.id)}
+                                className='capitalize'
+                              >
+                                {type.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    />
+                    <FieldDescription>
+                      Tag meals so they show up on the dietary report.
+                    </FieldDescription>
+                    {errors.eventTypeId && (
+                      <FieldError errors={[errors.eventTypeId]} />
+                    )}
                   </Field>
                   <Field orientation='horizontal' className='gap-4'>
                     <FieldContent>

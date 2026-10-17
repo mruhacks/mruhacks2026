@@ -15,6 +15,8 @@ import {
 import { useNow } from '@/lib/use-now';
 import { cn } from '@/lib/utils';
 
+import { SubeventTypeBadge } from '../subevents/subevent-type-badge';
+
 /** A sub-event slot is minutes long at worst; a minute's resolution is plenty. */
 const TICK_MS = 60_000;
 
@@ -25,6 +27,7 @@ export type CheckInTargetOption = {
   startsAt: string | null;
   endsAt: string | null;
   location: string | null;
+  eventTypeLabel: string | null;
 };
 
 type Props = {
@@ -91,9 +94,12 @@ export function CheckInTargetSelector({
           <p className='text-muted-foreground text-xs font-medium tracking-wide uppercase'>
             Checking in to
           </p>
-          <p className='mt-0.5 truncate text-xl font-semibold sm:text-lg'>
-            {armed ? armed.name : eventName}
-          </p>
+          <div className='mt-0.5 flex min-w-0 items-center gap-2'>
+            <p className='truncate text-xl font-semibold sm:text-lg'>
+              {armed ? armed.name : eventName}
+            </p>
+            {armed && <SubeventTypeBadge label={armed.eventTypeLabel} />}
+          </div>
           <p className='text-muted-foreground mt-0.5 text-sm'>
             {armed ? (
               <>
@@ -146,6 +152,7 @@ export function CheckInTargetSelector({
               >
                 {subevent.name}
                 {ended ? ' (ended)' : ''}
+                <SubeventTypeBadge label={subevent.eventTypeLabel} />
               </SelectItem>
             );
           })}

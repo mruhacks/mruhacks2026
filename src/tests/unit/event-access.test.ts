@@ -15,6 +15,7 @@ describe('canOpenEventDashboard', () => {
     'application:stats:all',
     'team:read:all',
     'rsvp:read:all',
+    'dietary:read:all',
     'article:read:all',
     'event:manage:all',
   ])('%s alone is enough', (slug) => {

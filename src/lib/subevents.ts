@@ -1,7 +1,7 @@
 import { cacheLife, cacheTag } from 'next/cache';
 import { and, asc, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 
-import { checkIns, events } from '@/db/schema';
+import { checkIns, events, eventTypes } from '@/db/schema';
 import { db } from '@/utils/db';
 
 /**
@@ -24,6 +24,7 @@ export type SubeventRow = {
   location: string | null;
   descriptionMarkdown: string | null;
   checkInEnabled: boolean;
+  eventTypeLabel: string | null;
 };
 
 /** Invalidated whenever a schedule entry is created, edited or removed. */
@@ -55,8 +56,10 @@ export async function listSubevents(
       location: events.location,
       descriptionMarkdown: events.descriptionMarkdown,
       checkInEnabled: events.checkInEnabled,
+      eventTypeLabel: eventTypes.label,
     })
     .from(events)
+    .leftJoin(eventTypes, eq(eventTypes.id, events.eventTypeId))
     .where(eq(events.parentEventId, parentEventId))
     .orderBy(asc(events.startsAt), asc(events.name));
 }

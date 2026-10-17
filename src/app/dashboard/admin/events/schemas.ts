@@ -105,6 +105,8 @@ const GEOFENCE_ISSUE = {
  */
 const eventInstantSchema = z.iso.datetime({ offset: true });
 
+const eventTypeIdSchema = z.number().int().positive().nullish();
+
 /**
  * An event's optional custom URL slug (`/dashboard/events/mruhacks-2026`).
  * An empty string is how a form says "no slug" — it normalizes to null on the
@@ -184,6 +186,7 @@ export const updateEventSettingsSchema = z
     teamsEnabled: z.boolean().optional(),
     checkInEnabled: z.boolean().optional(),
     maxTeamSize: z.number().int().positive().nullish(),
+    eventTypeId: eventTypeIdSchema,
   })
   .refine(
     (data) => {
@@ -222,6 +225,7 @@ export const createSubeventSchema = z
     descriptionMarkdown: eventDescriptionSchema.optional(),
     checkInEnabled: z.boolean().optional(),
     location: z.string().trim().max(255).nullish(),
+    eventTypeId: eventTypeIdSchema,
   })
   .refine(
     (data) => !data.endsAt || new Date(data.startsAt) < new Date(data.endsAt),

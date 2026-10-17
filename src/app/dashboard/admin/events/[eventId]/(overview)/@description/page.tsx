@@ -2,6 +2,7 @@ import { Suspense } from 'react';
 import { redirect } from 'next/navigation';
 import { EventSchedule } from '@/app/dashboard/events/[eventId]/event-schedule';
 import { getAdminEventHeader } from '@/lib/admin-event';
+import { listEventTypes } from '@/lib/event-types';
 import { resolveEventId } from '@/lib/events';
 import { serializeInstant } from '@/lib/datetime';
 import { hasPermission } from '@/lib/rbac/authorization';
@@ -30,12 +31,15 @@ async function ScheduleSection({ params }: Props) {
   if (!eventId) return null;
   const user = await getUser();
   if (!user) redirect('/signin');
-  const [event, entries, canManage, canCheckIn] = await Promise.all([
-    getAdminEventHeader(eventId),
-    listSubevents(eventId),
-    hasPermission(user.id, 'event:manage'),
-    hasPermission(user.id, 'checkin:write:all'),
-  ]);
+  const [event, entries, eventTypes, canManage, canCheckIn] = await Promise.all(
+    [
+      getAdminEventHeader(eventId),
+      listSubevents(eventId),
+      listEventTypes(),
+      hasPermission(user.id, 'event:manage'),
+      hasPermission(user.id, 'checkin:write:all'),
+    ],
+  );
   if (!event) return null;
   if (canManage)
     return (
@@ -47,6 +51,7 @@ async function ScheduleSection({ params }: Props) {
         subevents={entries}
         checkInEnabled={event.checkInEnabled}
         canCheckIn={canCheckIn}
+        eventTypes={eventTypes}
         checkInCounts={
           canCheckIn && event.checkInEnabled
             ? await getSubeventCheckInCounts(entries.map((entry) => entry.id))

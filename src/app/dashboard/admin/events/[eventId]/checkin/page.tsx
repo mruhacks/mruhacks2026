@@ -101,6 +101,7 @@ async function CheckInContent({
       startsAt: row.startsAt ? serializeInstant(row.startsAt) : null,
       endsAt: row.endsAt ? serializeInstant(row.endsAt) : null,
       location: row.location,
+      eventTypeLabel: row.eventTypeLabel,
     }));
 
   const armed =

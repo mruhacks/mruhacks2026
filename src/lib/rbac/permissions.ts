@@ -20,6 +20,7 @@ export type PermissionEntity =
   | 'event'
   | 'participant'
   | 'checkin'
+  | 'dietary'
   | 'application'
   | 'article'
   | 'system';
@@ -122,6 +123,10 @@ const CORE_PERMISSIONS = [
   {
     slug: 'checkin:override:all',
     description: 'Check in to schedule entries outside their scheduled time',
+  },
+  {
+    slug: 'dietary:read:all',
+    description: "View an event's dietary report",
   },
   {
     slug: 'rsvp:read:all',

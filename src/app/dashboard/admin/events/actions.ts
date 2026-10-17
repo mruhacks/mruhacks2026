@@ -26,6 +26,7 @@ import {
   yearsOfStudy,
   eventRsvpWaves,
   checkIns,
+  eventTypes,
   teams,
   teamMembers,
 } from '@/db/schema';
@@ -633,6 +634,15 @@ export async function updateEventSettings(
     return fail('A schedule entry cannot be the featured event.');
   }
 
+  if (input.eventTypeId != null) {
+    const [type] = await db
+      .select({ id: eventTypes.id })
+      .from(eventTypes)
+      .where(eq(eventTypes.id, input.eventTypeId))
+      .limit(1);
+    if (!type) return fail('Unknown schedule entry type.');
+  }
+
   // undefined leaves the stored slug alone; '' or null clears it back to
   // uuid-only addressing.
   const finalSlug =
@@ -707,6 +717,10 @@ export async function updateEventSettings(
         longitude,
         radiusMeters,
         isFeatured: input.isFeatured ?? eventRow.isFeatured,
+        eventTypeId:
+          input.eventTypeId !== undefined
+            ? input.eventTypeId
+            : eventRow.eventTypeId,
         updatedAt: new Date(),
       })
       .where(eq(events.id, eventId));

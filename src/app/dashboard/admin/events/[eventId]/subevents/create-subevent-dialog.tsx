@@ -30,18 +30,30 @@ import {
   FieldGroup,
   FieldLabel,
 } from '@/components/ui/field';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
+import type { EventTypeOption } from '@/lib/event-types';
+
+const NO_TYPE = 'none';
 
 /** Adds a schedule entry, converting browser wall-clock inputs to UTC instants. */
 export function CreateSubeventDialog({
   eventId,
   defaultStartsAt,
+  eventTypes,
 }: {
   eventId: string;
   /** The parent's start instant (ISO with `Z`), used to seed the date. */
   defaultStartsAt: string | null;
+  eventTypes: EventTypeOption[];
 }) {
   const [open, setOpen] = React.useState(false);
   const [submitError, setSubmitError] = React.useState<string | null>(null);
@@ -64,6 +76,7 @@ export function CreateSubeventDialog({
       descriptionMarkdown: '',
       checkInEnabled: true,
       location: '',
+      eventTypeId: null,
     },
   });
 
@@ -197,6 +210,48 @@ export function CreateSubeventDialog({
               </Field>
             </FieldGroup>
 
+            <Field className='gap-1.5' data-invalid={!!errors.eventTypeId}>
+              <FieldLabel htmlFor='subevent-type'>Type (optional)</FieldLabel>
+              <FieldDescription>
+                Tag meals so they show up on the dietary report.
+              </FieldDescription>
+              <Controller
+                name='eventTypeId'
+                control={control}
+                render={({ field }) => (
+                  <Select
+                    value={field.value ? String(field.value) : NO_TYPE}
+                    onValueChange={(value) => {
+                      setSubmitError(null);
+                      field.onChange(value === NO_TYPE ? null : Number(value));
+                    }}
+                  >
+                    <SelectTrigger
+                      id='subevent-type'
+                      className='w-full'
+                      aria-invalid={!!errors.eventTypeId}
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NO_TYPE}>None</SelectItem>
+                      {eventTypes.map((type) => (
+                        <SelectItem
+                          key={type.id}
+                          value={String(type.id)}
+                          className='capitalize'
+                        >
+                          {type.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+              {errors.eventTypeId && (
+                <FieldError errors={[errors.eventTypeId]} />
+              )}
+            </Field>
             <Field className='gap-1.5' data-invalid={!!errors.location}>
               <FieldLabel htmlFor='subevent-location'>
                 Location (optional)

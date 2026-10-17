@@ -1,6 +1,12 @@
 import * as React from 'react';
 import { redirect } from 'next/navigation';
-import { CalendarCheck, CircleCheckBig, ThumbsUp, Users } from 'lucide-react';
+import {
+  CalendarCheck,
+  CircleCheckBig,
+  ThumbsUp,
+  Users,
+  Utensils,
+} from 'lucide-react';
 
 import { getAdminEventHeader, getEventSummaryCounts } from '@/lib/admin-event';
 import { resolveEventId } from '@/lib/events';
@@ -62,6 +68,7 @@ async function SummaryTiles({
     canCheckIn,
     canReadTeams,
     canReadRsvp,
+    canReadDietary,
   ] = await Promise.all([
     getAdminEventHeader(eventId),
     getEventSummaryCounts(eventId),
@@ -69,6 +76,7 @@ async function SummaryTiles({
     hasPermission(user.id, 'checkin:write:all'),
     hasPermission(user.id, 'team:read:all'),
     hasPermission(user.id, 'rsvp:read:all'),
+    hasPermission(user.id, 'dietary:read:all'),
   ]);
 
   if (!event) return null;
@@ -81,11 +89,17 @@ async function SummaryTiles({
 
   // Nothing visible to this viewer: render no grid at all rather than an
   // empty shell.
-  if (!canReadApplications && !showCheckIn && !showTeams && !showRsvp)
+  if (
+    !canReadApplications &&
+    !showCheckIn &&
+    !showTeams &&
+    !showRsvp &&
+    !canReadDietary
+  )
     return null;
 
   // Every tile is a whole-card link to its tool page — no inline buttons, so
-  // the four read identically and the click target is the obvious one.
+  // they all read identically and the click target is the obvious one.
   return (
     <TileGrid>
       {canReadApplications && (
@@ -106,6 +120,16 @@ async function SummaryTiles({
           label='Check-ins'
           value={counts.checkIns.toLocaleString()}
           href={`${base}/checkin`}
+        />
+      )}
+
+      {canReadDietary && (
+        <StatTile
+          icon={<Utensils className='size-4' />}
+          label='Dietary'
+          value={counts.attendees.toLocaleString()}
+          footnote='expected for catering'
+          href={`${base}/dietary`}
         />
       )}
 

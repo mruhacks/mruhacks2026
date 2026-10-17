@@ -14,7 +14,7 @@
 import { and, eq, isNotNull, isNull } from 'drizzle-orm';
 import { revalidatePath, updateTag } from 'next/cache';
 
-import { checkIns, events } from '@/db/schema';
+import { checkIns, events, eventTypes } from '@/db/schema';
 import {
   adminEventCacheTag,
   eventApplicationsCacheTag,
@@ -77,6 +77,15 @@ export async function createSubevent(
     .limit(1);
   if (!parent) return fail('Event not found.');
 
+  if (parsed.data.eventTypeId != null) {
+    const [type] = await db
+      .select({ id: eventTypes.id })
+      .from(eventTypes)
+      .where(eq(eventTypes.id, parsed.data.eventTypeId))
+      .limit(1);
+    if (!type) return fail('Unknown schedule entry type.');
+  }
+
   // Every participation-shaped flag is pinned off rather than left to its
   // column default, so a sub-event can never drift into an application, RSVP,
   // team or wallet-pass surface. `isFeatured` especially: that index is
@@ -85,6 +94,7 @@ export async function createSubevent(
     .insert(events)
     .values({
       parentEventId,
+      eventTypeId: parsed.data.eventTypeId ?? null,
       name: parsed.data.name,
       startsAt: new Date(parsed.data.startsAt),
       endsAt: parsed.data.endsAt ? new Date(parsed.data.endsAt) : null,

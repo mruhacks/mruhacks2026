@@ -7,8 +7,11 @@ import { ScheduleDayGroups } from '@/components/schedule-day-groups';
 import { serializeInstant } from '@/lib/datetime';
 import { LocalDateRange } from '@/components/local-date-time';
 import { Button } from '@/components/ui/button';
+import type { EventTypeOption } from '@/lib/event-types';
 import { isScheduleVisible, type SubeventRow } from '@/lib/subevents';
 import { cn } from '@/lib/utils';
+
+import { SubeventTypeBadge } from './subevent-type-badge';
 
 import { ScheduleCard } from '@/components/schedule-card';
 import { CreateSubeventDialog } from './create-subevent-dialog';
@@ -25,6 +28,7 @@ type Props = {
   canCheckIn: boolean;
   subevents: SubeventRow[];
   checkInCounts: Record<string, number>;
+  eventTypes: EventTypeOption[];
 };
 
 export function SubeventList({
@@ -37,6 +41,7 @@ export function SubeventList({
   checkInCounts,
   checkInEnabled,
   canCheckIn,
+  eventTypes,
 }: Props) {
   const base = `/dashboard/admin/events/${segment}`;
 
@@ -47,6 +52,7 @@ export function SubeventList({
         <CreateSubeventDialog
           eventId={eventId}
           defaultStartsAt={eventStartsAt}
+          eventTypes={eventTypes}
         />
       }
     >
@@ -112,7 +118,10 @@ function SubeventRowItem({
       className='flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between'
     >
       <div className='min-w-0'>
-        <p className='truncate font-medium'>{subevent.name}</p>
+        <div className='flex min-w-0 items-center gap-2'>
+          <p className='truncate font-medium'>{subevent.name}</p>
+          <SubeventTypeBadge label={subevent.eventTypeLabel} />
+        </div>
         <p className='text-muted-foreground mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm'>
           <LocalDateRange
             start={subevent.startsAt}
