@@ -3,7 +3,6 @@ import { eq } from 'drizzle-orm';
 import { db } from '@/utils/db';
 import { events } from '@/db/schema';
 import { eventPath } from '@/lib/event-slug';
-import { EVENTS_CACHE_TAG } from '@/lib/events';
 
 export const FEATURED_EVENT_CACHE_TAG = 'featured-event';
 const DEFAULT_REGISTER_URL = '/signup';
@@ -65,35 +64,4 @@ export async function getFeaturedEventSchedule(): Promise<FeaturedEventSchedule 
     startsAt: featured.startsAt?.toISOString() ?? null,
     endsAt: featured.endsAt?.toISOString() ?? null,
   };
-}
-
-export type FeaturedEvent = {
-  id: string;
-  name: string;
-  startsAt: Date | null;
-  endsAt: Date | null;
-};
-
-/**
- * The featured event itself, or null when none is featured. Also tagged with
- * `EVENTS_CACHE_TAG` so an edit to its name or dates (which doesn't touch the
- * featured flag) still reaches the lobby displays.
- */
-export async function getFeaturedEvent(): Promise<FeaturedEvent | null> {
-  'use cache';
-  cacheTag(FEATURED_EVENT_CACHE_TAG, EVENTS_CACHE_TAG);
-  cacheLife('minutes');
-
-  const [featured] = await db
-    .select({
-      id: events.id,
-      name: events.name,
-      startsAt: events.startsAt,
-      endsAt: events.endsAt,
-    })
-    .from(events)
-    .where(eq(events.isFeatured, true))
-    .limit(1);
-
-  return featured ?? null;
 }

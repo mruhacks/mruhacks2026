@@ -1,11 +1,11 @@
 import { cacheLife, cacheTag } from 'next/cache';
 import { eq } from 'drizzle-orm';
 
-import { displaySettings } from '@/db/schema';
+import { displaySettings, events } from '@/db/schema';
 import type { DisplayTheme } from '@/db/display';
 import { db } from '@/utils/db';
 import { serializeInstant } from '@/lib/datetime';
-import { getFeaturedEvent } from '@/lib/featured-event';
+import { EVENTS_CACHE_TAG } from '@/lib/events';
 import { isScheduleVisible, listSubevents } from '@/lib/subevents';
 import type { DisplayFeed } from '@/lib/display/schedule';
 
@@ -41,18 +41,27 @@ export async function getDisplaySettings(): Promise<DisplaySettings> {
 
 /**
  * Everything a screen shows: the featured event, its visible schedule and the
- * display settings, serialized for the wire. Its tags come from the cached
- * reads inside it (`FEATURED_EVENT_CACHE_TAG`, `EVENTS_CACHE_TAG`, the
- * parent's sub-events tag and `DISPLAY_SETTINGS_CACHE_TAG`), which the admin
- * event, sub-event and display-settings actions already clear; the explicit
- * `cacheLife` here overrides their shorter lifetimes.
+ * display settings, serialized for the wire. Tagged with `EVENTS_CACHE_TAG`
+ * (also cleared by the admin event actions, same as `getAllEvents`) plus the
+ * tags the nested `listSubevents`/`getDisplaySettings` reads carry; the
+ * explicit `cacheLife` here overrides their shorter lifetimes.
  */
 export async function loadDisplayFeed(): Promise<DisplayFeed> {
   'use cache';
+  cacheTag(EVENTS_CACHE_TAG);
   cacheLife('days');
 
-  const [event, settings] = await Promise.all([
-    getFeaturedEvent(),
+  const [[event], settings] = await Promise.all([
+    db
+      .select({
+        id: events.id,
+        name: events.name,
+        startsAt: events.startsAt,
+        endsAt: events.endsAt,
+      })
+      .from(events)
+      .where(eq(events.isFeatured, true))
+      .limit(1),
     getDisplaySettings(),
   ]);
   const subevents = event ? await listSubevents(event.id) : [];
