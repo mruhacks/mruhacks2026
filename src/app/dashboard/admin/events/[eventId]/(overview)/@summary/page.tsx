@@ -4,6 +4,7 @@ import {
   CalendarCheck,
   CircleCheckBig,
   Gavel,
+  LayoutGrid,
   ThumbsUp,
   Trophy,
   Users,
@@ -250,13 +251,25 @@ async function SummaryTiles({
         />
       )}
 
+      {/* Deactivating a project is a judging-setup action, so this follows
+          the same permission as the Judges tile. */}
+      {showJudging && judging && (
+        <StatTile
+          icon={<LayoutGrid className='size-4' />}
+          label='Expo projects'
+          value={judging.judgedProjects.toLocaleString()}
+          footnote='in judging'
+          href={`${base}/judging/projects`}
+        />
+      )}
+
       {showResults && judging && (
         <StatTile
           icon={<Trophy className='size-4' />}
           label={canViewResults ? 'Judging results' : 'Awards'}
           value={judging.votes.toLocaleString()}
           footnote='votes cast'
-          href={`${base}/judging/results`}
+          href={`${base}/judging/results/overall`}
         />
       )}
     </TileGrid>

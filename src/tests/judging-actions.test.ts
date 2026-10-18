@@ -47,6 +47,7 @@ import { getUser } from '@/utils/auth';
 import {
   addEventJudge,
   getJudgingAdmin,
+  getJudgingProjects,
   getJudgingResults,
   removeEventJudge,
   resendJudgeInvite,
@@ -1789,10 +1790,9 @@ describe('table numbers', () => {
       rowAlphabet: 'roman',
       columnAlphabet: 'arabic',
     });
+    const rows = unwrap(await getJudgingProjects(eventId));
     expect(
-      projects.map(
-        (id) => admin.projects.find((row) => row.id === id)?.tableLabel,
-      ),
+      projects.map((id) => rows.find((row) => row.id === id)?.tableLabel),
     ).toEqual(['I-1', 'II-1', 'I-2', 'II-2']);
 
     expect(

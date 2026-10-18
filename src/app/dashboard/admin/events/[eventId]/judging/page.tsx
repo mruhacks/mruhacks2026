@@ -11,16 +11,15 @@ import { hasPermission, requirePermission } from '@/lib/rbac/authorization';
 import { getUser } from '@/utils/auth';
 
 import { CriteriaCard } from './criteria-card';
-import { JudgingProjectsCard } from './projects-card';
 import { RosterCard } from './roster-card';
 import { TableLayoutCard } from './table-layout-card';
 
 type Props = { params: Promise<{ eventId: string }> };
 
 /**
- * Expo judging setup: criteria, the judge roster, the table layout, and which
- * projects are in play. Sync shell, with the session and reads behind Suspense like every
- * page here.
+ * Expo judging setup: criteria, the judge roster and the table layout. Which
+ * projects are in play has its own page, `judging/projects`. Sync shell, with
+ * the session and reads behind Suspense like every page here.
  */
 export default function JudgingRoute({ params }: Props) {
   return (
@@ -75,7 +74,9 @@ async function JudgingContent({
         {/* The results page serves both rankings and awards. */}
         {(canViewResults || canAward) && (
           <Button asChild variant='outline'>
-            <Link href={`/dashboard/admin/events/${segment}/judging/results`}>
+            <Link
+              href={`/dashboard/admin/events/${segment}/judging/results/overall`}
+            >
               <Trophy aria-hidden />
               {canViewResults ? 'Results' : 'Awards'}
             </Link>
@@ -94,7 +95,6 @@ async function JudgingContent({
         layout={data.tableLayout}
         locked={data.layoutLocked}
       />
-      <JudgingProjectsCard eventId={eventId} projects={data.projects} />
     </div>
   );
 }

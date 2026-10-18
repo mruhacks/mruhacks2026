@@ -755,16 +755,31 @@ export async function replayEventVotes(
 }
 
 /** Headline numbers for the event dashboard's judging tiles. */
-export async function getJudgingTileCounts(
-  eventId: string,
-): Promise<{ judges: number; votes: number }> {
-  const [row] = await db.execute<{ judges: number; votes: number }>(sql`
+export async function getJudgingTileCounts(eventId: string): Promise<{
+  judges: number;
+  votes: number;
+  /** Published and not deactivated — the projects judges are sent to. */
+  judgedProjects: number;
+}> {
+  const [row] = await db.execute<{
+    judges: number;
+    votes: number;
+    judged_projects: number;
+  }>(sql`
     SELECT
       (SELECT count(*)::int FROM ${eventJudges} WHERE event_id = ${eventId}) AS judges,
       (SELECT count(*)::int
          FROM ${judgingVotes} v
          JOIN ${judgingCriteria} c ON c.id = v.criterion_id
-        WHERE c.event_id = ${eventId}) AS votes
+        WHERE c.event_id = ${eventId}) AS votes,
+      (SELECT count(*)::int FROM ${submissions}
+        WHERE event_id = ${eventId}
+          AND published
+          AND deactivated_at IS NULL) AS judged_projects
   `);
-  return { judges: Number(row?.judges ?? 0), votes: Number(row?.votes ?? 0) };
+  return {
+    judges: Number(row?.judges ?? 0),
+    votes: Number(row?.votes ?? 0),
+    judgedProjects: Number(row?.judged_projects ?? 0),
+  };
 }
