@@ -11,14 +11,13 @@ import bannerWhite from '@/assets/display/banner-white.png';
 import arcurveLogo from '@/assets/display/arcurve-logo.png';
 import mruIieLogo from '@/assets/sponsor-logos/mru-iie-logo-sponsor.png';
 import mruLibraryLogo from '@/assets/sponsor-logos/mru-library-logo-sponsor.png';
-import { LocalDateTime } from '@/components/local-date-time';
+import { LocalDateRange, LocalDateTime } from '@/components/local-date-time';
 import { useNow } from '@/lib/use-now';
 import {
   getVisibleEntries,
   type DisplayFeed,
   type DisplayScheduleEntry,
 } from '@/lib/display/schedule';
-import { Aurora } from './aurora';
 import styles from './display.module.css';
 
 const SPONSORS: { name: string; logo: StaticImageData }[] = [
@@ -60,26 +59,22 @@ function useSlide(): Slide {
   return slide;
 }
 
+const cx = (...names: (string | false)[]) => names.filter(Boolean).join(' ');
+
+/** The screen's content; `DisplayApp` owns the shell and Aurora around it. */
 export function DisplayScreen({ feed }: { feed: DisplayFeed }) {
   const slide = useSlide();
   const dark = feed.settings.theme === 'dark';
-  const { showClock } = feed.settings;
-  const cx = (...names: (string | false)[]) => names.filter(Boolean).join(' ');
 
+  // Both banners load eagerly so a theme switch never shows a blank; only
+  // the one on screen is fetched at high priority.
   return (
-    <main
-      className={cx(
-        styles.shell,
-        dark && styles.dark,
-        showClock && styles.withSidebar,
-      )}
-    >
-      <Aurora lightMode={!dark} />
-
+    <>
       <Image
         src={bannerBlack}
         alt='MRUHacks 2026'
-        priority
+        loading='eager'
+        fetchPriority={dark ? 'low' : 'high'}
         className={cx(
           styles.bannerImage,
           (slide.kind !== 'banner' || dark) && styles.hidden,
@@ -89,7 +84,8 @@ export function DisplayScreen({ feed }: { feed: DisplayFeed }) {
         src={bannerWhite}
         alt=''
         aria-hidden
-        priority
+        loading='eager'
+        fetchPriority={dark ? 'high' : 'low'}
         className={cx(
           styles.bannerImage,
           (slide.kind !== 'banner' || !dark) && styles.hidden,
@@ -118,8 +114,8 @@ export function DisplayScreen({ feed }: { feed: DisplayFeed }) {
         <strong className={styles.sponsorLabel}>Brought to you by</strong>
       </section>
 
-      {showClock && <ClockAndSchedule schedule={feed.schedule} />}
-    </main>
+      {feed.settings.showClock && <ClockAndSchedule schedule={feed.schedule} />}
+    </>
   );
 }
 
@@ -127,7 +123,10 @@ function ClockAndSchedule({ schedule }: { schedule: DisplayScheduleEntry[] }) {
   const now = useNow(CLOCK_TICK_MS);
   if (now === null) return null;
 
-  const { current, progress, upcoming } = getVisibleEntries(schedule, now);
+  const { current, progress, ongoing, upcoming } = getVisibleEntries(
+    schedule,
+    now,
+  );
   const [next, ...later] = upcoming;
 
   return (
@@ -145,7 +144,7 @@ function ClockAndSchedule({ schedule }: { schedule: DisplayScheduleEntry[] }) {
         />
       </section>
 
-      {(current || upcoming.length > 0) && (
+      {(current || ongoing.length > 0 || upcoming.length > 0) && (
         <section className={styles.schedulePanel} aria-label='Event schedule'>
           {current && (
             <article className={styles.currentEvent}>
@@ -158,13 +157,11 @@ function ClockAndSchedule({ schedule }: { schedule: DisplayScheduleEntry[] }) {
                 </span>
               )}
               <strong className={styles.currentEventTime}>
-                <LocalDateTime value={current.startsAt} timeOnly />
-                {current.endsAt && (
-                  <>
-                    {' – '}
-                    <LocalDateTime value={current.endsAt} timeOnly />
-                  </>
-                )}
+                <LocalDateRange
+                  start={current.startsAt}
+                  end={current.endsAt}
+                  timeOnly
+                />
               </strong>
               {current.endsAt && (
                 <div className={styles.progressTrack} aria-hidden>
@@ -187,26 +184,54 @@ function ClockAndSchedule({ schedule }: { schedule: DisplayScheduleEntry[] }) {
             </article>
           )}
           <div className={styles.scheduleUpcoming}>
+            {/* Longer sessions still running under `current` (hacking during
+                lunch) — still joinable, so they stay on screen. */}
+            {ongoing.map((entry) => (
+              <ScheduleRow key={entry.id} entry={entry}>
+                {entry.endsAt ? (
+                  // Long sessions often end on another day, so name it.
+                  <>
+                    Until{' '}
+                    <LocalDateTime
+                      value={entry.endsAt}
+                      weekday='short'
+                      timeStyle='short'
+                    />
+                  </>
+                ) : (
+                  'Now'
+                )}
+              </ScheduleRow>
+            ))}
             {later.map((entry) => (
-              <article className={styles.upcomingEvent} key={entry.id}>
-                <div className={styles.eventDetails}>
-                  <strong className={styles.upcomingEventTitle}>
-                    {entry.name}
-                  </strong>
-                  {entry.location && (
-                    <span className={styles.upcomingEventLocation}>
-                      {entry.location}
-                    </span>
-                  )}
-                </div>
-                <strong className={styles.upcomingEventTime}>
-                  <LocalDateTime value={entry.startsAt} timeOnly />
-                </strong>
-              </article>
+              <ScheduleRow key={entry.id} entry={entry}>
+                <LocalDateTime value={entry.startsAt} timeOnly />
+              </ScheduleRow>
             ))}
           </div>
         </section>
       )}
     </>
+  );
+}
+
+function ScheduleRow({
+  entry,
+  children,
+}: {
+  entry: DisplayScheduleEntry;
+  /** The row's time column. */
+  children: React.ReactNode;
+}) {
+  return (
+    <article className={styles.upcomingEvent}>
+      <div className={styles.eventDetails}>
+        <strong className={styles.upcomingEventTitle}>{entry.name}</strong>
+        {entry.location && (
+          <span className={styles.upcomingEventLocation}>{entry.location}</span>
+        )}
+      </div>
+      <strong className={styles.upcomingEventTime}>{children}</strong>
+    </article>
   );
 }

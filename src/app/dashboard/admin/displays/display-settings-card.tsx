@@ -4,7 +4,7 @@ import * as React from 'react';
 import { toast } from 'sonner';
 
 import { updateDisplaySettings } from './actions';
-import type { DisplaySettings } from '@/lib/display/feed';
+import type { DisplaySettings } from '@/lib/display/schedule';
 import {
   Card,
   CardContent,
@@ -46,11 +46,18 @@ export function DisplaySettingsCard({ initial }: { initial: DisplaySettings }) {
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
-    const result = await updateDisplaySettings(settings);
-    setSaving(false);
-    if (!result.success) return setError(result.error);
-    setSaved(settings);
-    toast.success('Display settings saved');
+    try {
+      const result = await updateDisplaySettings(settings);
+      if (!result.success) return setError(result.error);
+      setSaved(settings);
+      toast.success('Display settings saved');
+    } catch {
+      setError(
+        'Could not reach the server. Check your connection and try again.',
+      );
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (

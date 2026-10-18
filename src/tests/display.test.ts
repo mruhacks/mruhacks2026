@@ -1,5 +1,13 @@
-import { describe, test, expect, beforeAll, beforeEach, vi } from 'vitest';
-import { and, eq } from 'drizzle-orm';
+import {
+  describe,
+  test,
+  expect,
+  afterAll,
+  beforeAll,
+  beforeEach,
+  vi,
+} from 'vitest';
+import { and, eq, inArray } from 'drizzle-orm';
 
 import { db } from '@/utils/db';
 import {
@@ -57,8 +65,35 @@ beforeEach(async () => {
 });
 
 describe('feed', () => {
+  // These tests need control of which event is featured; put the seeded one
+  // back afterwards so later test files (and the dev app) still find it.
+  let featuredIds: string[] = [];
+  beforeAll(async () => {
+    featuredIds = (
+      await db
+        .select({ id: events.id })
+        .from(events)
+        .where(eq(events.isFeatured, true))
+    ).map((row) => row.id);
+  });
+  afterAll(async () => {
+    await db
+      .update(events)
+      .set({ isFeatured: false })
+      .where(eq(events.isFeatured, true));
+    if (featuredIds.length > 0) {
+      await db
+        .update(events)
+        .set({ isFeatured: true })
+        .where(inArray(events.id, featuredIds));
+    }
+  });
+
   test('serves the featured event schedule and settings, unauthenticated', async () => {
-    await db.update(events).set({ isFeatured: false });
+    await db
+      .update(events)
+      .set({ isFeatured: false })
+      .where(eq(events.isFeatured, true));
     const [parent] = await db
       .insert(events)
       .values({
@@ -88,7 +123,6 @@ describe('feed', () => {
     expect(res.status).toBe(200);
     expect(res.headers.get('cache-control')).toBe('no-store');
     expect(await res.json()).toEqual({
-      event: { name: 'Display Test Hackathon', startsAt: null, endsAt: null },
       schedule: [
         {
           id: expect.any(String),
@@ -105,10 +139,12 @@ describe('feed', () => {
     await db.delete(events).where(eq(events.id, parent.id));
   });
 
-  test('with no featured event: no event and an empty schedule', async () => {
-    await db.update(events).set({ isFeatured: false });
+  test('with no featured event: an empty schedule', async () => {
+    await db
+      .update(events)
+      .set({ isFeatured: false })
+      .where(eq(events.isFeatured, true));
     const body = await (await getFeed()).json();
-    expect(body.event).toBeNull();
     expect(body.schedule).toEqual([]);
   });
 });

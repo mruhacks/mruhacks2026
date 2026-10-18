@@ -70,24 +70,24 @@ const USER_TILE_LINKS = [
 const FEATURED_EVENT_COUNT_PERMISSION = 'application:stats:all';
 
 /**
- * Buttons inside the featured event's tile. `path` deep-links to the tool's
- * own page under the event dashboard, and each one checks the permission
- * that page gates itself on. Applications aren't listed — the tile already
- * links to the event dashboard, where the applications table lives.
+ * Buttons inside the featured event's tile, each checking the permission its
+ * page gates itself on. Check-in deep-links under the event dashboard; the
+ * lobby displays always follow the featured event, so their settings live
+ * here too. Applications aren't listed — the tile already links to the event
+ * dashboard, where the applications table lives.
  */
 const FEATURED_EVENT_LINKS = [
   {
     label: 'Check-in',
-    path: 'checkin',
+    href: (eventPath: string) => `${eventPath}/checkin`,
     permission: 'checkin:write:all',
   },
+  {
+    label: 'Displays',
+    href: () => '/dashboard/admin/displays',
+    permission: 'display:manage:all',
+  },
 ];
-
-/**
- * Lobby displays have no count on the tile: it would need invalidating from
- * the refresh-token route, where `updateTag` isn't available.
- */
-const DISPLAYS_PERMISSION = 'display:manage:all';
 
 function pluralize(count: number, unit: string) {
   return count === 1 ? unit : `${unit}s`;
@@ -275,17 +275,10 @@ async function AdminPanel({ permissions }: { permissions: Set<string> }) {
     FEATURED_EVENT_COUNT_PERMISSION,
   );
 
-  const canSeeDisplays = anyPermissionMatches(permissions, DISPLAYS_PERMISSION);
-
   const counts = await getAdminCounts();
   const featured = canSeeFeaturedEvent ? counts.featuredEvent : null;
 
-  if (
-    visibleTiles.length === 0 &&
-    visibleUserLinks.length === 0 &&
-    !featured &&
-    !canSeeDisplays
-  ) {
+  if (visibleTiles.length === 0 && visibleUserLinks.length === 0 && !featured) {
     return null;
   }
 
@@ -311,7 +304,7 @@ async function AdminPanel({ permissions }: { permissions: Set<string> }) {
               anyPermissionMatches(permissions, link.permission),
             ).map((link) => (
               <Button key={link.label} asChild variant='outline' size='sm'>
-                <Link href={`${adminEventPath(featured)}/${link.path}`}>
+                <Link href={link.href(adminEventPath(featured))}>
                   {link.label}
                 </Link>
               </Button>
@@ -346,13 +339,6 @@ async function AdminPanel({ permissions }: { permissions: Set<string> }) {
               href={href}
             />
           ))}
-        {canSeeDisplays && (
-          <AdminTile
-            label='Lobby displays'
-            unit='Display'
-            href='/dashboard/admin/displays'
-          />
-        )}
       </div>
     </section>
   );
@@ -365,8 +351,7 @@ async function AdminSection() {
     ADMIN_TILES.some((t) => t.visible(permissions)) ||
     USER_TILE_LINKS.some((l) =>
       anyPermissionMatches(permissions, l.permission),
-    ) ||
-    anyPermissionMatches(permissions, DISPLAYS_PERMISSION);
+    );
 
   if (!hasAnyAccess) return null;
 

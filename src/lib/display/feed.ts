@@ -2,12 +2,11 @@ import { cacheLife, cacheTag } from 'next/cache';
 import { eq } from 'drizzle-orm';
 
 import { displaySettings, events } from '@/db/schema';
-import type { DisplayTheme } from '@/db/display';
 import { db } from '@/utils/db';
 import { serializeInstant } from '@/lib/datetime';
 import { EVENTS_CACHE_TAG } from '@/lib/events';
 import { isScheduleVisible, listSubevents } from '@/lib/subevents';
-import type { DisplayFeed } from '@/lib/display/schedule';
+import type { DisplayFeed, DisplaySettings } from '@/lib/display/schedule';
 
 /*
  * Every screen polls the feed every 15 seconds, so it's served from cache and
@@ -18,8 +17,6 @@ import type { DisplayFeed } from '@/lib/display/schedule';
  */
 
 export const DISPLAY_SETTINGS_CACHE_TAG = 'display-settings';
-
-export type DisplaySettings = { showClock: boolean; theme: DisplayTheme };
 
 const DEFAULT_SETTINGS: DisplaySettings = { showClock: false, theme: 'light' };
 
@@ -40,7 +37,7 @@ export async function getDisplaySettings(): Promise<DisplaySettings> {
 }
 
 /**
- * Everything a screen shows: the featured event, its visible schedule and the
+ * Everything a screen shows: the featured event's visible schedule and the
  * display settings, serialized for the wire. Tagged with `EVENTS_CACHE_TAG`
  * (also cleared by the admin event actions, same as `getAllEvents`) plus the
  * tags the nested `listSubevents`/`getDisplaySettings` reads carry; the
@@ -53,12 +50,7 @@ export async function loadDisplayFeed(): Promise<DisplayFeed> {
 
   const [[event], settings] = await Promise.all([
     db
-      .select({
-        id: events.id,
-        name: events.name,
-        startsAt: events.startsAt,
-        endsAt: events.endsAt,
-      })
+      .select({ id: events.id })
       .from(events)
       .where(eq(events.isFeatured, true))
       .limit(1),
@@ -67,13 +59,6 @@ export async function loadDisplayFeed(): Promise<DisplayFeed> {
   const subevents = event ? await listSubevents(event.id) : [];
 
   return {
-    event: event
-      ? {
-          name: event.name,
-          startsAt: serializeInstant(event.startsAt),
-          endsAt: serializeInstant(event.endsAt),
-        }
-      : null,
     schedule: subevents.filter(isScheduleVisible).map((entry) => ({
       id: entry.id,
       name: entry.name,
