@@ -1,9 +1,9 @@
 /**
  * Differential tests: our Gavel port against Gavel itself.
  *
- * vendor/gavel is an unmodified copy of upstream Gavel; vendor/gavel-oracle
- * runs it (Flask app, SQLAlchemy models, numpy/scipy `crowd_bt`) as a child
- * process. Two layers are compared:
+ * vendor/gavel.tar.gz is an unmodified copy of upstream Gavel, unpacked in the
+ * oracle's image; vendor/gavel-oracle runs it (Flask app, SQLAlchemy models,
+ * numpy/scipy `crowd_bt`) as a child process. Two layers are compared:
  *
  * - `crowd_bt`: `update`, `expected_information_gain`, `betaln` and `psi` on
  *   thousands of random inputs, including the corners (tiny σ², lopsided
