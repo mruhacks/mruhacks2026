@@ -22,6 +22,12 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { JUDGE_PRIOR } from '@/lib/judging/crowd-bt';
 import { MAX_PLACEMENT } from '@/lib/judging/limits';
 import { reliabilityMean } from '@/lib/judging/results';
@@ -30,6 +36,39 @@ import { reliabilityMean } from '@/lib/judging/results';
 const POLL_MS = 15_000;
 
 const formatNumber = (value: number) => value.toFixed(3);
+
+/**
+ * A right-aligned header for one of Crowd-BT's statistics. `normal-case`
+ * keeps the table's uppercase styling from rendering μ and σ as Μ and Σ.
+ */
+function StatHead({
+  symbol,
+  label,
+  description,
+}: {
+  symbol: string;
+  label: string;
+  description: string;
+}) {
+  return (
+    <TableHead className='text-right normal-case'>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type='button'
+            aria-label={label}
+            className='cursor-help underline decoration-dotted underline-offset-4'
+          >
+            {symbol}
+          </button>
+        </TooltipTrigger>
+        <TooltipContent className='max-w-64 text-left'>
+          {description}
+        </TooltipContent>
+      </Tooltip>
+    </TableHead>
+  );
+}
 const formatPercent = (value: number) => `${Math.round(value * 100)}%`;
 
 /**
@@ -87,112 +126,126 @@ export function ResultsView({
           />
         </Card>
       ) : (
-        <Tabs defaultValue='overall'>
-          <TabsList className='max-w-full flex-wrap'>
-            <TabsTrigger value='overall'>Overall</TabsTrigger>
+        <TooltipProvider>
+          <Tabs defaultValue='overall'>
+            <TabsList className='max-w-full flex-wrap'>
+              <TabsTrigger value='overall'>Overall</TabsTrigger>
+              {results.byCriterion.map((criterion) => (
+                <TabsTrigger key={criterion.id} value={criterion.id}>
+                  {criterion.name}
+                </TabsTrigger>
+              ))}
+              <TabsTrigger value='judges'>Judges</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value='overall'>
+              <Card className='py-0'>
+                <ProjectTable rows={results.overall} award={award} showScore />
+              </Card>
+            </TabsContent>
+
             {results.byCriterion.map((criterion) => (
-              <TabsTrigger key={criterion.id} value={criterion.id}>
-                {criterion.name}
-              </TabsTrigger>
+              <TabsContent key={criterion.id} value={criterion.id}>
+                <Card className='py-0'>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className='w-12'>#</TableHead>
+                        <TableHead className='w-16'>Table</TableHead>
+                        <TableHead>Project</TableHead>
+                        <StatHead
+                          symbol='μ'
+                          label='Mean'
+                          description='The estimated quality score for this criterion; rows are ranked by it. Starts at 0 and moves up with each win and down with each loss. Only the relative order is meaningful.'
+                        />
+                        <StatHead
+                          symbol='σ²'
+                          label='Variance'
+                          description="How uncertain the estimate is. Starts at 1 and shrinks as the project is compared. A large σ² means the project's position could still change."
+                        />
+                        <TableHead className='text-right'>
+                          Comparisons
+                        </TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {criterion.rows.map((row, index) => (
+                        <TableRow key={row.id}>
+                          <TableCell className='tabular-nums'>
+                            {index + 1}
+                          </TableCell>
+                          <TableCell className='tabular-nums'>
+                            {row.tableLabel}
+                          </TableCell>
+                          <TableCell className='font-medium whitespace-normal'>
+                            {row.title}
+                          </TableCell>
+                          <TableCell className='text-right tabular-nums'>
+                            {formatNumber(row.mu)}
+                          </TableCell>
+                          <TableCell className='text-right tabular-nums'>
+                            {formatNumber(row.sigmaSq)}
+                          </TableCell>
+                          <TableCell className='text-right tabular-nums'>
+                            {row.comparisons}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </Card>
+              </TabsContent>
             ))}
-            <TabsTrigger value='judges'>Judges</TabsTrigger>
-          </TabsList>
 
-          <TabsContent value='overall'>
-            <Card className='py-0'>
-              <ProjectTable rows={results.overall} award={award} showScore />
-            </Card>
-          </TabsContent>
-
-          {results.byCriterion.map((criterion) => (
-            <TabsContent key={criterion.id} value={criterion.id}>
+            <TabsContent value='judges'>
               <Card className='py-0'>
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className='w-12'>#</TableHead>
-                      <TableHead className='w-16'>Table</TableHead>
-                      <TableHead>Project</TableHead>
-                      <TableHead className='text-right'>μ</TableHead>
-                      <TableHead className='text-right'>σ²</TableHead>
+                      <TableHead>Judge</TableHead>
                       <TableHead className='text-right'>Comparisons</TableHead>
+                      {results.criteria.map((criterion) => (
+                        <TableHead key={criterion.id} className='text-right'>
+                          {criterion.name}
+                        </TableHead>
+                      ))}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {criterion.rows.map((row, index) => (
-                      <TableRow key={row.id}>
-                        <TableCell className='tabular-nums'>
-                          {index + 1}
-                        </TableCell>
-                        <TableCell className='tabular-nums'>
-                          {row.tableLabel}
-                        </TableCell>
-                        <TableCell className='font-medium whitespace-normal'>
-                          {row.title}
+                    {results.judges.map((judge) => (
+                      <TableRow key={judge.id}>
+                        <TableCell className='whitespace-normal'>
+                          <span className='font-medium'>{judge.label}</span>{' '}
+                          {judge.disabled && (
+                            <Badge variant='destructive'>Disabled</Badge>
+                          )}
                         </TableCell>
                         <TableCell className='text-right tabular-nums'>
-                          {formatNumber(row.mu)}
+                          {judge.comparisons}
                         </TableCell>
-                        <TableCell className='text-right tabular-nums'>
-                          {formatNumber(row.sigmaSq)}
-                        </TableCell>
-                        <TableCell className='text-right tabular-nums'>
-                          {row.comparisons}
-                        </TableCell>
+                        {results.criteria.map((criterion) => (
+                          <TableCell
+                            key={criterion.id}
+                            className='text-right tabular-nums'
+                          >
+                            {formatPercent(
+                              judge.reliability[criterion.id] ?? 0,
+                            )}
+                          </TableCell>
+                        ))}
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
+                <p className='text-muted-foreground px-4 pb-4 text-xs'>
+                  Reliability is how likely the model thinks each judge is to
+                  vote with the consensus on that criterion — α / (α + β). Every
+                  judge starts at {formatPercent(reliabilityMean(JUDGE_PRIOR))}.
+                </p>
               </Card>
             </TabsContent>
-          ))}
-
-          <TabsContent value='judges'>
-            <Card className='py-0'>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Judge</TableHead>
-                    <TableHead className='text-right'>Comparisons</TableHead>
-                    {results.criteria.map((criterion) => (
-                      <TableHead key={criterion.id} className='text-right'>
-                        {criterion.name}
-                      </TableHead>
-                    ))}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {results.judges.map((judge) => (
-                    <TableRow key={judge.id}>
-                      <TableCell className='whitespace-normal'>
-                        <span className='font-medium'>{judge.label}</span>{' '}
-                        {judge.disabled && (
-                          <Badge variant='destructive'>Disabled</Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className='text-right tabular-nums'>
-                        {judge.comparisons}
-                      </TableCell>
-                      {results.criteria.map((criterion) => (
-                        <TableCell
-                          key={criterion.id}
-                          className='text-right tabular-nums'
-                        >
-                          {formatPercent(judge.reliability[criterion.id] ?? 0)}
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-              <p className='text-muted-foreground px-4 pb-4 text-xs'>
-                Reliability is how likely the model thinks each judge is to vote
-                with the consensus on that criterion — α / (α + β). Every judge
-                starts at {formatPercent(reliabilityMean(JUDGE_PRIOR))}.
-              </p>
-            </Card>
-          </TabsContent>
-        </Tabs>
+          </Tabs>
+        </TooltipProvider>
       )}
     </div>
   );
