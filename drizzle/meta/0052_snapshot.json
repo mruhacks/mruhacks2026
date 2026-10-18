@@ -3357,6 +3357,78 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.judge_visits": {
+      "name": "judge_visits",
+      "schema": "",
+      "columns": {
+        "judge_id": {
+          "name": "judge_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "submission_id": {
+          "name": "submission_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "idx_judge_visits_submission_id": {
+          "name": "idx_judge_visits_submission_id",
+          "columns": [
+            {
+              "expression": "submission_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "judge_visits_judge_id_event_judges_id_fk": {
+          "name": "judge_visits_judge_id_event_judges_id_fk",
+          "tableFrom": "judge_visits",
+          "tableTo": "event_judges",
+          "columnsFrom": ["judge_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "judge_visits_submission_id_submissions_id_fk": {
+          "name": "judge_visits_submission_id_submissions_id_fk",
+          "tableFrom": "judge_visits",
+          "tableTo": "submissions",
+          "columnsFrom": ["submission_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "judge_visits_judge_id_submission_id_pk": {
+          "name": "judge_visits_judge_id_submission_id_pk",
+          "columns": ["judge_id", "submission_id"]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.judging_criteria": {
       "name": "judging_criteria",
       "schema": "",
@@ -3481,6 +3553,23 @@
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
+        },
+        "seq": {
+          "name": "seq",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true,
+          "identity": {
+            "type": "byDefault",
+            "name": "judging_votes_seq_seq",
+            "schema": "public",
+            "increment": "1",
+            "startWith": "1",
+            "minValue": "1",
+            "maxValue": "9223372036854775807",
+            "cache": "1",
+            "cycle": false
+          }
         },
         "created_at": {
           "name": "created_at",
