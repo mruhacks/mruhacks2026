@@ -102,6 +102,12 @@ export interface DataTableProps<TData, TValue> {
    * without an accessor, or with `enableColumnFilter: false`, get none.
    */
   enableColumnFilters?: boolean;
+  /**
+   * Stable id for each row. Without it rows are keyed by index, so a cell
+   * holding local state (an input mid-edit) is handed to a different record
+   * whenever the data refreshes or re-sorts underneath it.
+   */
+  getRowId?: (row: TData, index: number) => string;
 }
 
 export function DataTable<TData, TValue>({
@@ -126,6 +132,7 @@ export function DataTable<TData, TValue>({
   initialColumnFilters = [],
   onColumnFiltersChange,
   enableColumnFilters = false,
+  getRowId,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = React.useState<SortingState>(initialSorting);
   const [columnFilters, setColumnFilters] =
@@ -159,6 +166,7 @@ export function DataTable<TData, TValue>({
   const table = useReactTable<TData>({
     data,
     columns,
+    getRowId,
     state: {
       sorting,
       columnFilters,
@@ -303,6 +311,7 @@ export function DataTable<TData, TValue>({
                       // for existing callers.
                       colSpan={header.colSpan}
                       className={cn(
+                        header.column.columnDef.meta?.className,
                         compact && 'h-9',
                         header.subHeaders.length > 0 &&
                           'text-muted-foreground border-b text-[11px] tracking-wide uppercase',
@@ -351,7 +360,13 @@ export function DataTable<TData, TValue>({
                   data-state={row.getIsSelected() && 'selected'}
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id} className={cn(compact && 'py-2')}>
+                    <TableCell
+                      key={cell.id}
+                      className={cn(
+                        cell.column.columnDef.meta?.className,
+                        compact && 'py-2',
+                      )}
+                    >
                       {flexRender(
                         cell.column.columnDef.cell,
                         cell.getContext(),

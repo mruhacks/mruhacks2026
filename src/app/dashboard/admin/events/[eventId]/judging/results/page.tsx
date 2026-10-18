@@ -1,54 +1,18 @@
 import * as React from 'react';
-import { notFound, redirect } from 'next/navigation';
-
-import { getJudgingResults } from '@/app/dashboard/admin/events/judging-actions';
-import { resolveEventId } from '@/lib/events';
-import { requireAnyPermission } from '@/lib/rbac/authorization';
-import { getUser } from '@/utils/auth';
-
-import { ResultsView } from './results-view';
+import { redirect } from 'next/navigation';
 
 type Props = { params: Promise<{ eventId: string }> };
 
-/**
- * Live expo results. `judging:results:all` sees the rankings;
- * `judging:award:all` records placements — from the ranked tables when they
- * can see them, from a plain list when they can't.
- */
+/** Every results table has its own route; the bare one opens Overall. */
 export default function JudgingResultsRoute({ params }: Props) {
   return (
-    <React.Suspense
-      fallback={<div className='bg-muted h-64 animate-pulse rounded-xl' />}
-    >
-      <ResultsContent paramsPromise={params} />
+    <React.Suspense fallback={null}>
+      <RedirectToOverall params={params} />
     </React.Suspense>
   );
 }
 
-async function ResultsContent({
-  paramsPromise,
-}: {
-  paramsPromise: Props['params'];
-}) {
-  const { eventId: segment } = await paramsPromise;
-  const eventId = await resolveEventId(segment);
-  if (!eventId) notFound();
-  const user = await getUser();
-  if (!user) redirect('/signin');
-  // Either permission opens the page; `getJudgingResults` decides what's in it.
-  await requireAnyPermission(user.id, [
-    'judging:results:all',
-    'judging:award:all',
-  ]);
-
-  const result = await getJudgingResults(eventId);
-  if (!result.success || !result.data) {
-    return (
-      <p className='text-destructive'>
-        {!result.success ? result.error : 'Failed to load results.'}
-      </p>
-    );
-  }
-
-  return <ResultsView eventId={eventId} initial={result.data} />;
+async function RedirectToOverall({ params }: Props): Promise<React.ReactNode> {
+  const { eventId } = await params;
+  return redirect(`/dashboard/admin/events/${eventId}/judging/results/overall`);
 }

@@ -104,8 +104,9 @@ async function authorize(
 
 async function revalidateJudging(eventId: string): Promise<void> {
   for (const segment of await eventUrlSegments(eventId)) {
-    revalidatePath(`/dashboard/admin/events/${segment}/judging`);
-    revalidatePath(`/dashboard/admin/events/${segment}/judging/results`);
+    // 'layout' reaches every page under judging — projects and each
+    // results table — not just the setup page itself.
+    revalidatePath(`/dashboard/admin/events/${segment}/judging`, 'layout');
   }
 }
 
@@ -215,7 +216,6 @@ export type JudgingAdminData = {
   layoutLocked: boolean;
   tableLayout: TableLayout;
   judges: JudgingRosterRow[];
-  projects: JudgingProjectRow[];
 };
 
 /** Everything the Judging page shows. Requires judging:manage:all. */
@@ -231,8 +231,6 @@ export async function getJudgingAdmin(
     layoutLocked,
     judges,
     voteCounts,
-    projects,
-    tables,
     tableLayout,
   ] = await Promise.all([
     loadCriteria(eventId),
@@ -245,16 +243,6 @@ export async function getJudgingAdmin(
       .innerJoin(eventJudges, eq(eventJudges.id, judgingVotes.judgeId))
       .where(eq(eventJudges.eventId, eventId))
       .groupBy(judgingVotes.judgeId),
-    db
-      .select({
-        id: submissions.id,
-        title: submissions.title,
-        published: submissions.published,
-        deactivatedAt: submissions.deactivatedAt,
-      })
-      .from(submissions)
-      .where(eq(submissions.eventId, eventId)),
-    getTableLabels(eventId),
     loadTableLayout(eventId),
   ]);
 
@@ -287,7 +275,34 @@ export async function getJudgingAdmin(
         criteria.length,
       ),
     })),
-    projects: projects
+  });
+}
+
+/**
+ * Every submission with its expo table, for deciding which are judged.
+ * Its own read, apart from `getJudgingAdmin`, since it backs its own page.
+ */
+export async function getJudgingProjects(
+  eventId: string,
+): Promise<ActionResult<JudgingProjectRow[]>> {
+  const auth = await authorize('judging:manage:all');
+  if ('error' in auth) return auth.error;
+
+  const [projects, tables] = await Promise.all([
+    db
+      .select({
+        id: submissions.id,
+        title: submissions.title,
+        published: submissions.published,
+        deactivatedAt: submissions.deactivatedAt,
+      })
+      .from(submissions)
+      .where(eq(submissions.eventId, eventId)),
+    getTableLabels(eventId),
+  ]);
+
+  return ok(
+    projects
       .map((row) => ({
         id: row.id,
         title: row.title,
@@ -297,7 +312,7 @@ export async function getJudgingAdmin(
         deactivated: row.deactivatedAt != null,
       }))
       .sort(byTableSlot),
-  });
+  );
 }
 
 // ── Criteria ──────────────────────────────────────────────────────────────
