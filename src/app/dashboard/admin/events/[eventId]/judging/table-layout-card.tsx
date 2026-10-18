@@ -1,12 +1,13 @@
 'use client';
 
 import * as React from 'react';
-import { Lock } from 'lucide-react';
+import { Lock, Printer } from 'lucide-react';
 
 import { updateJudgingTableLayout } from '@/app/dashboard/admin/events/judging-actions';
 import { Button } from '@/components/ui/button';
 import {
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -119,6 +120,21 @@ export function TableLayoutCard({
             'How tables are labelled on the expo floor. Changing this relabels every table, so set it before printing signs.'
           )}
         </CardDescription>
+        <CardAction>
+          {/* Prints what's saved, so it's off while the form has edits. */}
+          <Button asChild variant='outline' size='sm' disabled={dirty}>
+            <a
+              href={`/print/events/${eventId}/table-signs`}
+              target='_blank'
+              rel='noopener'
+              aria-disabled={dirty || undefined}
+              className={dirty ? 'pointer-events-none opacity-50' : undefined}
+            >
+              <Printer aria-hidden />
+              Print table signs
+            </a>
+          </Button>
+        </CardAction>
       </CardHeader>
       <CardContent>
         <form onSubmit={submit}>

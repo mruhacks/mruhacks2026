@@ -18,6 +18,7 @@ import {
   count,
   eq,
   inArray,
+  max,
   isNotNull,
   isNull,
   sql,
@@ -313,6 +314,31 @@ export async function getJudgingProjects(
       }))
       .sort(byTableSlot),
   );
+}
+
+/**
+ * What table signs are printed from: the saved layout, and how many tables
+ * have been handed out so far. Slots are never reused, so that's the highest
+ * assigned slot plus one — a table whose project was deactivated or
+ * unpublished still stands on the floor and still gets a sign.
+ */
+export async function getJudgingTableSigns(
+  eventId: string,
+): Promise<ActionResult<{ layout: TableLayout; handedOut: number }>> {
+  const auth = await authorize('judging:manage:all');
+  if ('error' in auth) return auth.error;
+
+  const [layout, [row]] = await Promise.all([
+    loadTableLayout(eventId),
+    db
+      .select({ highest: max(submissions.tableSlot) })
+      .from(submissions)
+      .where(eq(submissions.eventId, eventId)),
+  ]);
+  return ok({
+    layout,
+    handedOut: row?.highest == null ? 0 : row.highest + 1,
+  });
 }
 
 // ── Criteria ──────────────────────────────────────────────────────────────

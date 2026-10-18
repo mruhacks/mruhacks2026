@@ -37,6 +37,9 @@ export const DEFAULT_TABLE_LAYOUT: TableLayout = {
 
 export const MAX_TABLE_ROWS = 100;
 
+/** Most table signs printed at once — a typo shouldn't render 10,000 pages. */
+export const MAX_TABLE_SIGNS = 500;
+
 const ROMAN: [number, string][] = [
   [1000, 'M'],
   [900, 'CM'],
