@@ -82,7 +82,7 @@ The database schema is organized into three main modules:
 
 1. **auth-schema.ts**: Better Auth tables (users, sessions, accounts)
 2. **lookups.ts**: Reference tables for form options (genders, universities, majors, etc.)
-3. **events-and-participation.ts**: Events (with `capacity`, optional `event_type_id`), user profiles, event participants (one participation status per user per event), application votes, event RSVP waves and invitations, check-ins, groups, group members, and submissions
+3. **events-and-participation.ts**: Events (with `capacity`, optional `event_type_id`), user profiles, event participants (one participation status per user per event), application votes, event RSVP waves and invitations, check-ins, teams, team members, project submissions, and submission editor presence
 
 ### Key Tables
 
@@ -94,9 +94,10 @@ The database schema is organized into three main modules:
 - `event_participants`: One per user per event, for every event; unique on `(event_id, user_id)`; `status_id` (FK to `participation_statuses`) is the single participation status — see "Registration flow" below; optional `reviewed_at` / `reviewed_by`; `responses` (JSONB) stores application answers (null for an event without an application)
 - `event_rsvp_waves`: One row per invitation wave per event (wave number, `respond_by` deadline)
 - `event_invitations`: One per invited participant (unique on `participant_id`); wave, `responded_at`, invitation email delivery state and Event Terms consent. It has no status — the RSVP outcome is the participant's status
-- `groups`: Groups (teams) hosted by an event; `id`, `event_id` (FK to events), `name`
-- `group_members`: Junction `(group_id, user_id)`; groups contain users
-- `submissions`: Group submissions to events; `id`, `group_id`, `event_id`, `submitted_at`; groups submit to events
+- `teams`: Event-scoped teams with an 8-character join code; `organizer_id` passes to the earliest-joined member when the organizer leaves or deletes their account (null only for a team left empty that still holds a submission)
+- `team_members`: Junction `(team_id, user_id)`, plus `event_id`; a user is on at most one team per event (a team-of-one is a normal team)
+- `submissions`: A team's project write-up, at most one per team — title, markdown, cover image, repo/demo/video links, `published` + `published_at`, `last_edited_by` (`set null` on account deletion). `team_id` is `ON DELETE NO ACTION`, so only deleting the event (which cascades to both) can remove a team that holds one
+- `submission_editors`: Editor presence `(submission_id, user_id, last_seen_at)`, refreshed by the editor's heartbeat
 
 ### Database Views
 
@@ -162,6 +163,12 @@ The diagram above is stored as **one** status per participant (`event_participan
 The rules live in `src/lib/participation/`: `status.ts` (what each status means) and `transitions.ts` (who may make which move). Organizers can set any status from any other: review statuses need `application:review:all`, RSVP outcomes need `rsvp:write:all`, and a move between the two needs both. Moving someone back to a review status withdraws their invitation; setting someone to `invited` adds them to the open wave (refused when no wave is open). Participants may only answer an invitation, give up an accepted spot, or leave the waitlist.
 
 The waitlist is the RSVP queue. Its order is never stored: `src/lib/rsvp/waitlist.ts` derives it on every read from the swipe-review votes (`application_votes`). Reviewers with `application:vote:all` vote yes/no on `/dashboard/admin/events/<event>/review`, seeing only questions tagged "Show in Application Review". An applicant's first yes moves them — and every pending teammate not marked `denied` — onto the waitlist. The queue is ordered by the Wilson lower bound of each team's best (non-denied) member's yes share, then oldest application; waitlisted applicants with no votes go last. The rules are pure functions in `src/lib/application-vote-ranking.ts`. Each wave invites from the top of the queue to fill `capacity − accepted`. On the admin RSVP page every wave (past, open, next and later) is a collapsible row; organizers with `rsvp:write:all` can send the next wave early, which closes the open wave and times out its unanswered invitations (`sendRsvpWave(..., { closeActiveWave: true })`).
+
+### Project submissions
+
+An event takes project submissions when it has an application, teams, a start and end, and `submissions_close_at` strictly between them. The window opens at `starts_at` and freezes at `submissions_close_at`; "closed" is derived on every read (`getSubmissionWindow` in `src/lib/submissions.ts`), so moving the deadline later reopens editing. Only members who have reached the event's final positive state may see or edit their team's submission (`canSubmitProject` in `src/lib/participation/status.ts`): checked in when check-in is enabled, otherwise `accepted` once any RSVP wave has gone out, otherwise anyone able to form a team. Drafts are visible only to the team and `submission:read:all`; `submission:delete:all` can take one down at any time. Saves carry the `updated_at` the editor loaded and are refused if a teammate saved since. Past the deadline, self-service team changes are blocked so the roster at the deadline is the one credited. Images live under `submission-content/<submissionId>/` in the asset bucket.
+
+Deleting an account removes the person's personal data but keeps content made with a team, unattributed: a submission's `last_edited_by` and an application vote's `voter_id` become null (`src/lib/account-deletion.ts`). `user:purge:all` is the admin's compliance "full wipe" of an account; it does not guess which team content was the user's.
 
 ## Authentication Flow
 

@@ -4,7 +4,7 @@
 const CONTACT_EMAIL = 'privacy@mruhacks.ca';
 
 export const PRIVACY_TITLE = 'Privacy Policy';
-export const PRIVACY_UPDATED = 'Aug 28, 2026';
+export const PRIVACY_UPDATED = 'Oct 5, 2026';
 
 /** Shared with the full /privacy page and the welcome-flow modal. */
 export function PrivacyContent() {
@@ -81,7 +81,17 @@ export function PrivacyContent() {
       <p>
         We keep your personal information only as long as needed for the
         purposes described here or as required by law. When you delete your
-        account, we permanently erase your account and all associated data.
+        account, we permanently erase your account and your personal information
+        — your profile, applications, registrations, check-ins, and team
+        memberships.
+      </p>
+      <p>
+        Content you created together with others stays, without your name: a
+        project your team submitted (its write-up, images, and links) remains
+        for the rest of your team and for judging, and any review votes you cast
+        as an organizer still count. If you want that content erased too,
+        contact us at <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>{' '}
+        and we will review your request for full erasure.
       </p>
 
       <h2>Your rights</h2>
@@ -97,8 +107,9 @@ export function PrivacyContent() {
           <a href='/dashboard/profile'>profile</a>.
         </li>
         <li>
-          <strong>Delete</strong> your account and data at any time from your{' '}
-          <a href='/dashboard/account'>Account &amp; Privacy</a> settings.
+          <strong>Delete</strong> your account and personal information at any
+          time from your <a href='/dashboard/account'>Account &amp; Privacy</a>{' '}
+          settings, and request full erasure of shared content by contacting us.
         </li>
         <li>
           <strong>Withdraw consent</strong> to non-essential communications.

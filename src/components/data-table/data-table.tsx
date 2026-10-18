@@ -310,7 +310,7 @@ export function DataTable<TData, TValue>({
                           <button
                             type='button'
                             onClick={header.column.getToggleSortingHandler()}
-                            className='hover:text-foreground inline-flex items-center gap-1 transition-colors'
+                            className='hover:text-foreground inline-flex cursor-pointer items-center gap-1 transition-colors'
                           >
                             {flexRender(
                               header.column.columnDef.header,

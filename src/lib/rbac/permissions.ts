@@ -22,6 +22,7 @@ export type PermissionEntity =
   | 'checkin'
   | 'application'
   | 'article'
+  | 'submission'
   | 'system';
 
 export type PermissionAction =
@@ -38,6 +39,7 @@ export type PermissionAction =
   | 'write'
   | 'vote'
   | 'override'
+  | 'purge'
   | 'all';
 
 export type PermissionScope = 'all' | 'any' | 'self' | (string & {});
@@ -103,6 +105,10 @@ const CORE_PERMISSIONS = [
     slug: 'user:all:all',
     description: 'Full user management (create/update/delete)',
   },
+  {
+    slug: 'user:purge:all',
+    description: 'Fully wipe a user account on a compliance request',
+  },
   { slug: 'role:read:all', description: 'View roles and their permissions' },
   { slug: 'role:write:all', description: 'Create, update and delete roles' },
   { slug: 'permission:read:all', description: 'View permissions' },
@@ -151,6 +157,15 @@ const CORE_PERMISSIONS = [
   {
     slug: 'article:write:all',
     description: 'Create, edit, publish and delete event wiki articles',
+  },
+  {
+    slug: 'submission:read:all',
+    description: 'View every project submission for an event, drafts included',
+  },
+  {
+    slug: 'submission:delete:all',
+    description:
+      'Delete any project submission (moderation, takedown requests)',
   },
   {
     slug: 'system:read:all',

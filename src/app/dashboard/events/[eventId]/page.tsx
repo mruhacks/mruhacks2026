@@ -32,6 +32,7 @@ import {
 import { RegisterEventButton } from '@/app/dashboard/events/RegisterEventButton';
 import { UnregisterEventButton } from '@/app/dashboard/events/UnregisterEventButton';
 import { TeamPanel } from '@/app/dashboard/events/team/TeamPanel';
+import { ProjectPanel } from '@/app/dashboard/events/project/ProjectPanel';
 import { AddToWalletButton } from '@/components/add-to-wallet-button';
 import { AddToGoogleWalletButton } from '@/components/add-to-google-wallet-button';
 import { EventTicketButton } from '@/components/event-ticket-button';
@@ -239,6 +240,11 @@ async function EventEntryContent({ params, searchParams }: Props) {
             hasEnded={hasEnded}
           />
         }
+        project={
+          canManageTeam ? (
+            <ProjectPanel eventId={eventId} eventHref={eventHref} />
+          ) : null
+        }
         team={
           canManageTeam ? (
             <TeamPanel
@@ -313,6 +319,7 @@ function EventPageLayout({
   articles,
   schedule,
   participation,
+  project = null,
   team,
   mobileAction,
   hasEnded,
@@ -327,6 +334,8 @@ function EventPageLayout({
   articles: PublishedArticle[];
   schedule: ScheduleEntry[];
   participation: React.ReactNode;
+  /** The team's project submission panel; application events only. */
+  project?: React.ReactNode;
   team: React.ReactNode;
   hasEnded: boolean;
   mobileAction:
@@ -377,6 +386,7 @@ function EventPageLayout({
 
         <aside className='order-first flex flex-col gap-4 lg:sticky lg:top-24 lg:order-0 lg:self-start'>
           {participation}
+          {project}
           {team}
         </aside>
       </div>

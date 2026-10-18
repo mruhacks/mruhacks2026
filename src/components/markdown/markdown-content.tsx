@@ -54,6 +54,11 @@ function rehypeCloseSelfClosingIframes() {
  * outside the list, including `<script>` and every event-handler attribute, is
  * dropped before it reaches React.
  *
+ * `allowRawHtml={false}` turns that off entirely, for surfaces whose authors
+ * aren't organizers (project submissions): raw HTML is then dropped, not
+ * parsed, and the editor for those surfaces never writes any (see
+ * `MarkdownEditor`'s matching prop).
+ *
  * `allowEmbeds` additionally lets `<iframe>` through, for surfaces whose
  * authors are allowed to embed (wiki articles). Even then a frame renders only
  * if its src is on the provider allow-list in `@/lib/embeds`, and it always
@@ -63,23 +68,24 @@ export function MarkdownContent({
   markdown,
   className,
   allowEmbeds = false,
+  allowRawHtml = true,
 }: {
   markdown: string;
   className?: string;
   allowEmbeds?: boolean;
+  allowRawHtml?: boolean;
 }) {
+  const embeds = allowEmbeds && allowRawHtml;
   return (
     <div className={cn('mdx-prose', className)}>
       <Markdown
         remarkPlugins={[remarkGfm]}
+        skipHtml={!allowRawHtml}
         rehypePlugins={[
-          rehypeCloseSelfClosingIframes,
-          rehypeRaw,
+          ...(allowRawHtml ? [rehypeCloseSelfClosingIframes, rehypeRaw] : []),
           [
             rehypeSanitize,
-            allowEmbeds
-              ? MARKDOWN_EMBED_SANITIZE_SCHEMA
-              : MARKDOWN_SANITIZE_SCHEMA,
+            embeds ? MARKDOWN_EMBED_SANITIZE_SCHEMA : MARKDOWN_SANITIZE_SCHEMA,
           ],
         ]}
         components={{
@@ -118,7 +124,7 @@ export function MarkdownContent({
           // sandbox or add `srcdoc`/`allow` even if the schema ever loosens.
           // eslint-disable-next-line @typescript-eslint/no-unused-vars
           iframe: ({ node: _node, src, title, width, height }) => {
-            const embedSrc = allowEmbeds ? getAllowedEmbedSrc(src) : null;
+            const embedSrc = embeds ? getAllowedEmbedSrc(src) : null;
             if (!embedSrc) return null;
             return (
               <iframe

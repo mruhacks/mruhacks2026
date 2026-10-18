@@ -74,6 +74,8 @@ export async function checkObjectStorageConnection(): Promise<void> {
 
 /** Prefix under which markdown attachments (event descriptions, wiki articles) live. */
 const EVENT_CONTENT_PREFIX = 'event-content/';
+/** Prefix under which project submission images (inline and cover) live. */
+const SUBMISSION_CONTENT_PREFIX = 'submission-content/';
 
 export function isObjectStorageKey(
   value: string | null | undefined,
@@ -82,7 +84,8 @@ export function isObjectStorageKey(
     value &&
     (value.startsWith('profile-pictures/') ||
       value.startsWith('resumes/') ||
-      value.startsWith(EVENT_CONTENT_PREFIX)),
+      value.startsWith(EVENT_CONTENT_PREFIX) ||
+      value.startsWith(SUBMISSION_CONTENT_PREFIX)),
   );
 }
 
@@ -157,6 +160,25 @@ export function isEventAttachmentKey(
   return Boolean(value && EVENT_ATTACHMENT_KEY_PATTERN.test(value));
 }
 
+/**
+ * Submission images are always `submission-content/<submissionId>/<uuid><ext>`
+ * — the same shape as event attachments, keyed by the submission so deleting
+ * a project can tell exactly which objects were its own.
+ */
+const SUBMISSION_ATTACHMENT_KEY_PATTERN =
+  /^submission-content\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.[a-z0-9]{1,10}$/;
+
+export function isSubmissionAttachmentKey(
+  value: string | null | undefined,
+): value is string {
+  return Boolean(value && SUBMISSION_ATTACHMENT_KEY_PATTERN.test(value));
+}
+
+/** Prefix every image belonging to `submissionId` is stored under. */
+export function submissionAttachmentPrefix(submissionId: string): string {
+  return `${SUBMISSION_CONTENT_PREFIX}${submissionId}/`;
+}
+
 /** Markdown attachments are always served through the `/api/assets` proxy, gated on a signed-in session — see `profilePictureUrl` for how the redirect works. */
 export function eventAttachmentUrl(key: string) {
   return `/api/assets/${key}`;
@@ -176,6 +198,14 @@ export function parseEventAttachmentKey(
     return null;
   }
   return isEventAttachmentKey(key) ? key : null;
+}
+
+/** Like `parseEventAttachmentKey`, for a submission image URL. */
+export function parseSubmissionAttachmentKey(
+  url: string | null | undefined,
+): string | null {
+  const key = parseProfilePictureKey(url);
+  return isSubmissionAttachmentKey(key) ? key : null;
 }
 
 export async function putObject({
@@ -302,7 +332,7 @@ export function profilePictureRedirect(key: string): Promise<Response> {
   });
 }
 
-/** Redirects to a signed URL for an event/wiki attachment. Caller must check the session before calling this — see `/api/assets`. */
+/** Redirects to a signed URL for an event/wiki/submission attachment. Caller must check the session before calling this — see `/api/assets`. */
 export function eventAttachmentRedirect(key: string): Promise<Response> {
   return redirectToObject(key, {
     expiresIn: EVENT_ATTACHMENT_URL_TTL_SECONDS,

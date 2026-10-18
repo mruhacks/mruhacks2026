@@ -227,7 +227,7 @@ export default function SignInForm() {
             Didn&apos;t receive the email? Check your spam folder, or{' '}
             <button
               type='button'
-              className='font-medium underline underline-offset-4 hover:no-underline'
+              className='cursor-pointer font-medium underline underline-offset-4 hover:no-underline'
               onClick={() => setMagicLinkSentEmail(null)}
             >
               go back
@@ -261,7 +261,7 @@ export default function SignInForm() {
             Didn&apos;t receive the email? Check your spam folder, or{' '}
             <button
               type='button'
-              className='font-medium underline underline-offset-4 hover:no-underline'
+              className='cursor-pointer font-medium underline underline-offset-4 hover:no-underline'
               onClick={() => setUnverifiedEmail(null)}
             >
               go back
@@ -387,7 +387,7 @@ export default function SignInForm() {
             />
             <button
               type='button'
-              className='text-muted-foreground self-center text-sm hover:underline'
+              className='text-muted-foreground cursor-pointer self-center text-sm hover:underline'
               onClick={() => {
                 form.clearErrors('root');
                 setShowPassword(false);
@@ -457,7 +457,7 @@ export default function SignInForm() {
             {/* Password toggle */}
             <button
               type='button'
-              className='text-muted-foreground self-center text-sm hover:underline'
+              className='text-muted-foreground cursor-pointer self-center text-sm hover:underline'
               onClick={() => {
                 form.clearErrors('root');
                 setShowPassword(true);

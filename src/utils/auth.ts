@@ -8,7 +8,7 @@
 import { betterAuth, APIError } from 'better-auth';
 import { admin, captcha, magicLink } from 'better-auth/plugins';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
-import { eq, lt, sql } from 'drizzle-orm';
+import { lt, sql } from 'drizzle-orm';
 import { resolveMagicLinkMailOptions } from '@/lib/auth/resolve-magic-link-email';
 import { remainingMagicLinkExpiresInSeconds } from '@/lib/rsvp/rsvp-magic-link-expires-in';
 import { getRsvpMagicLinkMailContext } from '@/lib/rsvp/rsvp-magic-link-context';
@@ -24,10 +24,7 @@ import { headers } from 'next/headers';
 import { cacheLife } from 'next/cache';
 import { after } from 'next/server';
 import { writeAuditLog } from '@/utils/audit-log';
-import {
-  deleteObject,
-  parseOwnedProfilePictureKey,
-} from '@/utils/object-storage';
+import { prepareUserDeletion } from '@/lib/account-deletion';
 
 /** Verification links expire after this many seconds (24 hours). */
 const EMAIL_VERIFICATION_EXPIRES_IN = 86400;
@@ -193,33 +190,16 @@ export const auth = betterAuth({
      * Self-serve account deletion (right to erasure — PIPEDA / Alberta PIPA /
      * GDPR Art. 17). Deletion is confirmed via an emailed verification link so
      * it cannot be triggered by a hijacked session. Once verified, Better Auth
-     * removes the user row; every user-scoped table cascades via its
-     * `onDelete: 'cascade'` foreign key, so no residual personal data remains
-     * in the database — but object storage (resume, profile picture) is
-     * outside the DB and cascades don't reach it, so `beforeDelete` removes
-     * those objects explicitly while the row can still be queried.
+     * removes the user row, and every table holding the user's personal data
+     * cascades with it. Content made with a team (project submissions, review
+     * votes) stays, unattributed. `prepareUserDeletion` does what the cascades
+     * can't — hands their teams on and removes their object-storage files —
+     * while the row can still be queried.
      */
     deleteUser: {
       enabled: true,
       beforeDelete: async (user) => {
-        const [profile] = await db
-          .select({ resumeFile: schema.userProfiles.resumeFile })
-          .from(schema.userProfiles)
-          .where(eq(schema.userProfiles.userId, user.id))
-          .limit(1);
-
-        const pictureKey = parseOwnedProfilePictureKey(user.image, user.id);
-        await Promise.all([
-          pictureKey ? deleteObject(pictureKey) : Promise.resolve(),
-          profile?.resumeFile
-            ? deleteObject(profile.resumeFile)
-            : Promise.resolve(),
-        ]).catch((error) => {
-          console.error(
-            '[auth] failed to delete user object storage files',
-            error,
-          );
-        });
+        await prepareUserDeletion(user.id);
       },
       sendDeleteAccountVerification: async ({ user, url }) => {
         await sendMail({
@@ -228,7 +208,8 @@ export const auth = betterAuth({
           text:
             `We received a request to permanently delete your MRUHacks account.\n\n` +
             `Confirm by opening this link (valid for 24 hours):\n\n${url}\n\n` +
-            `This erases your account and all associated data and cannot be undone. ` +
+            `This erases your account and personal data and cannot be undone. ` +
+            `Projects you worked on with a team stay, without your name. ` +
             `If you did not request this, you can safely ignore this email.\n`,
           html: await render(
             React.createElement(DeleteAccountEmail, {

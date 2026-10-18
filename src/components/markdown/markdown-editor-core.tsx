@@ -64,6 +64,8 @@ export type MarkdownEditorCoreProps = {
   onUploadImage: (file: File) => Promise<string>;
   /** Offer `<iframe>` embeds — only where the renderer also allows them. */
   allowEmbeds?: boolean;
+  /** Allow raw HTML output (resized images) — see `MarkdownEditor`. */
+  allowRawHtml?: boolean;
   placeholder?: string;
   className?: string;
 };
@@ -73,6 +75,7 @@ export default function MarkdownEditorCore({
   onChange,
   onUploadImage,
   allowEmbeds = false,
+  allowRawHtml = true,
   placeholder,
   className,
 }: MarkdownEditorCoreProps) {
@@ -91,7 +94,11 @@ export default function MarkdownEditorCore({
         linkPlugin(),
         linkDialogPlugin(),
         tablePlugin(),
-        imagePlugin({ imageUploadHandler: onUploadImage }),
+        imagePlugin({
+          imageUploadHandler: onUploadImage,
+          // A resized image can only be written as `<img width height>`.
+          disableImageResize: !allowRawHtml,
+        }),
         // Always registered, even when embeds are off — see `./embed-plugin`.
         embedPlugin({ enabled: allowEmbeds }),
         codeBlockPlugin({ defaultCodeBlockLanguage: 'text' }),

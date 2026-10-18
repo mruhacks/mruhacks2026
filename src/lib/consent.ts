@@ -5,4 +5,4 @@
  * current version is treated as not having consented and is re-prompted.
  */
 export const CURRENT_TERMS_VERSION = '2026-07-10';
-export const CURRENT_PRIVACY_VERSION = '2026-07-10';
+export const CURRENT_PRIVACY_VERSION = '2026-10-05';

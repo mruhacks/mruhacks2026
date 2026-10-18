@@ -2,6 +2,7 @@ import { getUser } from '@/utils/auth';
 import {
   eventAttachmentRedirect,
   isEventAttachmentKey,
+  isSubmissionAttachmentKey,
   profilePictureRedirect,
 } from '@/utils/object-storage';
 
@@ -17,6 +18,9 @@ import {
  * - `event-content/…` — attachments embedded in event descriptions and wiki
  *   articles. Requires a signed-in session, since the wiki lives behind the
  *   dashboard and so must its images.
+ * - `submission-content/…` — images in a team's project write-up, including
+ *   its cover. Same signed-in-only check as `event-content/`: the keys are
+ *   unguessable, and a draft's text is what's private, not its pictures.
  */
 export async function GET(
   _request: Request,
@@ -25,7 +29,8 @@ export async function GET(
   const { key } = await params;
   const objectKey = key.join('/');
 
-  const isAttachment: boolean = isEventAttachmentKey(objectKey);
+  const isAttachment: boolean =
+    isEventAttachmentKey(objectKey) || isSubmissionAttachmentKey(objectKey);
 
   if (isAttachment) {
     const user = await getUser();

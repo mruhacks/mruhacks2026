@@ -1,9 +1,16 @@
 import * as React from 'react';
 import { redirect } from 'next/navigation';
-import { CalendarCheck, CircleCheckBig, ThumbsUp, Users } from 'lucide-react';
+import {
+  CalendarCheck,
+  CircleCheckBig,
+  FileCode2,
+  ThumbsUp,
+  Users,
+} from 'lucide-react';
 
 import { getAdminEventHeader, getEventSummaryCounts } from '@/lib/admin-event';
 import { resolveEventId } from '@/lib/events';
+import { isSubmissionsEnabled } from '@/lib/submissions';
 import { hasPermission } from '@/lib/rbac/authorization';
 import { getUser } from '@/utils/auth';
 
@@ -62,6 +69,7 @@ async function SummaryTiles({
     canCheckIn,
     canReadTeams,
     canReadRsvp,
+    canReadSubmissions,
   ] = await Promise.all([
     getAdminEventHeader(eventId),
     getEventSummaryCounts(eventId),
@@ -69,6 +77,7 @@ async function SummaryTiles({
     hasPermission(user.id, 'checkin:write:all'),
     hasPermission(user.id, 'team:read:all'),
     hasPermission(user.id, 'rsvp:read:all'),
+    hasPermission(user.id, 'submission:read:all'),
   ]);
 
   if (!event) return null;
@@ -78,14 +87,21 @@ async function SummaryTiles({
   const showRsvp = canReadRsvp && event.hasApplication;
   const showCheckIn = canCheckIn && event.checkInEnabled;
   const showTeams = canReadTeams && event.teamsEnabled;
+  const showSubmissions = canReadSubmissions && isSubmissionsEnabled(event);
 
   // Nothing visible to this viewer: render no grid at all rather than an
   // empty shell.
-  if (!canReadApplications && !showCheckIn && !showTeams && !showRsvp)
+  if (
+    !canReadApplications &&
+    !showCheckIn &&
+    !showTeams &&
+    !showRsvp &&
+    !showSubmissions
+  )
     return null;
 
   // Every tile is a whole-card link to its tool page — no inline buttons, so
-  // the four read identically and the click target is the obvious one.
+  // the tiles read identically and the click target is the obvious one.
   return (
     <TileGrid>
       {canReadApplications && (
@@ -134,6 +150,23 @@ async function SummaryTiles({
             </>
           }
           href={`${base}/rsvp`}
+        />
+      )}
+
+      {showSubmissions && (
+        <StatTile
+          icon={<FileCode2 className='size-4' />}
+          label='Projects'
+          value={counts.submissions.published.toLocaleString()}
+          footnote={
+            <>
+              <strong className='text-foreground'>
+                {counts.submissions.total - counts.submissions.published}
+              </strong>{' '}
+              still drafts
+            </>
+          }
+          href={`${base}/submissions`}
         />
       )}
     </TileGrid>
