@@ -9,9 +9,8 @@
 import * as React from 'react';
 import { useFormStatus } from 'react-dom';
 import { useRouter } from 'next/navigation';
-import { NotebookPen, X } from 'lucide-react';
+import { X } from 'lucide-react';
 
-import { saveJudgeNote } from '@/app/dashboard/events/judge-actions';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -22,12 +21,9 @@ import {
 } from '@/components/ui/dialog';
 import { FieldError } from '@/components/ui/field';
 import { Spinner } from '@/components/ui/spinner';
-import { Textarea } from '@/components/ui/textarea';
-import { JUDGE_NOTE_MAX_LENGTH } from '@/lib/judging/limits';
-import type { JudgeProjectCard } from '@/lib/judging/judge-session';
 import { cn } from '@/lib/utils';
 
-import { BIG, GO, SKIP } from './judge-styles';
+import { BIG, SKIP } from './judge-styles';
 
 type FormAction = (
   formData: FormData,
@@ -185,119 +181,4 @@ export function AutoRefresh() {
     return () => window.clearInterval(id);
   }, [router]);
   return null;
-}
-
-/**
- * Notes live behind a button so the voting controls keep the screen. The
- * saved text is held here rather than in the dialog, which unmounts on close.
- */
-export function NotesButton({
-  eventId,
-  project,
-  previous,
-}: {
-  eventId: string;
-  project: JudgeProjectCard;
-  previous?: JudgeProjectCard;
-}) {
-  const [open, setOpen] = React.useState(false);
-  const [saved, setSaved] = React.useState(project.note);
-  return (
-    <>
-      <Button
-        type='button'
-        variant='ghost'
-        size='sm'
-        onClick={() => setOpen(true)}
-      >
-        <NotebookPen />
-        {saved ? 'Notes ✓' : 'Notes'}
-      </Button>
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Notes</DialogTitle>
-            <DialogDescription>Only you can see these.</DialogDescription>
-          </DialogHeader>
-          <NoteEditor
-            eventId={eventId}
-            project={project}
-            initial={saved}
-            onSaved={setSaved}
-          />
-          {previous?.note && (
-            <div className='bg-muted rounded-lg p-3'>
-              <p className='text-muted-foreground m-0 text-xs font-medium uppercase'>
-                Your note on Table {previous.tableLabel}
-              </p>
-              <p className='m-0 text-sm whitespace-pre-wrap'>{previous.note}</p>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-    </>
-  );
-}
-
-function NoteEditor({
-  eventId,
-  project,
-  initial,
-  onSaved,
-}: {
-  eventId: string;
-  project: JudgeProjectCard;
-  initial: string;
-  onSaved: (body: string) => void;
-}) {
-  const [body, setBody] = React.useState(initial);
-  const [error, setError] = React.useState<string>();
-  const [saving, setSaving] = React.useState(false);
-
-  async function save(event: React.FormEvent) {
-    event.preventDefault();
-    setSaving(true);
-    try {
-      const result = await saveJudgeNote(eventId, {
-        submissionId: project.id,
-        body,
-      });
-      if (!result.success) return setError(result.error);
-      onSaved(body);
-    } catch {
-      setError(OFFLINE);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <form onSubmit={save} className='flex flex-col gap-2'>
-      <label htmlFor={`note-${project.id}`} className='text-sm font-medium'>
-        Table {project.tableLabel} · <em>{project.title}</em>
-      </label>
-      <Textarea
-        id={`note-${project.id}`}
-        value={body}
-        rows={5}
-        maxLength={JUDGE_NOTE_MAX_LENGTH}
-        placeholder='What stood out?'
-        aria-invalid={Boolean(error)}
-        onChange={(e) => {
-          setBody(e.target.value);
-          setError(undefined);
-        }}
-      />
-      {error && <FieldError>{error}</FieldError>}
-      <Button
-        type='submit'
-        size='lg'
-        className={GO}
-        disabled={saving || body === initial}
-      >
-        {saving && <Spinner data-icon='inline-start' />}
-        {body === initial && initial ? 'Saved' : 'Save note'}
-      </Button>
-    </form>
-  );
 }

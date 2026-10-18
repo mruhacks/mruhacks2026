@@ -20,13 +20,7 @@ import 'server-only';
 
 import { and, eq, inArray } from 'drizzle-orm';
 
-import {
-  eventJudges,
-  events,
-  judgeNotes,
-  judgeState,
-  submissions,
-} from '@/db/schema';
+import { eventJudges, events, judgeState, submissions } from '@/db/schema';
 import {
   dispatchNext,
   findJudgeForUser,
@@ -45,8 +39,6 @@ export type JudgeProjectCard = {
   title: string;
   /** "B3" — every project a judge is sent to is published, so has one. */
   tableLabel: string;
-  /** The judge's own private note; empty when they haven't written one. */
-  note: string;
 };
 
 export type JudgeCriterion = { id: string; name: string; description: string };
@@ -75,7 +67,6 @@ export type JudgeContext =
   | { ok: false; view: JudgeView }
   | {
       ok: true;
-      userId: string;
       judge: JudgeRow;
       eventId: string;
       eventName: string;
@@ -125,7 +116,6 @@ export async function loadJudgeContext(eventId: string): Promise<JudgeContext> {
 
   return {
     ok: true,
-    userId: user.id,
     judge,
     eventId,
     eventName: event.name,
@@ -272,20 +262,11 @@ async function buildView(
   if (!currentId) return { kind: 'waiting', eventName: ctx.eventName };
 
   const ids = previousId ? [previousId, currentId] : [currentId];
-  const [rows, notes, tables, criteria] = await Promise.all([
+  const [rows, tables, criteria] = await Promise.all([
     db
       .select({ id: submissions.id, title: submissions.title })
       .from(submissions)
       .where(inArray(submissions.id, ids)),
-    db
-      .select({ submissionId: judgeNotes.submissionId, body: judgeNotes.body })
-      .from(judgeNotes)
-      .where(
-        and(
-          eq(judgeNotes.userId, ctx.userId),
-          inArray(judgeNotes.submissionId, ids),
-        ),
-      ),
     getTableLabels(ctx.eventId),
     loadCriteria(ctx.eventId),
   ]);
@@ -293,7 +274,6 @@ async function buildView(
     id,
     title: rows.find((row) => row.id === id)?.title ?? '',
     tableLabel: tables.get(id)?.label ?? '—',
-    note: notes.find((note) => note.submissionId === id)?.body ?? '',
   });
 
   if (!previousId) {

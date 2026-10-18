@@ -16,7 +16,6 @@ import {
   events,
   magicLinkCooldown,
   session,
-  judgeNotes,
   judgeState,
   judgingCriteria,
   judgingVotes,
@@ -60,7 +59,6 @@ import {
 } from '@/app/dashboard/admin/events/judging-actions';
 import {
   beginJudging,
-  saveJudgeNote,
   skipJudgeProject,
   submitJudgeVote,
 } from '@/app/dashboard/events/judge-actions';
@@ -1467,50 +1465,6 @@ describe('judge flow', () => {
     expect(first.current.id).toBe(other);
     // Nothing else to compare it with.
     expect((await begin(eventId, other)).kind).toBe('waiting');
-  });
-
-  test('notes are private to the judge and go with their account', async () => {
-    const eventId = await makeEvent();
-    loginAs(organizer);
-    await addCriteria(eventId, ['Design']);
-    const [project] = await makeProjects(eventId, 1);
-    const judge = await makeUser('Notes');
-    const other = await makeUser('OtherNotes');
-    await rosterJudge(eventId, judge);
-    await rosterJudge(eventId, other);
-
-    loginAs(judge);
-    unwrap(
-      await saveJudgeNote(eventId, {
-        submissionId: project,
-        body: 'Great demo',
-      }),
-    );
-    expect(expectKind(await getJudgeView(eventId), 'begin').current.note).toBe(
-      'Great demo',
-    );
-    const tooLong = await saveJudgeNote(eventId, {
-      submissionId: project,
-      body: 'x'.repeat(5001),
-    });
-    expect(tooLong.success).toBe(false);
-
-    loginAs(other);
-    // The other judge is sent elsewhere or waits; either way not this note.
-    const otherView = await getJudgeView(eventId);
-    if (otherView.kind === 'begin') expect(otherView.current.note).toBe('');
-
-    const stranger = await makeUser('NoteStranger');
-    loginAs(stranger);
-    expect(
-      (await saveJudgeNote(eventId, { submissionId: project, body: 'x' }))
-        .success,
-    ).toBe(false);
-
-    await db.delete(user).where(eq(user.id, judge.id));
-    expect(
-      await db.select().from(judgeNotes).where(eq(judgeNotes.userId, judge.id)),
-    ).toHaveLength(0);
   });
 });
 

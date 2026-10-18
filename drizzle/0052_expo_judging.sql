@@ -16,14 +16,6 @@ CREATE TABLE "event_judges" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "judge_notes" (
-	"user_id" uuid NOT NULL,
-	"submission_id" uuid NOT NULL,
-	"body" text NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "judge_notes_user_id_submission_id_pk" PRIMARY KEY("user_id","submission_id")
-);
---> statement-breakpoint
 CREATE TABLE "judge_reliability" (
 	"judge_id" uuid NOT NULL,
 	"criterion_id" uuid NOT NULL,
@@ -96,8 +88,6 @@ ALTER TABLE "user_profiles" ADD COLUMN "linkedin_url" varchar(255);--> statement
 ALTER TABLE "user_profile_professional" ADD CONSTRAINT "user_profile_professional_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "event_judges" ADD CONSTRAINT "event_judges_event_id_events_id_fk" FOREIGN KEY ("event_id") REFERENCES "public"."events"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "event_judges" ADD CONSTRAINT "event_judges_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "judge_notes" ADD CONSTRAINT "judge_notes_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "judge_notes" ADD CONSTRAINT "judge_notes_submission_id_submissions_id_fk" FOREIGN KEY ("submission_id") REFERENCES "public"."submissions"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "judge_reliability" ADD CONSTRAINT "judge_reliability_judge_id_event_judges_id_fk" FOREIGN KEY ("judge_id") REFERENCES "public"."event_judges"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "judge_reliability" ADD CONSTRAINT "judge_reliability_criterion_id_judging_criteria_id_fk" FOREIGN KEY ("criterion_id") REFERENCES "public"."judging_criteria"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "judge_skips" ADD CONSTRAINT "judge_skips_judge_id_event_judges_id_fk" FOREIGN KEY ("judge_id") REFERENCES "public"."event_judges"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint

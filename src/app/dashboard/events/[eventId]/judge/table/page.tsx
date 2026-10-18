@@ -21,7 +21,6 @@ import { cn } from '@/lib/utils';
 import {
   ActionForm,
   AutoRefresh,
-  NotesButton,
   SkipButton,
   SubmitButton,
 } from '../judge-controls';
@@ -148,16 +147,7 @@ function Screen({
     case 'begin':
       return (
         <JudgeCard help={help}>
-          <GoTo
-            project={view.current}
-            notes={
-              <NotesButton
-                key={view.current.id}
-                eventId={eventId}
-                project={view.current}
-              />
-            }
-          />
+          <GoTo project={view.current} />
           <Image
             src={curtWriting}
             alt='Curt the CRT, taking notes'
@@ -216,16 +206,9 @@ function Message({
   );
 }
 
-function GoTo({
-  project,
-  notes,
-}: {
-  project: JudgeProjectCard;
-  notes: React.ReactNode;
-}) {
+function GoTo({ project }: { project: JudgeProjectCard }) {
   return (
-    <div className='relative flex flex-col items-center gap-0.5 text-center'>
-      <div className='absolute -top-1 -right-2'>{notes}</div>
+    <div className='flex flex-col items-center gap-0.5 text-center'>
       <p className='text-muted-foreground m-0 inline-flex items-center gap-1 text-xs font-semibold tracking-wider uppercase'>
         <MapPin aria-hidden className='size-4' />
         Go to
@@ -268,16 +251,7 @@ function CompareScreen({
       >
         <input type='hidden' name='previousId' value={view.previous.id} />
         <input type='hidden' name='currentId' value={view.current.id} />
-        <GoTo
-          project={view.current}
-          notes={
-            <NotesButton
-              eventId={eventId}
-              project={view.current}
-              previous={view.previous}
-            />
-          }
-        />
+        <GoTo project={view.current} />
 
         {/* One grid for the whole comparison: the two projects head the
           columns, and each criterion is a label row over its two buttons,

@@ -44,8 +44,7 @@ export function JudgeFrame({
 
 /**
  * Every judge screen is one top-level card holding all of it, buttons
- * included — never cards inside cards. `help` pins to the top-left corner,
- * across from the notes button the "Go to" heading puts on the right.
+ * included — never cards inside cards. `help` pins to the top-left corner.
  */
 export function JudgeCard({
   className,
@@ -61,7 +60,9 @@ export function JudgeCard({
       <CardContent
         className={cn('relative flex flex-col gap-3 px-4 sm:px-5', className)}
       >
-        {help && <div className='absolute -top-1 left-2 sm:left-3'>{help}</div>}
+        {help && (
+          <div className='absolute -top-1 left-2 z-10 sm:left-3'>{help}</div>
+        )}
         {children}
       </CardContent>
     </Card>

@@ -30,7 +30,7 @@ import {
  *
  * - Judge roster rows keep their votes and reliability grouped, so they stay
  *   — but lose the email as well as the user link (the FK clears that), and
- *   show as "Deleted judge #…". Their private judging notes cascade away.
+ *   show as "Deleted judge #…".
  * - Teams they organize pass to the earliest-joined remaining member, the
  *   same rule as leaving a team. (`organizerId` is `set null` only as the
  *   backstop for a team left empty.)

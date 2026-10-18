@@ -10,11 +10,10 @@
 
 'use server';
 
-import { and, eq } from 'drizzle-orm';
 import { refresh } from 'next/cache';
 import { z } from 'zod';
 
-import { judgeNotes, judgeSkips, submissions } from '@/db/schema';
+import { judgeSkips } from '@/db/schema';
 import {
   advance,
   loadJudgeContext,
@@ -23,16 +22,13 @@ import {
   poolMembers,
   settleAssignment,
 } from '@/lib/judging/judge-session';
-import { JUDGE_NOTE_MAX_LENGTH } from '@/lib/judging/limits';
 import {
-  findJudgeForUser,
   loadCriteria,
   lockEventForJudging,
   recordComparison,
   recordVisit,
 } from '@/lib/judging/server';
 import { ActionResult, fail, ok } from '@/utils/action-result';
-import { getUser } from '@/utils/auth';
 import { db } from '@/utils/db';
 
 const idSchema = z.uuid();
@@ -189,69 +185,4 @@ export async function skipJudgeProject(
   }
   refresh();
   return ok();
-}
-
-const noteSchema = z.object({
-  submissionId: z.uuid(),
-  body: z
-    .string()
-    .max(
-      JUDGE_NOTE_MAX_LENGTH,
-      `Keep notes under ${JUDGE_NOTE_MAX_LENGTH} characters.`,
-    ),
-});
-
-/**
- * A judge's private note on a project — only ever shown back to them. Kept
- * per user, so it goes with their account. An empty note is deleted.
- */
-export async function saveJudgeNote(
-  eventId: string,
-  input: z.infer<typeof noteSchema>,
-): Promise<ActionResult> {
-  const parsed = noteSchema.safeParse(input);
-  if (!parsed.success) {
-    return fail(parsed.error.issues[0]?.message ?? 'Invalid note.');
-  }
-  const { submissionId, body } = parsed.data;
-
-  const user = await getUser();
-  if (!user) return fail('Not authenticated');
-  const judge = await findJudgeForUser(eventId, user);
-  if (!judge || judge.disabledAt)
-    return fail('You are not judging this event.');
-
-  const [submission] = await db
-    .select({ id: submissions.id })
-    .from(submissions)
-    .where(
-      and(eq(submissions.id, submissionId), eq(submissions.eventId, eventId)),
-    )
-    .limit(1);
-  if (!submission) return fail('Project not found.');
-
-  try {
-    if (body.trim() === '') {
-      await db
-        .delete(judgeNotes)
-        .where(
-          and(
-            eq(judgeNotes.userId, user.id),
-            eq(judgeNotes.submissionId, submissionId),
-          ),
-        );
-    } else {
-      await db
-        .insert(judgeNotes)
-        .values({ userId: user.id, submissionId, body })
-        .onConflictDoUpdate({
-          target: [judgeNotes.userId, judgeNotes.submissionId],
-          set: { body, updatedAt: new Date() },
-        });
-    }
-    return ok();
-  } catch (error) {
-    console.error('[events/judging] failed to save judge note', error);
-    return fail('Failed to save your note.');
-  }
 }

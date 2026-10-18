@@ -11,8 +11,6 @@
  *   for dispatch. Results replay the votes instead (`@/lib/judging/results`).
  * - judge_state / judge_skips: Where each judge is, and what they've passed on.
  * - judge_visits: Every project a judge has been at, vote or no vote.
- * - judge_notes: A judge's private note on a project, keyed on the user so it
- *   goes with the account.
  *
  * Votes reference judges and criteria with `no action`, not `restrict`: it's
  * checked at the end of the statement, so deleting the event (which cascades
@@ -237,22 +235,4 @@ export const judgeVisits = pgTable(
     primaryKey({ columns: [table.judgeId, table.submissionId] }),
     index('idx_judge_visits_submission_id').on(table.submissionId),
   ],
-);
-
-export const judgeNotes = pgTable(
-  'judge_notes',
-  {
-    userId: uuid('user_id')
-      .notNull()
-      .references(() => user.id, { onDelete: 'cascade' }),
-    submissionId: uuid('submission_id')
-      .notNull()
-      .references(() => submissions.id, { onDelete: 'cascade' }),
-    body: text('body').notNull(),
-    updatedAt: timestamp('updated_at', { withTimezone: true })
-      .defaultNow()
-      .$onUpdate(() => new Date())
-      .notNull(),
-  },
-  (table) => [primaryKey({ columns: [table.userId, table.submissionId] })],
 );
