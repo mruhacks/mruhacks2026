@@ -101,9 +101,9 @@ The database schema is organized into three main modules:
 - `submission_editors`: Editor presence `(submission_id, user_id, last_seen_at)`, refreshed by the editor's heartbeat
 - `judging_criteria`: What judges compare on, per event (name, one-line description, position, weight). Only renamable/reweightable once any vote exists
 - `event_judges`: The judge roster — added by email, linked to the user on sign-in; outlives account deletion (email and user cleared) so votes stay grouped
-- `judging_votes`: One row per criterion per comparison (winner, loser). `judge_id`/`criterion_id` are `NO ACTION` FKs: a judge or criterion with votes can't be deleted, but deleting the event still cascades
+- `judging_votes`: One row per criterion per comparison (winner, loser). `judge_id`/`criterion_id` are `NO ACTION` FKs: a judge or criterion with votes can't be deleted, but deleting the event still cascades. `seq` (an identity drawn while the vote holds both projects' score rows) is the order votes were applied to the online model, and the order results replay them in
 - `judge_reliability` / `submission_scores`: Online Crowd-BT state (α, β per judge per criterion; μ, σ² per project per criterion), used only to dispatch judges. Results replay the in-pool votes instead
-- `judge_state` / `judge_skips` / `judge_notes`: Each judge's current and previous project, their skips ("not here" or conflict of interest), and private notes (keyed on the user)
+- `judge_state` / `judge_skips` / `judge_visits` / `judge_notes`: Each judge's current and previous project, their skips ("not here" or conflict of interest), every project they've been at (never dispatched to them again, and what view counts count), and private notes (keyed on the user)
 - `user_profile_professional`: A judge's company, job title and LinkedIn — the Professional welcome step judges take instead of About
 
 ### Database Views

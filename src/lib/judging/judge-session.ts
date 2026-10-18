@@ -8,16 +8,25 @@
  * row for the event matched to the signed-in user — never by a permission,
  * the same way team membership authorizes participants.
  *
- * Every write locks the judge's `judge_state` row, so a double-tapped button
- * or a second open tab can't record a comparison twice: forms send back the
- * ids they were shown, and a mismatch just leaves the judge where they are.
+ * Every write takes the event's shared judging lock, re-checks the judge's
+ * roster row under a share lock (so a disable or removal either waits for it
+ * or is seen by it), then locks their `judge_state` row, so a double-tapped
+ * button or a second open tab can't record a comparison twice: forms send
+ * back the ids they were shown, and a mismatch just leaves the judge where
+ * they are.
  */
 
 import 'server-only';
 
 import { and, eq, inArray } from 'drizzle-orm';
 
-import { events, judgeNotes, judgeState, submissions } from '@/db/schema';
+import {
+  eventJudges,
+  events,
+  judgeNotes,
+  judgeState,
+  submissions,
+} from '@/db/schema';
 import {
   dispatchNext,
   findJudgeForUser,
@@ -25,6 +34,7 @@ import {
   getTableLabels,
   inPoolCondition,
   loadCriteria,
+  lockEventForJudging,
   type JudgeRow,
 } from '@/lib/judging/server';
 import { getUser } from '@/utils/auth';
@@ -122,6 +132,26 @@ export async function loadJudgeContext(eventId: string): Promise<JudgeContext> {
   };
 }
 
+/**
+ * Share-locks the judge's roster row until commit and says whether they may
+ * still judge. The context was checked before the transaction began; this
+ * is the re-check, so a judge disabled or removed since then gets nothing
+ * recorded or assigned. A disable or removal in flight waits for the lock
+ * (and a removal then sees any vote this transaction cast); one that already
+ * committed is seen here.
+ */
+export async function lockActiveJudge(
+  tx: Tx,
+  judgeId: string,
+): Promise<boolean> {
+  const [row] = await tx
+    .select({ disabledAt: eventJudges.disabledAt })
+    .from(eventJudges)
+    .where(eq(eventJudges.id, judgeId))
+    .for('share');
+  return row != null && row.disabledAt == null;
+}
+
 /** Creates the judge's state row on first use, then locks it. */
 export async function lockState(tx: Tx, judgeId: string) {
   await tx.insert(judgeState).values({ judgeId }).onConflictDoNothing();
@@ -157,12 +187,15 @@ export async function poolMembers(
  * Brings the judge's assignment up to date: a previous project that left the
  * pool is dropped (they'll Begin again from the current one), and a missing
  * or departed current project is replaced by a fresh dispatch. A judge with
- * nowhere to go keeps their previous project for when one turns up.
+ * nowhere to go keeps their previous project for when one turns up. Null
+ * when the judge was disabled or removed since `ctx` was loaded.
  */
 export async function settleAssignment(
   tx: Tx,
   ctx: Extract<JudgeContext, { ok: true }>,
-): Promise<{ previousId: string | null; currentId: string | null }> {
+): Promise<{ previousId: string | null; currentId: string | null } | null> {
+  await lockEventForJudging(tx, ctx.eventId);
+  if (!(await lockActiveJudge(tx, ctx.judge.id))) return null;
   const state = await lockState(tx, ctx.judge.id);
   const active = await poolMembers(tx, ctx.eventId, [
     state.previousSubmissionId,
@@ -292,5 +325,12 @@ export async function getJudgeView(eventId: string): Promise<JudgeView> {
   const ctx = await loadJudgeContext(eventId);
   if (!ctx.ok) return ctx.view;
   const assignment = await db.transaction((tx) => settleAssignment(tx, ctx));
+  if (!assignment) {
+    // Disabled or removed in the meantime: show that rather than a stale screen.
+    const latest = await loadJudgeContext(eventId);
+    return latest.ok
+      ? { kind: 'waiting', eventName: latest.eventName }
+      : latest.view;
+  }
   return buildView(ctx, assignment);
 }

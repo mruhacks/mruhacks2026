@@ -118,7 +118,11 @@ CREATE UNIQUE INDEX "submissions_event_id_table_slot_unique" ON "submissions" US
 CREATE UNIQUE INDEX "submissions_event_id_placement_unique" ON "submissions" USING btree ("event_id","placement") WHERE "submissions"."placement" IS NOT NULL;--> statement-breakpoint
 -- LinkedIn moves from the student (About) row to one column on the base
 -- profile, shared with the judge's Professional profile. Carry it over before
--- the old column is dropped.
+-- the old column is dropped. An UPDATE covers every About row: 0031 built
+-- them from user_profiles, and since then the wizard (Personal before About)
+-- and event registration have always written the base profile first. Only a
+-- hand-made call to saveAboutProfile could leave one without, and a base
+-- profile can't be made up for it (full name and gender are required).
 UPDATE "user_profiles" p
    SET "linkedin_url" = pa."linkedin_url"
   FROM "user_profile_about" pa

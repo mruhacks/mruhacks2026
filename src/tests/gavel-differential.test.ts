@@ -529,7 +529,7 @@ async function runScenario(seed: number) {
     })
     .from(judgingVotes)
     .where(eq(judgingVotes.criterionId, criterionId))
-    .orderBy(asc(judgingVotes.createdAt), asc(judgingVotes.id));
+    .orderBy(asc(judgingVotes.seq));
   const judgeIndex = new Map(judges.map((judge, i) => [judge.judgeId, i]));
   expect(
     votes.map((v) => ({

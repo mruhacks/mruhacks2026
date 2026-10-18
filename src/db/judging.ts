@@ -10,6 +10,7 @@
  * - judge_reliability / submission_scores: The *online* model state, used only
  *   for dispatch. Results replay the votes instead (`@/lib/judging/results`).
  * - judge_state / judge_skips: Where each judge is, and what they've passed on.
+ * - judge_visits: Every project a judge has been at, vote or no vote.
  * - judge_notes: A judge's private note on a project, keyed on the user so it
  *   goes with the account.
  *
@@ -20,6 +21,7 @@
  */
 
 import {
+  bigint,
   check,
   doublePrecision,
   index,
@@ -108,6 +110,15 @@ export const judgingVotes = pgTable(
     loserSubmissionId: uuid('loser_submission_id')
       .notNull()
       .references(() => submissions.id, { onDelete: 'cascade' }),
+    /**
+     * The order votes were applied to the online model, which results replay
+     * them in. Drawn while the vote holds both projects' score rows, unlike
+     * `created_at` (the transaction's start), so a vote that waited on those
+     * locks sorts after the one it waited for.
+     */
+    seq: bigint('seq', { mode: 'number' })
+      .generatedByDefaultAsIdentity()
+      .notNull(),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -199,6 +210,32 @@ export const judgeSkips = pgTable(
       'judge_skips_reason_valid',
       sql`${table.reason} IN ('not_here', 'conflict')`,
     ),
+  ],
+);
+
+/**
+ * Every project a judge has been at: the one they began on, and each one they
+ * compared, recorded even when the vote itself was dropped (a project that
+ * left the pool mid-visit). Like Gavel's `ignore` list, a visited project is
+ * never dispatched to that judge again; like its `viewed`, it's what a
+ * project's view count counts.
+ */
+export const judgeVisits = pgTable(
+  'judge_visits',
+  {
+    judgeId: uuid('judge_id')
+      .notNull()
+      .references(() => eventJudges.id, { onDelete: 'cascade' }),
+    submissionId: uuid('submission_id')
+      .notNull()
+      .references(() => submissions.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.judgeId, table.submissionId] }),
+    index('idx_judge_visits_submission_id').on(table.submissionId),
   ],
 );
 

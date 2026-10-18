@@ -92,7 +92,7 @@ async function JudgingContent({
       <TableLayoutCard
         eventId={eventId}
         layout={data.tableLayout}
-        locked={data.structureLocked}
+        locked={data.layoutLocked}
       />
       <JudgingProjectsCard eventId={eventId} projects={data.projects} />
     </div>

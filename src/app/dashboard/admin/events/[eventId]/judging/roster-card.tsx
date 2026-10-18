@@ -96,7 +96,9 @@ export function RosterCard({
         setNotice(
           invite === 'cooling_down'
             ? `Added ${added}, but they were sent a sign-in link in the last minute, so no invite went out. Send it again shortly.`
-            : `Added ${added}, but the invite email failed to send. Send it again to retry.`,
+            : invite === 'rate_limited'
+              ? `Added ${added}, but you’ve sent a lot of invites in the last minute, so no invite went out. Send it again shortly.`
+              : `Added ${added}, but the invite email failed to send. Send it again to retry.`,
         );
       }
       setEmail('');

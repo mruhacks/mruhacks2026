@@ -16,8 +16,17 @@
  * no randomness, so the same vote sequence always yields the same state.
  */
 
-// Gavel's defaults, "chosen according to experiments in paper".
-/** Trade-off between learning about projects and learning about the judge. */
+// Gavel's defaults. KAPPA and the Beta(10, 1) judge prior are the paper's
+// (§4.1, §5.1.2); it leaves the project prior open.
+/**
+ * Trade-off between learning about projects and learning about the judge.
+ * Gavel's 0.1 is below the paper's suggested 1–10 (§4, §5.2), and rightly:
+ * that range pays off when the algorithm also picks *which* annotator
+ * answers, so what it learns about one decides what it asks them next. At
+ * an expo the judge who asks is the judge sent, so exploring their
+ * reliability buys little, and in simulations of this dispatch larger
+ * values ranked worse.
+ */
 const GAMMA = 0.1;
 /** Floor on the variance multiplier, so σ² stays positive. */
 const KAPPA = 0.0001;

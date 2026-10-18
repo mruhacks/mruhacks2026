@@ -87,7 +87,8 @@ function loginAs(u: TestUser) {
   vi.mocked(getUser).mockResolvedValue(u as never);
 }
 
-const HOUR = 60 * 60 * 1000;
+const MINUTE = 60 * 1000;
+const HOUR = 60 * MINUTE;
 const created: { users: string[]; events: string[] } = {
   users: [],
   events: [],
@@ -302,18 +303,43 @@ async function voteAll(
 
 let organizer: TestUser;
 
+async function makeOrganizer(): Promise<TestUser> {
+  const u = await makeUser('Organizer');
+  await grant(u.id, [
+    'judging:manage:all',
+    'judging:results:all',
+    'judging:award:all',
+  ]);
+  return u;
+}
+
 beforeEach(async () => {
   sendJudgeInvite.mockReset();
   sendJudgeInvite.mockResolvedValue();
-  if (!organizer) {
-    organizer = await makeUser('Organizer');
-    await grant(organizer.id, [
-      'judging:manage:all',
-      'judging:results:all',
-      'judging:award:all',
-    ]);
-  }
+  if (!organizer) organizer = await makeOrganizer();
 });
+
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/**
+ * Holds a transaction open: runs `hold` (taking whatever locks it takes),
+ * then waits for `release()` before committing.
+ */
+function holdTransaction(hold: (tx: Tx) => Promise<void>) {
+  let release!: () => void;
+  const released = new Promise<void>((resolve) => (release = resolve));
+  let held!: () => void;
+  const acquired = new Promise<void>((resolve) => (held = resolve));
+  const done = db.transaction(async (tx) => {
+    await hold(tx);
+    held();
+    await released;
+  });
+  return { acquired, release, done };
+}
+
+/** Long enough for a concurrent call to reach the lock it waits on. */
+const settle = () => new Promise((resolve) => setTimeout(resolve, 150));
 
 afterAll(async () => {
   if (created.events.length > 0) {
@@ -555,9 +581,7 @@ describe('criteria vs. votes', () => {
   function holdEventLock(
     eventId: string,
     mode: 'update' | 'key share',
-    during: (
-      tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
-    ) => Promise<void> = async () => {},
+    during: (tx: Tx) => Promise<void> = async () => {},
   ) {
     let release!: () => void;
     const released = new Promise<void>((resolve) => (release = resolve));
@@ -575,8 +599,6 @@ describe('criteria vs. votes', () => {
     });
     return { acquired, release, done };
   }
-
-  const settle = () => new Promise((resolve) => setTimeout(resolve, 150));
 
   test('a vote waits for a criteria save, then asks for the criterion it added', async () => {
     const { eventId, judgeId, compare } = await readyToVote(['Design']);
@@ -687,6 +709,12 @@ async function auditActions(targetId: string): Promise<string[]> {
 }
 
 describe('roster', () => {
+  // Adding a judge with an invite counts against the organizer's invite rate
+  // limit (10 a minute), so each roster test gets an organizer of its own.
+  beforeEach(async () => {
+    organizer = await makeOrganizer();
+  });
+
   test('adding a judge stores the lowercased email and emails them', async () => {
     const eventId = await makeEvent();
     loginAs(organizer);
@@ -710,6 +738,10 @@ describe('roster', () => {
       error: 'That email is already on the roster.',
     });
     expect((await addEventJudge(eventId, 'not-an-email')).success).toBe(false);
+    // Longer than the column holds: refused for the form, not a 500.
+    expect(
+      await addEventJudge(eventId, `${'a'.repeat(250)}@example.com`),
+    ).toEqual({ success: false, error: 'That email address is too long.' });
   });
 
   test('an address that already has an account is linked straight away', async () => {
@@ -757,6 +789,11 @@ describe('roster', () => {
     const before = unwrap(await getJudgingAdmin(eventId)).judges;
     expect(before.map((j) => j.invited)).toEqual([false, false, false, true]);
     unwrap(await setEventJudgeDisabled(eventId, before[2].id, true));
+    expect(await resendJudgeInvite(eventId, before[2].id)).toEqual({
+      success: false,
+      error: 'This judge is disabled. Enable them to send their invite.',
+    });
+    expect(sendJudgeInvite).toHaveBeenCalledTimes(1);
 
     sendJudgeInvite.mockClear();
     sendJudgeInvite.mockImplementation(async ({ email }) => {
@@ -857,6 +894,17 @@ describe('roster', () => {
           'You’ve sent a lot of invites in the last minute. Wait a moment and try again.',
       });
     }
+
+    // Adding a judge counts too: they're still added, but their invite waits
+    // for "Send outstanding invites".
+    const limited = freshEmail('limited');
+    expect(unwrap(await addEventJudge(eventId, limited)).invite).toBe(
+      'rate_limited',
+    );
+    expect(sendJudgeInvite).not.toHaveBeenCalled();
+    const [row] = await rosterRows(eventId);
+    expect(row.email).toBe(limited);
+    expect(row.inviteSentAt).toBeNull();
   });
 
   test('an event’s own participants can’t be added as its judges', async () => {
@@ -1195,6 +1243,138 @@ describe('judge flow', () => {
     expect((await getJudgeView(eventId)).kind).toBe('waiting');
   });
 
+  test('“not here” is timed on the app’s clock, like the busy window', async () => {
+    const eventId = await makeEvent();
+    loginAs(organizer);
+    await addCriteria(eventId, ['Design']);
+    const [only] = await makeProjects(eventId, 1);
+    const judge = await makeUser('Clock');
+    await rosterJudge(eventId, judge);
+
+    loginAs(judge);
+    expectKind(await getJudgeView(eventId), 'begin');
+    // The app server's clock runs five minutes ahead of the database's.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      vi.setSystemTime(Date.now() + 5 * MINUTE);
+      expect((await skip(eventId, only, 'not_here')).kind).toBe('waiting');
+      vi.setSystemTime(Date.now() + 6 * MINUTE);
+      expect((await getJudgeView(eventId)).kind).toBe('waiting');
+      vi.setSystemTime(Date.now() + 5 * MINUTE);
+      expect(expectKind(await getJudgeView(eventId), 'begin').current.id).toBe(
+        only,
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test('a judge is never sent back to a project they’ve been at, vote or no vote', async () => {
+    const eventId = await makeEvent();
+    loginAs(organizer);
+    await addCriteria(eventId, ['Design']);
+    await makeProjects(eventId, 3);
+    const judge = await makeUser('Revisit');
+    await rosterJudge(eventId, judge);
+
+    loginAs(judge);
+    const first = expectKind(await getJudgeView(eventId), 'begin');
+    const compare = expectKind(
+      await begin(eventId, first.current.id),
+      'compare',
+    );
+    // Both leave the pool while the judge is at the second: the vote is
+    // dropped, and with nothing left to compare against they begin afresh.
+    const visited = [compare.previous.id, compare.current.id];
+    loginAs(organizer);
+    for (const id of visited) {
+      unwrap(await setSubmissionDeactivated(eventId, id, true));
+    }
+    loginAs(judge);
+    const restart = expectKind(
+      await voteAll(eventId, compare, 'current'),
+      'begin',
+    );
+    expect(visited).not.toContain(restart.current.id);
+
+    // Back in the pool, but this judge has been at both already.
+    loginAs(organizer);
+    for (const id of visited) {
+      unwrap(await setSubmissionDeactivated(eventId, id, false));
+    }
+    loginAs(judge);
+    expect((await begin(eventId, restart.current.id)).kind).toBe('waiting');
+  });
+
+  test('a judge disabled while their vote is in flight records nothing', async () => {
+    const eventId = await makeEvent();
+    loginAs(organizer);
+    await addCriteria(eventId, ['Design']);
+    await makeProjects(eventId, 3);
+    const judge = await makeUser('DisabledMidVote');
+    const judgeId = await rosterJudge(eventId, judge);
+
+    loginAs(judge);
+    const first = expectKind(await getJudgeView(eventId), 'begin');
+    const compare = expectKind(
+      await begin(eventId, first.current.id),
+      'compare',
+    );
+    // The organizer's Disable, committed only once the vote is under way.
+    const disabling = holdTransaction(async (tx) => {
+      await tx
+        .update(eventJudges)
+        .set({ disabledAt: new Date() })
+        .where(eq(eventJudges.id, judgeId));
+    });
+    await disabling.acquired;
+    const vote = submitJudgeVote(
+      eventId,
+      voteForm(compare.previous.id, compare.current.id, {
+        [compare.criteria[0].id]: 'current',
+      }),
+    );
+    await settle();
+    disabling.release();
+    await disabling.done;
+
+    expect((await vote).success).toBe(true);
+    expect(
+      await db
+        .select()
+        .from(judgingVotes)
+        .where(eq(judgingVotes.judgeId, judgeId)),
+    ).toEqual([]);
+    expect((await getJudgeView(eventId)).kind).toBe('disabled');
+  });
+
+  test('a judge removed while their request is in flight is told so, without an error', async () => {
+    const eventId = await makeEvent();
+    loginAs(organizer);
+    await addCriteria(eventId, ['Design']);
+    await makeProjects(eventId, 2);
+    const judge = await makeUser('RemovedMidRequest');
+    const judgeId = await rosterJudge(eventId, judge);
+
+    loginAs(judge);
+    const first = expectKind(await getJudgeView(eventId), 'begin');
+    // The organizer's Remove, committed only once Begin is under way.
+    const removing = holdTransaction(async (tx) => {
+      await tx.delete(eventJudges).where(eq(eventJudges.id, judgeId));
+    });
+    await removing.acquired;
+    const begun = beginJudging(
+      eventId,
+      formData({ currentId: first.current.id }),
+    );
+    await settle();
+    removing.release();
+    await removing.done;
+
+    expect((await begun).success).toBe(true);
+    expect((await getJudgeView(eventId)).kind).toBe('not_judge');
+  });
+
   test('a project another judge was just sent to is not sent to a second', async () => {
     const eventId = await makeEvent();
     loginAs(organizer);
@@ -1443,6 +1623,109 @@ describe('results and awards', () => {
     expect((await getJudgingResults(eventId)).success).toBe(false);
   });
 
+  test('replays votes in the order they reached the model, not the order they began', async () => {
+    const eventId = await makeEvent();
+    loginAs(organizer);
+    const [criterion] = await addCriteria(eventId, ['Design']);
+    const [a, b, c] = await makeProjects(eventId, 3);
+    const first = await makeUser('SlowVoter');
+    const second = await makeUser('FastVoter');
+    const firstId = await rosterJudge(eventId, first);
+    const secondId = await rosterJudge(eventId, second);
+    // Both judges are at B: the first came from A, the second from C.
+    await db.insert(judgeState).values([
+      {
+        judgeId: firstId,
+        previousSubmissionId: a,
+        currentSubmissionId: b,
+        assignedAt: new Date(),
+      },
+      {
+        judgeId: secondId,
+        previousSubmissionId: c,
+        currentSubmissionId: b,
+        assignedAt: new Date(),
+      },
+    ]);
+
+    // The first judge's vote starts, then stalls on its own state row; the
+    // second's starts later, but updates B first.
+    const stall = holdTransaction(async (tx) => {
+      await tx
+        .select()
+        .from(judgeState)
+        .where(eq(judgeState.judgeId, firstId))
+        .for('update');
+    });
+    await stall.acquired;
+    loginAs(first);
+    const slow = submitJudgeVote(
+      eventId,
+      voteForm(a, b, { [criterion.id]: 'previous' }),
+    );
+    await settle();
+    loginAs(second);
+    unwrap(
+      await submitJudgeVote(
+        eventId,
+        voteForm(c, b, { [criterion.id]: 'current' }),
+      ),
+    );
+    stall.release();
+    await stall.done;
+    unwrap(await slow);
+
+    const votes = await db
+      .select()
+      .from(judgingVotes)
+      .where(inArray(judgingVotes.judgeId, [firstId, secondId]));
+    const slowVote = votes.find((v) => v.judgeId === firstId)!;
+    const fastVote = votes.find((v) => v.judgeId === secondId)!;
+    expect(slowVote.createdAt.getTime()).toBeLessThan(
+      fastVote.createdAt.getTime(),
+    );
+    expect(slowVote.seq).toBeGreaterThan(fastVote.seq);
+
+    // So the replay lands exactly where the online model did.
+    loginAs(organizer);
+    const results = unwrap(await getJudgingResults(eventId));
+    const online = await db
+      .select()
+      .from(submissionScores)
+      .where(eq(submissionScores.criterionId, criterion.id));
+    for (const row of results.byCriterion[0].rows) {
+      const live = online.find((s) => s.submissionId === row.id)!;
+      expect([row.mu, row.sigmaSq]).toEqual([live.mu, live.sigmaSq]);
+    }
+  });
+
+  test('a project deactivated while it’s being placed doesn’t keep the place', async () => {
+    const { eventId, projects } = await runExpo();
+    loginAs(organizer);
+    // Deactivation in flight: the row is updated but not yet committed.
+    const deactivating = holdTransaction(async (tx) => {
+      await tx
+        .update(submissions)
+        .set({ deactivatedAt: new Date(), placement: null })
+        .where(eq(submissions.id, projects[0]));
+    });
+    await deactivating.acquired;
+    const placing = setSubmissionPlacement(eventId, projects[0], 1);
+    await settle();
+    deactivating.release();
+    await deactivating.done;
+
+    expect(await placing).toEqual({
+      success: false,
+      error: 'That project isn’t in the judging results.',
+    });
+    const [row] = await db
+      .select({ placement: submissions.placement })
+      .from(submissions)
+      .where(eq(submissions.id, projects[0]));
+    expect(row?.placement).toBeNull();
+  });
+
   test('unique placements', async () => {
     const { eventId, projects } = await runExpo();
     loginAs(organizer);
@@ -1583,16 +1866,14 @@ describe('table numbers', () => {
 
     loginAs(organizer);
     await addCriteria(eventId, ['Design']);
+    expect(admin.layoutLocked).toBe(false);
     const judge = await makeUser('LayoutJudge');
     await rosterJudge(eventId, judge);
     loginAs(judge);
     const first = expectKind(await getJudgeView(eventId), 'begin');
     expect(first.current.tableLabel).toMatch(/^I{1,2}-[12]$/);
-    await voteAll(
-      eventId,
-      expectKind(await begin(eventId, first.current.id), 'compare'),
-      'current',
-    );
+
+    // Sent to a table, no vote yet: the label they were given has to hold.
     loginAs(organizer);
     expect(
       await updateJudgingTableLayout(eventId, {
@@ -1601,6 +1882,50 @@ describe('table numbers', () => {
         columnAlphabet: 'arabic',
       }),
     ).toEqual({
+      success: false,
+      error: 'Judging has started, so the table layout can no longer change.',
+    });
+    const locked = unwrap(await getJudgingAdmin(eventId));
+    expect(locked.layoutLocked).toBe(true);
+    // Criteria stay editable until the first vote.
+    expect(locked.structureLocked).toBe(false);
+  });
+
+  test('a layout save waits for a dispatch in flight, then refuses', async () => {
+    const eventId = await makeEvent();
+    loginAs(organizer);
+    await addCriteria(eventId, ['Design']);
+    const [project] = await makeProjects(eventId, 1);
+    const judge = await makeUser('FirstSent');
+    const judgeId = await rosterJudge(eventId, judge);
+    // Stands in for a judge's first dispatch: the shared lock, then an
+    // assignment, committed only after the save has started waiting.
+    const dispatch = holdTransaction(async (tx) => {
+      await tx
+        .select({ id: events.id })
+        .from(events)
+        .where(eq(events.id, eventId))
+        .for('key share');
+      await tx.insert(judgeState).values({
+        judgeId,
+        currentSubmissionId: project,
+        assignedAt: new Date(),
+      });
+    });
+    await dispatch.acquired;
+
+    let finished = false;
+    const save = updateJudgingTableLayout(eventId, {
+      rows: 2,
+      rowAlphabet: 'latin',
+      columnAlphabet: 'arabic',
+    }).finally(() => (finished = true));
+    await settle();
+    expect(finished).toBe(false);
+
+    dispatch.release();
+    await dispatch.done;
+    expect(await save).toEqual({
       success: false,
       error: 'Judging has started, so the table layout can no longer change.',
     });

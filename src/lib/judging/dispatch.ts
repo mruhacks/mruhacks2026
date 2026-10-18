@@ -32,7 +32,7 @@ const GAIN_TIE_TOLERANCE = 1e-12;
 
 export type DispatchCandidate = {
   id: string;
-  /** Distinct judges who have looked at it (voted on it, or begun on it). */
+  /** Judges who have been at it (begun on it, or compared it). */
   views: number;
   /** Assigned to another judge within the busy window. */
   busy: boolean;

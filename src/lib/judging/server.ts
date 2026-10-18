@@ -3,6 +3,7 @@ import 'server-only';
 import {
   and,
   asc,
+  count,
   eq,
   gt,
   inArray,
@@ -20,6 +21,7 @@ import {
   judgeReliability,
   judgeSkips,
   judgeState,
+  judgeVisits,
   judgingCriteria,
   judgingVotes,
   participationStatuses,
@@ -232,13 +234,15 @@ export async function loadCriteria(
 }
 
 /**
- * Takes the event row's shared criteria lock for a vote: concurrent votes
- * don't block each other, but a criteria save, which locks the row FOR
- * UPDATE, waits for them (and they for it). Reading the criteria after this,
- * in the same transaction, gives a set no save can change before commit.
- * FOR KEY SHARE rather than FOR SHARE so ordinary event edits aren't blocked.
+ * Takes the event row's shared judging lock, first thing in every judge
+ * transaction (dispatch, begin, vote, skip). Judges don't block each other,
+ * but the organizer saves that change what they're shown — criteria and the
+ * table layout, which lock the row FOR UPDATE — wait for them, and they for
+ * those. Reading the criteria after this, in the same transaction, gives a
+ * set no save can change before commit. FOR KEY SHARE rather than FOR SHARE
+ * so ordinary event edits aren't blocked.
  */
-export async function lockCriteriaShared(
+export async function lockEventForJudging(
   tx: Queryable,
   eventId: string,
 ): Promise<void> {
@@ -247,6 +251,26 @@ export async function lockCriteriaShared(
     .from(events)
     .where(eq(events.id, eventId))
     .for('key share');
+}
+
+/**
+ * Some judge has been sent to a table: `assigned_at` is only ever set once a
+ * project has been assigned. From then on the table layout is fixed, since
+ * changing it relabels tables under judges already walking to them.
+ */
+export async function judgesSentToTables(
+  eventId: string,
+  dbHandle: Queryable = db,
+): Promise<boolean> {
+  const [row] = await dbHandle
+    .select({ judgeId: judgeState.judgeId })
+    .from(judgeState)
+    .innerJoin(eventJudges, eq(eventJudges.id, judgeState.judgeId))
+    .where(
+      and(eq(eventJudges.eventId, eventId), isNotNull(judgeState.assignedAt)),
+    )
+    .limit(1);
+  return row != null;
 }
 
 /** Once any vote exists, criteria can only be renamed or reweighted. */
@@ -406,9 +430,24 @@ async function loadReliability(
 }
 
 /**
- * Projects this judge must not be sent to: everything they've compared or
- * begun on, conflicts of interest, "not here" skips still inside the retry
- * window, and their own team's project.
+ * Records that the judge has been at a project — begun on it, or compared
+ * it — so they're never sent back (`judge_visits`).
+ */
+export async function recordVisit(
+  tx: Queryable,
+  judgeId: string,
+  submissionId: string,
+): Promise<void> {
+  await tx
+    .insert(judgeVisits)
+    .values({ judgeId, submissionId })
+    .onConflictDoNothing();
+}
+
+/**
+ * Projects this judge must not be sent to: everything they've been at,
+ * conflicts of interest, "not here" skips still inside the retry window, and
+ * their own team's project.
  */
 async function loadExcludedForJudge(
   judgeId: string,
@@ -416,14 +455,11 @@ async function loadExcludedForJudge(
   now: Date,
   dbHandle: Queryable,
 ): Promise<Set<string>> {
-  const [voted, skipped, ownTeam] = await Promise.all([
+  const [visited, skipped, ownTeam] = await Promise.all([
     dbHandle
-      .select({
-        winner: judgingVotes.winnerSubmissionId,
-        loser: judgingVotes.loserSubmissionId,
-      })
-      .from(judgingVotes)
-      .where(eq(judgingVotes.judgeId, judgeId)),
+      .select({ submissionId: judgeVisits.submissionId })
+      .from(judgeVisits)
+      .where(eq(judgeVisits.judgeId, judgeId)),
     dbHandle
       .select({ submissionId: judgeSkips.submissionId })
       .from(judgeSkips)
@@ -465,45 +501,25 @@ async function loadExcludedForJudge(
       ),
   ]);
   const excluded = new Set<string>();
-  for (const row of voted) {
-    excluded.add(row.winner);
-    excluded.add(row.loser);
-  }
+  for (const row of visited) excluded.add(row.submissionId);
   for (const row of skipped) excluded.add(row.submissionId);
   for (const row of ownTeam) excluded.add(row.submissionId);
   if (previousId) excluded.add(previousId);
   return excluded;
 }
 
-/** submission id → distinct judges who have looked at it (voted on it or begun on it). */
+/** submission id → judges who have been at it (Gavel's `len(item.viewed)`). */
 async function loadViewCounts(
   eventId: string,
-  dbHandle: Pick<typeof db, 'execute'>,
+  dbHandle: Queryable,
 ): Promise<Map<string, number>> {
-  const rows = await dbHandle.execute<{
-    submission_id: string;
-    views: number;
-  }>(sql`
-    SELECT seen.submission_id, count(DISTINCT seen.judge_id)::int AS views
-      FROM (
-        SELECT v.judge_id, v.winner_submission_id AS submission_id
-          FROM ${judgingVotes} v
-          JOIN ${judgingCriteria} c ON c.id = v.criterion_id
-         WHERE c.event_id = ${eventId}
-        UNION
-        SELECT v.judge_id, v.loser_submission_id
-          FROM ${judgingVotes} v
-          JOIN ${judgingCriteria} c ON c.id = v.criterion_id
-         WHERE c.event_id = ${eventId}
-        UNION
-        SELECT s.judge_id, s.previous_submission_id
-          FROM ${judgeState} s
-          JOIN ${eventJudges} j ON j.id = s.judge_id
-         WHERE j.event_id = ${eventId} AND s.previous_submission_id IS NOT NULL
-      ) seen
-     GROUP BY seen.submission_id
-  `);
-  return new Map(rows.map((row) => [row.submission_id, Number(row.views)]));
+  const rows = await dbHandle
+    .select({ submissionId: judgeVisits.submissionId, views: count() })
+    .from(judgeVisits)
+    .innerJoin(eventJudges, eq(eventJudges.id, judgeVisits.judgeId))
+    .where(eq(eventJudges.eventId, eventId))
+    .groupBy(judgeVisits.submissionId);
+  return new Map(rows.map((row) => [row.submissionId, row.views]));
 }
 
 /** Projects another active judge was sent to within the busy window. */
@@ -629,6 +645,12 @@ export async function recordComparison(
     loadReliability(options.judgeId, tx),
   ]);
 
+  // Each criterion is its own model, so every update reads only the state
+  // loaded above; the writes then go out as one statement per table rather
+  // than four per criterion, to keep the score rows locked for less time.
+  const votes: (typeof judgingVotes.$inferInsert)[] = [];
+  const reliabilities: (typeof judgeReliability.$inferInsert)[] = [];
+  const scores: (typeof submissionScores.$inferInsert)[] = [];
   for (const [criterionId, side] of options.winners) {
     const winnerId =
       side === 'current' ? options.currentId : options.previousId;
@@ -638,35 +660,47 @@ export async function recordComparison(
       estimates.get(winnerId)?.get(criterionId) ?? PROJECT_PRIOR,
       estimates.get(loserId)?.get(criterionId) ?? PROJECT_PRIOR,
     );
-
-    await tx.insert(judgingVotes).values({
+    votes.push({
       judgeId: options.judgeId,
       criterionId,
       winnerSubmissionId: winnerId,
       loserSubmissionId: loserId,
     });
-    await tx
-      .insert(judgeReliability)
-      .values({ judgeId: options.judgeId, criterionId, ...result.judge })
-      .onConflictDoUpdate({
-        target: [judgeReliability.judgeId, judgeReliability.criterionId],
-        set: result.judge,
-      });
-    for (const [submissionId, estimate] of [
-      [winnerId, result.winner],
-      [loserId, result.loser],
-    ] as const) {
-      await tx
-        .update(submissionScores)
-        .set(estimate)
-        .where(
-          and(
-            eq(submissionScores.submissionId, submissionId),
-            eq(submissionScores.criterionId, criterionId),
-          ),
-        );
-    }
+    reliabilities.push({
+      judgeId: options.judgeId,
+      criterionId,
+      ...result.judge,
+    });
+    scores.push(
+      { submissionId: winnerId, criterionId, ...result.winner },
+      { submissionId: loserId, criterionId, ...result.loser },
+    );
   }
+
+  // Inserted only now, holding the score rows, so `seq` follows the order
+  // the model was updated in.
+  await tx.insert(judgingVotes).values(votes);
+  await tx
+    .insert(judgeReliability)
+    .values(reliabilities)
+    .onConflictDoUpdate({
+      target: [judgeReliability.judgeId, judgeReliability.criterionId],
+      set: {
+        alpha: sql`excluded.alpha`,
+        beta: sql`excluded.beta`,
+      },
+    });
+  // Every row exists (inserted above), so this only ever updates.
+  await tx
+    .insert(submissionScores)
+    .values(scores)
+    .onConflictDoUpdate({
+      target: [submissionScores.submissionId, submissionScores.criterionId],
+      set: {
+        mu: sql`excluded.mu`,
+        sigmaSq: sql`excluded.sigma_sq`,
+      },
+    });
 }
 
 /**
@@ -694,7 +728,10 @@ export async function loadResultsPool(eventId: string): Promise<
     .where(and(eq(submissions.eventId, eventId), inPoolCondition()));
 }
 
-/** Replays every in-pool vote of the event, in cast order. */
+/**
+ * Replays every in-pool vote of the event, in the order they were applied to
+ * the online model (`judging_votes.seq`).
+ */
 export async function replayEventVotes(
   eventId: string,
   poolIds: ReadonlySet<string>,
@@ -713,7 +750,7 @@ export async function replayEventVotes(
       eq(judgingCriteria.id, judgingVotes.criterionId),
     )
     .where(eq(judgingCriteria.eventId, eventId))
-    .orderBy(asc(judgingVotes.createdAt), asc(judgingVotes.id));
+    .orderBy(asc(judgingVotes.seq));
   return replayVotes(votes, poolIds, criterionIds);
 }
 

@@ -71,6 +71,7 @@ import {
   inPoolCondition,
   isParticipatingInEvent,
   JUDGE_IS_PARTICIPANT_MESSAGE,
+  judgesSentToTables,
   loadCriteria,
   loadResultsPool,
   loadTableLayout,
@@ -205,11 +206,13 @@ export type JudgingProjectRow = {
 
 export type JudgingAdminData = {
   criteria: JudgingCriterionRow[];
-  /**
-   * A vote exists: criteria can't be added, removed or reordered, and the
-   * table layout can't change under judges already walking the floor.
-   */
+  /** A vote exists: criteria can't be added, removed or reordered. */
   structureLocked: boolean;
+  /**
+   * A judge has been sent to a table: the layout can't change under judges
+   * already walking the floor.
+   */
+  layoutLocked: boolean;
   tableLayout: TableLayout;
   judges: JudgingRosterRow[];
   projects: JudgingProjectRow[];
@@ -225,6 +228,7 @@ export async function getJudgingAdmin(
   const [
     criteria,
     structureLocked,
+    layoutLocked,
     judges,
     voteCounts,
     projects,
@@ -233,6 +237,7 @@ export async function getJudgingAdmin(
   ] = await Promise.all([
     loadCriteria(eventId),
     eventHasVotes(eventId),
+    judgesSentToTables(eventId),
     loadRoster(eventId),
     db
       .select({ judgeId: judgingVotes.judgeId, votes: count() })
@@ -266,6 +271,7 @@ export async function getJudgingAdmin(
       weight: weights[index],
     })),
     structureLocked,
+    layoutLocked,
     tableLayout,
     judges: judges.map((row) => ({
       id: row.id,
@@ -346,13 +352,23 @@ function firstIssue(error: z.ZodError): string {
   return error.issues[0]?.message ?? 'Invalid input.';
 }
 
-/** Postgres foreign_key_violation, wherever the driver nests it. */
-function isForeignKeyViolation(error: unknown): boolean {
+/** A Postgres error with this SQLSTATE, wherever the driver nests it. */
+function hasPostgresCode(error: unknown, code: string): boolean {
   for (let e = error; e instanceof Error || (e && typeof e === 'object'); ) {
-    if ((e as { code?: unknown }).code === '23503') return true;
+    if ((e as { code?: unknown }).code === code) return true;
     e = (e as { cause?: unknown }).cause;
   }
   return false;
+}
+
+/** Postgres foreign_key_violation. */
+function isForeignKeyViolation(error: unknown): boolean {
+  return hasPostgresCode(error, '23503');
+}
+
+/** Postgres unique_violation. */
+function isUniqueViolation(error: unknown): boolean {
+  return hasPostgresCode(error, '23505');
 }
 
 /**
@@ -460,7 +476,10 @@ export async function saveJudgingCriteria(
 
 // ── Roster ────────────────────────────────────────────────────────────────
 
-const emailSchema = z.email('Enter a valid email address.');
+const emailSchema = z
+  .email('Enter a valid email address.')
+  // event_judges.email is varchar(255).
+  .max(255, 'That email address is too long.');
 
 /**
  * What became of one invite email. `cooling_down`: this address was sent a
@@ -529,22 +548,24 @@ async function claimOutstandingInvite(judgeId: string): Promise<Date | null> {
 
 /**
  * Adds a judge by email and, unless `sendInvite` is false, sends them a
- * "You're judging <event>" magic link. One left uninvited is picked up by
- * "Send outstanding invites". An address that already has an account is
- * linked straight away; a new one is linked when they first sign in. The
+ * "You're judging <event>" magic link. One left uninvited — asked not to, or
+ * held back by the organizer's invite rate limit (`rate_limited`) — is picked
+ * up by "Send outstanding invites". An address that already has an account
+ * is linked straight away; a new one is linked when they first sign in. The
  * event's own participants can't judge it.
  */
 export async function addEventJudge(
   eventId: string,
   email: string,
   { sendInvite = true }: { sendInvite?: boolean } = {},
-): Promise<ActionResult<{ invite: JudgeInviteOutcome | 'not_sent' }>> {
+): Promise<
+  ActionResult<{ invite: JudgeInviteOutcome | 'not_sent' | 'rate_limited' }>
+> {
   const auth = await authorize('judging:manage:all');
   if ('error' in auth) return auth.error;
   const normalized = normalizeJudgeEmail(email);
-  if (!emailSchema.safeParse(normalized).success) {
-    return fail('Enter a valid email address.');
-  }
+  const parsedEmail = emailSchema.safeParse(normalized);
+  if (!parsedEmail.success) return fail(firstIssue(parsedEmail.error));
 
   const [event] = await db
     .select({ name: events.name })
@@ -587,9 +608,12 @@ export async function addEventJudge(
       );
   }
 
-  const invite = sendInvite
-    ? await deliverJudgeInvite({ id: judgeId, email: normalized }, event.name)
-    : 'not_sent';
+  let invite: JudgeInviteOutcome | 'not_sent' | 'rate_limited' = 'not_sent';
+  if (sendInvite) {
+    invite = (await checkJudgeInviteRateLimit(auth.userId))
+      ? await deliverJudgeInvite({ id: judgeId, email: normalized }, event.name)
+      : 'rate_limited';
+  }
 
   await writeAuditLog({
     actorId: auth.userId,
@@ -604,7 +628,8 @@ export async function addEventJudge(
 
 /**
  * Sends the judge's invite again. Held to the per-address sign-in-link
- * cooldown and the organizer's invite rate limit.
+ * cooldown and the organizer's invite rate limit. Not for a disabled judge,
+ * whom the bulk send leaves out too.
  */
 export async function resendJudgeInvite(
   eventId: string,
@@ -617,13 +642,20 @@ export async function resendJudgeInvite(
   }
 
   const [row] = await db
-    .select({ email: eventJudges.email, eventName: events.name })
+    .select({
+      email: eventJudges.email,
+      disabledAt: eventJudges.disabledAt,
+      eventName: events.name,
+    })
     .from(eventJudges)
     .innerJoin(events, eq(events.id, eventJudges.eventId))
     .where(and(eq(eventJudges.id, judgeId), eq(eventJudges.eventId, eventId)))
     .limit(1);
   if (!row) return fail('Judge not found.');
   if (!row.email) return fail('This judge deleted their account.');
+  if (row.disabledAt) {
+    return fail('This judge is disabled. Enable them to send their invite.');
+  }
 
   const outcome = await deliverJudgeInvite(
     { id: judgeId, email: row.email },
@@ -803,9 +835,11 @@ const tableLayoutSchema = z.object({
 
 /**
  * Sets how table slots are labelled on the expo floor. Re-labels every
- * table, so it's locked from the first vote on: judges already walking the
- * floor would otherwise be sent to tables that changed name under them.
- * Requires judging:manage:all.
+ * table, so it's locked once any judge has been sent to one: judges already
+ * walking the floor would otherwise be sent to tables that changed name
+ * under them. The event row lock (FOR UPDATE here, FOR KEY SHARE in every
+ * judge transaction) keeps a first dispatch from landing between the check
+ * and the change. Requires judging:manage:all.
  */
 export async function updateJudgingTableLayout(
   eventId: string,
@@ -816,21 +850,29 @@ export async function updateJudgingTableLayout(
   const parsed = tableLayoutSchema.safeParse(input);
   if (!parsed.success) return fail(firstIssue(parsed.error));
 
-  if (await eventHasVotes(eventId)) {
-    return fail(
-      'Judging has started, so the table layout can no longer change.',
-    );
-  }
-  const [updated] = await db
-    .update(events)
-    .set({
-      judgingTableRows: parsed.data.rows,
-      judgingTableRowAlphabet: parsed.data.rowAlphabet,
-      judgingTableColumnAlphabet: parsed.data.columnAlphabet,
-    })
-    .where(eq(events.id, eventId))
-    .returning({ id: events.id });
-  if (!updated) return fail('Event not found.');
+  const result = await db.transaction(async (tx) => {
+    const [event] = await tx
+      .select({ id: events.id })
+      .from(events)
+      .where(eq(events.id, eventId))
+      .for('update');
+    if (!event) return fail('Event not found.');
+    if (await judgesSentToTables(eventId, tx)) {
+      return fail(
+        'Judging has started, so the table layout can no longer change.',
+      );
+    }
+    await tx
+      .update(events)
+      .set({
+        judgingTableRows: parsed.data.rows,
+        judgingTableRowAlphabet: parsed.data.rowAlphabet,
+        judgingTableColumnAlphabet: parsed.data.columnAlphabet,
+      })
+      .where(eq(events.id, eventId));
+    return ok();
+  });
+  if (!result.success) return result;
 
   await writeAuditLog({
     actorId: auth.userId,
@@ -1116,17 +1158,33 @@ export async function setSubmissionPlacement(
       .update(submissions)
       .set({ placement: parsed.data })
       .where(
-        and(eq(submissions.id, submissionId), eq(submissions.eventId, eventId)),
+        and(
+          eq(submissions.id, submissionId),
+          eq(submissions.eventId, eventId),
+          // Re-checked here, not just above: a project deactivated or
+          // unpublished since then has had its place cleared, and must not
+          // take one back that the results would never show.
+          parsed.data !== null ? inPoolCondition() : undefined,
+        ),
       )
       .returning({ id: submissions.id });
-    if (!updated) return fail('Project not found.');
+    if (!updated) {
+      return fail(
+        parsed.data !== null
+          ? 'That project isn’t in the judging results.'
+          : 'Project not found.',
+      );
+    }
   } catch (error) {
     // Lost a race for the same place: the partial unique index caught it.
+    if (isUniqueViolation(error)) {
+      return fail(`Another project already holds place ${parsed.data}.`);
+    }
     console.error(
       '[admin/events/judging] failed to set submission placement',
       error,
     );
-    return fail(`Another project already holds place ${parsed.data}.`);
+    return fail('Failed to save the placement.');
   }
   await writeAuditLog({
     actorId: auth.userId,

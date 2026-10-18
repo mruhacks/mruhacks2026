@@ -18,6 +18,7 @@ import { judgeNotes, judgeSkips, submissions } from '@/db/schema';
 import {
   advance,
   loadJudgeContext,
+  lockActiveJudge,
   lockState,
   poolMembers,
   settleAssignment,
@@ -26,8 +27,9 @@ import { JUDGE_NOTE_MAX_LENGTH } from '@/lib/judging/limits';
 import {
   findJudgeForUser,
   loadCriteria,
-  lockCriteriaShared,
+  lockEventForJudging,
   recordComparison,
+  recordVisit,
 } from '@/lib/judging/server';
 import { ActionResult, fail, ok } from '@/utils/action-result';
 import { getUser } from '@/utils/auth';
@@ -48,9 +50,14 @@ export async function beginJudging(
   if (ctx.ok) {
     await db.transaction(async (tx) => {
       const settled = await settleAssignment(tx, ctx);
-      if (settled.previousId !== null || settled.currentId !== currentId) {
+      if (
+        !settled ||
+        settled.previousId !== null ||
+        settled.currentId !== currentId
+      ) {
         return;
       }
+      await recordVisit(tx, ctx.judge.id, currentId);
       await advance(tx, ctx, currentId, currentId);
     });
   }
@@ -71,7 +78,7 @@ const voteSchema = z.object({
 /**
  * Previous or Current, for every criterion; then on to the next table. A
  * project that left the pool mid-visit is ignored, as in Gavel: no votes are
- * recorded, but the judge still moves on.
+ * recorded, but the judge still moves on, and has still been there.
  */
 export async function submitJudgeVote(
   eventId: string,
@@ -101,7 +108,7 @@ export async function submitJudgeVote(
     // Shared lock on the event row: votes don't wait on each other, but a
     // criteria save (FOR UPDATE) can't add or remove a criterion between
     // reading the criteria here and recording a vote on each of them.
-    await lockCriteriaShared(tx, eventId);
+    await lockEventForJudging(tx, eventId);
     const criteria = await loadCriteria(eventId, tx);
     // All removed since the form was rendered: the refresh shows why.
     if (criteria.length === 0) return ok();
@@ -112,6 +119,8 @@ export async function submitJudgeVote(
       choices.set(criterion.id, choice);
     }
 
+    // Disabled or removed since the context was loaded: the refresh shows it.
+    if (!(await lockActiveJudge(tx, ctx.judge.id))) return ok();
     const state = await lockState(tx, ctx.judge.id);
     if (
       state.previousSubmissionId !== previousId ||
@@ -129,6 +138,7 @@ export async function submitJudgeVote(
         winners: choices,
       });
     }
+    await recordVisit(tx, ctx.judge.id, currentId);
     await advance(tx, ctx, currentId, currentId);
     return ok();
   });
@@ -163,11 +173,17 @@ export async function skipJudgeProject(
   if (ctx.ok) {
     await db.transaction(async (tx) => {
       const settled = await settleAssignment(tx, ctx);
-      if (settled.currentId !== currentId) return;
+      if (!settled || settled.currentId !== currentId) return;
 
-      await tx
-        .insert(judgeSkips)
-        .values({ judgeId: ctx.judge.id, submissionId: currentId, reason });
+      await tx.insert(judgeSkips).values({
+        judgeId: ctx.judge.id,
+        submissionId: currentId,
+        reason,
+        // On the app's clock, like `judge_state.assigned_at`: dispatch
+        // measures the "not here" retry window against that clock, not the
+        // database's.
+        createdAt: new Date(),
+      });
       await advance(tx, ctx, settled.previousId, currentId);
     });
   }
