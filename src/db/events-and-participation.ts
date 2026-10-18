@@ -10,6 +10,7 @@
  * - event_rsvp_waves / event_invitations: RSVP invitation batches and per-participant delivery/consent
  * - event_articles: Per-event wiki pages authored in markdown by organizers
  * - submissions / submission_editors: A team's project write-up, and who has it open
+ * - user_profile_professional: A judge's company and job title (expo judging lives in ./judging)
  * - application_form_view: Denormalized view for form pre-fill
  *
  * Event participation: every event uses event_participants. An event with an application starts a
@@ -31,10 +32,12 @@ import {
   uniqueIndex,
   doublePrecision,
   primaryKey,
+  check,
   type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
 import { relations, sql } from 'drizzle-orm';
 
+import type { TableAlphabet } from '@/lib/judging/table-label';
 import type { ApplicationQuestion } from '@/types/application';
 import { user } from './auth-schema';
 import {
@@ -125,6 +128,27 @@ export const events = pgTable(
     submissionsCloseAt: timestamp('submissions_close_at', {
       withTimezone: true,
     }),
+    /**
+     * Expo floor layout, set by `judging:manage:all`. Turns a submission's
+     * `table_slot` into its label (`@/lib/judging/table-label`): slots fill
+     * column by column across this many rows. One row means plain numbers.
+     */
+    judgingTableRows: integer('judging_table_rows').notNull().default(1),
+    judgingTableRowAlphabet: text('judging_table_row_alphabet')
+      .$type<TableAlphabet>()
+      .notNull()
+      .default('latin'),
+    judgingTableColumnAlphabet: text('judging_table_column_alphabet')
+      .$type<TableAlphabet>()
+      .notNull()
+      .default('arabic'),
+    /**
+     * Next `submissions.table_slot` to hand out. Only ever incremented (see
+     * `assignTableSlot`), so a slot is never reused, even after a delete.
+     */
+    judgingNextTableSlot: integer('judging_next_table_slot')
+      .notNull()
+      .default(0),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -143,6 +167,18 @@ export const events = pgTable(
     // Nulls are distinct in Postgres, so this still allows any number of
     // events with no slug while keeping every set slug unambiguous.
     idxSlugUnique: uniqueIndex('idx_events_slug_unique').on(table.slug),
+    judgingTableRowsPositive: check(
+      'events_judging_table_rows_positive',
+      sql`${table.judgingTableRows} >= 1`,
+    ),
+    judgingTableRowAlphabetValid: check(
+      'events_judging_table_row_alphabet_valid',
+      sql`${table.judgingTableRowAlphabet} IN ('latin', 'arabic', 'roman')`,
+    ),
+    judgingTableColumnAlphabetValid: check(
+      'events_judging_table_column_alphabet_valid',
+      sql`${table.judgingTableColumnAlphabet} IN ('latin', 'arabic', 'roman')`,
+    ),
   }),
 );
 
@@ -180,6 +216,11 @@ export const userProfiles = pgTable('user_profiles', {
   genderOtherText: varchar('gender_other_text', { length: 255 }),
   /** Free-text answer when dietaryRestrictions includes the "Other" option. */
   dietaryOtherText: varchar('dietary_other_text', { length: 255 }),
+  /**
+   * Optional LinkedIn. Lives here (not on the About or Professional row) so a
+   * user who is both a hacker and a judge has one value shown everywhere.
+   */
+  linkedinUrl: varchar('linkedin_url', { length: 255 }),
   /** Optional resume, stored as a validated data URL with its original name. */
   resumeFile: text('resume_file'),
   resumeFileName: varchar('resume_file_name', { length: 255 }),
@@ -219,9 +260,28 @@ export const userProfileAbout = pgTable('user_profile_about', {
   attendedHackathonBefore: boolean('attended_hackathon_before')
     .notNull()
     .default(false),
-  /** Optional social links, shown to organizers/sponsors reviewing applications. */
-  linkedinUrl: varchar('linkedin_url', { length: 255 }),
+  /** Optional GitHub, shown to organizers/sponsors reviewing applications. */
   githubUrl: varchar('github_url', { length: 255 }),
+  createdAt: timestamp('created_at', { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true })
+    .defaultNow()
+    .$onUpdate(() => new Date())
+    .notNull(),
+});
+
+/**
+ * Professional profile, filled in by judges during onboarding in place of
+ * the About step. Like `user_profile_about`, the row existing is what
+ * "Professional step done" means.
+ */
+export const userProfileProfessional = pgTable('user_profile_professional', {
+  userId: uuid('user_id')
+    .primaryKey()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  company: varchar('company', { length: 255 }).notNull(),
+  jobTitle: varchar('job_title', { length: 255 }).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true })
     .defaultNow()
     .notNull(),
@@ -629,6 +689,24 @@ export const submissions = pgTable(
     lastEditedBy: uuid('last_edited_by').references(() => user.id, {
       onDelete: 'set null',
     }),
+    /**
+     * Set by an organizer (`judging:manage:all`) when a project shouldn't be
+     * judged — team left, disqualified. Never dispatched again and left out
+     * of results; its votes are kept.
+     */
+    deactivatedAt: timestamp('deactivated_at', { withTimezone: true }),
+    /**
+     * 0-based expo table, handed out from `events.judging_next_table_slot`
+     * on first publish and never changed after. The label shown ("B3") is
+     * derived from this and the event's layout. Null until first published.
+     */
+    tableSlot: integer('table_slot'),
+    /**
+     * Overall placement (1st, 2nd, …); unique per event where set. Cleared
+     * when the project leaves the results pool (deactivated or unpublished),
+     * so a place is never held by a project nobody can see.
+     */
+    placement: integer('placement'),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -644,6 +722,12 @@ export const submissions = pgTable(
   (table) => ({
     teamUnique: uniqueIndex('submissions_team_id_unique').on(table.teamId),
     idxEventId: index('idx_submissions_event_id').on(table.eventId),
+    eventTableSlotUnique: uniqueIndex(
+      'submissions_event_id_table_slot_unique',
+    ).on(table.eventId, table.tableSlot),
+    eventPlacementUnique: uniqueIndex('submissions_event_id_placement_unique')
+      .on(table.eventId, table.placement)
+      .where(sql`${table.placement} IS NOT NULL`),
   }),
 );
 
@@ -934,7 +1018,7 @@ SELECT
   COALESCE(d.dietary_restrictions, '{}'::integer[]) AS dietary_restrictions,
   a.responses,
   a.created_at,
-  pa.linkedin_url,
+  p.linkedin_url,
   pa.github_url,
   p.gender_other_text,
   pa.university_other_text,

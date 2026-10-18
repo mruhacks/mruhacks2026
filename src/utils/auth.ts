@@ -8,10 +8,12 @@
 import { betterAuth, APIError } from 'better-auth';
 import { admin, captcha, magicLink } from 'better-auth/plugins';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
-import { lt, sql } from 'drizzle-orm';
+import { claimMagicLinkCooldown } from '@/lib/auth/magic-link-cooldown';
 import { resolveMagicLinkMailOptions } from '@/lib/auth/resolve-magic-link-email';
 import { remainingMagicLinkExpiresInSeconds } from '@/lib/rsvp/rsvp-magic-link-expires-in';
 import { getRsvpMagicLinkMailContext } from '@/lib/rsvp/rsvp-magic-link-context';
+import { getJudgeInviteMailContext } from '@/lib/judging/judge-invite-mail';
+import { linkJudgeRosterRows } from '@/lib/judging/server';
 import { db } from '@/utils/db';
 import * as schema from '@/db/schema';
 import { sendMail } from '@/utils/mail';
@@ -22,7 +24,6 @@ import { DeleteAccountEmail } from '@/emails/DeleteAccountEmail';
 import React from 'react';
 import { headers } from 'next/headers';
 import { cacheLife } from 'next/cache';
-import { after } from 'next/server';
 import { writeAuditLog } from '@/utils/audit-log';
 import { prepareUserDeletion } from '@/lib/account-deletion';
 
@@ -81,6 +82,19 @@ function getTurnstileSecretKey(): string {
 }
 
 /**
+ * A judge added to a roster by email is linked to their account the first
+ * time they sign in with it. Best effort: it must never block a sign-in, and
+ * roster reads also match unlinked rows by email in the meantime.
+ */
+async function linkRosterOnSignIn(userId: string): Promise<void> {
+  try {
+    await linkJudgeRosterRows(userId);
+  } catch (error) {
+    console.error('[auth] linking judge roster rows failed', error);
+  }
+}
+
+/**
  * Better Auth instance configured with Drizzle ORM adapter
  *
  * Configuration:
@@ -124,6 +138,7 @@ export const auth = betterAuth({
     session: {
       create: {
         after: async (session) => {
+          await linkRosterOnSignIn(session.userId);
           const impersonatedBy = session.impersonatedBy;
           if (typeof impersonatedBy === 'string') {
             await writeAuditLog({
@@ -264,8 +279,9 @@ export const auth = betterAuth({
         // already deduplicated by `invitation_email_status` — so the sign-in
         // cooldown below, which exists to absorb a human double-submitting the
         // public form, must not reject it. A user who signed in moments before
-        // a wave goes out would otherwise silently never get invited.
-        if (getRsvpMagicLinkMailContext()) {
+        // a wave goes out would otherwise silently never get invited. A judge
+        // invite is the same: sent by an organizer, never by the public form.
+        if (getRsvpMagicLinkMailContext() || getJudgeInviteMailContext()) {
           await sendMail(mail);
           return;
         }
@@ -274,39 +290,10 @@ export const auth = betterAuth({
         // last 60s (double submit, multiple tabs, retries). Better Auth has
         // already minted the verification token by this point, so the
         // caller still sees a normal success response either way.
-        const [allowed] = await db
-          .insert(schema.magicLinkCooldown)
-          .values({ email })
-          .onConflictDoUpdate({
-            target: schema.magicLinkCooldown.email,
-            set: { lastSentAt: new Date() },
-            where: lt(
-              schema.magicLinkCooldown.lastSentAt,
-              sql`now() - interval '60 seconds'`,
-            ),
-          })
-          .returning();
-        if (!allowed) {
+        if (!(await claimMagicLinkCooldown(email))) {
           throw new APIError('TOO_MANY_REQUESTS', {
             message:
               'A sign-in link was already sent to this address. Check your inbox, or try again in a minute.',
-          });
-        }
-
-        // Self-cleaning: occasionally piggyback on a send to prune rows
-        // whose cooldown has already lapsed, so the table doesn't grow
-        // forever without needing a separate cron job. Probabilistic so a
-        // burst of sends doesn't turn into a burst of cleanup deletes.
-        if (Math.random() < 0.1) {
-          after(async () => {
-            await db
-              .delete(schema.magicLinkCooldown)
-              .where(
-                lt(
-                  schema.magicLinkCooldown.lastSentAt,
-                  sql`now() - interval '60 seconds'`,
-                ),
-              );
           });
         }
 

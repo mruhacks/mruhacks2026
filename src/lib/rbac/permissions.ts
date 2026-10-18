@@ -23,6 +23,7 @@ export type PermissionEntity =
   | 'application'
   | 'article'
   | 'submission'
+  | 'judging'
   | 'system';
 
 export type PermissionAction =
@@ -40,6 +41,8 @@ export type PermissionAction =
   | 'vote'
   | 'override'
   | 'purge'
+  | 'results'
+  | 'award'
   | 'all';
 
 export type PermissionScope = 'all' | 'any' | 'self' | (string & {});
@@ -98,7 +101,7 @@ export function anyPermissionMatches(
  * Canonical list of permission slugs the app expects to exist. Used for
  * seeding, admin UIs, and validation.
  */
-const CORE_PERMISSIONS = [
+export const CORE_PERMISSIONS = [
   { slug: 'user:read:all', description: 'View any user information' },
   { slug: 'user:write:all', description: 'Modify any user information' },
   {
@@ -168,6 +171,19 @@ const CORE_PERMISSIONS = [
       'Delete any project submission (moderation, takedown requests)',
   },
   {
+    slug: 'judging:manage:all',
+    description:
+      'Manage expo judging criteria, weights, table layout and the judge roster, and deactivate projects',
+  },
+  {
+    slug: 'judging:results:all',
+    description: 'View live expo judging rankings',
+  },
+  {
+    slug: 'judging:award:all',
+    description: 'Record overall placements',
+  },
+  {
     slug: 'system:read:all',
     description: 'View system health and diagnostics',
   },
@@ -176,12 +192,10 @@ const CORE_PERMISSIONS = [
 /**
  * Canonical roles the app seeds by default.
  */
-const CORE_ROLES = [
+export const CORE_ROLES = [
   { slug: 'admin', description: 'Full system administrator' },
   { slug: 'organizer', description: 'Manages event logistics and users' },
-  { slug: 'judge', description: 'Evaluates hackathon projects' },
   { slug: 'volunteer', description: 'Supports event operations' },
-  { slug: 'participant', description: 'Registered hackathon attendee' },
 ] as const;
 
 export type CoreRoleSlug = (typeof CORE_ROLES)[number]['slug'];

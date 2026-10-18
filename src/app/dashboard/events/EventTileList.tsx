@@ -37,13 +37,16 @@ function StatusPill({
   bg,
   fg,
   label,
+  className,
 }: {
-  bg: string;
+  bg?: string;
   fg: string;
   label: string;
+  className?: string;
 }) {
   return (
     <span
+      className={className}
       style={{
         display: 'inline-flex',
         alignItems: 'center',
@@ -75,7 +78,7 @@ function StatusPill({
   );
 }
 
-const STATUS_COLORS: Record<EventDisplayPill, { bg: string; fg: string }> = {
+const STATUS_COLORS: Record<EventDisplayPill, { bg?: string; fg: string }> = {
   denied: { bg: 'var(--pink)', fg: 'var(--white)' },
   waitlisted: { bg: 'var(--secondary)', fg: 'var(--secondary-foreground)' },
   pending_review: { bg: 'var(--yellow)', fg: 'var(--black)' },
@@ -87,12 +90,21 @@ const STATUS_COLORS: Record<EventDisplayPill, { bg: string; fg: string }> = {
   open_to_apply: { bg: 'var(--green)', fg: 'var(--white)' },
   registration_open: { bg: 'var(--green)', fg: 'var(--white)' },
   ended: { bg: 'var(--ink-200)', fg: 'var(--ink-700)' },
+  // Painted by the shared gradient-button class instead of a flat colour.
+  judging: { fg: 'var(--white)' },
 };
 
 function EventStatusPill({ e }: { e: EventWithUserStatus }) {
   const display = getEventDisplayStatus(e);
   const { bg, fg } = STATUS_COLORS[display.pill];
-  return <StatusPill bg={bg} fg={fg} label={display.label} />;
+  return (
+    <StatusPill
+      bg={bg}
+      fg={fg}
+      label={display.label}
+      className={display.pill === 'judging' ? 'bg-gradient-button' : undefined}
+    />
+  );
 }
 
 // ── Component ──────────────────────────────────────────────────────────────────

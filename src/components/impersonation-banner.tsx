@@ -20,6 +20,7 @@ export function ImpersonationBanner() {
       return;
     }
     // Hard reload so the new (admin) session cookie takes effect everywhere.
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
     window.location.href = '/dashboard/admin/users';
   };
 
@@ -30,7 +31,7 @@ export function ImpersonationBanner() {
       </span>
       <button
         onClick={handleStop}
-        className='cursor-pointer rounded bg-amber-950/20 px-3 py-1 text-xs font-semibold transition-colors hover:bg-amber-950/30'
+        className='cursor-pointer rounded-sm bg-amber-950/20 px-3 py-1 text-xs font-semibold transition-colors hover:bg-amber-950/30'
       >
         Stop impersonating
       </button>

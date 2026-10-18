@@ -3,7 +3,6 @@
 import * as React from 'react';
 import { Download, FileText, Loader2, Trash2, Upload, X } from 'lucide-react';
 import { toast } from 'sonner';
-import { useRouter } from 'next/navigation';
 
 import { getOwnResume, removeResume } from './actions';
 import { Button } from '@/components/ui/button';
@@ -36,7 +35,6 @@ export function ProfileAssets({
   onQueueResume,
   disabled = false,
 }: ProfileAssetsProps) {
-  const router = useRouter();
   const resumeInputRef = React.useRef<HTMLInputElement>(null);
   const [busy, setBusy] = React.useState<'remove' | 'download' | null>(null);
   const [isDragOver, setIsDragOver] = React.useState(false);
@@ -80,7 +78,6 @@ export function ProfileAssets({
       return;
     }
     toast.success('Resume removed.');
-    router.refresh();
   };
 
   const downloadResume = async () => {

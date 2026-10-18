@@ -71,7 +71,7 @@ export function submissionLinkError(
   return null;
 }
 
-type SubmissionEventFields = {
+export type SubmissionEventFields = {
   hasApplication: boolean;
   teamsEnabled: boolean;
   startsAt: Date | null;

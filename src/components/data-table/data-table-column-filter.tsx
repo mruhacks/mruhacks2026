@@ -44,6 +44,8 @@ declare module '@tanstack/react-table' {
      * (an option id) or can be an array.
      */
     filterOptions?: ColumnFilterOption[];
+    /** Classes for this column's header and body cells, e.g. `text-right`. */
+    className?: string;
   }
 }
 

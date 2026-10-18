@@ -1,8 +1,7 @@
 import type { ReactNode } from 'react';
-import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { eq } from 'drizzle-orm';
-import { ArrowLeft, BookOpen } from 'lucide-react';
+import { BookOpen } from 'lucide-react';
 
 import { getUser } from '@/utils/auth';
 import { db } from '@/utils/db';
@@ -12,7 +11,6 @@ import { resolveEventId } from '@/lib/events';
 import { eventPath } from '@/lib/event-slug';
 import { BreadcrumbSegment } from '@/components/breadcrumb-context';
 import { events } from '@/db/schema';
-import { Button } from '@/components/ui/button';
 import { WikiSidebar } from './wiki-sidebar';
 
 type Props = {
@@ -63,23 +61,10 @@ export default async function EventWikiLayout({ params, children }: Props) {
       <BreadcrumbSegment id={segment} label={event.name} />
 
       <div className='flex flex-col gap-6 lg:sticky lg:top-24'>
-        <div>
-          <Button
-            asChild
-            variant='ghost'
-            size='sm'
-            className='text-muted-foreground mb-2 -ml-2'
-          >
-            <Link href={eventHref}>
-              <ArrowLeft className='mr-1.5 size-4' />
-              {event.name}
-            </Link>
-          </Button>
-          <h1 className='flex items-center gap-2 text-3xl font-semibold'>
-            <BookOpen className='size-6 shrink-0' aria-hidden />
-            Hackerpack
-          </h1>
-        </div>
+        <h1 className='flex items-center gap-2 text-3xl font-semibold'>
+          <BookOpen className='size-6 shrink-0' aria-hidden />
+          Hackerpack
+        </h1>
         <WikiSidebar eventHref={eventHref} articles={articlesWithTerms} />
       </div>
 

@@ -29,6 +29,7 @@ import {
   marketingConsents,
   userProfiles,
   userProfileAbout,
+  userProfileProfessional,
   userInterests,
   userDietaryRestrictions,
   eventParticipants,
@@ -238,7 +239,17 @@ export async function completeWelcomeOnboarding(): Promise<ActionResult> {
     .from(userProfileAbout)
     .where(eq(userProfileAbout.userId, currentUser.id))
     .limit(1);
-  if (!profile || !about || (await userNeedsConsent(currentUser.id))) {
+  // Judges fill in the Professional step instead of About.
+  const [professional] = await db
+    .select({ userId: userProfileProfessional.userId })
+    .from(userProfileProfessional)
+    .where(eq(userProfileProfessional.userId, currentUser.id))
+    .limit(1);
+  if (
+    !profile ||
+    (!about && !professional) ||
+    (await userNeedsConsent(currentUser.id))
+  ) {
     return fail('Finish your profile and accept the required policies first.');
   }
 

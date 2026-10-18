@@ -59,16 +59,6 @@ export async function searchMessagesByTo(
   return result.items ?? [];
 }
 
-async function searchMessagesByFrom(email: string): Promise<MailHogMessage[]> {
-  const response = await fetch(
-    `${MAILHOG_API_URL}/v2/search?kind=from&query=${encodeURIComponent(email)}`,
-  );
-  if (!response.ok)
-    throw new Error(`MailHog API error: ${response.statusText}`);
-  const result: MailHogListResult = await response.json();
-  return result.items ?? [];
-}
-
 export async function searchMessagesByContent(
   text: string,
 ): Promise<MailHogMessage[]> {
