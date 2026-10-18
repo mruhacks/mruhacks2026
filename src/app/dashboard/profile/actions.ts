@@ -437,7 +437,7 @@ export async function saveProfessionalProfile(
     revalidateProfile();
     return ok('Profile saved successfully.');
   } catch (error) {
-    console.error('Professional profile save error:', error);
+    console.error('[profile] failed to save professional profile', error);
     return fail('Failed to save profile.');
   }
 }

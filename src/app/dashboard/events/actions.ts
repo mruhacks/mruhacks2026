@@ -65,21 +65,6 @@ import {
 import { buildApplicationResponses } from './application-responses';
 
 /**
- * Returns the first event with has_application = true (e.g. default hackathon).
- * Used for redirecting /register to /dashboard/events and for ticket default event.
- */
-async function getDefaultApplicationEvent() {
-  'use cache';
-  cacheLife('minutes');
-  const rows = await db
-    .select()
-    .from(events)
-    .where(eq(events.hasApplication, true))
-    .limit(1);
-  return rows[0] ?? null;
-}
-
-/**
  * Saves profile and event application for an event that has_application.
  * 1. Upserts user_profiles (from profileData)
  * 2. Replaces user_dietary_restrictions (from profileData)

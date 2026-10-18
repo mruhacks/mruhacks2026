@@ -464,10 +464,7 @@ async function seedHackathonSchedule(parentEventId: string) {
 
 // ── Seed markdown content (event descriptions + wiki) ────────────────────
 
-// Internal links are built from the event id so the seeded content actually
-// navigates, rather than shipping `#` placeholders that look like a bug.
-const hackathonDescription = (eventId: string) =>
-  `
+const HACKATHON_DESCRIPTION = `
 MRUHacks is Mount Royal University’s largest student-run hackathon, bringing students together for an immersive 36-hour experience focused on building, collaboration, and learning.
 
 You can think of a hackathon as a software science fair. Anyone with an interest in technology attends a hackathon to learn, build & share their creations over the course of a weekend, in a relaxed and welcoming atmosphere. You will bring your ideas to life through technology over the course of 36 hours before showcasing them to a team of judges.
@@ -496,6 +493,8 @@ npm create vite@latest my-first-react-app -- --template react
 No application needed — just register and show up. Laptops required; we do not
 have loaners for this one.`;
 
+// Internal links are built from the event id so the seeded content actually
+// navigates, rather than shipping `#` placeholders that look like a bug.
 const gettingStartedArticle = (eventId: string) =>
   `Welcome to MRUHacks. This page covers everything you need between now and the
 opening ceremony.
@@ -652,7 +651,7 @@ async function seedEventContent(
   const descriptions = [
     {
       event: applicationEvent,
-      markdown: hackathonDescription(applicationEvent.id),
+      markdown: HACKATHON_DESCRIPTION,
     },
     { event: noAppEvent, markdown: WORKSHOP_DESCRIPTION },
   ];

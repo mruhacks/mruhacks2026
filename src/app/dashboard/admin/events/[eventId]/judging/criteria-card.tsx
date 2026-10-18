@@ -189,7 +189,7 @@ export function CriteriaCard({
       );
       if (!result.success) setError(result.error);
     } catch (err) {
-      console.error('Failed to save criteria:', err);
+      console.error('[admin/events/judging] failed to save criteria', err);
       setError('Couldn’t save the criteria. Try again.');
     } finally {
       setSaving(false);

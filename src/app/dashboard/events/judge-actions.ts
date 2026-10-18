@@ -235,7 +235,7 @@ export async function saveJudgeNote(
     }
     return ok();
   } catch (error) {
-    console.error('[saveJudgeNote] failed', error);
+    console.error('[events/judging] failed to save judge note', error);
     return fail('Failed to save your note.');
   }
 }

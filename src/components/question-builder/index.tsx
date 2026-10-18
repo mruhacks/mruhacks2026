@@ -232,12 +232,8 @@ export function QuestionBuilder({
               <QuestionCard
                 key={q.id}
                 question={q}
-                isFirst={false}
-                isLast={false}
                 onEdit={() => setEditTarget(q)}
                 onDelete={() => setDeleteTarget(q)}
-                onMoveUp={() => {}}
-                onMoveDown={() => {}}
                 onReactivate={() => handleReactivate(q.id)}
                 isDragging={activeDragId === q.id}
               />

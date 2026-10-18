@@ -286,16 +286,6 @@
   --gutter: 56px;
 }
 @layer base {
-  .bg-gradient-button {
-    background: linear-gradient(
-      110deg,
-      var(--gradient-color-1) 0%,
-      var(--gradient-color-2) 15%,
-      var(--gradient-color-3) 55%,
-      var(--gradient-color-4) 80%,
-      var(--gradient-color-5) 100%
-    );
-  }
   * {
     @apply border-border outline-ring/50;
   }
@@ -310,6 +300,17 @@
    participant sees. Styling reaches down to bare elements rather than
    utility classes because the markup comes out of `react-markdown` and
    Lexical, neither of which we hand-annotate. */
+@utility bg-gradient-button {
+  background: linear-gradient(
+    110deg,
+    var(--gradient-color-1) 0%,
+    var(--gradient-color-2) 15%,
+    var(--gradient-color-3) 55%,
+    var(--gradient-color-4) 80%,
+    var(--gradient-color-5) 100%
+  );
+}
+
 @utility mdx-prose {
   & {
     color: var(--foreground);

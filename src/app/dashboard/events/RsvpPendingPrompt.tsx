@@ -65,6 +65,9 @@ export function RsvpPendingPrompt({
   React.useEffect(() => {
     if (!expired || refreshedOnExpiry.current) return;
     refreshedOnExpiry.current = true;
+    // The deadline passing isn't a mutation, so nothing revalidates the
+    // Server Component that renders this prompt.
+    // eslint-disable-next-line custom/no-router-refresh
     router.refresh();
   }, [expired, router]);
 

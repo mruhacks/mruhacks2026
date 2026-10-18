@@ -2,13 +2,12 @@
 
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
-import { unstable_rethrow, useRouter } from 'next/navigation';
+import { unstable_rethrow } from 'next/navigation';
 
 import { submitRsvpResponse } from '@/app/dashboard/events/actions';
 import type { RsvpUserDecision } from '@/lib/rsvp/constants';
 
 export function useRsvpDecision(eventId: string, termsId: string | null) {
-  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [activeDecision, setActiveDecision] = useState<RsvpUserDecision | null>(
     null,
@@ -46,7 +45,6 @@ export function useRsvpDecision(eventId: string, termsId: string | null) {
                 ? 'RSVP accepted.'
                 : 'RSVP declined.',
           );
-          router.refresh();
           return;
         }
 

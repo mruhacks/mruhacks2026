@@ -1,3 +1,4 @@
+/* eslint-disable better-tailwindcss/no-unknown-classes -- placeholder class names exercise cn() */
 import { describe, test, expect } from 'vitest';
 import { cn } from '@/lib/utils';
 import { sanitizeReturnPath } from '@/utils/return-path';

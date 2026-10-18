@@ -502,7 +502,7 @@ async function deliverJudgeInvite(
   try {
     await sendJudgeInvite({ email: judge.email, eventName });
   } catch (error) {
-    console.error('[deliverJudgeInvite] invite email failed', error);
+    console.error('[admin/events/judging] judge invite email failed', error);
     await releaseMagicLinkCooldown(judge.email);
     await unclaim();
     return 'failed';
@@ -1122,7 +1122,10 @@ export async function setSubmissionPlacement(
     if (!updated) return fail('Project not found.');
   } catch (error) {
     // Lost a race for the same place: the partial unique index caught it.
-    console.error('[setSubmissionPlacement] failed', error);
+    console.error(
+      '[admin/events/judging] failed to set submission placement',
+      error,
+    );
     return fail(`Another project already holds place ${parsed.data}.`);
   }
   await writeAuditLog({

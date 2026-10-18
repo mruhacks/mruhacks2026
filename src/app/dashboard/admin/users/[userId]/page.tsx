@@ -1,4 +1,4 @@
-import { notFound, redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
 import { BreadcrumbSegment } from '@/components/breadcrumb-context';
 
 import { requireAuthWithPermission } from '@/lib/rbac/guards';
