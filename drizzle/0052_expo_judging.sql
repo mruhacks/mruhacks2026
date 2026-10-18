@@ -2,7 +2,6 @@ CREATE TABLE "user_profile_professional" (
 	"user_id" uuid PRIMARY KEY NOT NULL,
 	"company" varchar(255) NOT NULL,
 	"job_title" varchar(255) NOT NULL,
-	"linkedin_url" varchar(255),
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
@@ -12,6 +11,7 @@ CREATE TABLE "event_judges" (
 	"event_id" uuid NOT NULL,
 	"email" varchar(255),
 	"user_id" uuid,
+	"invite_sent_at" timestamp with time zone,
 	"disabled_at" timestamp with time zone,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
@@ -76,9 +76,15 @@ CREATE TABLE "submission_scores" (
 	CONSTRAINT "submission_scores_submission_id_criterion_id_pk" PRIMARY KEY("submission_id","criterion_id")
 );
 --> statement-breakpoint
+DROP VIEW "public"."application_form_view";--> statement-breakpoint
+ALTER TABLE "events" ADD COLUMN "judging_table_rows" integer DEFAULT 1 NOT NULL;--> statement-breakpoint
+ALTER TABLE "events" ADD COLUMN "judging_table_row_alphabet" text DEFAULT 'latin' NOT NULL;--> statement-breakpoint
+ALTER TABLE "events" ADD COLUMN "judging_table_column_alphabet" text DEFAULT 'arabic' NOT NULL;--> statement-breakpoint
+ALTER TABLE "events" ADD COLUMN "judging_next_table_slot" integer DEFAULT 0 NOT NULL;--> statement-breakpoint
 ALTER TABLE "submissions" ADD COLUMN "deactivated_at" timestamp with time zone;--> statement-breakpoint
-ALTER TABLE "submissions" ADD COLUMN "finalist" boolean DEFAULT false NOT NULL;--> statement-breakpoint
+ALTER TABLE "submissions" ADD COLUMN "table_slot" integer;--> statement-breakpoint
 ALTER TABLE "submissions" ADD COLUMN "placement" integer;--> statement-breakpoint
+ALTER TABLE "user_profiles" ADD COLUMN "linkedin_url" varchar(255);--> statement-breakpoint
 ALTER TABLE "user_profile_professional" ADD CONSTRAINT "user_profile_professional_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "event_judges" ADD CONSTRAINT "event_judges_event_id_events_id_fk" FOREIGN KEY ("event_id") REFERENCES "public"."events"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "event_judges" ADD CONSTRAINT "event_judges_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
@@ -108,17 +114,96 @@ CREATE INDEX "idx_judging_votes_judge_id" ON "judging_votes" USING btree ("judge
 CREATE INDEX "idx_judging_votes_criterion_id_created_at" ON "judging_votes" USING btree ("criterion_id","created_at");--> statement-breakpoint
 CREATE INDEX "idx_judging_votes_winner" ON "judging_votes" USING btree ("winner_submission_id");--> statement-breakpoint
 CREATE INDEX "idx_judging_votes_loser" ON "judging_votes" USING btree ("loser_submission_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "submissions_event_id_table_slot_unique" ON "submissions" USING btree ("event_id","table_slot");--> statement-breakpoint
 CREATE UNIQUE INDEX "submissions_event_id_placement_unique" ON "submissions" USING btree ("event_id","placement") WHERE "submissions"."placement" IS NOT NULL;--> statement-breakpoint
+-- LinkedIn moves from the student (About) row to one column on the base
+-- profile, shared with the judge's Professional profile. Carry it over before
+-- the old column is dropped.
+UPDATE "user_profiles" p
+   SET "linkedin_url" = pa."linkedin_url"
+  FROM "user_profile_about" pa
+ WHERE pa."user_id" = p."user_id"
+   AND pa."linkedin_url" IS NOT NULL;
+--> statement-breakpoint
+
+-- Table numbers used to be derived on every read: rank by (created_at, id)
+-- over all of an event's submissions, drafts included. Store exactly that
+-- rank (0-based) so every existing project keeps its number, and start each
+-- event's counter after its highest slot. From here on a slot is handed out
+-- once, at first publish, and never changes.
+UPDATE "submissions" s
+   SET "table_slot" = ranked.slot
+  FROM (
+    SELECT id, (row_number() OVER (PARTITION BY event_id ORDER BY created_at, id) - 1)::int AS slot
+      FROM "submissions"
+  ) ranked
+ WHERE ranked.id = s.id;
+--> statement-breakpoint
+UPDATE "events" e
+   SET "judging_next_table_slot" = taken.next_slot
+  FROM (
+    SELECT event_id, max(table_slot) + 1 AS next_slot
+      FROM "submissions"
+     GROUP BY event_id
+  ) taken
+ WHERE taken.event_id = e.id;
+--> statement-breakpoint
+ALTER TABLE "user_profile_about" DROP COLUMN "linkedin_url";--> statement-breakpoint
+ALTER TABLE "events" ADD CONSTRAINT "events_judging_table_rows_positive" CHECK ("events"."judging_table_rows" >= 1);--> statement-breakpoint
+ALTER TABLE "events" ADD CONSTRAINT "events_judging_table_row_alphabet_valid" CHECK ("events"."judging_table_row_alphabet" IN ('latin', 'arabic', 'roman'));--> statement-breakpoint
+ALTER TABLE "events" ADD CONSTRAINT "events_judging_table_column_alphabet_valid" CHECK ("events"."judging_table_column_alphabet" IN ('latin', 'arabic', 'roman'));--> statement-breakpoint
+CREATE VIEW "public"."application_form_view" AS (
+WITH
+  interests_agg AS (
+    SELECT
+      user_id,
+      array_agg(DISTINCT interest_id) AS interests
+    FROM user_interests
+    WHERE interest_id IS NOT NULL
+    GROUP BY user_id
+  ),
+  dietary_agg AS (
+    SELECT
+      user_id,
+      array_agg(DISTINCT restriction_id) AS dietary_restrictions
+    FROM user_dietary_restrictions
+    WHERE restriction_id IS NOT NULL
+    GROUP BY user_id
+  )
+SELECT
+  a.event_id,
+  a.user_id,
+  p.full_name,
+  p.gender_id,
+  pa.university_id,
+  pa.major_id,
+  pa.year_of_study_id,
+  COALESCE(i.interests, '{}'::integer[]) AS interests,
+  COALESCE(d.dietary_restrictions, '{}'::integer[]) AS dietary_restrictions,
+  a.responses,
+  a.created_at,
+  p.linkedin_url,
+  pa.github_url,
+  p.gender_other_text,
+  pa.university_other_text,
+  pa.major_other_text,
+  p.dietary_other_text
+FROM event_participants a
+JOIN user_profiles p ON p.user_id = a.user_id
+LEFT JOIN user_profile_about pa ON pa.user_id = a.user_id
+LEFT JOIN interests_agg i ON i.user_id = a.user_id
+LEFT JOIN dietary_agg d ON d.user_id = a.user_id
+);--> statement-breakpoint
 
 -- Expo judging gets three narrow permissions (AGENTS.md): running judging
--- (criteria, weights, roster, deactivating projects), viewing the rankings,
--- and recording finalists and placements. Judges themselves are authorized by
+-- (criteria, weights, table layout, roster, deactivating projects), viewing
+-- the rankings, and recording placements. Judges themselves are authorized by
 -- roster membership, not by any of these.
 INSERT INTO authz.permission (slug, description)
 VALUES
-  ('judging:manage:all', 'Manage expo judging criteria, weights and the judge roster, and deactivate projects'),
+  ('judging:manage:all', 'Manage expo judging criteria, weights, table layout and the judge roster, and deactivate projects'),
   ('judging:results:all', 'View live expo judging rankings'),
-  ('judging:award:all', 'Flag finalists and record overall placements')
+  ('judging:award:all', 'Record overall placements')
 ON CONFLICT (slug) DO NOTHING;
 --> statement-breakpoint
 
@@ -131,3 +216,16 @@ SELECT r.id, p.id
  WHERE r.slug IN ('admin', 'organizer')
    AND p.slug IN ('judging:manage:all', 'judging:results:all', 'judging:award:all')
 ON CONFLICT DO NOTHING;
+--> statement-breakpoint
+
+-- Retire the `judge` and `participant` roles. Expo judges are authorized by
+-- roster membership (`event_judges`) and participation is per-event state
+-- (`event_participants`), never a role, so both gated nothing. Only deleted
+-- while they still grant nothing: if an admin attached permissions at
+-- runtime, the role is kept (roles are editable at runtime — never revoke).
+-- Their `user_role` rows go with them via ON DELETE CASCADE.
+DELETE FROM authz.role r
+ WHERE r.slug IN ('judge', 'participant')
+   AND NOT EXISTS (
+     SELECT 1 FROM authz.role_permission rp WHERE rp.role_id = r.id
+   );

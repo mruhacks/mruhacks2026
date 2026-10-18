@@ -1,5 +1,5 @@
 {
-  "id": "3fa73516-0b10-4ebc-8141-441a7c6d1b66",
+  "id": "ca39287d-ded0-40da-ac5c-9239152911e0",
   "prevId": "3086cbc2-9689-4050-933a-f99a41c67eaf",
   "version": "7",
   "dialect": "postgresql",
@@ -1988,6 +1988,34 @@
           "primaryKey": false,
           "notNull": false
         },
+        "judging_table_rows": {
+          "name": "judging_table_rows",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "judging_table_row_alphabet": {
+          "name": "judging_table_row_alphabet",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'latin'"
+        },
+        "judging_table_column_alphabet": {
+          "name": "judging_table_column_alphabet",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'arabic'"
+        },
+        "judging_next_table_slot": {
+          "name": "judging_next_table_slot",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -2095,7 +2123,20 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "events_judging_table_rows_positive": {
+          "name": "events_judging_table_rows_positive",
+          "value": "\"events\".\"judging_table_rows\" >= 1"
+        },
+        "events_judging_table_row_alphabet_valid": {
+          "name": "events_judging_table_row_alphabet_valid",
+          "value": "\"events\".\"judging_table_row_alphabet\" IN ('latin', 'arabic', 'roman')"
+        },
+        "events_judging_table_column_alphabet_valid": {
+          "name": "events_judging_table_column_alphabet_valid",
+          "value": "\"events\".\"judging_table_column_alphabet\" IN ('latin', 'arabic', 'roman')"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.submission_editors": {
@@ -2250,12 +2291,11 @@
           "primaryKey": false,
           "notNull": false
         },
-        "finalist": {
-          "name": "finalist",
-          "type": "boolean",
+        "table_slot": {
+          "name": "table_slot",
+          "type": "integer",
           "primaryKey": false,
-          "notNull": true,
-          "default": false
+          "notNull": false
         },
         "placement": {
           "name": "placement",
@@ -2305,6 +2345,27 @@
             }
           ],
           "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "submissions_event_id_table_slot_unique": {
+          "name": "submissions_event_id_table_slot_unique",
+          "columns": [
+            {
+              "expression": "event_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "table_slot",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -2827,12 +2888,6 @@
           "notNull": true,
           "default": false
         },
-        "linkedin_url": {
-          "name": "linkedin_url",
-          "type": "varchar(255)",
-          "primaryKey": false,
-          "notNull": false
-        },
         "github_url": {
           "name": "github_url",
           "type": "varchar(255)",
@@ -2937,12 +2992,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "linkedin_url": {
-          "name": "linkedin_url",
-          "type": "varchar(255)",
-          "primaryKey": false,
-          "notNull": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -3010,6 +3059,12 @@
         },
         "dietary_other_text": {
           "name": "dietary_other_text",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "linkedin_url": {
+          "name": "linkedin_url",
           "type": "varchar(255)",
           "primaryKey": false,
           "notNull": false
@@ -3108,6 +3163,12 @@
         "user_id": {
           "name": "user_id",
           "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "invite_sent_at": {
+          "name": "invite_sent_at",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         },
@@ -4637,7 +4698,7 @@
           "notNull": false
         }
       },
-      "definition": "\nWITH\n  interests_agg AS (\n    SELECT\n      user_id,\n      array_agg(DISTINCT interest_id) AS interests\n    FROM user_interests\n    WHERE interest_id IS NOT NULL\n    GROUP BY user_id\n  ),\n  dietary_agg AS (\n    SELECT\n      user_id,\n      array_agg(DISTINCT restriction_id) AS dietary_restrictions\n    FROM user_dietary_restrictions\n    WHERE restriction_id IS NOT NULL\n    GROUP BY user_id\n  )\nSELECT\n  a.event_id,\n  a.user_id,\n  p.full_name,\n  p.gender_id,\n  pa.university_id,\n  pa.major_id,\n  pa.year_of_study_id,\n  COALESCE(i.interests, '{}'::integer[]) AS interests,\n  COALESCE(d.dietary_restrictions, '{}'::integer[]) AS dietary_restrictions,\n  a.responses,\n  a.created_at,\n  pa.linkedin_url,\n  pa.github_url,\n  p.gender_other_text,\n  pa.university_other_text,\n  pa.major_other_text,\n  p.dietary_other_text\nFROM event_participants a\nJOIN user_profiles p ON p.user_id = a.user_id\nLEFT JOIN user_profile_about pa ON pa.user_id = a.user_id\nLEFT JOIN interests_agg i ON i.user_id = a.user_id\nLEFT JOIN dietary_agg d ON d.user_id = a.user_id\n",
+      "definition": "\nWITH\n  interests_agg AS (\n    SELECT\n      user_id,\n      array_agg(DISTINCT interest_id) AS interests\n    FROM user_interests\n    WHERE interest_id IS NOT NULL\n    GROUP BY user_id\n  ),\n  dietary_agg AS (\n    SELECT\n      user_id,\n      array_agg(DISTINCT restriction_id) AS dietary_restrictions\n    FROM user_dietary_restrictions\n    WHERE restriction_id IS NOT NULL\n    GROUP BY user_id\n  )\nSELECT\n  a.event_id,\n  a.user_id,\n  p.full_name,\n  p.gender_id,\n  pa.university_id,\n  pa.major_id,\n  pa.year_of_study_id,\n  COALESCE(i.interests, '{}'::integer[]) AS interests,\n  COALESCE(d.dietary_restrictions, '{}'::integer[]) AS dietary_restrictions,\n  a.responses,\n  a.created_at,\n  p.linkedin_url,\n  pa.github_url,\n  p.gender_other_text,\n  pa.university_other_text,\n  pa.major_other_text,\n  p.dietary_other_text\nFROM event_participants a\nJOIN user_profiles p ON p.user_id = a.user_id\nLEFT JOIN user_profile_about pa ON pa.user_id = a.user_id\nLEFT JOIN interests_agg i ON i.user_id = a.user_id\nLEFT JOIN dietary_agg d ON d.user_id = a.user_id\n",
       "name": "application_form_view",
       "schema": "public",
       "isExisting": false,
