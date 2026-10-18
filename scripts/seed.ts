@@ -426,6 +426,8 @@ async function seedHackathonSchedule(parentEventId: string) {
     .set({
       startsAt: eventDate('Friday', '7:30 PM'),
       endsAt: eventDate('Sunday', '2:30 PM'),
+      // Matches the "Hacking Ends / Submissions Due" schedule item.
+      submissionsCloseAt: eventDate('Sunday', '9:00 AM'),
     })
     .where(eq(events.id, parentEventId));
 
