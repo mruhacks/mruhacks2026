@@ -1866,9 +1866,10 @@ describe('table numbers', () => {
 
     loginAs(organizer);
     await addCriteria(eventId, ['Design']);
-    expect(admin.layoutLocked).toBe(false);
     const judge = await makeUser('LayoutJudge');
     await rosterJudge(eventId, judge);
+    // A judge on the roster hasn't been sent anywhere yet.
+    expect(unwrap(await getJudgingAdmin(eventId)).layoutLocked).toBe(false);
     loginAs(judge);
     const first = expectKind(await getJudgeView(eventId), 'begin');
     expect(first.current.tableLabel).toMatch(/^I{1,2}-[12]$/);
@@ -1889,6 +1890,68 @@ describe('table numbers', () => {
     expect(locked.layoutLocked).toBe(true);
     // Criteria stay editable until the first vote.
     expect(locked.structureLocked).toBe(false);
+  });
+
+  test('a judge with nowhere to go doesn’t lock the layout', async () => {
+    const eventId = await makeEvent();
+    loginAs(organizer);
+    await addCriteria(eventId, ['Design']);
+    await makeProjects(eventId, 1, { published: false });
+    const judge = await makeUser('NowhereToGo');
+    await rosterJudge(eventId, judge);
+    loginAs(judge);
+    // Opening the judging screen gives them a state row, but no table.
+    expect((await getJudgeView(eventId)).kind).toBe('waiting');
+
+    loginAs(organizer);
+    expect(unwrap(await getJudgingAdmin(eventId)).layoutLocked).toBe(false);
+    unwrap(
+      await updateJudgingTableLayout(eventId, {
+        rows: 2,
+        rowAlphabet: 'latin',
+        columnAlphabet: 'arabic',
+      }),
+    );
+  });
+
+  test('a first dispatch waits for a layout save, then shows the new labels', async () => {
+    const eventId = await makeEvent();
+    loginAs(organizer);
+    await addCriteria(eventId, ['Design']);
+    const [project] = await makeProjects(eventId, 1);
+    const judge = await makeUser('SentDuringSave');
+    await rosterJudge(eventId, judge);
+    // Stands in for a layout save: the event row FOR UPDATE and the new
+    // layout, committed only once the judge's screen is waiting on it.
+    const save = holdTransaction(async (tx) => {
+      await tx
+        .select({ id: events.id })
+        .from(events)
+        .where(eq(events.id, eventId))
+        .for('update');
+      await tx
+        .update(events)
+        .set({
+          judgingTableRows: 2,
+          judgingTableRowAlphabet: 'roman',
+          judgingTableColumnAlphabet: 'arabic',
+        })
+        .where(eq(events.id, eventId));
+    });
+    await save.acquired;
+
+    loginAs(judge);
+    let finished = false;
+    const view = getJudgeView(eventId).finally(() => (finished = true));
+    await settle();
+    expect(finished).toBe(false);
+
+    save.release();
+    await save.done;
+    expect(expectKind(await view, 'begin').current).toMatchObject({
+      id: project,
+      tableLabel: 'I-1',
+    });
   });
 
   test('a layout save waits for a dispatch in flight, then refuses', async () => {
