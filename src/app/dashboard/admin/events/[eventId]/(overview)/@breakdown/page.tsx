@@ -48,11 +48,20 @@ async function BreakdownSection({
   // Shares the cache entry the applications cell already filled — same
   // eventId, same cached function, so this is a hit rather than a re-scan.
   const stats = await getEventApplicationStats(eventId);
-  if (!stats || stats.questionStats.length === 0) return null;
+  if (!stats) return null;
+  if (stats.total === 0 && stats.questionStats.length === 0) return null;
 
-  // Which cards are shown is a per-admin browser preference, so the choosing
-  // happens on the client; the server always sends the full set.
+  // Which cards are shown, and which statuses they count, are per-admin
+  // browser preferences, so both are applied on the client; the server
+  // always sends the full set, pre-split by status.
   return (
-    <QuestionStatsGrid eventId={eventId} questions={stats.questionStats} />
+    <QuestionStatsGrid
+      eventId={eventId}
+      profile={stats.profileStats}
+      questions={stats.questionStats}
+      statusCounts={Object.fromEntries(
+        stats.statusBreakdown.map((bucket) => [bucket.key, bucket.count]),
+      )}
+    />
   );
 }
