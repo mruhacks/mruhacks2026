@@ -387,7 +387,7 @@ function EventPageLayout({
         </div>
       </header>
 
-      <div className='mt-8 grid gap-8 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start'>
+      <div className='mt-8 grid grid-cols-[minmax(0,1fr)] gap-8 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start'>
         <main className='flex min-w-0 flex-col gap-8'>
           <EventDescription markdown={event.descriptionMarkdown} />
           {/* Between the blurb and the wiki: the description says what this is,
@@ -397,7 +397,7 @@ function EventPageLayout({
           <WikiArticles eventHref={eventPath(event)} articles={articles} />
         </main>
 
-        <aside className='order-first flex flex-col gap-4 lg:sticky lg:top-24 lg:order-0 lg:self-start'>
+        <aside className='order-first flex min-w-0 flex-col gap-4 lg:sticky lg:top-24 lg:order-0 lg:self-start'>
           {participation}
           {project}
           {team}

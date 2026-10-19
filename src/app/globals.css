@@ -317,6 +317,8 @@
     font-family: var(--font-body);
     font-size: var(--fs-body);
     line-height: var(--lh-body);
+    /* Long URLs and unbroken strings wrap instead of widening the page. */
+    overflow-wrap: anywhere;
   }
 
   & > :first-child {
