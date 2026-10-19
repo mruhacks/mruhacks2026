@@ -109,9 +109,19 @@ export const auth = betterAuth({
     provider: 'pg',
     schema,
   }),
+  session: {
+    cookieCache: {
+      enabled: true,
+      maxAge: 60,
+      strategy: 'jwe',
+    },
+  },
   rateLimit: {
     storage: 'database',
     customRules: {
+      // Read-only and called on every page view; rate-limiting it in the
+      // database would cost a write per session check.
+      '/get-session': false,
       // Credential brute-forcing
       '/sign-in/email': { window: 600, max: 10 },
       // Mass account creation
