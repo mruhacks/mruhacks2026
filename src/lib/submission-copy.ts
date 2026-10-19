@@ -70,7 +70,7 @@ export const PROJECT_STAGE_COPY: Record<ProjectStage, ProjectStageCopy> = {
     date: 'closesAt',
     action: 'Edit project',
     warning:
-      "Private projects won't be judged. Make it public before submissions close — you can keep editing it until then.",
+      "Private projects won't be judged. Make it public before submissions close, you can keep editing it until then.",
   },
   public: {
     title: 'Your project',

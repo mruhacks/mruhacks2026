@@ -41,8 +41,8 @@ export async function ProjectPanel({
     <Card>
       <CardHeader>
         <div className='flex items-center justify-between gap-2'>
-          <CardTitle className='min-w-0 truncate text-base'>
-            Project{submission && `: ${submission.title}`}
+          <CardTitle className='min-w-0 text-base wrap-break-word'>
+            {(submission && submission.title) || 'Project'}
           </CardTitle>
           {submission &&
             (submissionWindow === 'open' ? (
