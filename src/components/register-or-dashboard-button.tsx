@@ -4,12 +4,8 @@ import * as React from 'react';
 import Link from 'next/link';
 import type { VariantProps } from 'class-variance-authority';
 import { Button, buttonVariants } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
 import { authClient } from '@/utils/auth-client';
 import { REGISTRATION_OPEN } from '@/content';
-import { cn } from '@/lib/utils';
-import { syncSignedInHint } from '@/lib/signed-in-hint';
-import { useSignedInHint } from '@/lib/use-signed-in-hint';
 
 type RegisterOrDashboardButtonProps = {
   registerUrl: string;
@@ -31,31 +27,20 @@ function FixedWidthLabel({ children }: { children: React.ReactNode }) {
 }
 
 /**
- * `signedIn` is null while unknown, rendering a same-sized placeholder.
- * Signed-out visitors get nothing once registration closes.
+ * Renders "Register Now" for signed-out visitors and "Dashboard" for signed-in
+ * users, so a returning user is never sent back through registration.
+ *
+ * Renders the signed-out state first (on the server and while the session is
+ * loading) and switches to "Dashboard" only once a session resolves, so the
+ * common anonymous case never waits on a placeholder.
  */
-function ResolvedButton({
-  signedIn,
+export function RegisterOrDashboardButton({
   registerUrl,
   className,
   ...variants
-}: RegisterOrDashboardButtonProps & { signedIn: boolean | null }) {
-  if (signedIn === null) {
-    return (
-      <span
-        className={cn(
-          buttonVariants(variants),
-          'pointer-events-none',
-          className,
-        )}
-        aria-hidden='true'
-      >
-        <FixedWidthLabel>
-          <Skeleton className='h-[0.7em] w-full bg-current/25' />
-        </FixedWidthLabel>
-      </span>
-    );
-  }
+}: RegisterOrDashboardButtonProps) {
+  const { data: session } = authClient.useSession();
+  const signedIn = session != null;
 
   if (!signedIn && !REGISTRATION_OPEN) return null;
 
@@ -68,30 +53,4 @@ function ResolvedButton({
       </Link>
     </Button>
   );
-}
-
-/** Mounted only when the signed-in hint is present, so only then is the session fetched. */
-function SessionButton(props: RegisterOrDashboardButtonProps) {
-  const { data: session, isPending } = authClient.useSession();
-
-  React.useEffect(() => {
-    if (!isPending) syncSignedInHint(session != null);
-  }, [isPending, session]);
-
-  return (
-    <ResolvedButton {...props} signedIn={isPending ? null : session != null} />
-  );
-}
-
-/**
- * Renders "Register Now" for signed-out visitors and "Dashboard" for signed-in
- * users, so a returning user is never sent back through registration.
- */
-export function RegisterOrDashboardButton(
-  props: RegisterOrDashboardButtonProps,
-) {
-  const signedInHint = useSignedInHint();
-
-  if (signedInHint) return <SessionButton {...props} />;
-  return <ResolvedButton {...props} signedIn={signedInHint} />;
 }

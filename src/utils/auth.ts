@@ -6,7 +6,6 @@
  */
 
 import { betterAuth, APIError } from 'better-auth';
-import { createAuthMiddleware } from 'better-auth/api';
 import { admin, captcha, magicLink } from 'better-auth/plugins';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { claimMagicLinkCooldown } from '@/lib/auth/magic-link-cooldown';
@@ -27,10 +26,6 @@ import { headers } from 'next/headers';
 import { cacheLife } from 'next/cache';
 import { writeAuditLog } from '@/utils/audit-log';
 import { prepareUserDeletion } from '@/lib/account-deletion';
-import {
-  SIGNED_IN_HINT_COOKIE,
-  signedInHintCookieOptions,
-} from '@/lib/signed-in-hint';
 
 /** Verification links expire after this many seconds (24 hours). */
 const EMAIL_VERIFICATION_EXPIRES_IN = 86400;
@@ -149,24 +144,6 @@ export const auth = betterAuth({
    * an object this app uploaded for them.
    */
   disabledPaths: ['/update-user'],
-  hooks: {
-    // Mirrors the session cookie into the readable signed-in hint (see
-    // `src/lib/signed-in-hint.ts`) so the landing page can skip session
-    // checks for visitors who have never signed in.
-    after: createAuthMiddleware(async (ctx) => {
-      if (ctx.context.newSession) {
-        ctx.setCookie(SIGNED_IN_HINT_COOKIE, '1', signedInHintCookieOptions);
-      } else if (
-        ctx.path === '/sign-out' ||
-        ctx.path === '/delete-user/callback'
-      ) {
-        ctx.setCookie(SIGNED_IN_HINT_COOKIE, '', {
-          ...signedInHintCookieOptions,
-          maxAge: 0,
-        });
-      }
-    }),
-  },
   databaseHooks: {
     session: {
       create: {

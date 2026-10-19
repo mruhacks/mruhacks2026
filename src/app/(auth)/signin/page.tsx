@@ -1,4 +1,5 @@
-import { Suspense } from 'react';
+export const instant = false;
+
 import SignInForm from '@/components/signIn';
 import { getUser } from '@/utils/auth';
 import { redirect } from 'next/navigation';
@@ -10,9 +11,5 @@ async function SignInGate() {
 }
 
 export default function LoginPage() {
-  return (
-    <Suspense fallback={<SignInForm />}>
-      <SignInGate />
-    </Suspense>
-  );
+  return <SignInGate />;
 }
