@@ -446,18 +446,6 @@ export default function Dashboard() {
             <Greeting />
           </Suspense>
         </h1>
-        <p
-          style={{
-            fontFamily: 'var(--font-body)',
-            fontSize: '17px',
-            lineHeight: 1.5,
-            color: 'var(--ink-700)',
-            margin: 0,
-            maxWidth: '56ch',
-          }}
-        >
-          Track your applications, RSVPs and check-ins.
-        </p>
       </div>
 
       <Suspense fallback={<EventsSkeleton />}>

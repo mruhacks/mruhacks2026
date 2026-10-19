@@ -135,7 +135,7 @@ export function EventTileList({ events }: { events: EventWithUserStatus[] }) {
           No upcoming events
         </p>
         <p style={{ fontSize: '14px', color: 'var(--ink-500)', margin: 0 }}>
-          Check back later — events will appear here once they&apos;re live.
+          Check back later.
         </p>
       </div>
     );
