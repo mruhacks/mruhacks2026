@@ -9,32 +9,33 @@ import {
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
-const bucket = process.env.S3_BUCKET?.trim() || 'mruhacks-assets';
+import { readObjectStorageConfig } from '@/lib/object-storage-endpoint';
 
-function getClient() {
-  const endpoint = process.env.S3_ENDPOINT?.trim();
-  const isLocal = process.env.NODE_ENV !== 'production';
+/**
+ * The client and bucket for every storage call. Throws when the S3 env is
+ * missing rather than guessing a bucket or region — `/api/health` reports
+ * which var it is.
+ */
+function getStorage() {
+  const config = readObjectStorageConfig();
+  if (!config) {
+    throw new Error(
+      '[storage] S3_BUCKET and S3_REGION must be set (and S3_ENDPOINT, if set, must be a URL).',
+    );
+  }
   const accessKeyId = process.env.S3_ACCESS_KEY_ID?.trim();
   const secretAccessKey = process.env.S3_SECRET_ACCESS_KEY?.trim();
-  return new S3Client({
-    ...(endpoint || isLocal
-      ? {
-          endpoint: endpoint || 'http://localhost:9000',
-          forcePathStyle: true,
-        }
-      : {}),
-    region: process.env.S3_REGION?.trim() || 'us-east-1',
+  const client = new S3Client({
+    ...(config.endpoint ? { endpoint: config.endpoint } : {}),
+    forcePathStyle: config.forcePathStyle,
+    region: config.region,
+    // Without explicit keys the SDK's own credential chain applies (e.g. an
+    // instance role).
     ...(accessKeyId && secretAccessKey
       ? { credentials: { accessKeyId, secretAccessKey } }
-      : isLocal
-        ? {
-            credentials: {
-              accessKeyId: 'minioadmin',
-              secretAccessKey: 'minioadmin',
-            },
-          }
-        : {}),
+      : {}),
   });
+  return { client, bucket: config.bucket };
 }
 
 let bucketReady: Promise<void> | undefined;
@@ -42,7 +43,7 @@ let bucketReady: Promise<void> | undefined;
 async function ensureBucket() {
   if (!bucketReady) {
     bucketReady = (async () => {
-      const client = getClient();
+      const { client, bucket } = getStorage();
       try {
         await client.send(new HeadBucketCommand({ Bucket: bucket }));
       } catch {
@@ -69,7 +70,8 @@ async function ensureBucket() {
 
 /** Verifies the configured bucket is reachable, without creating it. */
 export async function checkObjectStorageConnection(): Promise<void> {
-  await getClient().send(new HeadBucketCommand({ Bucket: bucket }));
+  const { client, bucket } = getStorage();
+  await client.send(new HeadBucketCommand({ Bucket: bucket }));
 }
 
 /** Prefix under which markdown attachments (event descriptions, wiki articles) live. */
@@ -218,7 +220,8 @@ export async function putObject({
   contentType: string;
 }) {
   await ensureBucket();
-  await getClient().send(
+  const { client, bucket } = getStorage();
+  await client.send(
     new PutObjectCommand({
       Bucket: bucket,
       Key: key,
@@ -231,7 +234,8 @@ export async function putObject({
 export async function deleteObject(key: string) {
   if (!isObjectStorageKey(key)) return;
   await ensureBucket();
-  await getClient().send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
+  const { client, bucket } = getStorage();
+  await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
 }
 
 /**
@@ -248,7 +252,7 @@ async function presignGetUrl(
 ): Promise<string | null> {
   if (!isObjectStorageKey(key)) return null;
   await ensureBucket();
-  const client = getClient();
+  const { client, bucket } = getStorage();
   try {
     await client.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
   } catch {

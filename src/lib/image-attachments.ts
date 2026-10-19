@@ -27,6 +27,25 @@ export type ImageUpload = {
 };
 
 /**
+ * The reason `file` breaks the shared limits, or null if it's fine. Safe to
+ * call in the browser: checking before upload matters because a file past the
+ * server action body limit never reaches `readImageUpload` at all — the
+ * request itself fails.
+ */
+export function imageUploadError(file: {
+  type: string;
+  size: number;
+}): string | null {
+  if (!ATTACHMENT_TYPES.has(file.type)) {
+    return 'Images must be JPEG, PNG, WebP, GIF or AVIF.';
+  }
+  if (file.size === 0 || file.size > MAX_ATTACHMENT_BYTES) {
+    return `Images must be smaller than ${MAX_ATTACHMENT_BYTES / 1024 / 1024} MB.`;
+  }
+  return null;
+}
+
+/**
  * Pulls the `file` field out of an upload form and checks it against the
  * shared limits. Returns either the bytes to store or the reason to show the
  * author.
@@ -43,15 +62,9 @@ export async function readImageUpload(
     return { error: 'Choose an image to upload.' };
   }
 
-  const extension = ATTACHMENT_TYPES.get(value.type);
-  if (!extension) {
-    return { error: 'Images must be JPEG, PNG, WebP, GIF or AVIF.' };
-  }
-  if (value.size === 0 || value.size > MAX_ATTACHMENT_BYTES) {
-    return {
-      error: `Images must be smaller than ${MAX_ATTACHMENT_BYTES / 1024 / 1024} MB.`,
-    };
-  }
+  const error = imageUploadError(value);
+  if (error) return { error };
+  const extension = ATTACHMENT_TYPES.get(value.type)!;
 
   return {
     upload: {

@@ -1,6 +1,7 @@
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
+import { fromHtml } from 'hast-util-from-html';
 import rehypeSanitize from 'rehype-sanitize';
 
 import {
@@ -40,6 +41,46 @@ function rehypeCloseSelfClosingIframes() {
 }
 
 /**
+ * The raw HTML `html` parses to, if that is exactly one `<img>` element —
+ * what the editor writes for a resized image — and nothing else but
+ * whitespace. Uses a real HTML parser (parse5, the same one `rehype-raw`
+ * runs) so the answer matches what the browser would build.
+ */
+function parseLoneImage(html: unknown): TreeNode | null {
+  if (typeof html !== 'string') return null;
+  const nodes = fromHtml(html, { fragment: true }).children.filter(
+    (node) => !(node.type === 'text' && !node.value.trim()),
+  );
+  const [image] = nodes;
+  return nodes.length === 1 &&
+    image.type === 'element' &&
+    image.tagName === 'img'
+    ? image
+    : null;
+}
+
+/**
+ * For surfaces that otherwise get no raw HTML: replaces each raw node with
+ * its parsed `<img>` if it is a lone image, and drops it otherwise. The
+ * sanitizer still runs after, so only the schema's `<img>` attributes reach
+ * the page.
+ */
+function rehypeKeepOnlyImageHtml() {
+  const walk = (node: TreeNode) => {
+    if (!node.children) return;
+    node.children = node.children.flatMap((child) => {
+      if (child.type !== 'raw') {
+        walk(child);
+        return [child];
+      }
+      const image = parseLoneImage(child.value);
+      return image ? [image] : [];
+    });
+  };
+  return walk;
+}
+
+/**
  * Renders stored markdown (event descriptions, wiki articles) as read-only
  * content. Server-rendered — none of the editor's client bundle is involved.
  *
@@ -54,10 +95,9 @@ function rehypeCloseSelfClosingIframes() {
  * outside the list, including `<script>` and every event-handler attribute, is
  * dropped before it reaches React.
  *
- * `allowRawHtml={false}` turns that off entirely, for surfaces whose authors
- * aren't organizers (project submissions): raw HTML is then dropped, not
- * parsed, and the editor for those surfaces never writes any (see
- * `MarkdownEditor`'s matching prop).
+ * `allowRawHtml={false}` narrows that to resized images alone, for surfaces
+ * whose authors aren't organizers (project submissions): every other raw
+ * HTML node is dropped before parsing.
  *
  * `allowEmbeds` additionally lets `<iframe>` through, for surfaces whose
  * authors are allowed to embed (wiki articles). Even then a frame renders only
@@ -80,9 +120,10 @@ export function MarkdownContent({
     <div className={cn('mdx-prose', className)}>
       <Markdown
         remarkPlugins={[remarkGfm]}
-        skipHtml={!allowRawHtml}
         rehypePlugins={[
-          ...(allowRawHtml ? [rehypeCloseSelfClosingIframes, rehypeRaw] : []),
+          ...(allowRawHtml
+            ? [rehypeCloseSelfClosingIframes, rehypeRaw]
+            : [rehypeKeepOnlyImageHtml]),
           [
             rehypeSanitize,
             embeds ? MARKDOWN_EMBED_SANITIZE_SCHEMA : MARKDOWN_SANITIZE_SCHEMA,

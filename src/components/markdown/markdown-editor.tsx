@@ -4,6 +4,7 @@ import * as React from 'react';
 import dynamic from 'next/dynamic';
 
 import { Skeleton } from '@/components/ui/skeleton';
+import { imageUploadError } from '@/lib/image-attachments';
 import type { ActionResult } from '@/utils/action-result';
 
 /**
@@ -42,13 +43,6 @@ export type MarkdownEditorProps = {
    * `MarkdownContent` that renders this field, or readers won't see them.
    */
   allowEmbeds?: boolean;
-  /**
-   * Let the editor write raw HTML — today only `<img width height>` for a
-   * resized image. Turn it off for a field rendered with
-   * `allowRawHtml={false}`, so authors can't resize an image into markup
-   * readers will never see.
-   */
-  allowRawHtml?: boolean;
   placeholder?: string;
   className?: string;
 };
@@ -59,15 +53,27 @@ export function MarkdownEditor({
   uploadAttachment,
   onUploadError,
   allowEmbeds,
-  allowRawHtml,
   placeholder,
   className,
 }: MarkdownEditorProps) {
   const handleUpload = React.useCallback(
     async (file: File) => {
+      const invalid = imageUploadError(file);
+      if (invalid) {
+        onUploadError?.(invalid);
+        throw new Error(invalid);
+      }
       const formData = new FormData();
       formData.append('file', file);
-      const result = await uploadAttachment(formData);
+      let result: ActionResult<{ url: string }>;
+      try {
+        result = await uploadAttachment(formData);
+      } catch {
+        // The request itself failed (network, body over the action limit).
+        const message = 'Unable to upload that image. Please try again.';
+        onUploadError?.(message);
+        throw new Error(message);
+      }
       if (!result.success) {
         onUploadError?.(result.error);
         // MDXEditor keeps the image dialog open on a rejection, which leaves
@@ -90,7 +96,6 @@ export function MarkdownEditor({
       onChange={onChange}
       onUploadImage={handleUpload}
       allowEmbeds={allowEmbeds}
-      allowRawHtml={allowRawHtml}
       placeholder={placeholder}
       className={className}
     />

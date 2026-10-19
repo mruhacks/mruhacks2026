@@ -41,6 +41,7 @@ import '@mdxeditor/editor/style.css';
 
 import { cn } from '@/lib/utils';
 import { InsertEmbed, embedPlugin } from './embed-plugin';
+import { ImageDialog } from './image-dialog';
 
 /** Languages offered in the code-block dropdown. */
 const CODE_BLOCK_LANGUAGES = {
@@ -64,8 +65,6 @@ export type MarkdownEditorCoreProps = {
   onUploadImage: (file: File) => Promise<string>;
   /** Offer `<iframe>` embeds — only where the renderer also allows them. */
   allowEmbeds?: boolean;
-  /** Allow raw HTML output (resized images) — see `MarkdownEditor`. */
-  allowRawHtml?: boolean;
   placeholder?: string;
   className?: string;
 };
@@ -75,7 +74,6 @@ export default function MarkdownEditorCore({
   onChange,
   onUploadImage,
   allowEmbeds = false,
-  allowRawHtml = true,
   placeholder,
   className,
 }: MarkdownEditorCoreProps) {
@@ -96,8 +94,10 @@ export default function MarkdownEditorCore({
         tablePlugin(),
         imagePlugin({
           imageUploadHandler: onUploadImage,
-          // A resized image can only be written as `<img width height>`.
-          disableImageResize: !allowRawHtml,
+          // Upload-only: the stock dialog also takes an image URL.
+          ImageDialog,
+          // A resized image is written as `<img width height>`, which
+          // `MarkdownContent` renders on every surface.
         }),
         // Always registered, even when embeds are off — see `./embed-plugin`.
         embedPlugin({ enabled: allowEmbeds }),

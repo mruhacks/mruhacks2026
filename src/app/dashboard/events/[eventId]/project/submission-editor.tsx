@@ -45,6 +45,7 @@ import {
   FieldLabel,
 } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
+import { imageUploadError } from '@/lib/image-attachments';
 import { PROJECT_VISIBILITY_COPY } from '@/lib/submission-copy';
 import {
   SUBMISSION_HEARTBEAT_INTERVAL_MS,
@@ -324,19 +325,28 @@ export function SubmissionEditor({
   }
 
   async function handleCoverFile(file: File) {
+    const showCoverError = (message: string) =>
+      setFieldErrors((current) => ({ ...current, coverImageUrl: message }));
+    const invalid = imageUploadError(file);
+    if (invalid) return showCoverError(invalid);
+
+    setFieldErrors((current) => ({ ...current, coverImageUrl: undefined }));
     setIsUploadingCover(true);
     const formData = new FormData();
     formData.append('file', file);
-    const result = await uploadSubmissionAttachment(eventId, formData);
-    setIsUploadingCover(false);
-    if (!result.success || !result.data) {
-      setFieldErrors((current) => ({
-        ...current,
-        coverImageUrl: !result.success ? result.error : 'Upload failed.',
-      }));
-      return;
+    try {
+      const result = await uploadSubmissionAttachment(eventId, formData);
+      if (!result.success || !result.data) {
+        return showCoverError(
+          !result.success ? result.error : 'Upload failed.',
+        );
+      }
+      update('coverImageUrl', result.data.url);
+    } catch {
+      showCoverError('Unable to upload that image. Please try again.');
+    } finally {
+      setIsUploadingCover(false);
     }
-    update('coverImageUrl', result.data.url);
   }
 
   // The editor only exists while the window is open.
@@ -503,7 +513,6 @@ export function SubmissionEditor({
                 onChange={onMarkdownChange}
                 uploadAttachment={uploadAttachment}
                 onUploadError={onUploadError}
-                allowRawHtml={false}
                 placeholder='What you built, how it works, and what it looks like. Paste or drop images straight in.'
               />
               {fieldErrors.markdown && (

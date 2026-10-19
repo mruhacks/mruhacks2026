@@ -64,6 +64,7 @@
     "drizzle-orm": "^0.45.2",
     "embla-carousel-react": "^8.6.0",
     "google-auth-library": "^11.0.2",
+    "hast-util-from-html": "^2.0.3",
     "jsonwebtoken": "^9.0.3",
     "lexical": "0.48.0",
     "lucide-react": "^0.546.0",

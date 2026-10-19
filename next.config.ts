@@ -2,24 +2,9 @@ import type { NextConfig } from 'next';
 import { execSync } from 'child_process';
 
 import { embedFrameSources } from './src/lib/embeds';
+import { readObjectStorageConfig } from './src/lib/object-storage-endpoint';
 
 const isDev = process.env.NODE_ENV !== 'production';
-
-/**
- * `/api/assets` and `/api/profile/resume` 302 straight to a presigned URL on
- * the configured object-storage endpoint, so the browser loads/downloads
- * that origin directly (not through the app server) — it has to be allowed
- * by CSP or the redirect gets blocked client-side.
- */
-function getObjectStorageOrigin(): string | null {
-  const endpoint = process.env.S3_ENDPOINT?.trim();
-  if (!endpoint) return null;
-  try {
-    return new URL(endpoint).origin;
-  } catch {
-    return null;
-  }
-}
 
 /**
  * Captured at build time (not runtime) since deployed environments typically
@@ -40,7 +25,11 @@ function getBuildInfo(): string {
 
 const nextConfig: NextConfig = {
   async headers() {
-    const s3Origin = getObjectStorageOrigin();
+    // `/api/assets` and `/api/profile/resume` 302 straight to a presigned
+    // URL on object storage, so the browser loads that origin directly and
+    // CSP has to allow it. On AWS it's our bucket's own host — see
+    // `object-storage-endpoint.ts`.
+    const s3Origin = readObjectStorageConfig()?.origin;
     return [
       {
         source: '/:path*',
