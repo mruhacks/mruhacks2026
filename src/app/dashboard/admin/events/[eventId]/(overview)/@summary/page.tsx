@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 
 import { getAdminEventHeader, getEventSummaryCounts } from '@/lib/admin-event';
+import { getDietaryExpectedCount } from '@/lib/dietary/load';
 import { resolveEventId } from '@/lib/events';
 import { getJudgingTileCounts } from '@/lib/judging/server';
 import {
@@ -39,7 +40,7 @@ export default function SummaryCell({ params }: Props) {
 
 function TileGrid({ children }: { children: React.ReactNode }) {
   return (
-    <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4'>
+    <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5'>
       {children}
     </div>
   );
@@ -48,7 +49,7 @@ function TileGrid({ children }: { children: React.ReactNode }) {
 function SummaryTilesSkeleton() {
   return (
     <TileGrid>
-      {[0, 1, 2, 3].map((i) => (
+      {[0, 1, 2, 3, 4].map((i) => (
         <StatTileSkeleton key={i} />
       ))}
     </TileGrid>
@@ -117,6 +118,7 @@ async function SummaryTiles({
   const [
     event,
     counts,
+    dietaryExpected,
     canReadApplications,
     canCheckIn,
     canReadTeams,
@@ -130,6 +132,7 @@ async function SummaryTiles({
   ] = await Promise.all([
     eventPromise,
     getEventSummaryCounts(eventId),
+    getDietaryExpectedCount(eventId),
     hasPermission(user.id, 'application:read:all'),
     hasPermission(user.id, 'checkin:write:all'),
     hasPermission(user.id, 'team:read:all'),
@@ -201,7 +204,7 @@ async function SummaryTiles({
         <StatTile
           icon={<Utensils className='size-4' />}
           label='Dietary'
-          value={counts.attendees.toLocaleString()}
+          value={dietaryExpected.toLocaleString()}
           footnote='expected for catering'
           href={`${base}/dietary`}
         />

@@ -38,9 +38,13 @@ function source(overrides: Partial<DietaryReportSource> = {}) {
   });
 }
 
-const BREAKFAST = { id: 'breakfast', name: 'Breakfast', startsAt: at('08:00') };
-const LUNCH = { id: 'lunch', name: 'Lunch', startsAt: at('12:00') };
-const DINNER = { id: 'dinner', name: 'Dinner', startsAt: at('18:00') };
+function meal(id: string, name: string, start: string, end: string) {
+  return { id, name, startsAt: at(start), endsAt: at(end) };
+}
+
+const BREAKFAST = meal('breakfast', 'Breakfast', '08:00', '09:00');
+const LUNCH = meal('lunch', 'Lunch', '12:00', '13:00');
+const DINNER = meal('dinner', 'Dinner', '18:00', '19:00');
 
 function doorScan(userId: string, time = '07:00') {
   return { eventId: EVENT, userId, checkedInAt: at(time) };
@@ -116,6 +120,7 @@ describe('buildDietaryReport', () => {
         mealScan('lunch', 'a', '12:10'),
         mealScan('dinner', 'a', '18:10'),
       ],
+      now: at('18:30'),
     });
 
     expect(report.currentMeal?.id).toBe('dinner');
@@ -169,7 +174,7 @@ describe('buildDietaryReport', () => {
         mealScan('lunch', 'a', '12:10'),
         mealScan('dinner', 'a', '18:10'),
       ],
-      now: at('21:00'),
+      now: at('18:30'),
     });
 
     expect(report.currentMeal?.id).toBe('dinner');
@@ -192,8 +197,8 @@ describe('buildDietaryReport', () => {
     });
 
     const b = report.rows[1];
-    expect(b.missedStreak).toBe(1);
-    expect(b.missedMeals.map((meal) => meal.name)).toEqual(['Lunch']);
+    expect(b.missedStreak).toBe(2);
+    expect(b.missedMeals.map((m) => m.name)).toEqual(['Dinner', 'Lunch']);
   });
 
   test('no door check-in means no streak', () => {
@@ -208,6 +213,20 @@ describe('buildDietaryReport', () => {
     expect(b.atDoor).toBe(false);
     expect(b.missedStreak).toBe(0);
     expect(b.notAtCurrentMeal).toBe(false);
+  });
+
+  test('an ended meal is not current', () => {
+    const report = source({
+      meals: [LUNCH, DINNER],
+      participants: [person('a'), person('b')],
+      checkIns: [doorScan('a'), doorScan('b'), mealScan('lunch', 'a', '12:10')],
+      now: at('17:00'),
+    });
+
+    expect(report.currentMeal).toBeNull();
+    expect(report.countedMealCount).toBe(1);
+    expect(report.rows[1].missedStreak).toBe(1);
+    expect(report.rows[1].notAtCurrentMeal).toBe(false);
   });
 
   test('future meals do not count', () => {
@@ -265,10 +284,11 @@ describe('summarizeDietaryReport', () => {
   });
 
   test('missed follows the threshold', () => {
-    expect(report.countedMealCount).toBe(2);
+    expect(report.countedMealCount).toBe(3);
     expect(rowFor(TOTAL_LABEL, 1).missed).toBe(2);
     expect(rowFor(TOTAL_LABEL, 2).missed).toBe(2);
-    expect(rowFor(TOTAL_LABEL, 3).missed).toBe(0);
+    expect(rowFor(TOTAL_LABEL, 3).missed).toBe(2);
+    expect(rowFor(TOTAL_LABEL, 4).missed).toBe(0);
     expect(rowFor(NO_RESTRICTIONS_LABEL, 1).missed).toBe(0);
   });
 

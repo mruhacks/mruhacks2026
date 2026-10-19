@@ -4,7 +4,6 @@ import { notFound, redirect } from 'next/navigation';
 import { parseMissedThreshold } from '@/lib/dietary/report';
 import { resolveEventId } from '@/lib/events';
 import { requirePermission } from '@/lib/rbac/authorization';
-import { getParentEventId } from '@/lib/subevents';
 import { getUser } from '@/utils/auth';
 
 import { DietaryPage } from './dietary-page';
@@ -44,11 +43,6 @@ async function DietaryContent({
   const user = await getUser();
   if (!user) redirect('/signin');
   await requirePermission(user.id, 'dietary:read:all');
-
-  const parentEventId = await getParentEventId(eventId);
-  if (parentEventId) {
-    redirect(`/dashboard/admin/events/${parentEventId}/dietary`);
-  }
 
   const { missed } = await searchParamsPromise;
 

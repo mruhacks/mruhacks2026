@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/select';
 import { useNow } from '@/lib/use-now';
 import { cn } from '@/lib/utils';
+import { parseEventType } from '@/types/lookups';
 
 import { SubeventTypeBadge } from '../subevents/subevent-type-badge';
 
@@ -98,7 +99,9 @@ export function CheckInTargetSelector({
             <p className='truncate text-xl font-semibold sm:text-lg'>
               {armed ? armed.name : eventName}
             </p>
-            {armed && <SubeventTypeBadge label={armed.eventTypeLabel} />}
+            {armed && (
+              <SubeventTypeBadge label={parseEventType(armed.eventTypeLabel)} />
+            )}
           </div>
           <p className='text-muted-foreground mt-0.5 text-sm'>
             {armed ? (
@@ -152,7 +155,9 @@ export function CheckInTargetSelector({
               >
                 {subevent.name}
                 {ended ? ' (ended)' : ''}
-                <SubeventTypeBadge label={subevent.eventTypeLabel} />
+                <SubeventTypeBadge
+                  label={parseEventType(subevent.eventTypeLabel)}
+                />
               </SelectItem>
             );
           })}

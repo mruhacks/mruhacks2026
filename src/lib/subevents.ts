@@ -4,6 +4,8 @@ import { and, asc, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 import { checkIns, events, eventTypes } from '@/db/schema';
 import { db } from '@/utils/db';
 
+export { isSubeventRunning } from '@/lib/subevent-running';
+
 /**
  * A sub-event: a child `events` row standing in for something that happens
  * inside the main event — a meal, a workshop, a ceremony. It carries a name, a
@@ -67,23 +69,6 @@ export async function listSubevents(
 /** A start time is enough to publish an entry in the participant schedule. */
 export function isScheduleVisible(row: Pick<SubeventRow, 'startsAt'>): boolean {
   return row.startsAt !== null;
-}
-
-/**
- * Whether a schedule entry is happening at `now` (epoch ms, default the present): started, and not
- * yet over. An entry with no start time is never running; one with no end
- * runs from its start onward.
- *
- * This is what a scanner without `checkin:override:all` is limited to — the
- * check-in desk only offers them what's on right now, so a volunteer can't arm
- * tomorrow's breakfast by mistake.
- */
-export function isSubeventRunning(
-  row: { startsAt: Date | null; endsAt: Date | null },
-  now: number = Date.now(),
-): boolean {
-  if (!row.startsAt || row.startsAt.getTime() > now) return false;
-  return !row.endsAt || row.endsAt.getTime() > now;
 }
 
 /**
@@ -192,4 +177,43 @@ export async function getParentEventId(
     .limit(1);
 
   return row?.parentEventId ?? null;
+}
+
+export async function resolveEventRoot(
+  eventId: string,
+): Promise<{ id: string; endsAt: Date | null } | null> {
+  const [walk] = await db.execute<{ id: string }>(sql`
+    WITH RECURSIVE walk AS (
+      SELECT id, parent_event_id
+      FROM ${events}
+      WHERE id = ${eventId}
+      UNION ALL
+      SELECT e.id, e.parent_event_id
+      FROM ${events} e
+      INNER JOIN walk w ON w.parent_event_id = e.id
+    )
+    SELECT id FROM walk WHERE parent_event_id IS NULL
+  `);
+  if (!walk) return null;
+
+  const [row] = await db
+    .select({ id: events.id, endsAt: events.endsAt })
+    .from(events)
+    .where(eq(events.id, walk.id))
+    .limit(1);
+  return row ?? null;
+}
+
+export async function listEventTreeIds(rootId: string): Promise<string[]> {
+  const rows = await db.execute<{ id: string }>(sql`
+    WITH RECURSIVE tree AS (
+      SELECT id FROM ${events} WHERE id = ${rootId}
+      UNION ALL
+      SELECT e.id
+      FROM ${events} e
+      INNER JOIN tree t ON e.parent_event_id = t.id
+    )
+    SELECT id FROM tree
+  `);
+  return rows.map((row) => row.id);
 }

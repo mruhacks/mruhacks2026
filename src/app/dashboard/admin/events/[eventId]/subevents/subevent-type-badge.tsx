@@ -1,16 +1,17 @@
 import { Utensils } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
+import { MEAL_EVENT_TYPE, type EventType } from '@/types/lookups';
 
-export function SubeventTypeBadge({ label }: { label: string | null }) {
+export function SubeventTypeBadge({ label }: { label: EventType | null }) {
   if (!label) return null;
 
   return (
     <Badge
-      variant={label === 'meal' ? 'info' : 'outline'}
+      variant={label === MEAL_EVENT_TYPE ? 'info' : 'outline'}
       className='capitalize'
     >
-      {label === 'meal' && <Utensils aria-hidden />}
+      {label === MEAL_EVENT_TYPE && <Utensils aria-hidden />}
       {label}
     </Badge>
   );

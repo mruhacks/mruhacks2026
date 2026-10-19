@@ -14,7 +14,8 @@
 import { and, eq, isNotNull, isNull } from 'drizzle-orm';
 import { revalidatePath, updateTag } from 'next/cache';
 
-import { checkIns, events, eventTypes } from '@/db/schema';
+import { checkIns, events } from '@/db/schema';
+import { eventTypeExists } from '@/lib/event-types';
 import {
   adminEventCacheTag,
   eventApplicationsCacheTag,
@@ -77,13 +78,11 @@ export async function createSubevent(
     .limit(1);
   if (!parent) return fail('Event not found.');
 
-  if (parsed.data.eventTypeId != null) {
-    const [type] = await db
-      .select({ id: eventTypes.id })
-      .from(eventTypes)
-      .where(eq(eventTypes.id, parsed.data.eventTypeId))
-      .limit(1);
-    if (!type) return fail('Unknown schedule entry type.');
+  if (
+    parsed.data.eventTypeId != null &&
+    !(await eventTypeExists(parsed.data.eventTypeId))
+  ) {
+    return fail('Unknown schedule entry type.');
   }
 
   // Every participation-shaped flag is pinned off rather than left to its

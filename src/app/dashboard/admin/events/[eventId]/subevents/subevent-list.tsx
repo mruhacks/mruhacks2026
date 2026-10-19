@@ -9,6 +9,7 @@ import { LocalDateRange } from '@/components/local-date-time';
 import { Button } from '@/components/ui/button';
 import type { EventTypeOption } from '@/lib/event-types';
 import { isScheduleVisible, type SubeventRow } from '@/lib/subevents';
+import { parseEventType } from '@/types/lookups';
 import { cn } from '@/lib/utils';
 
 import { SubeventTypeBadge } from './subevent-type-badge';
@@ -120,7 +121,7 @@ function SubeventRowItem({
       <div className='min-w-0'>
         <div className='flex min-w-0 items-center gap-2'>
           <p className='truncate font-medium'>{subevent.name}</p>
-          <SubeventTypeBadge label={subevent.eventTypeLabel} />
+          <SubeventTypeBadge label={parseEventType(subevent.eventTypeLabel)} />
         </div>
         <p className='text-muted-foreground mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm'>
           <LocalDateRange

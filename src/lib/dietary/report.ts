@@ -1,4 +1,5 @@
 import { serializeInstant } from '@/lib/datetime';
+import { isSubeventRunning } from '@/lib/subevent-running';
 import {
   dietaryRestrictionsList,
   type DietaryRestriction,
@@ -62,7 +63,7 @@ export type DietaryReportSource = {
     restrictions: DietaryRestriction[];
     otherText: string | null;
   }[];
-  meals: { id: string; name: string; startsAt: Date }[];
+  meals: { id: string; name: string; startsAt: Date; endsAt: Date | null }[];
   checkIns: { eventId: string; userId: string; checkedInAt: Date }[];
   now: Date;
 };
@@ -109,11 +110,10 @@ export function buildDietaryReport({
     (meal) => (attendees.get(meal.id)?.size ?? 0) > 0,
   );
 
-  const newest = counted.at(-1) ?? null;
   const eventOver = eventEndsAt !== null && eventEndsAt.getTime() <= nowMs;
-  const laterMealStarted =
-    newest !== null && started.some((meal) => meal.startsAt > newest.startsAt);
-  const current = newest && !eventOver && !laterMealStarted ? newest : null;
+  const current = eventOver
+    ? null
+    : (counted.findLast((meal) => isSubeventRunning(meal, nowMs)) ?? null);
 
   const streakMeals = current ? counted.slice(0, -1) : counted;
 

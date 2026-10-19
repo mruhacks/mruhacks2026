@@ -31,13 +31,6 @@ import {
   FieldLegend,
 } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import type { AdminEventSettings } from '@/lib/admin-event';
 import type { EventTypeOption } from '@/lib/event-types';
@@ -47,9 +40,8 @@ import { fromDateTimeLocalValue, toDateTimeLocalValue } from '@/lib/datetime';
 import { parseOptionalNumber } from '@/lib/form-values';
 import { sanitizeReturnPath } from '@/utils/return-path';
 
+import { EventTypeSelect } from '../_components/event-type-select';
 import { useEventBasePath } from '../_components/use-event-base-path';
-
-const NO_TYPE = 'none';
 
 export function EventSettingsForm({
   event,
@@ -237,35 +229,16 @@ export function EventSettingsForm({
                       name='eventTypeId'
                       control={control}
                       render={({ field }) => (
-                        <Select
-                          value={field.value ? String(field.value) : NO_TYPE}
-                          onValueChange={(value) => {
+                        <EventTypeSelect
+                          id='eventTypeId'
+                          value={field.value ?? null}
+                          options={eventTypes}
+                          invalid={!!errors.eventTypeId}
+                          onChange={(value) => {
                             setSubmitError(null);
-                            field.onChange(
-                              value === NO_TYPE ? null : Number(value),
-                            );
+                            field.onChange(value);
                           }}
-                        >
-                          <SelectTrigger
-                            id='eventTypeId'
-                            className='w-full'
-                            aria-invalid={!!errors.eventTypeId}
-                          >
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value={NO_TYPE}>None</SelectItem>
-                            {eventTypes.map((type) => (
-                              <SelectItem
-                                key={type.id}
-                                value={String(type.id)}
-                                className='capitalize'
-                              >
-                                {type.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        />
                       )}
                     />
                     <FieldDescription>

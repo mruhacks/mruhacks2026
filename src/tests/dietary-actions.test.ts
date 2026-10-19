@@ -26,6 +26,7 @@ vi.mock('next/navigation', () => ({
 
 import { getUser } from '@/utils/auth';
 import { getDietaryReport } from '@/app/dashboard/admin/events/dietary-actions';
+import { MEAL_EVENT_TYPE } from '@/types/lookups';
 
 const NOW = Date.now();
 const hoursAgo = (hours: number) => new Date(NOW - hours * 3_600_000);
@@ -73,7 +74,7 @@ async function newUser(name: string, email: string) {
 beforeAll(async () => {
   const [mealType] = await db
     .insert(eventTypes)
-    .values({ label: 'meal' })
+    .values({ label: MEAL_EVENT_TYPE })
     .onConflictDoNothing()
     .returning({ id: eventTypes.id });
   const mealTypeId =
@@ -82,7 +83,7 @@ beforeAll(async () => {
       await db
         .select({ id: eventTypes.id })
         .from(eventTypes)
-        .where(eq(eventTypes.label, 'meal'))
+        .where(eq(eventTypes.label, MEAL_EVENT_TYPE))
         .limit(1)
     )[0].id;
 
@@ -247,10 +248,12 @@ describe('getDietaryReport', () => {
     await expect(getDietaryReport(eventId)).rejects.toThrow(/REDIRECT/);
   });
 
-  test('refuses a sub-event', async () => {
-    await expect(getDietaryReport(lunchId)).resolves.toMatchObject({
-      success: false,
-    });
+  test('a sub-event uses the root roster', async () => {
+    const result = await getDietaryReport(lunchId);
+    expect(result.success).toBe(true);
+    const names = result.data!.rows.map((row) => row.name).sort();
+    expect(names).toEqual(['Absent Allan', 'Vega Vegan']);
+    expect(result.data!.hasMeals).toBe(true);
   });
 
   test('lists only accepted participants', async () => {
