@@ -22,6 +22,10 @@ import type { NextRequest } from 'next/server';
 import { headers } from 'next/headers';
 import { auth } from './utils/auth';
 import { userNeedsConsent } from './utils/consent-check';
+import {
+  SIGNED_IN_HINT_COOKIE,
+  signedInHintCookieOptions,
+} from './lib/signed-in-hint';
 
 export async function proxy(request: NextRequest) {
   const session = await auth.api.getSession({
@@ -46,7 +50,11 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  return NextResponse.next();
+  const response = NextResponse.next();
+  // Keeps the landing page's signed-in hint alive for as long as the user
+  // keeps using the app (see `src/lib/signed-in-hint.ts`).
+  response.cookies.set(SIGNED_IN_HINT_COOKIE, '1', signedInHintCookieOptions);
+  return response;
 }
 
 export const config = {
