@@ -5,7 +5,7 @@ import jwt from 'jsonwebtoken';
 import { MRUHACKS_LOGO_URL } from '@/content';
 import { EVENT_TIME_ZONE, toZonedOffsetString } from '@/lib/datetime';
 import { walletApiRequest } from './client';
-import { getGoogleWalletConfig } from './config';
+import { getGoogleWalletConfig, isGoogleWalletConfigured } from './config';
 
 export type GoogleWalletParticipant = {
   eventId: string;
@@ -194,4 +194,32 @@ export async function buildGoogleWalletSaveUrl(
 
   const token = jwt.sign(claims, config.privateKey, { algorithm: 'RS256' });
   return `https://pay.google.com/gp/v/save/${token}`;
+}
+
+/**
+ * For account deletion: replaces each of the user's ticket objects with an
+ * expired shell that has no name and no barcode. The Wallet API can't delete
+ * an object, so a full replace (PUT, unlike PATCH) is the only way to drop
+ * those fields. A 404 means no pass was ever made for that event. Without
+ * Wallet credentials no pass can exist, so there is nothing to revoke.
+ */
+export async function revokeGoogleWalletPasses(
+  userId: string,
+  eventIds: string[],
+): Promise<void> {
+  if (eventIds.length === 0 || !isGoogleWalletConfigured()) return;
+  const { issuerId } = getGoogleWalletConfig();
+  await Promise.all(
+    eventIds.map((eventId) => {
+      const id = eventTicketObjectId(issuerId, eventId, userId);
+      return walletApiRequest(`eventTicketObject/${id}`, {
+        method: 'PUT',
+        body: {
+          id,
+          classId: eventTicketClassId(issuerId, eventId),
+          state: 'expired',
+        },
+      });
+    }),
+  );
 }

@@ -17,6 +17,16 @@ function readEnv(name: string): string {
   return value;
 }
 
+const ENV_VARS = [
+  'GOOGLE_WALLET_ISSUER_ID',
+  'GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL',
+  'GOOGLE_WALLET_SERVICE_ACCOUNT_PRIVATE_KEY',
+];
+
+export function isGoogleWalletConfigured(): boolean {
+  return ENV_VARS.every((name) => process.env[name]?.trim());
+}
+
 export function getGoogleWalletConfig(): GoogleWalletConfig {
   return {
     issuerId: readEnv('GOOGLE_WALLET_ISSUER_ID'),

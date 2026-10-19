@@ -26,7 +26,7 @@ function getAuthClient(): JWT {
  */
 export async function walletApiRequest<T>(
   path: string,
-  init: { method: 'GET' | 'POST' | 'PATCH'; body?: unknown },
+  init: { method: 'GET' | 'POST' | 'PATCH' | 'PUT'; body?: unknown },
 ): Promise<T | null> {
   const { token } = await getAuthClient().getAccessToken();
   if (!token) {
