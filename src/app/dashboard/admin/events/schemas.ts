@@ -105,6 +105,8 @@ const GEOFENCE_ISSUE = {
  */
 const eventInstantSchema = z.iso.datetime({ offset: true });
 
+const eventTypeIdSchema = z.number().int().positive().nullish();
+
 /**
  * Why a project submission deadline doesn't fit the event, or null when it
  * does (or isn't set). Submissions open at the start, so the deadline has to
@@ -208,6 +210,7 @@ export const updateEventSettingsSchema = z
     teamsEnabled: z.boolean().optional(),
     checkInEnabled: z.boolean().optional(),
     maxTeamSize: z.number().int().positive().nullish(),
+    eventTypeId: eventTypeIdSchema,
     submissionsCloseAt: eventInstantSchema.nullish(),
   })
   .refine(
@@ -262,6 +265,7 @@ export const createSubeventSchema = z
     descriptionMarkdown: eventDescriptionSchema.optional(),
     checkInEnabled: z.boolean().optional(),
     location: z.string().trim().max(255).nullish(),
+    eventTypeId: eventTypeIdSchema,
   })
   .refine(
     (data) => !data.endsAt || new Date(data.startsAt) < new Date(data.endsAt),

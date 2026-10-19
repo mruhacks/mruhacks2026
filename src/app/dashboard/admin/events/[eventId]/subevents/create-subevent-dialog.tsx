@@ -33,15 +33,20 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
+import type { EventTypeOption } from '@/lib/event-types';
+
+import { EventTypeSelect } from '../_components/event-type-select';
 
 /** Adds a schedule entry, converting browser wall-clock inputs to UTC instants. */
 export function CreateSubeventDialog({
   eventId,
   defaultStartsAt,
+  eventTypes,
 }: {
   eventId: string;
   /** The parent's start instant (ISO with `Z`), used to seed the date. */
   defaultStartsAt: string | null;
+  eventTypes: EventTypeOption[];
 }) {
   const [open, setOpen] = React.useState(false);
   const [submitError, setSubmitError] = React.useState<string | null>(null);
@@ -64,6 +69,7 @@ export function CreateSubeventDialog({
       descriptionMarkdown: '',
       checkInEnabled: true,
       location: '',
+      eventTypeId: null,
     },
   });
 
@@ -197,6 +203,31 @@ export function CreateSubeventDialog({
               </Field>
             </FieldGroup>
 
+            <Field className='gap-1.5' data-invalid={!!errors.eventTypeId}>
+              <FieldLabel htmlFor='subevent-type'>Type (optional)</FieldLabel>
+              <FieldDescription>
+                Tag meals so they show up on the dietary report.
+              </FieldDescription>
+              <Controller
+                name='eventTypeId'
+                control={control}
+                render={({ field }) => (
+                  <EventTypeSelect
+                    id='subevent-type'
+                    value={field.value ?? null}
+                    options={eventTypes}
+                    invalid={!!errors.eventTypeId}
+                    onChange={(value) => {
+                      setSubmitError(null);
+                      field.onChange(value);
+                    }}
+                  />
+                )}
+              />
+              {errors.eventTypeId && (
+                <FieldError errors={[errors.eventTypeId]} />
+              )}
+            </Field>
             <Field className='gap-1.5' data-invalid={!!errors.location}>
               <FieldLabel htmlFor='subevent-location'>
                 Location (optional)

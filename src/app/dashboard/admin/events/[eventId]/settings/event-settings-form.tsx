@@ -33,15 +33,23 @@ import {
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import type { AdminEventSettings } from '@/lib/admin-event';
+import type { EventTypeOption } from '@/lib/event-types';
 import { adminEventPath } from '@/lib/event-slug';
 import { slugify } from '@/lib/slug';
 import { fromDateTimeLocalValue, toDateTimeLocalValue } from '@/lib/datetime';
 import { parseOptionalNumber } from '@/lib/form-values';
 import { sanitizeReturnPath } from '@/utils/return-path';
 
+import { EventTypeSelect } from '../_components/event-type-select';
 import { useEventBasePath } from '../_components/use-event-base-path';
 
-export function EventSettingsForm({ event }: { event: AdminEventSettings }) {
+export function EventSettingsForm({
+  event,
+  eventTypes,
+}: {
+  event: AdminEventSettings;
+  eventTypes: EventTypeOption[];
+}) {
   const router = useRouter();
   const basePath = useEventBasePath();
   const searchParams = useSearchParams();
@@ -76,6 +84,7 @@ export function EventSettingsForm({ event }: { event: AdminEventSettings }) {
       isFeatured: event.isFeatured,
       teamsEnabled: event.teamsEnabled,
       maxTeamSize: event.maxTeamSize ?? null,
+      eventTypeId: event.eventTypeId,
     }),
     [event],
   );
@@ -208,6 +217,36 @@ export function EventSettingsForm({ event }: { event: AdminEventSettings }) {
                       . Leave blank to keep using the event id.
                     </FieldDescription>
                     {errors.slug && <FieldError errors={[errors.slug]} />}
+                  </Field>
+                  <Field
+                    className='gap-1.5'
+                    data-invalid={!!errors.eventTypeId}
+                  >
+                    <FieldLabel htmlFor='eventTypeId'>
+                      Type (optional)
+                    </FieldLabel>
+                    <Controller
+                      name='eventTypeId'
+                      control={control}
+                      render={({ field }) => (
+                        <EventTypeSelect
+                          id='eventTypeId'
+                          value={field.value ?? null}
+                          options={eventTypes}
+                          invalid={!!errors.eventTypeId}
+                          onChange={(value) => {
+                            setSubmitError(null);
+                            field.onChange(value);
+                          }}
+                        />
+                      )}
+                    />
+                    <FieldDescription>
+                      Tag meals so they show up on the dietary report.
+                    </FieldDescription>
+                    {errors.eventTypeId && (
+                      <FieldError errors={[errors.eventTypeId]} />
+                    )}
                   </Field>
                   <Field orientation='horizontal' className='gap-4'>
                     <FieldContent>

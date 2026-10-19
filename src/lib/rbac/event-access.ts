@@ -24,6 +24,8 @@ export const EVENT_DASHBOARD_PERMISSIONS = [
   'application:stats:all',
   // checkin/
   'checkin:write:all',
+  // dietary/
+  'dietary:read:all',
   // teams/
   'team:read:all',
   // rsvp/

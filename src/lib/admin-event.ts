@@ -165,6 +165,7 @@ export type AdminEventSettings = AdminEventHeader & {
   maxTeamSize: number | null;
   rsvpResponseWindowHours: number;
   capacityVisible: boolean;
+  eventTypeId: number | null;
 };
 
 /**
@@ -203,6 +204,7 @@ export async function getAdminEventSettings(
       maxTeamSize: events.maxTeamSize,
       rsvpResponseWindowHours: events.rsvpResponseWindowHours,
       capacityVisible: events.capacityVisible,
+      eventTypeId: events.eventTypeId,
     })
     .from(events)
     .leftJoin(eventTerms, eq(events.termsId, eventTerms.id))

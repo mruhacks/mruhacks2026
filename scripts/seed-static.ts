@@ -179,6 +179,10 @@ async function seedRolesAndPermissions() {
       description: 'Check in to schedule entries outside their scheduled time',
     },
     {
+      slug: 'dietary:read:all',
+      description: "View an event's dietary report",
+    },
+    {
       slug: 'rsvp:read:all',
       description: "View an event's RSVP waves and responses",
     },
@@ -371,6 +375,10 @@ async function seedRolesAndPermissions() {
       {
         roleId: findRole('volunteer').id,
         permissionId: findPerm('checkin:write:all').id,
+      },
+      {
+        roleId: findRole('volunteer').id,
+        permissionId: findPerm('dietary:read:all').id,
       },
     ];
 

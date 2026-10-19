@@ -2,6 +2,7 @@ import * as React from 'react';
 import { notFound, redirect } from 'next/navigation';
 
 import { getAdminEventSettings } from '@/lib/admin-event';
+import { listEventTypes } from '@/lib/event-types';
 import { resolveEventId } from '@/lib/events';
 import { requirePermission } from '@/lib/rbac/authorization';
 import { getUser } from '@/utils/auth';
@@ -37,8 +38,13 @@ async function SettingsContent({
   if (!user) redirect('/signin');
   await requirePermission(user.id, 'event:manage:all');
 
-  const event = await getAdminEventSettings(eventId);
+  const [event, eventTypes] = await Promise.all([
+    getAdminEventSettings(eventId),
+    listEventTypes(),
+  ]);
   if (!event) notFound();
 
-  return <EventSettingsForm key={event.id} event={event} />;
+  return (
+    <EventSettingsForm key={event.id} event={event} eventTypes={eventTypes} />
+  );
 }

@@ -159,3 +159,10 @@ export const participationStatusDisplayList = [
 
 export const eventTypesList = ['meal', 'workshop', 'hackathon'] as const;
 export type EventType = (typeof eventTypesList)[number];
+export const MEAL_EVENT_TYPE = 'meal' as const satisfies EventType;
+
+export function parseEventType(label: string | null): EventType | null {
+  return eventTypesList.includes(label as EventType)
+    ? (label as EventType)
+    : null;
+}

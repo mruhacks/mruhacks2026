@@ -5,6 +5,7 @@ import { and, count, desc, eq, inArray, ne, sql } from 'drizzle-orm';
 import { revalidatePath, updateTag } from 'next/cache';
 import { db } from '@/utils/db';
 import { FEATURED_EVENT_CACHE_TAG } from '@/lib/featured-event';
+import { eventTypeExists } from '@/lib/event-types';
 import { subeventsCacheTag } from '@/lib/subevents';
 import { EVENTS_CACHE_TAG, eventUrlSegments } from '@/lib/events';
 import { eventPath } from '@/lib/event-slug';
@@ -674,6 +675,13 @@ export async function updateEventSettings(
     return fail('A schedule entry cannot be the featured event.');
   }
 
+  if (
+    input.eventTypeId != null &&
+    !(await eventTypeExists(input.eventTypeId))
+  ) {
+    return fail('Unknown schedule entry type.');
+  }
+
   // undefined leaves the stored slug alone; '' or null clears it back to
   // uuid-only addressing.
   const finalSlug =
@@ -749,6 +757,10 @@ export async function updateEventSettings(
         longitude,
         radiusMeters,
         isFeatured: input.isFeatured ?? eventRow.isFeatured,
+        eventTypeId:
+          input.eventTypeId !== undefined
+            ? input.eventTypeId
+            : eventRow.eventTypeId,
         updatedAt: new Date(),
       })
       .where(eq(events.id, eventId));
