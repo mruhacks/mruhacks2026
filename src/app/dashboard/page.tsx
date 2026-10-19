@@ -70,16 +70,22 @@ const USER_TILE_LINKS = [
 const FEATURED_EVENT_COUNT_PERMISSION = 'application:stats:all';
 
 /**
- * Buttons inside the featured event's tile. `path` deep-links to the tool's
- * own page under the event dashboard, and each one checks the permission
- * that page gates itself on. Applications aren't listed — the tile already
- * links to the event dashboard, where the applications table lives.
+ * Buttons inside the featured event's tile, each checking the permission its
+ * page gates itself on. Check-in deep-links under the event dashboard; the
+ * lobby displays always follow the featured event, so their settings live
+ * here too. Applications aren't listed — the tile already links to the event
+ * dashboard, where the applications table lives.
  */
 const FEATURED_EVENT_LINKS = [
   {
     label: 'Check-in',
-    path: 'checkin',
+    href: (eventPath: string) => `${eventPath}/checkin`,
     permission: 'checkin:write:all',
+  },
+  {
+    label: 'Displays',
+    href: () => '/dashboard/admin/displays',
+    permission: 'display:manage:all',
   },
 ];
 
@@ -298,7 +304,7 @@ async function AdminPanel({ permissions }: { permissions: Set<string> }) {
               anyPermissionMatches(permissions, link.permission),
             ).map((link) => (
               <Button key={link.label} asChild variant='outline' size='sm'>
-                <Link href={`${adminEventPath(featured)}/${link.path}`}>
+                <Link href={link.href(adminEventPath(featured))}>
                   {link.label}
                 </Link>
               </Button>

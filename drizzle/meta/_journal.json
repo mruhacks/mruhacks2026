@@ -372,6 +372,13 @@
       "when": 1792349155363,
       "tag": "0052_expo_judging",
       "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1792367769328,
+      "tag": "0053_lobby_display_settings",
+      "breakpoints": true
     }
   ]
 }
