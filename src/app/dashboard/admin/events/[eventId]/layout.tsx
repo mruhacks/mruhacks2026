@@ -11,9 +11,9 @@ import { EVENT_DASHBOARD_PERMISSIONS } from '@/lib/rbac/event-access';
 import { getUser } from '@/utils/auth';
 
 import { EditEventButton } from './_components/edit-event-button';
-import { EventBackLink } from './_components/event-back-link';
 import { EventLiveBadge } from './_components/event-live-badge';
 import { ShareEventButton } from './_components/share-event-button';
+import { Card } from '@/components/ui/card';
 
 type EventLayoutProps = {
   children: React.ReactNode;
@@ -77,52 +77,51 @@ async function EventHeader({
   if (!event) notFound();
 
   return (
-    <header className='flex flex-col gap-4'>
-      <nav aria-label='Event navigation'>
-        <EventBackLink />
-      </nav>
-      <div className='flex flex-wrap items-start justify-between gap-4'>
-        {/* Zero-render: feeds the event's name to the dashboard breadcrumb,
+    <Card className='p-6'>
+      <header>
+        <div className='flex flex-wrap items-start justify-between gap-4'>
+          {/* Zero-render: feeds the event's name to the dashboard breadcrumb,
           which otherwise shows the raw uuid. */}
-        <BreadcrumbSegment id={segment} label={event.name} />
+          <BreadcrumbSegment id={segment} label={event.name} />
 
-        <div className='min-w-0'>
-          <div className='flex flex-wrap items-center gap-3'>
-            <h1
-              className='m-0 truncate'
-              style={{
-                fontFamily: 'var(--font-display)',
-                fontWeight: 'var(--fw-semibold)',
-                fontSize: '34px',
-                lineHeight: 'var(--lh-tight)',
-                letterSpacing: 'var(--track-display)',
-              }}
-            >
-              {event.name}
-            </h1>
-            <EventLiveBadge startsAt={event.startsAt} endsAt={event.endsAt} />
-          </div>
+          <div className='min-w-0'>
+            <div className='flex flex-wrap items-center gap-3'>
+              <h1
+                className='m-0 truncate'
+                style={{
+                  fontFamily: 'var(--font-display)',
+                  fontWeight: 'var(--fw-semibold)',
+                  fontSize: '34px',
+                  lineHeight: 'var(--lh-tight)',
+                  letterSpacing: 'var(--track-display)',
+                }}
+              >
+                {event.name}
+              </h1>
+              <EventLiveBadge startsAt={event.startsAt} endsAt={event.endsAt} />
+            </div>
 
-          <div className='text-muted-foreground mt-2 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm'>
-            <span className='inline-flex items-center gap-1.5'>
-              <CalendarDays aria-hidden className='size-4 shrink-0' />
-              <LocalDateRange start={event.startsAt} end={event.endsAt} />
-            </span>
-            {event.location && (
+            <div className='text-muted-foreground mt-2 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm'>
               <span className='inline-flex items-center gap-1.5'>
-                <MapPin aria-hidden className='size-4 shrink-0' />
-                {event.location}
+                <CalendarDays aria-hidden className='size-4 shrink-0' />
+                <LocalDateRange start={event.startsAt} end={event.endsAt} />
               </span>
-            )}
+              {event.location && (
+                <span className='inline-flex items-center gap-1.5'>
+                  <MapPin aria-hidden className='size-4 shrink-0' />
+                  {event.location}
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div className='flex shrink-0 flex-wrap items-center gap-2'>
+            <ShareEventButton eventId={event.id} slug={event.slug} />
+
+            {canEditEvent && <EditEventButton />}
           </div>
         </div>
-
-        <div className='flex shrink-0 flex-wrap items-center gap-2'>
-          <ShareEventButton eventId={event.id} slug={event.slug} />
-
-          {canEditEvent && <EditEventButton />}
-        </div>
-      </div>
-    </header>
+      </header>
+    </Card>
   );
 }

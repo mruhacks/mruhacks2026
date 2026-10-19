@@ -143,7 +143,7 @@ export async function listPermissions(): Promise<
 /**
  * Creates a new role entry in the database.
  * TODO: Why is the column called slug in the db? why not just call it name?
- * @param slug - Unique role name (e.g., "admin", "judge")
+ * @param slug - Unique role name (e.g., "admin", "organizer")
  * @param description - Optional role description
  * @returns The new role ID, or undefined if it already existed
  */

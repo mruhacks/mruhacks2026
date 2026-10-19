@@ -5,28 +5,34 @@ import { and, asc, eq, sql } from 'drizzle-orm';
 
 import {
   checkIns,
+  dietaryRestrictions,
   eventParticipants,
   eventInvitations,
   eventRsvpWaves,
   events,
   eventTerms,
   genders,
+  interests,
   majors,
   participationStatuses,
+  submissions,
   teamMembers,
   teams,
   universities,
   user,
+  userDietaryRestrictions,
+  userInterests,
   userProfileAbout,
   userProfiles,
   yearsOfStudy,
 } from '@/db/schema';
 import {
-  buildQuestionStats,
+  buildProfileStatsByStatus,
+  buildQuestionStatsByStatus,
   buildStatusBreakdown,
   type ApplicationStatsRow,
-  type QuestionStats,
   type StatsBucket,
+  type StatusSplitStat,
 } from '@/lib/application-stats';
 import { EVENT_TIME_ZONE } from '@/lib/datetime';
 import { hasStatus } from '@/lib/participation/server';
@@ -77,6 +83,7 @@ export type AdminEventHeader = {
   endsAt: Date | null;
   checkInEnabled: boolean;
   location: string | null;
+  submissionsCloseAt: Date | null;
 };
 
 /**
@@ -112,6 +119,7 @@ export async function getAdminEventHeader(
       endsAt: events.endsAt,
       checkInEnabled: events.checkInEnabled,
       location: events.location,
+      submissionsCloseAt: events.submissionsCloseAt,
     })
     .from(events)
     .leftJoin(eventTerms, eq(events.termsId, eventTerms.id))
@@ -189,6 +197,7 @@ export async function getAdminEventSettings(
       endsAt: events.endsAt,
       checkInEnabled: events.checkInEnabled,
       location: events.location,
+      submissionsCloseAt: events.submissionsCloseAt,
       latitude: events.latitude,
       longitude: events.longitude,
       radiusMeters: events.radiusMeters,
@@ -219,6 +228,7 @@ export type EventSummaryCounts = {
     declined: number;
     timedOut: number;
   };
+  submissions: { total: number; published: number };
 };
 
 /**
@@ -240,60 +250,76 @@ export async function getEventSummaryCounts(
 
   const countOf = sql<number>`COUNT(*)`.mapWith(Number);
 
-  const [applicationRows, attendeeRows, checkInRows, teamRows, rsvpRows] =
-    await Promise.all([
-      db
-        .select({ c: countOf })
-        .from(eventParticipants)
-        .where(eq(eventParticipants.eventId, eventId)),
-      db
-        .select({ c: countOf })
-        .from(eventParticipants)
-        .where(
-          and(eq(eventParticipants.eventId, eventId), hasStatus('accepted')),
-        ),
-      db
-        .select({ c: countOf })
-        .from(checkIns)
-        .where(eq(checkIns.eventId, eventId)),
-      // Solo teams-of-one are excluded here for the same reason
-      // `listFormedTeams` excludes them — an unjoined code isn't a team.
-      db
-        .select({
-          c: sql<number>`COUNT(*)`.mapWith(Number),
-        })
-        .from(
-          db
-            .select({ teamId: teamMembers.teamId })
-            .from(teamMembers)
-            .innerJoin(teams, eq(teams.id, teamMembers.teamId))
-            .where(eq(teams.eventId, eventId))
-            .groupBy(teamMembers.teamId)
-            .having(sql`COUNT(*) > 1`)
-            .as('formed_teams'),
-        ),
-      db
-        .select({
-          label: participationStatuses.label,
-          respondBy: eventRsvpWaves.respondBy,
-          c: countOf,
-        })
-        .from(eventInvitations)
-        .innerJoin(
-          eventRsvpWaves,
-          eq(eventRsvpWaves.id, eventInvitations.rsvpWaveId),
-        )
-        .innerJoin(
-          eventParticipants,
-          eq(eventParticipants.id, eventInvitations.participantId),
-        )
-        .innerJoin(
-          participationStatuses,
-          eq(participationStatuses.id, eventParticipants.statusId),
-        )
-        .where(eq(eventRsvpWaves.eventId, eventId))
-        .groupBy(participationStatuses.label, eventRsvpWaves.respondBy),
-    ]);
+  const [
+    applicationRows,
+    attendeeRows,
+    checkInRows,
+    teamRows,
+    rsvpRows,
+    submissionRows,
+  ] = await Promise.all([
+    db
+      .select({ c: countOf })
+      .from(eventParticipants)
+      .where(eq(eventParticipants.eventId, eventId)),
+    db
+      .select({ c: countOf })
+      .from(eventParticipants)
+      .where(
+        and(eq(eventParticipants.eventId, eventId), hasStatus('accepted')),
+      ),
+    db
+      .select({ c: countOf })
+      .from(checkIns)
+      .where(eq(checkIns.eventId, eventId)),
+    // Solo teams-of-one are excluded here for the same reason
+    // `listFormedTeams` excludes them — an unjoined code isn't a team.
+    db
+      .select({
+        c: sql<number>`COUNT(*)`.mapWith(Number),
+      })
+      .from(
+        db
+          .select({ teamId: teamMembers.teamId })
+          .from(teamMembers)
+          .innerJoin(teams, eq(teams.id, teamMembers.teamId))
+          .where(eq(teams.eventId, eventId))
+          .groupBy(teamMembers.teamId)
+          .having(sql`COUNT(*) > 1`)
+          .as('formed_teams'),
+      ),
+    db
+      .select({
+        label: participationStatuses.label,
+        respondBy: eventRsvpWaves.respondBy,
+        c: countOf,
+      })
+      .from(eventInvitations)
+      .innerJoin(
+        eventRsvpWaves,
+        eq(eventRsvpWaves.id, eventInvitations.rsvpWaveId),
+      )
+      .innerJoin(
+        eventParticipants,
+        eq(eventParticipants.id, eventInvitations.participantId),
+      )
+      .innerJoin(
+        participationStatuses,
+        eq(participationStatuses.id, eventParticipants.statusId),
+      )
+      .where(eq(eventRsvpWaves.eventId, eventId))
+      .groupBy(participationStatuses.label, eventRsvpWaves.respondBy),
+    db
+      .select({
+        total: countOf,
+        published:
+          sql<number>`COUNT(*) FILTER (WHERE ${submissions.published})`.mapWith(
+            Number,
+          ),
+      })
+      .from(submissions)
+      .where(eq(submissions.eventId, eventId)),
+  ]);
 
   const rsvp = { accepted: 0, pending: 0, declined: 0, timedOut: 0 };
   const now = new Date();
@@ -311,22 +337,29 @@ export async function getEventSummaryCounts(
     checkIns: checkInRows[0]?.c ?? 0,
     teams: teamRows[0]?.c ?? 0,
     rsvp,
+    submissions: {
+      total: submissionRows[0]?.total ?? 0,
+      published: submissionRows[0]?.published ?? 0,
+    },
   };
 }
 
 export type EventApplicationStats = {
   hasApplication: boolean;
   total: number;
-  questionStats: QuestionStats[];
+  /** Per-question breakdowns, split by participation status. */
+  questionStats: StatusSplitStat[];
+  /** Per-profile-field breakdowns, split by participation status. */
+  profileStats: StatusSplitStat[];
   statusBreakdown: StatsBucket[];
 };
 
 /**
  * Cohort-level application statistics: the status list and the per-question
- * breakdown, built from one pass over the applications.
+ * and per-profile-field breakdowns, built from one pass over the
+ * applications.
  *
- * Both the "Applications overview" and "Application question breakdown"
- * cells call this. They're separate Suspense boundaries but share this one
+ * Both the "Applications overview" and "Stats" cells call this. They're separate Suspense boundaries but share this one
  * cache entry, so the second is a hit rather than a second scan.
  *
  * Aggregation happens here, on the server: raw per-applicant `responses`
@@ -364,6 +397,20 @@ export async function getEventApplicationStats(
       major: majors.label,
       yearOfStudy: yearsOfStudy.label,
       gender: genders.label,
+      hasProfile: sql<boolean>`${userProfiles.userId} IS NOT NULL`,
+      attendedHackathonBefore: userProfileAbout.attendedHackathonBefore,
+      // Correlated subqueries rather than joins: two many-to-many joins on
+      // one query would multiply each applicant's row by both list lengths.
+      interests: sql<string[]>`ARRAY(
+        SELECT ${interests.label}::text FROM ${userInterests}
+        INNER JOIN ${interests} ON ${interests.id} = ${userInterests.interestId}
+        WHERE ${userInterests.userId} = ${eventParticipants.userId}
+      )`,
+      dietaryRestrictions: sql<string[]>`ARRAY(
+        SELECT ${dietaryRestrictions.label}::text FROM ${userDietaryRestrictions}
+        INNER JOIN ${dietaryRestrictions} ON ${dietaryRestrictions.id} = ${userDietaryRestrictions.restrictionId}
+        WHERE ${userDietaryRestrictions.userId} = ${eventParticipants.userId}
+      )`,
     })
     .from(eventParticipants)
     .leftJoin(userProfiles, eq(eventParticipants.userId, userProfiles.userId))
@@ -388,12 +435,18 @@ export async function getEventApplicationStats(
     major: row.major ?? null,
     yearOfStudy: row.yearOfStudy ?? null,
     gender: row.gender ?? null,
+    attendedHackathonBefore: row.attendedHackathonBefore ?? null,
+    // Interests and dietary restrictions live with the profile, so with no
+    // profile row an empty list means "unknown", not "picked none".
+    interests: row.hasProfile ? row.interests : null,
+    dietaryRestrictions: row.hasProfile ? row.dietaryRestrictions : null,
   }));
 
   return {
     hasApplication: eventRow.hasApplication,
     total: statsRows.length,
-    questionStats: buildQuestionStats(questions, statsRows),
+    questionStats: buildQuestionStatsByStatus(questions, statsRows),
+    profileStats: buildProfileStatsByStatus(statsRows),
     statusBreakdown: buildStatusBreakdown(statsRows),
   };
 }

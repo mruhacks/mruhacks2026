@@ -314,7 +314,7 @@ function WaveSection({
       <div className='flex items-start'>
         <button
           type='button'
-          className='hover:bg-muted/50 flex min-w-0 flex-1 items-start gap-3 p-3 text-left disabled:cursor-default disabled:hover:bg-transparent'
+          className='hover:bg-muted/50 flex min-w-0 flex-1 cursor-pointer items-start gap-3 p-3 text-left disabled:cursor-default disabled:hover:bg-transparent'
           aria-expanded={open}
           aria-controls={contentId}
           disabled={disabled}

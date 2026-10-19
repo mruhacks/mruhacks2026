@@ -39,7 +39,14 @@ async function LegalStepContent({
     redirect(stepUrl(firstNeeded, dest));
   }
 
-  const consent = reviewing ? await getConsent() : null;
+  const consent = await getConsent();
+  const consentData = consent.success ? consent.data : undefined;
+  // Accepted an older version before: the policy changed under them, so the
+  // step says so, and keeps their marketing choice rather than resetting it
+  // to "off" (submitting records whatever that box says).
+  const isReacceptance =
+    !reviewing &&
+    (consentData?.termsVersion != null || consentData?.privacyVersion != null);
 
   const next = getNextStep(progress, 'legal');
 
@@ -47,10 +54,9 @@ async function LegalStepContent({
     <WelcomeConsentPage
       nextHref={stepUrl(next, dest)}
       isFinalStep={next === null}
+      isReacceptance={isReacceptance}
       initialAcceptLegal={reviewing}
-      initialMarketing={
-        consent?.success ? (consent.data?.marketingEmails ?? false) : false
-      }
+      initialMarketing={consentData?.marketingEmails ?? false}
     />
   );
 }

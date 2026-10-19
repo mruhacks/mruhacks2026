@@ -30,3 +30,38 @@ export async function getFeaturedEventRegisterUrl(): Promise<string> {
 
   return DEFAULT_REGISTER_URL;
 }
+
+export type FeaturedEventSchedule = {
+  name: string;
+  /** ISO instants (strings so they survive the cache boundary). */
+  startsAt: string | null;
+  endsAt: string | null;
+};
+
+/**
+ * Name and schedule of the featured event, for the homepage's structured
+ * data. Null if no event is featured.
+ */
+export async function getFeaturedEventSchedule(): Promise<FeaturedEventSchedule | null> {
+  'use cache';
+  cacheTag(FEATURED_EVENT_CACHE_TAG);
+  cacheLife('hours');
+
+  const [featured] = await db
+    .select({
+      name: events.name,
+      startsAt: events.startsAt,
+      endsAt: events.endsAt,
+    })
+    .from(events)
+    .where(eq(events.isFeatured, true))
+    .limit(1);
+
+  if (!featured) return null;
+
+  return {
+    name: featured.name,
+    startsAt: featured.startsAt?.toISOString() ?? null,
+    endsAt: featured.endsAt?.toISOString() ?? null,
+  };
+}

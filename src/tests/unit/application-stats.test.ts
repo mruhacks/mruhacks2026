@@ -3,6 +3,8 @@ import {
   buildQuestionStats,
   buildStatusBreakdown,
   buildDemographicStats,
+  buildProfileStatsByStatus,
+  buildQuestionStatsByStatus,
   type ApplicationStatsRow,
 } from '@/lib/application-stats';
 import type { ApplicationQuestion } from '@/types/application';
@@ -386,5 +388,100 @@ describe('buildDemographicStats', () => {
     expect(stats.major).toEqual([]);
     expect(stats.yearOfStudy).toEqual([]);
     expect(stats.gender).toEqual([]);
+  });
+});
+
+describe('buildQuestionStatsByStatus', () => {
+  test('splits select counts and respondents by status', () => {
+    const questions = [
+      q({
+        id: 'q1',
+        type: 'single_select',
+        label: 'Q1',
+        showInReports: true,
+        options: [
+          { value: 'a', label: 'A', active: true },
+          { value: 'b', label: 'B', active: true },
+        ],
+      }),
+    ];
+    const rows = [
+      row({ status: 'accepted', responses: { q1: 'a' } }),
+      row({ status: 'accepted', responses: { q1: 'b' } }),
+      row({ status: 'denied', responses: { q1: 'a' } }),
+      row({ status: 'denied', responses: {} }),
+    ];
+    const [stat] = buildQuestionStatsByStatus(questions, rows);
+    expect(stat.id).toBe('q1');
+    expect(stat.answered).toEqual({ accepted: 2, denied: 1 });
+    expect(stat.buckets).toEqual([
+      { key: 'a', label: 'A', counts: { accepted: 1, denied: 1 } },
+      { key: 'b', label: 'B', counts: { accepted: 1 } },
+    ]);
+  });
+
+  test('number questions use the cohort histogram bins for every status', () => {
+    const questions = [
+      q({ id: 'n', type: 'number', label: 'N', showInReports: true }),
+    ];
+    const rows = [
+      row({ status: 'accepted', responses: { n: 0 } }),
+      row({ status: 'denied', responses: { n: 10 } }),
+    ];
+    const [stat] = buildQuestionStatsByStatus(questions, rows);
+    expect(stat.buckets).toHaveLength(5);
+    expect(stat.buckets[0].counts).toEqual({ accepted: 1 });
+    expect(stat.buckets[4].counts).toEqual({ denied: 1 });
+  });
+});
+
+describe('buildProfileStatsByStatus', () => {
+  test('seeds canonical options and splits counts by status', () => {
+    const rows = [
+      row({ status: 'accepted', gender: 'Female' }),
+      row({ status: 'denied', gender: 'Female' }),
+      row({ status: 'denied', gender: null }),
+    ];
+    const gender = buildProfileStatsByStatus(rows).find(
+      (s) => s.id === 'profile:gender',
+    )!;
+    expect(gender.answered).toEqual({ accepted: 1, denied: 1 });
+    expect(gender.buckets.map((b) => b.label)).toContain('Male');
+    expect(gender.buckets.find((b) => b.key === 'Female')!.counts).toEqual({
+      accepted: 1,
+      denied: 1,
+    });
+  });
+
+  test('empty dietary list counts as None; missing profile is unanswered', () => {
+    const rows = [
+      row({ status: 'accepted', dietaryRestrictions: [] }),
+      row({ status: 'accepted', dietaryRestrictions: ['Vegan', 'Halal'] }),
+      row({ status: 'accepted', dietaryRestrictions: null }),
+    ];
+    const dietary = buildProfileStatsByStatus(rows).find(
+      (s) => s.id === 'profile:dietaryRestrictions',
+    )!;
+    expect(dietary.answered).toEqual({ accepted: 2 });
+    expect(dietary.buckets.find((b) => b.label === 'None')!.counts).toEqual({
+      accepted: 1,
+    });
+    expect(dietary.buckets.find((b) => b.key === 'Vegan')!.counts).toEqual({
+      accepted: 1,
+    });
+  });
+
+  test('hackathon experience is a Yes/No split', () => {
+    const rows = [
+      row({ status: 'invited', attendedHackathonBefore: true }),
+      row({ status: 'invited', attendedHackathonBefore: false }),
+    ];
+    const stat = buildProfileStatsByStatus(rows).find(
+      (s) => s.id === 'profile:attendedHackathonBefore',
+    )!;
+    expect(stat.buckets).toEqual([
+      { key: 'Yes', label: 'Yes', counts: { invited: 1 } },
+      { key: 'No', label: 'No', counts: { invited: 1 } },
+    ]);
   });
 });

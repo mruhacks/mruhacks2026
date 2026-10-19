@@ -102,6 +102,12 @@ export interface DataTableProps<TData, TValue> {
    * without an accessor, or with `enableColumnFilter: false`, get none.
    */
   enableColumnFilters?: boolean;
+  /**
+   * Stable id for each row. Without it rows are keyed by index, so a cell
+   * holding local state (an input mid-edit) is handed to a different record
+   * whenever the data refreshes or re-sorts underneath it.
+   */
+  getRowId?: (row: TData, index: number) => string;
 }
 
 export function DataTable<TData, TValue>({
@@ -126,6 +132,7 @@ export function DataTable<TData, TValue>({
   initialColumnFilters = [],
   onColumnFiltersChange,
   enableColumnFilters = false,
+  getRowId,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = React.useState<SortingState>(initialSorting);
   const [columnFilters, setColumnFilters] =
@@ -153,9 +160,13 @@ export function DataTable<TData, TValue>({
     onColumnFiltersChange?.(columnFilters);
   }, [columnFilters, onColumnFiltersChange]);
 
+  // TanStack Table opts this component out of React Compiler memoization;
+  // that's expected and harmless here.
+  // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable<TData>({
     data,
     columns,
+    getRowId,
     state: {
       sorting,
       columnFilters,
@@ -225,7 +236,7 @@ export function DataTable<TData, TValue>({
                 placeholder={searchPlaceholder ?? 'Search…'}
                 value={globalFilter ?? ''}
                 onChange={(e) => setGlobalFilter(e.target.value)}
-                className='h-9 max-w-xs'
+                className='h-9 w-md'
               />
             )}
             {toolbar}
@@ -300,6 +311,7 @@ export function DataTable<TData, TValue>({
                       // for existing callers.
                       colSpan={header.colSpan}
                       className={cn(
+                        header.column.columnDef.meta?.className,
                         compact && 'h-9',
                         header.subHeaders.length > 0 &&
                           'text-muted-foreground border-b text-[11px] tracking-wide uppercase',
@@ -310,7 +322,7 @@ export function DataTable<TData, TValue>({
                           <button
                             type='button'
                             onClick={header.column.getToggleSortingHandler()}
-                            className='hover:text-foreground inline-flex items-center gap-1 transition-colors'
+                            className='hover:text-foreground inline-flex cursor-pointer items-center gap-1 transition-colors'
                           >
                             {flexRender(
                               header.column.columnDef.header,
@@ -348,7 +360,13 @@ export function DataTable<TData, TValue>({
                   data-state={row.getIsSelected() && 'selected'}
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id} className={cn(compact && 'py-2')}>
+                    <TableCell
+                      key={cell.id}
+                      className={cn(
+                        cell.column.columnDef.meta?.className,
+                        compact && 'py-2',
+                      )}
+                    >
                       {flexRender(
                         cell.column.columnDef.cell,
                         cell.getContext(),

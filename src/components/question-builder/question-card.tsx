@@ -1,14 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import {
-  ChevronUp,
-  ChevronDown,
-  Pencil,
-  Trash2,
-  Eye,
-  EyeOff,
-} from 'lucide-react';
+import { Pencil, Trash2, Eye } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import type { ApplicationQuestion } from '@/types/application';
@@ -28,24 +21,16 @@ const TYPE_LABELS: Record<string, string> = {
 
 type QuestionCardProps = {
   question: ApplicationQuestion;
-  isFirst: boolean;
-  isLast: boolean;
   onEdit: () => void;
   onDelete: () => void;
-  onMoveUp: () => void;
-  onMoveDown: () => void;
   onReactivate?: () => void;
   isDragging?: boolean;
 };
 
 export function QuestionCard({
   question: q,
-  isFirst,
-  isLast,
   onEdit,
   onDelete,
-  onMoveUp,
-  onMoveDown,
   onReactivate,
   isDragging,
 }: QuestionCardProps) {
@@ -83,11 +68,11 @@ export function QuestionCard({
               <span className='text-destructive text-xs'>Required</span>
             )}
             {!q.active && (
-              <span className='text-muted-foreground bg-muted rounded px-1.5 py-0.5 text-xs'>
+              <span className='text-muted-foreground bg-muted rounded-sm px-1.5 py-0.5 text-xs'>
                 Hidden
               </span>
             )}
-            <span className='bg-muted text-muted-foreground rounded px-1.5 py-0.5 text-xs'>
+            <span className='bg-muted text-muted-foreground rounded-sm px-1.5 py-0.5 text-xs'>
               {TYPE_LABELS[q.type] ?? q.type}
             </span>
           </div>

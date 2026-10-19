@@ -34,6 +34,14 @@ export const EVENT_DASHBOARD_PERMISSIONS = [
   'article:read:all',
   // settings/**, subevents/, the event copy cell
   'event:manage:all',
+  // submissions/ — every team's project, drafts included
+  'submission:read:all',
+  // judging/ — criteria, table layout, roster and project deactivation
+  'judging:manage:all',
+  // judging/results — live rankings
+  'judging:results:all',
+  // judging/results — placements
+  'judging:award:all',
 ] as const;
 
 export function canOpenEventDashboard(granted: Iterable<string>): boolean {

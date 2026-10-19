@@ -53,5 +53,6 @@ export const config = {
   // Every authenticated surface. `/welcome` itself is intentionally excluded so
   // the consent redirect can't loop. `/signin` redirects active sessions from
   // its server component, so auth callbacks stay outside the proxy matcher.
-  matcher: ['/dashboard/:path*'],
+  // `/print` holds dashboard pages laid out for paper, outside its chrome.
+  matcher: ['/dashboard/:path*', '/print/:path*'],
 };

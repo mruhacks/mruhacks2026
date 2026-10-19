@@ -1,0 +1,374 @@
+/* Ported from the MRUHacks 2026 banner (JashanPalSingh/MRUHacks-2026-Banner).
+   Everything is sized in viewport units: the screen is whatever the kiosk
+   browser is, full-bleed. */
+
+.shell {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: #fff;
+  color: #08060d;
+  font-family: var(--font-dm-sans), sans-serif;
+  transition: background-color 2s ease;
+  cursor: none;
+}
+
+.dark {
+  background: #08060d;
+  color: #fff;
+}
+
+.aurora {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+/* No WebGL2: a still wash in the same three colours. */
+.auroraFallback {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to right,
+    rgba(250, 223, 75, 0.45),
+    rgba(216, 65, 161, 0.45),
+    rgba(147, 255, 255, 0.45)
+  );
+  mask-image: linear-gradient(to top, #000 0%, rgba(0, 0, 0, 0) 70%);
+  -webkit-mask-image: linear-gradient(to top, #000 0%, rgba(0, 0, 0, 0) 70%);
+}
+
+.bannerImage,
+.sponsorImage {
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  left: 50%;
+  width: auto;
+  max-width: 90vw;
+  object-fit: contain;
+  transform: translate(-50%, -50%);
+  opacity: 1;
+  transition: opacity 2s ease;
+}
+
+.bannerImage {
+  height: 75vh;
+}
+
+.sponsorImage {
+  height: 50vh;
+}
+
+.sponsorStage {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity 2s ease;
+}
+
+/* With the clock and schedule down the left (20vw + gutters), centre the banner
+   and sponsors in the space that's left instead of underneath the panel. */
+.withSidebar .bannerImage,
+.withSidebar .sponsorImage,
+.withSidebar .sponsorLabel {
+  left: calc(50% + 10vw + 16px);
+  max-width: calc(80vw - 64px);
+}
+
+/* After .sponsorStage, which sets opacity too: same specificity, so order wins. */
+.hidden {
+  opacity: 0;
+}
+
+.sponsorLabel {
+  position: absolute;
+  z-index: 2;
+  top: 25vh;
+  left: 50%;
+  max-width: 90vw;
+  font-size: clamp(1.25rem, 3vw, 3rem);
+  font-weight: 900;
+  line-height: 1;
+  text-align: center;
+  text-shadow: 0 2px 14px rgba(255, 255, 255, 0.7);
+  transform: translate(-50%, -100%);
+  white-space: nowrap;
+}
+
+.dark .sponsorLabel {
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.7);
+}
+
+.clockPanel {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  z-index: 2;
+  display: flex;
+  width: 20vw;
+  height: 25vh;
+  box-sizing: border-box;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  text-align: center;
+  text-shadow: 0 1px 12px rgba(255, 255, 255, 0.35);
+  transition:
+    color 2s ease,
+    text-shadow 2s ease;
+}
+
+.dark .clockPanel {
+  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.4);
+}
+
+.clockTime {
+  font-size: clamp(1rem, 5vw, 5rem);
+  font-weight: 900;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.clockDate {
+  margin-top: 8px;
+  font-size: clamp(1rem, 1.6vw, 5rem);
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.schedulePanel {
+  position: fixed;
+  top: calc(25vh + 32px);
+  bottom: 0;
+  left: 16px;
+  z-index: 2;
+  display: flex;
+  width: 20vw;
+  box-sizing: border-box;
+  flex-direction: column;
+  /* No overflow clip here: it would crop the current card's shadow into a
+     box. The upcoming list clips itself. */
+}
+
+/* The entry on now: a frosted card that lifts it off the list without
+   shouting, with the banner's rainbow as a thin progress line. */
+.currentEvent {
+  position: relative;
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 14px 16px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.55);
+  box-shadow: 0 6px 20px rgba(8, 6, 13, 0.08);
+  backdrop-filter: blur(12px);
+  color: #08060d;
+  text-align: left;
+}
+
+.dark .currentEvent {
+  border-color: rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+  color: #fff;
+}
+
+.progressTrack {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  background: rgba(8, 6, 13, 0.08);
+}
+
+.dark .progressTrack {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.progressFill {
+  height: 100%;
+  background: linear-gradient(
+    to right,
+    #ffe600,
+    #ff7a00,
+    #ff3d6e,
+    #e61fa0,
+    #7a3cff,
+    #3d7bff,
+    #00f0ff
+  );
+  transition: width 1s linear;
+}
+
+/* The entry after it: the same card, quieter, so the eye lands on "now"
+   first and "next" second. */
+.nextEvent {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 10px;
+  padding: 10px 14px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.28);
+  backdrop-filter: blur(8px);
+  color: #08060d;
+}
+
+.dark .nextEvent {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
+}
+
+.nextEventLabel {
+  font-size: clamp(0.65rem, 0.6vw, 0.85rem);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  opacity: 0.6;
+}
+
+.nextEventTitle {
+  font-size: clamp(1.1rem, 1vw, 1.5rem);
+  font-weight: 800;
+  line-height: 1.15;
+  overflow-wrap: break-word;
+}
+
+.nextEventMeta {
+  font-size: clamp(0.85rem, 0.8vw, 1.1rem);
+  font-weight: 500;
+  opacity: 0.8;
+}
+
+.eventDetails {
+  min-width: 0;
+}
+
+.currentEventTitle,
+.upcomingEventTitle {
+  display: block;
+  overflow-wrap: break-word;
+}
+
+.currentEventTitle {
+  font-size: clamp(1.6rem, 1.4vw, 2.25rem);
+  font-weight: 900;
+  line-height: 1.1;
+}
+
+.progressTrack {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.dark .progressTrack {
+  background: rgba(8, 6, 13, 0.1);
+}
+
+.progressFill {
+  height: 100%;
+  background: linear-gradient(
+    to right,
+    #ffe600,
+    #ff7a00,
+    #ff3d6e,
+    #e61fa0,
+    #7a3cff,
+    #3d7bff,
+    #00f0ff
+  );
+  transition: width 1s linear;
+}
+
+.currentEventLocation,
+.upcomingEventLocation {
+  display: block;
+  margin-top: 4px;
+  font-weight: 300;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.currentEventLocation {
+  font-size: clamp(0.95rem, 0.85vw, 1.2rem);
+}
+
+.upcomingEventLocation {
+  font-size: clamp(0.65rem, 0.85vw, 0.9rem);
+}
+
+.upcomingEventTime {
+  align-self: start;
+  white-space: nowrap;
+  text-align: right;
+}
+
+.currentEventTime {
+  margin-top: 2px;
+  white-space: nowrap;
+  font-size: clamp(1rem, 1vw, 1.5rem);
+  font-weight: 800;
+}
+
+.scheduleUpcoming {
+  display: flex;
+  min-height: 0;
+  margin-top: 10px;
+  flex-direction: column;
+  gap: 10px;
+  overflow: hidden;
+  mask-image: linear-gradient(to bottom, #000 0%, rgba(0, 0, 0, 0) 100%);
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    #000 0%,
+    rgba(0, 0, 0, 0) 100%
+  );
+}
+
+/* The rest of the list: the same glass as "next", so every entry reads as
+   one card; the list's fade-out mask still quiets the later ones. */
+.upcomingEvent {
+  display: grid;
+  flex: none;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  padding: 10px 14px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.28);
+  backdrop-filter: blur(8px);
+  color: #08060d;
+  text-align: left;
+}
+
+.dark .upcomingEvent {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
+}
+
+.upcomingEventTitle {
+  font-size: clamp(0.75rem, 1vw, 1rem);
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.upcomingEventTime {
+  font-size: clamp(0.7rem, 0.9vw, 0.9rem);
+  font-weight: 700;
+}

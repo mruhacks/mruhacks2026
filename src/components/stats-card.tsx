@@ -27,9 +27,9 @@ export function StatCard({
     >
       <div className='flex flex-col gap-4'>
         {title && (
-          <h2 className='text-6xl leading-none font-extrabold tracking-[-0.04em]'>
+          <p className='text-6xl leading-none font-extrabold tracking-[-0.04em]'>
             {title}
-          </h2>
+          </p>
         )}
         {description && (
           <p className='text-xl font-medium lg:text-base'>{description}</p>

@@ -27,6 +27,7 @@ import { authClient } from '@/utils/auth-client';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Turnstile, type TurnstileHandle } from '@/components/turnstile';
+import Chevron from '@/assets/Chevron';
 
 const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? '';
 
@@ -227,7 +228,7 @@ export default function SignInForm() {
             Didn&apos;t receive the email? Check your spam folder, or{' '}
             <button
               type='button'
-              className='font-medium underline underline-offset-4 hover:no-underline'
+              className='cursor-pointer font-medium underline underline-offset-4 hover:no-underline'
               onClick={() => setMagicLinkSentEmail(null)}
             >
               go back
@@ -261,7 +262,7 @@ export default function SignInForm() {
             Didn&apos;t receive the email? Check your spam folder, or{' '}
             <button
               type='button'
-              className='font-medium underline underline-offset-4 hover:no-underline'
+              className='cursor-pointer font-medium underline underline-offset-4 hover:no-underline'
               onClick={() => setUnverifiedEmail(null)}
             >
               go back
@@ -276,11 +277,26 @@ export default function SignInForm() {
   return (
     <Card className='w-full sm:max-w-md'>
       <CardHeader>
-        <CardTitle>Welcome</CardTitle>
+        <CardTitle>
+          <div className='flex flex-row items-center'>
+            Welcome to
+            <Chevron className='h-7 w-auto' />
+            <span
+              style={{
+                fontFamily: 'var(--font-display)',
+                fontWeight: 'var(--fw-semibold)',
+                fontSize: '16px',
+                letterSpacing: 'var(--track-display)',
+              }}
+            >
+              MRUHacks
+            </span>
+          </div>
+        </CardTitle>
         <CardDescription>
           {showPassword
             ? 'Enter your email and password to continue.'
-            : 'Enter your email and we’ll send you a link — new or returning.'}
+            : 'Enter your email and we’ll send you a link.'}
         </CardDescription>
       </CardHeader>
 
@@ -387,7 +403,7 @@ export default function SignInForm() {
             />
             <button
               type='button'
-              className='text-muted-foreground self-center text-sm hover:underline'
+              className='text-muted-foreground cursor-pointer self-center text-sm hover:underline'
               onClick={() => {
                 form.clearErrors('root');
                 setShowPassword(false);
@@ -457,7 +473,7 @@ export default function SignInForm() {
             {/* Password toggle */}
             <button
               type='button'
-              className='text-muted-foreground self-center text-sm hover:underline'
+              className='text-muted-foreground cursor-pointer self-center text-sm hover:underline'
               onClick={() => {
                 form.clearErrors('root');
                 setShowPassword(true);

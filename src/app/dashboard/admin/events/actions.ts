@@ -29,6 +29,7 @@ import {
   eventTypes,
   teams,
   teamMembers,
+  submissions,
 } from '@/db/schema';
 import { getUser } from '@/utils/auth';
 import { ok, fail, type ActionResult } from '@/utils/action-result';
@@ -74,6 +75,7 @@ import {
   createEventSchema,
   updateEventSettingsSchema,
   updateParticipantStatusSchema,
+  submissionsCloseAtError,
 } from './schemas';
 import type {
   AddQuestionInput,
@@ -625,6 +627,45 @@ export async function updateEventSettings(
     return fail('Start date must be before end date');
   }
 
+  const finalSubmissionsCloseAt =
+    input.submissionsCloseAt !== undefined
+      ? input.submissionsCloseAt
+        ? new Date(input.submissionsCloseAt)
+        : null
+      : eventRow.submissionsCloseAt;
+  const deadlineError = submissionsCloseAtError({
+    startsAt: finalStartsAt,
+    endsAt: finalEndsAt,
+    submissionsCloseAt: finalSubmissionsCloseAt,
+  });
+  if (deadlineError) return fail(deadlineError);
+
+  // Teams own submissions, check-in decides who may work on them, and the
+  // deadline is what freezes them. Once any team has started a project,
+  // switching one of those off would strand it, so refuse instead.
+  const turnsOffTeams = input.teamsEnabled === false && eventRow.teamsEnabled;
+  const turnsOffCheckIn =
+    input.checkInEnabled === false && eventRow.checkInEnabled;
+  const clearsDeadline =
+    finalSubmissionsCloseAt == null && eventRow.submissionsCloseAt != null;
+  if (turnsOffTeams || turnsOffCheckIn || clearsDeadline) {
+    const [existingSubmission] = await db
+      .select({ id: submissions.id })
+      .from(submissions)
+      .where(eq(submissions.eventId, eventId))
+      .limit(1);
+    if (existingSubmission) {
+      const what = turnsOffTeams
+        ? 'turn off teams'
+        : turnsOffCheckIn
+          ? 'turn off check-in'
+          : 'remove the submission deadline';
+      return fail(
+        `Teams have already started project submissions, so you can't ${what}.`,
+      );
+    }
+  }
+
   // A sub-event is edited through this same form, and most of the settings that
   // make no sense for one are harmless if set. Featured is the exception:
   // idx_events_featured_unique is sitewide, so featuring a sub-event would
@@ -709,6 +750,7 @@ export async function updateEventSettings(
             : eventRow.maxTeamSize,
         startsAt: finalStartsAt,
         endsAt: finalEndsAt,
+        submissionsCloseAt: finalSubmissionsCloseAt,
         location:
           input.location !== undefined
             ? input.location || null
@@ -726,7 +768,7 @@ export async function updateEventSettings(
       .where(eq(events.id, eventId));
   });
 
-  // Homepage register-link lookup and the events list are both cached; bust
+  // Homepage featured-event lookups and the events list are both cached; bust
   // them so edits show up immediately.
   updateTag(FEATURED_EVENT_CACHE_TAG);
   updateTag(EVENTS_CACHE_TAG);
@@ -1290,7 +1332,7 @@ export type FormedTeamMember = {
 
 export type FormedTeamRow = {
   teamId: string;
-  organizerId: string;
+  organizerId: string | null;
   organizerName: string;
   organizerEmail: string;
   memberCount: number;

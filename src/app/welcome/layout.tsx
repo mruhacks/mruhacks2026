@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 
 import {
@@ -14,6 +15,9 @@ import {
   type Step,
 } from './onboarding-progress';
 import { WelcomeStepNav, type WelcomeStep } from './welcome-layout';
+
+// Account/app pages aren't useful search results; keep them out of the index.
+export const metadata: Metadata = { robots: { index: false } };
 
 export default async function WelcomeRouteLayout({
   children,
@@ -37,12 +41,20 @@ export default async function WelcomeRouteLayout({
       completed: !progress.needsPersonal,
       reviewable: canReviewStep(progress, 'personal'),
     },
-    {
-      id: 'about' satisfies Step,
-      label: 'About you',
-      completed: !progress.needsAbout,
-      reviewable: canReviewStep(progress, 'about'),
-    },
+    // Judges fill in their professional details instead of About.
+    progress.isJudge
+      ? {
+          id: 'professional' satisfies Step,
+          label: 'Professional',
+          completed: !progress.needsProfessional,
+          reviewable: canReviewStep(progress, 'professional'),
+        }
+      : {
+          id: 'about' satisfies Step,
+          label: 'About you',
+          completed: !progress.needsAbout,
+          reviewable: canReviewStep(progress, 'about'),
+        },
     ...(progress.featuredEvent
       ? [
           {

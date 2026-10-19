@@ -426,6 +426,8 @@ async function seedHackathonSchedule(parentEventId: string) {
     .set({
       startsAt: eventDate('Friday', '7:30 PM'),
       endsAt: eventDate('Sunday', '2:30 PM'),
+      // Matches the "Hacking Ends / Submissions Due" schedule item.
+      submissionsCloseAt: eventDate('Sunday', '9:00 AM'),
     })
     .where(eq(events.id, parentEventId));
 
@@ -464,10 +466,7 @@ async function seedHackathonSchedule(parentEventId: string) {
 
 // ── Seed markdown content (event descriptions + wiki) ────────────────────
 
-// Internal links are built from the event id so the seeded content actually
-// navigates, rather than shipping `#` placeholders that look like a bug.
-const hackathonDescription = (eventId: string) =>
-  `
+const HACKATHON_DESCRIPTION = `
 MRUHacks is Mount Royal University’s largest student-run hackathon, bringing students together for an immersive 36-hour experience focused on building, collaboration, and learning.
 
 You can think of a hackathon as a software science fair. Anyone with an interest in technology attends a hackathon to learn, build & share their creations over the course of a weekend, in a relaxed and welcoming atmosphere. You will bring your ideas to life through technology over the course of 36 hours before showcasing them to a team of judges.
@@ -496,6 +495,8 @@ npm create vite@latest my-first-react-app -- --template react
 No application needed — just register and show up. Laptops required; we do not
 have loaners for this one.`;
 
+// Internal links are built from the event id so the seeded content actually
+// navigates, rather than shipping `#` placeholders that look like a bug.
 const gettingStartedArticle = (eventId: string) =>
   `Welcome to MRUHacks. This page covers everything you need between now and the
 opening ceremony.
@@ -652,7 +653,7 @@ async function seedEventContent(
   const descriptions = [
     {
       event: applicationEvent,
-      markdown: hackathonDescription(applicationEvent.id),
+      markdown: HACKATHON_DESCRIPTION,
     },
     { event: noAppEvent, markdown: WORKSHOP_DESCRIPTION },
   ];
@@ -1092,10 +1093,9 @@ export async function seedDemoData() {
       const roleSlug = (() => {
         const rnd = Math.random();
         if (rnd < 0.001) return 'admin'; // 0.1%
-        if (rnd < 0.002) return 'judge'; // 0.1%
         if (rnd < 0.03) return 'organizer'; // 3%
         if (rnd < 0.07) return 'volunteer'; // 4%
-        return 'participant'; // ~92%
+        return null; // ~93%: no role
       })();
 
       const roleObj = insertedRoles.find((r) => r.slug === roleSlug);
@@ -1109,7 +1109,10 @@ export async function seedDemoData() {
       }
 
       // ── Explicit user-permission overrides ──────────────────────────────
-      if (['admin', 'organizer'].includes(roleSlug) && Math.random() < 0.2) {
+      if (
+        (roleSlug === 'admin' || roleSlug === 'organizer') &&
+        Math.random() < 0.2
+      ) {
         const chosenPerms = faker.helpers.arrayElements(insertedPerms, {
           min: 1,
           max: 2,

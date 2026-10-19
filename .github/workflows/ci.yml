@@ -27,7 +27,7 @@ jobs:
         uses: pnpm/action-setup@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: pnpm
@@ -90,7 +90,7 @@ jobs:
         uses: pnpm/action-setup@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: pnpm
@@ -100,6 +100,11 @@ jobs:
 
       - name: Run tests with coverage
         run: pnpm test:coverage
+
+      # Our judging port against the vendored Gavel, run in Docker. Kept out
+      # of `pnpm test` because it's slow.
+      - name: Run Gavel differential tests
+        run: pnpm test:gavel
 
       - name: Post coverage report on PR
         uses: davelosert/vitest-coverage-report-action@v2

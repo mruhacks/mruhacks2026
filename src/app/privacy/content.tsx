@@ -4,7 +4,7 @@
 const CONTACT_EMAIL = 'privacy@mruhacks.ca';
 
 export const PRIVACY_TITLE = 'Privacy Policy';
-export const PRIVACY_UPDATED = 'Aug 28, 2026';
+export const PRIVACY_UPDATED = 'Oct 18, 2026';
 
 /** Shared with the full /privacy page and the welcome-flow modal. */
 export function PrivacyContent() {
@@ -70,18 +70,32 @@ export function PrivacyContent() {
 
       <h2>Sharing your information</h2>
       <p>
-        We do not sell your personal information. We share it only where
-        necessary to operate the event — for example, with service providers
-        that host our systems or send email on our behalf, and, where you
-        consent, with event sponsors. Service providers are bound to protect
-        your information and use it only for the services they provide to us.
+        We do not sell your personal information. We may share it with our
+        sponsors and partners, and with service providers that host our systems
+        or send email on our behalf. Service providers are bound to protect your
+        information and use it only for the services they provide to us.
       </p>
 
       <h2>Retention</h2>
       <p>
         We keep your personal information only as long as needed for the
         purposes described here or as required by law. When you delete your
-        account, we permanently erase your account and all associated data.
+        account, we permanently erase your account and your personal information
+        from our systems — your profile, applications, registrations, check-ins,
+        and team memberships.
+      </p>
+      <p>
+        Content you created together with others stays, without your name: a
+        project your team submitted (its write-up, images, and links) remains
+        for the rest of your team and for judging. If you want that content
+        erased too, contact us at{' '}
+        <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a> and we will
+        review your request for full erasure.
+      </p>
+      <p>
+        We keep backups of our systems for up to 90 days. Information you delete
+        may remain in those backups until they expire and are permanently
+        erased.
       </p>
 
       <h2>Your rights</h2>
@@ -97,8 +111,9 @@ export function PrivacyContent() {
           <a href='/dashboard/profile'>profile</a>.
         </li>
         <li>
-          <strong>Delete</strong> your account and data at any time from your{' '}
-          <a href='/dashboard/account'>Account &amp; Privacy</a> settings.
+          <strong>Delete</strong> your account and personal information at any
+          time from your <a href='/dashboard/account'>Account &amp; Privacy</a>{' '}
+          settings, and request full erasure of shared content by contacting us.
         </li>
         <li>
           <strong>Withdraw consent</strong> to non-essential communications.

@@ -63,7 +63,6 @@ export function WelcomeAboutPage({
       majorId: initial?.majorId,
       majorOtherText: initial?.majorOtherText ?? '',
       yearOfStudyId: initial?.yearOfStudyId,
-      linkedinUrl: initial?.linkedinUrl ?? '',
       githubUrl: initial?.githubUrl ?? '',
       attendedHackathonBefore: initial?.attendedHackathonBefore ?? false,
     },
@@ -239,19 +238,6 @@ export function WelcomeAboutPage({
             </Field>
           )}
         />
-        <Field data-invalid={Boolean(form.formState.errors.linkedinUrl)}>
-          <FieldLabel htmlFor='linkedinUrl'>LinkedIn</FieldLabel>
-          <Input
-            id='linkedinUrl'
-            type='url'
-            placeholder='https://linkedin.com/in/janedoe'
-            aria-invalid={Boolean(form.formState.errors.linkedinUrl)}
-            {...form.register('linkedinUrl')}
-          />
-          {form.formState.errors.linkedinUrl && (
-            <FieldError errors={[form.formState.errors.linkedinUrl]} />
-          )}
-        </Field>
         <Field data-invalid={Boolean(form.formState.errors.githubUrl)}>
           <FieldLabel htmlFor='githubUrl'>GitHub</FieldLabel>
           <Input
