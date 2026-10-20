@@ -358,6 +358,27 @@
       "when": 1791129659647,
       "tag": "0050_application_votes",
       "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1791236115277,
+      "tag": "0051_project_submissions",
+      "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1792349155363,
+      "tag": "0052_expo_judging",
+      "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1792367769328,
+      "tag": "0053_lobby_display_settings",
+      "breakpoints": true
     }
   ]
 }

@@ -61,9 +61,9 @@ export function DeleteAccountCard() {
       <CardHeader>
         <CardTitle className='text-destructive'>Delete your account</CardTitle>
         <CardDescription>
-          Permanently delete your account and all associated data — your
-          profile, applications, event history, and preferences. This cannot be
-          undone.
+          Permanently delete your account and your personal data — your profile,
+          applications, event history, and preferences. Projects you built with
+          a team stay, without your name. This cannot be undone.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -84,7 +84,7 @@ export function DeleteAccountCard() {
                   <DialogTitle>Check your email</DialogTitle>
                   <DialogDescription>
                     We&apos;ve sent a confirmation link to your email address.
-                    Your account and all its data will be permanently deleted
+                    Your account and personal data will be permanently deleted
                     only after you open that link. The link expires in 24 hours.
                   </DialogDescription>
                 </DialogHeader>
@@ -102,9 +102,10 @@ export function DeleteAccountCard() {
                     Delete account
                   </DialogTitle>
                   <DialogDescription>
-                    This permanently erases your account and every piece of data
-                    tied to it. For your security, we&apos;ll email you a link
-                    to confirm before anything is deleted.
+                    This permanently erases your account and your personal data.
+                    Team projects stay, without your name. For your security,
+                    we&apos;ll email you a link to confirm before anything is
+                    deleted.
                   </DialogDescription>
                 </DialogHeader>
 

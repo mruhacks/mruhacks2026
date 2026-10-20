@@ -57,22 +57,12 @@ import {
   statusIdOf,
 } from '@/lib/participation/server';
 import type { ParticipationStatus } from '@/types/lookups';
+import {
+  isJudgingEvent,
+  JUDGE_SIGNUP_BLOCKED_MESSAGE,
+  listJudgeEventsForUser,
+} from '@/lib/judging/server';
 import { buildApplicationResponses } from './application-responses';
-
-/**
- * Returns the first event with has_application = true (e.g. default hackathon).
- * Used for redirecting /register to /dashboard/events and for ticket default event.
- */
-async function getDefaultApplicationEvent() {
-  'use cache';
-  cacheLife('minutes');
-  const rows = await db
-    .select()
-    .from(events)
-    .where(eq(events.hasApplication, true))
-    .limit(1);
-  return rows[0] ?? null;
-}
 
 /**
  * Saves profile and event application for an event that has_application.
@@ -115,6 +105,9 @@ async function registerParticipant(
   }
   if (hasEventElapsed(eventRow.endsAt)) {
     return fail('This event has already ended. Applications are closed.');
+  }
+  if (await isJudgingEvent(eventId, user)) {
+    return fail(JUDGE_SIGNUP_BLOCKED_MESSAGE);
   }
   const applicationQuestions =
     eventRow.applicationQuestions as ApplicationQuestion[];
@@ -162,6 +155,7 @@ async function registerParticipant(
           genderId: profile.genderId,
           genderOtherText: profile.genderOtherText || null,
           dietaryOtherText: profile.dietaryOtherText || null,
+          linkedinUrl: profile.linkedinUrl || null,
         })
         .onConflictDoUpdate({
           target: userProfiles.userId,
@@ -170,6 +164,7 @@ async function registerParticipant(
             genderId: profile.genderId,
             genderOtherText: profile.genderOtherText || null,
             dietaryOtherText: profile.dietaryOtherText || null,
+            linkedinUrl: profile.linkedinUrl || null,
             updatedAt: new Date(),
           },
         });
@@ -183,7 +178,6 @@ async function registerParticipant(
           majorId: profile.majorId,
           majorOtherText: profile.majorOtherText || null,
           yearOfStudyId: profile.yearOfStudyId,
-          linkedinUrl: profile.linkedinUrl || null,
           githubUrl: profile.githubUrl || null,
         })
         .onConflictDoUpdate({
@@ -194,7 +188,6 @@ async function registerParticipant(
             majorId: profile.majorId,
             majorOtherText: profile.majorOtherText || null,
             yearOfStudyId: profile.yearOfStudyId,
-            linkedinUrl: profile.linkedinUrl || null,
             githubUrl: profile.githubUrl || null,
             updatedAt: new Date(),
           },
@@ -238,7 +231,7 @@ async function registerParticipant(
     revalidatePath('/welcome', 'layout');
     return ok('Application saved successfully.');
   } catch (error) {
-    console.error('Application save error:', error);
+    console.error('[events] failed to save application', error);
     return fail('Failed to save event application.');
   }
 }
@@ -582,7 +575,7 @@ export async function submitRsvpResponse(
     if (error instanceof ParticipationError) {
       return fail(error.message);
     }
-    console.error('RSVP response error:', error);
+    console.error('[events] failed to submit RSVP response', error);
     return fail('Failed to submit RSVP response.');
   }
 }
@@ -691,7 +684,7 @@ export async function withdrawParticipation(
     if (error instanceof ParticipationError) {
       return fail(error.message);
     }
-    console.error('Withdraw participation error:', error);
+    console.error('[events] failed to withdraw participation', error);
     return fail('Failed to update your participation.');
   }
 }
@@ -713,6 +706,8 @@ export type EventWithUserStatus = {
   /** The user's effective participation status, or null if not involved. */
   status: ParticipationStatus | null;
   statusDisplay: StatusDisplay | null;
+  /** On the event's judging roster (disabled or not). */
+  isJudge: boolean;
 };
 
 /**
@@ -729,7 +724,7 @@ export async function getEventsWithUserStatus(): Promise<
   const user = await getUser();
   if (!user) return [];
 
-  const [allEvents, rows, displayMap] = await Promise.all([
+  const [allEvents, rows, displayMap, judging] = await Promise.all([
     getAllEvents(),
     db
       .select({
@@ -752,8 +747,10 @@ export async function getEventsWithUserStatus(): Promise<
       )
       .where(eq(eventParticipants.userId, user.id)),
     getStatusDisplayMap(),
+    listJudgeEventsForUser(user),
   ]);
 
+  const judgedEventIds = new Set(judging.map((j) => j.eventId));
   const now = new Date();
   const statusByEventId = new Map(
     rows.map((row) => [
@@ -774,6 +771,7 @@ export async function getEventsWithUserStatus(): Promise<
       hasEnded: hasEventElapsed(e.endsAt),
       status,
       statusDisplay: status ? displayMap[status] : null,
+      isJudge: judgedEventIds.has(e.id),
     };
   });
 }

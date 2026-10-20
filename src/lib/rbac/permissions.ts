@@ -20,8 +20,12 @@ export type PermissionEntity =
   | 'event'
   | 'participant'
   | 'checkin'
+  | 'dietary'
   | 'application'
   | 'article'
+  | 'submission'
+  | 'judging'
+  | 'display'
   | 'system';
 
 export type PermissionAction =
@@ -38,6 +42,9 @@ export type PermissionAction =
   | 'write'
   | 'vote'
   | 'override'
+  | 'purge'
+  | 'results'
+  | 'award'
   | 'all';
 
 export type PermissionScope = 'all' | 'any' | 'self' | (string & {});
@@ -96,12 +103,16 @@ export function anyPermissionMatches(
  * Canonical list of permission slugs the app expects to exist. Used for
  * seeding, admin UIs, and validation.
  */
-const CORE_PERMISSIONS = [
+export const CORE_PERMISSIONS = [
   { slug: 'user:read:all', description: 'View any user information' },
   { slug: 'user:write:all', description: 'Modify any user information' },
   {
     slug: 'user:all:all',
     description: 'Full user management (create/update/delete)',
+  },
+  {
+    slug: 'user:purge:all',
+    description: 'Fully wipe a user account on a compliance request',
   },
   { slug: 'role:read:all', description: 'View roles and their permissions' },
   { slug: 'role:write:all', description: 'Create, update and delete roles' },
@@ -122,6 +133,10 @@ const CORE_PERMISSIONS = [
   {
     slug: 'checkin:override:all',
     description: 'Check in to schedule entries outside their scheduled time',
+  },
+  {
+    slug: 'dietary:read:all',
+    description: "View an event's dietary report",
   },
   {
     slug: 'rsvp:read:all',
@@ -153,6 +168,32 @@ const CORE_PERMISSIONS = [
     description: 'Create, edit, publish and delete event wiki articles',
   },
   {
+    slug: 'submission:read:all',
+    description: 'View every project submission for an event, drafts included',
+  },
+  {
+    slug: 'submission:delete:all',
+    description:
+      'Delete any project submission (moderation, takedown requests)',
+  },
+  {
+    slug: 'judging:manage:all',
+    description:
+      'Manage expo judging criteria, weights, table layout and the judge roster, and deactivate projects',
+  },
+  {
+    slug: 'judging:results:all',
+    description: 'View live expo judging rankings',
+  },
+  {
+    slug: 'judging:award:all',
+    description: 'Record overall placements',
+  },
+  {
+    slug: 'display:manage:all',
+    description: 'Configure the lobby displays (clock, theme)',
+  },
+  {
     slug: 'system:read:all',
     description: 'View system health and diagnostics',
   },
@@ -161,12 +202,10 @@ const CORE_PERMISSIONS = [
 /**
  * Canonical roles the app seeds by default.
  */
-const CORE_ROLES = [
+export const CORE_ROLES = [
   { slug: 'admin', description: 'Full system administrator' },
   { slug: 'organizer', description: 'Manages event logistics and users' },
-  { slug: 'judge', description: 'Evaluates hackathon projects' },
   { slug: 'volunteer', description: 'Supports event operations' },
-  { slug: 'participant', description: 'Registered hackathon attendee' },
 ] as const;
 
 export type CoreRoleSlug = (typeof CORE_ROLES)[number]['slug'];

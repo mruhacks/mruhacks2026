@@ -3,6 +3,7 @@ import { notFound, redirect } from 'next/navigation';
 
 import { serializeInstant } from '@/lib/datetime';
 import { getAdminEventHeader } from '@/lib/admin-event';
+import { listEventTypes } from '@/lib/event-types';
 import { resolveEventId } from '@/lib/events';
 import { hasPermission, requirePermission } from '@/lib/rbac/authorization';
 import { getSubeventCheckInCounts, listSubevents } from '@/lib/subevents';
@@ -41,9 +42,10 @@ async function SubeventsContent({
   // something this permission already covers.
   await requirePermission(user.id, 'event:manage');
 
-  const [event, subevents] = await Promise.all([
+  const [event, subevents, eventTypes] = await Promise.all([
     getAdminEventHeader(eventId),
     listSubevents(eventId),
+    listEventTypes(),
   ]);
   if (!event) notFound();
 
@@ -61,6 +63,7 @@ async function SubeventsContent({
       eventStartsAt={event.startsAt ? serializeInstant(event.startsAt) : null}
       subevents={subevents}
       checkInCounts={checkInCounts}
+      eventTypes={eventTypes}
     />
   );
 }

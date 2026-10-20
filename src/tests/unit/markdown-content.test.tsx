@@ -165,3 +165,68 @@ describe('embeds', () => {
     expect(html).toContain('<strong>bold</strong>');
   });
 });
+
+describe('without raw HTML (project submissions)', () => {
+  const renderNoHtml = (markdown: string) =>
+    renderToStaticMarkup(
+      <MarkdownContent markdown={markdown} allowRawHtml={false} />,
+    );
+
+  test('keeps a resized image', () => {
+    const html = renderNoHtml(
+      `<img alt="a > b" width="206" height="257" src="${ATTACHMENT_SRC}" />`,
+    );
+    expect(html).toContain(`src="${ATTACHMENT_SRC}"`);
+    expect(html).toContain('width="206"');
+    expect(html).toContain('alt="a &gt; b"');
+  });
+
+  test('still strips unsafe attributes from an image', () => {
+    const html = renderNoHtml(
+      `<img src="${ATTACHMENT_SRC}" onerror="alert(1)" style="position:fixed" />`,
+    );
+    expect(html).toContain(`src="${ATTACHMENT_SRC}"`);
+    expect(html).not.toContain('onerror');
+    expect(html).not.toContain('style');
+  });
+
+  test('drops every other raw HTML tag', () => {
+    const html = renderNoHtml(
+      '<b>bold</b> <div class="x">block</div>\n\n<iframe src="https://www.youtube-nocookie.com/embed/x"></iframe>',
+    );
+    expect(html).not.toContain('<b>');
+    expect(html).not.toContain('class="x"');
+    expect(html).not.toContain('<iframe');
+  });
+
+  test('keeps an inline image but drops markup beside it', () => {
+    const html = renderNoHtml(`<img src="${ATTACHMENT_SRC}"><b>x</b>`);
+    expect(html).toContain(`src="${ATTACHMENT_SRC}"`);
+    expect(html).not.toContain('<b>');
+  });
+
+  test('treats markup inside a quoted attribute as text', () => {
+    const html = renderNoHtml(
+      `<img alt="<b>not bold</b>" src="${ATTACHMENT_SRC}" />`,
+    );
+    expect(html).toContain(`src="${ATTACHMENT_SRC}"`);
+    expect(html).not.toContain('<b>');
+  });
+
+  test('drops a tag that only looks like an image', () => {
+    const html = renderNoHtml(
+      `<img/src="${ATTACHMENT_SRC}"/onerror=alert(1)><script>alert(2)</script>`,
+    );
+    // Markdown doesn't read `<img/src…` as a tag, so it stays escaped text.
+    expect(html).not.toContain('<img');
+    expect(html).not.toContain('<script');
+  });
+
+  test('drops an image tag sharing a raw block with other markup', () => {
+    const html = renderNoHtml(
+      `<div>\n<img src="${ATTACHMENT_SRC}">\n<b>x</b>\n</div>`,
+    );
+    expect(html).not.toContain('<img');
+    expect(html).not.toContain('<b>');
+  });
+});

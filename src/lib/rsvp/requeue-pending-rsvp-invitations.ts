@@ -100,7 +100,7 @@ export async function requeuePendingRsvpInvitations(
       queued += 1;
     } catch (error) {
       publishFailures += 1;
-      console.error('[requeuePendingRsvpInvitations] failed to publish', {
+      console.error('[rsvp/requeue-pending-invitations] failed to publish', {
         responseId: candidate.responseId,
         error,
       });

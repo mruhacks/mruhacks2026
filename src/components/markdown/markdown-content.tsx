@@ -1,6 +1,7 @@
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
+import { fromHtml } from 'hast-util-from-html';
 import rehypeSanitize from 'rehype-sanitize';
 
 import {
@@ -40,6 +41,46 @@ function rehypeCloseSelfClosingIframes() {
 }
 
 /**
+ * The raw HTML `html` parses to, if that is exactly one `<img>` element —
+ * what the editor writes for a resized image — and nothing else but
+ * whitespace. Uses a real HTML parser (parse5, the same one `rehype-raw`
+ * runs) so the answer matches what the browser would build.
+ */
+function parseLoneImage(html: unknown): TreeNode | null {
+  if (typeof html !== 'string') return null;
+  const nodes = fromHtml(html, { fragment: true }).children.filter(
+    (node) => !(node.type === 'text' && !node.value.trim()),
+  );
+  const [image] = nodes;
+  return nodes.length === 1 &&
+    image.type === 'element' &&
+    image.tagName === 'img'
+    ? image
+    : null;
+}
+
+/**
+ * For surfaces that otherwise get no raw HTML: replaces each raw node with
+ * its parsed `<img>` if it is a lone image, and drops it otherwise. The
+ * sanitizer still runs after, so only the schema's `<img>` attributes reach
+ * the page.
+ */
+function rehypeKeepOnlyImageHtml() {
+  const walk = (node: TreeNode) => {
+    if (!node.children) return;
+    node.children = node.children.flatMap((child) => {
+      if (child.type !== 'raw') {
+        walk(child);
+        return [child];
+      }
+      const image = parseLoneImage(child.value);
+      return image ? [image] : [];
+    });
+  };
+  return walk;
+}
+
+/**
  * Renders stored markdown (event descriptions, wiki articles) as read-only
  * content. Server-rendered — none of the editor's client bundle is involved.
  *
@@ -54,6 +95,10 @@ function rehypeCloseSelfClosingIframes() {
  * outside the list, including `<script>` and every event-handler attribute, is
  * dropped before it reaches React.
  *
+ * `allowRawHtml={false}` narrows that to resized images alone, for surfaces
+ * whose authors aren't organizers (project submissions): every other raw
+ * HTML node is dropped before parsing.
+ *
  * `allowEmbeds` additionally lets `<iframe>` through, for surfaces whose
  * authors are allowed to embed (wiki articles). Even then a frame renders only
  * if its src is on the provider allow-list in `@/lib/embeds`, and it always
@@ -63,23 +108,25 @@ export function MarkdownContent({
   markdown,
   className,
   allowEmbeds = false,
+  allowRawHtml = true,
 }: {
   markdown: string;
   className?: string;
   allowEmbeds?: boolean;
+  allowRawHtml?: boolean;
 }) {
+  const embeds = allowEmbeds && allowRawHtml;
   return (
     <div className={cn('mdx-prose', className)}>
       <Markdown
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[
-          rehypeCloseSelfClosingIframes,
-          rehypeRaw,
+          ...(allowRawHtml
+            ? [rehypeCloseSelfClosingIframes, rehypeRaw]
+            : [rehypeKeepOnlyImageHtml]),
           [
             rehypeSanitize,
-            allowEmbeds
-              ? MARKDOWN_EMBED_SANITIZE_SCHEMA
-              : MARKDOWN_SANITIZE_SCHEMA,
+            embeds ? MARKDOWN_EMBED_SANITIZE_SCHEMA : MARKDOWN_SANITIZE_SCHEMA,
           ],
         ]}
         components={{
@@ -118,7 +165,7 @@ export function MarkdownContent({
           // sandbox or add `srcdoc`/`allow` even if the schema ever loosens.
           // eslint-disable-next-line @typescript-eslint/no-unused-vars
           iframe: ({ node: _node, src, title, width, height }) => {
-            const embedSrc = allowEmbeds ? getAllowedEmbedSrc(src) : null;
+            const embedSrc = embeds ? getAllowedEmbedSrc(src) : null;
             if (!embedSrc) return null;
             return (
               <iframe

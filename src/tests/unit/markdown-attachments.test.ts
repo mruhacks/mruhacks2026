@@ -3,12 +3,16 @@ import { collectAttachmentKeys } from '@/lib/markdown-attachments';
 import {
   eventAttachmentUrl,
   isEventAttachmentKey,
+  isSubmissionAttachmentKey,
   parseEventAttachmentKey,
+  parseSubmissionAttachmentKey,
+  submissionAttachmentPrefix,
 } from '@/utils/object-storage';
 
 const EVENT_ID = '3f0d5b4e-1c2a-4f6b-8d9e-0a1b2c3d4e5f';
 const FILE_ID = 'aa11bb22-cc33-4d44-8e55-ff6677889900';
 const KEY = `event-content/${EVENT_ID}/${FILE_ID}.webp`;
+const SUBMISSION_KEY = `${submissionAttachmentPrefix(EVENT_ID)}${FILE_ID}.png`;
 
 describe('isEventAttachmentKey', () => {
   test('accepts the key shape the upload action writes', () => {
@@ -72,5 +76,27 @@ describe('collectAttachmentKeys', () => {
     expect(
       collectAttachmentKeys('![a](/api/assets/profile-pictures/a/b.webp)').size,
     ).toBe(0);
+  });
+});
+
+describe('submission attachments', () => {
+  test('submission keys have their own shape and parser', () => {
+    expect(SUBMISSION_KEY).toBe(
+      `submission-content/${EVENT_ID}/${FILE_ID}.png`,
+    );
+    expect(isSubmissionAttachmentKey(SUBMISSION_KEY)).toBe(true);
+    expect(isEventAttachmentKey(SUBMISSION_KEY)).toBe(false);
+    expect(isSubmissionAttachmentKey(KEY)).toBe(false);
+    expect(
+      parseSubmissionAttachmentKey(eventAttachmentUrl(SUBMISSION_KEY)),
+    ).toBe(SUBMISSION_KEY);
+    expect(parseSubmissionAttachmentKey(eventAttachmentUrl(KEY))).toBe(null);
+  });
+
+  test('collectAttachmentKeys matches both prefixes', () => {
+    const markdown = `![a](/api/assets/${KEY}) ![b](/api/assets/${SUBMISSION_KEY})`;
+    expect([...collectAttachmentKeys(markdown)].sort()).toEqual(
+      [KEY, SUBMISSION_KEY].sort(),
+    );
   });
 });

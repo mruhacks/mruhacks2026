@@ -41,6 +41,7 @@ import '@mdxeditor/editor/style.css';
 
 import { cn } from '@/lib/utils';
 import { InsertEmbed, embedPlugin } from './embed-plugin';
+import { ImageDialog } from './image-dialog';
 
 /** Languages offered in the code-block dropdown. */
 const CODE_BLOCK_LANGUAGES = {
@@ -91,7 +92,13 @@ export default function MarkdownEditorCore({
         linkPlugin(),
         linkDialogPlugin(),
         tablePlugin(),
-        imagePlugin({ imageUploadHandler: onUploadImage }),
+        imagePlugin({
+          imageUploadHandler: onUploadImage,
+          // Upload-only: the stock dialog also takes an image URL.
+          ImageDialog,
+          // A resized image is written as `<img width height>`, which
+          // `MarkdownContent` renders on every surface.
+        }),
         // Always registered, even when embeds are off — see `./embed-plugin`.
         embedPlugin({ enabled: allowEmbeds }),
         codeBlockPlugin({ defaultCodeBlockLanguage: 'text' }),

@@ -48,7 +48,7 @@ export async function GET(
 
     return Response.redirect(saveUrl, 302);
   } catch (error) {
-    console.error('[wallet] failed to build Google Wallet save link', error);
+    console.error('[wallet/google] failed to build save link', error);
     return new Response('Could not generate Google Wallet pass', {
       status: 500,
     });

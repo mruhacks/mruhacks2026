@@ -15,7 +15,8 @@ export type EventDisplayPill =
   | 'registered'
   | 'open_to_apply'
   | 'registration_open'
-  | 'ended';
+  | 'ended'
+  | 'judging';
 
 export type EventDisplayStatus = {
   label: string;
@@ -32,6 +33,11 @@ export type EventDisplayStatusInput = {
    * refuses; a real status is still worth showing as a record.
    */
   hasEnded?: boolean;
+  /**
+   * On the event's judging roster. Wins over any participation status: a
+   * judge can't sign up for the event, so judging is all there is to show.
+   */
+  isJudge?: boolean;
   /** DB display config; falls back to the seeded copy when absent. */
   statusDisplay?: Pick<StatusDisplay, 'title' | 'variant'> | null;
 };
@@ -39,6 +45,10 @@ export type EventDisplayStatusInput = {
 export function getEventDisplayStatus(
   input: EventDisplayStatusInput,
 ): EventDisplayStatus {
+  if (input.isJudge) {
+    return { label: 'Judging', pill: 'judging', badgeVariant: 'default' };
+  }
+
   if (input.status) {
     // A signup for an event without an application is `accepted` from the
     // start; "Confirmed" would imply an RSVP they never made.

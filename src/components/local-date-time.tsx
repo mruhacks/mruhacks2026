@@ -57,11 +57,14 @@ export function LocalDateTime({
   timeZone: timeZoneProp,
   timeZoneName,
   weekday,
+  timeOnly = false,
   className,
 }: {
   value: Date | string | null;
   dateStyle?: Intl.DateTimeFormatOptions['dateStyle'];
   timeStyle?: Intl.DateTimeFormatOptions['timeStyle'];
+  /** Just the time (`timeStyle`, default short), no date. */
+  timeOnly?: boolean;
   /** Optional explicit zone; otherwise localizes after hydration. */
   timeZone?: string;
   timeZoneName?: Intl.DateTimeFormatOptions['timeZoneName'];
@@ -78,14 +81,16 @@ export function LocalDateTime({
     date,
     timeZone,
     locale,
-    weekday
-      ? {
-          weekday,
-          ...(timeStyle
-            ? ({ hour: 'numeric', minute: '2-digit' } as const)
-            : {}),
-        }
-      : { dateStyle, timeStyle },
+    timeOnly
+      ? { timeStyle: timeStyle ?? 'short' }
+      : weekday
+        ? {
+            weekday,
+            ...(timeStyle
+              ? ({ hour: 'numeric', minute: '2-digit' } as const)
+              : {}),
+          }
+        : { dateStyle, timeStyle },
   );
   // dateStyle/timeStyle cannot be mixed with timeZoneName in Intl.
   const labeled =

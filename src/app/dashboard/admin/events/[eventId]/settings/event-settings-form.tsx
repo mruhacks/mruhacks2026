@@ -33,15 +33,23 @@ import {
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import type { AdminEventSettings } from '@/lib/admin-event';
+import type { EventTypeOption } from '@/lib/event-types';
 import { adminEventPath } from '@/lib/event-slug';
 import { slugify } from '@/lib/slug';
 import { fromDateTimeLocalValue, toDateTimeLocalValue } from '@/lib/datetime';
 import { parseOptionalNumber } from '@/lib/form-values';
 import { sanitizeReturnPath } from '@/utils/return-path';
 
+import { EventTypeSelect } from '../_components/event-type-select';
 import { useEventBasePath } from '../_components/use-event-base-path';
 
-export function EventSettingsForm({ event }: { event: AdminEventSettings }) {
+export function EventSettingsForm({
+  event,
+  eventTypes,
+}: {
+  event: AdminEventSettings;
+  eventTypes: EventTypeOption[];
+}) {
   const router = useRouter();
   const basePath = useEventBasePath();
   const searchParams = useSearchParams();
@@ -62,8 +70,13 @@ export function EventSettingsForm({ event }: { event: AdminEventSettings }) {
       checkInEnabled: event.checkInEnabled,
       capacity: event.capacity ?? null,
       capacityVisible: event.capacityVisible,
-      startsAt: event.startsAt ? event.startsAt.toISOString() : undefined,
-      endsAt: event.endsAt ? event.endsAt.toISOString() : undefined,
+      // null rather than undefined, so the client-side submission-deadline
+      // check (which needs to know all three) runs on every save.
+      startsAt: event.startsAt ? event.startsAt.toISOString() : null,
+      endsAt: event.endsAt ? event.endsAt.toISOString() : null,
+      submissionsCloseAt: event.submissionsCloseAt
+        ? event.submissionsCloseAt.toISOString()
+        : null,
       location: event.location ?? undefined,
       latitude: event.latitude ?? null,
       longitude: event.longitude ?? null,
@@ -71,6 +84,7 @@ export function EventSettingsForm({ event }: { event: AdminEventSettings }) {
       isFeatured: event.isFeatured,
       teamsEnabled: event.teamsEnabled,
       maxTeamSize: event.maxTeamSize ?? null,
+      eventTypeId: event.eventTypeId,
     }),
     [event],
   );
@@ -86,24 +100,35 @@ export function EventSettingsForm({ event }: { event: AdminEventSettings }) {
     defaultValues: defaults,
   });
 
-  const [teamsEnabled, startsAt, endsAt, name, slug, capacityVisible] =
-    useWatch({
-      control,
-      name: [
-        'teamsEnabled',
-        'startsAt',
-        'endsAt',
-        'name',
-        'slug',
-        'capacityVisible',
-      ],
-    });
+  const [
+    teamsEnabled,
+    startsAt,
+    endsAt,
+    name,
+    slug,
+    capacityVisible,
+    submissionsCloseAt,
+  ] = useWatch({
+    control,
+    name: [
+      'teamsEnabled',
+      'startsAt',
+      'endsAt',
+      'name',
+      'slug',
+      'capacityVisible',
+      'submissionsCloseAt',
+    ],
+  });
   // What the participant URL will look like once saved — the uuid is the
   // fallback for an event with no slug.
   const urlSegment = slug?.trim() || event.id;
   const suggestedSlug = slugify(name ?? '');
   const startsAtAbbr = useZoneAbbreviation(startsAt ?? undefined);
   const endsAtAbbr = useZoneAbbreviation(endsAt ?? undefined);
+  const submissionsCloseAtAbbr = useZoneAbbreviation(
+    submissionsCloseAt ?? undefined,
+  );
 
   async function onSubmit(data: UpdateEventSettingsInput) {
     setSubmitError(null);
@@ -192,6 +217,36 @@ export function EventSettingsForm({ event }: { event: AdminEventSettings }) {
                       . Leave blank to keep using the event id.
                     </FieldDescription>
                     {errors.slug && <FieldError errors={[errors.slug]} />}
+                  </Field>
+                  <Field
+                    className='gap-1.5'
+                    data-invalid={!!errors.eventTypeId}
+                  >
+                    <FieldLabel htmlFor='eventTypeId'>
+                      Type (optional)
+                    </FieldLabel>
+                    <Controller
+                      name='eventTypeId'
+                      control={control}
+                      render={({ field }) => (
+                        <EventTypeSelect
+                          id='eventTypeId'
+                          value={field.value ?? null}
+                          options={eventTypes}
+                          invalid={!!errors.eventTypeId}
+                          onChange={(value) => {
+                            setSubmitError(null);
+                            field.onChange(value);
+                          }}
+                        />
+                      )}
+                    />
+                    <FieldDescription>
+                      Tag meals so they show up on the dietary report.
+                    </FieldDescription>
+                    {errors.eventTypeId && (
+                      <FieldError errors={[errors.eventTypeId]} />
+                    )}
                   </Field>
                   <Field orientation='horizontal' className='gap-4'>
                     <FieldContent>
@@ -567,6 +622,57 @@ export function EventSettingsForm({ event }: { event: AdminEventSettings }) {
                     </Field>
                   )}
                 </FieldGroup>
+              </CardContent>
+            </Card>
+            <Card className='gap-4 py-5'>
+              <CardHeader className='gap-1 px-5'>
+                <CardTitle>Project submissions</CardTitle>
+                <CardDescription>
+                  Teams write up what they built. Needs an application, teams,
+                  and a start and end time.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className='px-5'>
+                <Field
+                  className='gap-1.5'
+                  data-invalid={!!errors.submissionsCloseAt}
+                >
+                  <FieldLabel htmlFor='submissionsCloseAt'>
+                    Submission deadline ({submissionsCloseAtAbbr}, optional)
+                  </FieldLabel>
+                  <Controller
+                    name='submissionsCloseAt'
+                    control={control}
+                    render={({ field }) => (
+                      <Input
+                        {...field}
+                        id='submissionsCloseAt'
+                        aria-invalid={!!errors.submissionsCloseAt}
+                        type='datetime-local'
+                        value={
+                          field.value
+                            ? toDateTimeLocalValue(new Date(field.value))
+                            : ''
+                        }
+                        onChange={(e) =>
+                          field.onChange(
+                            fromDateTimeLocalValue(
+                              e.target.value,
+                            )?.toISOString() ?? null,
+                          )
+                        }
+                      />
+                    )}
+                  />
+                  <FieldDescription>
+                    Submissions open when the event starts and freeze at this
+                    time. Must fall between the start and end. Leave blank to
+                    take no submissions.
+                  </FieldDescription>
+                  {errors.submissionsCloseAt && (
+                    <FieldError errors={[errors.submissionsCloseAt]} />
+                  )}
+                </Field>
               </CardContent>
             </Card>
           </FieldGroup>

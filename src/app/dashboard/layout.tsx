@@ -6,7 +6,10 @@ import { DashboardFooter } from '@/components/dashboard-footer';
 import { BreadcrumbProvider } from '@/components/breadcrumb-context';
 import { getUser } from '@/utils/auth';
 import { getConsentStatus } from '@/app/dashboard/account/actions';
-import { getUserProfile } from '@/app/dashboard/profile/actions';
+import {
+  getProfessionalProfile,
+  getUserProfile,
+} from '@/app/dashboard/profile/actions';
 import { redirect } from 'next/navigation';
 
 // Account/app pages aren't useful search results; keep them out of the index.
@@ -160,6 +163,17 @@ async function DashboardHeaderLoader() {
     consentRes.success && consentRes.data ? consentRes.data.needsConsent : true;
   const needsProfile = !profileRes.success || profileRes.data == null;
   if (needsConsent || needsProfile) redirect('/welcome');
+
+  // Participants finish About; judges finish Professional instead. Either
+  // one gets you in — so the professional profile is only read for someone
+  // without an About, rather than on every dashboard render.
+  const hasAbout = profileRes.success && profileRes.data?.universityId != null;
+  if (!hasAbout) {
+    const professionalRes = await getProfessionalProfile();
+    if (!professionalRes.success || professionalRes.data == null) {
+      redirect('/welcome');
+    }
+  }
 
   return (
     <DashboardHeader

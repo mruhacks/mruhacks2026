@@ -5,6 +5,7 @@ import eslintPluginBetterTailwindcss from 'eslint-plugin-better-tailwindcss';
 import noNestedInteractive from './eslint-rules/no-nested-interactive.mjs';
 import noRouterRefresh from './eslint-rules/no-router-refresh.mjs';
 import enforceMRUHacksNaming from './eslint-rules/enforce-mruhacks-naming.mjs';
+import requireLogSourcePrefix from './eslint-rules/require-log-source-prefix.mjs';
 
 const eslintConfig = [
   ...eslintConfigNextCoreWebVitals,
@@ -20,6 +21,8 @@ const eslintConfig = [
       'eslint-rules/**',
       // Standalone Cloudflare Worker with its own tsconfig/deps.
       'workers/**',
+      // Vendored upstream code (Gavel) and its Python test oracle.
+      'vendor/**',
     ],
   },
   {
@@ -38,6 +41,7 @@ const eslintConfig = [
           'no-nested-interactive': noNestedInteractive,
           'no-router-refresh': noRouterRefresh,
           'enforce-mruhacks-naming': enforceMRUHacksNaming,
+          'require-log-source-prefix': requireLogSourcePrefix,
         },
       },
     },
@@ -60,6 +64,15 @@ const eslintConfig = [
         // Tailwind CSS v4: path to the entry file of the CSS-based Tailwind config
         entryPoint: 'src/app/globals.css',
       },
+    },
+  },
+  {
+    // App logs only. scripts/ and src/tests print operator-facing output,
+    // and workers/ is a separate package ignored above.
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: ['src/tests/**'],
+    rules: {
+      'custom/require-log-source-prefix': 'error',
     },
   },
 ];

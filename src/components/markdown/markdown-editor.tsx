@@ -4,6 +4,7 @@ import * as React from 'react';
 import dynamic from 'next/dynamic';
 
 import { Skeleton } from '@/components/ui/skeleton';
+import { imageUploadError } from '@/lib/image-attachments';
 import type { ActionResult } from '@/utils/action-result';
 
 /**
@@ -57,9 +58,22 @@ export function MarkdownEditor({
 }: MarkdownEditorProps) {
   const handleUpload = React.useCallback(
     async (file: File) => {
+      const invalid = imageUploadError(file);
+      if (invalid) {
+        onUploadError?.(invalid);
+        throw new Error(invalid);
+      }
       const formData = new FormData();
       formData.append('file', file);
-      const result = await uploadAttachment(formData);
+      let result: ActionResult<{ url: string }>;
+      try {
+        result = await uploadAttachment(formData);
+      } catch {
+        // The request itself failed (network, body over the action limit).
+        const message = 'Unable to upload that image. Please try again.';
+        onUploadError?.(message);
+        throw new Error(message);
+      }
       if (!result.success) {
         onUploadError?.(result.error);
         // MDXEditor keeps the image dialog open on a rejection, which leaves

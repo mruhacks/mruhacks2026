@@ -31,6 +31,8 @@
 *.pkpass
 
 # debug
+*.log
+dev-server.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -48,3 +50,6 @@ next-env.d.ts
 
 !.env.example
 /.pnpm-store/v11
+
+# Python bytecode (vendor/gavel-oracle, if run outside its container)
+__pycache__/

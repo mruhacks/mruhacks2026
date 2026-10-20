@@ -91,6 +91,16 @@ describe('getEventDisplayStatus', () => {
       }).pill,
     ).toBe('accepted');
   });
+
+  test('a judge sees judging, whatever else is on record', () => {
+    expect(
+      getEventDisplayStatus({
+        hasApplication: true,
+        status: 'pending_review',
+        isJudge: true,
+      }),
+    ).toEqual({ label: 'Judging', pill: 'judging', badgeVariant: 'default' });
+  });
 });
 
 describe('participation status rules', () => {

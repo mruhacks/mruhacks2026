@@ -49,7 +49,7 @@ export async function GET(
       },
     });
   } catch (error) {
-    console.error('[wallet] failed to generate check-in QR code', error);
+    console.error('[wallet/qr] failed to generate check-in QR code', error);
     return new Response('Could not generate QR code', { status: 500 });
   }
 }

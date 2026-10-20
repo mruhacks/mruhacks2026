@@ -3,7 +3,6 @@
 import * as React from 'react';
 import { Loader2, Trash2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
-import { useRouter } from 'next/navigation';
 
 import {
   removeProfilePicture,
@@ -27,7 +26,6 @@ type ProfilePictureCardProps = {
 };
 
 export function ProfilePictureCard({ image, name }: ProfilePictureCardProps) {
-  const router = useRouter();
   const inputRef = React.useRef<HTMLInputElement>(null);
   const [busy, setBusy] = React.useState(false);
 
@@ -43,7 +41,6 @@ export function ProfilePictureCard({ image, name }: ProfilePictureCardProps) {
       return;
     }
     toast.success('Profile picture updated.');
-    router.refresh();
   };
 
   const remove = async () => {
@@ -55,7 +52,6 @@ export function ProfilePictureCard({ image, name }: ProfilePictureCardProps) {
       return;
     }
     toast.success('Profile picture removed.');
-    router.refresh();
   };
 
   return (

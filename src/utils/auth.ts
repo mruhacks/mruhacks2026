@@ -8,10 +8,12 @@
 import { betterAuth, APIError } from 'better-auth';
 import { admin, captcha, magicLink } from 'better-auth/plugins';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
-import { eq, lt, sql } from 'drizzle-orm';
+import { claimMagicLinkCooldown } from '@/lib/auth/magic-link-cooldown';
 import { resolveMagicLinkMailOptions } from '@/lib/auth/resolve-magic-link-email';
 import { remainingMagicLinkExpiresInSeconds } from '@/lib/rsvp/rsvp-magic-link-expires-in';
 import { getRsvpMagicLinkMailContext } from '@/lib/rsvp/rsvp-magic-link-context';
+import { getJudgeInviteMailContext } from '@/lib/judging/judge-invite-mail';
+import { linkJudgeRosterRows } from '@/lib/judging/server';
 import { db } from '@/utils/db';
 import * as schema from '@/db/schema';
 import { sendMail } from '@/utils/mail';
@@ -22,12 +24,8 @@ import { DeleteAccountEmail } from '@/emails/DeleteAccountEmail';
 import React from 'react';
 import { headers } from 'next/headers';
 import { cacheLife } from 'next/cache';
-import { after } from 'next/server';
 import { writeAuditLog } from '@/utils/audit-log';
-import {
-  deleteObject,
-  parseOwnedProfilePictureKey,
-} from '@/utils/object-storage';
+import { prepareUserDeletion } from '@/lib/account-deletion';
 
 /** Verification links expire after this many seconds (24 hours). */
 const EMAIL_VERIFICATION_EXPIRES_IN = 86400;
@@ -84,6 +82,19 @@ function getTurnstileSecretKey(): string {
 }
 
 /**
+ * A judge added to a roster by email is linked to their account the first
+ * time they sign in with it. Best effort: it must never block a sign-in, and
+ * roster reads also match unlinked rows by email in the meantime.
+ */
+async function linkRosterOnSignIn(userId: string): Promise<void> {
+  try {
+    await linkJudgeRosterRows(userId);
+  } catch (error) {
+    console.error('[auth] linking judge roster rows failed', error);
+  }
+}
+
+/**
  * Better Auth instance configured with Drizzle ORM adapter
  *
  * Configuration:
@@ -127,6 +138,7 @@ export const auth = betterAuth({
     session: {
       create: {
         after: async (session) => {
+          await linkRosterOnSignIn(session.userId);
           const impersonatedBy = session.impersonatedBy;
           if (typeof impersonatedBy === 'string') {
             await writeAuditLog({
@@ -193,33 +205,16 @@ export const auth = betterAuth({
      * Self-serve account deletion (right to erasure — PIPEDA / Alberta PIPA /
      * GDPR Art. 17). Deletion is confirmed via an emailed verification link so
      * it cannot be triggered by a hijacked session. Once verified, Better Auth
-     * removes the user row; every user-scoped table cascades via its
-     * `onDelete: 'cascade'` foreign key, so no residual personal data remains
-     * in the database — but object storage (resume, profile picture) is
-     * outside the DB and cascades don't reach it, so `beforeDelete` removes
-     * those objects explicitly while the row can still be queried.
+     * removes the user row, and every table holding the user's personal data
+     * cascades with it. Content made with a team (project submissions, review
+     * votes) stays, unattributed. `prepareUserDeletion` does what the cascades
+     * can't — hands their teams on and removes their object-storage files —
+     * while the row can still be queried.
      */
     deleteUser: {
       enabled: true,
       beforeDelete: async (user) => {
-        const [profile] = await db
-          .select({ resumeFile: schema.userProfiles.resumeFile })
-          .from(schema.userProfiles)
-          .where(eq(schema.userProfiles.userId, user.id))
-          .limit(1);
-
-        const pictureKey = parseOwnedProfilePictureKey(user.image, user.id);
-        await Promise.all([
-          pictureKey ? deleteObject(pictureKey) : Promise.resolve(),
-          profile?.resumeFile
-            ? deleteObject(profile.resumeFile)
-            : Promise.resolve(),
-        ]).catch((error) => {
-          console.error(
-            '[auth] failed to delete user object storage files',
-            error,
-          );
-        });
+        await prepareUserDeletion(user.id);
       },
       sendDeleteAccountVerification: async ({ user, url }) => {
         await sendMail({
@@ -228,7 +223,8 @@ export const auth = betterAuth({
           text:
             `We received a request to permanently delete your MRUHacks account.\n\n` +
             `Confirm by opening this link (valid for 24 hours):\n\n${url}\n\n` +
-            `This erases your account and all associated data and cannot be undone. ` +
+            `This erases your account and personal data and cannot be undone. ` +
+            `Projects you worked on with a team stay, without your name. ` +
             `If you did not request this, you can safely ignore this email.\n`,
           html: await render(
             React.createElement(DeleteAccountEmail, {
@@ -283,8 +279,9 @@ export const auth = betterAuth({
         // already deduplicated by `invitation_email_status` — so the sign-in
         // cooldown below, which exists to absorb a human double-submitting the
         // public form, must not reject it. A user who signed in moments before
-        // a wave goes out would otherwise silently never get invited.
-        if (getRsvpMagicLinkMailContext()) {
+        // a wave goes out would otherwise silently never get invited. A judge
+        // invite is the same: sent by an organizer, never by the public form.
+        if (getRsvpMagicLinkMailContext() || getJudgeInviteMailContext()) {
           await sendMail(mail);
           return;
         }
@@ -293,39 +290,10 @@ export const auth = betterAuth({
         // last 60s (double submit, multiple tabs, retries). Better Auth has
         // already minted the verification token by this point, so the
         // caller still sees a normal success response either way.
-        const [allowed] = await db
-          .insert(schema.magicLinkCooldown)
-          .values({ email })
-          .onConflictDoUpdate({
-            target: schema.magicLinkCooldown.email,
-            set: { lastSentAt: new Date() },
-            where: lt(
-              schema.magicLinkCooldown.lastSentAt,
-              sql`now() - interval '60 seconds'`,
-            ),
-          })
-          .returning();
-        if (!allowed) {
+        if (!(await claimMagicLinkCooldown(email))) {
           throw new APIError('TOO_MANY_REQUESTS', {
             message:
               'A sign-in link was already sent to this address. Check your inbox, or try again in a minute.',
-          });
-        }
-
-        // Self-cleaning: occasionally piggyback on a send to prune rows
-        // whose cooldown has already lapsed, so the table doesn't grow
-        // forever without needing a separate cron job. Probabilistic so a
-        // burst of sends doesn't turn into a burst of cleanup deletes.
-        if (Math.random() < 0.1) {
-          after(async () => {
-            await db
-              .delete(schema.magicLinkCooldown)
-              .where(
-                lt(
-                  schema.magicLinkCooldown.lastSentAt,
-                  sql`now() - interval '60 seconds'`,
-                ),
-              );
           });
         }
 

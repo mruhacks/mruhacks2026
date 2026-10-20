@@ -17,7 +17,8 @@ export function DeleteAccountEmail({ url, baseUrl }: Props) {
       </Text>
       <Text style={warning}>
         <strong>This action is irreversible.</strong> Your account, profile, and
-        all associated data will be erased immediately upon confirmation.
+        personal data will be erased immediately upon confirmation. Projects you
+        worked on with a team stay, without your name.
       </Text>
       <Text style={muted}>
         This link is valid for 24 hours. If you did not request account

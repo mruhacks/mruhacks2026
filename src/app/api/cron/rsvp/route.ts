@@ -9,7 +9,7 @@ import { fail } from '@/utils/action-result';
  */
 async function handle(request: Request): Promise<Response> {
   return handleCronRequest(request, {
-    logLabel: '[cron/rsvp]',
+    logLabel: 'cron/rsvp',
     failureBody: fail('Scheduled RSVP run failed.'),
     run: async () => {
       const result = await runRsvpCron();

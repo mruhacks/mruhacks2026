@@ -15,8 +15,13 @@ describe('canOpenEventDashboard', () => {
     'application:stats:all',
     'team:read:all',
     'rsvp:read:all',
+    'dietary:read:all',
     'article:read:all',
     'event:manage:all',
+    'submission:read:all',
+    'judging:manage:all',
+    'judging:results:all',
+    'judging:award:all',
   ])('%s alone is enough', (slug) => {
     expect(canOpenEventDashboard([slug])).toBe(true);
   });

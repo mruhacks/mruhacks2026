@@ -3,6 +3,10 @@ import { render } from 'react-email';
 import { MagicLinkEmail } from '@/emails/MagicLinkEmail';
 import { getRsvpMagicLinkMailContext } from '@/lib/rsvp/rsvp-magic-link-context';
 import { buildRsvpInvitationEmail } from '@/lib/rsvp/rsvp-invitation-email';
+import {
+  buildJudgeInviteEmail,
+  getJudgeInviteMailContext,
+} from '@/lib/judging/judge-invite-mail';
 import type { SendMailOptions } from '@/utils/mail';
 
 async function buildGenericSignInMail(
@@ -23,8 +27,8 @@ async function buildGenericSignInMail(
 /**
  * Chooses magic-link email copy.
  *
- * RSVP invitation copy is used only when a trusted sender set request-scoped
- * context. `callbackURL` / `source=rsvp` are caller-controlled on the public
+ * RSVP invitation and judge invitation copy are used only when a trusted
+ * sender set request-scoped context. `callbackURL` / `source=rsvp` are caller-controlled on the public
  * sign-in endpoint and must not change mail routing or throw.
  */
 export async function resolveMagicLinkMailOptions(options: {
@@ -41,6 +45,18 @@ export async function resolveMagicLinkMailOptions(options: {
       ...(await buildRsvpInvitationEmail({
         eventName: rsvp.eventName,
         respondBy: rsvp.respondBy,
+        magicLinkUrl,
+        baseUrl,
+      })),
+    };
+  }
+
+  const judge = getJudgeInviteMailContext();
+  if (judge) {
+    return {
+      to: email,
+      ...(await buildJudgeInviteEmail({
+        eventName: judge.eventName,
         magicLinkUrl,
         baseUrl,
       })),
