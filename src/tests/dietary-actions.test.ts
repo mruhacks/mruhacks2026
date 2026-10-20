@@ -44,8 +44,8 @@ let viewerId: string;
 let dietaryPermissionId: number;
 const userIds: string[] = [];
 
-async function lookupId<T extends typeof genders | typeof dietaryRestrictions>(
-  table: T,
+async function lookupId(
+  table: typeof genders | typeof dietaryRestrictions,
   label: string,
 ): Promise<number> {
   const [inserted] = await db
@@ -60,6 +60,12 @@ async function lookupId<T extends typeof genders | typeof dietaryRestrictions>(
     .where(eq(table.label, label))
     .limit(1);
   return existing.id;
+}
+
+async function loadReport(id: string) {
+  const result = await getDietaryReport(id);
+  if (!result.success) throw new Error(result.error);
+  return result.data!;
 }
 
 async function newUser(name: string, email: string) {
@@ -249,23 +255,20 @@ describe('getDietaryReport', () => {
   });
 
   test('a sub-event uses the root roster', async () => {
-    const result = await getDietaryReport(lunchId);
-    expect(result.success).toBe(true);
-    const names = result.data!.rows.map((row) => row.name).sort();
+    const report = await loadReport(lunchId);
+    const names = report.rows.map((row) => row.name).sort();
     expect(names).toEqual(['Absent Allan', 'Vega Vegan']);
-    expect(result.data!.hasMeals).toBe(true);
+    expect(report.hasMeals).toBe(true);
   });
 
   test('lists only accepted participants', async () => {
-    const result = await getDietaryReport(eventId);
-    expect(result.success).toBe(true);
-    const names = result.data!.rows.map((row) => row.name).sort();
+    const report = await loadReport(eventId);
+    const names = report.rows.map((row) => row.name).sort();
     expect(names).toEqual(['Absent Allan', 'Vega Vegan']);
   });
 
   test('reads restrictions, Other free text and last seen', async () => {
-    const result = await getDietaryReport(eventId);
-    const rows = result.data!.rows;
+    const { rows } = await loadReport(eventId);
     const vegan = rows.find((row) => row.name === 'Vega Vegan')!;
     const absent = rows.find((row) => row.name === 'Absent Allan')!;
 
@@ -279,8 +282,7 @@ describe('getDietaryReport', () => {
   });
 
   test('counts only sub-events tagged as a meal', async () => {
-    const result = await getDietaryReport(eventId);
-    const report = result.data!;
+    const report = await loadReport(eventId);
     expect(report.hasMeals).toBe(true);
     expect(report.currentMeal?.name).toBe('Lunch');
     expect(report.countedMealCount).toBe(0);
