@@ -41,6 +41,57 @@ jobs:
       - name: Check Prettier formatting
         run: pnpm format:check
 
+  build:
+    name: Build
+    runs-on: ubuntu-24.04
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: mruhacks
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    # `next build` runs as production, so db.ts reads DATABASE_URL rather
+    # than the TEST_* vars.
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/mruhacks
+      # Fake credentials for CI only — Better Auth instantiates at import time.
+      BETTER_AUTH_SECRET: ci-test-fake-secret-do-not-use-in-production
+      BETTER_AUTH_URL: http://localhost:3000
+      TURNSTILE_SECRET_KEY: 1x0000000000000000000000000000000AA
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # The build prerenders pages that query the DB, so it needs the schema.
+      - name: Run migrations
+        run: pnpm drizzle-kit migrate
+
+      - name: Build
+        run: pnpm build
+
   test:
     name: Test
     runs-on: ubuntu-24.04
