@@ -26,6 +26,7 @@ export type PermissionEntity =
   | 'submission'
   | 'judging'
   | 'display'
+  | 'onboarding'
   | 'system';
 
 export type PermissionAction =
@@ -45,6 +46,7 @@ export type PermissionAction =
   | 'purge'
   | 'results'
   | 'award'
+  | 'skip'
   | 'all';
 
 export type PermissionScope = 'all' | 'any' | 'self' | (string & {});
@@ -192,6 +194,11 @@ export const CORE_PERMISSIONS = [
   {
     slug: 'display:manage:all',
     description: 'Configure the lobby displays (clock, theme)',
+  },
+  {
+    slug: 'onboarding:skip:all',
+    description:
+      'Skip the featured-event application step during onboarding (staff)',
   },
   {
     slug: 'system:read:all',

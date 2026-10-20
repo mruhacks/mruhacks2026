@@ -60,15 +60,16 @@ import {
   adminSetUserPassword,
   adminSendPasswordReset,
   inviteUser,
+  revokeInvite,
   currentUserHasPassword,
   setOwnName,
   setInitialPassword,
-  consumeInvite,
   adminBanUser,
   adminUnbanUser,
   adminRevokeUserSessions,
   updateUserProfile,
 } from '@/app/actions/users';
+import { applyPendingInvite } from '@/lib/auth/apply-pending-invite';
 
 let adminUserId: string;
 let noPermUserId: string;
@@ -283,6 +284,55 @@ describe('listUsers', () => {
           eq(userRole.roleId, adminRoleId),
         ),
       );
+  });
+
+  test('lists an invite to an email with no account as an invite row', async () => {
+    const [row] = await db
+      .insert(invite)
+      .values({
+        email: 'users-pending-invite@test.com',
+        roleIds: [adminRoleId],
+        invitedBy: null,
+        expiresAt: new Date(Date.now() + 60_000),
+      })
+      .returning({ id: invite.id });
+    try {
+      const result = await listUsers({ search: 'users-pending-invite' });
+      if (!result.success) throw new Error(result.error);
+      expect(result.data!.total).toBe(1);
+      const [listed] = result.data!.users;
+      expect(listed.kind).toBe('invite');
+      expect(listed.id).toBe(row.id);
+      expect(listed.invite?.roles.map((r) => r.id)).toEqual([adminRoleId]);
+
+      const byRole = await listUsers({ roleSlugs: ['users-test-role'] });
+      if (!byRole.success) throw new Error(byRole.error);
+      expect(byRole.data!.users.map((u) => u.id)).toContain(row.id);
+    } finally {
+      await db.delete(invite).where(eq(invite.id, row.id));
+    }
+  });
+
+  // Not creatable through inviteUser, but an account can sign up for an
+  // invited email before claiming it (or predate the existing-account check).
+  test('attaches an invite to the existing account instead of a second row', async () => {
+    await db.insert(invite).values({
+      email: 'users-target@test.com',
+      roleIds: [],
+      invitedBy: null,
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+    try {
+      const result = await listUsers({ search: 'users-target@' });
+      if (!result.success) throw new Error(result.error);
+      expect(result.data!.users).toHaveLength(1);
+      const [listed] = result.data!.users;
+      expect(listed.kind).toBe('user');
+      expect(listed.id).toBe(targetUserId);
+      expect(listed.invite).not.toBeNull();
+    } finally {
+      await db.delete(invite).where(eq(invite.email, 'users-target@test.com'));
+    }
   });
 
   test('totalPages is at least 1 even when total is 0', async () => {
@@ -698,33 +748,29 @@ describe('setInitialPassword', () => {
   });
 });
 
-// ─── consumeInvite ────────────────────────────────────────────────────────────
+// ─── applyPendingInvite ───────────────────────────────────────────────────────
 
-describe('consumeInvite', () => {
-  test('fails when not authenticated', async () => {
-    vi.mocked(getUser).mockResolvedValueOnce(null as never);
-    const result = await consumeInvite();
-    expect(result.success).toBe(false);
+describe('applyPendingInvite', () => {
+  test('returns false when no invite exists', async () => {
+    expect(await applyPendingInvite(adminUserId)).toBe(false);
   });
 
-  test('returns { consumed: false } when no invite exists', async () => {
-    const result = await consumeInvite();
-    expect(result.success).toBe(true);
-    if (!result.success) throw new Error((result as { error: string }).error);
-    expect(result.data?.consumed).toBe(false);
-  });
-
-  test('consumes invite and applies role assignments', async () => {
+  test('applies the invited roles and deletes the invite', async () => {
     await db.insert(invite).values({
       email: 'users-admin@test.com',
       roleIds: [adminRoleId],
       invitedBy: null,
       expiresAt: new Date(Date.now() + 60_000),
     });
-    const result = await consumeInvite();
-    expect(result.success).toBe(true);
-    if (!result.success) throw new Error((result as { error: string }).error);
-    expect(result.data?.consumed).toBe(true);
+    expect(await applyPendingInvite(adminUserId)).toBe(true);
+
+    const assigned = await db
+      .select()
+      .from(userRole)
+      .where(
+        and(eq(userRole.userId, adminUserId), eq(userRole.roleId, adminRoleId)),
+      );
+    expect(assigned).toHaveLength(1);
 
     const remaining = await db
       .select()
@@ -735,22 +781,135 @@ describe('consumeInvite', () => {
     await db.delete(userRole).where(eq(userRole.userId, adminUserId));
   });
 
-  test('consumes invite with empty roleIds (no setUserRoles)', async () => {
+  test('matches the invite email case-insensitively', async () => {
     await db.insert(invite).values({
       email: 'users-admin@test.com',
       roleIds: [],
       invitedBy: null,
       expiresAt: new Date(Date.now() + 60_000),
     });
-    const result = await consumeInvite();
-    expect(result.success).toBe(true);
-    if (!result.success) throw new Error((result as { error: string }).error);
-    expect(result.data?.consumed).toBe(true);
+    await db
+      .update(user)
+      .set({ email: 'Users-Admin@Test.com' })
+      .where(eq(user.id, adminUserId));
+    try {
+      expect(await applyPendingInvite(adminUserId)).toBe(true);
+    } finally {
+      await db
+        .update(user)
+        .set({ email: 'users-admin@test.com' })
+        .where(eq(user.id, adminUserId));
+    }
+  });
+
+  test('ignores the invite while the email is unverified', async () => {
+    await db.insert(invite).values({
+      email: 'users-admin@test.com',
+      roleIds: [adminRoleId],
+      invitedBy: null,
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+    await db
+      .update(user)
+      .set({ emailVerified: false })
+      .where(eq(user.id, adminUserId));
+    try {
+      expect(await applyPendingInvite(adminUserId)).toBe(false);
+
+      const assigned = await db
+        .select()
+        .from(userRole)
+        .where(
+          and(
+            eq(userRole.userId, adminUserId),
+            eq(userRole.roleId, adminRoleId),
+          ),
+        );
+      expect(assigned).toHaveLength(0);
+
+      const remaining = await db
+        .select()
+        .from(invite)
+        .where(eq(invite.email, 'users-admin@test.com'));
+      expect(remaining).toHaveLength(1);
+    } finally {
+      await db
+        .update(user)
+        .set({ emailVerified: true })
+        .where(eq(user.id, adminUserId));
+      await db.delete(invite).where(eq(invite.email, 'users-admin@test.com'));
+    }
+  });
+
+  test('drops an expired invite without applying its roles', async () => {
+    await db.insert(invite).values({
+      email: 'users-admin@test.com',
+      roleIds: [adminRoleId],
+      invitedBy: null,
+      expiresAt: new Date(Date.now() - 60_000),
+    });
+    await db.insert(account).values({
+      userId: adminUserId,
+      accountId: adminUserId,
+      providerId: 'credential',
+      password: 'kept_pw',
+    });
+    expect(await applyPendingInvite(adminUserId)).toBe(false);
+
+    const assigned = await db
+      .select()
+      .from(userRole)
+      .where(
+        and(eq(userRole.userId, adminUserId), eq(userRole.roleId, adminRoleId)),
+      );
+    expect(assigned).toHaveLength(0);
+
+    const credentials = await db
+      .delete(account)
+      .where(eq(account.userId, adminUserId))
+      .returning();
+    expect(credentials).toHaveLength(1);
 
     const remaining = await db
       .select()
       .from(invite)
       .where(eq(invite.email, 'users-admin@test.com'));
+    expect(remaining).toHaveLength(0);
+  });
+});
+
+// ─── revokeInvite ─────────────────────────────────────────────────────────────
+
+describe('revokeInvite', () => {
+  test('fails when caller has no permission', async () => {
+    vi.mocked(getUser).mockResolvedValueOnce(noPermUser as never);
+    await expect(
+      revokeInvite('00000000-0000-0000-0000-000000000000'),
+    ).rejects.toThrow('REDIRECT:/forbidden');
+  });
+
+  test('fails when the invite does not exist', async () => {
+    const result = await revokeInvite('00000000-0000-0000-0000-000000000000');
+    expect(result.success).toBe(false);
+  });
+
+  test('deletes the invite', async () => {
+    const [row] = await db
+      .insert(invite)
+      .values({
+        email: 'users-revoke@test.com',
+        roleIds: [adminRoleId],
+        invitedBy: null,
+        expiresAt: new Date(Date.now() + 60_000),
+      })
+      .returning({ id: invite.id });
+    const result = await revokeInvite(row.id);
+    expect(result.success).toBe(true);
+
+    const remaining = await db
+      .select()
+      .from(invite)
+      .where(eq(invite.id, row.id));
     expect(remaining).toHaveLength(0);
   });
 });
@@ -775,6 +934,20 @@ describe('inviteUser', () => {
     const result = await inviteUser('notanemail', []);
     expect(result.success).toBe(false);
     expect((result as { error: string }).error).toContain('email');
+  });
+
+  test('refuses an email that already has an account', async () => {
+    vi.mocked(auth.api.signInMagicLink).mockClear();
+    const result = await inviteUser('Users-Target@test.com', [adminRoleId]);
+    expect(result.success).toBe(false);
+    expect((result as { error: string }).error).toContain('already exists');
+
+    const rows = await db
+      .select()
+      .from(invite)
+      .where(eq(invite.email, 'users-target@test.com'));
+    expect(rows).toHaveLength(0);
+    expect(vi.mocked(auth.api.signInMagicLink)).not.toHaveBeenCalled();
   });
 
   test('creates invite row and triggers magic link', async () => {
