@@ -239,6 +239,11 @@ async function seedRolesAndPermissions() {
       description: 'Configure the lobby displays (clock, theme)',
     },
     {
+      slug: 'onboarding:skip:event',
+      description:
+        'Skip the featured-event application step during onboarding (staff)',
+    },
+    {
       slug: 'system:read:all',
       description: 'View system health and diagnostics',
     },
@@ -380,6 +385,11 @@ async function seedRolesAndPermissions() {
         roleId: findRole('volunteer').id,
         permissionId: findPerm('dietary:read:all').id,
       },
+      // Staff aren't applicants: let them past the featured-event step.
+      ...(['organizer', 'volunteer'] as const).map((slug) => ({
+        roleId: findRole(slug).id,
+        permissionId: findPerm('onboarding:skip:event').id,
+      })),
     ];
 
     // Additive only: grant base permissions that are missing, but never

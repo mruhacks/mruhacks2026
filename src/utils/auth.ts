@@ -14,6 +14,8 @@ import { remainingMagicLinkExpiresInSeconds } from '@/lib/rsvp/rsvp-magic-link-e
 import { getRsvpMagicLinkMailContext } from '@/lib/rsvp/rsvp-magic-link-context';
 import { getJudgeInviteMailContext } from '@/lib/judging/judge-invite-mail';
 import { linkJudgeRosterRows } from '@/lib/judging/server';
+import { applyPendingInvite } from '@/lib/auth/apply-pending-invite';
+import { ADMIN_COUNTS_CACHE_TAG } from '@/lib/admin-counts';
 import { db } from '@/utils/db';
 import * as schema from '@/db/schema';
 import { sendMail } from '@/utils/mail';
@@ -23,7 +25,7 @@ import { ResetPasswordEmail } from '@/emails/ResetPasswordEmail';
 import { DeleteAccountEmail } from '@/emails/DeleteAccountEmail';
 import React from 'react';
 import { headers } from 'next/headers';
-import { cacheLife } from 'next/cache';
+import { cacheLife, revalidateTag } from 'next/cache';
 import { writeAuditLog } from '@/utils/audit-log';
 import { prepareUserDeletion } from '@/lib/account-deletion';
 
@@ -94,6 +96,17 @@ async function linkRosterOnSignIn(userId: string): Promise<void> {
   }
 }
 
+async function applyInviteOnSignIn(userId: string): Promise<void> {
+  try {
+    if (await applyPendingInvite(userId)) {
+      // Not a Server Action, so updateTag isn't available here.
+      revalidateTag(ADMIN_COUNTS_CACHE_TAG, 'max');
+    }
+  } catch (error) {
+    console.error('[auth] applying pending invite failed', error);
+  }
+}
+
 /**
  * Better Auth instance configured with Drizzle ORM adapter
  *
@@ -147,6 +160,10 @@ export const auth = betterAuth({
               targetType: 'user',
               targetId: session.userId,
             });
+          } else {
+            // An admin acting as someone must not claim that person's invite
+            // on their behalf.
+            await applyInviteOnSignIn(session.userId);
           }
         },
       },
