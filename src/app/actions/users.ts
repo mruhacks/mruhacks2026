@@ -16,10 +16,12 @@ import {
   eq,
   exists,
   ilike,
+  notExists,
   or,
   sql,
   inArray,
 } from 'drizzle-orm';
+import { unionAll } from 'drizzle-orm/pg-core';
 import {
   user,
   userRole,
@@ -67,7 +69,20 @@ export interface ListUsersParams {
   sortDirection?: SortDirection;
 }
 
+export interface AdminInvite {
+  id: string;
+  expiresAt: Date;
+  roles: { id: number; slug: string | null }[];
+}
+
+/**
+ * One row of the admin users table: a real account, or (`kind: 'invite'`) an
+ * invite sent to an email that has no account yet. A real account can also
+ * carry an `invite` when it was invited after signing up.
+ */
 export interface AdminUserRow {
+  kind: 'user' | 'invite';
+  /** User id, or the invite id for `kind: 'invite'`. */
   id: string;
   name: string;
   email: string;
@@ -78,6 +93,7 @@ export interface AdminUserRow {
   banReason: string | null;
   banExpires: Date | null;
   roles: { id: number; slug: string | null }[];
+  invite: AdminInvite | null;
 }
 
 export interface ListUsersResult {
@@ -116,52 +132,65 @@ export async function listUsers(
     const clampedPageSize = Math.min(Math.max(pageSize, 1), 200);
     const clampedPage = Math.max(page, 1);
 
-    // Build predicates
-    const predicates = [] as ReturnType<typeof eq>[];
-    if (search.trim().length > 0) {
-      const needle = `%${search.trim()}%`;
-      predicates.push(
-        or(ilike(user.name, needle), ilike(user.email, needle)) as ReturnType<
-          typeof eq
-        >,
-      );
-    }
+    // Users and pending invites (to emails with no account yet) are listed
+    // together, so both get the same search, role filter, sort and paging.
+    const needle = search.trim().length > 0 ? `%${search.trim()}%` : null;
+    const filterRoles = roleSlugs && roleSlugs.length > 0 ? roleSlugs : null;
 
-    if (roleSlugs && roleSlugs.length > 0) {
+    const userPredicates = [];
+    // invite.email is always stored lowercased (inviteUser normalizes it),
+    // so only the user side needs lower().
+    const invitePredicates = [
+      notExists(
+        db
+          .select({ one: sql`1` })
+          .from(user)
+          .where(sql`lower(${user.email}) = ${invite.email}`),
+      ),
+    ];
+    if (needle) {
+      userPredicates.push(
+        or(ilike(user.name, needle), ilike(user.email, needle)),
+      );
+      invitePredicates.push(ilike(invite.email, needle));
+    }
+    if (filterRoles) {
       // EXISTS avoids materialising a huge user-id IN list when a role
       // contains many members. inArray also parameterizes a single slug as
       // `IN ($1)` instead of passing it to PostgreSQL's array-only ANY().
-      predicates.push(
+      userPredicates.push(
         exists(
           db
             .select({ one: sql`1` })
             .from(userRole)
             .innerJoin(role, eq(userRole.roleId, role.id))
             .where(
-              and(eq(userRole.userId, user.id), inArray(role.slug, roleSlugs)),
+              and(
+                eq(userRole.userId, user.id),
+                inArray(role.slug, filterRoles),
+              ),
             ),
-        ) as ReturnType<typeof eq>,
+        ),
+      );
+      invitePredicates.push(
+        exists(
+          db
+            .select({ one: sql`1` })
+            .from(role)
+            .where(
+              and(
+                sql`${role.id} = any(${invite.roleIds})`,
+                inArray(role.slug, filterRoles),
+              ),
+            ),
+        ),
       );
     }
 
-    const whereClause = predicates.length ? and(...predicates) : undefined;
-
-    const sortColumn =
-      sortField === 'name'
-        ? user.name
-        : sortField === 'email'
-          ? user.email
-          : user.createdAt;
-    const orderFn = sortDirection === 'asc' ? asc : desc;
-
-    // Count + page fetch are independent — issue them in parallel.
-    const [countRow, rows] = await Promise.all([
-      db
-        .select({ total: sql<number>`COUNT(*)`.mapWith(Number) })
-        .from(user)
-        .where(whereClause ?? sql`true`),
+    const combined = unionAll(
       db
         .select({
+          kind: sql<'user' | 'invite'>`'user'`.as('kind'),
           id: user.id,
           name: user.name,
           email: user.email,
@@ -173,16 +202,99 @@ export async function listUsers(
           banExpires: user.banExpires,
         })
         .from(user)
-        .where(whereClause ?? sql`true`)
-        .orderBy(orderFn(sortColumn))
+        .where(and(...userPredicates)),
+      db
+        .select({
+          kind: sql<'user' | 'invite'>`'invite'`.as('kind'),
+          id: invite.id,
+          // No name yet: use the email so a name sort interleaves invites
+          // instead of bunching them at one end. The table doesn't show it.
+          name: sql<string>`${invite.email}`.as('name'),
+          email: invite.email,
+          emailVerified: sql<boolean>`false`.as('email_verified'),
+          image: sql<string | null>`null`.as('image'),
+          createdAt: invite.createdAt,
+          banned: sql<boolean | null>`false`.as('banned'),
+          banReason: sql<string | null>`null`.as('ban_reason'),
+          banExpires: sql<Date | null>`null`.as('ban_expires'),
+        })
+        .from(invite)
+        .where(and(...invitePredicates)),
+    ).as('rows');
+
+    const sortColumn =
+      sortField === 'name'
+        ? combined.name
+        : sortField === 'email'
+          ? combined.email
+          : combined.createdAt;
+    const orderFn = sortDirection === 'asc' ? asc : desc;
+
+    // Count + page fetch are independent — issue them in parallel.
+    const [countRow, rows] = await Promise.all([
+      db
+        .select({ total: sql<number>`COUNT(*)`.mapWith(Number) })
+        .from(combined),
+      db
+        .select()
+        .from(combined)
+        .orderBy(orderFn(sortColumn), asc(combined.email))
         .limit(clampedPageSize)
         .offset((clampedPage - 1) * clampedPageSize),
     ]);
     const total = countRow[0]?.total ?? 0;
 
-    const rolesMap = await loadRolesForUsers(rows.map((r) => r.id));
+    const userIds = rows.filter((r) => r.kind === 'user').map((r) => r.id);
+    const inviteIds = rows.filter((r) => r.kind === 'invite').map((r) => r.id);
+    const userEmails = rows
+      .filter((r) => r.kind === 'user')
+      .map((r) => r.email.toLowerCase());
+
+    const [rolesMap, inviteRows] = await Promise.all([
+      loadRolesForUsers(userIds),
+      rows.length > 0
+        ? db
+            .select({
+              id: invite.id,
+              email: invite.email,
+              roleIds: invite.roleIds,
+              expiresAt: invite.expiresAt,
+            })
+            .from(invite)
+            .where(
+              or(
+                inviteIds.length > 0
+                  ? inArray(invite.id, inviteIds)
+                  : undefined,
+                userEmails.length > 0
+                  ? inArray(invite.email, userEmails)
+                  : undefined,
+              ) ?? sql`false`,
+            )
+        : [],
+    ]);
+
+    const inviteRoleIds = [...new Set(inviteRows.flatMap((i) => i.roleIds))];
+    const inviteRoles =
+      inviteRoleIds.length > 0
+        ? await db
+            .select({ id: role.id, slug: role.slug })
+            .from(role)
+            .where(inArray(role.id, inviteRoleIds))
+        : [];
+    const toInvite = (i: (typeof inviteRows)[number]): AdminInvite => ({
+      id: i.id,
+      expiresAt: i.expiresAt,
+      // A role deleted since the invite was sent simply drops out.
+      roles: inviteRoles.filter((r) => i.roleIds.includes(r.id)),
+    });
+    const inviteById = new Map(inviteRows.map((i) => [i.id, toInvite(i)]));
+    const inviteByEmail = new Map(
+      inviteRows.map((i) => [i.email, inviteById.get(i.id)!]),
+    );
 
     const users: AdminUserRow[] = rows.map((r) => ({
+      kind: r.kind,
       id: r.id,
       name: r.name,
       email: r.email,
@@ -192,7 +304,11 @@ export async function listUsers(
       banned: Boolean(r.banned),
       banReason: r.banReason,
       banExpires: r.banExpires,
-      roles: rolesMap[r.id] ?? [],
+      roles: r.kind === 'user' ? (rolesMap[r.id] ?? []) : [],
+      invite:
+        (r.kind === 'invite'
+          ? inviteById.get(r.id)
+          : inviteByEmail.get(r.email.toLowerCase())) ?? null,
     }));
 
     const totalPages = Math.max(1, Math.ceil(total / clampedPageSize));
@@ -500,8 +616,8 @@ export async function adminSendPasswordReset(
 /**
  * Admin: invite a user by email with a preselected set of roles. Stores a
  * pending invite row keyed on the email, then triggers a magic-link sign-in
- * so Better Auth emails them a link. When they click it and land on /welcome,
- * the invite is consumed and the roles are applied.
+ * so Better Auth emails them a link. Signing in applies the roles and deletes
+ * the invite (`applyPendingInvite`, run from the session-create hook).
  */
 export async function inviteUser(
   email: string,
@@ -515,6 +631,20 @@ export async function inviteUser(
     const normalized = email.trim().toLowerCase();
     if (!normalized || !normalized.includes('@')) {
       return fail('Enter a valid email');
+    }
+
+    // Invites are for people with no account yet. An existing account gets
+    // its roles edited directly, so an invite never replaces roles someone
+    // already holds.
+    const [existing] = await db
+      .select({ id: user.id })
+      .from(user)
+      .where(sql`lower(${user.email}) = ${normalized}`)
+      .limit(1);
+    if (existing) {
+      return fail(
+        'An account with this email already exists. Edit its roles instead.',
+      );
     }
 
     const denied = await grantDeniedReason(caller.id, { roleIds });
@@ -541,7 +671,7 @@ export async function inviteUser(
     await auth.api.signInMagicLink({
       body: {
         email: normalized,
-        callbackURL: '/welcome?invited=1',
+        callbackURL: '/welcome',
       },
       headers: await headers(),
     });
@@ -555,6 +685,35 @@ export async function inviteUser(
     return ok();
   } catch (e) {
     return serverActionError('send invite', e);
+  }
+}
+
+/**
+ * Admin: revoke a pending invite before it's used. The magic link already
+ * sent still signs them in, but without the invite they get no roles.
+ */
+export async function revokeInvite(inviteId: string): Promise<ActionResult> {
+  try {
+    const caller = await getUser();
+    if (!caller) return fail('Not authenticated');
+    await requirePermission(caller.id, 'user:write:all');
+
+    const [deleted] = await db
+      .delete(invite)
+      .where(eq(invite.id, inviteId))
+      .returning({ email: invite.email });
+    if (!deleted) return fail('Invite not found');
+
+    await writeAuditLog({
+      actorId: caller.id,
+      action: 'user.invite_revoked',
+      targetType: 'invite',
+      targetId: deleted.email,
+    });
+    revalidatePath('/dashboard/admin/users');
+    return ok();
+  } catch (e) {
+    return serverActionError('revoke invite', e);
   }
 }
 
@@ -640,43 +799,6 @@ export async function setInitialPassword(
     return ok();
   } catch (e) {
     return serverActionError('set password', e);
-  }
-}
-
-/**
- * Server-side: consume a pending invite for the signed-in user. Applies the
- * role assignments the admin chose, then deletes the invite. Returns whether
- * an invite was consumed so the /welcome page can branch on it.
- */
-export async function consumeInvite(): Promise<
-  ActionResult<{ consumed: boolean }>
-> {
-  try {
-    const caller = await getUser();
-    if (!caller) return fail('Not authenticated');
-
-    const email = caller.email.toLowerCase();
-    const [row] = await db
-      .select({ roleIds: invite.roleIds, expiresAt: invite.expiresAt })
-      .from(invite)
-      .where(eq(invite.email, email))
-      .limit(1);
-
-    if (!row) return ok({ consumed: false });
-    if (row.expiresAt <= new Date()) {
-      await db.delete(invite).where(eq(invite.email, email));
-      return ok({ consumed: false });
-    }
-
-    if (row.roleIds.length > 0) {
-      await replaceUserRoles(caller.id, row.roleIds);
-    }
-    await db.delete(invite).where(eq(invite.email, email));
-    revalidatePath('/dashboard/admin/users');
-    updateTag(ADMIN_COUNTS_CACHE_TAG);
-    return ok({ consumed: true });
-  } catch (e) {
-    return serverActionError('consume invite', e);
   }
 }
 

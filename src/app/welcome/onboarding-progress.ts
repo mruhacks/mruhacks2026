@@ -18,12 +18,14 @@ import { and, eq } from 'drizzle-orm';
 import { getConsentStatus } from '@/app/dashboard/account/actions';
 import { getUserProfile } from '@/app/dashboard/profile/actions';
 import { isOnAnyJudgeRoster } from '@/lib/judging/server';
+import { hasPermission } from '@/lib/rbac/authorization';
 import type { FeaturedOnboardingEvent } from './featured-event-step';
 
 /**
  * Every step, in order. Participants go legal → personal → about → event;
  * judges (anyone on an expo judging roster) go legal → personal →
- * professional, skipping About and the featured-event application.
+ * professional, skipping About and the featured-event application. Staff
+ * (`onboarding:skip:event`) go legal → personal → about with no application.
  */
 export const STEPS = [
   'legal',
@@ -63,6 +65,7 @@ export async function getOnboardingProgress(): Promise<OnboardingProgress> {
     [featured],
     isJudge,
     [professional],
+    canSkipEvent,
   ] = await Promise.all([
     getConsentStatus(),
     getUserProfile(),
@@ -89,6 +92,7 @@ export async function getOnboardingProgress(): Promise<OnboardingProgress> {
       .from(userProfileProfessional)
       .where(eq(userProfileProfessional.userId, user.id))
       .limit(1),
+    hasPermission(user.id, 'onboarding:skip:event'),
   ]);
 
   // Fail safe: if we can't read consent/profile state, prompt for it
@@ -102,7 +106,7 @@ export async function getOnboardingProgress(): Promise<OnboardingProgress> {
     profileRes.data.universityId == null;
 
   let featuredEvent: FeaturedOnboardingEvent | undefined;
-  if (featured && !isJudge) {
+  if (featured && !isJudge && !canSkipEvent) {
     // Applied or registered — either way they already have a participant row.
     const [existingParticipation] = await db
       .select({ id: eventParticipants.id })

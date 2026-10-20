@@ -379,6 +379,13 @@
       "when": 1792367769328,
       "tag": "0053_lobby_display_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1792455752884,
+      "tag": "0054_onboarding_skip_permission",
+      "breakpoints": true
     }
   ]
 }
