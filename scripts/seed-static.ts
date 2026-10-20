@@ -239,7 +239,7 @@ async function seedRolesAndPermissions() {
       description: 'Configure the lobby displays (clock, theme)',
     },
     {
-      slug: 'onboarding:skip:all',
+      slug: 'onboarding:skip:event',
       description:
         'Skip the featured-event application step during onboarding (staff)',
     },
@@ -388,7 +388,7 @@ async function seedRolesAndPermissions() {
       // Staff aren't applicants: let them past the featured-event step.
       ...(['organizer', 'volunteer'] as const).map((slug) => ({
         roleId: findRole(slug).id,
-        permissionId: findPerm('onboarding:skip:all').id,
+        permissionId: findPerm('onboarding:skip:event').id,
       })),
     ];
 

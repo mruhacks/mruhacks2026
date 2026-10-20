@@ -25,7 +25,7 @@ import type { FeaturedOnboardingEvent } from './featured-event-step';
  * Every step, in order. Participants go legal → personal → about → event;
  * judges (anyone on an expo judging roster) go legal → personal →
  * professional, skipping About and the featured-event application. Staff
- * (`onboarding:skip:all`) go legal → personal → about with no application.
+ * (`onboarding:skip:event`) go legal → personal → about with no application.
  */
 export const STEPS = [
   'legal',
@@ -92,7 +92,7 @@ export async function getOnboardingProgress(): Promise<OnboardingProgress> {
       .from(userProfileProfessional)
       .where(eq(userProfileProfessional.userId, user.id))
       .limit(1),
-    hasPermission(user.id, 'onboarding:skip:all'),
+    hasPermission(user.id, 'onboarding:skip:event'),
   ]);
 
   // Fail safe: if we can't read consent/profile state, prompt for it

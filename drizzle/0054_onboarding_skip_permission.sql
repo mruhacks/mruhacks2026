@@ -2,7 +2,7 @@
 -- featured event. Its own narrow permission rather than a role-slug check
 -- (AGENTS.md), so who skips stays editable from the roles UI.
 INSERT INTO authz.permission (slug, description)
-VALUES ('onboarding:skip:all', 'Skip the featured-event application step during onboarding (staff)')
+VALUES ('onboarding:skip:event', 'Skip the featured-event application step during onboarding (staff)')
 ON CONFLICT (slug) DO NOTHING;
 --> statement-breakpoint
 
@@ -13,5 +13,5 @@ SELECT r.id, p.id
   FROM authz.role r
   CROSS JOIN authz.permission p
  WHERE r.slug IN ('admin', 'organizer', 'volunteer')
-   AND p.slug = 'onboarding:skip:all'
+   AND p.slug = 'onboarding:skip:event'
 ON CONFLICT DO NOTHING;

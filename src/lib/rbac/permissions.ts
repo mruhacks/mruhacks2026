@@ -196,7 +196,7 @@ export const CORE_PERMISSIONS = [
     description: 'Configure the lobby displays (clock, theme)',
   },
   {
-    slug: 'onboarding:skip:all',
+    slug: 'onboarding:skip:event',
     description:
       'Skip the featured-event application step during onboarding (staff)',
   },
