@@ -1,5 +1,7 @@
 'use client';
 
+export const instant = 'false';
+
 import * as React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
