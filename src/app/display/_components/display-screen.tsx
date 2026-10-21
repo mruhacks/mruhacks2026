@@ -8,9 +8,9 @@ import bannerWhite from '@/assets/display/banner-white.png';
 // The site's Arcurve logo is a JPG cropped tight on white, which shows as a
 // hard-edged strip over the Aurora; this is the original banner's version,
 // framed on a rounded card.
-import arcurveLogo from '@/assets/display/arcurve-logo.png';
-import mruIieLogo from '@/assets/sponsor-logos/mru-iie-logo-sponsor.png';
-import mruLibraryLogo from '@/assets/sponsor-logos/mru-library-logo-sponsor.png';
+import arcurveLogo from '@/assets/display/sponsor/Arcurve.png';
+import mruIieLogo from '@/assets/display/sponsor/MRUIIE.png';
+import mruLibraryLogo from '@/assets/display/sponsor/MRUL.png';
 import { LocalDateRange, LocalDateTime } from '@/components/local-date-time';
 import { useNow } from '@/lib/use-now';
 import {
