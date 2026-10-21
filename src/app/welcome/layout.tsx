@@ -1,3 +1,5 @@
+export const instant = false;
+
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 
