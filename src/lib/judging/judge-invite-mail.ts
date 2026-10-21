@@ -25,8 +25,10 @@ export async function buildJudgeInviteEmail(options: {
   eventName: string;
   magicLinkUrl: string;
   baseUrl: string;
+  /** How long the link lasts, e.g. "24 hours". */
+  expiresIn: string;
 }): Promise<Pick<SendMailOptions, 'subject' | 'text' | 'html'>> {
-  const { eventName, magicLinkUrl, baseUrl } = options;
+  const { eventName, magicLinkUrl, baseUrl, expiresIn } = options;
   return {
     subject: `You're judging ${eventName}`,
     text:
@@ -38,6 +40,7 @@ export async function buildJudgeInviteEmail(options: {
         eventName,
         url: magicLinkUrl,
         baseUrl,
+        expiresIn,
       }),
     ),
   };

@@ -27,7 +27,6 @@ export async function sendJudgeInvite(options: {
       body: {
         email: options.email,
         callbackURL: JUDGE_SIGNUP_PATH,
-        errorCallbackURL: JUDGE_SIGNUP_PATH,
       },
       headers: getBackgroundAuthHeaders(),
     }),

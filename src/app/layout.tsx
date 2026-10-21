@@ -2,8 +2,7 @@ import type { Metadata } from 'next';
 import { DM_Sans, DM_Mono, Inter, Geist_Mono } from 'next/font/google';
 import { Toaster } from '@/components/ui/sonner';
 import { QueryProvider } from '@/components/providers/query-provider';
-import { Analytics } from '@vercel/analytics/next';
-import { SpeedInsights } from '@vercel/speed-insights/next';
+import { Telemetry } from '@/components/providers/telemetry';
 import { SITE_URL } from '@/content';
 import './globals.css';
 
@@ -51,8 +50,7 @@ export default function RootLayout({
           {children}
           <Toaster />
         </QueryProvider>
-        <Analytics />
-        <SpeedInsights />
+        <Telemetry />
       </body>
     </html>
   );

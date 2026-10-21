@@ -1,15 +1,6 @@
-export const instant = false;
-
 import SignInForm from '@/components/signIn';
-import { getUser } from '@/utils/auth';
-import { redirect } from 'next/navigation';
 
-async function SignInGate() {
-  if (await getUser()) redirect('/dashboard');
-
-  return <SignInForm />;
-}
-
+// Signed-in users are redirected to the dashboard by `src/proxy.ts`.
 export default function LoginPage() {
-  return <SignInGate />;
+  return <SignInForm />;
 }

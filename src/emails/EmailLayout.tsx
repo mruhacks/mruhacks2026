@@ -13,6 +13,27 @@ import {
 } from 'react-email';
 import React from 'react';
 
+/** Shared text styles for the templates' content. */
+export const headingStyle: React.CSSProperties = {
+  margin: '0 0 20px',
+  fontFamily: 'Arial,Helvetica,sans-serif',
+  fontWeight: 600,
+  fontSize: 22,
+  lineHeight: '30px',
+  color: '#000000',
+};
+export const bodyStyle: React.CSSProperties = {
+  margin: '0 0 14px',
+  fontFamily: 'Arial,Helvetica,sans-serif',
+  fontSize: 15,
+  lineHeight: '25px',
+  color: '#333333',
+};
+export const mutedStyle: React.CSSProperties = {
+  ...bodyStyle,
+  color: '#888888',
+};
+
 const GRADIENT =
   'linear-gradient(90deg,#FADF4B,#F07B31,#EC624D,#D841A1,#6943EC,#4D75EE,#93FFFF)';
 
@@ -61,32 +82,12 @@ export function EmailLayout({ preview, baseUrl, children }: Props) {
             </Link>
           </Section>
 
-          {/* Rainbow stripe */}
-          <Section
-            style={{
-              height: 4,
-              backgroundImage: GRADIENT,
-              fontSize: 0,
-              lineHeight: 0,
-            }}
-          >
-            <Text style={{ display: 'none' }}>&nbsp;</Text>
-          </Section>
+          <RainbowStripe />
 
           {/* Body */}
           <Section style={{ padding: '36px 40px 32px' }}>{children}</Section>
 
-          {/* Rainbow stripe */}
-          <Section
-            style={{
-              height: 4,
-              backgroundImage: GRADIENT,
-              fontSize: 0,
-              lineHeight: 0,
-            }}
-          >
-            <Text style={{ display: 'none' }}>&nbsp;</Text>
-          </Section>
+          <RainbowStripe />
 
           {/* Footer */}
           <Section
@@ -110,76 +111,41 @@ export function EmailLayout({ preview, baseUrl, children }: Props) {
 
             <Row style={{ marginBottom: 20 }}>
               <Column style={{ padding: '0 4px' }}>
-                <Link
-                  href='https://www.instagram.com/mruhacks/'
-                  style={{
-                    display: 'inline-block',
-                    fontFamily: 'Arial,Helvetica,sans-serif',
-                    fontWeight: 700,
-                    fontSize: 12,
-                    color: '#ffffff',
-                    textDecoration: 'none',
-                    backgroundImage: 'linear-gradient(135deg,#F07B31,#D841A1)',
-                    padding: '10px 18px',
-                    borderRadius: 50,
-                  }}
-                >
-                  Instagram
-                </Link>
+                <Pill
+                  label='Instagram'
+                  url='https://www.instagram.com/mruhacks/'
+                  color='#F07B31'
+                  gradient='linear-gradient(135deg,#F07B31,#D841A1)'
+                  small
+                />
               </Column>
               <Column style={{ padding: '0 4px' }}>
-                <Link
-                  href='https://ca.linkedin.com/company/mruhacks'
-                  style={{
-                    display: 'inline-block',
-                    fontFamily: 'Arial,Helvetica,sans-serif',
-                    fontWeight: 700,
-                    fontSize: 12,
-                    color: '#ffffff',
-                    textDecoration: 'none',
-                    backgroundImage: 'linear-gradient(135deg,#4D75EE,#6943EC)',
-                    padding: '10px 18px',
-                    borderRadius: 50,
-                  }}
-                >
-                  LinkedIn
-                </Link>
+                <Pill
+                  label='LinkedIn'
+                  url='https://ca.linkedin.com/company/mruhacks'
+                  color='#4D75EE'
+                  gradient='linear-gradient(135deg,#4D75EE,#6943EC)'
+                  small
+                />
               </Column>
               <Column style={{ padding: '0 4px' }}>
-                <Link
-                  href='https://linktr.ee/mruhacks'
-                  style={{
-                    display: 'inline-block',
-                    fontFamily: 'Arial,Helvetica,sans-serif',
-                    fontWeight: 700,
-                    fontSize: 12,
-                    color: '#ffffff',
-                    textDecoration: 'none',
-                    backgroundImage: 'linear-gradient(135deg,#6943EC,#4D75EE)',
-                    padding: '10px 18px',
-                    borderRadius: 50,
-                  }}
-                >
-                  Linktree
-                </Link>
+                <Pill
+                  label='Linktree'
+                  url='https://linktr.ee/mruhacks'
+                  color='#6943EC'
+                  gradient='linear-gradient(135deg,#6943EC,#4D75EE)'
+                  small
+                />
               </Column>
               <Column style={{ padding: '0 4px' }}>
-                <Link
-                  href='https://mruhacks.ca/'
-                  style={{
-                    display: 'inline-block',
-                    fontFamily: 'Arial,Helvetica,sans-serif',
-                    fontWeight: 700,
-                    fontSize: 12,
-                    color: '#111111',
-                    textDecoration: 'none',
-                    backgroundImage: 'linear-gradient(135deg,#FADF4B,#F07B31)',
-                    padding: '10px 18px',
-                    borderRadius: 50,
-                  }}
-                >
-                  Website
-                </Link>
+                <Pill
+                  label='Website'
+                  url='https://mruhacks.ca/'
+                  color='#F07B31'
+                  gradient='linear-gradient(135deg,#FADF4B,#F07B31)'
+                  textColor='#111111'
+                  small
+                />
               </Column>
             </Row>
 
@@ -200,25 +166,69 @@ export function EmailLayout({ preview, baseUrl, children }: Props) {
   );
 }
 
+/** 4px gradient bar, solid purple where gradients aren't supported. */
+function RainbowStripe() {
+  return (
+    <Section
+      style={{
+        height: 4,
+        backgroundColor: '#6943EC',
+        backgroundImage: GRADIENT,
+        fontSize: 0,
+        lineHeight: 0,
+      }}
+    >
+      <Text style={{ display: 'none' }}>&nbsp;</Text>
+    </Section>
+  );
+}
+
+/** A pill-shaped link button; `color` shows where gradients aren't supported. */
+function Pill({
+  label,
+  url,
+  color,
+  gradient,
+  textColor = '#ffffff',
+  small = false,
+}: {
+  label: string;
+  url: string;
+  color: string;
+  gradient: string;
+  textColor?: string;
+  small?: boolean;
+}) {
+  return (
+    <Link
+      href={url}
+      style={{
+        display: 'inline-block',
+        fontFamily: 'Arial,Helvetica,sans-serif',
+        fontWeight: 700,
+        fontSize: small ? 12 : 15,
+        color: textColor,
+        textDecoration: 'none',
+        backgroundColor: color,
+        backgroundImage: gradient,
+        padding: small ? '10px 18px' : '14px 32px',
+        borderRadius: 50,
+      }}
+    >
+      {label}
+    </Link>
+  );
+}
+
 export function CtaButton({ label, url }: { label: string; url: string }) {
   return (
     <Section style={{ margin: '24px 0 0' }}>
-      <Link
-        href={url}
-        style={{
-          display: 'inline-block',
-          fontFamily: 'Arial,Helvetica,sans-serif',
-          fontWeight: 700,
-          fontSize: 15,
-          color: '#ffffff',
-          textDecoration: 'none',
-          backgroundImage: 'linear-gradient(135deg,#6943EC,#4D75EE)',
-          padding: '14px 32px',
-          borderRadius: 50,
-        }}
-      >
-        {label}
-      </Link>
+      <Pill
+        label={label}
+        url={url}
+        color='#6943EC'
+        gradient='linear-gradient(135deg,#6943EC,#4D75EE)'
+      />
     </Section>
   );
 }
@@ -230,17 +240,21 @@ export function FallbackLink({ url }: { url: string }) {
         margin: '20px 0 0',
         fontFamily: 'Arial,Helvetica,sans-serif',
         fontSize: 12,
+        lineHeight: '18px',
         color: '#888888',
         wordBreak: 'break-all',
       }}
     >
       Button not working? Paste this link into your browser:{' '}
-      <Link
+      {/* Plain <a>: react-email's Link adds `text-decoration-line:none`,
+          which contradicts the underline. */}
+      <a
         href={url}
+        target='_blank'
         style={{ color: '#4d75ee', textDecoration: 'underline' }}
       >
         {url}
-      </Link>
+      </a>
     </Text>
   );
 }

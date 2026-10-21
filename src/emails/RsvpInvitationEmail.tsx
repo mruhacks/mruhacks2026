@@ -1,5 +1,11 @@
 import { Heading, Text } from 'react-email';
-import { CtaButton, EmailLayout, FallbackLink } from './EmailLayout';
+import {
+  CtaButton,
+  EmailLayout,
+  FallbackLink,
+  bodyStyle,
+  headingStyle,
+} from './EmailLayout';
 
 type Props = {
   eventName: string;
@@ -20,13 +26,15 @@ export function RsvpInvitationEmail({
       preview={`[Action Required] You're invited to ${eventName}!`}
       baseUrl={baseUrl}
     >
-      <Heading style={h1}>You&rsquo;re invited to {eventName}!</Heading>
-      <Text style={body}>
+      <Heading style={headingStyle}>
+        You&rsquo;re invited to {eventName}!
+      </Heading>
+      <Text style={bodyStyle}>
         You&rsquo;ve been invited to <strong>{eventName}</strong>. We&rsquo;d
         love to have you there. Let us know if you can make it so we can hold
         your spot.
       </Text>
-      <Text style={body}>
+      <Text style={bodyStyle}>
         Please respond by <strong>{deadline}</strong>.
       </Text>
       <CtaButton label='RSVP Now' url={url} />
@@ -34,19 +42,3 @@ export function RsvpInvitationEmail({
     </EmailLayout>
   );
 }
-
-const h1 = {
-  margin: '0 0 20px',
-  fontFamily: 'Arial,Helvetica,sans-serif',
-  fontWeight: 600,
-  fontSize: 22,
-  lineHeight: '1.35',
-  color: '#000000',
-};
-const body = {
-  margin: '0 0 14px',
-  fontFamily: 'Arial,Helvetica,sans-serif',
-  fontSize: 15,
-  lineHeight: '1.7',
-  color: '#333333',
-};

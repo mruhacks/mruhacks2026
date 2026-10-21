@@ -156,13 +156,16 @@ describe('resolveMagicLinkMailOptions', () => {
       email: 'anyone@example.com',
       magicLinkUrl: magicLinkUrlFor('/welcome'),
       baseUrl: testBaseUrl,
+      expiresInSeconds: 86400,
     });
     expect(signIn.subject).toBe('Sign in to MRUHacks');
+    expect(signIn.html).toContain('expires in 24 hours');
 
     const invite = await resolveMagicLinkMailOptions({
       email: 'anyone@example.com',
       magicLinkUrl: magicLinkUrlFor('/welcome?invited=1'),
       baseUrl: testBaseUrl,
+      expiresInSeconds: 86400,
     });
     expect(invite.subject).toBe('Sign in to MRUHacks');
   });
@@ -174,6 +177,7 @@ describe('resolveMagicLinkMailOptions', () => {
         `/dashboard/events/${testEventId}?source=rsvp`,
       ),
       baseUrl: testBaseUrl,
+      expiresInSeconds: 86400,
     });
     expect(result.subject).toBe('Sign in to MRUHacks');
   });
@@ -186,6 +190,7 @@ describe('resolveMagicLinkMailOptions', () => {
           email: 'anyone@example.com',
           magicLinkUrl: magicLinkUrlFor('/welcome'),
           baseUrl: testBaseUrl,
+          expiresInSeconds: 86400,
         }),
     );
     expect(result.subject).toBe(

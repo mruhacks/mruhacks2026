@@ -11,7 +11,10 @@
  *      Privacy Policy are redirected to `/welcome`, preserving the original
  *      path in `?returnUrl=` so they land back where they were headed once
  *      they consent. No authenticated page renders until consent is on record.
- *   3. Admin routes are additionally guarded by `src/lib/rbac/guards.ts`
+ *   3. Signed-in users visiting a sign-in page (`/signin`, the emailed-link
+ *      confirm page, `/signup`) are sent on to the dashboard, or to where an
+ *      emailed sign-in link was headed.
+ *   4. Admin routes are additionally guarded by `src/lib/rbac/guards.ts`
  *      inside the admin layout, which performs the DB-backed permission
  *      check. Doing that here would duplicate work and require pulling
  *      Drizzle into every request.
@@ -22,11 +25,42 @@ import type { NextRequest } from 'next/server';
 import { headers } from 'next/headers';
 import { auth } from './utils/auth';
 import { userNeedsConsent } from './utils/consent-check';
+import {
+  EMAIL_LINK_CONFIRM_PATH,
+  EMAIL_LINK_KIND_PARAM,
+  toSameOriginPath,
+} from './lib/auth/email-link-confirm-url';
+
+function isSignInPage(pathname: string): boolean {
+  return (
+    pathname === '/signin' ||
+    pathname.startsWith('/signin/') ||
+    pathname === '/signup'
+  );
+}
+
+/** Where a signed-in user on a sign-in page goes instead, or null to stay. */
+function signedInTarget(url: NextRequest['nextUrl']): string | null {
+  if (url.pathname !== EMAIL_LINK_CONFIRM_PATH) return '/dashboard';
+  // Verifying an email is still needed while signed in.
+  if (url.searchParams.get(EMAIL_LINK_KIND_PARAM) === 'verify-email') {
+    return null;
+  }
+  // An RSVP or judge link should still land on its event, not the dashboard.
+  return toSameOriginPath(url.searchParams.get('callbackURL')) ?? '/dashboard';
+}
 
 export async function proxy(request: NextRequest) {
   const session = await auth.api.getSession({
     headers: await headers(),
   });
+
+  if (isSignInPage(request.nextUrl.pathname)) {
+    const target = session && signedInTarget(request.nextUrl);
+    return target
+      ? NextResponse.redirect(new URL(target, request.url))
+      : NextResponse.next();
+  }
 
   const original = request.nextUrl.pathname + request.nextUrl.search;
 
@@ -50,9 +84,9 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Every authenticated surface. `/welcome` itself is intentionally excluded so
-  // the consent redirect can't loop. `/signin` redirects active sessions from
-  // its server component, so auth callbacks stay outside the proxy matcher.
-  // `/print` holds dashboard pages laid out for paper, outside its chrome.
-  matcher: ['/dashboard/:path*', '/print/:path*'],
+  // Every authenticated surface, plus the sign-in pages (which redirect the
+  // other way). `/welcome` itself is intentionally excluded so the consent
+  // redirect can't loop. `/print` holds dashboard pages laid out for paper,
+  // outside its chrome.
+  matcher: ['/dashboard/:path*', '/print/:path*', '/signin/:path*', '/signup'],
 };

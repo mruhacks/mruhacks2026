@@ -10,6 +10,10 @@ import { admin, captcha, magicLink } from 'better-auth/plugins';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { claimMagicLinkCooldown } from '@/lib/auth/magic-link-cooldown';
 import { resolveMagicLinkMailOptions } from '@/lib/auth/resolve-magic-link-email';
+import {
+  AUTH_BASE_PATH,
+  toEmailLinkConfirmUrl,
+} from '@/lib/auth/email-link-confirm-url';
 import { remainingMagicLinkExpiresInSeconds } from '@/lib/rsvp/rsvp-magic-link-expires-in';
 import { getRsvpMagicLinkMailContext } from '@/lib/rsvp/rsvp-magic-link-context';
 import { getJudgeInviteMailContext } from '@/lib/judging/judge-invite-mail';
@@ -117,6 +121,7 @@ async function applyInviteOnSignIn(userId: string): Promise<void> {
  */
 export const auth = betterAuth({
   baseURL: getAuthBaseUrl(),
+  basePath: AUTH_BASE_PATH,
   secret: getAuthSecret(),
   database: drizzleAdapter(db, {
     provider: 'pg',
@@ -184,7 +189,8 @@ export const auth = betterAuth({
     sendOnSignIn: false,
     autoSignInAfterVerification: true,
     expiresIn: EMAIL_VERIFICATION_EXPIRES_IN,
-    sendVerificationEmail: async ({ user, url }) => {
+    sendVerificationEmail: async ({ user, url: authUrl }) => {
+      const url = toEmailLinkConfirmUrl('verify-email', authUrl);
       await sendMail({
         to: user.email,
         subject: 'Verify your email — MRUHacks',
@@ -298,8 +304,9 @@ export const auth = betterAuth({
       sendMagicLink: async ({ email, url }) => {
         const mail = await resolveMagicLinkMailOptions({
           email,
-          magicLinkUrl: url,
+          magicLinkUrl: toEmailLinkConfirmUrl('magic-link', url),
           baseUrl: getAuthBaseUrl(),
+          expiresInSeconds: resolveMagicLinkExpiresInSeconds(),
         });
 
         // An RSVP invitation is system-initiated — one per waitlisted applicant,
