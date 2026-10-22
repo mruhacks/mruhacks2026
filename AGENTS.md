@@ -8,6 +8,10 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 <!-- END:nextjs-agent-rules -->
 
+# Running in a cloud agent container
+
+In a sandboxed cloud container (no Docker, proxied network), don't rediscover the environment: run `bash scripts/cloud-dev-setup.sh && source /tmp/mruhacks-dev.env` and follow `docs/CLOUD_AGENT_SETUP.md`. It covers the database, env vars, tests, starting the dev server, logging in without Turnstile, and taking screenshots. If you hit a new environment snag and work around it, add it to that doc.
+
 # Authorization: permissions, not roles — and not vague "admin" bundles either
 
 Never gate a code path on a role slug (`hasRole`, `requireRole`, `session.role === 'admin'`, etc.). Roles are just named groupings of permissions in the DB (`role_permission` table) — a convenience for assigning many permissions at once, not an authorization primitive. Access checks must always go through a permission check (`hasPermission`, `hasAnyPermission`, `requirePermission`, `requireAnyPermission` in `src/lib/rbac/authorization.ts`).

@@ -244,6 +244,10 @@ async function seedRolesAndPermissions() {
         'Skip the featured-event application step during onboarding (staff)',
     },
     {
+      slug: 'audit:read:all',
+      description: 'View the audit log of administrative activity',
+    },
+    {
       slug: 'system:read:all',
       description: 'View system health and diagnostics',
     },

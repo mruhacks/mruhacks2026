@@ -27,6 +27,7 @@ export type PermissionEntity =
   | 'judging'
   | 'display'
   | 'onboarding'
+  | 'audit'
   | 'system';
 
 export type PermissionAction =
@@ -199,6 +200,10 @@ export const CORE_PERMISSIONS = [
     slug: 'onboarding:skip:event',
     description:
       'Skip the featured-event application step during onboarding (staff)',
+  },
+  {
+    slug: 'audit:read:all',
+    description: 'View the audit log of administrative activity',
   },
   {
     slug: 'system:read:all',
