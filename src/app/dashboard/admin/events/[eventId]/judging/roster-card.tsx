@@ -1,11 +1,18 @@
 'use client';
 
 import * as React from 'react';
+import {
+  Ban,
+  CircleCheck,
+  Mail,
+  MoreHorizontal,
+  QrCode,
+  Trash2,
+} from 'lucide-react';
 import { toast } from 'sonner';
 
 import {
   addEventJudge,
-  createJudgeSignInQr,
   removeEventJudge,
   resendJudgeInvite,
   sendOutstandingJudgeInvites,
@@ -29,6 +36,13 @@ import {
   FieldError,
   FieldLabel,
 } from '@/components/ui/field';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
 import {
@@ -162,16 +176,6 @@ export function RosterCard({
     }
   }
 
-  function showSignInQr(judge: JudgingRosterRow) {
-    return rowAction(judge.id, async () => {
-      const result = await createJudgeSignInQr(eventId, judge.id);
-      if (result.success && result.data) {
-        setSignInQr({ judge, ...result.data });
-      }
-      return result;
-    });
-  }
-
   return (
     <Card>
       <CardHeader>
@@ -260,70 +264,84 @@ export function RosterCard({
                   <TableCell className='text-right tabular-nums'>
                     {judge.comparisons}
                   </TableCell>
-                  <TableCell>
-                    <div className='flex justify-end gap-1'>
-                      {judge.email && !judge.disabled && (
+                  <TableCell className='text-right'>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
                         <Button
                           type='button'
                           variant='ghost'
-                          size='sm'
+                          size='icon-sm'
+                          aria-label={`Actions for ${judge.label}`}
                           disabled={busyId !== null}
-                          onClick={() =>
-                            rowAction(
-                              judge.id,
-                              () => resendJudgeInvite(eventId, judge.id),
-                              'Invite sent',
-                            )
-                          }
                         >
-                          {judge.invited ? 'Resend' : 'Send invite'}
+                          {busyId === judge.id ? (
+                            <Spinner />
+                          ) : (
+                            <MoreHorizontal className='size-4' />
+                          )}
                         </Button>
-                      )}
-                      {canCreateSignInQr && judge.email && !judge.disabled && (
-                        <Button
-                          type='button'
-                          variant='ghost'
-                          size='sm'
-                          disabled={busyId !== null}
-                          onClick={() => showSignInQr(judge)}
-                        >
-                          Sign-in QR
-                        </Button>
-                      )}
-                      <Button
-                        type='button'
-                        variant='ghost'
-                        size='sm'
-                        disabled={busyId !== null}
-                        onClick={() =>
-                          rowAction(judge.id, () =>
-                            setEventJudgeDisabled(
-                              eventId,
-                              judge.id,
-                              !judge.disabled,
-                            ),
-                          )
-                        }
-                      >
-                        {judge.disabled ? 'Enable' : 'Disable'}
-                      </Button>
-                      {judge.comparisons === 0 && (
-                        <Button
-                          type='button'
-                          variant='ghost'
-                          size='sm'
-                          className='hover:text-destructive'
-                          disabled={busyId !== null}
-                          onClick={() =>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align='end'>
+                        {judge.email && !judge.disabled && (
+                          <DropdownMenuItem
+                            onSelect={() =>
+                              rowAction(
+                                judge.id,
+                                () => resendJudgeInvite(eventId, judge.id),
+                                'Invite sent',
+                              )
+                            }
+                          >
+                            <Mail className='size-4' />
+                            {judge.invited ? 'Resend invite' : 'Send invite'}
+                          </DropdownMenuItem>
+                        )}
+                        {canCreateSignInQr &&
+                          judge.email &&
+                          !judge.disabled && (
+                            <DropdownMenuItem
+                              onSelect={() =>
+                                setSignInQr({ judge, requestedAt: Date.now() })
+                              }
+                            >
+                              <QrCode className='size-4' /> Sign-in QR
+                            </DropdownMenuItem>
+                          )}
+                        <DropdownMenuItem
+                          onSelect={() =>
                             rowAction(judge.id, () =>
-                              removeEventJudge(eventId, judge.id),
+                              setEventJudgeDisabled(
+                                eventId,
+                                judge.id,
+                                !judge.disabled,
+                              ),
                             )
                           }
                         >
-                          Remove
-                        </Button>
-                      )}
-                    </div>
+                          {judge.disabled ? (
+                            <CircleCheck className='size-4' />
+                          ) : (
+                            <Ban className='size-4' />
+                          )}
+                          {judge.disabled ? 'Enable' : 'Disable'}
+                        </DropdownMenuItem>
+                        {judge.comparisons === 0 && (
+                          <>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              variant='destructive'
+                              onSelect={() =>
+                                rowAction(judge.id, () =>
+                                  removeEventJudge(eventId, judge.id),
+                                )
+                              }
+                            >
+                              <Trash2 className='size-4' /> Remove
+                            </DropdownMenuItem>
+                          </>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </TableCell>
                 </TableRow>
               ))}
@@ -331,7 +349,11 @@ export function RosterCard({
           </Table>
         )}
       </CardContent>
-      <SignInQrDialog qr={signInQr} onClose={() => setSignInQr(null)} />
+      <SignInQrDialog
+        eventId={eventId}
+        qr={signInQr}
+        onClose={() => setSignInQr(null)}
+      />
     </Card>
   );
 }

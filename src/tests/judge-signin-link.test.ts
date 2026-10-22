@@ -25,7 +25,7 @@ import {
   createJudgeSignInLink,
   sendJudgeInvite,
 } from '@/lib/judging/judge-invite';
-import { JUDGE_SIGNIN_LINK_EXPIRES_IN_SECONDS } from '@/lib/judging/judge-invite-mail';
+import { JUDGE_SIGNIN_LINK_EXPIRES_IN_SECONDS } from '@/lib/judging/signin-qr';
 import { EMAIL_LINK_CONFIRM_PATH } from '@/lib/auth/email-link-confirm-url';
 import { MAGIC_LINK_EXPIRES_IN_SECONDS } from '@/utils/auth';
 

@@ -46,9 +46,9 @@ vi.mock('@/lib/judging/judge-invite', () => ({
 }));
 
 import { getUser } from '@/utils/auth';
+import { GET as getSignInQr } from '@/app/api/admin/events/[eventId]/judges/[judgeId]/signin-qr/route';
 import {
   addEventJudge,
-  createJudgeSignInQr,
   getJudgingAdmin,
   getJudgingProjects,
   getJudgingResults,
@@ -1057,20 +1057,24 @@ async function addJudgeWithoutInvite(eventId: string, email: string) {
   return { judgeId: row!.id };
 }
 
+/** Requests a judge's sign-in QR code from the route, as the logged-in user. */
+function requestSignInQr(eventId: string, judgeId: string) {
+  return getSignInQr(new Request('http://localhost/'), {
+    params: Promise.resolve({ eventId, judgeId }),
+  });
+}
+
 describe('sign-in QR codes', () => {
   test('need their own permission, not just judging:manage:all', async () => {
     const eventId = await makeEvent();
     const email = freshEmail('qr-denied');
     const { judgeId } = await addJudgeWithoutInvite(eventId, email);
     loginAs(organizer);
-    expect(await createJudgeSignInQr(eventId, judgeId)).toEqual({
-      success: false,
-      error: 'You do not have permission to do that.',
-    });
+    expect((await requestSignInQr(eventId, judgeId)).status).toBe(403);
     expect(createJudgeSignInLink).not.toHaveBeenCalled();
   });
 
-  test("mint a QR of the judge's link and audit it", async () => {
+  test("stream a QR of the judge's link and audit it", async () => {
     const eventId = await makeEvent();
     const email = freshEmail('qr');
     const { judgeId } = await addJudgeWithoutInvite(eventId, email);
@@ -1079,13 +1083,12 @@ describe('sign-in QR codes', () => {
     loginAs(admin);
 
     const before = Date.now();
-    const { qrCode, expiresAt } = unwrap(
-      await createJudgeSignInQr(eventId, judgeId),
-    );
+    const response = await requestSignInQr(eventId, judgeId);
+    expect(response.status).toBe(200);
+    expect(response.headers.get('Content-Type')).toBe('image/svg+xml');
+    expect(response.headers.get('Cache-Control')).toBe('private, no-store');
+    expect(await response.text()).toContain('<svg');
     expect(createJudgeSignInLink).toHaveBeenCalledWith(email);
-    expect(qrCode).toMatch(/^data:image\/svg\+xml;charset=utf-8,/);
-    expect(decodeURIComponent(qrCode)).toContain('<svg');
-    expect(new Date(expiresAt).getTime()).toBeGreaterThan(before);
     // A QR code doesn't count as the invite going out.
     const [row] = (await rosterRows(eventId)).filter((r) => r.id === judgeId);
     expect(row.inviteSentAt).toBeNull();
@@ -1103,8 +1106,24 @@ describe('sign-in QR codes', () => {
     expect(audits[0]).toMatchObject({
       actorId: admin.id,
       targetType: 'event_judge',
-      metadata: { eventId, email, expiresAt },
+      metadata: { eventId, email },
     });
+    const { expiresAt } = audits[0].metadata as { expiresAt: string };
+    expect(new Date(expiresAt).getTime()).toBeGreaterThan(before);
+  });
+
+  test("won't serve another event's judge", async () => {
+    const eventId = await makeEvent();
+    const other = await makeEvent();
+    const { judgeId } = await addJudgeWithoutInvite(
+      eventId,
+      freshEmail('qr-other-event'),
+    );
+    const admin = await makeUser('QrAdmin');
+    await grant(admin.id, ['judging:signin:all']);
+    loginAs(admin);
+    expect((await requestSignInQr(other, judgeId)).status).toBe(404);
+    expect(createJudgeSignInLink).not.toHaveBeenCalled();
   });
 
   test('refuse a disabled judge, and audit nothing on failure', async () => {
@@ -1117,19 +1136,13 @@ describe('sign-in QR codes', () => {
     const admin = await makeUser('QrAdmin');
     await grant(admin.id, ['judging:signin:all']);
     loginAs(admin);
-    expect(await createJudgeSignInQr(eventId, judgeId)).toEqual({
-      success: false,
-      error: 'This judge is disabled. Enable them to sign them in.',
-    });
+    expect((await requestSignInQr(eventId, judgeId)).status).toBe(409);
 
     loginAs(organizer);
     unwrap(await setEventJudgeDisabled(eventId, judgeId, false));
     loginAs(admin);
     createJudgeSignInLink.mockRejectedValueOnce(new Error('auth down'));
-    expect(await createJudgeSignInQr(eventId, judgeId)).toEqual({
-      success: false,
-      error: 'Failed to create the sign-in QR code.',
-    });
+    expect((await requestSignInQr(eventId, judgeId)).status).toBe(500);
     expect(
       await db
         .select()

@@ -6,7 +6,6 @@
  *   roster, and deactivating projects.
  * - `judging:results:all`: the live rankings.
  * - `judging:award:all`: overall placements.
- * - `judging:signin:all`: a QR code that signs a judge in to their account.
  *
  * Judges themselves never come through here; see `@/app/dashboard/events/judge-actions`.
  */
@@ -25,7 +24,6 @@ import {
   sql,
 } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
-import QRCode from 'qrcode';
 import { z } from 'zod';
 
 import {
@@ -48,11 +46,7 @@ import {
   checkJudgeInviteRateLimit,
   JUDGE_INVITE_RATE_LIMITED,
 } from '@/lib/judging/invite-rate-limit';
-import {
-  createJudgeSignInLink,
-  sendJudgeInvite,
-} from '@/lib/judging/judge-invite';
-import { JUDGE_SIGNIN_LINK_EXPIRES_IN_SECONDS } from '@/lib/judging/judge-invite-mail';
+import { sendJudgeInvite } from '@/lib/judging/judge-invite';
 import {
   CRITERION_DESCRIPTION_MAX_LENGTH,
   CRITERION_NAME_MAX_LENGTH,
@@ -95,8 +89,7 @@ import { db } from '@/utils/db';
 type JudgingPermission =
   | 'judging:manage:all'
   | 'judging:results:all'
-  | 'judging:award:all'
-  | 'judging:signin:all';
+  | 'judging:award:all';
 
 /** The caller's id if they hold `permission`, else a failure to return. */
 async function authorize(
@@ -721,60 +714,6 @@ export async function resendJudgeInvite(
   });
   await revalidateJudging(eventId);
   return ok();
-}
-
-/**
- * A QR code of a single-use magic link that signs whoever scans it in as the
- * judge, for a judge at the expo who can't get to their invite email. As good
- * as their password while it lasts, so it has its own permission and every
- * one is audited. Held to the organizer's invite rate limit.
- */
-export async function createJudgeSignInQr(
-  eventId: string,
-  judgeId: string,
-): Promise<ActionResult<{ qrCode: string; expiresAt: string }>> {
-  const auth = await authorize('judging:signin:all');
-  if ('error' in auth) return auth.error;
-  if (!(await checkJudgeInviteRateLimit(auth.userId))) {
-    return fail(JUDGE_INVITE_RATE_LIMITED);
-  }
-
-  const [row] = await db
-    .select({ email: eventJudges.email, disabledAt: eventJudges.disabledAt })
-    .from(eventJudges)
-    .where(and(eq(eventJudges.id, judgeId), eq(eventJudges.eventId, eventId)))
-    .limit(1);
-  if (!row) return fail('Judge not found.');
-  if (!row.email) return fail('This judge deleted their account.');
-  if (row.disabledAt) {
-    return fail('This judge is disabled. Enable them to sign them in.');
-  }
-
-  let qrCode: string;
-  try {
-    const url = await createJudgeSignInLink(row.email);
-    const svg = await QRCode.toString(url, {
-      type: 'svg',
-      errorCorrectionLevel: 'medium',
-      margin: 1,
-    });
-    qrCode = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
-  } catch (error) {
-    console.error('[admin/events/judging] judge sign-in QR failed', error);
-    return fail('Failed to create the sign-in QR code.');
-  }
-  const expiresAt = new Date(
-    Date.now() + JUDGE_SIGNIN_LINK_EXPIRES_IN_SECONDS * 1000,
-  );
-
-  await writeAuditLog({
-    actorId: auth.userId,
-    action: 'judging.judge.signin_qr_created',
-    targetType: 'event_judge',
-    targetId: judgeId,
-    metadata: { eventId, email: row.email, expiresAt: expiresAt.toISOString() },
-  });
-  return ok({ qrCode, expiresAt: expiresAt.toISOString() });
 }
 
 /** How many invites go out at once in a bulk send. */

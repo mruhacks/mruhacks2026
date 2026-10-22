@@ -19,8 +19,8 @@ import { getRsvpMagicLinkMailContext } from '@/lib/rsvp/rsvp-magic-link-context'
 import {
   getJudgeInviteMailContext,
   getJudgeSignInLinkCapture,
-  JUDGE_SIGNIN_LINK_EXPIRES_IN_SECONDS,
 } from '@/lib/judging/judge-invite-mail';
+import { JUDGE_SIGNIN_LINK_EXPIRES_IN_SECONDS } from '@/lib/judging/signin-qr';
 import { linkJudgeRosterRows } from '@/lib/judging/server';
 import { applyPendingInvite } from '@/lib/auth/apply-pending-invite';
 import { ADMIN_COUNTS_CACHE_TAG } from '@/lib/admin-counts';
