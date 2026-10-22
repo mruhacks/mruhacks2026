@@ -26,6 +26,10 @@ import {
 import { insertAttendees } from '@/tests/participation-fixtures';
 
 vi.mock('@/utils/auth', () => ({ getUser: vi.fn() }));
+vi.mock('@/utils/object-storage', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/utils/object-storage')>()),
+  putObject: vi.fn().mockResolvedValue(undefined),
+}));
 vi.mock('@/utils/mail', () => ({
   sendMail: vi.fn().mockResolvedValue(undefined),
 }));

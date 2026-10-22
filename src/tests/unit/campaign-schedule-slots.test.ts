@@ -27,8 +27,10 @@ describe('campaign scheduling slots', () => {
 
   test('includes both repeated hours and omits nonexistent hours at DST changes', () => {
     const zone = 'America/Edmonton';
-    const spring = campaignScheduleSlots('2026-03-08', zone);
-    const fall = campaignScheduleSlots('2026-11-01', zone);
+    // Alberta stays at UTC-6 from November 2026 onward, so use the last year
+    // with the seasonal transition to exercise both DST boundaries.
+    const spring = campaignScheduleSlots('2025-03-09', zone);
+    const fall = campaignScheduleSlots('2025-11-02', zone);
     expect(spring).toHaveLength(23);
     expect(fall).toHaveLength(25);
     expect(
@@ -40,8 +42,8 @@ describe('campaign scheduling slots', () => {
       .map((slot) => toZonedOffsetString(new Date(slot), zone))
       .filter((slot) => slot.slice(11, 13) === '01');
     expect(repeated).toEqual([
-      '2026-11-01T01:00:00-06:00',
-      '2026-11-01T01:00:00-07:00',
+      '2025-11-02T01:00:00-06:00',
+      '2025-11-02T01:00:00-07:00',
     ]);
     expect(new Set(fall).size).toBe(25);
   });
