@@ -1,6 +1,15 @@
 'use client';
 
 import * as React from 'react';
+import {
+  Ban,
+  CircleCheck,
+  Mail,
+  MoreHorizontal,
+  QrCode,
+  Trash2,
+} from 'lucide-react';
+import { usePathname, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 
 import {
@@ -28,6 +37,13 @@ import {
   FieldError,
   FieldLabel,
 } from '@/components/ui/field';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
 import {
@@ -57,14 +73,18 @@ function isOutstanding(judge: JudgingRosterRow): boolean {
  * The judge roster. Judges are added by email, with a "You're judging"
  * magic link sent straight away or held back to go out with the rest of
  * the outstanding invites. A judge with votes can be disabled but not
- * removed.
+ * removed. Organizers with `judging:signin:all` can also show a judge a QR
+ * code that signs them straight in, at an intercepted
+ * `judges/[judgeId]/signin-qr` route.
  */
 export function RosterCard({
   eventId,
   judges,
+  canCreateSignInQr,
 }: {
   eventId: string;
   judges: JudgingRosterRow[];
+  canCreateSignInQr: boolean;
 }) {
   const [email, setEmail] = React.useState('');
   const [sendInvite, setSendInvite] = React.useState(true);
@@ -73,6 +93,8 @@ export function RosterCard({
   const [adding, setAdding] = React.useState(false);
   const [sendingAll, setSendingAll] = React.useState(false);
   const [busyId, setBusyId] = React.useState<string | null>(null);
+  const router = useRouter();
+  const pathname = usePathname();
   const outstanding = judges.filter(isOutstanding).length;
 
   async function add(event: React.FormEvent) {
@@ -243,59 +265,87 @@ export function RosterCard({
                   <TableCell className='text-right tabular-nums'>
                     {judge.comparisons}
                   </TableCell>
-                  <TableCell>
-                    <div className='flex justify-end gap-1'>
-                      {judge.email && !judge.disabled && (
+                  <TableCell className='text-right'>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
                         <Button
                           type='button'
                           variant='ghost'
-                          size='sm'
+                          size='icon-sm'
+                          aria-label={`Actions for ${judge.label}`}
                           disabled={busyId !== null}
-                          onClick={() =>
-                            rowAction(
-                              judge.id,
-                              () => resendJudgeInvite(eventId, judge.id),
-                              'Invite sent',
-                            )
-                          }
                         >
-                          {judge.invited ? 'Resend' : 'Send invite'}
+                          {busyId === judge.id ? (
+                            <Spinner />
+                          ) : (
+                            <MoreHorizontal className='size-4' />
+                          )}
                         </Button>
-                      )}
-                      <Button
-                        type='button'
-                        variant='ghost'
-                        size='sm'
-                        disabled={busyId !== null}
-                        onClick={() =>
-                          rowAction(judge.id, () =>
-                            setEventJudgeDisabled(
-                              eventId,
-                              judge.id,
-                              !judge.disabled,
-                            ),
-                          )
-                        }
-                      >
-                        {judge.disabled ? 'Enable' : 'Disable'}
-                      </Button>
-                      {judge.comparisons === 0 && (
-                        <Button
-                          type='button'
-                          variant='ghost'
-                          size='sm'
-                          className='hover:text-destructive'
-                          disabled={busyId !== null}
-                          onClick={() =>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align='end'>
+                        {judge.email && !judge.disabled && (
+                          <DropdownMenuItem
+                            onSelect={() =>
+                              rowAction(
+                                judge.id,
+                                () => resendJudgeInvite(eventId, judge.id),
+                                'Invite sent',
+                              )
+                            }
+                          >
+                            <Mail className='size-4' />
+                            {judge.invited ? 'Resend invite' : 'Send invite'}
+                          </DropdownMenuItem>
+                        )}
+                        {canCreateSignInQr &&
+                          judge.email &&
+                          !judge.disabled && (
+                            <DropdownMenuItem
+                              onSelect={() =>
+                                // Pushed, never a <Link>: nothing prefetches the QR route.
+                                router.push(
+                                  `${pathname}/judges/${judge.id}/signin-qr`,
+                                )
+                              }
+                            >
+                              <QrCode className='size-4' /> Sign-in QR
+                            </DropdownMenuItem>
+                          )}
+                        <DropdownMenuItem
+                          onSelect={() =>
                             rowAction(judge.id, () =>
-                              removeEventJudge(eventId, judge.id),
+                              setEventJudgeDisabled(
+                                eventId,
+                                judge.id,
+                                !judge.disabled,
+                              ),
                             )
                           }
                         >
-                          Remove
-                        </Button>
-                      )}
-                    </div>
+                          {judge.disabled ? (
+                            <CircleCheck className='size-4' />
+                          ) : (
+                            <Ban className='size-4' />
+                          )}
+                          {judge.disabled ? 'Enable' : 'Disable'}
+                        </DropdownMenuItem>
+                        {judge.comparisons === 0 && (
+                          <>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              variant='destructive'
+                              onSelect={() =>
+                                rowAction(judge.id, () =>
+                                  removeEventJudge(eventId, judge.id),
+                                )
+                              }
+                            >
+                              <Trash2 className='size-4' /> Remove
+                            </DropdownMenuItem>
+                          </>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </TableCell>
                 </TableRow>
               ))}

@@ -1,10 +1,13 @@
 # rsvp-cron
 
-A Cloudflare Worker that calls the app's `/api/cron/rsvp` route on every
+A Cloudflare Worker that calls the app's `/api/cron/hourly` route on every
 deployment listed in `APP_URLS` (e.g. production and test) every hour
-(`0 * * * *` UTC). That one step sends any due follow-up RSVP waves, then
-requeues invitations whose original queue publish never landed. Vercel Hobby
-only allows daily crons, hence the Worker.
+(`0 * * * *` UTC). That route runs every hourly job: it sends any due
+follow-up RSVP waves, requeues invitations whose original queue publish
+never landed, and dispatches email campaigns scheduled for that hour.
+Vercel Hobby only allows daily crons, hence the Worker. (The app still
+rewrites the old `/api/cron/rsvp` path to it until every deployed Worker is
+confirmed on the new one.)
 
 It authenticates with `Authorization: Bearer <CRON_SECRET>`, which must match
 the `CRON_SECRET` env var on every targeted Vercel deployment. All origins are

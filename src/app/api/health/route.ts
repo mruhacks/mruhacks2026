@@ -6,6 +6,11 @@ import { hasPermission } from '@/lib/rbac/authorization';
 import { verifyMailConnection } from '@/utils/mail';
 import { checkObjectStorageConnection } from '@/utils/object-storage';
 import { MRUHACKS_LOGO_URL } from '@/content';
+import { WALLET_BADGE_PATHS } from '@/lib/campaigns/wallet-badges';
+import {
+  APP_SIGNING_PRIVATE_KEY_ENV,
+  readEnvWithFallback,
+} from '@/lib/signing/app-signing-key';
 
 /** Dedicated permission for the full health report — unrelated to any other admin permission. */
 const HEALTH_PERMISSION = 'system:read:all';
@@ -13,8 +18,12 @@ const HEALTH_PERMISSION = 'system:read:all';
 const CHECK_TIMEOUT_MS = 5000;
 const CACHE_TTL_MS = 10_000;
 
-/** Vars required for the app to be fully functional. Presence-only — never logged or echoed. */
-const REQUIRED_ENV_VARS = [
+/**
+ * Vars required for the app to be fully functional. Presence-only — never
+ * logged or echoed. An array entry is satisfied by any one of its names (a
+ * renamed var whose old name is still accepted); it's reported by its first.
+ */
+const REQUIRED_ENV_VARS: readonly (string | readonly string[])[] = [
   'BETTER_AUTH_URL',
   'TURNSTILE_SECRET_KEY',
   'NEXT_PUBLIC_TURNSTILE_SITE_KEY',
@@ -29,12 +38,12 @@ const REQUIRED_ENV_VARS = [
   'APPLE_WALLET_WWDR_CERT',
   'APPLE_WALLET_SIGNER_CERT',
   'APPLE_WALLET_SIGNER_KEY',
-  'CHECK_IN_SIGNING_PRIVATE_KEY',
+  APP_SIGNING_PRIVATE_KEY_ENV,
   // Bearer token the Cloudflare Worker scheduler (workers/rsvp-cron) sends to
   // /api/cron/*; without it the scheduled RSVP waves and invitation sweep
   // reject every invocation.
   'CRON_SECRET',
-] as const;
+];
 
 type CheckResult = { ok: boolean; latencyMs: number; detail?: string };
 
@@ -169,12 +178,14 @@ async function checkAppleWallet(): Promise<CheckResult> {
 
 /**
  * Signs every check-in QR code (Apple pass barcode, Google Wallet barcode,
- * and the standalone QR) — shared across all three, not Apple-specific, so
- * it gets its own check rather than living inside `checkAppleWallet`.
- * Presence-only for the same reason: it's a private signing key.
+ * and the standalone QR) and every signed link in campaign email
+ * (unsubscribe, wallet) — not Apple-specific, so it gets its own check
+ * rather than living inside `checkAppleWallet`. Presence-only for the same
+ * reason: it's a private signing key. Either its current name or the legacy
+ * `CHECK_IN_SIGNING_PRIVATE_KEY` counts.
  */
 async function checkCheckInSigning(): Promise<CheckResult> {
-  return process.env.CHECK_IN_SIGNING_PRIVATE_KEY?.trim()
+  return readEnvWithFallback(APP_SIGNING_PRIVATE_KEY_ENV)
     ? { ok: true, latencyMs: 0 }
     : { ok: false, latencyMs: 0, detail: 'not configured' };
 }
@@ -207,8 +218,48 @@ async function checkQrScannerWasm(): Promise<CheckResult> {
   }
 }
 
+/**
+ * Campaign emails embed the Add to Apple / Google Wallet badges by absolute
+ * URL on our own origin, and mail clients fetch them from there long after
+ * sending — a missing file or a wrong BETTER_AUTH_URL breaks every wallet
+ * block without any error on our side.
+ */
+async function checkWalletBadges(): Promise<CheckResult> {
+  const start = Date.now();
+  const origin = process.env.BETTER_AUTH_URL?.trim().replace(/\/$/, '');
+  if (!origin) return { ok: false, latencyMs: 0, detail: 'not configured' };
+  try {
+    const responses = await Promise.all(
+      Object.values(WALLET_BADGE_PATHS).map((path) =>
+        fetch(`${origin}${path}`, {
+          method: 'HEAD',
+          signal: AbortSignal.timeout(CHECK_TIMEOUT_MS),
+        }),
+      ),
+    );
+    const failed = responses.find((res) => !res.ok);
+    if (failed) {
+      return {
+        ok: false,
+        latencyMs: Date.now() - start,
+        detail: `badge unreachable (${failed.status})`,
+      };
+    }
+    return { ok: true, latencyMs: Date.now() - start };
+  } catch {
+    return {
+      ok: false,
+      latencyMs: Date.now() - start,
+      detail: 'badge unreachable',
+    };
+  }
+}
+
 function missingEnvVars(): string[] {
-  return REQUIRED_ENV_VARS.filter((name) => !process.env[name]?.trim());
+  return REQUIRED_ENV_VARS.flatMap((entry) => {
+    const names = typeof entry === 'string' ? [entry] : entry;
+    return readEnvWithFallback(names) ? [] : [names[0]!];
+  });
 }
 
 type HealthReport = {
@@ -222,6 +273,7 @@ type HealthReport = {
     appleWallet: CheckResult;
     checkInSigning: CheckResult;
     qrScannerWasm: CheckResult;
+    walletBadges: CheckResult;
   };
   missingEnv: string[];
   checkedAt: string;
@@ -245,6 +297,7 @@ async function buildReport(): Promise<HealthReport> {
     appleWallet,
     checkInSigning,
     qrScannerWasm,
+    walletBadges,
   ] = await Promise.all([
     checkDatabase(),
     checkMail(),
@@ -254,6 +307,7 @@ async function buildReport(): Promise<HealthReport> {
     checkAppleWallet(),
     checkCheckInSigning(),
     checkQrScannerWasm(),
+    checkWalletBadges(),
   ]);
   const missingEnv = missingEnvVars();
 
@@ -266,6 +320,7 @@ async function buildReport(): Promise<HealthReport> {
         appleWallet.ok &&
         checkInSigning.ok &&
         qrScannerWasm.ok &&
+        walletBadges.ok &&
         missingEnv.length === 0
       ? 'ok'
       : 'degraded';
@@ -281,6 +336,7 @@ async function buildReport(): Promise<HealthReport> {
       appleWallet,
       checkInSigning,
       qrScannerWasm,
+      walletBadges,
     },
     missingEnv,
     checkedAt: new Date().toISOString(),

@@ -1,25 +1,27 @@
 'use client';
 
+import * as React from 'react';
 import Link from 'next/link';
+import type { VariantProps } from 'class-variance-authority';
 import { Button, buttonVariants } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
 import { authClient } from '@/utils/auth-client';
 import { REGISTRATION_OPEN } from '@/content';
-import { cn } from '@/lib/utils';
-import type { VariantProps } from 'class-variance-authority';
 
 type RegisterOrDashboardButtonProps = {
   registerUrl: string;
   className?: string;
 } & VariantProps<typeof buttonVariants>;
 
-function RegistrationButtonLabel({ children }: { children: React.ReactNode }) {
+/** Reserves the width of the widest label so swapping states never shifts layout. */
+function FixedWidthLabel({ children }: { children: React.ReactNode }) {
   return (
     <span className='grid place-items-center'>
       <span className='invisible col-start-1 row-start-1' aria-hidden='true'>
         Register Now
       </span>
-      <span className='col-start-1 row-start-1'>{children}</span>
+      <span className='col-start-1 row-start-1 flex w-full justify-center'>
+        {children}
+      </span>
     </span>
   );
 }
@@ -27,65 +29,27 @@ function RegistrationButtonLabel({ children }: { children: React.ReactNode }) {
 /**
  * Renders "Register Now" for signed-out visitors and "Dashboard" for signed-in
  * users, so a returning user is never sent back through registration.
+ *
+ * Renders the signed-out state first (on the server and while the session is
+ * loading) and switches to "Dashboard" only once a session resolves, so the
+ * common anonymous case never waits on a placeholder.
  */
 export function RegisterOrDashboardButton({
   registerUrl,
   className,
-  variant,
-  size,
-  shadow,
+  ...variants
 }: RegisterOrDashboardButtonProps) {
-  const { data: session, isPending } = authClient.useSession();
+  const { data: session } = authClient.useSession();
+  const signedIn = session != null;
 
-  if (isPending) {
-    return (
-      <Button
-        type='button'
-        variant={variant}
-        size={size}
-        shadow={shadow}
-        className={cn('pointer-events-none', className)}
-        aria-disabled='true'
-        tabIndex={-1}
-      >
-        <span className='grid place-items-center' aria-hidden='true'>
-          <span className='invisible col-start-1 row-start-1'>
-            Register Now
-          </span>
-          <Skeleton className='col-start-1 row-start-1 h-[0.7em] w-full bg-current/25' />
-        </span>
-      </Button>
-    );
-  }
-
-  if (session) {
-    return (
-      <Button
-        variant={variant}
-        size={size}
-        shadow={shadow}
-        className={className}
-        asChild
-      >
-        <Link href='/dashboard'>
-          <RegistrationButtonLabel>Dashboard</RegistrationButtonLabel>
-        </Link>
-      </Button>
-    );
-  }
-
-  if (!REGISTRATION_OPEN) return null;
+  if (!signedIn && !REGISTRATION_OPEN) return null;
 
   return (
-    <Button
-      variant={variant}
-      size={size}
-      shadow={shadow}
-      className={className}
-      asChild
-    >
-      <Link href={registerUrl}>
-        <RegistrationButtonLabel>Register Now</RegistrationButtonLabel>
+    <Button {...variants} className={className} asChild>
+      <Link href={signedIn ? '/dashboard' : registerUrl}>
+        <FixedWidthLabel>
+          {signedIn ? 'Dashboard' : 'Register Now'}
+        </FixedWidthLabel>
       </Link>
     </Button>
   );

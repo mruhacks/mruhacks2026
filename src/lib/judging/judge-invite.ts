@@ -3,7 +3,10 @@ import 'server-only';
 import { getBackgroundAuthHeaders } from '@/lib/rsvp/send-rsvp-magic-link';
 import { auth } from '@/utils/auth';
 
-import { judgeInviteMailContext } from './judge-invite-mail';
+import {
+  judgeInviteMailContext,
+  judgeSignInLinkCapture,
+} from './judge-invite-mail';
 
 /**
  * Where the judge's magic link lands. The dashboard sends anyone not yet
@@ -27,9 +30,25 @@ export async function sendJudgeInvite(options: {
       body: {
         email: options.email,
         callbackURL: JUDGE_SIGNUP_PATH,
-        errorCallbackURL: JUDGE_SIGNUP_PATH,
       },
       headers: getBackgroundAuthHeaders(),
     }),
   );
+}
+
+/**
+ * Mints the same magic link `sendJudgeInvite` emails, but returns it instead
+ * of sending it, for an organizer to show the judge as a QR code. Lasts
+ * `JUDGE_SIGNIN_LINK_EXPIRES_IN_SECONDS` and, like any magic link, works once.
+ */
+export async function createJudgeSignInLink(email: string): Promise<string> {
+  const capture: { url?: string } = {};
+  await judgeSignInLinkCapture.run(capture, () =>
+    auth.api.signInMagicLink({
+      body: { email, callbackURL: JUDGE_SIGNUP_PATH },
+      headers: getBackgroundAuthHeaders(),
+    }),
+  );
+  if (!capture.url) throw new Error('No sign-in link was minted');
+  return capture.url;
 }

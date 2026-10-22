@@ -78,6 +78,8 @@ export async function checkObjectStorageConnection(): Promise<void> {
 const EVENT_CONTENT_PREFIX = 'event-content/';
 /** Prefix under which project submission images (inline and cover) live. */
 const SUBMISSION_CONTENT_PREFIX = 'submission-content/';
+/** Prefix for images in campaign emails. Public: mail clients load them with no session. */
+const CAMPAIGN_CONTENT_PREFIX = 'campaign-content/';
 
 export function isObjectStorageKey(
   value: string | null | undefined,
@@ -87,7 +89,8 @@ export function isObjectStorageKey(
     (value.startsWith('profile-pictures/') ||
       value.startsWith('resumes/') ||
       value.startsWith(EVENT_CONTENT_PREFIX) ||
-      value.startsWith(SUBMISSION_CONTENT_PREFIX)),
+      value.startsWith(SUBMISSION_CONTENT_PREFIX) ||
+      value.startsWith(CAMPAIGN_CONTENT_PREFIX)),
   );
 }
 
@@ -210,6 +213,43 @@ export function parseSubmissionAttachmentKey(
   return isSubmissionAttachmentKey(key) ? key : null;
 }
 
+/**
+ * Campaign image keys are `campaign-content/<uuid>-w<width>.<jpg|png>`. The
+ * stored pixel width rides in the key so the email renderer can give each
+ * `<img>` a width without a lookup. Both the upload action and the public
+ * serving route check against this shape.
+ */
+const CAMPAIGN_IMAGE_KEY_PATTERN =
+  /^campaign-content\/[0-9a-f-]{36}-w(\d{1,4})\.(jpg|png)$/;
+
+export function campaignImageKey(
+  id: string,
+  width: number,
+  contentType: 'image/jpeg' | 'image/png',
+): string {
+  return `${CAMPAIGN_CONTENT_PREFIX}${id}-w${width}.${contentType === 'image/png' ? 'png' : 'jpg'}`;
+}
+
+export function isCampaignImageKey(value: string | null | undefined): boolean {
+  return Boolean(value && CAMPAIGN_IMAGE_KEY_PATTERN.test(value));
+}
+
+/** The pixel width recorded in a campaign image's `/api/assets/…` URL, or null. */
+export function campaignImageWidth(url: string): number | null {
+  const prefix = '/api/assets/';
+  const index = url.indexOf(prefix);
+  if (index === -1) return null;
+  const match = CAMPAIGN_IMAGE_KEY_PATTERN.exec(
+    url.slice(index + prefix.length),
+  );
+  return match ? Number(match[1]) : null;
+}
+
+/** Stable app URL for a campaign image; see `profilePictureUrl` for how the redirect works. */
+export function campaignImageUrl(key: string) {
+  return `/api/assets/${key}`;
+}
+
 export async function putObject({
   key,
   body,
@@ -322,6 +362,7 @@ async function redirectToObject(
 const PROFILE_PICTURE_URL_TTL_SECONDS = 60 * 60;
 const EVENT_ATTACHMENT_URL_TTL_SECONDS = 60 * 60;
 const RESUME_URL_TTL_SECONDS = 5 * 60;
+const CAMPAIGN_IMAGE_URL_TTL_SECONDS = 60 * 60;
 
 /**
  * Redirects to a signed URL for a profile picture. No session check here —
@@ -332,6 +373,19 @@ const RESUME_URL_TTL_SECONDS = 5 * 60;
 export function profilePictureRedirect(key: string): Promise<Response> {
   return redirectToObject(key, {
     expiresIn: PROFILE_PICTURE_URL_TTL_SECONDS,
+    cache: { visibility: 'public' },
+  });
+}
+
+/**
+ * Redirects to a signed URL for a campaign email image. No session check:
+ * the email holds this stable app URL forever (a presigned URL expires
+ * within 7 days at most), and whoever opens it — in any mail client — has
+ * no session. The key is an unguessable UUID, like an avatar's.
+ */
+export function campaignImageRedirect(key: string): Promise<Response> {
+  return redirectToObject(key, {
+    expiresIn: CAMPAIGN_IMAGE_URL_TTL_SECONDS,
     cache: { visibility: 'public' },
   });
 }

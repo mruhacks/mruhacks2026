@@ -49,7 +49,6 @@ export async function sendRsvpMagicLink(options: {
         body: {
           email: options.email,
           callbackURL,
-          errorCallbackURL: callbackURL,
         },
         headers,
       }),

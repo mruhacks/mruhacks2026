@@ -160,7 +160,6 @@ describe('RSVP magic-link expiration / resend', () => {
           body: {
             email: 'resend-rsvp@example.com',
             callbackURL,
-            errorCallbackURL: callbackURL,
           },
           headers: expect.any(Headers),
         }),

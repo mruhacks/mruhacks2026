@@ -7,6 +7,8 @@
  * - judging: Expo judging criteria, roster, votes and model state
  * - lookups: Reference/lookup tables for form options
  * - display: Lobby display settings
+ * - campaigns: Email campaigns, saved audiences and per-recipient deliveries
+ * - signing: Public keys that have signed email tokens, kept for verification after rotation
  *
  * Import from this file to access all schema definitions in one place.
  */
@@ -17,3 +19,5 @@ export * from './judging';
 export * from './lookups';
 export * from './authz';
 export * from './display';
+export * from './campaigns';
+export * from './signing';

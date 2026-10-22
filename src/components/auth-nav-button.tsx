@@ -1,11 +1,9 @@
 'use client';
 
+import * as React from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
 import { authClient } from '@/utils/auth-client';
-import { cn } from '@/lib/utils';
 
 type AuthNavButtonProps = {
   className?: string;
@@ -22,26 +20,14 @@ function AuthButtonLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
+/**
+ * Renders "Sign In" first (on the server and while the session is loading)
+ * and switches to "Sign Out" only once a session resolves, so the common
+ * anonymous case never waits on a placeholder.
+ */
 export function AuthNavButton({ className }: AuthNavButtonProps) {
-  const router = useRouter();
-  const { data: session, isPending } = authClient.useSession();
-
-  if (isPending) {
-    return (
-      <Button
-        type='button'
-        shadow='md'
-        className={cn('pointer-events-none', className)}
-        aria-disabled='true'
-        tabIndex={-1}
-      >
-        <span className='grid place-items-center' aria-hidden='true'>
-          <span className='invisible col-start-1 row-start-1'>Sign Out</span>
-          <Skeleton className='col-start-1 row-start-1 h-[0.7em] w-full bg-current/25' />
-        </span>
-      </Button>
-    );
-  }
+  const { data: session } = authClient.useSession();
+  const [isSigningOut, startSignOut] = React.useTransition();
 
   if (session) {
     return (
@@ -49,10 +35,12 @@ export function AuthNavButton({ className }: AuthNavButtonProps) {
         type='button'
         shadow='md'
         className={className}
-        onClick={async () => {
-          await authClient.signOut();
-          router.push('/');
-        }}
+        disabled={isSigningOut}
+        onClick={() =>
+          startSignOut(async () => {
+            await authClient.signOut();
+          })
+        }
       >
         <AuthButtonLabel>Sign Out</AuthButtonLabel>
       </Button>

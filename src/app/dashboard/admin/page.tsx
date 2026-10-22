@@ -22,6 +22,7 @@ import {
   KeyRound,
   ArrowRight,
   CalendarDays,
+  Mail,
 } from 'lucide-react';
 
 function OverviewSkeleton() {
@@ -57,6 +58,13 @@ const STAT_TILES = [
     icon: CalendarDays,
     href: '/dashboard/admin/events',
     visible: canOpenEventDashboard,
+  },
+  {
+    label: 'Campaigns',
+    countKey: 'campaigns',
+    icon: Mail,
+    href: '/dashboard/admin/campaigns',
+    visible: (p: Set<string>) => anyPermissionMatches(p, 'campaign:read:all'),
   },
   {
     label: 'Users',
@@ -95,6 +103,11 @@ const JUMP_LINKS = [
     visible: canOpenEventDashboard,
   },
   {
+    label: 'Email campaigns',
+    href: '/dashboard/admin/campaigns',
+    visible: (p: Set<string>) => anyPermissionMatches(p, 'campaign:read:all'),
+  },
+  {
     label: 'Manage users',
     href: '/dashboard/admin/users',
     visible: (p: Set<string>) => anyPermissionMatches(p, 'user:read:all'),
@@ -114,6 +127,11 @@ const JUMP_LINKS = [
     href: '/dashboard/admin/displays',
     visible: (p: Set<string>) => anyPermissionMatches(p, 'display:manage:all'),
   },
+  {
+    label: 'Audit log',
+    href: '/dashboard/admin/audit-log',
+    visible: (p: Set<string>) => anyPermissionMatches(p, 'audit:read:all'),
+  },
 ] as const;
 
 // Permission check + counts read the session and DB — kept out of the page
@@ -123,10 +141,12 @@ async function OverviewStats() {
   // this check ends up looking at an empty page.
   const caller = await requireAuthWithPermission([
     ...EVENT_DASHBOARD_PERMISSIONS,
+    'campaign:read:all',
     'user:read:all',
     'role:read:all',
     'permission:read:all',
     'display:manage:all',
+    'audit:read:all',
   ]);
   const permissions = await loadUserPermissions(caller.id);
 

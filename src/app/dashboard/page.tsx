@@ -31,6 +31,14 @@ const ADMIN_TILES = [
     visible: canOpenEventDashboard,
   },
   {
+    label: 'Campaigns',
+    countKey: 'campaigns' as const,
+    unit: 'Campaign',
+    href: '/dashboard/admin/campaigns',
+    visible: (permissions: Set<string>) =>
+      anyPermissionMatches(permissions, 'campaign:read:all'),
+  },
+  {
     label: 'Users',
     countKey: 'users' as const,
     unit: 'User',
@@ -41,9 +49,10 @@ const ADMIN_TILES = [
 ];
 
 /**
- * Roles and permissions ride along inside the Users tile as buttons. Each one
- * still checks the permission that gates its own page — and falls back to a
- * tile of its own when the user can't see the Users tile it normally sits in.
+ * Roles, permissions and the audit log ride along inside the Users tile as
+ * buttons. Each one still checks the permission that gates its own page — and
+ * falls back to a tile of its own when the user can't see the Users tile it
+ * normally sits in. The audit log carries no number — it's a log, not a tally.
  */
 const USER_TILE_LINKS = [
   {
@@ -59,6 +68,12 @@ const USER_TILE_LINKS = [
     unit: 'Permission',
     href: '/dashboard/admin/permissions',
     permission: 'permission:read:all',
+  },
+  {
+    label: 'Audit log',
+    unit: 'Entry',
+    href: '/dashboard/admin/audit-log',
+    permission: 'audit:read:all',
   },
 ];
 
@@ -334,7 +349,7 @@ async function AdminPanel({ permissions }: { permissions: Set<string> }) {
             <AdminTile
               key={label}
               label={label}
-              value={counts[countKey]}
+              value={countKey ? counts[countKey] : undefined}
               unit={unit}
               href={href}
             />

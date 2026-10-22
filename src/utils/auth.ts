@@ -10,9 +10,17 @@ import { admin, captcha, magicLink } from 'better-auth/plugins';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { claimMagicLinkCooldown } from '@/lib/auth/magic-link-cooldown';
 import { resolveMagicLinkMailOptions } from '@/lib/auth/resolve-magic-link-email';
+import {
+  AUTH_BASE_PATH,
+  toEmailLinkConfirmUrl,
+} from '@/lib/auth/email-link-confirm-url';
 import { remainingMagicLinkExpiresInSeconds } from '@/lib/rsvp/rsvp-magic-link-expires-in';
 import { getRsvpMagicLinkMailContext } from '@/lib/rsvp/rsvp-magic-link-context';
-import { getJudgeInviteMailContext } from '@/lib/judging/judge-invite-mail';
+import {
+  getJudgeInviteMailContext,
+  getJudgeSignInLinkCapture,
+} from '@/lib/judging/judge-invite-mail';
+import { JUDGE_SIGNIN_LINK_EXPIRES_IN_SECONDS } from '@/lib/judging/signin-qr';
 import { linkJudgeRosterRows } from '@/lib/judging/server';
 import { applyPendingInvite } from '@/lib/auth/apply-pending-invite';
 import { ADMIN_COUNTS_CACHE_TAG } from '@/lib/admin-counts';
@@ -39,6 +47,7 @@ const EMAIL_VERIFICATION_EXPIRES_IN = 86400;
 export const MAGIC_LINK_EXPIRES_IN_SECONDS = 86400;
 
 function resolveMagicLinkExpiresInSeconds(): number {
+  if (getJudgeSignInLinkCapture()) return JUDGE_SIGNIN_LINK_EXPIRES_IN_SECONDS;
   const rsvp = getRsvpMagicLinkMailContext();
   if (!rsvp) {
     return MAGIC_LINK_EXPIRES_IN_SECONDS;
@@ -117,14 +126,25 @@ async function applyInviteOnSignIn(userId: string): Promise<void> {
  */
 export const auth = betterAuth({
   baseURL: getAuthBaseUrl(),
+  basePath: AUTH_BASE_PATH,
   secret: getAuthSecret(),
   database: drizzleAdapter(db, {
     provider: 'pg',
     schema,
   }),
+  session: {
+    cookieCache: {
+      enabled: true,
+      maxAge: 60,
+      strategy: 'jwe',
+    },
+  },
   rateLimit: {
     storage: 'database',
     customRules: {
+      // Read-only and called on every page view; rate-limiting it in the
+      // database would cost a write per session check.
+      '/get-session': false,
       // Credential brute-forcing
       '/sign-in/email': { window: 600, max: 10 },
       // Mass account creation
@@ -174,7 +194,8 @@ export const auth = betterAuth({
     sendOnSignIn: false,
     autoSignInAfterVerification: true,
     expiresIn: EMAIL_VERIFICATION_EXPIRES_IN,
-    sendVerificationEmail: async ({ user, url }) => {
+    sendVerificationEmail: async ({ user, url: authUrl }) => {
+      const url = toEmailLinkConfirmUrl('verify-email', authUrl);
       await sendMail({
         to: user.email,
         subject: 'Verify your email — MRUHacks',
@@ -286,10 +307,19 @@ export const auth = betterAuth({
        */
       expiresIn: MAGIC_LINK_EXPIRES_IN,
       sendMagicLink: async ({ email, url }) => {
+        // A judge sign-in QR code: hand the link back to the organizer who
+        // asked for it instead of emailing it.
+        const capture = getJudgeSignInLinkCapture();
+        if (capture) {
+          capture.url = toEmailLinkConfirmUrl('magic-link', url);
+          return;
+        }
+
         const mail = await resolveMagicLinkMailOptions({
           email,
-          magicLinkUrl: url,
+          magicLinkUrl: toEmailLinkConfirmUrl('magic-link', url),
           baseUrl: getAuthBaseUrl(),
+          expiresInSeconds: resolveMagicLinkExpiresInSeconds(),
         });
 
         // An RSVP invitation is system-initiated — one per waitlisted applicant,
