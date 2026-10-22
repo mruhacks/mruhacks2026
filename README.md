@@ -7,6 +7,7 @@ Our very own participant management system.
 - **[Setup Guide](./docs/SETUP.md)** - Detailed setup instructions
 - **[Architecture](./docs/ARCHITECTURE.md)** - Project structure, tech stack, and design patterns
 - **[Database Guide](./docs/DATABASE.md)** - Database configuration, migrations, and Drizzle commands
+- **[Cloud Agent Setup](./docs/CLOUD_AGENT_SETUP.md)** - Getting the app, tests and a logged-in browser running in a sandboxed AI-agent container
 - **[Contributing](./CONTRIBUTING.md)** - Development guidelines and best practices
 
 ## 🔑 Key Features
