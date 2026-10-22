@@ -69,6 +69,9 @@ const USER_TILE_LINKS = [
  */
 const FEATURED_EVENT_COUNT_PERMISSION = 'application:stats:all';
 
+/** The audit log tile carries no number — it's a log, not a tally. */
+const AUDIT_LOG_PERMISSION = 'audit:read:all';
+
 /**
  * Buttons inside the featured event's tile, each checking the permission its
  * page gates itself on. Check-in deep-links under the event dashboard; the
@@ -275,10 +278,20 @@ async function AdminPanel({ permissions }: { permissions: Set<string> }) {
     FEATURED_EVENT_COUNT_PERMISSION,
   );
 
+  const canSeeAuditLog = anyPermissionMatches(
+    permissions,
+    AUDIT_LOG_PERMISSION,
+  );
+
   const counts = await getAdminCounts();
   const featured = canSeeFeaturedEvent ? counts.featuredEvent : null;
 
-  if (visibleTiles.length === 0 && visibleUserLinks.length === 0 && !featured) {
+  if (
+    visibleTiles.length === 0 &&
+    visibleUserLinks.length === 0 &&
+    !featured &&
+    !canSeeAuditLog
+  ) {
     return null;
   }
 
@@ -339,6 +352,13 @@ async function AdminPanel({ permissions }: { permissions: Set<string> }) {
               href={href}
             />
           ))}
+        {canSeeAuditLog && (
+          <AdminTile
+            label='Audit log'
+            unit='Entry'
+            href='/dashboard/admin/audit-log'
+          />
+        )}
       </div>
     </section>
   );
@@ -351,7 +371,8 @@ async function AdminSection() {
     ADMIN_TILES.some((t) => t.visible(permissions)) ||
     USER_TILE_LINKS.some((l) =>
       anyPermissionMatches(permissions, l.permission),
-    );
+    ) ||
+    anyPermissionMatches(permissions, AUDIT_LOG_PERMISSION);
 
   if (!hasAnyAccess) return null;
 

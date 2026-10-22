@@ -114,6 +114,11 @@ const JUMP_LINKS = [
     href: '/dashboard/admin/displays',
     visible: (p: Set<string>) => anyPermissionMatches(p, 'display:manage:all'),
   },
+  {
+    label: 'Audit log',
+    href: '/dashboard/admin/audit-log',
+    visible: (p: Set<string>) => anyPermissionMatches(p, 'audit:read:all'),
+  },
 ] as const;
 
 // Permission check + counts read the session and DB — kept out of the page
@@ -127,6 +132,7 @@ async function OverviewStats() {
     'role:read:all',
     'permission:read:all',
     'display:manage:all',
+    'audit:read:all',
   ]);
   const permissions = await loadUserPermissions(caller.id);
 
