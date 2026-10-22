@@ -41,9 +41,10 @@ const ADMIN_TILES = [
 ];
 
 /**
- * Roles and permissions ride along inside the Users tile as buttons. Each one
- * still checks the permission that gates its own page — and falls back to a
- * tile of its own when the user can't see the Users tile it normally sits in.
+ * Roles, permissions and the audit log ride along inside the Users tile as
+ * buttons. Each one still checks the permission that gates its own page — and
+ * falls back to a tile of its own when the user can't see the Users tile it
+ * normally sits in. The audit log carries no number — it's a log, not a tally.
  */
 const USER_TILE_LINKS = [
   {
@@ -60,6 +61,12 @@ const USER_TILE_LINKS = [
     href: '/dashboard/admin/permissions',
     permission: 'permission:read:all',
   },
+  {
+    label: 'Audit log',
+    unit: 'Entry',
+    href: '/dashboard/admin/audit-log',
+    permission: 'audit:read:all',
+  },
 ];
 
 /**
@@ -68,9 +75,6 @@ const USER_TILE_LINKS = [
  * still shows, as a link with no number.
  */
 const FEATURED_EVENT_COUNT_PERMISSION = 'application:stats:all';
-
-/** The audit log tile carries no number — it's a log, not a tally. */
-const AUDIT_LOG_PERMISSION = 'audit:read:all';
 
 /**
  * Buttons inside the featured event's tile, each checking the permission its
@@ -278,20 +282,10 @@ async function AdminPanel({ permissions }: { permissions: Set<string> }) {
     FEATURED_EVENT_COUNT_PERMISSION,
   );
 
-  const canSeeAuditLog = anyPermissionMatches(
-    permissions,
-    AUDIT_LOG_PERMISSION,
-  );
-
   const counts = await getAdminCounts();
   const featured = canSeeFeaturedEvent ? counts.featuredEvent : null;
 
-  if (
-    visibleTiles.length === 0 &&
-    visibleUserLinks.length === 0 &&
-    !featured &&
-    !canSeeAuditLog
-  ) {
+  if (visibleTiles.length === 0 && visibleUserLinks.length === 0 && !featured) {
     return null;
   }
 
@@ -347,18 +341,11 @@ async function AdminPanel({ permissions }: { permissions: Set<string> }) {
             <AdminTile
               key={label}
               label={label}
-              value={counts[countKey]}
+              value={countKey ? counts[countKey] : undefined}
               unit={unit}
               href={href}
             />
           ))}
-        {canSeeAuditLog && (
-          <AdminTile
-            label='Audit log'
-            unit='Entry'
-            href='/dashboard/admin/audit-log'
-          />
-        )}
       </div>
     </section>
   );
@@ -371,8 +358,7 @@ async function AdminSection() {
     ADMIN_TILES.some((t) => t.visible(permissions)) ||
     USER_TILE_LINKS.some((l) =>
       anyPermissionMatches(permissions, l.permission),
-    ) ||
-    anyPermissionMatches(permissions, AUDIT_LOG_PERMISSION);
+    );
 
   if (!hasAnyAccess) return null;
 
