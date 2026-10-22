@@ -45,3 +45,25 @@ export async function buildJudgeInviteEmail(options: {
     ),
   };
 }
+
+/**
+ * How long a judge sign-in QR code works. It's shown on an organizer's screen
+ * rather than sent to the judge's own inbox, so it lasts only long enough to
+ * be scanned.
+ */
+export const JUDGE_SIGNIN_LINK_EXPIRES_IN_SECONDS = 15 * 60;
+
+type JudgeSignInLinkCapture = { url?: string };
+
+export const judgeSignInLinkCapture =
+  new AsyncLocalStorage<JudgeSignInLinkCapture>();
+
+/**
+ * Set only by `createJudgeSignInLink`: the magic-link hook hands the link
+ * back here instead of emailing it.
+ */
+export function getJudgeSignInLinkCapture():
+  | JudgeSignInLinkCapture
+  | undefined {
+  return judgeSignInLinkCapture.getStore();
+}

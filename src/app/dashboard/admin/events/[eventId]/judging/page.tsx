@@ -44,12 +44,14 @@ async function JudgingContent({
   // The same permission every action on this page checks.
   await requirePermission(user.id, 'judging:manage:all');
 
-  const [event, result, canViewResults, canAward] = await Promise.all([
-    getAdminEventHeader(eventId),
-    getJudgingAdmin(eventId),
-    hasPermission(user.id, 'judging:results:all'),
-    hasPermission(user.id, 'judging:award:all'),
-  ]);
+  const [event, result, canViewResults, canAward, canCreateSignInQr] =
+    await Promise.all([
+      getAdminEventHeader(eventId),
+      getJudgingAdmin(eventId),
+      hasPermission(user.id, 'judging:results:all'),
+      hasPermission(user.id, 'judging:award:all'),
+      hasPermission(user.id, 'judging:signin:all'),
+    ]);
   if (!event) notFound();
   if (!result.success || !result.data) {
     return (
@@ -89,7 +91,11 @@ async function JudgingContent({
         criteria={data.criteria}
         structureLocked={data.structureLocked}
       />
-      <RosterCard eventId={eventId} judges={data.judges} />
+      <RosterCard
+        eventId={eventId}
+        judges={data.judges}
+        canCreateSignInQr={canCreateSignInQr}
+      />
       <TableLayoutCard
         eventId={eventId}
         layout={data.tableLayout}

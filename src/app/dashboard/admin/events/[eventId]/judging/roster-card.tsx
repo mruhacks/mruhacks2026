@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 
 import {
   addEventJudge,
+  createJudgeSignInQr,
   removeEventJudge,
   resendJudgeInvite,
   sendOutstandingJudgeInvites,
@@ -39,6 +40,8 @@ import {
   TableRow,
 } from '@/components/ui/table';
 
+import { type SignInQr, SignInQrDialog } from './signin-qr-dialog';
+
 function JudgeStatus({ judge }: { judge: JudgingRosterRow }) {
   if (judge.deleted) return <Badge variant='secondary'>Account deleted</Badge>;
   if (judge.disabled) return <Badge variant='destructive'>Disabled</Badge>;
@@ -57,14 +60,17 @@ function isOutstanding(judge: JudgingRosterRow): boolean {
  * The judge roster. Judges are added by email, with a "You're judging"
  * magic link sent straight away or held back to go out with the rest of
  * the outstanding invites. A judge with votes can be disabled but not
- * removed.
+ * removed. Organizers with `judging:signin:all` can also show a judge a QR
+ * code that signs them straight in.
  */
 export function RosterCard({
   eventId,
   judges,
+  canCreateSignInQr,
 }: {
   eventId: string;
   judges: JudgingRosterRow[];
+  canCreateSignInQr: boolean;
 }) {
   const [email, setEmail] = React.useState('');
   const [sendInvite, setSendInvite] = React.useState(true);
@@ -73,6 +79,7 @@ export function RosterCard({
   const [adding, setAdding] = React.useState(false);
   const [sendingAll, setSendingAll] = React.useState(false);
   const [busyId, setBusyId] = React.useState<string | null>(null);
+  const [signInQr, setSignInQr] = React.useState<SignInQr | null>(null);
   const outstanding = judges.filter(isOutstanding).length;
 
   async function add(event: React.FormEvent) {
@@ -153,6 +160,16 @@ export function RosterCard({
     } finally {
       setBusyId(null);
     }
+  }
+
+  function showSignInQr(judge: JudgingRosterRow) {
+    return rowAction(judge.id, async () => {
+      const result = await createJudgeSignInQr(eventId, judge.id);
+      if (result.success && result.data) {
+        setSignInQr({ judge, ...result.data });
+      }
+      return result;
+    });
   }
 
   return (
@@ -262,6 +279,17 @@ export function RosterCard({
                           {judge.invited ? 'Resend' : 'Send invite'}
                         </Button>
                       )}
+                      {canCreateSignInQr && judge.email && !judge.disabled && (
+                        <Button
+                          type='button'
+                          variant='ghost'
+                          size='sm'
+                          disabled={busyId !== null}
+                          onClick={() => showSignInQr(judge)}
+                        >
+                          Sign-in QR
+                        </Button>
+                      )}
                       <Button
                         type='button'
                         variant='ghost'
@@ -303,6 +331,7 @@ export function RosterCard({
           </Table>
         )}
       </CardContent>
+      <SignInQrDialog qr={signInQr} onClose={() => setSignInQr(null)} />
     </Card>
   );
 }

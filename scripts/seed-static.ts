@@ -235,6 +235,10 @@ async function seedRolesAndPermissions() {
       description: 'Record overall placements',
     },
     {
+      slug: 'judging:signin:all',
+      description: 'Generate a QR code that signs a judge in to their account',
+    },
+    {
       slug: 'display:manage:all',
       description: 'Configure the lobby displays (clock, theme)',
     },

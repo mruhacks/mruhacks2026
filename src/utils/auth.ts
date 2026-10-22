@@ -16,7 +16,11 @@ import {
 } from '@/lib/auth/email-link-confirm-url';
 import { remainingMagicLinkExpiresInSeconds } from '@/lib/rsvp/rsvp-magic-link-expires-in';
 import { getRsvpMagicLinkMailContext } from '@/lib/rsvp/rsvp-magic-link-context';
-import { getJudgeInviteMailContext } from '@/lib/judging/judge-invite-mail';
+import {
+  getJudgeInviteMailContext,
+  getJudgeSignInLinkCapture,
+  JUDGE_SIGNIN_LINK_EXPIRES_IN_SECONDS,
+} from '@/lib/judging/judge-invite-mail';
 import { linkJudgeRosterRows } from '@/lib/judging/server';
 import { applyPendingInvite } from '@/lib/auth/apply-pending-invite';
 import { ADMIN_COUNTS_CACHE_TAG } from '@/lib/admin-counts';
@@ -43,6 +47,7 @@ const EMAIL_VERIFICATION_EXPIRES_IN = 86400;
 export const MAGIC_LINK_EXPIRES_IN_SECONDS = 86400;
 
 function resolveMagicLinkExpiresInSeconds(): number {
+  if (getJudgeSignInLinkCapture()) return JUDGE_SIGNIN_LINK_EXPIRES_IN_SECONDS;
   const rsvp = getRsvpMagicLinkMailContext();
   if (!rsvp) {
     return MAGIC_LINK_EXPIRES_IN_SECONDS;
@@ -302,6 +307,14 @@ export const auth = betterAuth({
        */
       expiresIn: MAGIC_LINK_EXPIRES_IN,
       sendMagicLink: async ({ email, url }) => {
+        // A judge sign-in QR code: hand the link back to the organizer who
+        // asked for it instead of emailing it.
+        const capture = getJudgeSignInLinkCapture();
+        if (capture) {
+          capture.url = toEmailLinkConfirmUrl('magic-link', url);
+          return;
+        }
+
         const mail = await resolveMagicLinkMailOptions({
           email,
           magicLinkUrl: toEmailLinkConfirmUrl('magic-link', url),
