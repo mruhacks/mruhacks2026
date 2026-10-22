@@ -84,7 +84,7 @@ export function normalizeJudgeEmail(email: string): string {
  * and carrying their (verified) email. Covers the gap before the sign-in hook
  * has linked a freshly added address.
  */
-function rosterMatch(user: { id: string; email: string }) {
+export function rosterMatch(user: { id: string; email: string }) {
   return or(
     eq(eventJudges.userId, user.id),
     and(

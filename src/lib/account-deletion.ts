@@ -1,15 +1,23 @@
 import 'server-only';
 
-import { and, asc, eq, ne } from 'drizzle-orm';
+import { and, asc, eq, isNull, ne, or, sql } from 'drizzle-orm';
+import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 
 import {
   eventJudges,
+  eventParticipants,
+  events,
+  invite,
+  magicLinkCooldown,
   submissions,
   teamMembers,
   teams,
   user,
   userProfiles,
+  verification,
 } from '@/db/schema';
+import { rosterMatch } from '@/lib/judging/server';
+import { revokeGoogleWalletPasses } from '@/lib/wallet/google/event-ticket';
 import { db } from '@/utils/db';
 import {
   deleteObject,
@@ -30,20 +38,26 @@ import {
  *
  * - Judge roster rows keep their votes and reliability grouped, so they stay
  *   — but lose the email as well as the user link (the FK clears that), and
- *   show as "Deleted judge #…".
+ *   show as "Deleted judge #…". That includes a roster row still waiting to
+ *   be linked by their email.
+ * - Rows keyed by their email rather than their id: a pending invite, the
+ *   magic-link cooldown, and unexpired sign-in / deletion tokens.
  * - Teams they organize pass to the earliest-joined remaining member, the
  *   same rule as leaving a team. (`organizerId` is `set null` only as the
  *   backstop for a team left empty.)
  * - A team they were the last member of is dissolved — unless it holds a
  *   submission, in which case it stays, empty, to keep the project.
- * - Their objects outside the database (profile picture, resume).
+ * - Their objects outside the database (profile picture, resume) and their
+ *   Google Wallet passes, which carry their name on Google's servers.
  */
 export async function prepareUserDeletion(userId: string): Promise<void> {
   await db.transaction(async (tx) => {
-    await tx
-      .update(eventJudges)
-      .set({ email: null })
-      .where(eq(eventJudges.userId, userId));
+    const [account] = await tx
+      .select({ email: user.email })
+      .from(user)
+      .where(eq(user.id, userId))
+      .limit(1);
+    if (account) await clearEmailKeyedRows(tx, userId, account.email);
 
     const memberships = await tx
       .select({ teamId: teamMembers.teamId, organizerId: teams.organizerId })
@@ -80,7 +94,58 @@ export async function prepareUserDeletion(userId: string): Promise<void> {
     }
   });
 
-  await deleteUserObjects(userId);
+  await Promise.all([deleteUserObjects(userId), revokeWalletPasses(userId)]);
+}
+
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+async function clearEmailKeyedRows(
+  tx: Tx,
+  userId: string,
+  email: string,
+): Promise<void> {
+  const lowered = email.trim().toLowerCase();
+  const sameEmail = (column: AnyPgColumn) => sql`lower(${column}) = ${lowered}`;
+
+  await tx
+    .update(eventJudges)
+    .set({ email: null })
+    .where(rosterMatch({ id: userId, email }));
+  await tx.delete(invite).where(sameEmail(invite.email));
+  await tx.delete(magicLinkCooldown).where(sameEmail(magicLinkCooldown.email));
+
+  // Better Auth stores a magic link as `{"email":…,"name":…}` and the
+  // delete-account / password-reset tokens as the bare user id.
+  const magicLinkValue = JSON.stringify({ email: lowered });
+  await tx
+    .delete(verification)
+    .where(
+      or(
+        eq(verification.value, userId),
+        sql`lower(${verification.value}) = ${magicLinkValue}`,
+        sql`starts_with(lower(${verification.value}), ${magicLinkValue.slice(0, -1) + ','})`,
+      ),
+    );
+}
+
+/** Best effort, like the storage cleanup: Google being down must not block the erasure. */
+async function revokeWalletPasses(userId: string): Promise<void> {
+  try {
+    // Passes are only issued for top-level events.
+    const rows = await db
+      .select({ eventId: eventParticipants.eventId })
+      .from(eventParticipants)
+      .innerJoin(events, eq(events.id, eventParticipants.eventId))
+      .where(
+        and(eq(eventParticipants.userId, userId), isNull(events.parentEventId)),
+      );
+    await revokeGoogleWalletPasses(
+      userId,
+      rows.map((r) => r.eventId),
+    );
+  } catch (error) {
+    console.error('[account-deletion] failed to revoke wallet passes', error);
+  }
 }
 
 /** Best effort: a storage failure must not block the erasure itself. */

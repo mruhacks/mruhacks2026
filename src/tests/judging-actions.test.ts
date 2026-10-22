@@ -14,6 +14,7 @@ import {
   eventJudges,
   eventParticipants,
   events,
+  invite,
   magicLinkCooldown,
   session,
   judgeState,
@@ -26,6 +27,7 @@ import {
   teams,
   user,
   userPermission,
+  verification,
 } from '@/db/schema';
 
 vi.mock('@/utils/auth', () => ({ getUser: vi.fn() }));
@@ -2140,6 +2142,76 @@ describe('account deletion', () => {
       `Deleted judge #${judgeId.slice(0, 8)}`,
     );
     expect(results.judges[0].comparisons).toBe(1);
+  });
+
+  test('rows keyed by their email go too', async () => {
+    const eventId = await makeEvent();
+    const leaver = await makeUser('EmailRows');
+    const bystander = await makeUser('EmailBystander');
+    const judgeId = await rosterJudge(eventId, leaver, { link: false });
+    const shouted = leaver.email.toUpperCase();
+    const later = new Date(Date.now() + HOUR);
+    await db.insert(invite).values({ email: leaver.email, expiresAt: later });
+    await db.insert(magicLinkCooldown).values({ email: shouted });
+    const tokens = await db
+      .insert(verification)
+      .values([
+        // Better Auth's magic-link and delete-account token shapes.
+        {
+          identifier: 'a',
+          value: JSON.stringify({ email: shouted, name: 'x' }),
+          expiresAt: later,
+        },
+        {
+          identifier: 'b',
+          value: JSON.stringify({ email: leaver.email }),
+          expiresAt: later,
+        },
+        { identifier: `delete-account-c`, value: leaver.id, expiresAt: later },
+        // An address that merely starts with theirs, and someone else's link.
+        {
+          identifier: 'd',
+          value: JSON.stringify({ email: `${leaver.email}.au` }),
+          expiresAt: later,
+        },
+        {
+          identifier: 'e',
+          value: JSON.stringify({ email: bystander.email }),
+          expiresAt: later,
+        },
+      ])
+      .returning({ identifier: verification.identifier });
+
+    await prepareUserDeletion(leaver.id);
+    await db.delete(user).where(eq(user.id, leaver.id));
+
+    const [judgeRow] = await db
+      .select()
+      .from(eventJudges)
+      .where(eq(eventJudges.id, judgeId));
+    expect(judgeRow).toMatchObject({ userId: null, email: null });
+    expect(
+      await db.select().from(invite).where(eq(invite.email, leaver.email)),
+    ).toHaveLength(0);
+    expect(
+      await db
+        .select()
+        .from(magicLinkCooldown)
+        .where(eq(magicLinkCooldown.email, shouted)),
+    ).toHaveLength(0);
+    const left = await db
+      .select({ identifier: verification.identifier })
+      .from(verification)
+      .where(
+        inArray(
+          verification.identifier,
+          tokens.map((t) => t.identifier),
+        ),
+      );
+    expect(left.map((t) => t.identifier).sort()).toEqual(['d', 'e']);
+    await db
+      .delete(verification)
+      .where(inArray(verification.identifier, ['d', 'e']));
   });
 
   test('deleting the event removes its judging data', async () => {
