@@ -1,11 +1,10 @@
 import { handleCallback } from '@vercel/queue';
 
-import type { CampaignDispatchMessage } from '@/lib/campaigns/campaign-queue';
-import { processCampaignDispatch } from '@/lib/campaigns/process-dispatch';
+import * as Campaigns from '@/lib/campaigns/server';
 
-export const POST = handleCallback<CampaignDispatchMessage>(
+export const POST = handleCallback<Campaigns.CampaignDispatchMessage>(
   async ({ campaignId, scheduledFor }) => {
-    const outcome = await processCampaignDispatch(campaignId, scheduledFor);
+    const outcome = await Campaigns.processCampaignDispatch(campaignId, scheduledFor);
     console.info('[campaigns/dispatch] processed', { campaignId, outcome });
   },
   {

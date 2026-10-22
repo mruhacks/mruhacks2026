@@ -4,12 +4,12 @@ import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import { unstable_rethrow } from 'next/navigation';
 
-import { submitRsvpResponse } from '@/app/dashboard/events/actions';
-import type { RsvpUserDecision } from '@/lib/rsvp/constants';
+import { submitRsvpResponse } from './actions';
+import type * as Rsvp from '@/lib/rsvp';
 
 export function useRsvpDecision(eventId: string, termsId: string | null) {
   const [isPending, startTransition] = useTransition();
-  const [activeDecision, setActiveDecision] = useState<RsvpUserDecision | null>(null);
+  const [activeDecision, setActiveDecision] = useState<Rsvp.RsvpUserDecision | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const [acceptedTermsId, setAcceptedTermsId] = useState<string | null>(null);
@@ -20,7 +20,7 @@ export function useRsvpDecision(eventId: string, termsId: string | null) {
     setError(null);
   }
 
-  function submit(decision: RsvpUserDecision) {
+  function submit(decision: Rsvp.RsvpUserDecision) {
     if (isPending) return;
     if (decision === 'accepted' && !canAccept) {
       setError('You must agree to the Event Terms before accepting your spot.');

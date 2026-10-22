@@ -1,4 +1,4 @@
-import { auditLog } from '@/db/schema';
+import * as schema from '@/db/schema';
 import { db } from '@/utils/db';
 
 /** Persist a security-relevant action without blocking the successful mutation. */
@@ -10,7 +10,7 @@ export async function writeAuditLog(entry: {
   metadata?: Record<string, unknown>;
 }): Promise<void> {
   try {
-    await db.insert(auditLog).values({
+    await db.insert(schema.auditLog).values({
       actorId: entry.actorId,
       action: entry.action,
       targetType: entry.targetType,

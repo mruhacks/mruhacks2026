@@ -2,7 +2,7 @@ import 'server-only';
 
 import { and, asc, eq, sql } from 'drizzle-orm';
 
-import { campaignDeliveries, campaigns } from '@/db/schema';
+import * as schema from '@/db/schema';
 import { writeAuditLog } from '@/utils/audit-log';
 import { db } from '@/utils/db';
 import { resolveAudience } from './audience';
@@ -40,7 +40,12 @@ export async function processCampaignDispatch(
   scheduledFor: string,
 ): Promise<ProcessDispatchOutcome> {
   const claimed = await db.transaction(async (tx) => {
-    const [campaign] = await tx.select().from(campaigns).where(eq(campaigns.id, campaignId)).for('update').limit(1);
+    const [campaign] = await tx
+      .select()
+      .from(schema.campaigns)
+      .where(eq(schema.campaigns.id, campaignId))
+      .for('update')
+      .limit(1);
     if (!campaign) return { kind: 'not_found' } as const;
     if (!['scheduled', 'sending'].includes(campaign.status)) {
       return { kind: 'not_scheduled', status: campaign.status } as const;
@@ -63,18 +68,18 @@ export async function processCampaignDispatch(
     });
 
     await tx
-      .update(campaigns)
+      .update(schema.campaigns)
       .set({
         status: 'sending',
         audienceSnapshot: rules,
         // A send with nobody to send to is done the moment it starts.
         ...(recipients.length === 0 && { status: 'sent', sentAt: new Date() }),
       })
-      .where(eq(campaigns.id, campaignId));
+      .where(eq(schema.campaigns.id, campaignId));
 
     for (let i = 0; i < recipients.length; i += INSERT_CHUNK) {
       await tx
-        .insert(campaignDeliveries)
+        .insert(schema.campaignDeliveries)
         .values(
           recipients.slice(i, i + INSERT_CHUNK).map((recipient) => ({
             campaignId,
@@ -127,12 +132,12 @@ export async function processCampaignDispatch(
 export async function publishQueuedDeliveries(campaignId: string): Promise<number> {
   const rows = await db
     .select({
-      id: campaignDeliveries.id,
-      attempts: campaignDeliveries.attempts,
+      id: schema.campaignDeliveries.id,
+      attempts: schema.campaignDeliveries.attempts,
     })
-    .from(campaignDeliveries)
-    .where(and(eq(campaignDeliveries.campaignId, campaignId), eq(campaignDeliveries.status, 'queued')))
-    .orderBy(asc(campaignDeliveries.queuedAt), asc(campaignDeliveries.id));
+    .from(schema.campaignDeliveries)
+    .where(and(eq(schema.campaignDeliveries.campaignId, campaignId), eq(schema.campaignDeliveries.status, 'queued')))
+    .orderBy(asc(schema.campaignDeliveries.queuedAt), asc(schema.campaignDeliveries.id));
 
   let published = 0;
   const failures: unknown[] = [];
@@ -167,19 +172,19 @@ export async function publishQueuedDeliveries(campaignId: string): Promise<numbe
  */
 export async function completeCampaignIfDone(campaignId: string): Promise<boolean> {
   const done = await db
-    .update(campaigns)
+    .update(schema.campaigns)
     .set({ status: 'sent', sentAt: new Date() })
     .where(
       and(
-        eq(campaigns.id, campaignId),
-        eq(campaigns.status, 'sending'),
+        eq(schema.campaigns.id, campaignId),
+        eq(schema.campaigns.status, 'sending'),
         sql`NOT EXISTS (
-          SELECT 1 FROM ${campaignDeliveries}
-           WHERE ${campaignDeliveries.campaignId} = ${campaignId}
-             AND ${campaignDeliveries.status} = 'queued'
+          SELECT 1 FROM ${schema.campaignDeliveries}
+           WHERE ${schema.campaignDeliveries.campaignId} = ${campaignId}
+             AND ${schema.campaignDeliveries.status} = 'queued'
         )`,
       ),
     )
-    .returning({ id: campaigns.id });
+    .returning({ id: schema.campaigns.id });
   return done.length > 0;
 }

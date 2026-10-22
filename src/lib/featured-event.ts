@@ -1,7 +1,7 @@
 import { cacheTag, cacheLife } from 'next/cache';
 import { eq } from 'drizzle-orm';
 import { db } from '@/utils/db';
-import { events } from '@/db/schema';
+import * as schema from '@/db/schema';
 import { eventPath } from '@/lib/event-slug';
 
 export const FEATURED_EVENT_CACHE_TAG = 'featured-event';
@@ -19,9 +19,9 @@ export async function getFeaturedEventRegisterUrl(): Promise<string> {
   cacheLife('hours');
 
   const [featured] = await db
-    .select({ id: events.id, slug: events.slug })
-    .from(events)
-    .where(eq(events.isFeatured, true))
+    .select({ id: schema.events.id, slug: schema.events.slug })
+    .from(schema.events)
+    .where(eq(schema.events.isFeatured, true))
     .limit(1);
 
   if (featured) {
@@ -49,12 +49,12 @@ export async function getFeaturedEventSchedule(): Promise<FeaturedEventSchedule 
 
   const [featured] = await db
     .select({
-      name: events.name,
-      startsAt: events.startsAt,
-      endsAt: events.endsAt,
+      name: schema.events.name,
+      startsAt: schema.events.startsAt,
+      endsAt: schema.events.endsAt,
     })
-    .from(events)
-    .where(eq(events.isFeatured, true))
+    .from(schema.events)
+    .where(eq(schema.events.isFeatured, true))
     .limit(1);
 
   if (!featured) return null;

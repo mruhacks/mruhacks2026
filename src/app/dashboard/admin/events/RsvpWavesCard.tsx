@@ -3,19 +3,14 @@
 import * as React from 'react';
 import { ChevronRight } from 'lucide-react';
 
-import {
-  type AdminRsvpSummary,
-  type AdminRsvpWaveSummary,
-  type WaitlistEntry,
-} from '@/app/dashboard/admin/events/actions';
-import { RsvpParticipantsTable } from '@/app/dashboard/admin/events/RsvpParticipantsTable';
-import { SendNextWaveButton } from '@/app/dashboard/admin/events/SendNextWaveButton';
+import { type AdminRsvpSummary, type AdminRsvpWaveSummary, type WaitlistEntry } from './actions';
+import { RsvpParticipantsTable } from './RsvpParticipantsTable';
+import { SendNextWaveButton } from './SendNextWaveButton';
 import { LocalDateTime } from '@/components/local-date-time';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { formatRemaining, toDate } from '@/lib/rsvp/format-remaining';
-import { estimateAutoWaveAt } from '@/lib/rsvp/scheduled-wave-time';
+import * as Rsvp from '@/lib/rsvp';
 import { useIsHydrated } from '@/lib/use-is-hydrated';
 import { cn } from '@/lib/utils';
 
@@ -212,7 +207,7 @@ function NextWaveSummary({
     // The first wave is always sent by hand ("Start waves").
     when = null;
   } else {
-    const at = estimateAutoWaveAt(toDate(summary.latestWave.respondBy), new Date());
+    const at = Rsvp.estimateAutoWaveAt(Rsvp.toDate(summary.latestWave.respondBy), new Date());
     when =
       at === null ? null : (
         <>
@@ -235,7 +230,7 @@ function NextWaveSummary({
 function TimeUntil({ at }: { at: Date | string }) {
   const isHydrated = useIsHydrated();
   if (!isHydrated) return null;
-  const remaining = formatRemaining(toDate(at), new Date());
+  const remaining = Rsvp.formatRemaining(Rsvp.toDate(at), new Date());
   return remaining ? <> (in {remaining})</> : null;
 }
 

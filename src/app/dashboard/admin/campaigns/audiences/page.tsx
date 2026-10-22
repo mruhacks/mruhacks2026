@@ -2,9 +2,8 @@ import { Suspense } from 'react';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 
-import { listSavedAudiences } from '@/lib/campaigns/saved-audiences';
-import { hasPermission } from '@/lib/rbac/authorization';
-import { requireAuthWithPermission } from '@/lib/rbac/guards';
+import * as Campaigns from '@/lib/campaigns/server';
+import * as Rbac from '@/lib/rbac/server';
 import { LocalDateTime } from '@/components/local-date-time';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -15,8 +14,11 @@ function ListSkeleton() {
 }
 
 async function AudienceList() {
-  const user = await requireAuthWithPermission('campaign:read:all');
-  const [rows, canWrite] = await Promise.all([listSavedAudiences(), hasPermission(user.id, 'campaign:write:all')]);
+  const user = await Rbac.requireAuthWithPermission('campaign:read:all');
+  const [rows, canWrite] = await Promise.all([
+    Campaigns.listSavedAudiences(),
+    Rbac.hasPermission(user.id, 'campaign:write:all'),
+  ]);
 
   return (
     <div className='space-y-4'>

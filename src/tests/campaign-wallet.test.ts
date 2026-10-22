@@ -3,10 +3,9 @@ import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest';
 import { eq, inArray } from 'drizzle-orm';
 
 import { db } from '@/utils/db';
-import { events, signingPublicKeys, user } from '@/db/schema';
-import { buildWalletLinkToken } from '@/lib/signing/email-tokens';
-import { renderCampaignEmail } from '@/lib/campaigns/render-campaign-email';
-import { walletBlockError, walletBlockRenderers, walletLinksFor } from '@/lib/campaigns/wallet-block';
+import * as schema from '@/db/schema';
+import * as Signing from '@/lib/signing/server';
+import * as Campaigns from '@/lib/campaigns/server';
 import { insertAttendees, setStatus } from '@/tests/participation-fixtures';
 
 // Pass signing and Google's API need real credentials; here we only care
@@ -42,24 +41,27 @@ beforeAll(async () => {
   generateParticipantPass.mockResolvedValue(Buffer.from('pkpass'));
 
   const [u] = await db
-    .insert(user)
+    .insert(schema.user)
     .values({
       name: 'Wallet Person',
       email: 'campaign-wallet@example.com',
       emailVerified: true,
     })
-    .returning({ id: user.id });
+    .returning({ id: schema.user.id });
   userId = u.id;
   const future = new Date(Date.now() + 7 * 24 * 3600 * 1000);
-  const [e] = await db.insert(events).values({ name: 'Wallet event', endsAt: future }).returning({ id: events.id });
+  const [e] = await db
+    .insert(schema.events)
+    .values({ name: 'Wallet event', endsAt: future })
+    .returning({ id: schema.events.id });
   const [ended] = await db
-    .insert(events)
+    .insert(schema.events)
     .values({ name: 'Ended event', endsAt: new Date(Date.now() - 3600_000) })
-    .returning({ id: events.id });
+    .returning({ id: schema.events.id });
   const [noCheckIn] = await db
-    .insert(events)
+    .insert(schema.events)
     .values({ name: 'No check-in', checkInEnabled: false })
-    .returning({ id: events.id });
+    .returning({ id: schema.events.id });
   eventId = e.id;
   endedEventId = ended.id;
   noCheckInEventId = noCheckIn.id;
@@ -70,16 +72,16 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await db.delete(events).where(inArray(events.id, [eventId, endedEventId, noCheckInEventId]));
-  await db.delete(user).where(eq(user.id, userId));
-  await db.delete(signingPublicKeys);
+  await db.delete(schema.events).where(inArray(schema.events.id, [eventId, endedEventId, noCheckInEventId]));
+  await db.delete(schema.user).where(eq(schema.user.id, userId));
+  await db.delete(schema.signingPublicKeys);
   if (savedKey === undefined) delete process.env.APP_SIGNING_PRIVATE_KEY;
   else process.env.APP_SIGNING_PRIVATE_KEY = savedKey;
 });
 
 describe('/api/wallet/email/[token]', () => {
   test('an accepted participant gets the pass with no login; after declining the same link 404s', async () => {
-    const token = await buildWalletLinkToken(userId, eventId);
+    const token = await Signing.buildWalletLinkToken(userId, eventId);
 
     const apple = await call(token, 'apple');
     expect(apple.status).toBe(200);
@@ -98,29 +100,29 @@ describe('/api/wallet/email/[token]', () => {
   });
 
   test('an ended event, a bad platform or a forged token is a 404', async () => {
-    const ended = await buildWalletLinkToken(userId, endedEventId);
+    const ended = await Signing.buildWalletLinkToken(userId, endedEventId);
     expect((await call(ended, 'apple')).status).toBe(404);
 
-    const token = await buildWalletLinkToken(userId, eventId);
+    const token = await Signing.buildWalletLinkToken(userId, eventId);
     expect((await call(token, 'samsung')).status).toBe(404);
-    const forged = await buildWalletLinkToken('00000000-0000-0000-0000-000000000000', eventId);
+    const forged = await Signing.buildWalletLinkToken('00000000-0000-0000-0000-000000000000', eventId);
     expect((await call(`${forged.slice(0, -3)}AAA`, 'apple')).status).toBe(404);
   });
 });
 
 describe('wallet block', () => {
   test('only allowed for an event with check-in on', async () => {
-    expect(await walletBlockError(null)).toMatch(/check-in/);
-    expect(await walletBlockError(noCheckInEventId)).toMatch(/check-in/);
-    expect(await walletBlockError(eventId)).toBeNull();
+    expect(await Campaigns.walletBlockError(null)).toMatch(/check-in/);
+    expect(await Campaigns.walletBlockError(noCheckInEventId)).toMatch(/check-in/);
+    expect(await Campaigns.walletBlockError(eventId)).toBeNull();
   });
 
   test('links only for recipients holding a spot in an event that has not ended', async () => {
-    const links = await walletLinksFor(userId, eventId, BASE);
+    const links = await Campaigns.walletLinksFor(userId, eventId, BASE);
     expect(links?.apple).toMatch(/^https:\/\/app\.example\.com\/api\/wallet\/email\/[A-Za-z0-9_-]+\?platform=apple$/);
-    expect(await walletLinksFor(userId, endedEventId, BASE)).toBeNull();
+    expect(await Campaigns.walletLinksFor(userId, endedEventId, BASE)).toBeNull();
     await setStatus(eventId, userId, 'waitlisted');
-    expect(await walletLinksFor(userId, eventId, BASE)).toBeNull();
+    expect(await Campaigns.walletLinksFor(userId, eventId, BASE)).toBeNull();
     await setStatus(eventId, userId, 'accepted');
   });
 
@@ -136,19 +138,19 @@ describe('wallet block', () => {
       apple: `${BASE}/api/wallet/email/t?platform=apple`,
       google: `${BASE}/api/wallet/email/t?platform=google`,
     };
-    const withLinks = await renderCampaignEmail(
+    const withLinks = await Campaigns.renderCampaignEmail(
       content,
       { firstName: null },
-      { baseUrl: BASE, blocks: walletBlockRenderers(links, BASE) },
+      { baseUrl: BASE, blocks: Campaigns.walletBlockRenderers(links, BASE) },
     );
     expect(withLinks.html).toContain(links.apple.replace(/&/g, '&amp;'));
     expect(withLinks.html).toContain(`${BASE}/wallet/add-to-apple-wallet.png`);
     expect(withLinks.text).toContain(`Add to Google Wallet: ${links.google}`);
 
-    const without = await renderCampaignEmail(
+    const without = await Campaigns.renderCampaignEmail(
       content,
       { firstName: null },
-      { baseUrl: BASE, blocks: walletBlockRenderers(null, BASE) },
+      { baseUrl: BASE, blocks: Campaigns.walletBlockRenderers(null, BASE) },
     );
     expect(without.html).not.toContain('add-to-apple-wallet');
     expect(without.text).not.toContain('Wallet:');

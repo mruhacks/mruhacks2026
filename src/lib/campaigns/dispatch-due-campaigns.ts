@@ -2,7 +2,7 @@ import 'server-only';
 
 import { and, eq, lte } from 'drizzle-orm';
 
-import { campaigns } from '@/db/schema';
+import * as schema from '@/db/schema';
 import { db } from '@/utils/db';
 import { publishCampaignDispatch } from './campaign-queue';
 import { completeCampaignIfDone, publishQueuedDeliveries } from './process-dispatch';
@@ -21,13 +21,16 @@ export type DispatchDueCampaignsResult = {
  */
 export async function dispatchDueCampaigns(now: Date = new Date()): Promise<DispatchDueCampaignsResult> {
   const due = await db
-    .select({ id: campaigns.id, scheduledFor: campaigns.scheduledFor })
-    .from(campaigns)
-    .where(and(eq(campaigns.status, 'scheduled'), lte(campaigns.scheduledFor, now)));
+    .select({ id: schema.campaigns.id, scheduledFor: schema.campaigns.scheduledFor })
+    .from(schema.campaigns)
+    .where(and(eq(schema.campaigns.status, 'scheduled'), lte(schema.campaigns.scheduledFor, now)));
 
   // Delivery rows are the durable recovery record, including retries whose
   // publisher crashed after committing. Do not rely on another button click.
-  const sending = await db.select({ id: campaigns.id }).from(campaigns).where(eq(campaigns.status, 'sending'));
+  const sending = await db
+    .select({ id: schema.campaigns.id })
+    .from(schema.campaigns)
+    .where(eq(schema.campaigns.status, 'sending'));
   const recovery = await Promise.allSettled(
     sending.map(async ({ id }) => {
       await publishQueuedDeliveries(id);

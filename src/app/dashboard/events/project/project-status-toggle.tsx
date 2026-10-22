@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { toast } from 'sonner';
 
-import { setSubmissionPublished } from '@/app/dashboard/events/submission-actions';
+import { setSubmissionPublished } from '../submission-actions';
 import { SubmissionStatusBadge } from '@/components/submissions/submission-view';
 import { PROJECT_VISIBILITY_COPY } from '@/lib/submission-copy';
 

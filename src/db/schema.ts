@@ -13,11 +13,11 @@
  * Import from this file to access all schema definitions in one place.
  */
 
-export * from './auth-schema';
-export * from './events-and-participation';
-export * from './judging';
-export * from './lookups';
-export * from './authz';
-export * from './display';
-export * from './campaigns';
-export * from './signing';
+export * from '@/db/auth-schema';
+export * from '@/db/events-and-participation';
+export * from '@/db/judging';
+export * from '@/db/lookups';
+export * from '@/db/authz';
+export * from '@/db/display';
+export * from '@/db/campaigns';
+export * from '@/db/signing';

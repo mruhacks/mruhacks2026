@@ -1,5 +1,5 @@
 import { ChevronDownIcon } from 'lucide-react';
-import { FAQs } from '../content';
+import { FAQs } from '@/content';
 
 /**
  *FAQ

@@ -2,15 +2,14 @@ import 'server-only';
 
 import { and, desc, eq, inArray } from 'drizzle-orm';
 
-import { events, eventRsvpWaves, eventInvitations, eventParticipants } from '@/db/schema';
-import { hasAnyStatus, hasStatus, statusIdOf } from '@/lib/participation/server';
-import { WAVE_ELIGIBLE_STATUSES } from '@/lib/participation/status';
-import { RSVP_WAVE_ALREADY_ACTIVE_MESSAGE, RSVP_WAVE_EVENT_STARTED_MESSAGE } from '@/lib/rsvp/constants';
-import { computeRsvpRespondBy, isRsvpWaveActive } from '@/lib/rsvp/compute-rsvp-respond-by';
-import { getEligibleRsvpApplicants, type EligibleRsvpApplicant } from '@/lib/rsvp/eligible-rsvp-applicants';
-import { publishRsvpInvitation } from '@/lib/rsvp/rsvp-invitation-queue';
-import { selectRsvpWaveInvitees } from '@/lib/rsvp/select-rsvp-wave-invitees';
-import { timeoutExpiredInvitations } from '@/lib/rsvp/timeout-expired-invitations';
+import * as schema from '@/db/schema';
+import * as Participation from '@/lib/participation/server';
+import { RSVP_WAVE_ALREADY_ACTIVE_MESSAGE, RSVP_WAVE_EVENT_STARTED_MESSAGE } from './constants';
+import { computeRsvpRespondBy, isRsvpWaveActive } from './compute-rsvp-respond-by';
+import { getEligibleRsvpApplicants, type EligibleRsvpApplicant } from './eligible-rsvp-applicants';
+import { publishRsvpInvitation } from './rsvp-invitation-queue';
+import { selectRsvpWaveInvitees } from './select-rsvp-wave-invitees';
+import { timeoutExpiredInvitations } from './timeout-expired-invitations';
 import { db } from '@/utils/db';
 
 export type RsvpWaveRecord = {
@@ -80,12 +79,12 @@ export async function sendRsvpWave(eventId: string, options: SendRsvpWaveOptions
 
   const [eventRow] = await db
     .select({
-      id: events.id,
-      startsAt: events.startsAt,
-      rsvpResponseWindowHours: events.rsvpResponseWindowHours,
+      id: schema.events.id,
+      startsAt: schema.events.startsAt,
+      rsvpResponseWindowHours: schema.events.rsvpResponseWindowHours,
     })
-    .from(events)
-    .where(eq(events.id, eventId))
+    .from(schema.events)
+    .where(eq(schema.events.id, eventId))
     .limit(1);
 
   if (!eventRow) {
@@ -107,12 +106,12 @@ export async function sendRsvpWave(eventId: string, options: SendRsvpWaveOptions
 
   const [latestWave] = await db
     .select({
-      wave: eventRsvpWaves.wave,
-      respondBy: eventRsvpWaves.respondBy,
+      wave: schema.eventRsvpWaves.wave,
+      respondBy: schema.eventRsvpWaves.respondBy,
     })
-    .from(eventRsvpWaves)
-    .where(eq(eventRsvpWaves.eventId, eventId))
-    .orderBy(desc(eventRsvpWaves.wave))
+    .from(schema.eventRsvpWaves)
+    .where(eq(schema.eventRsvpWaves.eventId, eventId))
+    .orderBy(desc(schema.eventRsvpWaves.wave))
     .limit(1);
 
   if (latestWave && isRsvpWaveActive(latestWave.respondBy, now) && !options.closeActiveWave) {
@@ -157,11 +156,11 @@ export async function sendRsvpWave(eventId: string, options: SendRsvpWaveOptions
     const created = await db.transaction(async (tx) => {
       const [lockedEvent] = await tx
         .select({
-          id: events.id,
-          startsAt: events.startsAt,
+          id: schema.events.id,
+          startsAt: schema.events.startsAt,
         })
-        .from(events)
-        .where(eq(events.id, eventId))
+        .from(schema.events)
+        .where(eq(schema.events.id, eventId))
         .for('update')
         .limit(1);
 
@@ -175,13 +174,13 @@ export async function sendRsvpWave(eventId: string, options: SendRsvpWaveOptions
 
       const [lockedLatestWave] = await tx
         .select({
-          id: eventRsvpWaves.id,
-          wave: eventRsvpWaves.wave,
-          respondBy: eventRsvpWaves.respondBy,
+          id: schema.eventRsvpWaves.id,
+          wave: schema.eventRsvpWaves.wave,
+          respondBy: schema.eventRsvpWaves.respondBy,
         })
-        .from(eventRsvpWaves)
-        .where(eq(eventRsvpWaves.eventId, eventId))
-        .orderBy(desc(eventRsvpWaves.wave))
+        .from(schema.eventRsvpWaves)
+        .where(eq(schema.eventRsvpWaves.eventId, eventId))
+        .orderBy(desc(schema.eventRsvpWaves.wave))
         .limit(1);
 
       let closed: SendRsvpWaveSuccess['closedWave'] = null;
@@ -192,23 +191,26 @@ export async function sendRsvpWave(eventId: string, options: SendRsvpWaveOptions
         // Close the open wave now. The event lock serializes this with
         // `submitRsvpResponse`, which re-reads `respond_by` under the same
         // lock, so nobody can accept into the closed wave afterwards.
-        await tx.update(eventRsvpWaves).set({ respondBy: now }).where(eq(eventRsvpWaves.id, lockedLatestWave.id));
+        await tx
+          .update(schema.eventRsvpWaves)
+          .set({ respondBy: now })
+          .where(eq(schema.eventRsvpWaves.id, lockedLatestWave.id));
         const timedOut = await tx
-          .update(eventParticipants)
-          .set({ statusId: statusIdOf('timed_out') })
+          .update(schema.eventParticipants)
+          .set({ statusId: Participation.statusIdOf('timed_out') })
           .where(
             and(
-              hasStatus('invited'),
+              Participation.hasStatus('invited'),
               inArray(
-                eventParticipants.id,
+                schema.eventParticipants.id,
                 tx
-                  .select({ id: eventInvitations.participantId })
-                  .from(eventInvitations)
-                  .where(eq(eventInvitations.rsvpWaveId, lockedLatestWave.id)),
+                  .select({ id: schema.eventInvitations.participantId })
+                  .from(schema.eventInvitations)
+                  .where(eq(schema.eventInvitations.rsvpWaveId, lockedLatestWave.id)),
               ),
             ),
           )
-          .returning({ id: eventParticipants.id });
+          .returning({ id: schema.eventParticipants.id });
         closed = {
           wave: lockedLatestWave.wave,
           timedOutCount: timedOut.length,
@@ -218,7 +220,7 @@ export async function sendRsvpWave(eventId: string, options: SendRsvpWaveOptions
       const lockedNextWaveNumber = (lockedLatestWave?.wave ?? 0) + 1;
 
       const [wave] = await tx
-        .insert(eventRsvpWaves)
+        .insert(schema.eventRsvpWaves)
         .values({
           eventId,
           wave: lockedNextWaveNumber,
@@ -226,30 +228,30 @@ export async function sendRsvpWave(eventId: string, options: SendRsvpWaveOptions
           createdAt: now,
         })
         .returning({
-          id: eventRsvpWaves.id,
-          eventId: eventRsvpWaves.eventId,
-          wave: eventRsvpWaves.wave,
-          respondBy: eventRsvpWaves.respondBy,
-          createdAt: eventRsvpWaves.createdAt,
+          id: schema.eventRsvpWaves.id,
+          eventId: schema.eventRsvpWaves.eventId,
+          wave: schema.eventRsvpWaves.wave,
+          respondBy: schema.eventRsvpWaves.respondBy,
+          createdAt: schema.eventRsvpWaves.createdAt,
         });
 
       // Compare-and-set: only participants still waitlisted move.
       // Anyone a reviewer changed since eligibility was read is skipped
       // rather than invited out from under that decision.
       const moved = await tx
-        .update(eventParticipants)
-        .set({ statusId: statusIdOf('invited') })
+        .update(schema.eventParticipants)
+        .set({ statusId: Participation.statusIdOf('invited') })
         .where(
           and(
-            eq(eventParticipants.eventId, eventId),
+            eq(schema.eventParticipants.eventId, eventId),
             inArray(
-              eventParticipants.id,
+              schema.eventParticipants.id,
               invitees.map((applicant) => applicant.participantId),
             ),
-            hasAnyStatus(WAVE_ELIGIBLE_STATUSES),
+            Participation.hasAnyStatus(Participation.WAVE_ELIGIBLE_STATUSES),
           ),
         )
-        .returning({ id: eventParticipants.id });
+        .returning({ id: schema.eventParticipants.id });
       const movedIds = new Set(moved.map((row) => row.id));
       const invitedApplicants = invitees.filter((applicant) => movedIds.has(applicant.participantId));
       if (invitedApplicants.length === 0) {
@@ -258,7 +260,7 @@ export async function sendRsvpWave(eventId: string, options: SendRsvpWaveOptions
 
       const userIdByParticipantId = new Map(invitedApplicants.map((a) => [a.participantId, a.userId]));
       const inserted = await tx
-        .insert(eventInvitations)
+        .insert(schema.eventInvitations)
         .values(
           invitedApplicants.map((applicant) => ({
             rsvpWaveId: wave.id,
@@ -266,8 +268,8 @@ export async function sendRsvpWave(eventId: string, options: SendRsvpWaveOptions
           })),
         )
         .returning({
-          id: eventInvitations.id,
-          participantId: eventInvitations.participantId,
+          id: schema.eventInvitations.id,
+          participantId: schema.eventInvitations.participantId,
         });
 
       return {
@@ -315,12 +317,14 @@ export async function sendRsvpWave(eventId: string, options: SendRsvpWaveOptions
       // Consumer may already have processed and marked this 'sent' by the
       // time this update runs — never regress it back to 'queued'.
       await db
-        .update(eventInvitations)
+        .update(schema.eventInvitations)
         .set({
           invitationEmailStatus: 'queued',
           invitationEmailQueuedAt: new Date(),
         })
-        .where(and(eq(eventInvitations.id, response.id), eq(eventInvitations.invitationEmailStatus, 'unsent')));
+        .where(
+          and(eq(schema.eventInvitations.id, response.id), eq(schema.eventInvitations.invitationEmailStatus, 'unsent')),
+        );
     }),
   );
 

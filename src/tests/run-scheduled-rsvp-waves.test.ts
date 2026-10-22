@@ -2,8 +2,8 @@ import { describe, test, expect, beforeAll, beforeEach, vi } from 'vitest';
 import { count, eq } from 'drizzle-orm';
 
 import { db } from '@/utils/db';
-import { eventInvitations, eventParticipants, eventRsvpWaves, events, user } from '@/db/schema';
-import { runScheduledRsvpWaves } from '@/lib/rsvp/run-scheduled-rsvp-waves';
+import * as schema from '@/db/schema';
+import * as Rsvp from '@/lib/rsvp/server';
 import { getStatus, insertInvitation, insertParticipant, setStatus } from '@/tests/participation-fixtures';
 
 const { publishRsvpInvitation } = vi.hoisted(() => ({
@@ -15,13 +15,13 @@ vi.mock('@/lib/rsvp/rsvp-invitation-queue', () => ({
 
 async function insertWaitlistedUser(eventId: string, email: string, createdAt?: Date): Promise<string> {
   const [row] = await db
-    .insert(user)
+    .insert(schema.user)
     .values({
       name: email,
       email,
       emailVerified: true,
     })
-    .returning({ id: user.id });
+    .returning({ id: schema.user.id });
   await insertParticipant({
     eventId,
     userId: row.id,
@@ -34,8 +34,8 @@ async function insertWaitlistedUser(eventId: string, email: string, createdAt?: 
 async function waveCount(eventId: string): Promise<number> {
   const [{ value }] = await db
     .select({ value: count() })
-    .from(eventRsvpWaves)
-    .where(eq(eventRsvpWaves.eventId, eventId));
+    .from(schema.eventRsvpWaves)
+    .where(eq(schema.eventRsvpWaves.eventId, eventId));
   return Number(value);
 }
 
@@ -51,47 +51,47 @@ beforeEach(() => {
 describe('runScheduledRsvpWaves', () => {
   test('skips events with no prior admin wave', async () => {
     const [eventRow] = await db
-      .insert(events)
+      .insert(schema.events)
       .values({
         name: 'Scheduled No Prior Wave',
         hasApplication: true,
       })
-      .returning({ id: events.id, name: events.name });
+      .returning({ id: schema.events.id, name: schema.events.name });
 
     try {
-      const result = await runScheduledRsvpWaves({
+      const result = await Rsvp.runScheduledRsvpWaves({
         now: new Date('2026-08-10T00:00:00.000Z'),
       });
       const match = result.results.find((r) => r.eventId === eventRow.id);
       expect(match?.action).toBe('skipped_no_prior_wave');
     } finally {
-      await db.delete(events).where(eq(events.id, eventRow.id));
+      await db.delete(schema.events).where(eq(schema.events.id, eventRow.id));
     }
   });
 
   test('does not start a replacement wave while the latest wave is still active', async () => {
     const now = new Date('2026-08-10T12:00:00.000Z');
     const [eventRow] = await db
-      .insert(events)
+      .insert(schema.events)
       .values({
         name: 'Scheduled Active Wave Event',
         hasApplication: true,
         capacity: 10,
       })
-      .returning({ id: events.id });
+      .returning({ id: schema.events.id });
 
     const pendingUserId = await insertWaitlistedUser(eventRow.id, 'scheduled-active-pending@example.com');
     const waitingUserId = await insertWaitlistedUser(eventRow.id, 'scheduled-active-waiting@example.com');
 
     const [wave] = await db
-      .insert(eventRsvpWaves)
+      .insert(schema.eventRsvpWaves)
       .values({
         eventId: eventRow.id,
         wave: 1,
         respondBy: new Date('2026-08-12T12:00:00.000Z'),
         createdAt: new Date('2026-08-10T12:00:00.000Z'),
       })
-      .returning({ id: eventRsvpWaves.id });
+      .returning({ id: schema.eventRsvpWaves.id });
 
     await insertInvitation({
       rsvpWaveId: wave.id,
@@ -101,42 +101,42 @@ describe('runScheduledRsvpWaves', () => {
     });
 
     try {
-      const result = await runScheduledRsvpWaves({ now });
+      const result = await Rsvp.runScheduledRsvpWaves({ now });
       const match = result.results.find((r) => r.eventId === eventRow.id);
       expect(match?.action).toBe('skipped_active_wave');
       expect(await waveCount(eventRow.id)).toBe(1);
     } finally {
-      await db.delete(eventRsvpWaves).where(eq(eventRsvpWaves.eventId, eventRow.id));
-      await db.delete(eventParticipants).where(eq(eventParticipants.eventId, eventRow.id));
-      await db.delete(events).where(eq(events.id, eventRow.id));
-      await db.delete(user).where(eq(user.id, pendingUserId));
-      await db.delete(user).where(eq(user.id, waitingUserId));
+      await db.delete(schema.eventRsvpWaves).where(eq(schema.eventRsvpWaves.eventId, eventRow.id));
+      await db.delete(schema.eventParticipants).where(eq(schema.eventParticipants.eventId, eventRow.id));
+      await db.delete(schema.events).where(eq(schema.events.id, eventRow.id));
+      await db.delete(schema.user).where(eq(schema.user.id, pendingUserId));
+      await db.delete(schema.user).where(eq(schema.user.id, waitingUserId));
     }
   });
 
   test('does not replace an early decline before the current wave expires', async () => {
     const now = new Date('2026-08-10T14:00:00.000Z');
     const [eventRow] = await db
-      .insert(events)
+      .insert(schema.events)
       .values({
         name: 'Scheduled Early Decline Event',
         hasApplication: true,
         capacity: 2,
       })
-      .returning({ id: events.id });
+      .returning({ id: schema.events.id });
 
     const declinedUserId = await insertWaitlistedUser(eventRow.id, 'scheduled-early-decline@example.com');
     const waitingUserId = await insertWaitlistedUser(eventRow.id, 'scheduled-early-waiting@example.com');
 
     const [wave] = await db
-      .insert(eventRsvpWaves)
+      .insert(schema.eventRsvpWaves)
       .values({
         eventId: eventRow.id,
         wave: 1,
         respondBy: new Date('2026-08-12T12:00:00.000Z'),
         createdAt: new Date('2026-08-10T12:00:00.000Z'),
       })
-      .returning({ id: eventRsvpWaves.id });
+      .returning({ id: schema.eventRsvpWaves.id });
 
     await insertInvitation({
       rsvpWaveId: wave.id,
@@ -147,17 +147,17 @@ describe('runScheduledRsvpWaves', () => {
     });
 
     try {
-      const result = await runScheduledRsvpWaves({ now });
+      const result = await Rsvp.runScheduledRsvpWaves({ now });
       const match = result.results.find((r) => r.eventId === eventRow.id);
       expect(match?.action).toBe('skipped_active_wave');
       expect(await waveCount(eventRow.id)).toBe(1);
       expect(publishRsvpInvitation).not.toHaveBeenCalled();
     } finally {
-      await db.delete(eventRsvpWaves).where(eq(eventRsvpWaves.eventId, eventRow.id));
-      await db.delete(eventParticipants).where(eq(eventParticipants.eventId, eventRow.id));
-      await db.delete(events).where(eq(events.id, eventRow.id));
-      await db.delete(user).where(eq(user.id, declinedUserId));
-      await db.delete(user).where(eq(user.id, waitingUserId));
+      await db.delete(schema.eventRsvpWaves).where(eq(schema.eventRsvpWaves.eventId, eventRow.id));
+      await db.delete(schema.eventParticipants).where(eq(schema.eventParticipants.eventId, eventRow.id));
+      await db.delete(schema.events).where(eq(schema.events.id, eventRow.id));
+      await db.delete(schema.user).where(eq(schema.user.id, declinedUserId));
+      await db.delete(schema.user).where(eq(schema.user.id, waitingUserId));
     }
   });
 
@@ -167,13 +167,13 @@ describe('runScheduledRsvpWaves', () => {
     const priorRespondBy = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000);
 
     const [eventRow] = await db
-      .insert(events)
+      .insert(schema.events)
       .values({
         name: 'Scheduled Follow-up Event',
         hasApplication: true,
         capacity: 10,
       })
-      .returning({ id: events.id });
+      .returning({ id: schema.events.id });
 
     const expiredUserId = await insertWaitlistedUser(eventRow.id, 'scheduled-rsvp@example.com');
     const nextUserId = await insertWaitlistedUser(
@@ -183,14 +183,14 @@ describe('runScheduledRsvpWaves', () => {
     );
 
     const [priorWave] = await db
-      .insert(eventRsvpWaves)
+      .insert(schema.eventRsvpWaves)
       .values({
         eventId: eventRow.id,
         wave: 1,
         respondBy: priorRespondBy,
         createdAt: priorCreatedAt,
       })
-      .returning({ id: eventRsvpWaves.id });
+      .returning({ id: schema.eventRsvpWaves.id });
 
     await insertInvitation({
       rsvpWaveId: priorWave.id,
@@ -200,7 +200,7 @@ describe('runScheduledRsvpWaves', () => {
     });
 
     try {
-      const first = await runScheduledRsvpWaves({ now });
+      const first = await Rsvp.runScheduledRsvpWaves({ now });
       const firstMatch = first.results.find((r) => r.eventId === eventRow.id);
       expect(first.timedOutCount).toBeGreaterThanOrEqual(1);
       expect(firstMatch?.action).toBe('sent');
@@ -212,34 +212,34 @@ describe('runScheduledRsvpWaves', () => {
 
       expect(await waveCount(eventRow.id)).toBe(2);
 
-      const second = await runScheduledRsvpWaves({ now });
+      const second = await Rsvp.runScheduledRsvpWaves({ now });
       const secondMatch = second.results.find((r) => r.eventId === eventRow.id);
       expect(secondMatch?.action).toBe('skipped_active_wave');
       expect(await waveCount(eventRow.id)).toBe(2);
     } finally {
-      await db.delete(eventRsvpWaves).where(eq(eventRsvpWaves.eventId, eventRow.id));
-      await db.delete(eventParticipants).where(eq(eventParticipants.eventId, eventRow.id));
-      await db.delete(events).where(eq(events.id, eventRow.id));
-      await db.delete(user).where(eq(user.id, expiredUserId));
-      await db.delete(user).where(eq(user.id, nextUserId));
+      await db.delete(schema.eventRsvpWaves).where(eq(schema.eventRsvpWaves.eventId, eventRow.id));
+      await db.delete(schema.eventParticipants).where(eq(schema.eventParticipants.eventId, eventRow.id));
+      await db.delete(schema.events).where(eq(schema.events.id, eventRow.id));
+      await db.delete(schema.user).where(eq(schema.user.id, expiredUserId));
+      await db.delete(schema.user).where(eq(schema.user.id, nextUserId));
     }
   });
 
   test('skips when capacity is full after the previous wave expires', async () => {
     const [eventRow] = await db
-      .insert(events)
+      .insert(schema.events)
       .values({
         name: 'Scheduled Full Event',
         hasApplication: true,
         capacity: 1,
       })
-      .returning({ id: events.id });
+      .returning({ id: schema.events.id });
 
     const attendeeId = await insertWaitlistedUser(eventRow.id, 'scheduled-full-attendee@example.com');
     const eligibleId = await insertWaitlistedUser(eventRow.id, 'scheduled-full-eligible@example.com');
 
     await setStatus(eventRow.id, attendeeId, 'accepted');
-    await db.insert(eventRsvpWaves).values({
+    await db.insert(schema.eventRsvpWaves).values({
       eventId: eventRow.id,
       wave: 1,
       respondBy: new Date('2026-08-08T00:00:00.000Z'),
@@ -247,30 +247,30 @@ describe('runScheduledRsvpWaves', () => {
     });
 
     try {
-      const result = await runScheduledRsvpWaves({
+      const result = await Rsvp.runScheduledRsvpWaves({
         now: new Date('2026-08-10T00:00:00.000Z'),
       });
       const match = result.results.find((r) => r.eventId === eventRow.id);
       expect(match?.action).toBe('skipped_no_capacity');
       expect(await waveCount(eventRow.id)).toBe(1);
     } finally {
-      await db.delete(eventRsvpWaves).where(eq(eventRsvpWaves.eventId, eventRow.id));
-      await db.delete(eventParticipants).where(eq(eventParticipants.eventId, eventRow.id));
-      await db.delete(events).where(eq(events.id, eventRow.id));
-      await db.delete(user).where(eq(user.id, attendeeId));
-      await db.delete(user).where(eq(user.id, eligibleId));
+      await db.delete(schema.eventRsvpWaves).where(eq(schema.eventRsvpWaves.eventId, eventRow.id));
+      await db.delete(schema.eventParticipants).where(eq(schema.eventParticipants.eventId, eventRow.id));
+      await db.delete(schema.events).where(eq(schema.events.id, eventRow.id));
+      await db.delete(schema.user).where(eq(schema.user.id, attendeeId));
+      await db.delete(schema.user).where(eq(schema.user.id, eligibleId));
     }
   });
 
   test('invites the earliest applicants up to remaining capacity on the next wave', async () => {
     const [eventRow] = await db
-      .insert(events)
+      .insert(schema.events)
       .values({
         name: 'Scheduled Overflow Event',
         hasApplication: true,
         capacity: 1,
       })
-      .returning({ id: events.id });
+      .returning({ id: schema.events.id });
 
     const userAId = await insertWaitlistedUser(
       eventRow.id,
@@ -283,7 +283,7 @@ describe('runScheduledRsvpWaves', () => {
       new Date('2026-07-02T00:00:00.000Z'),
     );
 
-    await db.insert(eventRsvpWaves).values({
+    await db.insert(schema.eventRsvpWaves).values({
       eventId: eventRow.id,
       wave: 1,
       respondBy: new Date('2026-08-08T00:00:00.000Z'),
@@ -291,7 +291,7 @@ describe('runScheduledRsvpWaves', () => {
     });
 
     try {
-      const result = await runScheduledRsvpWaves({
+      const result = await Rsvp.runScheduledRsvpWaves({
         now: new Date('2026-08-10T00:00:00.000Z'),
       });
       const match = result.results.find((r) => r.eventId === eventRow.id);
@@ -300,42 +300,42 @@ describe('runScheduledRsvpWaves', () => {
       expect(match?.responsesCreated).toBe(1);
 
       const invited = await db
-        .select({ userId: eventParticipants.userId })
-        .from(eventInvitations)
-        .innerJoin(eventParticipants, eq(eventInvitations.participantId, eventParticipants.id))
-        .where(eq(eventParticipants.eventId, eventRow.id));
+        .select({ userId: schema.eventParticipants.userId })
+        .from(schema.eventInvitations)
+        .innerJoin(schema.eventParticipants, eq(schema.eventInvitations.participantId, schema.eventParticipants.id))
+        .where(eq(schema.eventParticipants.eventId, eventRow.id));
       expect(invited.map((row) => row.userId)).toContain(userAId);
       expect(invited.map((row) => row.userId)).not.toContain(userBId);
     } finally {
-      await db.delete(eventRsvpWaves).where(eq(eventRsvpWaves.eventId, eventRow.id));
-      await db.delete(eventParticipants).where(eq(eventParticipants.eventId, eventRow.id));
-      await db.delete(events).where(eq(events.id, eventRow.id));
-      await db.delete(user).where(eq(user.id, userAId));
-      await db.delete(user).where(eq(user.id, userBId));
+      await db.delete(schema.eventRsvpWaves).where(eq(schema.eventRsvpWaves.eventId, eventRow.id));
+      await db.delete(schema.eventParticipants).where(eq(schema.eventParticipants.eventId, eventRow.id));
+      await db.delete(schema.events).where(eq(schema.events.id, eventRow.id));
+      await db.delete(schema.user).where(eq(schema.user.id, userAId));
+      await db.delete(schema.user).where(eq(schema.user.id, userBId));
     }
   });
 
   test('does not create a wave when nobody remains eligible after expiry', async () => {
     const [eventRow] = await db
-      .insert(events)
+      .insert(schema.events)
       .values({
         name: 'Scheduled Empty Eligible',
         hasApplication: true,
         capacity: 5,
       })
-      .returning({ id: events.id });
+      .returning({ id: schema.events.id });
 
     const applicantId = await insertWaitlistedUser(eventRow.id, 'scheduled-still-pending@example.com');
 
     const [priorWave] = await db
-      .insert(eventRsvpWaves)
+      .insert(schema.eventRsvpWaves)
       .values({
         eventId: eventRow.id,
         wave: 1,
         respondBy: new Date('2026-08-08T00:00:00.000Z'),
         createdAt: new Date('2026-08-06T00:00:00.000Z'),
       })
-      .returning({ id: eventRsvpWaves.id });
+      .returning({ id: schema.eventRsvpWaves.id });
 
     await insertInvitation({
       rsvpWaveId: priorWave.id,
@@ -345,7 +345,7 @@ describe('runScheduledRsvpWaves', () => {
     });
 
     try {
-      const result = await runScheduledRsvpWaves({
+      const result = await Rsvp.runScheduledRsvpWaves({
         now: new Date('2026-08-10T00:00:00.000Z'),
       });
       const match = result.results.find((r) => r.eventId === eventRow.id);
@@ -354,27 +354,27 @@ describe('runScheduledRsvpWaves', () => {
 
       expect(await getStatus(eventRow.id, applicantId)).toBe('timed_out');
     } finally {
-      await db.delete(eventRsvpWaves).where(eq(eventRsvpWaves.eventId, eventRow.id));
-      await db.delete(eventParticipants).where(eq(eventParticipants.eventId, eventRow.id));
-      await db.delete(events).where(eq(events.id, eventRow.id));
-      await db.delete(user).where(eq(user.id, applicantId));
+      await db.delete(schema.eventRsvpWaves).where(eq(schema.eventRsvpWaves.eventId, eventRow.id));
+      await db.delete(schema.eventParticipants).where(eq(schema.eventParticipants.eventId, eventRow.id));
+      await db.delete(schema.events).where(eq(schema.events.id, eventRow.id));
+      await db.delete(schema.user).where(eq(schema.user.id, applicantId));
     }
   });
 
   test('does not create a wave after the event has started', async () => {
     const now = new Date('2026-08-10T00:00:00.000Z');
     const [eventRow] = await db
-      .insert(events)
+      .insert(schema.events)
       .values({
         name: 'Scheduled Started Event',
         hasApplication: true,
         startsAt: new Date('2026-08-09T00:00:00.000Z'),
       })
-      .returning({ id: events.id });
+      .returning({ id: schema.events.id });
 
     const applicantId = await insertWaitlistedUser(eventRow.id, 'scheduled-started@example.com');
 
-    await db.insert(eventRsvpWaves).values({
+    await db.insert(schema.eventRsvpWaves).values({
       eventId: eventRow.id,
       wave: 1,
       respondBy: new Date('2026-08-08T00:00:00.000Z'),
@@ -382,32 +382,32 @@ describe('runScheduledRsvpWaves', () => {
     });
 
     try {
-      const result = await runScheduledRsvpWaves({ now });
+      const result = await Rsvp.runScheduledRsvpWaves({ now });
       const match = result.results.find((r) => r.eventId === eventRow.id);
       expect(match?.action).toBe('skipped_event_started');
       expect(await waveCount(eventRow.id)).toBe(1);
     } finally {
-      await db.delete(eventRsvpWaves).where(eq(eventRsvpWaves.eventId, eventRow.id));
-      await db.delete(eventParticipants).where(eq(eventParticipants.eventId, eventRow.id));
-      await db.delete(events).where(eq(events.id, eventRow.id));
-      await db.delete(user).where(eq(user.id, applicantId));
+      await db.delete(schema.eventRsvpWaves).where(eq(schema.eventRsvpWaves.eventId, eventRow.id));
+      await db.delete(schema.eventParticipants).where(eq(schema.eventParticipants.eventId, eventRow.id));
+      await db.delete(schema.events).where(eq(schema.events.id, eventRow.id));
+      await db.delete(schema.user).where(eq(schema.user.id, applicantId));
     }
   });
 
   test('concurrent scheduled runs create only one next wave', async () => {
     const now = new Date('2026-08-10T00:00:00.000Z');
     const [eventRow] = await db
-      .insert(events)
+      .insert(schema.events)
       .values({
         name: 'Scheduled Concurrent Event',
         hasApplication: true,
         capacity: 10,
       })
-      .returning({ id: events.id });
+      .returning({ id: schema.events.id });
 
     const applicantId = await insertWaitlistedUser(eventRow.id, 'scheduled-concurrent@example.com');
 
-    await db.insert(eventRsvpWaves).values({
+    await db.insert(schema.eventRsvpWaves).values({
       eventId: eventRow.id,
       wave: 1,
       respondBy: new Date('2026-08-08T00:00:00.000Z'),
@@ -415,16 +415,19 @@ describe('runScheduledRsvpWaves', () => {
     });
 
     try {
-      const [first, second] = await Promise.all([runScheduledRsvpWaves({ now }), runScheduledRsvpWaves({ now })]);
+      const [first, second] = await Promise.all([
+        Rsvp.runScheduledRsvpWaves({ now }),
+        Rsvp.runScheduledRsvpWaves({ now }),
+      ]);
       const actions = [first, second].map((run) => run.results.find((r) => r.eventId === eventRow.id)?.action);
       expect(actions).toContain('sent');
       expect(actions.filter((action) => action === 'sent')).toHaveLength(1);
       expect(await waveCount(eventRow.id)).toBe(2);
     } finally {
-      await db.delete(eventRsvpWaves).where(eq(eventRsvpWaves.eventId, eventRow.id));
-      await db.delete(eventParticipants).where(eq(eventParticipants.eventId, eventRow.id));
-      await db.delete(events).where(eq(events.id, eventRow.id));
-      await db.delete(user).where(eq(user.id, applicantId));
+      await db.delete(schema.eventRsvpWaves).where(eq(schema.eventRsvpWaves.eventId, eventRow.id));
+      await db.delete(schema.eventParticipants).where(eq(schema.eventParticipants.eventId, eventRow.id));
+      await db.delete(schema.events).where(eq(schema.events.id, eventRow.id));
+      await db.delete(schema.user).where(eq(schema.user.id, applicantId));
     }
   });
 });

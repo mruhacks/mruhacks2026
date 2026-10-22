@@ -5,12 +5,12 @@ import { BookOpen } from 'lucide-react';
 
 import { getUser } from '@/utils/auth';
 import { db } from '@/utils/db';
-import { hasPermission } from '@/lib/rbac/authorization';
+import * as Rbac from '@/lib/rbac/server';
 import { getWikiSidebarArticles } from '@/lib/event-wiki';
 import { resolveEventId } from '@/lib/events';
 import { eventPath } from '@/lib/event-slug';
 import { BreadcrumbSegment } from '@/components/breadcrumb-context';
-import { events } from '@/db/schema';
+import * as schema from '@/db/schema';
 import { WikiSidebar } from './wiki-sidebar';
 
 type Props = {
@@ -35,19 +35,19 @@ export default async function EventWikiLayout({ params, children }: Props) {
 
   const [event] = await db
     .select({
-      id: events.id,
-      slug: events.slug,
-      name: events.name,
-      termsId: events.termsId,
+      id: schema.events.id,
+      slug: schema.events.slug,
+      name: schema.events.name,
+      termsId: schema.events.termsId,
     })
-    .from(events)
-    .where(eq(events.id, eventId))
+    .from(schema.events)
+    .where(eq(schema.events.id, eventId))
     .limit(1);
   if (!event) notFound();
 
   // Organizers who can read drafts see them here too, badged — it saves them
   // a round trip through the admin UI to preview what they are writing.
-  const canSeeDrafts = await hasPermission(user.id, 'article:read:all');
+  const canSeeDrafts = await Rbac.hasPermission(user.id, 'article:read:all');
 
   const articlesWithTerms = await getWikiSidebarArticles(eventId, {
     canSeeDrafts,

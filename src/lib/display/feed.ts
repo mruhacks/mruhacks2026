@@ -1,12 +1,12 @@
 import { cacheLife, cacheTag } from 'next/cache';
 import { eq } from 'drizzle-orm';
 
-import { displaySettings, events } from '@/db/schema';
+import * as schema from '@/db/schema';
 import { db } from '@/utils/db';
 import { serializeInstant } from '@/lib/datetime';
 import { EVENTS_CACHE_TAG } from '@/lib/events';
 import { isScheduleVisible, listSubevents } from '@/lib/subevents';
-import type { DisplayFeed, DisplaySettings } from '@/lib/display/schedule';
+import type { DisplayFeed, DisplaySettings } from './schedule';
 
 /*
  * Every screen polls the feed every 15 seconds, so it's served from cache and
@@ -27,11 +27,11 @@ export async function getDisplaySettings(): Promise<DisplaySettings> {
 
   const [row] = await db
     .select({
-      showClock: displaySettings.showClock,
-      theme: displaySettings.theme,
+      showClock: schema.displaySettings.showClock,
+      theme: schema.displaySettings.theme,
     })
-    .from(displaySettings)
-    .where(eq(displaySettings.id, 1))
+    .from(schema.displaySettings)
+    .where(eq(schema.displaySettings.id, 1))
     .limit(1);
   return row ?? DEFAULT_SETTINGS;
 }
@@ -49,7 +49,7 @@ export async function loadDisplayFeed(): Promise<DisplayFeed> {
   cacheLife('days');
 
   const [[event], settings] = await Promise.all([
-    db.select({ id: events.id }).from(events).where(eq(events.isFeatured, true)).limit(1),
+    db.select({ id: schema.events.id }).from(schema.events).where(eq(schema.events.isFeatured, true)).limit(1),
     getDisplaySettings(),
   ]);
   const subevents = event ? await listSubevents(event.id) : [];

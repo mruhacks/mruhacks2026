@@ -15,7 +15,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import type { StatusSplitStat } from '@/lib/application-stats';
-import { STATIC_STATUS_DISPLAY } from '@/lib/participation/status';
+import * as Participation from '@/lib/participation';
 import { participationStatusesList } from '@/types/lookups';
 import { useStoredIdSet } from '@/lib/use-stored-id-set';
 
@@ -33,8 +33,8 @@ function statusStorageKey(eventId: string) {
 }
 
 function statusTitle(status: string): string {
-  if (status in STATIC_STATUS_DISPLAY) {
-    return STATIC_STATUS_DISPLAY[status as keyof typeof STATIC_STATUS_DISPLAY].title;
+  if (status in Participation.STATIC_STATUS_DISPLAY) {
+    return Participation.STATIC_STATUS_DISPLAY[status as keyof typeof Participation.STATIC_STATUS_DISPLAY].title;
   }
   return status === 'unknown' ? 'Unknown' : status;
 }

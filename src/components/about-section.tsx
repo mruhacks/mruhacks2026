@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { RegisterOrDashboardButton } from '@/components/register-or-dashboard-button';
-import { INTRO_BLURB } from '../content';
+import { INTRO_BLURB } from '@/content';
 
 /**
  *About

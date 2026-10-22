@@ -10,7 +10,7 @@
 import { describe, test, expect, beforeAll, afterAll, vi } from 'vitest';
 import { db } from '@/utils/db';
 import { eq } from 'drizzle-orm';
-import { user, events } from '@/db/schema';
+import * as schema from '@/db/schema';
 
 vi.mock('@/utils/auth', () => ({ getUser: vi.fn() }));
 vi.mock('next/cache', () => ({ updateTag: vi.fn() }));
@@ -47,13 +47,13 @@ let testEventId: string;
 
 beforeAll(async () => {
   const [u] = await db
-    .insert(user)
+    .insert(schema.user)
     .values({
       name: 'No Perm Admin',
       email: 'admin-events-noperm@example.com',
       emailVerified: true,
     })
-    .returning({ id: user.id });
+    .returning({ id: schema.user.id });
   noPermUserId = u.id;
   noPermUser = {
     id: noPermUserId,
@@ -63,21 +63,21 @@ beforeAll(async () => {
   };
 
   const [e] = await db
-    .insert(events)
+    .insert(schema.events)
     .values({
       name: 'Auth Test Event',
       hasApplication: true,
       applicationQuestions: [],
     })
-    .returning({ id: events.id });
+    .returning({ id: schema.events.id });
   testEventId = e.id;
 
   vi.mocked(getUser).mockResolvedValue(noPermUser as never);
 });
 
 afterAll(async () => {
-  await db.delete(events).where(eq(events.id, testEventId));
-  await db.delete(user).where(eq(user.id, noPermUserId));
+  await db.delete(schema.events).where(eq(schema.events.id, testEventId));
+  await db.delete(schema.user).where(eq(schema.user.id, noPermUserId));
 });
 
 // ─── createEvent ───────────────────────────────────────────────────────────────

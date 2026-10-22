@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import { allMembers } from '@/assets/badges';
-import { Carousel, CarouselContent, CarouselItem, CarouselPrevious, CarouselNext } from './ui/carousel';
+import { Carousel, CarouselContent, CarouselItem, CarouselPrevious, CarouselNext } from '@/components/ui/carousel';
 
 export default function MeetTheTeam() {
   return (

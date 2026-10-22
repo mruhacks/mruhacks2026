@@ -4,8 +4,8 @@ import { notFound, redirect } from 'next/navigation';
 
 import { getJudgingTableSigns } from '@/app/dashboard/admin/events/judging-actions';
 import { resolveEventId } from '@/lib/events';
-import { formatTableLabel, MAX_TABLE_SIGNS } from '@/lib/judging/table-label';
-import { requirePermission } from '@/lib/rbac/authorization';
+import * as Judging from '@/lib/judging';
+import * as Rbac from '@/lib/rbac/server';
 import { getUser } from '@/utils/auth';
 
 import { PrintButton } from './print-button';
@@ -22,7 +22,7 @@ type Props = {
 function parseCount(raw: string | string[] | undefined): number | null {
   if (typeof raw !== 'string') return null;
   const count = Number(raw);
-  return Number.isInteger(count) && count >= 1 && count <= MAX_TABLE_SIGNS ? count : null;
+  return Number.isInteger(count) && count >= 1 && count <= Judging.MAX_TABLE_SIGNS ? count : null;
 }
 
 export const metadata: Metadata = { title: 'Table signs' };
@@ -54,7 +54,7 @@ async function TableSigns({
   const user = await getUser();
   if (!user) redirect('/signin');
   // Same permission as the table layout the signs are printed from.
-  await requirePermission(user.id, 'judging:manage:all');
+  await Rbac.requirePermission(user.id, 'judging:manage:all');
 
   const result = await getJudgingTableSigns(eventId);
   if (!result.success || !result.data) {
@@ -65,7 +65,7 @@ async function TableSigns({
   // than tables handed out. Labels follow the saved layout either way.
   const requested = parseCount(rawCount);
   const count = requested ?? handedOut;
-  const labels = Array.from({ length: count }, (_, slot) => formatTableLabel(slot, layout));
+  const labels = Array.from({ length: count }, (_, slot) => Judging.formatTableLabel(slot, layout));
 
   return (
     <>

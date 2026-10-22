@@ -4,9 +4,9 @@ import React from 'react';
 import { Column, Img, Link, Row, Section } from 'react-email';
 import { and, eq, isNull } from 'drizzle-orm';
 
-import { events } from '@/db/schema';
-import { buildWalletLinkToken } from '@/lib/signing/email-tokens';
-import { walletParticipation } from '@/lib/wallet/wallet-responses';
+import * as schema from '@/db/schema';
+import * as Signing from '@/lib/signing/server';
+import * as Wallet from '@/lib/wallet/server';
 import { db } from '@/utils/db';
 import { isWalletBlock } from './email-markdown';
 import type { BlockRenderers } from './render-campaign-email';
@@ -33,9 +33,9 @@ export async function walletBlockError(eventId: string | null): Promise<string |
   const message = 'The wallet block needs the campaign to be about an event with check-in turned on.';
   if (!eventId) return message;
   const [row] = await db
-    .select({ checkInEnabled: events.checkInEnabled })
-    .from(events)
-    .where(and(eq(events.id, eventId), isNull(events.parentEventId)))
+    .select({ checkInEnabled: schema.events.checkInEnabled })
+    .from(schema.events)
+    .where(and(eq(schema.events.id, eventId), isNull(schema.events.parentEventId)))
     .limit(1);
   return row?.checkInEnabled ? null : message;
 }
@@ -50,12 +50,12 @@ export async function walletLinksFor(
   baseUrl: string,
   now: Date = new Date(),
 ): Promise<WalletLinks | null> {
-  const participation = await walletParticipation(eventId, userId);
+  const participation = await Wallet.walletParticipation(eventId, userId);
   if (!participation) return null;
   if (participation.endsAt && participation.endsAt.getTime() < now.getTime()) {
     return null;
   }
-  const token = await buildWalletLinkToken(userId, eventId);
+  const token = await Signing.buildWalletLinkToken(userId, eventId);
   const url = `${baseUrl}/api/wallet/email/${token}`;
   return { apple: `${url}?platform=apple`, google: `${url}?platform=google` };
 }

@@ -10,39 +10,14 @@ import { subeventsCacheTag } from '@/lib/subevents';
 import { EVENTS_CACHE_TAG, eventUrlSegments } from '@/lib/events';
 import { eventPath } from '@/lib/event-slug';
 import { adminEventCacheTag, eventApplicationsCacheTag } from '@/lib/admin-event';
-import {
-  events,
-  eventParticipants,
-  eventInvitations,
-  participationStatuses,
-  user,
-  userProfiles,
-  userProfileAbout,
-  genders,
-  universities,
-  majors,
-  yearsOfStudy,
-  eventRsvpWaves,
-  checkIns,
-  teams,
-  teamMembers,
-  submissions,
-} from '@/db/schema';
+import * as schema from '@/db/schema';
 import { getUser } from '@/utils/auth';
 import { ok, fail, type ActionResult } from '@/utils/action-result';
-import { hasPermission, requireAnyPermission, requirePermission } from '@/lib/rbac/authorization';
-import { sendRsvpWave } from '@/lib/rsvp/send-rsvp-wave';
-import { resendRsvpMagicLink } from '@/lib/rsvp/resend-rsvp-magic-link';
-import { getAdminRsvpSummary } from '@/lib/rsvp/get-admin-rsvp-summary';
-import { getWaitlist, syncWaitlistForEvent, type WaitlistEntry } from '@/lib/rsvp/waitlist';
-import type { AdminRsvpSummary } from '@/lib/rsvp/get-admin-rsvp-summary';
-import { DEFAULT_RSVP_RESPONSE_WINDOW_HOURS } from '@/lib/rsvp/constants';
+import * as Rbac from '@/lib/rbac/server';
+import * as Rsvp from '@/lib/rsvp/server';
 import { isSummarizableQuestion, type ApplicationQuestion } from '@/types/application';
 import type { ParticipationStatus } from '@/types/lookups';
-import { countAttending, statusIdOf } from '@/lib/participation/server';
-import { isAttending, isReviewStatus, resolveEffectiveStatus } from '@/lib/participation/status';
-import { adminTransitionPermissions } from '@/lib/participation/transitions';
-import { publishRsvpInvitation } from '@/lib/rsvp/rsvp-invitation-queue';
+import * as Participation from '@/lib/participation/server';
 import {
   buildQuestionStats,
   buildStatusBreakdown,
@@ -74,7 +49,7 @@ import { writeAuditLog } from '@/utils/audit-log';
 async function getAuthorizedUser() {
   const user = await getUser();
   if (!user) return null;
-  await requirePermission(user.id, 'event:manage');
+  await Rbac.requirePermission(user.id, 'event:manage');
   // TODO: Extend to support event-scoped permissions:
   //   - requirePermission(user.id, `event:manage:{eventId}`) for org-specific access
   //   - or check if user has role 'organizer' for this specific event
@@ -84,9 +59,9 @@ async function getAuthorizedUser() {
 /** Fetch all current questions for an event (null if not found). */
 async function fetchQuestions(eventId: string): Promise<ApplicationQuestion[] | null> {
   const [row] = await db
-    .select({ applicationQuestions: events.applicationQuestions })
-    .from(events)
-    .where(eq(events.id, eventId))
+    .select({ applicationQuestions: schema.events.applicationQuestions })
+    .from(schema.events)
+    .where(eq(schema.events.id, eventId))
     .limit(1);
 
   if (!row) return null;
@@ -96,15 +71,18 @@ async function fetchQuestions(eventId: string): Promise<ApplicationQuestion[] | 
 /** Fetch all event_participants.responses for a given event. */
 async function fetchAllResponses(eventId: string): Promise<Record<string, unknown>[]> {
   const rows = await db
-    .select({ responses: eventParticipants.responses })
-    .from(eventParticipants)
-    .where(eq(eventParticipants.eventId, eventId));
+    .select({ responses: schema.eventParticipants.responses })
+    .from(schema.eventParticipants)
+    .where(eq(schema.eventParticipants.eventId, eventId));
   return rows.map((r) => (r.responses as Record<string, unknown>) ?? {});
 }
 
 /** Write updated questions back. */
 async function writeQuestions(eventId: string, questions: ApplicationQuestion[]): Promise<void> {
-  await db.update(events).set({ applicationQuestions: questions, updatedAt: new Date() }).where(eq(events.id, eventId));
+  await db
+    .update(schema.events)
+    .set({ applicationQuestions: questions, updatedAt: new Date() })
+    .where(eq(schema.events.id, eventId));
 
   // Single funnel for every question mutation (add/edit/remove/reorder/
   // reactivate), so the event dashboard's cached question list and stats
@@ -129,17 +107,17 @@ export type EventWithQuestions = {
 export async function getEventWithQuestions(eventId: string): Promise<ActionResult<EventWithQuestions>> {
   const user = await getUser();
   if (!user) return fail('Not authenticated');
-  await requirePermission(user.id, 'event:manage');
+  await Rbac.requirePermission(user.id, 'event:manage');
 
-  const [eventRow] = await db.select().from(events).where(eq(events.id, eventId)).limit(1);
+  const [eventRow] = await db.select().from(schema.events).where(eq(schema.events.id, eventId)).limit(1);
 
   if (!eventRow) return fail('Event not found');
 
   // Fetch applications count - ensure we're getting a fresh count
   const applicationsData = await db
     .select({ total: count() })
-    .from(eventParticipants)
-    .where(eq(eventParticipants.eventId, eventId));
+    .from(schema.eventParticipants)
+    .where(eq(schema.eventParticipants.eventId, eventId));
 
   const applicationCount = applicationsData[0]?.total ?? 0;
 
@@ -359,9 +337,13 @@ export async function reactivateQuestion(eventId: string, questionId: string): P
  */
 async function isEventSlugAvailable(slug: string, exceptEventId?: string): Promise<boolean> {
   const [taken] = await db
-    .select({ id: events.id })
-    .from(events)
-    .where(exceptEventId ? and(eq(events.slug, slug), ne(events.id, exceptEventId)) : eq(events.slug, slug))
+    .select({ id: schema.events.id })
+    .from(schema.events)
+    .where(
+      exceptEventId
+        ? and(eq(schema.events.slug, slug), ne(schema.events.id, exceptEventId))
+        : eq(schema.events.slug, slug),
+    )
     .limit(1);
 
   return !taken;
@@ -388,7 +370,7 @@ export async function createEvent(data: CreateEventInput): Promise<ActionResult<
   }
 
   const [newEvent] = await db
-    .insert(events)
+    .insert(schema.events)
     .values({
       id: randomUUID(),
       name: input.name,
@@ -396,7 +378,7 @@ export async function createEvent(data: CreateEventInput): Promise<ActionResult<
       hasApplication: input.hasApplication,
       capacity: input.capacity ?? null,
       capacityVisible: input.capacityVisible ?? false,
-      rsvpResponseWindowHours: input.rsvpResponseWindowHours ?? DEFAULT_RSVP_RESPONSE_WINDOW_HOURS,
+      rsvpResponseWindowHours: input.rsvpResponseWindowHours ?? Rsvp.DEFAULT_RSVP_RESPONSE_WINDOW_HOURS,
       teamsEnabled: input.teamsEnabled ?? false,
       maxTeamSize: input.maxTeamSize ?? null,
       startsAt: input.startsAt ? new Date(input.startsAt) : null,
@@ -412,7 +394,7 @@ export async function createEvent(data: CreateEventInput): Promise<ActionResult<
       createdAt: new Date(),
       updatedAt: new Date(),
     })
-    .returning({ id: events.id });
+    .returning({ id: schema.events.id });
 
   updateTag(EVENTS_CACHE_TAG);
 
@@ -457,18 +439,18 @@ export type EventDetails = {
 export async function getEventDetails(eventId: string): Promise<ActionResult<EventDetails>> {
   const user = await getUser();
   if (!user) return fail('Not authenticated');
-  await requirePermission(user.id, 'event:manage');
+  await Rbac.requirePermission(user.id, 'event:manage');
 
-  const [eventRow] = await db.select().from(events).where(eq(events.id, eventId)).limit(1);
+  const [eventRow] = await db.select().from(schema.events).where(eq(schema.events.id, eventId)).limit(1);
 
   if (!eventRow) return fail('Event not found');
 
   const [{ total: applicationsCount }] = await db
     .select({ total: count() })
-    .from(eventParticipants)
-    .where(eq(eventParticipants.eventId, eventId));
+    .from(schema.eventParticipants)
+    .where(eq(schema.eventParticipants.eventId, eventId));
 
-  const attendeeCount = await countAttending(eventId);
+  const attendeeCount = await Participation.countAttending(eventId);
 
   const questions = await fetchQuestions(eventId);
   const questionsCount = (questions ?? []).filter((q) => q.active).length;
@@ -510,7 +492,7 @@ export async function updateEventSettings(eventId: string, data: UpdateEventSett
   const parsed = updateEventSettingsSchema.safeParse(data);
   if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? 'Invalid input');
 
-  const [eventRow] = await db.select().from(events).where(eq(events.id, eventId)).limit(1);
+  const [eventRow] = await db.select().from(schema.events).where(eq(schema.events.id, eventId)).limit(1);
 
   if (!eventRow) return fail('Event not found');
 
@@ -550,9 +532,9 @@ export async function updateEventSettings(eventId: string, data: UpdateEventSett
   const clearsDeadline = finalSubmissionsCloseAt == null && eventRow.submissionsCloseAt != null;
   if (turnsOffTeams || turnsOffCheckIn || clearsDeadline) {
     const [existingSubmission] = await db
-      .select({ id: submissions.id })
-      .from(submissions)
-      .where(eq(submissions.eventId, eventId))
+      .select({ id: schema.submissions.id })
+      .from(schema.submissions)
+      .where(eq(schema.submissions.eventId, eventId))
       .limit(1);
     if (existingSubmission) {
       const what = turnsOffTeams
@@ -603,13 +585,13 @@ export async function updateEventSettings(eventId: string, data: UpdateEventSett
     // Only one event may be featured at a time (enforced by idx_events_featured_unique).
     if (input.isFeatured === true) {
       await tx
-        .update(events)
+        .update(schema.events)
         .set({ isFeatured: false })
-        .where(and(eq(events.isFeatured, true), ne(events.id, eventId)));
+        .where(and(eq(schema.events.isFeatured, true), ne(schema.events.id, eventId)));
     }
 
     await tx
-      .update(events)
+      .update(schema.events)
       .set({
         name: input.name ?? eventRow.name,
         slug: finalSlug,
@@ -635,7 +617,7 @@ export async function updateEventSettings(eventId: string, data: UpdateEventSett
         eventTypeId: input.eventTypeId !== undefined ? input.eventTypeId : eventRow.eventTypeId,
         updatedAt: new Date(),
       })
-      .where(eq(events.id, eventId));
+      .where(eq(schema.events.id, eventId));
   });
 
   // Homepage featured-event lookups and the events list are both cached; bust
@@ -677,21 +659,21 @@ export type ApplicationResponseRow = {
 export async function getApplicationResponses(eventId: string): Promise<ActionResult<ApplicationResponseRow[]>> {
   const authUser = await getUser();
   if (!authUser) return fail('Not authenticated');
-  await requirePermission(authUser.id, 'event:manage');
+  await Rbac.requirePermission(authUser.id, 'event:manage');
 
   const rows = await db
     .select({
-      userId: eventParticipants.userId,
-      email: user.email,
-      fullName: userProfiles.fullName,
-      responses: eventParticipants.responses,
-      createdAt: eventParticipants.createdAt,
+      userId: schema.eventParticipants.userId,
+      email: schema.user.email,
+      fullName: schema.userProfiles.fullName,
+      responses: schema.eventParticipants.responses,
+      createdAt: schema.eventParticipants.createdAt,
     })
-    .from(eventParticipants)
-    .innerJoin(user, eq(eventParticipants.userId, user.id))
-    .leftJoin(userProfiles, eq(eventParticipants.userId, userProfiles.userId))
-    .where(eq(eventParticipants.eventId, eventId))
-    .orderBy(eventParticipants.createdAt);
+    .from(schema.eventParticipants)
+    .innerJoin(schema.user, eq(schema.eventParticipants.userId, schema.user.id))
+    .leftJoin(schema.userProfiles, eq(schema.eventParticipants.userId, schema.userProfiles.userId))
+    .where(eq(schema.eventParticipants.eventId, eventId))
+    .orderBy(schema.eventParticipants.createdAt);
 
   return ok(
     rows.map((row) => ({
@@ -729,15 +711,15 @@ export async function getApplicationStats(
 ): Promise<ActionResult<EventApplicationStats>> {
   const authUser = await getUser();
   if (!authUser) return fail('Not authenticated');
-  await requirePermission(authUser.id, 'application:stats');
+  await Rbac.requirePermission(authUser.id, 'application:stats');
 
   const [eventRow] = await db
     .select({
-      applicationQuestions: events.applicationQuestions,
-      hasApplication: events.hasApplication,
+      applicationQuestions: schema.events.applicationQuestions,
+      hasApplication: schema.events.hasApplication,
     })
-    .from(events)
-    .where(eq(events.id, eventId))
+    .from(schema.events)
+    .where(eq(schema.events.id, eventId))
     .limit(1);
 
   if (!eventRow) return fail('Event not found');
@@ -746,26 +728,26 @@ export async function getApplicationStats(
 
   const whereClause =
     status && status !== 'all'
-      ? and(eq(eventParticipants.eventId, eventId), eq(participationStatuses.label, status))
-      : eq(eventParticipants.eventId, eventId);
+      ? and(eq(schema.eventParticipants.eventId, eventId), eq(schema.participationStatuses.label, status))
+      : eq(schema.eventParticipants.eventId, eventId);
 
   const rows = await db
     .select({
-      responses: eventParticipants.responses,
-      status: participationStatuses.label,
-      university: universities.label,
-      major: majors.label,
-      yearOfStudy: yearsOfStudy.label,
-      gender: genders.label,
+      responses: schema.eventParticipants.responses,
+      status: schema.participationStatuses.label,
+      university: schema.universities.label,
+      major: schema.majors.label,
+      yearOfStudy: schema.yearsOfStudy.label,
+      gender: schema.genders.label,
     })
-    .from(eventParticipants)
-    .leftJoin(userProfiles, eq(eventParticipants.userId, userProfiles.userId))
-    .leftJoin(userProfileAbout, eq(eventParticipants.userId, userProfileAbout.userId))
-    .leftJoin(genders, eq(userProfiles.genderId, genders.id))
-    .leftJoin(universities, eq(userProfileAbout.universityId, universities.id))
-    .leftJoin(majors, eq(userProfileAbout.majorId, majors.id))
-    .leftJoin(yearsOfStudy, eq(userProfileAbout.yearOfStudyId, yearsOfStudy.id))
-    .innerJoin(participationStatuses, eq(eventParticipants.statusId, participationStatuses.id))
+    .from(schema.eventParticipants)
+    .leftJoin(schema.userProfiles, eq(schema.eventParticipants.userId, schema.userProfiles.userId))
+    .leftJoin(schema.userProfileAbout, eq(schema.eventParticipants.userId, schema.userProfileAbout.userId))
+    .leftJoin(schema.genders, eq(schema.userProfiles.genderId, schema.genders.id))
+    .leftJoin(schema.universities, eq(schema.userProfileAbout.universityId, schema.universities.id))
+    .leftJoin(schema.majors, eq(schema.userProfileAbout.majorId, schema.majors.id))
+    .leftJoin(schema.yearsOfStudy, eq(schema.userProfileAbout.yearOfStudyId, schema.yearsOfStudy.id))
+    .innerJoin(schema.participationStatuses, eq(schema.eventParticipants.statusId, schema.participationStatuses.id))
     .where(whereClause);
 
   const statsRows: ApplicationStatsRow[] = rows.map((row) => ({
@@ -813,7 +795,7 @@ export async function updateParticipantStatus(
   const authUser = await getUser();
   if (!authUser) return fail('Not authenticated');
 
-  await requireAnyPermission(authUser.id, ['application:review:all', 'rsvp:write:all']);
+  await Rbac.requireAnyPermission(authUser.id, ['application:review:all', 'rsvp:write:all']);
 
   const parsed = updateParticipantStatusSchema.safeParse(input);
   if (!parsed.success) return fail('Invalid status.');
@@ -829,43 +811,47 @@ export async function updateParticipantStatus(
       if (status === 'invited') {
         // Same lock order as `sendRsvpWave` and `submitRsvpResponse` (event,
         // then participant), so the open wave can't close underneath us.
-        await tx.select({ id: events.id }).from(events).where(eq(events.id, eventId)).for('update');
+        await tx
+          .select({ id: schema.events.id })
+          .from(schema.events)
+          .where(eq(schema.events.id, eventId))
+          .for('update');
       }
 
       const [row] = await tx
         .select({
-          userId: eventParticipants.userId,
-          statusLabel: participationStatuses.label,
-          invitationId: eventInvitations.id,
-          respondBy: eventRsvpWaves.respondBy,
+          userId: schema.eventParticipants.userId,
+          statusLabel: schema.participationStatuses.label,
+          invitationId: schema.eventInvitations.id,
+          respondBy: schema.eventRsvpWaves.respondBy,
         })
-        .from(eventParticipants)
-        .innerJoin(participationStatuses, eq(eventParticipants.statusId, participationStatuses.id))
-        .leftJoin(eventInvitations, eq(eventInvitations.participantId, eventParticipants.id))
-        .leftJoin(eventRsvpWaves, eq(eventInvitations.rsvpWaveId, eventRsvpWaves.id))
-        .where(and(eq(eventParticipants.id, participantId), eq(eventParticipants.eventId, eventId)))
-        .for('update', { of: eventParticipants })
+        .from(schema.eventParticipants)
+        .innerJoin(schema.participationStatuses, eq(schema.eventParticipants.statusId, schema.participationStatuses.id))
+        .leftJoin(schema.eventInvitations, eq(schema.eventInvitations.participantId, schema.eventParticipants.id))
+        .leftJoin(schema.eventRsvpWaves, eq(schema.eventInvitations.rsvpWaveId, schema.eventRsvpWaves.id))
+        .where(and(eq(schema.eventParticipants.id, participantId), eq(schema.eventParticipants.eventId, eventId)))
+        .for('update', { of: schema.eventParticipants })
         .limit(1);
       if (!row) throw new StatusChangeError('Application not found.');
 
       const now = new Date();
-      const from = resolveEffectiveStatus(row.statusLabel, row.respondBy, now);
+      const from = Participation.resolveEffectiveStatus(row.statusLabel, row.respondBy, now);
       if (from === status) {
         return { userId: row.userId, from, newInvitationId: null };
       }
 
-      const required = adminTransitionPermissions(from, status) ?? [];
+      const required = Participation.adminTransitionPermissions(from, status) ?? [];
       for (const permission of required) {
-        if (!(await hasPermission(authUser.id, permission))) {
+        if (!(await Rbac.hasPermission(authUser.id, permission))) {
           throw new StatusChangeError('You do not have permission to make this change.');
         }
       }
 
-      if (isAttending(from)) {
+      if (Participation.isAttending(from)) {
         const [checkIn] = await tx
-          .select({ userId: checkIns.userId })
-          .from(checkIns)
-          .where(and(eq(checkIns.eventId, eventId), eq(checkIns.userId, row.userId)))
+          .select({ userId: schema.checkIns.userId })
+          .from(schema.checkIns)
+          .where(and(eq(schema.checkIns.eventId, eventId), eq(schema.checkIns.userId, row.userId)))
           .limit(1);
         if (checkIn) {
           throw new StatusChangeError(
@@ -880,12 +866,12 @@ export async function updateParticipantStatus(
       if (needsOpenWave) {
         const [openWave] = await tx
           .select({
-            id: eventRsvpWaves.id,
-            respondBy: eventRsvpWaves.respondBy,
+            id: schema.eventRsvpWaves.id,
+            respondBy: schema.eventRsvpWaves.respondBy,
           })
-          .from(eventRsvpWaves)
-          .where(eq(eventRsvpWaves.eventId, eventId))
-          .orderBy(desc(eventRsvpWaves.wave))
+          .from(schema.eventRsvpWaves)
+          .where(eq(schema.eventRsvpWaves.eventId, eventId))
+          .orderBy(desc(schema.eventRsvpWaves.wave))
           .limit(1);
         if (!openWave || openWave.respondBy <= now) {
           throw new StatusChangeError(
@@ -895,7 +881,7 @@ export async function updateParticipantStatus(
         if (row.invitationId) {
           // Their wave has closed: re-invite them in the open one instead.
           await tx
-            .update(eventInvitations)
+            .update(schema.eventInvitations)
             .set({
               rsvpWaveId: openWave.id,
               respondedAt: null,
@@ -907,36 +893,36 @@ export async function updateParticipantStatus(
               invitationEmailQueuedAt: null,
               invitationEmailSentAt: null,
             })
-            .where(eq(eventInvitations.id, row.invitationId));
+            .where(eq(schema.eventInvitations.id, row.invitationId));
           newInvitationId = row.invitationId;
         } else {
           const [invitation] = await tx
-            .insert(eventInvitations)
+            .insert(schema.eventInvitations)
             .values({ rsvpWaveId: openWave.id, participantId })
-            .returning({ id: eventInvitations.id });
+            .returning({ id: schema.eventInvitations.id });
           newInvitationId = invitation.id;
         }
       }
 
-      const toReview = isReviewStatus(status);
+      const toReview = Participation.isReviewStatus(status);
       await tx
-        .update(eventParticipants)
+        .update(schema.eventParticipants)
         .set({
-          statusId: statusIdOf(status),
+          statusId: Participation.statusIdOf(status),
           ...(toReview ? { reviewedAt: now, reviewedBy: authUser.id } : {}),
         })
-        .where(eq(eventParticipants.id, participantId));
+        .where(eq(schema.eventParticipants.id, participantId));
 
       if (row.invitationId && toReview) {
         // Back in review: the invitation is withdrawn, so a later wave can
         // invite them again (one invitation per participant).
-        await tx.delete(eventInvitations).where(eq(eventInvitations.id, row.invitationId));
+        await tx.delete(schema.eventInvitations).where(eq(schema.eventInvitations.id, row.invitationId));
       } else if (row.invitationId && !newInvitationId) {
         const decided = status === 'accepted' || status === 'declined';
         await tx
-          .update(eventInvitations)
+          .update(schema.eventInvitations)
           .set({ respondedAt: decided ? now : null })
-          .where(eq(eventInvitations.id, row.invitationId));
+          .where(eq(schema.eventInvitations.id, row.invitationId));
       }
 
       return { userId: row.userId, from, newInvitationId };
@@ -954,7 +940,7 @@ export async function updateParticipantStatus(
   // joins the waitlist — so re-rank. Best effort: the status change itself
   // has committed, and the next vote resyncs anyway.
   try {
-    await syncWaitlistForEvent(eventId, authUser.id);
+    await Rsvp.syncWaitlistForEvent(eventId, authUser.id);
   } catch (error) {
     console.error('[admin/events] Waitlist sync after status change failed:', error);
   }
@@ -965,15 +951,18 @@ export async function updateParticipantStatus(
     // Best effort, like a wave: an invitation left `unsent` is picked up by
     // the requeue sweep.
     try {
-      await publishRsvpInvitation(result.newInvitationId);
+      await Rsvp.publishRsvpInvitation(result.newInvitationId);
       await db
-        .update(eventInvitations)
+        .update(schema.eventInvitations)
         .set({
           invitationEmailStatus: 'queued',
           invitationEmailQueuedAt: new Date(),
         })
         .where(
-          and(eq(eventInvitations.id, result.newInvitationId), eq(eventInvitations.invitationEmailStatus, 'unsent')),
+          and(
+            eq(schema.eventInvitations.id, result.newInvitationId),
+            eq(schema.eventInvitations.invitationEmailStatus, 'unsent'),
+          ),
         );
     } catch (error) {
       console.error('[admin/events] failed to queue RSVP invitation', error);
@@ -1009,14 +998,14 @@ export type SendEventRsvpWaveResult = {
  * Read-only RSVP wave/capacity summary for admin RSVP surfaces.
  * Requires rsvp:read:all, the permission the RSVP page is gated on.
  */
-export async function getEventRsvpSummary(eventId: string): Promise<ActionResult<AdminRsvpSummary>> {
+export async function getEventRsvpSummary(eventId: string): Promise<ActionResult<Rsvp.AdminRsvpSummary>> {
   const user = await getUser();
   if (!user) return fail('Not authenticated');
-  await requirePermission(user.id, 'rsvp:read:all');
+  await Rbac.requirePermission(user.id, 'rsvp:read:all');
 
   if (!eventId.trim()) return fail('Event ID is required.');
 
-  const summary = await getAdminRsvpSummary(eventId);
+  const summary = await Rsvp.getAdminRsvpSummary(eventId);
   if (!summary) return fail('Event not found');
 
   return ok(summary);
@@ -1028,7 +1017,7 @@ export type {
   AdminRsvpSummary,
   AdminRsvpWaveSummary,
   RsvpInvitationEmailStatus,
-} from '@/lib/rsvp/get-admin-rsvp-summary';
+} from '@/lib/rsvp';
 
 /**
  * Admin: resend the RSVP invitation email for one pending applicant.
@@ -1043,7 +1032,7 @@ export async function resendRsvpInvitation(eventId: string, userId: string): Pro
   if (!eventId.trim()) return fail('Event ID is required.');
   if (!userId.trim()) return fail('User ID is required.');
 
-  const result = await resendRsvpMagicLink({ eventId, userId });
+  const result = await Rsvp.resendRsvpMagicLink({ eventId, userId });
   if (!result.success) {
     return fail(result.error);
   }
@@ -1083,11 +1072,11 @@ export async function sendEventRsvpWave(
   if (!eventId.trim()) return fail('Event ID is required.');
 
   const closeActiveWave = options.closeActiveWave === true;
-  if (closeActiveWave && !(await hasPermission(user.id, 'rsvp:write:all'))) {
+  if (closeActiveWave && !(await Rbac.hasPermission(user.id, 'rsvp:write:all'))) {
     return fail("You don't have permission to close an open RSVP wave.");
   }
 
-  const result = await sendRsvpWave(eventId, { closeActiveWave });
+  const result = await Rsvp.sendRsvpWave(eventId, { closeActiveWave });
   if (!result.success) {
     return fail(result.error);
   }
@@ -1126,15 +1115,15 @@ export async function sendEventRsvpWave(
  * Admin: the event's waitlist in queue order — the order RSVP waves invite
  * in. Requires rsvp:read:all, like the rest of the RSVP page.
  */
-export async function getEventWaitlist(eventId: string): Promise<ActionResult<WaitlistEntry[]>> {
+export async function getEventWaitlist(eventId: string): Promise<ActionResult<Rsvp.WaitlistEntry[]>> {
   const user = await getUser();
   if (!user) return fail('Not authenticated');
-  await requirePermission(user.id, 'rsvp:read:all');
+  await Rbac.requirePermission(user.id, 'rsvp:read:all');
   if (!eventId.trim()) return fail('Event ID is required.');
-  return ok(await getWaitlist(eventId));
+  return ok(await Rsvp.getWaitlist(eventId));
 }
 
-export type { WaitlistEntry } from '@/lib/rsvp/waitlist';
+export type { WaitlistEntry } from '@/lib/rsvp';
 
 export type FormedTeamMember = {
   userId: string;
@@ -1160,7 +1149,7 @@ export type FormedTeamRow = {
 export async function getFormedTeamsForEvent(eventId: string): Promise<ActionResult<FormedTeamRow[]>> {
   const authUser = await getUser();
   if (!authUser) return fail('Not authenticated');
-  await requirePermission(authUser.id, 'team:read:all');
+  await Rbac.requirePermission(authUser.id, 'team:read:all');
 
   try {
     return await listFormedTeams(eventId);
@@ -1178,15 +1167,15 @@ export async function getFormedTeamsForEvent(eventId: string): Promise<ActionRes
 export async function canModerateTeams(): Promise<boolean> {
   const authUser = await getUser();
   if (!authUser) return false;
-  return hasPermission(authUser.id, 'team:manage:all');
+  return Rbac.hasPermission(authUser.id, 'team:manage:all');
 }
 
 async function listFormedTeams(eventId: string): Promise<ActionResult<FormedTeamRow[]>> {
   const formedTeams = await db
-    .select({ teamId: teamMembers.teamId, memberCount: count() })
-    .from(teamMembers)
-    .where(eq(teamMembers.eventId, eventId))
-    .groupBy(teamMembers.teamId)
+    .select({ teamId: schema.teamMembers.teamId, memberCount: count() })
+    .from(schema.teamMembers)
+    .where(eq(schema.teamMembers.eventId, eventId))
+    .groupBy(schema.teamMembers.teamId)
     .having(sql`count(*) > 1`);
 
   if (formedTeams.length === 0) return ok([]);
@@ -1195,17 +1184,20 @@ async function listFormedTeams(eventId: string): Promise<ActionResult<FormedTeam
   const countByTeamId = new Map(formedTeams.map((t) => [t.teamId, t.memberCount]));
 
   const [teamRows, memberRows] = await Promise.all([
-    db.select({ id: teams.id, organizerId: teams.organizerId }).from(teams).where(inArray(teams.id, teamIds)),
+    db
+      .select({ id: schema.teams.id, organizerId: schema.teams.organizerId })
+      .from(schema.teams)
+      .where(inArray(schema.teams.id, teamIds)),
     db
       .select({
-        teamId: teamMembers.teamId,
-        userId: teamMembers.userId,
-        name: user.name,
-        email: user.email,
+        teamId: schema.teamMembers.teamId,
+        userId: schema.teamMembers.userId,
+        name: schema.user.name,
+        email: schema.user.email,
       })
-      .from(teamMembers)
-      .innerJoin(user, eq(teamMembers.userId, user.id))
-      .where(inArray(teamMembers.teamId, teamIds)),
+      .from(schema.teamMembers)
+      .innerJoin(schema.user, eq(schema.teamMembers.userId, schema.user.id))
+      .where(inArray(schema.teamMembers.teamId, teamIds)),
   ]);
 
   const membersByTeamId = new Map<string, FormedTeamMember[]>();

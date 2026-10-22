@@ -4,7 +4,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { RemoveMemberButton } from './RemoveMemberButton';
 import { getInitials } from '@/lib/initials';
-import type { TeamMemberView } from '@/app/dashboard/events/team-actions';
+import type { TeamMemberView } from '../team-actions';
 
 type Props = {
   eventId: string;

@@ -6,13 +6,7 @@
 
 'use server';
 
-import {
-  user as authUser,
-  userProfiles,
-  userProfileAbout,
-  userProfileProfessional,
-  userDietaryRestrictions,
-} from '@/db/schema';
+import * as schema from '@/db/schema';
 import { getUser } from '@/utils/auth';
 import { db } from '@/utils/db';
 import { eq } from 'drizzle-orm';
@@ -28,7 +22,7 @@ import {
   profileFormOptionalAboutSchema,
   type ProfileFormInput,
 } from '@/components/profile-form/schema';
-import { isOnAnyJudgeRoster } from '@/lib/judging/server';
+import * as Judging from '@/lib/judging/server';
 import {
   deleteObject,
   isObjectStorageKey,
@@ -175,33 +169,33 @@ export async function getUserProfile(): Promise<ActionResult<UserProfileData | n
 
   const [row] = await db
     .select({
-      fullName: userProfiles.fullName,
-      genderId: userProfiles.genderId,
-      genderOtherText: userProfiles.genderOtherText,
-      dietaryOtherText: userProfiles.dietaryOtherText,
-      resumeFile: userProfiles.resumeFile,
-      resumeFileName: userProfiles.resumeFileName,
-      resumeFileType: userProfiles.resumeFileType,
-      linkedinUrl: userProfiles.linkedinUrl,
-      universityId: userProfileAbout.universityId,
-      universityOtherText: userProfileAbout.universityOtherText,
-      majorId: userProfileAbout.majorId,
-      majorOtherText: userProfileAbout.majorOtherText,
-      yearOfStudyId: userProfileAbout.yearOfStudyId,
-      attendedHackathonBefore: userProfileAbout.attendedHackathonBefore,
-      githubUrl: userProfileAbout.githubUrl,
+      fullName: schema.userProfiles.fullName,
+      genderId: schema.userProfiles.genderId,
+      genderOtherText: schema.userProfiles.genderOtherText,
+      dietaryOtherText: schema.userProfiles.dietaryOtherText,
+      resumeFile: schema.userProfiles.resumeFile,
+      resumeFileName: schema.userProfiles.resumeFileName,
+      resumeFileType: schema.userProfiles.resumeFileType,
+      linkedinUrl: schema.userProfiles.linkedinUrl,
+      universityId: schema.userProfileAbout.universityId,
+      universityOtherText: schema.userProfileAbout.universityOtherText,
+      majorId: schema.userProfileAbout.majorId,
+      majorOtherText: schema.userProfileAbout.majorOtherText,
+      yearOfStudyId: schema.userProfileAbout.yearOfStudyId,
+      attendedHackathonBefore: schema.userProfileAbout.attendedHackathonBefore,
+      githubUrl: schema.userProfileAbout.githubUrl,
     })
-    .from(userProfiles)
-    .leftJoin(userProfileAbout, eq(userProfileAbout.userId, userProfiles.userId))
-    .where(eq(userProfiles.userId, user.id))
+    .from(schema.userProfiles)
+    .leftJoin(schema.userProfileAbout, eq(schema.userProfileAbout.userId, schema.userProfiles.userId))
+    .where(eq(schema.userProfiles.userId, user.id))
     .limit(1);
 
   if (!row) return ok(null);
 
   const restrictionRows = await db
-    .select({ restrictionId: userDietaryRestrictions.restrictionId })
-    .from(userDietaryRestrictions)
-    .where(eq(userDietaryRestrictions.userId, user.id));
+    .select({ restrictionId: schema.userDietaryRestrictions.restrictionId })
+    .from(schema.userDietaryRestrictions)
+    .where(eq(schema.userDietaryRestrictions.userId, user.id));
 
   return ok({
     fullName: row.fullName,
@@ -237,7 +231,7 @@ async function upsertAboutProfile(
   attendedHackathonBefore?: boolean,
 ) {
   await db
-    .insert(userProfileAbout)
+    .insert(schema.userProfileAbout)
     .values({
       userId,
       universityId: data.universityId,
@@ -251,7 +245,7 @@ async function upsertAboutProfile(
       }),
     })
     .onConflictDoUpdate({
-      target: userProfileAbout.userId,
+      target: schema.userProfileAbout.userId,
       set: {
         universityId: data.universityId,
         universityOtherText: data.universityOtherText || null,
@@ -286,7 +280,7 @@ export async function savePersonalProfile(formData: PersonalProfileValues): Prom
   try {
     await db.transaction(async (tx) => {
       await tx
-        .insert(userProfiles)
+        .insert(schema.userProfiles)
         .values({
           userId: user.id,
           fullName: data.fullName,
@@ -296,7 +290,7 @@ export async function savePersonalProfile(formData: PersonalProfileValues): Prom
           linkedinUrl: data.linkedinUrl || null,
         })
         .onConflictDoUpdate({
-          target: userProfiles.userId,
+          target: schema.userProfiles.userId,
           set: {
             fullName: data.fullName,
             genderId: data.genderId,
@@ -309,12 +303,12 @@ export async function savePersonalProfile(formData: PersonalProfileValues): Prom
 
       // Keep the Better Auth display name in sync with the required profile
       // name so first-time users do not appear anonymous in the dashboard.
-      await tx.update(authUser).set({ name: data.fullName }).where(eq(authUser.id, user.id));
+      await tx.update(schema.user).set({ name: data.fullName }).where(eq(schema.user.id, user.id));
 
-      await tx.delete(userDietaryRestrictions).where(eq(userDietaryRestrictions.userId, user.id));
+      await tx.delete(schema.userDietaryRestrictions).where(eq(schema.userDietaryRestrictions.userId, user.id));
       const realRestrictions = data.dietaryRestrictions?.filter((id) => id > 0) ?? [];
       if (realRestrictions.length) {
-        await tx.insert(userDietaryRestrictions).values(
+        await tx.insert(schema.userDietaryRestrictions).values(
           realRestrictions.map((restrictionId) => ({
             userId: user.id,
             restrictionId,
@@ -365,11 +359,11 @@ export async function getProfessionalProfile(): Promise<
   if (!user) return fail('User not authenticated');
   const [row] = await db
     .select({
-      company: userProfileProfessional.company,
-      jobTitle: userProfileProfessional.jobTitle,
+      company: schema.userProfileProfessional.company,
+      jobTitle: schema.userProfileProfessional.jobTitle,
     })
-    .from(userProfileProfessional)
-    .where(eq(userProfileProfessional.userId, user.id))
+    .from(schema.userProfileProfessional)
+    .where(eq(schema.userProfileProfessional.userId, user.id))
     .limit(1);
   return ok(row ?? null);
 }
@@ -394,10 +388,10 @@ export async function saveProfessionalProfile(formData: ProfessionalProfileValue
 
   try {
     await db
-      .insert(userProfileProfessional)
+      .insert(schema.userProfileProfessional)
       .values({ userId: user.id, ...values })
       .onConflictDoUpdate({
-        target: userProfileProfessional.userId,
+        target: schema.userProfileProfessional.userId,
         set: { ...values, updatedAt: new Date() },
       });
     revalidateProfile();
@@ -423,7 +417,7 @@ export async function saveFullProfile(formData: ProfileFormInput): Promise<Actio
 
   // Validate the whole dashboard payload before either half is persisted. A
   // malformed About field must not partially save the Personal half.
-  const aboutOptional = await isOnAnyJudgeRoster(user);
+  const aboutOptional = await Judging.isOnAnyJudgeRoster(user);
   const parsed = (aboutOptional ? profileFormOptionalAboutSchema : profileFormSchema).safeParse(formData);
   if (!parsed.success) {
     return fail(parsed.error.issues[0]?.message ?? 'Validation failed.');
@@ -475,14 +469,14 @@ export async function uploadProfilePicture(formData: FormData): Promise<ActionRe
       contentType: 'image/webp',
     });
     const [existing] = await db
-      .select({ image: authUser.image })
-      .from(authUser)
-      .where(eq(authUser.id, currentUser.id))
+      .select({ image: schema.user.image })
+      .from(schema.user)
+      .where(eq(schema.user.id, currentUser.id))
       .limit(1);
     await db
-      .update(authUser)
+      .update(schema.user)
       .set({ image: profilePictureUrl(key) })
-      .where(eq(authUser.id, currentUser.id));
+      .where(eq(schema.user.id, currentUser.id));
     const previousKey = parseOwnedProfilePictureKey(existing?.image, currentUser.id);
     if (previousKey) await deleteObject(previousKey);
     revalidateProfile();
@@ -500,11 +494,11 @@ export async function removeProfilePicture(): Promise<ActionResult> {
 
   try {
     const [existing] = await db
-      .select({ image: authUser.image })
-      .from(authUser)
-      .where(eq(authUser.id, currentUser.id))
+      .select({ image: schema.user.image })
+      .from(schema.user)
+      .where(eq(schema.user.id, currentUser.id))
       .limit(1);
-    await db.update(authUser).set({ image: null }).where(eq(authUser.id, currentUser.id));
+    await db.update(schema.user).set({ image: null }).where(eq(schema.user.id, currentUser.id));
     const key = parseOwnedProfilePictureKey(existing?.image, currentUser.id);
     if (key) await deleteObject(key);
     revalidateProfile();
@@ -532,20 +526,20 @@ export async function uploadResume(formData: FormData): Promise<ActionResult> {
       contentType: file.data.type,
     });
     const [existing] = await db
-      .select({ resumeFile: userProfiles.resumeFile })
-      .from(userProfiles)
-      .where(eq(userProfiles.userId, currentUser.id))
+      .select({ resumeFile: schema.userProfiles.resumeFile })
+      .from(schema.userProfiles)
+      .where(eq(schema.userProfiles.userId, currentUser.id))
       .limit(1);
     const result = await db
-      .update(userProfiles)
+      .update(schema.userProfiles)
       .set({
         resumeFile: key,
         resumeFileName: file.data.name,
         resumeFileType: file.data.type,
         updatedAt: new Date(),
       })
-      .where(eq(userProfiles.userId, currentUser.id))
-      .returning({ userId: userProfiles.userId });
+      .where(eq(schema.userProfiles.userId, currentUser.id))
+      .returning({ userId: schema.userProfiles.userId });
     if (result.length === 0) {
       await deleteObject(key);
       return fail('Complete your profile before uploading a resume.');
@@ -568,19 +562,19 @@ export async function removeResume(): Promise<ActionResult> {
 
   try {
     const [existing] = await db
-      .select({ resumeFile: userProfiles.resumeFile })
-      .from(userProfiles)
-      .where(eq(userProfiles.userId, currentUser.id))
+      .select({ resumeFile: schema.userProfiles.resumeFile })
+      .from(schema.userProfiles)
+      .where(eq(schema.userProfiles.userId, currentUser.id))
       .limit(1);
     await db
-      .update(userProfiles)
+      .update(schema.userProfiles)
       .set({
         resumeFile: null,
         resumeFileName: null,
         resumeFileType: null,
         updatedAt: new Date(),
       })
-      .where(eq(userProfiles.userId, currentUser.id));
+      .where(eq(schema.userProfiles.userId, currentUser.id));
     if (existing?.resumeFile && isObjectStorageKey(existing.resumeFile)) {
       await deleteObject(existing.resumeFile);
     }
@@ -599,11 +593,11 @@ export async function getOwnResume(): Promise<ActionResult<{ url: string; fileNa
 
   const [profile] = await db
     .select({
-      resumeFile: userProfiles.resumeFile,
-      resumeFileName: userProfiles.resumeFileName,
+      resumeFile: schema.userProfiles.resumeFile,
+      resumeFileName: schema.userProfiles.resumeFileName,
     })
-    .from(userProfiles)
-    .where(eq(userProfiles.userId, currentUser.id))
+    .from(schema.userProfiles)
+    .where(eq(schema.userProfiles.userId, currentUser.id))
     .limit(1);
   if (!profile?.resumeFile || !isObjectStorageKey(profile.resumeFile)) return ok(null);
   return ok({

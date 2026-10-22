@@ -3,21 +3,21 @@
 import { updateTag } from 'next/cache';
 import { z } from 'zod';
 
-import { displaySettings } from '@/db/schema';
+import * as schema from '@/db/schema';
 import { db } from '@/utils/db';
 import { getUser } from '@/utils/auth';
-import { requirePermission } from '@/lib/rbac/authorization';
+import * as Rbac from '@/lib/rbac/server';
 import { fail, ok, type ActionResult } from '@/utils/action-result';
 import { serverActionError } from '@/utils/server-action-error';
 import { writeAuditLog } from '@/utils/audit-log';
-import { DISPLAY_SETTINGS_CACHE_TAG } from '@/lib/display/feed';
+import * as Display from '@/lib/display/server';
 
 const PERMISSION = 'display:manage:all';
 
 async function authorize(): Promise<string> {
   const caller = await getUser();
   if (!caller) throw new Error('Not authenticated');
-  await requirePermission(caller.id, PERMISSION);
+  await Rbac.requirePermission(caller.id, PERMISSION);
   return caller.id;
 }
 
@@ -33,13 +33,13 @@ export async function updateDisplaySettings(input: z.infer<typeof settingsSchema
   try {
     const callerId = await authorize();
     await db
-      .insert(displaySettings)
+      .insert(schema.displaySettings)
       .values({ id: 1, ...parsed.data, updatedByUserId: callerId })
       .onConflictDoUpdate({
-        target: displaySettings.id,
+        target: schema.displaySettings.id,
         set: { ...parsed.data, updatedByUserId: callerId },
       });
-    updateTag(DISPLAY_SETTINGS_CACHE_TAG);
+    updateTag(Display.DISPLAY_SETTINGS_CACHE_TAG);
 
     await writeAuditLog({
       actorId: callerId,

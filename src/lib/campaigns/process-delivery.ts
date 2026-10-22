@@ -2,7 +2,7 @@ import 'server-only';
 
 import { and, eq, sql } from 'drizzle-orm';
 
-import { campaignDeliveries, campaigns, events, marketingConsents, user } from '@/db/schema';
+import * as schema from '@/db/schema';
 import { db } from '@/utils/db';
 import { sendMail } from '@/utils/mail';
 import { hasWalletBlock } from './email-markdown';
@@ -61,26 +61,26 @@ function errorText(error: unknown): string {
 function deliveryQuery(deliveryId: string, query: Pick<typeof db, 'select'> = db) {
   return query
     .select({
-      delivery: campaignDeliveries,
+      delivery: schema.campaignDeliveries,
       campaign: {
-        id: campaigns.id,
-        type: campaigns.type,
-        status: campaigns.status,
-        eventId: campaigns.eventId,
-        subject: campaigns.subject,
-        previewText: campaigns.previewText,
-        bodyMarkdown: campaigns.bodyMarkdown,
+        id: schema.campaigns.id,
+        type: schema.campaigns.type,
+        status: schema.campaigns.status,
+        eventId: schema.campaigns.eventId,
+        subject: schema.campaigns.subject,
+        previewText: schema.campaigns.previewText,
+        bodyMarkdown: schema.campaigns.bodyMarkdown,
       },
-      eventName: events.name,
-      userName: user.name,
-      optedIn: marketingConsents.optedIn,
+      eventName: schema.events.name,
+      userName: schema.user.name,
+      optedIn: schema.marketingConsents.optedIn,
     })
-    .from(campaignDeliveries)
-    .innerJoin(campaigns, eq(campaignDeliveries.campaignId, campaigns.id))
-    .innerJoin(user, eq(campaignDeliveries.userId, user.id))
-    .leftJoin(events, eq(campaigns.eventId, events.id))
-    .leftJoin(marketingConsents, eq(marketingConsents.userId, campaignDeliveries.userId))
-    .where(eq(campaignDeliveries.id, deliveryId))
+    .from(schema.campaignDeliveries)
+    .innerJoin(schema.campaigns, eq(schema.campaignDeliveries.campaignId, schema.campaigns.id))
+    .innerJoin(schema.user, eq(schema.campaignDeliveries.userId, schema.user.id))
+    .leftJoin(schema.events, eq(schema.campaigns.eventId, schema.events.id))
+    .leftJoin(schema.marketingConsents, eq(schema.marketingConsents.userId, schema.campaignDeliveries.userId))
+    .where(eq(schema.campaignDeliveries.id, deliveryId))
     .limit(1);
 }
 
@@ -130,24 +130,24 @@ export async function processCampaignDelivery(deliveryId: string): Promise<Proce
 
   const result = await db.transaction(async (tx) => {
     let campaignId: string | undefined;
-    async function finish(deliveryId: string, id: string, set: Partial<typeof campaignDeliveries.$inferInsert>) {
+    async function finish(deliveryId: string, id: string, set: Partial<typeof schema.campaignDeliveries.$inferInsert>) {
       campaignId = id;
-      await tx.update(campaignDeliveries).set(set).where(eq(campaignDeliveries.id, deliveryId));
+      await tx.update(schema.campaignDeliveries).set(set).where(eq(schema.campaignDeliveries.id, deliveryId));
     }
     const outcome = await attempt();
     return { outcome, campaignId };
 
     async function attempt(): Promise<ProcessDeliveryOutcome | { retry: unknown }> {
       const [row] = await deliveryQuery(deliveryId, tx).for('update', {
-        of: campaignDeliveries,
+        of: schema.campaignDeliveries,
         skipLocked: true,
       });
 
       if (!row) {
         const [existing] = await tx
-          .select({ id: campaignDeliveries.id })
-          .from(campaignDeliveries)
-          .where(eq(campaignDeliveries.id, deliveryId));
+          .select({ id: schema.campaignDeliveries.id })
+          .from(schema.campaignDeliveries)
+          .where(eq(schema.campaignDeliveries.id, deliveryId));
         return existing ? 'already_done' : 'not_found';
       }
       const { delivery, campaign } = row;
@@ -171,16 +171,16 @@ export async function processCampaignDelivery(deliveryId: string): Promise<Proce
       }
 
       const [claimed] = await tx
-        .update(campaignDeliveries)
-        .set({ attempts: sql`${campaignDeliveries.attempts} + 1` })
+        .update(schema.campaignDeliveries)
+        .set({ attempts: sql`${schema.campaignDeliveries.attempts} + 1` })
         .where(
           and(
-            eq(campaignDeliveries.id, delivery.id),
-            eq(campaignDeliveries.status, 'queued'),
-            eq(campaignDeliveries.attempts, delivery.attempts),
+            eq(schema.campaignDeliveries.id, delivery.id),
+            eq(schema.campaignDeliveries.status, 'queued'),
+            eq(schema.campaignDeliveries.attempts, delivery.attempts),
           ),
         )
-        .returning({ attempts: campaignDeliveries.attempts });
+        .returning({ attempts: schema.campaignDeliveries.attempts });
       if (!claimed) return 'already_done';
 
       try {
@@ -203,7 +203,10 @@ export async function processCampaignDelivery(deliveryId: string): Promise<Proce
           });
           return 'failed';
         }
-        await tx.update(campaignDeliveries).set({ lastError }).where(eq(campaignDeliveries.id, delivery.id));
+        await tx
+          .update(schema.campaignDeliveries)
+          .set({ lastError })
+          .where(eq(schema.campaignDeliveries.id, delivery.id));
         return { retry: error };
       }
 

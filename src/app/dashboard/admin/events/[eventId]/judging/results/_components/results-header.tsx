@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 
 import { cn } from '@/lib/utils';
 
-import { useEventBasePath } from '../../../_components/use-event-base-path';
+import { useEventBasePath } from '@/app/dashboard/admin/events/[eventId]/_components/use-event-base-path';
 import { useResults } from './results-context';
 
 /** Title, the pool's status, and a link to each results table. */

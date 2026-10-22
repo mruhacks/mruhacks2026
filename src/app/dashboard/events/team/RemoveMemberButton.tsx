@@ -4,7 +4,7 @@ import { useTransition } from 'react';
 import { toast } from 'sonner';
 import { UserMinus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { removeMember } from '@/app/dashboard/events/team-actions';
+import { removeMember } from '../team-actions';
 
 type Props = { eventId: string; targetUserId: string };
 

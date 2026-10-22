@@ -1,4 +1,4 @@
-import { unsubscribeByToken } from '@/lib/campaigns/unsubscribe';
+import * as Campaigns from '@/lib/campaigns/server';
 
 /**
  * RFC 8058 one-click unsubscribe: the target of a marketing email's
@@ -7,7 +7,7 @@ import { unsubscribeByToken } from '@/lib/campaigns/unsubscribe';
  */
 export async function POST(request: Request) {
   const token = new URL(request.url).searchParams.get('t') ?? '';
-  const outcome = await unsubscribeByToken(token);
+  const outcome = await Campaigns.unsubscribeByToken(token);
   if (outcome === 'invalid') {
     return new Response('Invalid unsubscribe link', { status: 400 });
   }

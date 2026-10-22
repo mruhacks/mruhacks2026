@@ -13,7 +13,7 @@ import mruIieLogo from '@/assets/display/sponsor/MRUIIE.png';
 import mruLibraryLogo from '@/assets/display/sponsor/MRUL.png';
 import { LocalDateRange, LocalDateTime } from '@/components/local-date-time';
 import { useNow } from '@/lib/use-now';
-import { getVisibleEntries, type DisplayFeed, type DisplayScheduleEntry } from '@/lib/display/schedule';
+import * as Display from '@/lib/display';
 import styles from './display.module.css';
 
 const SPONSORS: { name: string; logo: StaticImageData }[] = [
@@ -58,7 +58,7 @@ function useSlide(): Slide {
 const cx = (...names: (string | false)[]) => names.filter(Boolean).join(' ');
 
 /** The screen's content; `DisplayApp` owns the shell and Aurora around it. */
-export function DisplayScreen({ feed }: { feed: DisplayFeed }) {
+export function DisplayScreen({ feed }: { feed: Display.DisplayFeed }) {
   const slide = useSlide();
   const dark = feed.settings.theme === 'dark';
 
@@ -102,11 +102,11 @@ export function DisplayScreen({ feed }: { feed: DisplayFeed }) {
   );
 }
 
-function ClockAndSchedule({ schedule }: { schedule: DisplayScheduleEntry[] }) {
+function ClockAndSchedule({ schedule }: { schedule: Display.DisplayScheduleEntry[] }) {
   const now = useNow(CLOCK_TICK_MS);
   if (now === null) return null;
 
-  const { current, progress, ongoing, upcoming } = getVisibleEntries(schedule, now);
+  const { current, progress, ongoing, upcoming } = Display.getVisibleEntries(schedule, now);
   const [next, ...later] = upcoming;
 
   return (
@@ -173,7 +173,7 @@ function ScheduleRow({
   entry,
   children,
 }: {
-  entry: DisplayScheduleEntry;
+  entry: Display.DisplayScheduleEntry;
   /** The row's time column. */
   children: React.ReactNode;
 }) {

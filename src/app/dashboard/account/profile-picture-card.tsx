@@ -4,7 +4,7 @@ import * as React from 'react';
 import { Loader2, Trash2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 
-import { removeProfilePicture, uploadProfilePicture } from '@/app/dashboard/profile/actions';
+import { removeProfilePicture, uploadProfilePicture } from '../profile/actions';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';

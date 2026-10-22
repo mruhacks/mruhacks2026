@@ -11,10 +11,10 @@ import {
 } from '@/app/dashboard/events/actions';
 import { getUserProfile, type UserProfileData } from '@/app/dashboard/profile/actions';
 import { db } from '@/utils/db';
-import { events } from '@/db/schema';
+import * as schema from '@/db/schema';
 import { hasEventElapsed, resolveEventId } from '@/lib/events';
 import { eventPath } from '@/lib/event-slug';
-import { isJudgingEvent, JUDGE_SIGNUP_BLOCKED_MESSAGE } from '@/lib/judging/server';
+import * as Judging from '@/lib/judging/server';
 import { eq } from 'drizzle-orm';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -24,7 +24,7 @@ import type { ProfileFormValues } from '@/components/profile-form/schema';
 import type { EventOnlyFormValues } from '@/components/application-form/schema';
 import { ApplicationStatusBanner } from '@/app/dashboard/events/ApplicationStatusBanner';
 import { oauthPrefillName } from '@/lib/oauth-name';
-import { canEditApplication } from '@/lib/participation/status';
+import * as Participation from '@/lib/participation';
 
 type PreviousSubmission = {
   fullName: string;
@@ -95,16 +95,16 @@ export default async function ApplyEventPage({ params }: Props) {
   const user = await getUser();
   if (!user) redirect('/signin');
 
-  const [event] = await db.select().from(events).where(eq(events.id, eventId)).limit(1);
+  const [event] = await db.select().from(schema.events).where(eq(schema.events.id, eventId)).limit(1);
 
   if (!event) notFound();
-  if (await isJudgingEvent(eventId, user)) {
+  if (await Judging.isJudgingEvent(eventId, user)) {
     return (
       <Card className='w-full sm:max-w-2xl'>
         <BreadcrumbSegment id={segment} label={event.name} />
         <CardHeader>
           <CardTitle>You&apos;re a judge</CardTitle>
-          <CardDescription>{JUDGE_SIGNUP_BLOCKED_MESSAGE}</CardDescription>
+          <CardDescription>{Judging.JUDGE_SIGNUP_BLOCKED_MESSAGE}</CardDescription>
         </CardHeader>
         <CardContent>
           <Button asChild>
@@ -148,7 +148,7 @@ export default async function ApplyEventPage({ params }: Props) {
   }
 
   const hasEnded = hasEventElapsed(event.endsAt);
-  const decisionIsFinal = applicationStatus != null && !canEditApplication(applicationStatus.status);
+  const decisionIsFinal = applicationStatus != null && !Participation.canEditApplication(applicationStatus.status);
   const hasCustomQuestions = event.applicationQuestions.some(
     (question) => question.active && question.type !== 'section_divider',
   );

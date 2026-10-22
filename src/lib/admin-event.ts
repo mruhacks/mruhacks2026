@@ -3,29 +3,7 @@ import 'server-only';
 import { cacheLife, cacheTag } from 'next/cache';
 import { and, asc, eq, sql } from 'drizzle-orm';
 
-import {
-  checkIns,
-  dietaryRestrictions,
-  eventParticipants,
-  eventInvitations,
-  eventRsvpWaves,
-  events,
-  eventTerms,
-  genders,
-  interests,
-  majors,
-  participationStatuses,
-  submissions,
-  teamMembers,
-  teams,
-  universities,
-  user,
-  userDietaryRestrictions,
-  userInterests,
-  userProfileAbout,
-  userProfiles,
-  yearsOfStudy,
-} from '@/db/schema';
+import * as schema from '@/db/schema';
 import {
   buildProfileStatsByStatus,
   buildQuestionStatsByStatus,
@@ -35,8 +13,7 @@ import {
   type StatusSplitStat,
 } from '@/lib/application-stats';
 import { EVENT_TIME_ZONE } from '@/lib/datetime';
-import { hasStatus } from '@/lib/participation/server';
-import { resolveEffectiveStatus } from '@/lib/participation/status';
+import * as Participation from '@/lib/participation/server';
 import type { ApplicationQuestion } from '@/types/application';
 import { db } from '@/utils/db';
 
@@ -103,25 +80,25 @@ export async function getAdminEventHeader(eventId: string): Promise<AdminEventHe
 
   const [row] = await db
     .select({
-      id: events.id,
-      slug: events.slug,
-      name: events.name,
-      descriptionMarkdown: events.descriptionMarkdown,
-      termsMarkdown: eventTerms.markdown,
-      termsId: events.termsId,
-      hasApplication: events.hasApplication,
-      teamsEnabled: events.teamsEnabled,
-      isFeatured: events.isFeatured,
-      capacity: events.capacity,
-      startsAt: events.startsAt,
-      endsAt: events.endsAt,
-      checkInEnabled: events.checkInEnabled,
-      location: events.location,
-      submissionsCloseAt: events.submissionsCloseAt,
+      id: schema.events.id,
+      slug: schema.events.slug,
+      name: schema.events.name,
+      descriptionMarkdown: schema.events.descriptionMarkdown,
+      termsMarkdown: schema.eventTerms.markdown,
+      termsId: schema.events.termsId,
+      hasApplication: schema.events.hasApplication,
+      teamsEnabled: schema.events.teamsEnabled,
+      isFeatured: schema.events.isFeatured,
+      capacity: schema.events.capacity,
+      startsAt: schema.events.startsAt,
+      endsAt: schema.events.endsAt,
+      checkInEnabled: schema.events.checkInEnabled,
+      location: schema.events.location,
+      submissionsCloseAt: schema.events.submissionsCloseAt,
     })
-    .from(events)
-    .leftJoin(eventTerms, eq(events.termsId, eventTerms.id))
-    .where(eq(events.id, eventId))
+    .from(schema.events)
+    .leftJoin(schema.eventTerms, eq(schema.events.termsId, schema.eventTerms.id))
+    .where(eq(schema.events.id, eventId))
     .limit(1);
 
   if (!row) return null;
@@ -146,9 +123,9 @@ export async function getEventQuestions(eventId: string): Promise<ApplicationQue
   cacheLife('minutes');
 
   const [row] = await db
-    .select({ applicationQuestions: events.applicationQuestions })
-    .from(events)
-    .where(eq(events.id, eventId))
+    .select({ applicationQuestions: schema.events.applicationQuestions })
+    .from(schema.events)
+    .where(eq(schema.events.id, eventId))
     .limit(1);
 
   return (row?.applicationQuestions as ApplicationQuestion[] | null) ?? [];
@@ -177,32 +154,32 @@ export async function getAdminEventSettings(eventId: string): Promise<AdminEvent
 
   const [row] = await db
     .select({
-      id: events.id,
-      slug: events.slug,
-      name: events.name,
-      descriptionMarkdown: events.descriptionMarkdown,
-      termsMarkdown: eventTerms.markdown,
-      termsId: events.termsId,
-      hasApplication: events.hasApplication,
-      teamsEnabled: events.teamsEnabled,
-      isFeatured: events.isFeatured,
-      capacity: events.capacity,
-      startsAt: events.startsAt,
-      endsAt: events.endsAt,
-      checkInEnabled: events.checkInEnabled,
-      location: events.location,
-      submissionsCloseAt: events.submissionsCloseAt,
-      latitude: events.latitude,
-      longitude: events.longitude,
-      radiusMeters: events.radiusMeters,
-      maxTeamSize: events.maxTeamSize,
-      rsvpResponseWindowHours: events.rsvpResponseWindowHours,
-      capacityVisible: events.capacityVisible,
-      eventTypeId: events.eventTypeId,
+      id: schema.events.id,
+      slug: schema.events.slug,
+      name: schema.events.name,
+      descriptionMarkdown: schema.events.descriptionMarkdown,
+      termsMarkdown: schema.eventTerms.markdown,
+      termsId: schema.events.termsId,
+      hasApplication: schema.events.hasApplication,
+      teamsEnabled: schema.events.teamsEnabled,
+      isFeatured: schema.events.isFeatured,
+      capacity: schema.events.capacity,
+      startsAt: schema.events.startsAt,
+      endsAt: schema.events.endsAt,
+      checkInEnabled: schema.events.checkInEnabled,
+      location: schema.events.location,
+      submissionsCloseAt: schema.events.submissionsCloseAt,
+      latitude: schema.events.latitude,
+      longitude: schema.events.longitude,
+      radiusMeters: schema.events.radiusMeters,
+      maxTeamSize: schema.events.maxTeamSize,
+      rsvpResponseWindowHours: schema.events.rsvpResponseWindowHours,
+      capacityVisible: schema.events.capacityVisible,
+      eventTypeId: schema.events.eventTypeId,
     })
-    .from(events)
-    .leftJoin(eventTerms, eq(events.termsId, eventTerms.id))
-    .where(eq(events.id, eventId))
+    .from(schema.events)
+    .leftJoin(schema.eventTerms, eq(schema.events.termsId, schema.eventTerms.id))
+    .where(eq(schema.events.id, eventId))
     .limit(1);
 
   if (!row) return null;
@@ -243,12 +220,12 @@ export async function getEventSummaryCounts(eventId: string): Promise<EventSumma
   const countOf = sql<number>`COUNT(*)`.mapWith(Number);
 
   const [applicationRows, attendeeRows, checkInRows, teamRows, rsvpRows, submissionRows] = await Promise.all([
-    db.select({ c: countOf }).from(eventParticipants).where(eq(eventParticipants.eventId, eventId)),
+    db.select({ c: countOf }).from(schema.eventParticipants).where(eq(schema.eventParticipants.eventId, eventId)),
     db
       .select({ c: countOf })
-      .from(eventParticipants)
-      .where(and(eq(eventParticipants.eventId, eventId), hasStatus('accepted'))),
-    db.select({ c: countOf }).from(checkIns).where(eq(checkIns.eventId, eventId)),
+      .from(schema.eventParticipants)
+      .where(and(eq(schema.eventParticipants.eventId, eventId), Participation.hasStatus('accepted'))),
+    db.select({ c: countOf }).from(schema.checkIns).where(eq(schema.checkIns.eventId, eventId)),
     // Solo teams-of-one are excluded here for the same reason
     // `listFormedTeams` excludes them — an unjoined code isn't a team.
     db
@@ -257,39 +234,39 @@ export async function getEventSummaryCounts(eventId: string): Promise<EventSumma
       })
       .from(
         db
-          .select({ teamId: teamMembers.teamId })
-          .from(teamMembers)
-          .innerJoin(teams, eq(teams.id, teamMembers.teamId))
-          .where(eq(teams.eventId, eventId))
-          .groupBy(teamMembers.teamId)
+          .select({ teamId: schema.teamMembers.teamId })
+          .from(schema.teamMembers)
+          .innerJoin(schema.teams, eq(schema.teams.id, schema.teamMembers.teamId))
+          .where(eq(schema.teams.eventId, eventId))
+          .groupBy(schema.teamMembers.teamId)
           .having(sql`COUNT(*) > 1`)
           .as('formed_teams'),
       ),
     db
       .select({
-        label: participationStatuses.label,
-        respondBy: eventRsvpWaves.respondBy,
+        label: schema.participationStatuses.label,
+        respondBy: schema.eventRsvpWaves.respondBy,
         c: countOf,
       })
-      .from(eventInvitations)
-      .innerJoin(eventRsvpWaves, eq(eventRsvpWaves.id, eventInvitations.rsvpWaveId))
-      .innerJoin(eventParticipants, eq(eventParticipants.id, eventInvitations.participantId))
-      .innerJoin(participationStatuses, eq(participationStatuses.id, eventParticipants.statusId))
-      .where(eq(eventRsvpWaves.eventId, eventId))
-      .groupBy(participationStatuses.label, eventRsvpWaves.respondBy),
+      .from(schema.eventInvitations)
+      .innerJoin(schema.eventRsvpWaves, eq(schema.eventRsvpWaves.id, schema.eventInvitations.rsvpWaveId))
+      .innerJoin(schema.eventParticipants, eq(schema.eventParticipants.id, schema.eventInvitations.participantId))
+      .innerJoin(schema.participationStatuses, eq(schema.participationStatuses.id, schema.eventParticipants.statusId))
+      .where(eq(schema.eventRsvpWaves.eventId, eventId))
+      .groupBy(schema.participationStatuses.label, schema.eventRsvpWaves.respondBy),
     db
       .select({
         total: countOf,
-        published: sql<number>`COUNT(*) FILTER (WHERE ${submissions.published})`.mapWith(Number),
+        published: sql<number>`COUNT(*) FILTER (WHERE ${schema.submissions.published})`.mapWith(Number),
       })
-      .from(submissions)
-      .where(eq(submissions.eventId, eventId)),
+      .from(schema.submissions)
+      .where(eq(schema.submissions.eventId, eventId)),
   ]);
 
   const rsvp = { accepted: 0, pending: 0, declined: 0, timedOut: 0 };
   const now = new Date();
   for (const row of rsvpRows) {
-    const status = resolveEffectiveStatus(row.label, row.respondBy, now);
+    const status = Participation.resolveEffectiveStatus(row.label, row.respondBy, now);
     if (status === 'accepted') rsvp.accepted += row.c;
     else if (status === 'declined') rsvp.declined += row.c;
     else if (status === 'timed_out') rsvp.timedOut += row.c;
@@ -340,11 +317,11 @@ export async function getEventApplicationStats(eventId: string): Promise<EventAp
 
   const [eventRow] = await db
     .select({
-      applicationQuestions: events.applicationQuestions,
-      hasApplication: events.hasApplication,
+      applicationQuestions: schema.events.applicationQuestions,
+      hasApplication: schema.events.hasApplication,
     })
-    .from(events)
-    .where(eq(events.id, eventId))
+    .from(schema.events)
+    .where(eq(schema.events.id, eventId))
     .limit(1);
 
   if (!eventRow) return null;
@@ -353,36 +330,36 @@ export async function getEventApplicationStats(eventId: string): Promise<EventAp
 
   const rows = await db
     .select({
-      responses: eventParticipants.responses,
-      status: participationStatuses.label,
-      university: universities.label,
-      major: majors.label,
-      yearOfStudy: yearsOfStudy.label,
-      gender: genders.label,
-      hasProfile: sql<boolean>`${userProfiles.userId} IS NOT NULL`,
-      attendedHackathonBefore: userProfileAbout.attendedHackathonBefore,
+      responses: schema.eventParticipants.responses,
+      status: schema.participationStatuses.label,
+      university: schema.universities.label,
+      major: schema.majors.label,
+      yearOfStudy: schema.yearsOfStudy.label,
+      gender: schema.genders.label,
+      hasProfile: sql<boolean>`${schema.userProfiles.userId} IS NOT NULL`,
+      attendedHackathonBefore: schema.userProfileAbout.attendedHackathonBefore,
       // Correlated subqueries rather than joins: two many-to-many joins on
       // one query would multiply each applicant's row by both list lengths.
       interests: sql<string[]>`ARRAY(
-        SELECT ${interests.label}::text FROM ${userInterests}
-        INNER JOIN ${interests} ON ${interests.id} = ${userInterests.interestId}
-        WHERE ${userInterests.userId} = ${eventParticipants.userId}
+        SELECT ${schema.interests.label}::text FROM ${schema.userInterests}
+        INNER JOIN ${schema.interests} ON ${schema.interests.id} = ${schema.userInterests.interestId}
+        WHERE ${schema.userInterests.userId} = ${schema.eventParticipants.userId}
       )`,
       dietaryRestrictions: sql<string[]>`ARRAY(
-        SELECT ${dietaryRestrictions.label}::text FROM ${userDietaryRestrictions}
-        INNER JOIN ${dietaryRestrictions} ON ${dietaryRestrictions.id} = ${userDietaryRestrictions.restrictionId}
-        WHERE ${userDietaryRestrictions.userId} = ${eventParticipants.userId}
+        SELECT ${schema.dietaryRestrictions.label}::text FROM ${schema.userDietaryRestrictions}
+        INNER JOIN ${schema.dietaryRestrictions} ON ${schema.dietaryRestrictions.id} = ${schema.userDietaryRestrictions.restrictionId}
+        WHERE ${schema.userDietaryRestrictions.userId} = ${schema.eventParticipants.userId}
       )`,
     })
-    .from(eventParticipants)
-    .leftJoin(userProfiles, eq(eventParticipants.userId, userProfiles.userId))
-    .leftJoin(userProfileAbout, eq(eventParticipants.userId, userProfileAbout.userId))
-    .leftJoin(genders, eq(userProfiles.genderId, genders.id))
-    .leftJoin(universities, eq(userProfileAbout.universityId, universities.id))
-    .leftJoin(majors, eq(userProfileAbout.majorId, majors.id))
-    .leftJoin(yearsOfStudy, eq(userProfileAbout.yearOfStudyId, yearsOfStudy.id))
-    .innerJoin(participationStatuses, eq(eventParticipants.statusId, participationStatuses.id))
-    .where(eq(eventParticipants.eventId, eventId));
+    .from(schema.eventParticipants)
+    .leftJoin(schema.userProfiles, eq(schema.eventParticipants.userId, schema.userProfiles.userId))
+    .leftJoin(schema.userProfileAbout, eq(schema.eventParticipants.userId, schema.userProfileAbout.userId))
+    .leftJoin(schema.genders, eq(schema.userProfiles.genderId, schema.genders.id))
+    .leftJoin(schema.universities, eq(schema.userProfileAbout.universityId, schema.universities.id))
+    .leftJoin(schema.majors, eq(schema.userProfileAbout.majorId, schema.majors.id))
+    .leftJoin(schema.yearsOfStudy, eq(schema.userProfileAbout.yearOfStudyId, schema.yearsOfStudy.id))
+    .innerJoin(schema.participationStatuses, eq(schema.eventParticipants.statusId, schema.participationStatuses.id))
+    .where(eq(schema.eventParticipants.eventId, eventId));
 
   const statsRows: ApplicationStatsRow[] = rows.map((row) => ({
     responses: (row.responses as Record<string, unknown> | null) ?? null,
@@ -433,15 +410,15 @@ export async function getApplicationsOverTime(eventId: string): Promise<Applicat
   // type at parse time). `EVENT_TIME_ZONE` is a module constant, never user
   // input, so there's nothing to inject here.
   const zone = sql.raw(`'${EVENT_TIME_ZONE}'`);
-  const dayExpr = sql`date_trunc('day', ${eventParticipants.createdAt} AT TIME ZONE ${zone}) AT TIME ZONE ${zone}`;
+  const dayExpr = sql`date_trunc('day', ${schema.eventParticipants.createdAt} AT TIME ZONE ${zone}) AT TIME ZONE ${zone}`;
 
   const rows = await db
     .select({
-      day: sql<Date>`${dayExpr}`.mapWith(eventParticipants.createdAt),
+      day: sql<Date>`${dayExpr}`.mapWith(schema.eventParticipants.createdAt),
       count: sql<number>`COUNT(*)`.mapWith(Number),
     })
-    .from(eventParticipants)
-    .where(eq(eventParticipants.eventId, eventId))
+    .from(schema.eventParticipants)
+    .where(eq(schema.eventParticipants.eventId, eventId))
     .groupBy(dayExpr)
     .orderBy(asc(dayExpr));
 
@@ -491,32 +468,32 @@ export async function getApplicationRoster(eventId: string): Promise<AdminApplic
 
   const rows = await db
     .select({
-      participantId: eventParticipants.id,
-      userId: eventParticipants.userId,
-      fullName: userProfiles.fullName,
-      email: user.email,
-      university: universities.label,
-      major: majors.label,
-      yearOfStudy: yearsOfStudy.label,
-      submittedAt: eventParticipants.createdAt,
-      teamCode: teams.code,
-      resumeFile: userProfiles.resumeFile,
-      responses: eventParticipants.responses,
+      participantId: schema.eventParticipants.id,
+      userId: schema.eventParticipants.userId,
+      fullName: schema.userProfiles.fullName,
+      email: schema.user.email,
+      university: schema.universities.label,
+      major: schema.majors.label,
+      yearOfStudy: schema.yearsOfStudy.label,
+      submittedAt: schema.eventParticipants.createdAt,
+      teamCode: schema.teams.code,
+      resumeFile: schema.userProfiles.resumeFile,
+      responses: schema.eventParticipants.responses,
     })
-    .from(eventParticipants)
-    .innerJoin(user, eq(eventParticipants.userId, user.id))
-    .leftJoin(userProfiles, eq(eventParticipants.userId, userProfiles.userId))
-    .leftJoin(userProfileAbout, eq(eventParticipants.userId, userProfileAbout.userId))
-    .leftJoin(universities, eq(userProfileAbout.universityId, universities.id))
-    .leftJoin(majors, eq(userProfileAbout.majorId, majors.id))
-    .leftJoin(yearsOfStudy, eq(userProfileAbout.yearOfStudyId, yearsOfStudy.id))
+    .from(schema.eventParticipants)
+    .innerJoin(schema.user, eq(schema.eventParticipants.userId, schema.user.id))
+    .leftJoin(schema.userProfiles, eq(schema.eventParticipants.userId, schema.userProfiles.userId))
+    .leftJoin(schema.userProfileAbout, eq(schema.eventParticipants.userId, schema.userProfileAbout.userId))
+    .leftJoin(schema.universities, eq(schema.userProfileAbout.universityId, schema.universities.id))
+    .leftJoin(schema.majors, eq(schema.userProfileAbout.majorId, schema.majors.id))
+    .leftJoin(schema.yearsOfStudy, eq(schema.userProfileAbout.yearOfStudyId, schema.yearsOfStudy.id))
     .leftJoin(
-      teamMembers,
-      sql`${teamMembers.userId} = ${eventParticipants.userId} AND ${teamMembers.eventId} = ${eventParticipants.eventId}`,
+      schema.teamMembers,
+      sql`${schema.teamMembers.userId} = ${schema.eventParticipants.userId} AND ${schema.teamMembers.eventId} = ${schema.eventParticipants.eventId}`,
     )
-    .leftJoin(teams, eq(teams.id, teamMembers.teamId))
-    .where(eq(eventParticipants.eventId, eventId))
-    .orderBy(asc(eventParticipants.createdAt));
+    .leftJoin(schema.teams, eq(schema.teams.id, schema.teamMembers.teamId))
+    .where(eq(schema.eventParticipants.eventId, eventId))
+    .orderBy(asc(schema.eventParticipants.createdAt));
 
   return rows.map((row) => ({
     participantId: row.participantId,
@@ -552,16 +529,16 @@ export async function getEventAttendeeRoster(eventId: string): Promise<AdminAtte
 
   const rows = await db
     .select({
-      userId: eventParticipants.userId,
-      fullName: userProfiles.fullName,
-      email: user.email,
-      registeredAt: eventParticipants.createdAt,
+      userId: schema.eventParticipants.userId,
+      fullName: schema.userProfiles.fullName,
+      email: schema.user.email,
+      registeredAt: schema.eventParticipants.createdAt,
     })
-    .from(eventParticipants)
-    .innerJoin(user, eq(eventParticipants.userId, user.id))
-    .leftJoin(userProfiles, eq(eventParticipants.userId, userProfiles.userId))
-    .where(and(eq(eventParticipants.eventId, eventId), hasStatus('accepted')))
-    .orderBy(asc(eventParticipants.createdAt));
+    .from(schema.eventParticipants)
+    .innerJoin(schema.user, eq(schema.eventParticipants.userId, schema.user.id))
+    .leftJoin(schema.userProfiles, eq(schema.eventParticipants.userId, schema.userProfiles.userId))
+    .where(and(eq(schema.eventParticipants.eventId, eventId), Participation.hasStatus('accepted')))
+    .orderBy(asc(schema.eventParticipants.createdAt));
 
   return rows.map((row) => ({
     userId: row.userId,
@@ -587,18 +564,21 @@ export type ParticipantStatusRow = {
 export async function getParticipantStatuses(eventId: string): Promise<ParticipantStatusRow[]> {
   return db
     .select({
-      participantId: eventParticipants.id,
-      statusLabel: participationStatuses.label,
-      respondBy: eventRsvpWaves.respondBy,
-      checkedIn: sql<boolean>`${checkIns.userId} IS NOT NULL`,
+      participantId: schema.eventParticipants.id,
+      statusLabel: schema.participationStatuses.label,
+      respondBy: schema.eventRsvpWaves.respondBy,
+      checkedIn: sql<boolean>`${schema.checkIns.userId} IS NOT NULL`,
     })
-    .from(eventParticipants)
-    .innerJoin(participationStatuses, eq(eventParticipants.statusId, participationStatuses.id))
-    .leftJoin(eventInvitations, eq(eventInvitations.participantId, eventParticipants.id))
-    .leftJoin(eventRsvpWaves, eq(eventInvitations.rsvpWaveId, eventRsvpWaves.id))
+    .from(schema.eventParticipants)
+    .innerJoin(schema.participationStatuses, eq(schema.eventParticipants.statusId, schema.participationStatuses.id))
+    .leftJoin(schema.eventInvitations, eq(schema.eventInvitations.participantId, schema.eventParticipants.id))
+    .leftJoin(schema.eventRsvpWaves, eq(schema.eventInvitations.rsvpWaveId, schema.eventRsvpWaves.id))
     .leftJoin(
-      checkIns,
-      and(eq(checkIns.eventId, eventParticipants.eventId), eq(checkIns.userId, eventParticipants.userId)),
+      schema.checkIns,
+      and(
+        eq(schema.checkIns.eventId, schema.eventParticipants.eventId),
+        eq(schema.checkIns.userId, schema.eventParticipants.userId),
+      ),
     )
-    .where(eq(eventParticipants.eventId, eventId));
+    .where(eq(schema.eventParticipants.eventId, eventId));
 }

@@ -1,7 +1,7 @@
 import 'dotenv/config';
 
 import { client } from '@/utils/db';
-import { sendRsvpWave, type SendRsvpWaveResult } from '@/lib/rsvp/send-rsvp-wave';
+import * as Rsvp from '@/lib/rsvp/server';
 
 const USAGE = `
 Usage:
@@ -39,7 +39,7 @@ function printDivider(): void {
   console.log('─'.repeat(60));
 }
 
-function printResult(result: SendRsvpWaveResult, eventId: string): void {
+function printResult(result: Rsvp.SendRsvpWaveResult, eventId: string): void {
   printDivider();
   console.log('sendRsvpWave result');
   printDivider();
@@ -105,7 +105,7 @@ async function main(): Promise<void> {
   console.warn('');
 
   try {
-    const result = await sendRsvpWave(eventId);
+    const result = await Rsvp.sendRsvpWave(eventId);
     printResult(result, eventId);
 
     if (!result.success) {

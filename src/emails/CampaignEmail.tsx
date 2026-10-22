@@ -2,9 +2,9 @@ import React from 'react';
 import { Heading, Hr, Img, Link, Text } from 'react-email';
 import type { Root, RootContent, PhrasingContent } from 'mdast';
 
-import { ctaFromNode, safeHref, safeImageSrc } from '@/lib/campaigns/email-markdown';
+import * as Campaigns from '@/lib/campaigns';
 import { campaignImageWidth } from '@/utils/object-storage';
-import { CtaButton, EmailLayout } from './EmailLayout';
+import { CtaButton, EmailLayout } from '@/emails/EmailLayout';
 
 /** Widest an image is drawn: the body column of the 600px layout, minus padding. */
 const EMAIL_IMAGE_MAX_WIDTH = 520;
@@ -53,7 +53,7 @@ function renderPhrasing(nodes: PhrasingContent[], ctx: RenderContext): React.Rea
       case 'break':
         return <br key={i} />;
       case 'link': {
-        const href = safeHref(node.url);
+        const href = Campaigns.safeHref(node.url);
         const children = renderPhrasing(node.children, ctx);
         return href ? (
           <Link key={i} href={href} style={link}>
@@ -64,7 +64,7 @@ function renderPhrasing(nodes: PhrasingContent[], ctx: RenderContext): React.Rea
         );
       }
       case 'image': {
-        const src = safeImageSrc(node.url, ctx.baseUrl);
+        const src = Campaigns.safeImageSrc(node.url, ctx.baseUrl);
         if (!src) return null;
         // Our uploads record their pixel width; draw them no wider than the
         // column (a 1200px upload is a 2x image for it) and never upscaled.
@@ -140,7 +140,7 @@ function renderBlockNode(node: RootContent, key: number, ctx: RenderContext): Re
     case 'thematicBreak':
       return <Hr key={key} style={rule} />;
     case 'leafDirective': {
-      const cta = ctaFromNode(node);
+      const cta = Campaigns.ctaFromNode(node);
       return cta ? <CtaButton key={key} label={cta.label} url={cta.href} /> : null;
     }
     case 'code':

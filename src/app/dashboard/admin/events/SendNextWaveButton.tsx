@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { toast } from 'sonner';
 
-import { sendEventRsvpWave } from '@/app/dashboard/admin/events/actions';
+import { sendEventRsvpWave } from './actions';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,

@@ -2,10 +2,9 @@ import 'server-only';
 
 import { and, eq, inArray } from 'drizzle-orm';
 
-import { eventParticipants, events, participationStatuses, user } from '@/db/schema';
-import { countAttending } from '@/lib/participation/server';
-import { WAVE_ELIGIBLE_STATUSES } from '@/lib/participation/status';
-import { getWaitlistOrder } from '@/lib/rsvp/waitlist';
+import * as schema from '@/db/schema';
+import * as Participation from '@/lib/participation/server';
+import { getWaitlistOrder } from './waitlist';
 import { db } from '@/utils/db';
 
 export type EligibleRsvpApplicant = {
@@ -38,14 +37,14 @@ export type RsvpEligibilityResult = {
  */
 export async function getEligibleRsvpApplicants(eventId: string): Promise<RsvpEligibilityResult | null> {
   const [eventRow] = await db
-    .select({ id: events.id, capacity: events.capacity })
-    .from(events)
-    .where(eq(events.id, eventId))
+    .select({ id: schema.events.id, capacity: schema.events.capacity })
+    .from(schema.events)
+    .where(eq(schema.events.id, eventId))
     .limit(1);
 
   if (!eventRow) return null;
 
-  const attendeeCount = await countAttending(eventId);
+  const attendeeCount = await Participation.countAttending(eventId);
   const capacity = eventRow.capacity ?? null;
   const availableSpots = capacity === null ? null : Math.max(0, capacity - attendeeCount);
 
@@ -53,16 +52,19 @@ export async function getEligibleRsvpApplicants(eventId: string): Promise<RsvpEl
     getWaitlistOrder(eventId),
     db
       .select({
-        userId: eventParticipants.userId,
-        email: user.email,
-        participantId: eventParticipants.id,
-        applicationCreatedAt: eventParticipants.createdAt,
+        userId: schema.eventParticipants.userId,
+        email: schema.user.email,
+        participantId: schema.eventParticipants.id,
+        applicationCreatedAt: schema.eventParticipants.createdAt,
       })
-      .from(eventParticipants)
-      .innerJoin(participationStatuses, eq(eventParticipants.statusId, participationStatuses.id))
-      .innerJoin(user, eq(eventParticipants.userId, user.id))
+      .from(schema.eventParticipants)
+      .innerJoin(schema.participationStatuses, eq(schema.eventParticipants.statusId, schema.participationStatuses.id))
+      .innerJoin(schema.user, eq(schema.eventParticipants.userId, schema.user.id))
       .where(
-        and(eq(eventParticipants.eventId, eventId), inArray(participationStatuses.label, [...WAVE_ELIGIBLE_STATUSES])),
+        and(
+          eq(schema.eventParticipants.eventId, eventId),
+          inArray(schema.participationStatuses.label, [...Participation.WAVE_ELIGIBLE_STATUSES]),
+        ),
       ),
   ]);
 

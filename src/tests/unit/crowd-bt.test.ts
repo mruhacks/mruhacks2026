@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { ALPHA_PRIOR, BETA_PRIOR, betaln, expectedInformationGain, psi, update } from '@/lib/judging/crowd-bt';
+import * as Judging from '@/lib/judging';
 
 // Reference values computed with Gavel's own gavel/crowd_bt.py (numpy/scipy).
 const UPDATE_CASES = [
@@ -94,18 +94,18 @@ function expectClose(actual: number, expected: number) {
 
 describe('special functions match scipy', () => {
   it.each(BETALN_CASES)('betaln(%j)', ([a, b], expected) => {
-    expectClose(betaln(a, b), expected);
+    expectClose(Judging.betaln(a, b), expected);
   });
 
   it.each(PSI_CASES)('psi(%j)', (x, expected) => {
-    expectClose(psi(x), expected);
+    expectClose(Judging.psi(x), expected);
   });
 });
 
 describe('update matches gavel crowd_bt.update', () => {
   it.each(UPDATE_CASES)('update(%j)', (input, expected) => {
     const [alpha, beta, muW, sigmaSqW, muL, sigmaSqL] = input;
-    const result = update({ alpha, beta }, { mu: muW, sigmaSq: sigmaSqW }, { mu: muL, sigmaSq: sigmaSqL });
+    const result = Judging.update({ alpha, beta }, { mu: muW, sigmaSq: sigmaSqW }, { mu: muL, sigmaSq: sigmaSqL });
     const actual = [
       result.judge.alpha,
       result.judge.beta,
@@ -118,8 +118,8 @@ describe('update matches gavel crowd_bt.update', () => {
   });
 
   it('a winner moves up and a loser down', () => {
-    const { winner, loser } = update(
-      { alpha: ALPHA_PRIOR, beta: BETA_PRIOR },
+    const { winner, loser } = Judging.update(
+      { alpha: Judging.ALPHA_PRIOR, beta: Judging.BETA_PRIOR },
       { mu: 0, sigmaSq: 1 },
       { mu: 0, sigmaSq: 1 },
     );
@@ -129,10 +129,10 @@ describe('update matches gavel crowd_bt.update', () => {
   });
 
   it('replays a vote sequence to the same state as gavel', () => {
-    let judge = { alpha: ALPHA_PRIOR, beta: BETA_PRIOR };
+    let judge = { alpha: Judging.ALPHA_PRIOR, beta: Judging.BETA_PRIOR };
     const projects = [0, 1, 2].map(() => ({ mu: 0, sigmaSq: 1 }));
     for (const [w, l] of SEQUENCE.votes) {
-      const next = update(judge, projects[w], projects[l]);
+      const next = Judging.update(judge, projects[w], projects[l]);
       judge = next.judge;
       projects[w] = next.winner;
       projects[l] = next.loser;
@@ -150,16 +150,16 @@ describe('expectedInformationGain matches gavel', () => {
   it.each(EIG_CASES)('expected_information_gain(%j)', (input, expected) => {
     const [alpha, beta, muA, sigmaSqA, muB, sigmaSqB] = input;
     expectClose(
-      expectedInformationGain({ alpha, beta }, { mu: muA, sigmaSq: sigmaSqA }, { mu: muB, sigmaSq: sigmaSqB }),
+      Judging.expectedInformationGain({ alpha, beta }, { mu: muA, sigmaSq: sigmaSqA }, { mu: muB, sigmaSq: sigmaSqB }),
       expected,
     );
   });
 
   it('prefers uncertain, close matchups over settled ones', () => {
-    const judge = { alpha: ALPHA_PRIOR, beta: BETA_PRIOR };
+    const judge = { alpha: Judging.ALPHA_PRIOR, beta: Judging.BETA_PRIOR };
     const prev = { mu: 0, sigmaSq: 1 };
-    const close = expectedInformationGain(judge, prev, { mu: 0, sigmaSq: 1 });
-    const settled = expectedInformationGain(judge, prev, {
+    const close = Judging.expectedInformationGain(judge, prev, { mu: 0, sigmaSq: 1 });
+    const settled = Judging.expectedInformationGain(judge, prev, {
       mu: 5,
       sigmaSq: 0.01,
     });

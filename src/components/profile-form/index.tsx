@@ -18,12 +18,8 @@ import { type ActionResult } from '@/utils/action-result';
 import { ProfileAssets } from '@/app/dashboard/profile/profile-assets';
 import { uploadResume } from '@/app/dashboard/profile/actions';
 
-import {
-  profileFormOptionalAboutSchema,
-  profileFormSchema,
-  type ProfileFormInput,
-} from '@/components/profile-form/schema';
-import { type ProfileFormOptions } from '@/components/profile-form/schema';
+import { profileFormOptionalAboutSchema, profileFormSchema, type ProfileFormInput } from './schema';
+import { type ProfileFormOptions } from './schema';
 
 // Mirrors the welcome onboarding flow's step categories (Personal / About you).
 const tabLabels: Record<string, string> = {

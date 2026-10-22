@@ -1,33 +1,35 @@
 import { db } from '@/utils/db';
 import { eq, inArray } from 'drizzle-orm';
-import { role, rolePermissions, user, userPermission, userRole } from '@/db/schema';
+import * as schema from '@/db/schema';
 
 export async function replaceUserRoles(userId: string, roleIds: number[]): Promise<void> {
   await db.transaction(async (tx) => {
-    await tx.delete(userRole).where(eq(userRole.userId, userId));
+    await tx.delete(schema.userRole).where(eq(schema.userRole.userId, userId));
     if (roleIds.length > 0) {
       await tx
-        .insert(userRole)
+        .insert(schema.userRole)
         .values(roleIds.map((roleId) => ({ userId, roleId })))
         .onConflictDoNothing();
     }
     const assignedRoles =
-      roleIds.length > 0 ? await tx.select({ slug: role.slug }).from(role).where(inArray(role.id, roleIds)) : [];
+      roleIds.length > 0
+        ? await tx.select({ slug: schema.role.slug }).from(schema.role).where(inArray(schema.role.id, roleIds))
+        : [];
     await tx
-      .update(user)
+      .update(schema.user)
       .set({
         role: assignedRoles.some((entry) => entry.slug === 'admin') ? 'admin' : 'user',
       })
-      .where(eq(user.id, userId));
+      .where(eq(schema.user.id, userId));
   });
 }
 
 export async function replaceUserDirectPermissions(userId: string, permissionIds: number[]): Promise<void> {
   await db.transaction(async (tx) => {
-    await tx.delete(userPermission).where(eq(userPermission.userId, userId));
+    await tx.delete(schema.userPermission).where(eq(schema.userPermission.userId, userId));
     if (permissionIds.length > 0) {
       await tx
-        .insert(userPermission)
+        .insert(schema.userPermission)
         .values(permissionIds.map((permissionId) => ({ userId, permissionId })))
         .onConflictDoNothing();
     }
@@ -36,10 +38,10 @@ export async function replaceUserDirectPermissions(userId: string, permissionIds
 
 export async function replaceRolePermissions(roleId: number, permissionIds: number[]): Promise<void> {
   await db.transaction(async (tx) => {
-    await tx.delete(rolePermissions).where(eq(rolePermissions.roleId, roleId));
+    await tx.delete(schema.rolePermissions).where(eq(schema.rolePermissions.roleId, roleId));
     if (permissionIds.length > 0) {
       await tx
-        .insert(rolePermissions)
+        .insert(schema.rolePermissions)
         .values(permissionIds.map((permissionId) => ({ roleId, permissionId })))
         .onConflictDoNothing();
     }

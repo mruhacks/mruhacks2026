@@ -1,17 +1,9 @@
 import { describe, test, expect, beforeAll, beforeEach, afterAll, vi } from 'vitest';
 import { and, eq, inArray } from 'drizzle-orm';
 import { db } from '@/utils/db';
-import { user, events, eventParticipants, eventRsvpWaves, eventInvitations } from '@/db/schema';
-import { sendRsvpWave } from '@/lib/rsvp/send-rsvp-wave';
-import { getRsvpMagicLinkCallbackURL } from '@/lib/rsvp/send-rsvp-magic-link';
-import { runWithRsvpMagicLinkMailContext } from '@/lib/rsvp/rsvp-magic-link-context';
-import { resolveMagicLinkMailOptions } from '@/lib/auth/resolve-magic-link-email';
-import {
-  DEFAULT_RSVP_RESPONSE_WINDOW_HOURS,
-  RSVP_WAVE_ALREADY_ACTIVE_MESSAGE,
-  RSVP_WAVE_EVENT_STARTED_MESSAGE,
-} from '@/lib/rsvp/constants';
-import { computeRsvpRespondBy } from '@/lib/rsvp/compute-rsvp-respond-by';
+import * as schema from '@/db/schema';
+import * as Rsvp from '@/lib/rsvp/server';
+import * as Auth from '@/lib/auth/server';
 import type { ParticipationStatus } from '@/types/lookups';
 import { getStatus, insertParticipant, insertVotes, statusId } from '@/tests/participation-fixtures';
 
@@ -45,16 +37,16 @@ function magicLinkUrlFor(callbackURL: string): string {
 
 async function expireEventWaves(eventId: string) {
   await db
-    .update(eventRsvpWaves)
+    .update(schema.eventRsvpWaves)
     .set({ respondBy: new Date('2020-01-01T00:00:00.000Z') })
-    .where(eq(eventRsvpWaves.eventId, eventId));
+    .where(eq(schema.eventRsvpWaves.eventId, eventId));
 }
 
-async function createEvent(values: Partial<typeof events.$inferInsert> = {}): Promise<string> {
+async function createEvent(values: Partial<typeof schema.events.$inferInsert> = {}): Promise<string> {
   const [row] = await db
-    .insert(events)
+    .insert(schema.events)
     .values({ name: 'RSVP Wave Test Event', hasApplication: true, ...values })
-    .returning({ id: events.id });
+    .returning({ id: schema.events.id });
   createdEventIds.push(row.id);
   return row.id;
 }
@@ -66,7 +58,10 @@ async function createApplicant(
   extra: { createdAt?: Date } = {},
 ): Promise<string> {
   const email = `wave-${Date.now()}-${userCounter++}@example.com`;
-  const [row] = await db.insert(user).values({ name: email, email, emailVerified: true }).returning({ id: user.id });
+  const [row] = await db
+    .insert(schema.user)
+    .values({ name: email, email, emailVerified: true })
+    .returning({ id: schema.user.id });
   createdUserIds.push(row.id);
   await insertParticipant({ eventId, userId: row.id, status, ...extra });
   return row.id;
@@ -76,14 +71,14 @@ async function createApplicant(
 async function invitationsFor(eventId: string) {
   return db
     .select({
-      id: eventInvitations.id,
-      userId: eventParticipants.userId,
-      invitationEmailStatus: eventInvitations.invitationEmailStatus,
-      invitationEmailQueuedAt: eventInvitations.invitationEmailQueuedAt,
+      id: schema.eventInvitations.id,
+      userId: schema.eventParticipants.userId,
+      invitationEmailStatus: schema.eventInvitations.invitationEmailStatus,
+      invitationEmailQueuedAt: schema.eventInvitations.invitationEmailQueuedAt,
     })
-    .from(eventInvitations)
-    .innerJoin(eventParticipants, eq(eventInvitations.participantId, eventParticipants.id))
-    .where(eq(eventParticipants.eventId, eventId));
+    .from(schema.eventInvitations)
+    .innerJoin(schema.eventParticipants, eq(schema.eventInvitations.participantId, schema.eventParticipants.id))
+    .where(eq(schema.eventParticipants.eventId, eventId));
 }
 
 let waitlistedUserId: string;
@@ -98,10 +93,10 @@ beforeAll(async () => {
 
 afterAll(async () => {
   if (createdEventIds.length) {
-    await db.delete(events).where(inArray(events.id, createdEventIds));
+    await db.delete(schema.events).where(inArray(schema.events.id, createdEventIds));
   }
   if (createdUserIds.length) {
-    await db.delete(user).where(inArray(user.id, createdUserIds));
+    await db.delete(schema.user).where(inArray(schema.user.id, createdUserIds));
   }
 });
 
@@ -117,13 +112,13 @@ describe('getRsvpMagicLinkCallbackURL', () => {
   const eventId = '123e4567-e89b-12d3-a456-426614174000';
 
   test('returns the event dashboard path with source=rsvp', () => {
-    expect(getRsvpMagicLinkCallbackURL(eventId)).toBe(`/dashboard/events/${eventId}?source=rsvp`);
+    expect(Rsvp.getRsvpMagicLinkCallbackURL(eventId)).toBe(`/dashboard/events/${eventId}?source=rsvp`);
   });
 });
 
 describe('resolveMagicLinkMailOptions', () => {
   test('uses generic sign-in copy for normal and invite callbacks', async () => {
-    const signIn = await resolveMagicLinkMailOptions({
+    const signIn = await Auth.resolveMagicLinkMailOptions({
       email: 'anyone@example.com',
       magicLinkUrl: magicLinkUrlFor('/welcome'),
       baseUrl: testBaseUrl,
@@ -132,7 +127,7 @@ describe('resolveMagicLinkMailOptions', () => {
     expect(signIn.subject).toBe('Sign in to MRUHacks');
     expect(signIn.html).toContain('expires in 24 hours');
 
-    const invite = await resolveMagicLinkMailOptions({
+    const invite = await Auth.resolveMagicLinkMailOptions({
       email: 'anyone@example.com',
       magicLinkUrl: magicLinkUrlFor('/welcome?invited=1'),
       baseUrl: testBaseUrl,
@@ -142,7 +137,7 @@ describe('resolveMagicLinkMailOptions', () => {
   });
 
   test('does not treat caller-controlled source=rsvp as RSVP mail intent', async () => {
-    const result = await resolveMagicLinkMailOptions({
+    const result = await Auth.resolveMagicLinkMailOptions({
       email: 'waitlisted-rsvp@example.com',
       magicLinkUrl: magicLinkUrlFor(`/dashboard/events/${testEventId}?source=rsvp`),
       baseUrl: testBaseUrl,
@@ -152,8 +147,8 @@ describe('resolveMagicLinkMailOptions', () => {
   });
 
   test('uses RSVP invitation copy only when trusted mail context is set', async () => {
-    const result = await runWithRsvpMagicLinkMailContext({ eventName: 'Hackathon', respondBy }, () =>
-      resolveMagicLinkMailOptions({
+    const result = await Rsvp.runWithRsvpMagicLinkMailContext({ eventName: 'Hackathon', respondBy }, () =>
+      Auth.resolveMagicLinkMailOptions({
         email: 'anyone@example.com',
         magicLinkUrl: magicLinkUrlFor('/welcome'),
         baseUrl: testBaseUrl,
@@ -169,7 +164,7 @@ describe('resolveMagicLinkMailOptions', () => {
 
 describe('sendRsvpWave', () => {
   test('returns error when event does not exist', async () => {
-    const result = await sendRsvpWave('00000000-0000-0000-0000-000000000000');
+    const result = await Rsvp.sendRsvpWave('00000000-0000-0000-0000-000000000000');
     expect(result).toMatchObject({
       success: false,
       error: expect.stringContaining('Event not found'),
@@ -180,14 +175,16 @@ describe('sendRsvpWave', () => {
     const signInSpy = vi.spyOn(auth.api, 'signInMagicLink');
 
     try {
-      const result = await sendRsvpWave(testEventId, { now: frozenNow });
+      const result = await Rsvp.sendRsvpWave(testEventId, { now: frozenNow });
 
       expect(result.success).toBe(true);
       if (!result.success) return;
 
       expect(result.wave.wave).toBe(1);
       expect(result.wave.createdAt).toEqual(frozenNow);
-      expect(result.wave.respondBy).toEqual(computeRsvpRespondBy(frozenNow, DEFAULT_RSVP_RESPONSE_WINDOW_HOURS));
+      expect(result.wave.respondBy).toEqual(
+        Rsvp.computeRsvpRespondBy(frozenNow, Rsvp.DEFAULT_RSVP_RESPONSE_WINDOW_HOURS),
+      );
       expect(result.eligibleApplicantCount).toBe(1);
       expect(result.responsesCreated).toBe(1);
       expect(result.invitationsQueued).toBe(1);
@@ -214,16 +211,16 @@ describe('sendRsvpWave', () => {
 
   test('does not create another wave while the latest wave is still active', async () => {
     await createApplicant(testEventId, 'waitlisted');
-    const result = await sendRsvpWave(testEventId, { now: frozenNow });
+    const result = await Rsvp.sendRsvpWave(testEventId, { now: frozenNow });
 
     expect(result).toMatchObject({
       success: false,
-      error: RSVP_WAVE_ALREADY_ACTIVE_MESSAGE,
+      error: Rsvp.RSVP_WAVE_ALREADY_ACTIVE_MESSAGE,
     });
     const waves = await db
-      .select({ id: eventRsvpWaves.id })
-      .from(eventRsvpWaves)
-      .where(eq(eventRsvpWaves.eventId, testEventId));
+      .select({ id: schema.eventRsvpWaves.id })
+      .from(schema.eventRsvpWaves)
+      .where(eq(schema.eventRsvpWaves.eventId, testEventId));
     expect(waves).toHaveLength(1);
     expect(publishRsvpInvitation).not.toHaveBeenCalled();
   });
@@ -231,10 +228,10 @@ describe('sendRsvpWave', () => {
   test('never re-invites someone whose invitation timed out', async () => {
     const eventId = await createEvent();
     const userId = await createApplicant(eventId, 'waitlisted');
-    expect((await sendRsvpWave(eventId, { now: frozenNow })).success).toBe(true);
+    expect((await Rsvp.sendRsvpWave(eventId, { now: frozenNow })).success).toBe(true);
     await expireEventWaves(eventId);
 
-    const second = await sendRsvpWave(eventId, { now: frozenNow });
+    const second = await Rsvp.sendRsvpWave(eventId, { now: frozenNow });
     expect(second).toMatchObject({
       success: false,
       error: 'No eligible applicants for the next RSVP wave.',
@@ -249,7 +246,7 @@ describe('sendRsvpWave', () => {
     const userId = await createApplicant(eventId, 'waitlisted');
     publishRsvpInvitation.mockRejectedValueOnce(new Error('queue down'));
 
-    const result = await sendRsvpWave(eventId, { now: frozenNow });
+    const result = await Rsvp.sendRsvpWave(eventId, { now: frozenNow });
     expect(result.success).toBe(true);
     if (!result.success) return;
     expect(result.invitationsQueued).toBe(0);
@@ -267,7 +264,7 @@ describe('sendRsvpWave', () => {
     await createApplicant(eventId, 'waitlisted');
     publishRsvpInvitation.mockRejectedValueOnce(new Error('queue down')).mockResolvedValue({ messageId: 'ok' });
 
-    const result = await sendRsvpWave(eventId, { now: frozenNow });
+    const result = await Rsvp.sendRsvpWave(eventId, { now: frozenNow });
     expect(result.success).toBe(true);
     if (!result.success) return;
     expect(result.responsesCreated).toBe(2);
@@ -281,16 +278,16 @@ describe('sendRsvpWave', () => {
     await createApplicant(eventId, 'waitlisted');
     publishRsvpInvitation.mockImplementation(async (invitationId: string) => {
       await db
-        .update(eventInvitations)
+        .update(schema.eventInvitations)
         .set({
           invitationEmailStatus: 'sent',
           invitationEmailSentAt: new Date(),
         })
-        .where(eq(eventInvitations.id, invitationId));
+        .where(eq(schema.eventInvitations.id, invitationId));
       return { messageId: 'fast' };
     });
 
-    expect((await sendRsvpWave(eventId, { now: frozenNow })).success).toBe(true);
+    expect((await Rsvp.sendRsvpWave(eventId, { now: frozenNow })).success).toBe(true);
     const [invitation] = await invitationsFor(eventId);
     expect(invitation.invitationEmailStatus).toBe('sent');
   });
@@ -301,7 +298,7 @@ describe('sendRsvpWave', () => {
       const eventId = await createEvent();
       const userId = await createApplicant(eventId, status);
 
-      const result = await sendRsvpWave(eventId, { now: frozenNow });
+      const result = await Rsvp.sendRsvpWave(eventId, { now: frozenNow });
       expect(result).toMatchObject({
         success: false,
         error: 'No eligible applicants for the next RSVP wave.',
@@ -320,7 +317,7 @@ describe('sendRsvpWave', () => {
       createdAt: new Date('2026-01-02T00:00:00.000Z'),
     });
 
-    const result = await sendRsvpWave(eventId, { now: frozenNow });
+    const result = await Rsvp.sendRsvpWave(eventId, { now: frozenNow });
     expect(result.success).toBe(true);
     if (!result.success) return;
     expect(result.eligibleApplicantCount).toBe(2);
@@ -333,15 +330,15 @@ describe('sendRsvpWave', () => {
   test('closeActiveWave closes the open wave, times out its unanswered invitations, then sends', async () => {
     const eventId = await createEvent({ capacity: 10 });
     const first = await createApplicant(eventId, 'waitlisted');
-    expect((await sendRsvpWave(eventId, { now: frozenNow })).success).toBe(true);
+    expect((await Rsvp.sendRsvpWave(eventId, { now: frozenNow })).success).toBe(true);
     const second = await createApplicant(eventId, 'waitlisted');
 
-    expect(await sendRsvpWave(eventId, { now: frozenNow })).toMatchObject({
+    expect(await Rsvp.sendRsvpWave(eventId, { now: frozenNow })).toMatchObject({
       success: false,
       error: 'An RSVP wave is already active for this event.',
     });
 
-    const result = await sendRsvpWave(eventId, {
+    const result = await Rsvp.sendRsvpWave(eventId, {
       now: frozenNow,
       closeActiveWave: true,
     });
@@ -355,10 +352,10 @@ describe('sendRsvpWave', () => {
     expect(await getStatus(eventId, second)).toBe('invited');
 
     const [wave1] = await db
-      .select({ respondBy: eventRsvpWaves.respondBy })
-      .from(eventRsvpWaves)
-      .where(eq(eventRsvpWaves.eventId, eventId))
-      .orderBy(eventRsvpWaves.wave)
+      .select({ respondBy: schema.eventRsvpWaves.respondBy })
+      .from(schema.eventRsvpWaves)
+      .where(eq(schema.eventRsvpWaves.eventId, eventId))
+      .orderBy(schema.eventRsvpWaves.wave)
       .limit(1);
     expect(wave1.respondBy.getTime()).toBe(frozenNow.getTime());
   });
@@ -368,7 +365,7 @@ describe('sendRsvpWave', () => {
     await createApplicant(eventId, 'accepted');
     await createApplicant(eventId, 'waitlisted');
 
-    const result = await sendRsvpWave(eventId, { now: frozenNow });
+    const result = await Rsvp.sendRsvpWave(eventId, { now: frozenNow });
     expect(result).toMatchObject({
       success: false,
       error: 'No available spots remaining for this event.',
@@ -394,9 +391,9 @@ describe('sendRsvpWave', () => {
     });
     const voteOn = async (userId: string, yes: number) => {
       const [{ participantId }] = await db
-        .select({ participantId: eventParticipants.id })
-        .from(eventParticipants)
-        .where(and(eq(eventParticipants.eventId, eventId), eq(eventParticipants.userId, userId)));
+        .select({ participantId: schema.eventParticipants.id })
+        .from(schema.eventParticipants)
+        .where(and(eq(schema.eventParticipants.eventId, eventId), eq(schema.eventParticipants.userId, userId)));
       await insertVotes({
         eventId,
         participantId,
@@ -414,7 +411,7 @@ describe('sendRsvpWave', () => {
     await voteOn(waitlistedSecond, 2);
     await voteOn(waitlistedThird, 1);
 
-    const result = await sendRsvpWave(eventId, { now: frozenNow });
+    const result = await Rsvp.sendRsvpWave(eventId, { now: frozenNow });
     expect(result.success).toBe(true);
     if (!result.success) return;
     expect(result.eligibleApplicantCount).toBe(4);
@@ -435,14 +432,14 @@ describe('sendRsvpWave', () => {
     const originalTransaction = db.transaction.bind(db);
     const spy = vi.spyOn(db, 'transaction').mockImplementationOnce(async (callback) => {
       await db
-        .update(eventParticipants)
+        .update(schema.eventParticipants)
         .set({ statusId: await statusId('denied') })
-        .where(eq(eventParticipants.userId, moved));
+        .where(eq(schema.eventParticipants.userId, moved));
       return originalTransaction(callback);
     });
 
     try {
-      const result = await sendRsvpWave(eventId, { now: frozenNow });
+      const result = await Rsvp.sendRsvpWave(eventId, { now: frozenNow });
       expect(result.success).toBe(true);
       if (!result.success) return;
       expect(result.responsesCreated).toBe(1);
@@ -461,8 +458,8 @@ describe('sendRsvpWave', () => {
     await createApplicant(eventB, 'waitlisted');
 
     const [a, b] = await Promise.all([
-      sendRsvpWave(eventA, { now: frozenNow }),
-      sendRsvpWave(eventB, { now: frozenNow }),
+      Rsvp.sendRsvpWave(eventA, { now: frozenNow }),
+      Rsvp.sendRsvpWave(eventB, { now: frozenNow }),
     ]);
     expect(a.success && b.success).toBe(true);
 
@@ -478,29 +475,29 @@ describe('sendRsvpWave window, overlap, and event start', () => {
     const eventId = await createEvent({ rsvpResponseWindowHours: 24 });
     await createApplicant(eventId, 'waitlisted');
 
-    const result = await sendRsvpWave(eventId, { now: frozenNow });
+    const result = await Rsvp.sendRsvpWave(eventId, { now: frozenNow });
     expect(result.success).toBe(true);
     if (!result.success) return;
-    expect(result.wave.respondBy).toEqual(computeRsvpRespondBy(frozenNow, 24));
+    expect(result.wave.respondBy).toEqual(Rsvp.computeRsvpRespondBy(frozenNow, 24));
 
-    await db.update(events).set({ rsvpResponseWindowHours: 72 }).where(eq(events.id, eventId));
+    await db.update(schema.events).set({ rsvpResponseWindowHours: 72 }).where(eq(schema.events.id, eventId));
     await expireEventWaves(eventId);
     await createApplicant(eventId, 'waitlisted');
 
-    const later = await sendRsvpWave(eventId, { now: frozenNow });
+    const later = await Rsvp.sendRsvpWave(eventId, { now: frozenNow });
     expect(later.success).toBe(true);
     if (!later.success) return;
-    expect(later.wave.respondBy).toEqual(computeRsvpRespondBy(frozenNow, 72));
+    expect(later.wave.respondBy).toEqual(Rsvp.computeRsvpRespondBy(frozenNow, 72));
   });
 
   test('allows a later wave after the previous respond_by has passed', async () => {
     const eventId = await createEvent();
     await createApplicant(eventId, 'waitlisted');
-    expect((await sendRsvpWave(eventId, { now: frozenNow })).success).toBe(true);
+    expect((await Rsvp.sendRsvpWave(eventId, { now: frozenNow })).success).toBe(true);
 
     await expireEventWaves(eventId);
     await createApplicant(eventId, 'waitlisted');
-    const second = await sendRsvpWave(eventId, { now: frozenNow });
+    const second = await Rsvp.sendRsvpWave(eventId, { now: frozenNow });
     expect(second.success).toBe(true);
     if (!second.success) return;
     expect(second.wave.wave).toBe(2);
@@ -513,10 +510,10 @@ describe('sendRsvpWave window, overlap, and event start', () => {
     });
     const userId = await createApplicant(eventId, 'waitlisted');
 
-    const result = await sendRsvpWave(eventId, { now: frozenNow });
+    const result = await Rsvp.sendRsvpWave(eventId, { now: frozenNow });
     expect(result).toMatchObject({
       success: false,
-      error: RSVP_WAVE_EVENT_STARTED_MESSAGE,
+      error: Rsvp.RSVP_WAVE_EVENT_STARTED_MESSAGE,
     });
     expect(publishRsvpInvitation).not.toHaveBeenCalled();
     expect(await getStatus(eventId, userId)).toBe('waitlisted');
@@ -552,8 +549,8 @@ describe('sendRsvpWave volume', () => {
           email: `rsvp-stress-${status}-${suiteId}-${i + j}@example.com`,
           emailVerified: true,
         }));
-        const users = await db.insert(user).values(chunk).returning({ id: user.id });
-        await db.insert(eventParticipants).values(
+        const users = await db.insert(schema.user).values(chunk).returning({ id: schema.user.id });
+        await db.insert(schema.eventParticipants).values(
           users.map((u) => ({
             eventId: stressEventId,
             userId: u.id,
@@ -570,7 +567,7 @@ describe('sendRsvpWave volume', () => {
   test(
     'queues exactly one invitation per eligible applicant and skips ineligible ones',
     async () => {
-      const result = await sendRsvpWave(stressEventId, { now: frozenNow });
+      const result = await Rsvp.sendRsvpWave(stressEventId, { now: frozenNow });
 
       expect(result.success).toBe(true);
       if (!result.success) return;
@@ -592,9 +589,9 @@ describe('sendRsvpWave volume', () => {
 
       const invitedId = await statusId('invited');
       const statuses = await db
-        .select({ statusId: eventParticipants.statusId })
-        .from(eventParticipants)
-        .where(inArray(eventParticipants.userId, idsByStatus.get('waitlisted')!));
+        .select({ statusId: schema.eventParticipants.statusId })
+        .from(schema.eventParticipants)
+        .where(inArray(schema.eventParticipants.userId, idsByStatus.get('waitlisted')!));
       expect(statuses.every((row) => row.statusId === invitedId)).toBe(true);
     },
     VOLUME_TEST_TIMEOUT_MS,
@@ -603,10 +600,10 @@ describe('sendRsvpWave volume', () => {
   test(
     'does not create a second wave or duplicate jobs for the same applicants',
     async () => {
-      const result = await sendRsvpWave(stressEventId, { now: frozenNow });
+      const result = await Rsvp.sendRsvpWave(stressEventId, { now: frozenNow });
       expect(result).toMatchObject({
         success: false,
-        error: RSVP_WAVE_ALREADY_ACTIVE_MESSAGE,
+        error: Rsvp.RSVP_WAVE_ALREADY_ACTIVE_MESSAGE,
       });
       expect(publishRsvpInvitation).not.toHaveBeenCalled();
       expect(await invitationsFor(stressEventId)).toHaveLength(VOLUME_ELIGIBLE_COUNT);

@@ -3,17 +3,8 @@ import { afterAll, beforeAll, beforeEach, describe, expect, test, vi } from 'vit
 import { and, eq, inArray } from 'drizzle-orm';
 
 import { db } from '@/utils/db';
-import {
-  auditLog,
-  campaignDeliveries,
-  campaigns,
-  events,
-  marketingConsents,
-  permission,
-  user,
-  userPermission,
-} from '@/db/schema';
-import type { AudienceRuleGroup } from '@/lib/campaigns/audience-rules';
+import * as schema from '@/db/schema';
+import * as Campaigns from '@/lib/campaigns/server';
 import { insertAttendees } from '@/tests/participation-fixtures';
 
 const { send } = vi.hoisted(() => ({ send: vi.fn() }));
@@ -28,14 +19,6 @@ vi.mock('next/cache', async (importOriginal) => ({
 
 import { sendMail } from '@/utils/mail';
 import { getUser } from '@/utils/auth';
-import { processCampaignDispatch as dispatch } from '@/lib/campaigns/process-dispatch';
-import {
-  campaignDeliveryRetryDelay,
-  classifySendError,
-  MAX_CAMPAIGN_DELIVERY_ATTEMPTS,
-  processCampaignDelivery,
-} from '@/lib/campaigns/process-delivery';
-import { deliveryDelaySeconds } from '@/lib/campaigns/campaign-queue';
 import {
   getCampaignResults,
   getSendSummary,
@@ -50,14 +33,14 @@ let eventId: string;
 const campaignIds: string[] = [];
 const savedKey = process.env.APP_SIGNING_PRIVATE_KEY;
 
-const everyoneInEvent = (): AudienceRuleGroup => ({
+const everyoneInEvent = (): Campaigns.AudienceRuleGroup => ({
   combinator: 'and',
   rules: [{ field: 'participatedIn', operator: '=', value: { eventId } }],
 });
 
-async function newCampaign(overrides: Partial<typeof campaigns.$inferInsert> = {}): Promise<string> {
+async function newCampaign(overrides: Partial<typeof schema.campaigns.$inferInsert> = {}): Promise<string> {
   const [row] = await db
-    .insert(campaigns)
+    .insert(schema.campaigns)
     .values({
       name: 'Pipeline',
       type: 'marketing',
@@ -69,22 +52,22 @@ async function newCampaign(overrides: Partial<typeof campaigns.$inferInsert> = {
       updatedBy: senderId,
       ...overrides,
     })
-    .returning({ id: campaigns.id });
+    .returning({ id: schema.campaigns.id });
   campaignIds.push(row.id);
   return row.id;
 }
 
 async function processCampaignDispatch(id: string) {
   const row = await campaignRow(id);
-  return dispatch(id, row.scheduledFor?.toISOString() ?? '');
+  return Campaigns.processCampaignDispatch(id, row.scheduledFor?.toISOString() ?? '');
 }
 
 async function deliveriesOf(campaignId: string) {
-  return db.select().from(campaignDeliveries).where(eq(campaignDeliveries.campaignId, campaignId));
+  return db.select().from(schema.campaignDeliveries).where(eq(schema.campaignDeliveries.campaignId, campaignId));
 }
 
 async function campaignRow(campaignId: string) {
-  const [row] = await db.select().from(campaigns).where(eq(campaigns.id, campaignId));
+  const [row] = await db.select().from(schema.campaigns).where(eq(schema.campaigns.id, campaignId));
   return row;
 }
 
@@ -94,12 +77,12 @@ beforeAll(async () => {
     publicKeyEncoding: { type: 'spki', format: 'pem' },
   }).privateKey as unknown as string;
 
-  const [event] = await db.insert(events).values({ name: 'Pipeline event' }).returning({ id: events.id });
+  const [event] = await db.insert(schema.events).values({ name: 'Pipeline event' }).returning({ id: schema.events.id });
   eventId = event.id;
 
   // 12 opted-in members, so pacing crosses a 10-per-second boundary.
   const rows = await db
-    .insert(user)
+    .insert(schema.user)
     .values(
       Array.from({ length: 12 }, (_, i) => ({
         name: `Pipeline ${i}`,
@@ -107,27 +90,27 @@ beforeAll(async () => {
         emailVerified: true,
       })),
     )
-    .returning({ id: user.id });
+    .returning({ id: schema.user.id });
   memberIds.push(...rows.map((r) => r.id));
-  await db.insert(marketingConsents).values(memberIds.map((userId) => ({ userId, optedIn: true })));
+  await db.insert(schema.marketingConsents).values(memberIds.map((userId) => ({ userId, optedIn: true })));
   await insertAttendees(memberIds.map((userId) => ({ eventId, userId })));
 
   const [sender] = await db
-    .insert(user)
+    .insert(schema.user)
     .values({
       name: 'Pipeline sender',
       email: 'pipeline-sender@example.com',
       emailVerified: true,
     })
-    .returning({ id: user.id });
+    .returning({ id: schema.user.id });
   senderId = sender.id;
   for (const slug of ['campaign:send:all', 'campaign:read:all', 'participant:read:all']) {
     const [p] = await db
-      .insert(permission)
+      .insert(schema.permission)
       .values({ slug })
-      .onConflictDoUpdate({ target: permission.slug, set: { slug } })
-      .returning({ id: permission.id });
-    await db.insert(userPermission).values({ userId: senderId, permissionId: p.id });
+      .onConflictDoUpdate({ target: schema.permission.slug, set: { slug } })
+      .returning({ id: schema.permission.id });
+    await db.insert(schema.userPermission).values({ userId: senderId, permissionId: p.id });
   }
 });
 
@@ -144,9 +127,9 @@ beforeEach(() => {
 });
 
 afterAll(async () => {
-  await db.delete(campaigns).where(inArray(campaigns.id, campaignIds));
-  await db.delete(events).where(eq(events.id, eventId));
-  await db.delete(user).where(inArray(user.id, [...memberIds, senderId]));
+  await db.delete(schema.campaigns).where(inArray(schema.campaigns.id, campaignIds));
+  await db.delete(schema.events).where(eq(schema.events.id, eventId));
+  await db.delete(schema.user).where(inArray(schema.user.id, [...memberIds, senderId]));
   if (savedKey === undefined) delete process.env.APP_SIGNING_PRIVATE_KEY;
   else process.env.APP_SIGNING_PRIVATE_KEY = savedKey;
 });
@@ -175,8 +158,8 @@ describe('dispatch', () => {
 
     const [audit] = await db
       .select()
-      .from(auditLog)
-      .where(and(eq(auditLog.action, 'campaign.dispatch'), eq(auditLog.targetId, id)));
+      .from(schema.auditLog)
+      .where(and(eq(schema.auditLog.action, 'campaign.dispatch'), eq(schema.auditLog.targetId, id)));
     expect(audit.metadata).toMatchObject({
       recipients: 12,
       audienceRules: everyoneInEvent(),
@@ -219,7 +202,7 @@ describe('dispatch', () => {
   });
 
   test('pacing helper', () => {
-    expect([0, 9, 10, 25, 99, 100].map(deliveryDelaySeconds)).toEqual([0, 0, 1, 2, 9, 10]);
+    expect([0, 9, 10, 25, 99, 100].map(Campaigns.deliveryDelaySeconds)).toEqual([0, 0, 1, 2, 9, 10]);
   });
 });
 
@@ -227,22 +210,22 @@ describe('delivery', () => {
   test('sends, marks sent, and completes the campaign after the last one', async () => {
     // Two deliveries written by hand, rather than the whole audience.
     const id = await newCampaign({ status: 'sending' });
-    await db.insert(campaignDeliveries).values([
+    await db.insert(schema.campaignDeliveries).values([
       { campaignId: id, userId: memberIds[0], email: 'pipeline-0@example.com' },
       { campaignId: id, userId: memberIds[1], email: 'pipeline-1@example.com' },
     ]);
     const [a, b] = await deliveriesOf(id);
 
-    expect(await processCampaignDelivery(a.id)).toBe('sent');
+    expect(await Campaigns.processCampaignDelivery(a.id)).toBe('sent');
     expect((await campaignRow(id)).status).toBe('sending');
-    expect(await processCampaignDelivery(b.id)).toBe('sent');
+    expect(await Campaigns.processCampaignDelivery(b.id)).toBe('sent');
     expect((await campaignRow(id)).status).toBe('sent');
 
     expect(sendMail).toHaveBeenCalledTimes(2);
     const mail = vi.mocked(sendMail).mock.calls[0][0];
     expect(mail.subject).toMatch(/^Hi Pipeline$/);
     expect(mail.listUnsubscribeUrl).toMatch(/\/api\/unsubscribe\?t=/);
-    const [sent] = await db.select().from(campaignDeliveries).where(eq(campaignDeliveries.id, a.id));
+    const [sent] = await db.select().from(schema.campaignDeliveries).where(eq(schema.campaignDeliveries.id, a.id));
     expect(sent).toMatchObject({ status: 'sent', attempts: 1 });
     expect(sent.sentAt).toBeInstanceOf(Date);
   });
@@ -259,7 +242,9 @@ describe('delivery', () => {
     }
     const deliveries = (await Promise.all(ids.map(deliveriesOf))).flat();
     expect(deliveries).toHaveLength(36);
-    expect(await Promise.all(deliveries.map((row) => processCampaignDelivery(row.id)))).toEqual(Array(36).fill('sent'));
+    expect(await Promise.all(deliveries.map((row) => Campaigns.processCampaignDelivery(row.id)))).toEqual(
+      Array(36).fill('sent'),
+    );
     expect(sendMail).toHaveBeenCalledTimes(36);
     for (const [mail] of vi.mocked(sendMail).mock.calls) {
       expect(mail.html).toContain('/api/wallet/email/');
@@ -271,27 +256,33 @@ describe('delivery', () => {
     const id = await newCampaign();
     await processCampaignDispatch(id);
     const target = (await deliveriesOf(id)).find((d) => d.userId === memberIds[3])!;
-    await db.update(marketingConsents).set({ optedIn: false }).where(eq(marketingConsents.userId, memberIds[3]));
+    await db
+      .update(schema.marketingConsents)
+      .set({ optedIn: false })
+      .where(eq(schema.marketingConsents.userId, memberIds[3]));
 
-    expect(await processCampaignDelivery(target.id)).toBe('skipped');
+    expect(await Campaigns.processCampaignDelivery(target.id)).toBe('skipped');
     expect(sendMail).not.toHaveBeenCalled();
-    const [row] = await db.select().from(campaignDeliveries).where(eq(campaignDeliveries.id, target.id));
+    const [row] = await db.select().from(schema.campaignDeliveries).where(eq(schema.campaignDeliveries.id, target.id));
     expect(row.status).toBe('skipped');
     expect(row.skipReason).toMatch(/Opted out/);
 
-    await db.update(marketingConsents).set({ optedIn: true }).where(eq(marketingConsents.userId, memberIds[3]));
+    await db
+      .update(schema.marketingConsents)
+      .set({ optedIn: true })
+      .where(eq(schema.marketingConsents.userId, memberIds[3]));
   });
 
   test('stopping halts sending: remaining deliveries are skipped', async () => {
     const id = await newCampaign();
     await processCampaignDispatch(id);
     const [first, ...rest] = await deliveriesOf(id);
-    expect(await processCampaignDelivery(first.id)).toBe('sent');
+    expect(await Campaigns.processCampaignDelivery(first.id)).toBe('sent');
 
     expect(await stopCampaign(id)).toEqual({ success: true, data: undefined });
     expect((await campaignRow(id)).status).toBe('cancelled');
     for (const d of rest) {
-      expect(await processCampaignDelivery(d.id)).toBe('already_done');
+      expect(await Campaigns.processCampaignDelivery(d.id)).toBe('already_done');
     }
     expect(sendMail).toHaveBeenCalledTimes(1);
     const statuses = (await deliveriesOf(id)).map((d) => d.status).sort();
@@ -301,9 +292,9 @@ describe('delivery', () => {
   test('a delivery queued when the campaign is cancelled is skipped', async () => {
     const id = await newCampaign();
     await processCampaignDispatch(id);
-    await db.update(campaigns).set({ status: 'cancelled' }).where(eq(campaigns.id, id));
+    await db.update(schema.campaigns).set({ status: 'cancelled' }).where(eq(schema.campaigns.id, id));
     const [d] = await deliveriesOf(id);
-    expect(await processCampaignDelivery(d.id)).toBe('skipped');
+    expect(await Campaigns.processCampaignDelivery(d.id)).toBe('skipped');
     expect(sendMail).not.toHaveBeenCalled();
   });
 
@@ -313,9 +304,12 @@ describe('delivery', () => {
     const [d] = await deliveriesOf(id);
 
     // Two copies of the same message racing, then a late redelivery.
-    const results = await Promise.all([processCampaignDelivery(d.id), processCampaignDelivery(d.id)]);
+    const results = await Promise.all([
+      Campaigns.processCampaignDelivery(d.id),
+      Campaigns.processCampaignDelivery(d.id),
+    ]);
     expect(results.sort()).toEqual(['already_done', 'sent']);
-    expect(await processCampaignDelivery(d.id)).toBe('already_done');
+    expect(await Campaigns.processCampaignDelivery(d.id)).toBe('already_done');
     expect(sendMail).toHaveBeenCalledTimes(1);
   });
 
@@ -334,10 +328,10 @@ describe('delivery', () => {
         release = resolve;
       });
     });
-    const first = processCampaignDelivery(delivery.id);
+    const first = Campaigns.processCampaignDelivery(delivery.id);
     await sending;
     try {
-      expect(await processCampaignDelivery(delivery.id)).toBe('already_done');
+      expect(await Campaigns.processCampaignDelivery(delivery.id)).toBe('already_done');
       expect(sendMail).toHaveBeenCalledTimes(1);
       expect((await campaignRow(id)).status).toBe('sending');
     } finally {
@@ -365,7 +359,7 @@ describe('delivery', () => {
         release = resolve;
       });
     });
-    const first = processCampaignDelivery(delivery.id);
+    const first = Campaigns.processCampaignDelivery(delivery.id);
     await sending;
     const stopping = stopCampaign(id);
     release();
@@ -387,12 +381,12 @@ describe('delivery', () => {
         responseCode: 454,
       }),
     );
-    await expect(processCampaignDelivery(throttled.id)).rejects.toThrow(/Throttling/);
-    let [row] = await db.select().from(campaignDeliveries).where(eq(campaignDeliveries.id, throttled.id));
+    await expect(Campaigns.processCampaignDelivery(throttled.id)).rejects.toThrow(/Throttling/);
+    let [row] = await db.select().from(schema.campaignDeliveries).where(eq(schema.campaignDeliveries.id, throttled.id));
     expect(row).toMatchObject({ status: 'queued', attempts: 1 });
     expect(row.lastError).toMatch(/Throttling/);
     // The redelivery goes through.
-    expect(await processCampaignDelivery(throttled.id)).toBe('sent');
+    expect(await Campaigns.processCampaignDelivery(throttled.id)).toBe('sent');
 
     vi.mocked(sendMail).mockRejectedValueOnce(
       Object.assign(new Error('Message rejected'), {
@@ -400,8 +394,8 @@ describe('delivery', () => {
         response: '554 Address is on the suppression list',
       }),
     );
-    expect(await processCampaignDelivery(suppressed.id)).toBe('failed');
-    [row] = await db.select().from(campaignDeliveries).where(eq(campaignDeliveries.id, suppressed.id));
+    expect(await Campaigns.processCampaignDelivery(suppressed.id)).toBe('failed');
+    [row] = await db.select().from(schema.campaignDeliveries).where(eq(schema.campaignDeliveries.id, suppressed.id));
     expect(row.status).toBe('failed');
     expect(row.lastError).toMatch(/suppression list/);
   });
@@ -411,21 +405,21 @@ describe('delivery', () => {
     await processCampaignDispatch(id);
     const [d] = await deliveriesOf(id);
     await db
-      .update(campaignDeliveries)
-      .set({ attempts: MAX_CAMPAIGN_DELIVERY_ATTEMPTS - 1 })
-      .where(eq(campaignDeliveries.id, d.id));
+      .update(schema.campaignDeliveries)
+      .set({ attempts: Campaigns.MAX_CAMPAIGN_DELIVERY_ATTEMPTS - 1 })
+      .where(eq(schema.campaignDeliveries.id, d.id));
     vi.mocked(sendMail).mockRejectedValueOnce(new Error('connection reset'));
-    expect(await processCampaignDelivery(d.id)).toBe('failed');
+    expect(await Campaigns.processCampaignDelivery(d.id)).toBe('failed');
   });
 
   test('error classification and retry delay', () => {
-    expect(classifySendError({ responseCode: 454, response: 'Throttling' })).toBe('throttled');
-    expect(classifySendError({ responseCode: 550, response: 'mailbox unavailable' })).toBe('permanent');
-    expect(classifySendError(new Error('ECONNRESET'))).toBe('transient');
+    expect(Campaigns.classifySendError({ responseCode: 454, response: 'Throttling' })).toBe('throttled');
+    expect(Campaigns.classifySendError({ responseCode: 550, response: 'mailbox unavailable' })).toBe('permanent');
+    expect(Campaigns.classifySendError(new Error('ECONNRESET'))).toBe('transient');
     for (const n of [1, 3, 10]) {
       const ceiling = Math.min(300, 2 ** n * 5);
-      expect(campaignDeliveryRetryDelay(n, () => 0)).toBe(Math.max(1, Math.round(ceiling / 2)));
-      expect(campaignDeliveryRetryDelay(n, () => 1)).toBe(ceiling);
+      expect(Campaigns.campaignDeliveryRetryDelay(n, () => 0)).toBe(Math.max(1, Math.round(ceiling / 2)));
+      expect(Campaigns.campaignDeliveryRetryDelay(n, () => 1)).toBe(ceiling);
     }
   });
 });
@@ -481,9 +475,9 @@ describe('send actions', () => {
     const id = await newCampaign();
     await processCampaignDispatch(id);
     const deliveries = await deliveriesOf(id);
-    for (const d of deliveries.slice(1)) await processCampaignDelivery(d.id);
+    for (const d of deliveries.slice(1)) await Campaigns.processCampaignDelivery(d.id);
     vi.mocked(sendMail).mockRejectedValueOnce(Object.assign(new Error('rejected'), { responseCode: 550 }));
-    expect(await processCampaignDelivery(deliveries[0].id)).toBe('failed');
+    expect(await Campaigns.processCampaignDelivery(deliveries[0].id)).toBe('failed');
     expect((await campaignRow(id)).status).toBe('sent');
 
     send.mockClear();
@@ -495,7 +489,7 @@ describe('send actions', () => {
     expect(send).toHaveBeenCalledTimes(1);
     expect(send.mock.calls[0][2].idempotencyKey).toBe(`${deliveries[0].id}:1`);
 
-    expect(await processCampaignDelivery(deliveries[0].id)).toBe('sent');
+    expect(await Campaigns.processCampaignDelivery(deliveries[0].id)).toBe('sent');
     expect((await campaignRow(id)).status).toBe('sent');
 
     const results = await getCampaignResults(id);
@@ -508,7 +502,7 @@ describe('send actions', () => {
 
   test('retry publishing can recover even when no failed rows remain', async () => {
     const id = await newCampaign({ status: 'sent' });
-    await db.insert(campaignDeliveries).values({
+    await db.insert(schema.campaignDeliveries).values({
       campaignId: id,
       userId: memberIds[0],
       email: 'pipeline-0@example.com',
@@ -525,13 +519,13 @@ describe('send actions', () => {
       data: { requeued: 0 },
     });
     expect(send).toHaveBeenCalledTimes(1);
-    expect(await processCampaignDelivery((await deliveriesOf(id))[0].id)).toBe('sent');
+    expect(await Campaigns.processCampaignDelivery((await deliveriesOf(id))[0].id)).toBe('sent');
     expect((await campaignRow(id)).status).toBe('sent');
   });
 
   test('over 100 recipients, Send now needs the count typed back', async () => {
     const extra = await db
-      .insert(user)
+      .insert(schema.user)
       .values(
         Array.from({ length: 90 }, (_, i) => ({
           name: `Bulk ${i}`,
@@ -539,10 +533,10 @@ describe('send actions', () => {
           emailVerified: true,
         })),
       )
-      .returning({ id: user.id });
+      .returning({ id: schema.user.id });
     const extraIds = extra.map((r) => r.id);
     try {
-      await db.insert(marketingConsents).values(extraIds.map((userId) => ({ userId, optedIn: true })));
+      await db.insert(schema.marketingConsents).values(extraIds.map((userId) => ({ userId, optedIn: true })));
       await insertAttendees(extraIds.map((userId) => ({ eventId, userId })));
 
       const id = await newCampaign({ status: 'draft', scheduledFor: null });
@@ -559,7 +553,7 @@ describe('send actions', () => {
         data: undefined,
       });
     } finally {
-      await db.delete(user).where(inArray(user.id, extraIds));
+      await db.delete(schema.user).where(inArray(schema.user.id, extraIds));
     }
   });
 });

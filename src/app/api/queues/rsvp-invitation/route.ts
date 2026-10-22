@@ -1,11 +1,10 @@
 import { handleCallback } from '@vercel/queue';
 
-import { processRsvpInvitation } from '@/lib/rsvp/process-rsvp-invitation';
-import type { RsvpInvitationMessage } from '@/lib/rsvp/rsvp-invitation-queue';
+import * as Rsvp from '@/lib/rsvp/server';
 
-export const POST = handleCallback<RsvpInvitationMessage>(
+export const POST = handleCallback<Rsvp.RsvpInvitationMessage>(
   async ({ responseId }, metadata) => {
-    await processRsvpInvitation(responseId, metadata.deliveryCount);
+    await Rsvp.processRsvpInvitation(responseId, metadata.deliveryCount);
   },
   {
     // Backoff timing only: processRsvpInvitation already decided to give up

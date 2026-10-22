@@ -5,8 +5,8 @@ import { DashboardHeader } from '@/components/dashboard-header';
 import { DashboardFooter } from '@/components/dashboard-footer';
 import { BreadcrumbProvider } from '@/components/breadcrumb-context';
 import { getUser } from '@/utils/auth';
-import { getConsentStatus } from '@/app/dashboard/account/actions';
-import { getProfessionalProfile, getUserProfile } from '@/app/dashboard/profile/actions';
+import { getConsentStatus } from './account/actions';
+import { getProfessionalProfile, getUserProfile } from './profile/actions';
 import { redirect } from 'next/navigation';
 
 // Account/app pages aren't useful search results; keep them out of the index.

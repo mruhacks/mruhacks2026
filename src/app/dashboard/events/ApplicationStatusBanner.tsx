@@ -2,9 +2,9 @@ import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import type { ParticipationForUser } from '@/app/dashboard/events/actions';
+import type { ParticipationForUser } from './actions';
 import { LocalDateTime } from '@/components/local-date-time';
-import { canEditApplication } from '@/lib/participation/status';
+import * as Participation from '@/lib/participation';
 
 const TIMELINE_FIELDS = [
   {
@@ -31,7 +31,7 @@ type Props = {
 export function ApplicationStatusBanner({ application, standalone = false, editHref }: Props) {
   const { display, createdAt } = application;
   const label = display.title;
-  const showEdit = Boolean(editHref) && canEditApplication(application.status);
+  const showEdit = Boolean(editHref) && Participation.canEditApplication(application.status);
 
   if (standalone) {
     return (

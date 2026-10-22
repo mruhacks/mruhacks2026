@@ -5,7 +5,7 @@ import { serializeInstant } from '@/lib/datetime';
 import { getAdminEventHeader } from '@/lib/admin-event';
 import { listEventTypes } from '@/lib/event-types';
 import { resolveEventId } from '@/lib/events';
-import { hasPermission, requirePermission } from '@/lib/rbac/authorization';
+import * as Rbac from '@/lib/rbac/server';
 import { getSubeventCheckInCounts, listSubevents } from '@/lib/subevents';
 import { getUser } from '@/utils/auth';
 
@@ -36,7 +36,7 @@ async function SubeventsContent({ paramsPromise }: { paramsPromise: Props['param
   // Sub-events are `events` rows, so managing them is the same authority as
   // managing any other part of an event — not a bundle, and not a new slug for
   // something this permission already covers.
-  await requirePermission(user.id, 'event:manage');
+  await Rbac.requirePermission(user.id, 'event:manage');
 
   const [event, subevents, eventTypes] = await Promise.all([
     getAdminEventHeader(eventId),
@@ -50,7 +50,7 @@ async function SubeventsContent({ paramsPromise }: { paramsPromise: Props['param
   return (
     <SubeventList
       checkInEnabled={event.checkInEnabled}
-      canCheckIn={await hasPermission(user.id, 'checkin:write:all')}
+      canCheckIn={await Rbac.hasPermission(user.id, 'checkin:write:all')}
       eventId={eventId}
       segment={segment}
       backHref={`/dashboard/admin/events/${segment}/subevents`}

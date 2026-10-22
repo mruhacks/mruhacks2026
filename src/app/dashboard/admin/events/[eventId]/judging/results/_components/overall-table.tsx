@@ -8,7 +8,7 @@ import { DataTable } from '@/components/data-table/data-table';
 import { Button } from '@/components/ui/button';
 import { FieldError } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { MAX_PLACEMENT } from '@/lib/judging/limits';
+import * as Judging from '@/lib/judging';
 
 import { formatNumber } from './format';
 import { useResults } from './results-context';
@@ -143,7 +143,7 @@ function PlacementInput({ row, award }: { row: ResultsProjectRow; award: AwardCo
           type='number'
           inputMode='numeric'
           min={1}
-          max={MAX_PLACEMENT}
+          max={Judging.MAX_PLACEMENT}
           className='h-8 w-20'
           aria-label={`Placement: ${row.title}`}
           aria-invalid={Boolean(error)}

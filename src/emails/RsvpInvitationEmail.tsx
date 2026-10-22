@@ -1,5 +1,5 @@
 import { Heading, Text } from 'react-email';
-import { CtaButton, EmailLayout, FallbackLink, bodyStyle, headingStyle } from './EmailLayout';
+import { CtaButton, EmailLayout, FallbackLink, bodyStyle, headingStyle } from '@/emails/EmailLayout';
 
 type Props = {
   eventName: string;

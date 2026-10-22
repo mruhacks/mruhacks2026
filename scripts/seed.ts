@@ -3,28 +3,7 @@ import { randomBytes, randomUUID } from 'crypto';
 import { faker } from '@faker-js/faker';
 import { auth } from './auth';
 import { client, db } from '@/utils/db';
-import {
-  user,
-  account,
-  session,
-  events,
-  eventTerms,
-  userProfiles,
-  userProfileAbout,
-  userInterests,
-  userDietaryRestrictions,
-  eventParticipants,
-  eventArticles,
-  genders,
-  universities,
-  majors,
-  yearsOfStudy,
-  interests,
-  dietaryRestrictions,
-  participationStatuses,
-  userRole,
-  userPermission,
-} from '@/db/schema';
+import * as schema from '@/db/schema';
 import type { InferInsertModel } from 'drizzle-orm';
 import { eq, isNull, and } from 'drizzle-orm';
 import { seedStaticTables } from './seed-static';
@@ -100,21 +79,21 @@ const ART_SCHEDULE = '33333333-0000-0000-0000-000000000002';
 const ART_JUDGING = '33333333-0000-0000-0000-000000000003';
 
 // ── Types ────────────────────────────────────────────────────────────────
-type UserInsert = InferInsertModel<typeof user>;
-type AccountInsert = InferInsertModel<typeof account>;
-type SessionInsert = InferInsertModel<typeof session>;
-type EventInsert = InferInsertModel<typeof events>;
-type UserProfileInsert = InferInsertModel<typeof userProfiles>;
-type UserProfileAboutInsert = InferInsertModel<typeof userProfileAbout>;
-type UserInterestInsert = InferInsertModel<typeof userInterests>;
-type UserDietaryInsert = InferInsertModel<typeof userDietaryRestrictions>;
-type EventParticipantInsert = InferInsertModel<typeof eventParticipants>;
-type UserRoleInsert = InferInsertModel<typeof userRole>;
-type UserPermissionInsert = InferInsertModel<typeof userPermission>;
+type UserInsert = InferInsertModel<typeof schema.user>;
+type AccountInsert = InferInsertModel<typeof schema.account>;
+type SessionInsert = InferInsertModel<typeof schema.session>;
+type EventInsert = InferInsertModel<typeof schema.events>;
+type UserProfileInsert = InferInsertModel<typeof schema.userProfiles>;
+type UserProfileAboutInsert = InferInsertModel<typeof schema.userProfileAbout>;
+type UserInterestInsert = InferInsertModel<typeof schema.userInterests>;
+type UserDietaryInsert = InferInsertModel<typeof schema.userDietaryRestrictions>;
+type EventParticipantInsert = InferInsertModel<typeof schema.eventParticipants>;
+type UserRoleInsert = InferInsertModel<typeof schema.userRole>;
+type UserPermissionInsert = InferInsertModel<typeof schema.userPermission>;
 
 // ── Seed events ───────────────────────────────────────────────────────────
 async function seedEvents() {
-  const existing = await db.select().from(events);
+  const existing = await db.select().from(schema.events);
   const eventInserts: EventInsert[] = [
     {
       name: 'MRUHacks 2026',
@@ -252,7 +231,7 @@ async function seedEvents() {
       capacity: null,
     },
   ];
-  const seededEvents: (typeof events.$inferSelect)[] = [];
+  const seededEvents: (typeof schema.events.$inferSelect)[] = [];
   for (const fixture of eventInserts) {
     const match = existing.find(
       (event) => event.name === fixture.name && event.hasApplication === fixture.hasApplication,
@@ -260,7 +239,7 @@ async function seedEvents() {
     if (match) {
       seededEvents.push(match);
     } else {
-      const [inserted] = await db.insert(events).values(fixture).returning();
+      const [inserted] = await db.insert(schema.events).values(fixture).returning();
       seededEvents.push(inserted);
     }
   }
@@ -376,16 +355,16 @@ async function seedHackathonSchedule(parentEventId: string) {
   });
 
   await db
-    .update(events)
+    .update(schema.events)
     .set({
       startsAt: eventDate('Friday', '7:30 PM'),
       endsAt: eventDate('Sunday', '2:30 PM'),
       // Matches the "Hacking Ends / Submissions Due" schedule item.
       submissionsCloseAt: eventDate('Sunday', '9:00 AM'),
     })
-    .where(eq(events.id, parentEventId));
+    .where(eq(schema.events.id, parentEventId));
 
-  const existingSubevents = await db.select().from(events).where(eq(events.parentEventId, parentEventId));
+  const existingSubevents = await db.select().from(schema.events).where(eq(schema.events.parentEventId, parentEventId));
   const existingByName = new Map<string, (typeof existingSubevents)[number][]>();
   for (const existing of existingSubevents) {
     const group = existingByName.get(existing.name) ?? [];
@@ -402,9 +381,9 @@ async function seedHackathonSchedule(parentEventId: string) {
     occurrenceByName.set(fixture.name, occurrence + 1);
     const existing = existingByName.get(fixture.name)?.[occurrence];
     if (existing) {
-      await db.update(events).set(fixture).where(eq(events.id, existing.id));
+      await db.update(schema.events).set(fixture).where(eq(schema.events.id, existing.id));
     } else {
-      await db.insert(events).values(fixture);
+      await db.insert(schema.events).values(fixture);
     }
   }
 }
@@ -606,34 +585,34 @@ async function seedEventContent(
   // Demo fixtures only; the production/static seed does not add event terms.
   await db.transaction(async (tx) => {
     const [event] = await tx
-      .select({ termsId: events.termsId })
-      .from(events)
-      .where(eq(events.id, applicationEvent.id))
+      .select({ termsId: schema.events.termsId })
+      .from(schema.events)
+      .where(eq(schema.events.id, applicationEvent.id))
       .for('update');
     if (event.termsId) return;
     const [existing] = await tx
-      .select({ id: eventTerms.id })
-      .from(eventTerms)
-      .where(eq(eventTerms.eventId, applicationEvent.id))
+      .select({ id: schema.eventTerms.id })
+      .from(schema.eventTerms)
+      .where(eq(schema.eventTerms.eventId, applicationEvent.id))
       .limit(1);
     if (existing) return; // Preserve an organizer's explicit removal of terms.
     const [version] = await tx
-      .insert(eventTerms)
+      .insert(schema.eventTerms)
       .values({ eventId: applicationEvent.id, markdown: DEMO_EVENT_TERMS })
-      .returning({ id: eventTerms.id });
+      .returning({ id: schema.eventTerms.id });
     await tx
-      .update(events)
+      .update(schema.events)
       .set({ termsId: version.id, updatedAt: new Date() })
-      .where(eq(events.id, applicationEvent.id));
+      .where(eq(schema.events.id, applicationEvent.id));
   });
 
   let described = 0;
   for (const { event, markdown } of descriptions) {
     const updated = await db
-      .update(events)
+      .update(schema.events)
       .set({ descriptionMarkdown: markdown, updatedAt: new Date() })
-      .where(and(eq(events.id, event.id), isNull(events.descriptionMarkdown)))
-      .returning({ id: events.id });
+      .where(and(eq(schema.events.id, event.id), isNull(schema.events.descriptionMarkdown)))
+      .returning({ id: schema.events.id });
     described += updated.length;
   }
   console.log(
@@ -644,7 +623,7 @@ async function seedEventContent(
 
   // Two published and one draft, so the seeded database exercises both the
   // participant-visible path and the organizer-only draft badge.
-  const articles: InferInsertModel<typeof eventArticles>[] = [
+  const articles: InferInsertModel<typeof schema.eventArticles>[] = [
     {
       id: ART_GETTING_STARTED,
       eventId: applicationEvent.id,
@@ -675,10 +654,10 @@ async function seedEventContent(
   ];
 
   const inserted = await db
-    .insert(eventArticles)
+    .insert(schema.eventArticles)
     .values(articles)
-    .onConflictDoNothing({ target: eventArticles.id })
-    .returning({ id: eventArticles.id });
+    .onConflictDoNothing({ target: schema.eventArticles.id })
+    .returning({ id: schema.eventArticles.id });
 
   console.log(
     `✅ Seeded ${inserted.length} of ${articles.length} wiki articles for ${applicationEvent.name} (2 published, 1 draft).`,
@@ -725,7 +704,7 @@ async function seedEnvAdminUser(insertedRoles: { id: number; slug: string | null
   await ctx.internalAdapter.updateUser(userId, { role: 'admin' });
 
   if (adminRole) {
-    await db.insert(userRole).values({ userId, roleId: adminRole.id }).onConflictDoNothing();
+    await db.insert(schema.userRole).values({ userId, roleId: adminRole.id }).onConflictDoNothing();
   }
 
   console.log(`✅ Admin user ready (email: ${email})`);
@@ -749,13 +728,13 @@ export async function seedDemoData() {
 
   const [genderRows, universityRows, majorRows, yearRows, interestRows, dietaryRows, applicationStatusRows] =
     await Promise.all([
-      db.select().from(genders),
-      db.select().from(universities),
-      db.select().from(majors),
-      db.select().from(yearsOfStudy),
-      db.select().from(interests),
-      db.select().from(dietaryRestrictions),
-      db.select().from(participationStatuses),
+      db.select().from(schema.genders),
+      db.select().from(schema.universities),
+      db.select().from(schema.majors),
+      db.select().from(schema.yearsOfStudy),
+      db.select().from(schema.interests),
+      db.select().from(schema.dietaryRestrictions),
+      db.select().from(schema.participationStatuses),
     ]);
 
   const pendingReviewStatus = applicationStatusRows.find((s) => s.label === 'pending_review');
@@ -1024,23 +1003,23 @@ export async function seedDemoData() {
     const t0 = performance.now();
 
     await db.transaction(async (tx) => {
-      await tx.insert(user).values(users);
-      await tx.insert(account).values(accounts);
-      await tx.insert(session).values(sessions);
-      await tx.insert(userProfiles).values(profiles);
-      await tx.insert(userProfileAbout).values(profilesAbout);
-      if (interestLinks.length > 0) await tx.insert(userInterests).values(interestLinks);
-      if (dietaryLinks.length > 0) await tx.insert(userDietaryRestrictions).values(dietaryLinks);
-      await tx.insert(eventParticipants).values(applicationData);
+      await tx.insert(schema.user).values(users);
+      await tx.insert(schema.account).values(accounts);
+      await tx.insert(schema.session).values(sessions);
+      await tx.insert(schema.userProfiles).values(profiles);
+      await tx.insert(schema.userProfileAbout).values(profilesAbout);
+      if (interestLinks.length > 0) await tx.insert(schema.userInterests).values(interestLinks);
+      if (dietaryLinks.length > 0) await tx.insert(schema.userDietaryRestrictions).values(dietaryLinks);
+      await tx.insert(schema.eventParticipants).values(applicationData);
       if (attendeeData.length > 0)
         await tx
-          .insert(eventParticipants)
+          .insert(schema.eventParticipants)
           .values(attendeeData)
           .onConflictDoNothing({
-            target: [eventParticipants.eventId, eventParticipants.userId],
+            target: [schema.eventParticipants.eventId, schema.eventParticipants.userId],
           });
-      if (userRoles.length > 0) await tx.insert(userRole).values(userRoles);
-      if (userPerms.length > 0) await tx.insert(userPermission).values(userPerms);
+      if (userRoles.length > 0) await tx.insert(schema.userRole).values(userRoles);
+      if (userPerms.length > 0) await tx.insert(schema.userPermission).values(userPerms);
     });
 
     const userIds = users.map((user) => user.id!);

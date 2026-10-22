@@ -1,6 +1,6 @@
 import { connection, NextResponse } from 'next/server';
 
-import { loadDisplayFeed } from '@/lib/display/feed';
+import * as Display from '@/lib/display/server';
 
 /**
  * What the lobby displays show: the featured event's schedule plus the global
@@ -12,7 +12,7 @@ export async function GET() {
   // into a build-time snapshot.
   await connection();
   try {
-    return NextResponse.json(await loadDisplayFeed(), {
+    return NextResponse.json(await Display.loadDisplayFeed(), {
       headers: { 'Cache-Control': 'no-store' },
     });
   } catch (error) {

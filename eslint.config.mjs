@@ -6,6 +6,8 @@ import noNestedInteractive from './eslint-rules/no-nested-interactive.mjs';
 import noRouterRefresh from './eslint-rules/no-router-refresh.mjs';
 import enforceMRUHacksNaming from './eslint-rules/enforce-mruhacks-naming.mjs';
 import requireLogSourcePrefix from './eslint-rules/require-log-source-prefix.mjs';
+import namespaceImports from './eslint-rules/namespace-imports.mjs';
+import nearbyRelativeImports from './eslint-rules/nearby-relative-imports.mjs';
 
 const eslintConfig = [
   ...eslintConfigNextCoreWebVitals,
@@ -42,6 +44,8 @@ const eslintConfig = [
           'no-router-refresh': noRouterRefresh,
           'enforce-mruhacks-naming': enforceMRUHacksNaming,
           'require-log-source-prefix': requireLogSourcePrefix,
+          'namespace-imports': namespaceImports,
+          'nearby-relative-imports': nearbyRelativeImports,
         },
       },
     },
@@ -49,6 +53,8 @@ const eslintConfig = [
       'custom/no-nested-interactive': 'error',
       'custom/no-router-refresh': 'warn',
       'custom/enforce-mruhacks-naming': 'error',
+      // Import conventions, see AGENTS.md ("Imports").
+      'custom/nearby-relative-imports': 'error',
       // Enable recommended Tailwind CSS rules
       ...eslintPluginBetterTailwindcss.configs['recommended-warn'].rules,
       // Disable Prettier-conflicting ESLint rules
@@ -64,6 +70,16 @@ const eslintConfig = [
         // Tailwind CSS v4: path to the entry file of the CSS-based Tailwind config
         entryPoint: 'src/app/globals.css',
       },
+    },
+  },
+  {
+    // The schema layer imports a few constants straight from src/lib files;
+    // going through a domain barrel would load the whole module (and risk an
+    // import cycle) every time anything touches the schema.
+    files: ['**/*.{ts,tsx,mts}'],
+    ignores: ['src/db/**'],
+    rules: {
+      'custom/namespace-imports': 'error',
     },
   },
   {

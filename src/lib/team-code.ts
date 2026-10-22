@@ -8,7 +8,7 @@ import { randomInt } from 'node:crypto';
 import { and, eq } from 'drizzle-orm';
 
 import type { db as dbSingleton } from '@/utils/db';
-import { teams } from '@/db/schema';
+import * as schema from '@/db/schema';
 
 /** Accepts either the db singleton or a transaction handle from db.transaction(). */
 type Queryable = Pick<typeof dbSingleton, 'select'>;
@@ -85,9 +85,9 @@ export async function generateTeamCode(eventId: string, db: Queryable): Promise<
     if (isCodeDenylisted(candidate)) continue;
 
     const [existing] = await db
-      .select({ id: teams.id })
-      .from(teams)
-      .where(and(eq(teams.eventId, eventId), eq(teams.code, candidate)))
+      .select({ id: schema.teams.id })
+      .from(schema.teams)
+      .where(and(eq(schema.teams.eventId, eventId), eq(schema.teams.code, candidate)))
       .limit(1);
 
     if (!existing) return candidate;

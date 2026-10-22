@@ -1,6 +1,6 @@
 import Link from 'next/link';
 
-import { getMySubmission } from '@/app/dashboard/events/submission-actions';
+import { getMySubmission } from '../submission-actions';
 import {
   ProjectStageDescription,
   ProjectStageWarning,

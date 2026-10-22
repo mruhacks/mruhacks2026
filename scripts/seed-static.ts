@@ -1,20 +1,7 @@
 import { client, db } from '@/utils/db';
 import { InferInsertModel, Table, getTableName, getTableColumns, sql } from 'drizzle-orm';
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
-import {
-  genders,
-  universities,
-  majors,
-  yearsOfStudy,
-  interests,
-  dietaryRestrictions,
-  heardFromSources,
-  participationStatuses,
-  eventTypes,
-  role,
-  permission,
-  rolePermissions,
-} from '@/db/schema';
+import * as schema from '@/db/schema';
 import {
   gendersList,
   universitiesList,
@@ -53,9 +40,9 @@ function defineSeedTable<TTable extends Table>(table: TTable, validLabels: reado
   };
 }
 
-function defineParticipationStatusSeedTable(): SeedTable<typeof participationStatuses> {
+function defineParticipationStatusSeedTable(): SeedTable<typeof schema.participationStatuses> {
   return {
-    table: participationStatuses,
+    table: schema.participationStatuses,
     validLabels: participationStatusesList as readonly string[],
     values: participationStatusDisplayList.map((s) => ({
       label: s.label,
@@ -69,15 +56,15 @@ function defineParticipationStatusSeedTable(): SeedTable<typeof participationSta
 
 // ---------- Table registry ----------
 const tables = [
-  defineSeedTable(genders, gendersList),
-  defineSeedTable(universities, universitiesList),
-  defineSeedTable(majors, majorsList),
-  defineSeedTable(yearsOfStudy, yearsOfStudyList),
-  defineSeedTable(interests, interestsList),
-  defineSeedTable(dietaryRestrictions, dietaryRestrictionsList),
-  defineSeedTable(heardFromSources, heardFromSourcesList),
+  defineSeedTable(schema.genders, gendersList),
+  defineSeedTable(schema.universities, universitiesList),
+  defineSeedTable(schema.majors, majorsList),
+  defineSeedTable(schema.yearsOfStudy, yearsOfStudyList),
+  defineSeedTable(schema.interests, interestsList),
+  defineSeedTable(schema.dietaryRestrictions, dietaryRestrictionsList),
+  defineSeedTable(schema.heardFromSources, heardFromSourcesList),
   defineParticipationStatusSeedTable(),
-  defineSeedTable(eventTypes, eventTypesList),
+  defineSeedTable(schema.eventTypes, eventTypesList),
 ] satisfies SeedTable<Table>[];
 
 // ---------- Seeder ----------
@@ -114,9 +101,9 @@ export async function seedStaticTables() {
 }
 
 // ---------- Roles & permissions ----------
-type RoleInsert = InferInsertModel<typeof role>;
-type PermissionInsert = InferInsertModel<typeof permission>;
-type RolePermissionInsert = InferInsertModel<typeof rolePermissions>;
+type RoleInsert = InferInsertModel<typeof schema.role>;
+type PermissionInsert = InferInsertModel<typeof schema.permission>;
+type RolePermissionInsert = InferInsertModel<typeof schema.rolePermissions>;
 
 async function seedRolesAndPermissions() {
   const baseRoles: RoleInsert[] = [
@@ -266,18 +253,18 @@ async function seedRolesAndPermissions() {
   // reference.
   const result = await db.transaction(async (tx) => {
     const insertedRoles = await tx
-      .insert(role)
+      .insert(schema.role)
       .values(baseRoles)
       .onConflictDoUpdate({
-        target: role.slug,
+        target: schema.role.slug,
         set: { description: sql`excluded.description` },
       })
       .returning();
     const insertedPerms = await tx
-      .insert(permission)
+      .insert(schema.permission)
       .values(basePermissions)
       .onConflictDoUpdate({
-        target: permission.slug,
+        target: schema.permission.slug,
         set: { description: sql`excluded.description` },
       })
       .returning();
@@ -403,10 +390,10 @@ async function seedRolesAndPermissions() {
     // revoke a link — an admin may have deliberately customized a role's
     // permissions at runtime via the roles UI, and a deploy shouldn't undo it.
     await tx
-      .insert(rolePermissions)
+      .insert(schema.rolePermissions)
       .values(rolePerms)
       .onConflictDoNothing({
-        target: [rolePermissions.roleId, rolePermissions.permissionId],
+        target: [schema.rolePermissions.roleId, schema.rolePermissions.permissionId],
       });
 
     console.log(

@@ -1,7 +1,7 @@
 import { describe, test, expect, beforeAll, afterAll, vi } from 'vitest';
 import { db } from '@/utils/db';
 import { eq } from 'drizzle-orm';
-import { user, role, permission, rolePermissions, userRole, userPermission } from '@/db/schema';
+import * as schema from '@/db/schema';
 vi.mock('server-only', () => ({}));
 vi.mock('@/utils/auth', () => ({ getUser: vi.fn() }));
 vi.mock('next/cache', () => ({ updateTag: vi.fn() }));
@@ -25,55 +25,61 @@ import {
   setRolePermissions,
 } from '@/app/actions/roles';
 import { getUser } from '@/utils/auth';
-import { unwrap } from './unwrap';
+import { unwrap } from '@/tests/unwrap';
 
 let testUserId: string;
 let actorUserId: string;
 
 beforeAll(async () => {
   const [u] = await db
-    .insert(user)
+    .insert(schema.user)
     .values({
       name: 'Roles Test User',
       email: 'roles-test@example.com',
       emailVerified: true,
     })
-    .returning({ id: user.id });
+    .returning({ id: schema.user.id });
   testUserId = u.id;
   const [actor] = await db
-    .insert(user)
+    .insert(schema.user)
     .values({
       name: 'Roles Test Admin',
       email: 'roles-admin@example.com',
       emailVerified: true,
     })
-    .returning({ id: user.id });
+    .returning({ id: schema.user.id });
   actorUserId = actor.id;
   // `all:all:all` because granting a permission requires holding it.
   const privilegeSlugs = ['role:all:all', 'permission:all:all', 'all:all:all'];
   for (const slug of privilegeSlugs) {
     const [created] = await db
-      .insert(permission)
+      .insert(schema.permission)
       .values({ slug })
       .onConflictDoNothing()
-      .returning({ id: permission.id });
+      .returning({ id: schema.permission.id });
     const permissionId =
       created?.id ??
-      (await db.select({ id: permission.id }).from(permission).where(eq(permission.slug, slug)).limit(1))[0]!.id;
-    await db.insert(userPermission).values({ userId: actorUserId, permissionId }).onConflictDoNothing();
+      (
+        await db
+          .select({ id: schema.permission.id })
+          .from(schema.permission)
+          .where(eq(schema.permission.slug, slug))
+          .limit(1)
+      )[0]!.id;
+    await db.insert(schema.userPermission).values({ userId: actorUserId, permissionId }).onConflictDoNothing();
   }
   vi.mocked(getUser).mockResolvedValue({ id: actorUserId } as never);
 });
 
 afterAll(async () => {
-  await db.delete(userRole).where(eq(userRole.userId, testUserId));
-  await db.delete(userPermission).where(eq(userPermission.userId, testUserId));
-  await db.delete(userPermission).where(eq(userPermission.userId, actorUserId));
-  await db.delete(user).where(eq(user.id, testUserId));
-  await db.delete(user).where(eq(user.id, actorUserId));
-  await db.delete(permission).where(eq(permission.slug, 'role:all:all'));
-  await db.delete(permission).where(eq(permission.slug, 'permission:all:all'));
-  await db.delete(permission).where(eq(permission.slug, 'all:all:all'));
+  await db.delete(schema.userRole).where(eq(schema.userRole.userId, testUserId));
+  await db.delete(schema.userPermission).where(eq(schema.userPermission.userId, testUserId));
+  await db.delete(schema.userPermission).where(eq(schema.userPermission.userId, actorUserId));
+  await db.delete(schema.user).where(eq(schema.user.id, testUserId));
+  await db.delete(schema.user).where(eq(schema.user.id, actorUserId));
+  await db.delete(schema.permission).where(eq(schema.permission.slug, 'role:all:all'));
+  await db.delete(schema.permission).where(eq(schema.permission.slug, 'permission:all:all'));
+  await db.delete(schema.permission).where(eq(schema.permission.slug, 'all:all:all'));
 });
 
 describe('createRole', () => {
@@ -83,11 +89,11 @@ describe('createRole', () => {
     if (!result.success) throw new Error(result.error);
     expect(result.data).toBeTypeOf('number');
 
-    const [row] = await db.select().from(role).where(eq(role.id, result.data!));
+    const [row] = await db.select().from(schema.role).where(eq(schema.role.id, result.data!));
     expect(row.slug).toBe('test-organizer');
     expect(row.description).toBe('Test organizer role');
 
-    await db.delete(role).where(eq(role.id, result.data!));
+    await db.delete(schema.role).where(eq(schema.role.id, result.data!));
   });
 
   test('duplicate slug returns success with undefined ID (onConflictDoNothing)', async () => {
@@ -101,7 +107,7 @@ describe('createRole', () => {
     if (!second.success) throw new Error(second.error);
     expect(second.data).toBeUndefined();
 
-    await db.delete(role).where(eq(role.id, first.data!));
+    await db.delete(schema.role).where(eq(schema.role.id, first.data!));
   });
 });
 
@@ -109,7 +115,7 @@ describe('deleteRole', () => {
   test('deletes an existing role', async () => {
     const roleId = unwrap(await createRole('test-to-delete'));
     await deleteRole(roleId);
-    const rows = await db.select().from(role).where(eq(role.id, roleId!));
+    const rows = await db.select().from(schema.role).where(eq(schema.role.id, roleId!));
     expect(rows).toHaveLength(0);
   });
 
@@ -127,31 +133,31 @@ describe('updateRole', () => {
       description: 'Updated desc',
     });
 
-    const [row] = await db.select().from(role).where(eq(role.id, roleId!));
+    const [row] = await db.select().from(schema.role).where(eq(schema.role.id, roleId!));
     expect(row.slug).toBe('test-after-update');
     expect(row.description).toBe('Updated desc');
 
-    await db.delete(role).where(eq(role.id, roleId!));
+    await db.delete(schema.role).where(eq(schema.role.id, roleId!));
   });
 
   test('auto-lowercases the slug', async () => {
     const roleId = unwrap(await createRole('test-case-role'));
     await updateRole(roleId!, { slug: 'TEST-CASE-ROLE' });
 
-    const [row] = await db.select().from(role).where(eq(role.id, roleId!));
+    const [row] = await db.select().from(schema.role).where(eq(schema.role.id, roleId!));
     expect(row.slug).toBe('test-case-role');
 
-    await db.delete(role).where(eq(role.id, roleId!));
+    await db.delete(schema.role).where(eq(schema.role.id, roleId!));
   });
 
   test('can set description to null', async () => {
     const roleId = unwrap(await createRole('test-null-desc', 'some desc'));
     await updateRole(roleId!, { description: null });
 
-    const [row] = await db.select().from(role).where(eq(role.id, roleId!));
+    const [row] = await db.select().from(schema.role).where(eq(schema.role.id, roleId!));
     expect(row.description).toBeNull();
 
-    await db.delete(role).where(eq(role.id, roleId!));
+    await db.delete(schema.role).where(eq(schema.role.id, roleId!));
   });
 
   test('empty patch object is a no-op and returns success', async () => {
@@ -159,7 +165,7 @@ describe('updateRole', () => {
     const result = await updateRole(roleId!, {});
     expect(result.success).toBe(true);
 
-    await db.delete(role).where(eq(role.id, roleId!));
+    await db.delete(schema.role).where(eq(schema.role.id, roleId!));
   });
 });
 
@@ -174,7 +180,7 @@ describe('listRoles', () => {
     expect(found!.permissionCount).toBe(0);
     expect(found!.userCount).toBe(0);
 
-    await db.delete(role).where(eq(role.id, roleId!));
+    await db.delete(schema.role).where(eq(schema.role.id, roleId!));
   });
 });
 
@@ -185,7 +191,7 @@ describe('addPermission / deletePermission / updatePermission / listPermissions'
     if (!result.success) throw new Error(result.error);
     expect(result.data).toBeTypeOf('number');
 
-    await db.delete(permission).where(eq(permission.id, result.data!));
+    await db.delete(schema.permission).where(eq(schema.permission.id, result.data!));
   });
 
   test('duplicate permission slug returns success with undefined ID', async () => {
@@ -196,22 +202,22 @@ describe('addPermission / deletePermission / updatePermission / listPermissions'
     if (!second.success) throw new Error(second.error);
     expect(second.data).toBeUndefined();
 
-    await db.delete(permission).where(eq(permission.id, first.data!));
+    await db.delete(schema.permission).where(eq(schema.permission.id, first.data!));
   });
 
   test('deletes a permission', async () => {
     const permId = unwrap(await addPermission('test:delete-me:all'));
     await deletePermission(permId);
-    const rows = await db.select().from(permission).where(eq(permission.id, permId!));
+    const rows = await db.select().from(schema.permission).where(eq(schema.permission.id, permId!));
     expect(rows).toHaveLength(0);
   });
 
   test('updatePermission auto-lowercases the slug', async () => {
     const permId = unwrap(await addPermission('test:lowercase:all'));
     await updatePermission(permId, { slug: 'TEST:LOWERCASE:ALL' });
-    const [row] = await db.select().from(permission).where(eq(permission.id, permId!));
+    const [row] = await db.select().from(schema.permission).where(eq(schema.permission.id, permId!));
     expect(row.slug).toBe('test:lowercase:all');
-    await db.delete(permission).where(eq(permission.id, permId!));
+    await db.delete(schema.permission).where(eq(schema.permission.id, permId!));
   });
 
   test('listPermissions returns all permissions in alphabetical order', async () => {
@@ -225,8 +231,8 @@ describe('addPermission / deletePermission / updatePermission / listPermissions'
     const idx2 = slugs.indexOf('zzz:test:all');
     expect(idx1).toBeGreaterThanOrEqual(0);
     expect(idx1).toBeLessThan(idx2);
-    await db.delete(permission).where(eq(permission.id, p1!));
-    await db.delete(permission).where(eq(permission.id, p2!));
+    await db.delete(schema.permission).where(eq(schema.permission.id, p1!));
+    await db.delete(schema.permission).where(eq(schema.permission.id, p2!));
   });
 });
 
@@ -235,11 +241,11 @@ describe('assignRoleToUser / revokeRoleFromUser', () => {
     const roleId = unwrap(await createRole('test-assign-role'));
     await assignRoleToUser(testUserId, roleId!);
 
-    const rows = await db.select().from(userRole).where(eq(userRole.userId, testUserId));
+    const rows = await db.select().from(schema.userRole).where(eq(schema.userRole.userId, testUserId));
     expect(rows.some((r) => r.roleId === roleId)).toBe(true);
 
-    await db.delete(userRole).where(eq(userRole.userId, testUserId));
-    await db.delete(role).where(eq(role.id, roleId!));
+    await db.delete(schema.userRole).where(eq(schema.userRole.userId, testUserId));
+    await db.delete(schema.role).where(eq(schema.role.id, roleId!));
   });
 
   test('assigning same role twice is idempotent', async () => {
@@ -248,11 +254,11 @@ describe('assignRoleToUser / revokeRoleFromUser', () => {
     const result = await assignRoleToUser(testUserId, roleId!);
     expect(result.success).toBe(true);
 
-    const rows = await db.select().from(userRole).where(eq(userRole.userId, testUserId));
+    const rows = await db.select().from(schema.userRole).where(eq(schema.userRole.userId, testUserId));
     expect(rows.filter((r) => r.roleId === roleId)).toHaveLength(1);
 
-    await db.delete(userRole).where(eq(userRole.userId, testUserId));
-    await db.delete(role).where(eq(role.id, roleId!));
+    await db.delete(schema.userRole).where(eq(schema.userRole.userId, testUserId));
+    await db.delete(schema.role).where(eq(schema.role.id, roleId!));
   });
 
   test('revokes a role from a user', async () => {
@@ -260,10 +266,10 @@ describe('assignRoleToUser / revokeRoleFromUser', () => {
     await assignRoleToUser(testUserId, roleId!);
     await revokeRoleFromUser(testUserId, roleId!);
 
-    const rows = await db.select().from(userRole).where(eq(userRole.userId, testUserId));
+    const rows = await db.select().from(schema.userRole).where(eq(schema.userRole.userId, testUserId));
     expect(rows.some((r) => r.roleId === roleId)).toBe(false);
 
-    await db.delete(role).where(eq(role.id, roleId!));
+    await db.delete(schema.role).where(eq(schema.role.id, roleId!));
   });
 });
 
@@ -273,12 +279,12 @@ describe('grantPermissionToRole / revokePermissionFromRole', () => {
     const permId = unwrap(await addPermission('test:grant:role'));
     await grantPermissionToRole(roleId!, permId!);
 
-    const rows = await db.select().from(rolePermissions).where(eq(rolePermissions.roleId, roleId!));
+    const rows = await db.select().from(schema.rolePermissions).where(eq(schema.rolePermissions.roleId, roleId!));
     expect(rows.some((r) => r.permissionId === permId)).toBe(true);
 
-    await db.delete(rolePermissions).where(eq(rolePermissions.roleId, roleId!));
-    await db.delete(permission).where(eq(permission.id, permId!));
-    await db.delete(role).where(eq(role.id, roleId!));
+    await db.delete(schema.rolePermissions).where(eq(schema.rolePermissions.roleId, roleId!));
+    await db.delete(schema.permission).where(eq(schema.permission.id, permId!));
+    await db.delete(schema.role).where(eq(schema.role.id, roleId!));
   });
 
   test('granting same permission twice is idempotent', async () => {
@@ -288,12 +294,12 @@ describe('grantPermissionToRole / revokePermissionFromRole', () => {
     const result = await grantPermissionToRole(roleId!, permId!);
     expect(result.success).toBe(true);
 
-    const rows = await db.select().from(rolePermissions).where(eq(rolePermissions.roleId, roleId!));
+    const rows = await db.select().from(schema.rolePermissions).where(eq(schema.rolePermissions.roleId, roleId!));
     expect(rows.filter((r) => r.permissionId === permId)).toHaveLength(1);
 
-    await db.delete(rolePermissions).where(eq(rolePermissions.roleId, roleId!));
-    await db.delete(permission).where(eq(permission.id, permId!));
-    await db.delete(role).where(eq(role.id, roleId!));
+    await db.delete(schema.rolePermissions).where(eq(schema.rolePermissions.roleId, roleId!));
+    await db.delete(schema.permission).where(eq(schema.permission.id, permId!));
+    await db.delete(schema.role).where(eq(schema.role.id, roleId!));
   });
 
   test('revokes a permission from a role', async () => {
@@ -302,11 +308,11 @@ describe('grantPermissionToRole / revokePermissionFromRole', () => {
     await grantPermissionToRole(roleId!, permId!);
     await revokePermissionFromRole(roleId!, permId!);
 
-    const rows = await db.select().from(rolePermissions).where(eq(rolePermissions.roleId, roleId!));
+    const rows = await db.select().from(schema.rolePermissions).where(eq(schema.rolePermissions.roleId, roleId!));
     expect(rows.some((r) => r.permissionId === permId)).toBe(false);
 
-    await db.delete(permission).where(eq(permission.id, permId!));
-    await db.delete(role).where(eq(role.id, roleId!));
+    await db.delete(schema.permission).where(eq(schema.permission.id, permId!));
+    await db.delete(schema.role).where(eq(schema.role.id, roleId!));
   });
 });
 
@@ -315,11 +321,11 @@ describe('grantPermissionToUser / revokePermissionFromUser', () => {
     const permId = unwrap(await addPermission('test:grant:user'));
     await grantPermissionToUser(testUserId, permId!);
 
-    const rows = await db.select().from(userPermission).where(eq(userPermission.userId, testUserId));
+    const rows = await db.select().from(schema.userPermission).where(eq(schema.userPermission.userId, testUserId));
     expect(rows.some((r) => r.permissionId === permId)).toBe(true);
 
-    await db.delete(userPermission).where(eq(userPermission.userId, testUserId));
-    await db.delete(permission).where(eq(permission.id, permId!));
+    await db.delete(schema.userPermission).where(eq(schema.userPermission.userId, testUserId));
+    await db.delete(schema.permission).where(eq(schema.permission.id, permId!));
   });
 
   test('revokes a direct permission from a user', async () => {
@@ -327,10 +333,10 @@ describe('grantPermissionToUser / revokePermissionFromUser', () => {
     await grantPermissionToUser(testUserId, permId!);
     await revokePermissionFromUser(testUserId, permId!);
 
-    const rows = await db.select().from(userPermission).where(eq(userPermission.userId, testUserId));
+    const rows = await db.select().from(schema.userPermission).where(eq(schema.userPermission.userId, testUserId));
     expect(rows.some((r) => r.permissionId === permId)).toBe(false);
 
-    await db.delete(permission).where(eq(permission.id, permId!));
+    await db.delete(schema.permission).where(eq(schema.permission.id, permId!));
   });
 });
 
@@ -340,18 +346,18 @@ describe('setUserRoles', () => {
     const r2 = unwrap(await createRole('test-set-role-2'));
 
     await setUserRoles(testUserId, [r1!]);
-    let rows = await db.select().from(userRole).where(eq(userRole.userId, testUserId));
+    let rows = await db.select().from(schema.userRole).where(eq(schema.userRole.userId, testUserId));
     expect(rows).toHaveLength(1);
     expect(rows[0].roleId).toBe(r1);
 
     await setUserRoles(testUserId, [r2!]);
-    rows = await db.select().from(userRole).where(eq(userRole.userId, testUserId));
+    rows = await db.select().from(schema.userRole).where(eq(schema.userRole.userId, testUserId));
     expect(rows).toHaveLength(1);
     expect(rows[0].roleId).toBe(r2);
 
-    await db.delete(userRole).where(eq(userRole.userId, testUserId));
-    await db.delete(role).where(eq(role.id, r1!));
-    await db.delete(role).where(eq(role.id, r2!));
+    await db.delete(schema.userRole).where(eq(schema.userRole.userId, testUserId));
+    await db.delete(schema.role).where(eq(schema.role.id, r1!));
+    await db.delete(schema.role).where(eq(schema.role.id, r2!));
   });
 
   test('clearing all roles (empty array) sets Better Auth role to user', async () => {
@@ -359,13 +365,13 @@ describe('setUserRoles', () => {
     await setUserRoles(testUserId, [roleId!]);
     await setUserRoles(testUserId, []);
 
-    const rows = await db.select().from(userRole).where(eq(userRole.userId, testUserId));
+    const rows = await db.select().from(schema.userRole).where(eq(schema.userRole.userId, testUserId));
     expect(rows).toHaveLength(0);
 
-    const [u] = await db.select({ role: user.role }).from(user).where(eq(user.id, testUserId));
+    const [u] = await db.select({ role: schema.user.role }).from(schema.user).where(eq(schema.user.id, testUserId));
     expect(u.role).toBe('user');
 
-    await db.delete(role).where(eq(role.id, roleId!));
+    await db.delete(schema.role).where(eq(schema.role.id, roleId!));
   });
 
   test('assigning a role with slug "admin" sets Better Auth role to admin', async () => {
@@ -373,12 +379,12 @@ describe('setUserRoles', () => {
 
     await setUserRoles(testUserId, [adminRoleId!]);
 
-    const [u] = await db.select({ role: user.role }).from(user).where(eq(user.id, testUserId));
+    const [u] = await db.select({ role: schema.user.role }).from(schema.user).where(eq(schema.user.id, testUserId));
     expect(u.role).toBe('admin');
 
-    await db.delete(userRole).where(eq(userRole.userId, testUserId));
-    await db.delete(role).where(eq(role.id, adminRoleId!));
-    await db.update(user).set({ role: 'user' }).where(eq(user.id, testUserId));
+    await db.delete(schema.userRole).where(eq(schema.userRole.userId, testUserId));
+    await db.delete(schema.role).where(eq(schema.role.id, adminRoleId!));
+    await db.update(schema.user).set({ role: 'user' }).where(eq(schema.user.id, testUserId));
   });
 });
 
@@ -388,17 +394,17 @@ describe('setUserDirectPermissions', () => {
     const p2 = unwrap(await addPermission('test:set-direct:p2'));
 
     await setUserDirectPermissions(testUserId, [p1!, p2!]);
-    let rows = await db.select().from(userPermission).where(eq(userPermission.userId, testUserId));
+    let rows = await db.select().from(schema.userPermission).where(eq(schema.userPermission.userId, testUserId));
     expect(rows).toHaveLength(2);
 
     await setUserDirectPermissions(testUserId, [p1!]);
-    rows = await db.select().from(userPermission).where(eq(userPermission.userId, testUserId));
+    rows = await db.select().from(schema.userPermission).where(eq(schema.userPermission.userId, testUserId));
     expect(rows).toHaveLength(1);
     expect(rows[0].permissionId).toBe(p1);
 
-    await db.delete(userPermission).where(eq(userPermission.userId, testUserId));
-    await db.delete(permission).where(eq(permission.id, p1!));
-    await db.delete(permission).where(eq(permission.id, p2!));
+    await db.delete(schema.userPermission).where(eq(schema.userPermission.userId, testUserId));
+    await db.delete(schema.permission).where(eq(schema.permission.id, p1!));
+    await db.delete(schema.permission).where(eq(schema.permission.id, p2!));
   });
 
   test('clears all permissions when given empty array', async () => {
@@ -406,10 +412,10 @@ describe('setUserDirectPermissions', () => {
     await setUserDirectPermissions(testUserId, [permId!]);
     await setUserDirectPermissions(testUserId, []);
 
-    const rows = await db.select().from(userPermission).where(eq(userPermission.userId, testUserId));
+    const rows = await db.select().from(schema.userPermission).where(eq(schema.userPermission.userId, testUserId));
     expect(rows).toHaveLength(0);
 
-    await db.delete(permission).where(eq(permission.id, permId!));
+    await db.delete(schema.permission).where(eq(schema.permission.id, permId!));
   });
 });
 
@@ -420,18 +426,18 @@ describe('setRolePermissions', () => {
     const p2 = unwrap(await addPermission('test:set-role-perms:p2'));
 
     await setRolePermissions(roleId!, [p1!, p2!]);
-    let rows = await db.select().from(rolePermissions).where(eq(rolePermissions.roleId, roleId!));
+    let rows = await db.select().from(schema.rolePermissions).where(eq(schema.rolePermissions.roleId, roleId!));
     expect(rows).toHaveLength(2);
 
     await setRolePermissions(roleId!, [p1!]);
-    rows = await db.select().from(rolePermissions).where(eq(rolePermissions.roleId, roleId!));
+    rows = await db.select().from(schema.rolePermissions).where(eq(schema.rolePermissions.roleId, roleId!));
     expect(rows).toHaveLength(1);
     expect(rows[0].permissionId).toBe(p1);
 
-    await db.delete(rolePermissions).where(eq(rolePermissions.roleId, roleId!));
-    await db.delete(permission).where(eq(permission.id, p1!));
-    await db.delete(permission).where(eq(permission.id, p2!));
-    await db.delete(role).where(eq(role.id, roleId!));
+    await db.delete(schema.rolePermissions).where(eq(schema.rolePermissions.roleId, roleId!));
+    await db.delete(schema.permission).where(eq(schema.permission.id, p1!));
+    await db.delete(schema.permission).where(eq(schema.permission.id, p2!));
+    await db.delete(schema.role).where(eq(schema.role.id, roleId!));
   });
 
   test('clears all role permissions when given empty array', async () => {
@@ -441,10 +447,10 @@ describe('setRolePermissions', () => {
     await setRolePermissions(roleId!, [permId!]);
     await setRolePermissions(roleId!, []);
 
-    const rows = await db.select().from(rolePermissions).where(eq(rolePermissions.roleId, roleId!));
+    const rows = await db.select().from(schema.rolePermissions).where(eq(schema.rolePermissions.roleId, roleId!));
     expect(rows).toHaveLength(0);
 
-    await db.delete(permission).where(eq(permission.id, permId!));
-    await db.delete(role).where(eq(role.id, roleId!));
+    await db.delete(schema.permission).where(eq(schema.permission.id, permId!));
+    await db.delete(schema.role).where(eq(schema.role.id, roleId!));
   });
 });

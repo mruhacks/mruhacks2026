@@ -3,11 +3,11 @@ import { and, eq } from 'drizzle-orm';
 
 import { getUser } from '@/utils/auth';
 import { db } from '@/utils/db';
-import { hasPermission } from '@/lib/rbac/authorization';
+import * as Rbac from '@/lib/rbac/server';
 import { getPublishedArticle } from '@/lib/event-wiki';
 import { resolveEventId } from '@/lib/events';
 import { MarkdownContent } from '@/components/markdown/markdown-content';
-import { eventArticles, events, eventTerms } from '@/db/schema';
+import * as schema from '@/db/schema';
 import { LocalDateTime } from '@/components/local-date-time';
 import { Card } from '@/components/ui/card';
 
@@ -28,12 +28,12 @@ type Article = { bodyMarkdown: string; updatedAt: Date };
 async function getTermsArticle(eventId: string): Promise<Article | null> {
   const [row] = await db
     .select({
-      bodyMarkdown: eventTerms.markdown,
-      updatedAt: eventTerms.createdAt,
+      bodyMarkdown: schema.eventTerms.markdown,
+      updatedAt: schema.eventTerms.createdAt,
     })
-    .from(events)
-    .innerJoin(eventTerms, eq(events.termsId, eventTerms.id))
-    .where(eq(events.id, eventId))
+    .from(schema.events)
+    .innerJoin(schema.eventTerms, eq(schema.events.termsId, schema.eventTerms.id))
+    .where(eq(schema.events.id, eventId))
     .limit(1);
   return row ?? null;
 }
@@ -60,15 +60,15 @@ export default async function EventWikiArticlePage({ params }: Props) {
       // A draft is a 404 to everyone but the organizers who may read
       // drafts — "not found" rather than "forbidden", so an unpublished
       // slug doesn't confirm that an article by that name exists.
-      if (!(await hasPermission(user.id, 'article:read:all'))) notFound();
+      if (!(await Rbac.hasPermission(user.id, 'article:read:all'))) notFound();
 
       const [row] = await db
         .select({
-          bodyMarkdown: eventArticles.bodyMarkdown,
-          updatedAt: eventArticles.updatedAt,
+          bodyMarkdown: schema.eventArticles.bodyMarkdown,
+          updatedAt: schema.eventArticles.updatedAt,
         })
-        .from(eventArticles)
-        .where(and(eq(eventArticles.eventId, eventId), eq(eventArticles.slug, slug)))
+        .from(schema.eventArticles)
+        .where(and(eq(schema.eventArticles.eventId, eventId), eq(schema.eventArticles.slug, slug)))
         .limit(1);
       article = row ?? null;
     }

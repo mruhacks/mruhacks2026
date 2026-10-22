@@ -8,9 +8,8 @@ import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { eq } from 'drizzle-orm';
 
 import { db } from '@/utils/db';
-import { marketingConsents, signingPublicKeys, user } from '@/db/schema';
-import { buildCampaignMessage, unsubscribeByToken, unsubscribeUrls } from '@/lib/campaigns/unsubscribe';
-import type { CampaignContent } from '@/lib/campaigns/render-campaign-email';
+import * as schema from '@/db/schema';
+import * as Campaigns from '@/lib/campaigns/server';
 import { sendMail } from '@/utils/mail';
 import { decodeMimeWords, waitForEmail } from '@/utils/mailhog';
 import { GET, POST } from '@/app/api/unsubscribe/route';
@@ -26,7 +25,7 @@ const savedEnv = {
   BETTER_AUTH_URL: process.env.BETTER_AUTH_URL,
 };
 
-const content = (type: CampaignContent['type']): CampaignContent => ({
+const content = (type: Campaigns.CampaignContent['type']): Campaigns.CampaignContent => ({
   type,
   subject: `Unsub ${type} ${ts}`,
   previewText: '',
@@ -36,9 +35,9 @@ const content = (type: CampaignContent['type']): CampaignContent => ({
 
 async function optedIn(): Promise<boolean | undefined> {
   const [row] = await db
-    .select({ optedIn: marketingConsents.optedIn })
-    .from(marketingConsents)
-    .where(eq(marketingConsents.userId, userId));
+    .select({ optedIn: schema.marketingConsents.optedIn })
+    .from(schema.marketingConsents)
+    .where(eq(schema.marketingConsents.userId, userId));
   return row?.optedIn;
 }
 
@@ -72,16 +71,16 @@ beforeAll(async () => {
   process.env.BETTER_AUTH_URL = 'http://localhost:3000';
 
   const [row] = await db
-    .insert(user)
+    .insert(schema.user)
     .values({ name: 'Unsub Person', email: EMAIL, emailVerified: true })
-    .returning({ id: user.id });
+    .returning({ id: schema.user.id });
   userId = row.id;
-  await db.insert(marketingConsents).values({ userId, optedIn: true });
+  await db.insert(schema.marketingConsents).values({ userId, optedIn: true });
 });
 
 afterAll(async () => {
-  await db.delete(user).where(eq(user.id, userId));
-  await db.delete(signingPublicKeys);
+  await db.delete(schema.user).where(eq(schema.user.id, userId));
+  await db.delete(schema.signingPublicKeys);
   for (const [name, value] of Object.entries(savedEnv)) {
     if (value === undefined) delete process.env[name];
     else process.env[name] = value;
@@ -91,7 +90,7 @@ afterAll(async () => {
 describe('campaign email unsubscribe headers (MailHog)', () => {
   test('marketing email carries List-Unsubscribe, List-Unsubscribe-Post and the footer link', async () => {
     await sendMail(
-      await buildCampaignMessage(content('marketing'), {
+      await Campaigns.buildCampaignMessage(content('marketing'), {
         email: EMAIL,
         firstName: 'Unsub',
       }),
@@ -108,7 +107,7 @@ describe('campaign email unsubscribe headers (MailHog)', () => {
 
   test('operational email carries neither', async () => {
     await sendMail(
-      await buildCampaignMessage(content('operational'), {
+      await Campaigns.buildCampaignMessage(content('operational'), {
         email: EMAIL,
         firstName: 'Unsub',
       }),
@@ -125,8 +124,8 @@ describe('campaign email unsubscribe headers (MailHog)', () => {
 
 describe('unsubscribing', () => {
   test('opening the link (GET) changes nothing; the one-click POST unsubscribes', async () => {
-    await db.update(marketingConsents).set({ optedIn: true }).where(eq(marketingConsents.userId, userId));
-    const { oneClick } = await unsubscribeUrls(EMAIL);
+    await db.update(schema.marketingConsents).set({ optedIn: true }).where(eq(schema.marketingConsents.userId, userId));
+    const { oneClick } = await Campaigns.unsubscribeUrls(EMAIL);
 
     const get = GET(new Request(oneClick));
     expect(get.status).toBe(303);
@@ -149,26 +148,26 @@ describe('unsubscribing', () => {
   });
 
   test('the page button unsubscribes; a tampered token does not', async () => {
-    await db.update(marketingConsents).set({ optedIn: true }).where(eq(marketingConsents.userId, userId));
-    const { page } = await unsubscribeUrls(EMAIL);
+    await db.update(schema.marketingConsents).set({ optedIn: true }).where(eq(schema.marketingConsents.userId, userId));
+    const { page } = await Campaigns.unsubscribeUrls(EMAIL);
     const token = tokenOf(page);
 
-    expect(await unsubscribeByToken(`${token.slice(0, -2)}AA`)).toBe('invalid');
+    expect(await Campaigns.unsubscribeByToken(`${token.slice(0, -2)}AA`)).toBe('invalid');
     expect(await optedIn()).toBe(true);
 
-    expect(await unsubscribeByToken(token)).toBe('unsubscribed');
+    expect(await Campaigns.unsubscribeByToken(token)).toBe('unsubscribed');
     expect(await optedIn()).toBe(false);
   });
 
   test('an address with no account gets a friendly outcome', async () => {
-    const { page } = await unsubscribeUrls(`nobody-${ts}@example.com`);
-    expect(await unsubscribeByToken(tokenOf(page))).toBe('no_account');
+    const { page } = await Campaigns.unsubscribeUrls(`nobody-${ts}@example.com`);
+    expect(await Campaigns.unsubscribeByToken(tokenOf(page))).toBe('no_account');
   });
 
   test('a user with no consent row ends up opted out', async () => {
-    await db.delete(marketingConsents).where(eq(marketingConsents.userId, userId));
-    const { page } = await unsubscribeUrls(EMAIL.toUpperCase());
-    expect(await unsubscribeByToken(tokenOf(page))).toBe('unsubscribed');
+    await db.delete(schema.marketingConsents).where(eq(schema.marketingConsents.userId, userId));
+    const { page } = await Campaigns.unsubscribeUrls(EMAIL.toUpperCase());
+    expect(await Campaigns.unsubscribeByToken(tokenOf(page))).toBe('unsubscribed');
     expect(await optedIn()).toBe(false);
   });
 

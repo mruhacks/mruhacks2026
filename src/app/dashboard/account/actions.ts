@@ -22,25 +22,7 @@ import { getUser } from '@/utils/auth';
 import { ActionResult, fail, ok } from '@/utils/action-result';
 import { CURRENT_PRIVACY_VERSION, CURRENT_TERMS_VERSION } from '@/lib/consent';
 import { userNeedsConsent } from '@/utils/consent-check';
-import {
-  account,
-  termsAcceptances,
-  privacyAcceptances,
-  marketingConsents,
-  userProfiles,
-  userProfileAbout,
-  userProfileProfessional,
-  userInterests,
-  userDietaryRestrictions,
-  eventParticipants,
-  participationStatuses,
-  checkIns,
-  eventInvitations,
-  teamMembers,
-  teams,
-  events,
-  user as authUser,
-} from '@/db/schema';
+import * as schema from '@/db/schema';
 
 export type ConsentData = {
   marketingEmails: boolean;
@@ -71,9 +53,9 @@ export async function getAccountOverview(): Promise<ActionResult<AccountOverview
   if (!user) return fail('User not authenticated');
 
   const providerRows = await db
-    .select({ providerId: account.providerId })
-    .from(account)
-    .where(eq(account.userId, user.id));
+    .select({ providerId: schema.account.providerId })
+    .from(schema.account)
+    .where(eq(schema.account.userId, user.id));
 
   return ok({
     name: user.name,
@@ -96,17 +78,17 @@ export async function getConsent(): Promise<ActionResult<ConsentData>> {
   const [[termsRow], [privacyRow], [marketingRow]] = await Promise.all([
     db
       .select()
-      .from(termsAcceptances)
-      .where(eq(termsAcceptances.userId, user.id))
-      .orderBy(desc(termsAcceptances.acceptedAt))
+      .from(schema.termsAcceptances)
+      .where(eq(schema.termsAcceptances.userId, user.id))
+      .orderBy(desc(schema.termsAcceptances.acceptedAt))
       .limit(1),
     db
       .select()
-      .from(privacyAcceptances)
-      .where(eq(privacyAcceptances.userId, user.id))
-      .orderBy(desc(privacyAcceptances.acceptedAt))
+      .from(schema.privacyAcceptances)
+      .where(eq(schema.privacyAcceptances.userId, user.id))
+      .orderBy(desc(schema.privacyAcceptances.acceptedAt))
       .limit(1),
-    db.select().from(marketingConsents).where(eq(marketingConsents.userId, user.id)).limit(1),
+    db.select().from(schema.marketingConsents).where(eq(schema.marketingConsents.userId, user.id)).limit(1),
   ]);
 
   const optedIn = marketingRow?.optedIn ?? false;
@@ -167,25 +149,25 @@ export async function recordOnboardingConsent(marketingOptIn: boolean): Promise<
   try {
     const [[latestTerms], [latestPrivacy]] = await Promise.all([
       db
-        .select({ version: termsAcceptances.version })
-        .from(termsAcceptances)
-        .where(eq(termsAcceptances.userId, user.id))
-        .orderBy(desc(termsAcceptances.acceptedAt))
+        .select({ version: schema.termsAcceptances.version })
+        .from(schema.termsAcceptances)
+        .where(eq(schema.termsAcceptances.userId, user.id))
+        .orderBy(desc(schema.termsAcceptances.acceptedAt))
         .limit(1),
       db
-        .select({ version: privacyAcceptances.version })
-        .from(privacyAcceptances)
-        .where(eq(privacyAcceptances.userId, user.id))
-        .orderBy(desc(privacyAcceptances.acceptedAt))
+        .select({ version: schema.privacyAcceptances.version })
+        .from(schema.privacyAcceptances)
+        .where(eq(schema.privacyAcceptances.userId, user.id))
+        .orderBy(desc(schema.privacyAcceptances.acceptedAt))
         .limit(1),
     ]);
 
     const writes: Promise<unknown>[] = [upsertMarketingConsent(user.id, marketingOptIn)];
     if (latestTerms?.version !== CURRENT_TERMS_VERSION) {
-      writes.push(db.insert(termsAcceptances).values({ userId: user.id, version: CURRENT_TERMS_VERSION }));
+      writes.push(db.insert(schema.termsAcceptances).values({ userId: user.id, version: CURRENT_TERMS_VERSION }));
     }
     if (latestPrivacy?.version !== CURRENT_PRIVACY_VERSION) {
-      writes.push(db.insert(privacyAcceptances).values({ userId: user.id, version: CURRENT_PRIVACY_VERSION }));
+      writes.push(db.insert(schema.privacyAcceptances).values({ userId: user.id, version: CURRENT_PRIVACY_VERSION }));
     }
     await Promise.all(writes);
     revalidatePath('/welcome', 'layout');
@@ -207,27 +189,27 @@ export async function completeWelcomeOnboarding(): Promise<ActionResult> {
   if (!currentUser) return fail('User not authenticated');
 
   const [profile] = await db
-    .select({ userId: userProfiles.userId })
-    .from(userProfiles)
-    .where(eq(userProfiles.userId, currentUser.id))
+    .select({ userId: schema.userProfiles.userId })
+    .from(schema.userProfiles)
+    .where(eq(schema.userProfiles.userId, currentUser.id))
     .limit(1);
   const [about] = await db
-    .select({ userId: userProfileAbout.userId })
-    .from(userProfileAbout)
-    .where(eq(userProfileAbout.userId, currentUser.id))
+    .select({ userId: schema.userProfileAbout.userId })
+    .from(schema.userProfileAbout)
+    .where(eq(schema.userProfileAbout.userId, currentUser.id))
     .limit(1);
   // Judges fill in the Professional step instead of About.
   const [professional] = await db
-    .select({ userId: userProfileProfessional.userId })
-    .from(userProfileProfessional)
-    .where(eq(userProfileProfessional.userId, currentUser.id))
+    .select({ userId: schema.userProfileProfessional.userId })
+    .from(schema.userProfileProfessional)
+    .where(eq(schema.userProfileProfessional.userId, currentUser.id))
     .limit(1);
   if (!profile || (!about && !professional) || (await userNeedsConsent(currentUser.id))) {
     return fail('Finish your profile and accept the required policies first.');
   }
 
   try {
-    await db.update(authUser).set({ onboardingCompletedAt: new Date() }).where(eq(authUser.id, currentUser.id));
+    await db.update(schema.user).set({ onboardingCompletedAt: new Date() }).where(eq(schema.user.id, currentUser.id));
     revalidatePath('/welcome', 'layout');
     return ok();
   } catch (error) {
@@ -240,10 +222,10 @@ export async function completeWelcomeOnboarding(): Promise<ActionResult> {
 async function upsertMarketingConsent(userId: string, optIn: boolean) {
   const now = new Date();
   return db
-    .insert(marketingConsents)
+    .insert(schema.marketingConsents)
     .values({ userId, optedIn: optIn, changedAt: now })
     .onConflictDoUpdate({
-      target: marketingConsents.userId,
+      target: schema.marketingConsents.userId,
       set: { optedIn: optIn, changedAt: now },
     });
 }
@@ -276,56 +258,56 @@ export async function exportMyData(): Promise<ActionResult<unknown>> {
       marketingConsent,
       linkedAccounts,
     ] = await Promise.all([
-      db.select().from(userProfiles).where(eq(userProfiles.userId, uid)),
-      db.select().from(userProfileAbout).where(eq(userProfileAbout.userId, uid)),
-      db.select().from(userInterests).where(eq(userInterests.userId, uid)),
-      db.select().from(userDietaryRestrictions).where(eq(userDietaryRestrictions.userId, uid)),
+      db.select().from(schema.userProfiles).where(eq(schema.userProfiles.userId, uid)),
+      db.select().from(schema.userProfileAbout).where(eq(schema.userProfileAbout.userId, uid)),
+      db.select().from(schema.userInterests).where(eq(schema.userInterests.userId, uid)),
+      db.select().from(schema.userDietaryRestrictions).where(eq(schema.userDietaryRestrictions.userId, uid)),
       db
         .select({
-          id: eventParticipants.id,
-          eventId: eventParticipants.eventId,
-          status: participationStatuses.label,
-          responses: eventParticipants.responses,
-          reviewedAt: eventParticipants.reviewedAt,
-          createdAt: eventParticipants.createdAt,
-          updatedAt: eventParticipants.updatedAt,
+          id: schema.eventParticipants.id,
+          eventId: schema.eventParticipants.eventId,
+          status: schema.participationStatuses.label,
+          responses: schema.eventParticipants.responses,
+          reviewedAt: schema.eventParticipants.reviewedAt,
+          createdAt: schema.eventParticipants.createdAt,
+          updatedAt: schema.eventParticipants.updatedAt,
         })
-        .from(eventParticipants)
-        .innerJoin(participationStatuses, eq(eventParticipants.statusId, participationStatuses.id))
-        .where(eq(eventParticipants.userId, uid)),
-      db.select().from(checkIns).where(eq(checkIns.userId, uid)),
+        .from(schema.eventParticipants)
+        .innerJoin(schema.participationStatuses, eq(schema.eventParticipants.statusId, schema.participationStatuses.id))
+        .where(eq(schema.eventParticipants.userId, uid)),
+      db.select().from(schema.checkIns).where(eq(schema.checkIns.userId, uid)),
       db
-        .select({ invitation: eventInvitations })
-        .from(eventInvitations)
-        .innerJoin(eventParticipants, eq(eventInvitations.participantId, eventParticipants.id))
-        .where(eq(eventParticipants.userId, uid))
+        .select({ invitation: schema.eventInvitations })
+        .from(schema.eventInvitations)
+        .innerJoin(schema.eventParticipants, eq(schema.eventInvitations.participantId, schema.eventParticipants.id))
+        .where(eq(schema.eventParticipants.userId, uid))
         .then((rows) => rows.map((row) => row.invitation)),
       db
         .select({
-          eventId: teams.eventId,
-          eventName: events.name,
-          teamId: teams.id,
-          teamCode: teams.code,
-          isOrganizer: eq(teams.organizerId, uid),
-          joinedAt: teamMembers.joinedAt,
+          eventId: schema.teams.eventId,
+          eventName: schema.events.name,
+          teamId: schema.teams.id,
+          teamCode: schema.teams.code,
+          isOrganizer: eq(schema.teams.organizerId, uid),
+          joinedAt: schema.teamMembers.joinedAt,
         })
-        .from(teamMembers)
-        .innerJoin(teams, eq(teamMembers.teamId, teams.id))
-        .innerJoin(events, eq(teams.eventId, events.id))
-        .where(eq(teamMembers.userId, uid)),
-      db.select().from(termsAcceptances).where(eq(termsAcceptances.userId, uid)),
-      db.select().from(privacyAcceptances).where(eq(privacyAcceptances.userId, uid)),
-      db.select().from(marketingConsents).where(eq(marketingConsents.userId, uid)),
+        .from(schema.teamMembers)
+        .innerJoin(schema.teams, eq(schema.teamMembers.teamId, schema.teams.id))
+        .innerJoin(schema.events, eq(schema.teams.eventId, schema.events.id))
+        .where(eq(schema.teamMembers.userId, uid)),
+      db.select().from(schema.termsAcceptances).where(eq(schema.termsAcceptances.userId, uid)),
+      db.select().from(schema.privacyAcceptances).where(eq(schema.privacyAcceptances.userId, uid)),
+      db.select().from(schema.marketingConsents).where(eq(schema.marketingConsents.userId, uid)),
       // Linked auth providers only — no secrets.
       db
         .select({
-          providerId: account.providerId,
-          accountId: account.accountId,
-          scope: account.scope,
-          createdAt: account.createdAt,
+          providerId: schema.account.providerId,
+          accountId: schema.account.accountId,
+          scope: schema.account.scope,
+          createdAt: schema.account.createdAt,
         })
-        .from(account)
-        .where(eq(account.userId, uid)),
+        .from(schema.account)
+        .where(eq(schema.account.userId, uid)),
     ]);
 
     const exportPayload = {

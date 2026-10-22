@@ -2,20 +2,19 @@ import { Suspense } from 'react';
 import Link from 'next/link';
 import { Users } from 'lucide-react';
 
-import { getAudienceOptions, listCampaigns } from '@/lib/campaigns/queries';
-import { hasPermission } from '@/lib/rbac/authorization';
+import * as Campaigns from '@/lib/campaigns/server';
+import * as Rbac from '@/lib/rbac/server';
 import { getUser } from '@/utils/auth';
 import { NewCampaignDialog } from './_components/new-campaign-dialog';
-import { requireAuthWithPermission } from '@/lib/rbac/guards';
 import { LocalDateTime } from '@/components/local-date-time';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import type { CampaignStatus } from '@/db/schema';
+import type * as schema from '@/db/schema';
 
 const STATUS_BADGE: Record<
-  CampaignStatus,
+  schema.CampaignStatus,
   {
     label: string;
     variant: 'outline' | 'info' | 'warning' | 'success' | 'destructive';
@@ -35,8 +34,8 @@ function CampaignListSkeleton() {
 // Reads the session and the campaign list, so it streams in behind Suspense
 // while the heading ships in the shell.
 async function CampaignList() {
-  await requireAuthWithPermission('campaign:read:all');
-  const rows = await listCampaigns();
+  await Rbac.requireAuthWithPermission('campaign:read:all');
+  const rows = await Campaigns.listCampaigns();
 
   if (rows.length === 0) {
     return (
@@ -97,12 +96,12 @@ async function CampaignList() {
 // Creating a draft runs `createCampaign`, which requires campaign:write:all.
 async function NewCampaignButton() {
   const user = await getUser();
-  if (!user || !(await hasPermission(user.id, 'campaign:write:all'))) {
+  if (!user || !(await Rbac.hasPermission(user.id, 'campaign:write:all'))) {
     return null;
   }
   const [options, canSendOperational] = await Promise.all([
-    getAudienceOptions(),
-    hasPermission(user.id, 'campaign:operational:all'),
+    Campaigns.getAudienceOptions(),
+    Rbac.hasPermission(user.id, 'campaign:operational:all'),
   ]);
   return (
     <NewCampaignDialog

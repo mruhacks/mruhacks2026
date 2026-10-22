@@ -5,13 +5,13 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 
 import { RsvpTermsConsent } from './RsvpTermsConsent';
-import { useRsvpDecision } from '@/app/dashboard/events/use-rsvp-decision';
+import { useRsvpDecision } from './use-rsvp-decision';
 import curtPointing from '@/assets/crt_pointing.png';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { FieldError } from '@/components/ui/field';
 import { Spinner } from '@/components/ui/spinner';
-import { formatLiveCountdown, toDate } from '@/lib/rsvp/format-remaining';
+import * as Rsvp from '@/lib/rsvp';
 import { useIsHydrated } from '@/lib/use-is-hydrated';
 
 type Props = {
@@ -25,7 +25,7 @@ type Props = {
 export function RsvpPendingPrompt({ eventId, eventName, respondBy, termsMarkdown, termsId }: Props) {
   const router = useRouter();
   const hydrated = useIsHydrated();
-  const deadline = toDate(respondBy);
+  const deadline = Rsvp.toDate(respondBy);
   const [now, setNow] = React.useState(() => new Date());
   const [open, setOpen] = React.useState(true);
   const [confirmDecline, setConfirmDecline] = React.useState(false);
@@ -39,7 +39,7 @@ export function RsvpPendingPrompt({ eventId, eventName, respondBy, termsMarkdown
     return () => window.clearInterval(id);
   }, [hydrated]);
 
-  const remaining = hydrated ? formatLiveCountdown(deadline, now) : null;
+  const remaining = hydrated ? Rsvp.formatLiveCountdown(deadline, now) : null;
   const expired = hydrated && remaining === null;
 
   React.useEffect(() => {

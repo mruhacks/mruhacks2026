@@ -18,15 +18,14 @@ import { getAnswerDisplayValue } from '@/lib/application-answer-display';
 import { otherTextKey } from '@/lib/other-option';
 import type { ApplicationQuestion } from '@/types/application';
 import { participationStatusesList, type ParticipationStatus, type StatusBadgeVariant } from '@/types/lookups';
-import { STATIC_STATUS_DISPLAY, type AttendanceState } from '@/lib/participation/status';
-import { adminStatusOptions } from '@/lib/participation/transitions';
-import type { CorePermissionSlug } from '@/lib/rbac/permissions';
+import * as Participation from '@/lib/participation';
+import type * as Rbac from '@/lib/rbac';
 
 export type ApplicationsTableRow = AdminApplicationRow & {
   /** Effective participation status (an expired invitation reads as timed out). */
   status: ParticipationStatus;
   /** Checked in / no-show, derived for participants holding a spot. */
-  attendance: AttendanceState | null;
+  attendance: Participation.AttendanceState | null;
 };
 
 type Props = {
@@ -51,7 +50,7 @@ function getStatusDisplay(row: ApplicationsTableRow): {
   return { label: display.label, variant: display.badgeVariant };
 }
 
-const ATTENDANCE_LABELS: Record<AttendanceState, string> = {
+const ATTENDANCE_LABELS: Record<Participation.AttendanceState, string> = {
   checked_in: 'Checked in',
   no_show: 'No show',
 };
@@ -94,7 +93,7 @@ function StatusCell({
   onChange,
 }: {
   row: ApplicationsTableRow;
-  permissions: ReadonlySet<CorePermissionSlug>;
+  permissions: ReadonlySet<Rbac.CorePermissionSlug>;
   onChange: (status: ParticipationStatus) => void;
 }) {
   const display = getStatusDisplay(row);
@@ -105,7 +104,7 @@ function StatusCell({
     </span>
   );
 
-  const options = adminStatusOptions(row.status, permissions, participationStatusesList);
+  const options = Participation.adminStatusOptions(row.status, permissions, participationStatusesList);
   if (options.length === 0) return badges;
 
   return (
@@ -122,7 +121,9 @@ function StatusCell({
           .filter((status) => status === row.status || options.includes(status))
           .map((status) => (
             <SelectItem key={status} value={status} disabled={status === row.status}>
-              <Badge variant={STATIC_STATUS_DISPLAY[status].variant}>{STATIC_STATUS_DISPLAY[status].title}</Badge>
+              <Badge variant={Participation.STATIC_STATUS_DISPLAY[status].variant}>
+                {Participation.STATIC_STATUS_DISPLAY[status].title}
+              </Badge>
             </SelectItem>
           ))}
       </SelectContent>
@@ -154,7 +155,7 @@ function toCsv(rows: string[][]): string {
 
 export function ApplicationsTable({ eventId, rows: serverRows, questions, canReview, canManageRsvp }: Props) {
   const permissions = React.useMemo(() => {
-    const set = new Set<CorePermissionSlug>();
+    const set = new Set<Rbac.CorePermissionSlug>();
     if (canReview) set.add('application:review:all');
     if (canManageRsvp) set.add('rsvp:write:all');
     return set;

@@ -3,7 +3,7 @@
 import * as React from 'react';
 
 import type { DisplayTheme } from '@/db/display';
-import type { DisplayFeed } from '@/lib/display/schedule';
+import type * as Display from '@/lib/display';
 import { Aurora } from './aurora';
 import { DisplayScreen } from './display-screen';
 import styles from './display.module.css';
@@ -32,7 +32,7 @@ function rememberedTheme(): DisplayTheme {
 const subscribeToNothing = () => () => {};
 
 export function DisplayApp() {
-  const [feed, setFeed] = React.useState<DisplayFeed | null>(null);
+  const [feed, setFeed] = React.useState<Display.DisplayFeed | null>(null);
   // Only for the moments before the first feed lands. Null on the server
   // and during hydration, so both renders agree.
   const initialTheme = React.useSyncExternalStore<DisplayTheme | null>(subscribeToNothing, rememberedTheme, () => null);

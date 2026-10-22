@@ -15,9 +15,9 @@ import { and, count, eq } from 'drizzle-orm';
 import { refresh } from 'next/cache';
 import { z } from 'zod';
 
-import { campaigns, savedAudiences } from '@/db/schema';
-import { audienceRulesSchema, emptyAudience, type AudienceRuleGroup } from '@/lib/campaigns/audience-rules';
-import { requirePermission } from '@/lib/rbac/authorization';
+import * as schema from '@/db/schema';
+import * as Campaigns from '@/lib/campaigns';
+import * as Rbac from '@/lib/rbac/server';
 import { fail, ok, type ActionResult } from '@/utils/action-result';
 import { writeAuditLog } from '@/utils/audit-log';
 import { getUser } from '@/utils/auth';
@@ -34,7 +34,7 @@ const idSchema = z.uuid();
 async function requireWriter() {
   const user = await getUser();
   if (!user) return null;
-  await requirePermission(user.id, 'campaign:write:all');
+  await Rbac.requirePermission(user.id, 'campaign:write:all');
   return user;
 }
 
@@ -46,26 +46,26 @@ function firstIssue(error: { issues: { message: string }[] }): string {
 
 export async function createSavedAudience(input: {
   name: string;
-  rules?: AudienceRuleGroup;
+  rules?: Campaigns.AudienceRuleGroup;
 }): Promise<ActionResult<{ id: string }>> {
   const user = await requireWriter();
   if (!user) return fail('Not authenticated');
 
   const name = nameSchema.safeParse(input.name);
   if (!name.success) return fail(firstIssue(name.error));
-  const rules = audienceRulesSchema.safeParse(input.rules ?? emptyAudience());
+  const rules = Campaigns.audienceRulesSchema.safeParse(input.rules ?? Campaigns.emptyAudience());
   if (!rules.success) return fail(firstIssue(rules.error));
 
   try {
     const [row] = await db
-      .insert(savedAudiences)
+      .insert(schema.savedAudiences)
       .values({
         name: name.data,
         rules: rules.data,
         createdBy: user.id,
         updatedBy: user.id,
       })
-      .returning({ id: savedAudiences.id });
+      .returning({ id: schema.savedAudiences.id });
     await writeAuditLog({
       actorId: user.id,
       action: 'saved_audience.create',
@@ -86,7 +86,7 @@ export async function createSavedAudience(input: {
  */
 export async function updateSavedAudience(
   audienceId: string,
-  input: { name: string; rules: AudienceRuleGroup },
+  input: { name: string; rules: Campaigns.AudienceRuleGroup },
 ): Promise<ActionResult> {
   const user = await requireWriter();
   if (!user) return fail('Not authenticated');
@@ -94,15 +94,15 @@ export async function updateSavedAudience(
 
   const name = nameSchema.safeParse(input.name);
   if (!name.success) return fail(firstIssue(name.error));
-  const rules = audienceRulesSchema.safeParse(input.rules);
+  const rules = Campaigns.audienceRulesSchema.safeParse(input.rules);
   if (!rules.success) return fail(firstIssue(rules.error));
 
   try {
     const updated = await db
-      .update(savedAudiences)
+      .update(schema.savedAudiences)
       .set({ name: name.data, rules: rules.data, updatedBy: user.id })
-      .where(eq(savedAudiences.id, audienceId))
-      .returning({ id: savedAudiences.id });
+      .where(eq(schema.savedAudiences.id, audienceId))
+      .returning({ id: schema.savedAudiences.id });
     if (updated.length === 0) return fail('Audience not found');
     await writeAuditLog({
       actorId: user.id,
@@ -123,7 +123,10 @@ export async function deleteSavedAudience(audienceId: string): Promise<ActionRes
   if (!user) return fail('Not authenticated');
   if (!idSchema.safeParse(audienceId).success) return fail('Audience not found');
 
-  const [usage] = await db.select({ c: count() }).from(campaigns).where(eq(campaigns.savedAudienceId, audienceId));
+  const [usage] = await db
+    .select({ c: count() })
+    .from(schema.campaigns)
+    .where(eq(schema.campaigns.savedAudienceId, audienceId));
   const usedBy = Number(usage?.c ?? 0);
   if (usedBy > 0) {
     return fail(
@@ -133,9 +136,9 @@ export async function deleteSavedAudience(audienceId: string): Promise<ActionRes
 
   try {
     const deleted = await db
-      .delete(savedAudiences)
-      .where(eq(savedAudiences.id, audienceId))
-      .returning({ name: savedAudiences.name });
+      .delete(schema.savedAudiences)
+      .where(eq(schema.savedAudiences.id, audienceId))
+      .returning({ name: schema.savedAudiences.name });
     if (deleted.length === 0) return fail('Audience not found');
     await writeAuditLog({
       actorId: user.id,
@@ -156,7 +159,7 @@ export async function deleteSavedAudience(audienceId: string): Promise<ActionRes
 
 async function loadDraft(campaignId: string) {
   if (!idSchema.safeParse(campaignId).success) return null;
-  const [row] = await db.select().from(campaigns).where(eq(campaigns.id, campaignId)).limit(1);
+  const [row] = await db.select().from(schema.campaigns).where(eq(schema.campaigns.id, campaignId)).limit(1);
   return row ?? null;
 }
 
@@ -173,19 +176,19 @@ export async function linkCampaignAudience(campaignId: string, audienceId: strin
 
   try {
     const [audience] = await db
-      .select({ id: savedAudiences.id })
-      .from(savedAudiences)
-      .where(eq(savedAudiences.id, audienceId))
+      .select({ id: schema.savedAudiences.id })
+      .from(schema.savedAudiences)
+      .where(eq(schema.savedAudiences.id, audienceId))
       .limit(1);
     if (!audience) return fail('Audience not found');
     await db
-      .update(campaigns)
+      .update(schema.campaigns)
       .set({
         savedAudienceId: audienceId,
         audienceRules: null,
         updatedBy: user.id,
       })
-      .where(and(eq(campaigns.id, campaignId), eq(campaigns.status, 'draft')));
+      .where(and(eq(schema.campaigns.id, campaignId), eq(schema.campaigns.status, 'draft')));
     refresh();
     return ok();
   } catch (error) {
@@ -204,18 +207,18 @@ export async function detachCampaignAudience(campaignId: string): Promise<Action
 
   try {
     const [audience] = await db
-      .select({ rules: savedAudiences.rules })
-      .from(savedAudiences)
-      .where(eq(savedAudiences.id, campaign.savedAudienceId))
+      .select({ rules: schema.savedAudiences.rules })
+      .from(schema.savedAudiences)
+      .where(eq(schema.savedAudiences.id, campaign.savedAudienceId))
       .limit(1);
     await db
-      .update(campaigns)
+      .update(schema.campaigns)
       .set({
         savedAudienceId: null,
-        audienceRules: audience?.rules ?? emptyAudience(),
+        audienceRules: audience?.rules ?? Campaigns.emptyAudience(),
         updatedBy: user.id,
       })
-      .where(and(eq(campaigns.id, campaignId), eq(campaigns.status, 'draft')));
+      .where(and(eq(schema.campaigns.id, campaignId), eq(schema.campaigns.status, 'draft')));
     refresh();
     return ok();
   } catch (error) {
@@ -239,22 +242,22 @@ export async function saveCampaignAudienceAs(campaignId: string, name: string): 
   try {
     const id = await db.transaction(async (tx) => {
       const [audience] = await tx
-        .insert(savedAudiences)
+        .insert(schema.savedAudiences)
         .values({
           name: parsedName.data,
           rules: campaign.audienceRules!,
           createdBy: user.id,
           updatedBy: user.id,
         })
-        .returning({ id: savedAudiences.id });
+        .returning({ id: schema.savedAudiences.id });
       await tx
-        .update(campaigns)
+        .update(schema.campaigns)
         .set({
           savedAudienceId: audience.id,
           audienceRules: null,
           updatedBy: user.id,
         })
-        .where(eq(campaigns.id, campaignId));
+        .where(eq(schema.campaigns.id, campaignId));
       return audience.id;
     });
     await writeAuditLog({

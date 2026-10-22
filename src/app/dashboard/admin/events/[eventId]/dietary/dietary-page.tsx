@@ -10,19 +10,13 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import {
-  MISSED_MEAL_THRESHOLDS,
-  TOTAL_LABEL,
-  summarizeDietaryReport,
-  type DietaryReport,
-  type DietaryReportRow,
-} from '@/lib/dietary/report';
+import * as Dietary from '@/lib/dietary';
 import { dietaryRestrictionsList } from '@/types/lookups';
 
 export function DietaryPage({ eventId, threshold: initialThreshold }: { eventId: string; threshold: number }) {
   const pathname = usePathname();
   const [threshold, setThreshold] = React.useState(initialThreshold);
-  const [report, setReport] = React.useState<DietaryReport | null>(null);
+  const [report, setReport] = React.useState<Dietary.DietaryReport | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [updatedAt, setUpdatedAt] = React.useState<string | null>(null);
   const [stale, setStale] = React.useState(false);
@@ -92,7 +86,7 @@ export function DietaryPage({ eventId, threshold: initialThreshold }: { eventId:
     );
   }
 
-  const summary = summarizeDietaryReport(report.rows, threshold);
+  const summary = Dietary.summarizeDietaryReport(report.rows, threshold);
   const people = report.rows
     .filter((row) => filter.length === 0 || row.restrictions.some((label) => filter.includes(label)))
     .sort((a, b) => {
@@ -119,7 +113,7 @@ export function DietaryPage({ eventId, threshold: initialThreshold }: { eventId:
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {MISSED_MEAL_THRESHOLDS.map((n) => (
+                {Dietary.MISSED_MEAL_THRESHOLDS.map((n) => (
                   <SelectItem key={n} value={String(n)}>
                     Missed {n} meal{n === 1 ? '' : 's'}
                   </SelectItem>
@@ -181,7 +175,7 @@ export function DietaryPage({ eventId, threshold: initialThreshold }: { eventId:
           </TableHeader>
           <TableBody>
             {summary.map((row) => (
-              <TableRow key={row.label} className={row.label === TOTAL_LABEL ? 'font-medium' : undefined}>
+              <TableRow key={row.label} className={row.label === Dietary.TOTAL_LABEL ? 'font-medium' : undefined}>
                 <TableCell>{row.label}</TableCell>
                 <TableCell className='text-right tabular-nums'>{row.expected}</TableCell>
                 <TableCell className='text-right tabular-nums'>{row.atDoor}</TableCell>
@@ -254,7 +248,7 @@ function PersonRow({
   showMeals,
   currentMeal,
 }: {
-  row: DietaryReportRow;
+  row: Dietary.DietaryReportRow;
   threshold: number;
   showMeals: boolean;
   currentMeal: string | null;

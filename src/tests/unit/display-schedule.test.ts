@@ -1,10 +1,10 @@
 import { describe, test, expect } from 'vitest';
 
-import { getVisibleEntries, type DisplayScheduleEntry } from '@/lib/display/schedule';
+import * as Display from '@/lib/display';
 
 const at = (iso: string) => Date.parse(iso);
 
-function entry(name: string, startsAt: string, endsAt: string | null): DisplayScheduleEntry {
+function entry(name: string, startsAt: string, endsAt: string | null): Display.DisplayScheduleEntry {
   return { id: name, name, location: null, startsAt, endsAt };
 }
 
@@ -19,7 +19,7 @@ const schedule = [
 
 describe('getVisibleEntries', () => {
   test('before anything starts: nothing current, everything upcoming', () => {
-    const result = getVisibleEntries(schedule, at('2026-10-24T00:00:00Z'));
+    const result = Display.getVisibleEntries(schedule, at('2026-10-24T00:00:00Z'));
     expect(result.current).toBeNull();
     expect(result.progress).toBe(0);
     expect(result.upcoming.map((e) => e.name)).toEqual([
@@ -32,7 +32,7 @@ describe('getVisibleEntries', () => {
   });
 
   test('overlapping entries: the most recently started is current', () => {
-    const result = getVisibleEntries(schedule, at('2026-10-25T06:15:00Z'));
+    const result = Display.getVisibleEntries(schedule, at('2026-10-25T06:15:00Z'));
     expect(result.current?.name).toBe('Midnight Snack');
     expect(result.progress).toBeCloseTo(0.5);
     // The longer entry is still running, so it stays on screen too.
@@ -40,27 +40,27 @@ describe('getVisibleEntries', () => {
   });
 
   test('falls back to the longer entry once the overlap ends', () => {
-    const result = getVisibleEntries(schedule, at('2026-10-25T06:45:00Z'));
+    const result = Display.getVisibleEntries(schedule, at('2026-10-25T06:45:00Z'));
     expect(result.current?.name).toBe('Games');
     expect(result.ongoing).toEqual([]);
   });
 
   test('a zero-length deadline is never current, only upcoming', () => {
-    const before = getVisibleEntries(schedule, at('2026-10-25T14:59:00Z'));
+    const before = Display.getVisibleEntries(schedule, at('2026-10-25T14:59:00Z'));
     expect(before.upcoming.map((e) => e.name)).toContain('Submissions Due');
 
-    const on = getVisibleEntries(schedule, at('2026-10-25T15:00:00Z'));
+    const on = Display.getVisibleEntries(schedule, at('2026-10-25T15:00:00Z'));
     expect(on.current?.name).toBe('Breakfast');
     expect(on.upcoming.map((e) => e.name)).not.toContain('Submissions Due');
   });
 
   test('an open-ended last entry is current for an hour, with no progress bar', () => {
-    const during = getVisibleEntries(schedule, at('2026-10-25T20:30:00Z'));
+    const during = Display.getVisibleEntries(schedule, at('2026-10-25T20:30:00Z'));
     expect(during.current?.name).toBe('Closing Ceremony');
     expect(during.progress).toBe(0);
     expect(during.upcoming).toEqual([]);
 
-    const after = getVisibleEntries(schedule, at('2026-10-26T00:00:00Z'));
+    const after = Display.getVisibleEntries(schedule, at('2026-10-26T00:00:00Z'));
     expect(after.current).toBeNull();
   });
 
@@ -71,16 +71,16 @@ describe('getVisibleEntries', () => {
       entry('Opening Ceremony', '2026-10-25T01:00:00Z', '2026-10-25T01:30:00Z'),
     ];
     // A deadline in between doesn't end it early…
-    expect(getVisibleEntries(openEnded, at('2026-10-25T00:30:00Z')).current?.name).toBe('Check-in opens');
+    expect(Display.getVisibleEntries(openEnded, at('2026-10-25T00:30:00Z')).current?.name).toBe('Check-in opens');
     // …but the real one does, and for good.
-    const later = getVisibleEntries(openEnded, at('2026-10-25T02:00:00Z'));
+    const later = Display.getVisibleEntries(openEnded, at('2026-10-25T02:00:00Z'));
     expect(later.current).toBeNull();
     expect(later.ongoing).toEqual([]);
   });
 
   test('does not depend on input order', () => {
     const reversed = [...schedule].reverse();
-    const result = getVisibleEntries(reversed, at('2026-10-24T00:00:00Z'));
+    const result = Display.getVisibleEntries(reversed, at('2026-10-24T00:00:00Z'));
     expect(result.upcoming[0].name).toBe('Games');
   });
 });

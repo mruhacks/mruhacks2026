@@ -7,7 +7,7 @@ import { MarkdownContent } from '@/components/markdown/markdown-content';
 import { getAdminEventHeader } from '@/lib/admin-event';
 import { eventPath } from '@/lib/event-slug';
 import { resolveEventId } from '@/lib/events';
-import { requirePermission } from '@/lib/rbac/authorization';
+import * as Rbac from '@/lib/rbac/server';
 import { getUser } from '@/utils/auth';
 
 import { ArticleEditor } from './article-editor';
@@ -41,7 +41,7 @@ async function ArticleContent({ paramsPromise }: { paramsPromise: ArticlePagePro
 
   const user = await getUser();
   if (!user) redirect('/signin');
-  await requirePermission(user.id, 'article:read:all');
+  await Rbac.requirePermission(user.id, 'article:read:all');
 
   // The header read is the same cached entry the layout above already
   // filled; it's here for the event's own slug, which the editor shows in

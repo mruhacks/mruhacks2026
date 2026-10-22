@@ -3,11 +3,11 @@ import { eq } from 'drizzle-orm';
 
 import { getUser } from '@/utils/auth';
 import { db } from '@/utils/db';
-import { hasPermission } from '@/lib/rbac/authorization';
+import * as Rbac from '@/lib/rbac/server';
 import { getWikiSidebarArticles } from '@/lib/event-wiki';
 import { resolveEventId } from '@/lib/events';
 import { eventPath } from '@/lib/event-slug';
-import { events } from '@/db/schema';
+import * as schema from '@/db/schema';
 
 type Props = {
   params: Promise<{ eventId: string }>;
@@ -27,13 +27,13 @@ export default async function EventWikiIndexPage({ params }: Props) {
   if (!user) redirect('/signin');
 
   const [event] = await db
-    .select({ id: events.id, slug: events.slug, termsId: events.termsId })
-    .from(events)
-    .where(eq(events.id, eventId))
+    .select({ id: schema.events.id, slug: schema.events.slug, termsId: schema.events.termsId })
+    .from(schema.events)
+    .where(eq(schema.events.id, eventId))
     .limit(1);
   if (!event) notFound();
 
-  const canSeeDrafts = await hasPermission(user.id, 'article:read:all');
+  const canSeeDrafts = await Rbac.hasPermission(user.id, 'article:read:all');
   const [first] = await getWikiSidebarArticles(eventId, {
     canSeeDrafts,
     hasTerms: event.termsId !== null,

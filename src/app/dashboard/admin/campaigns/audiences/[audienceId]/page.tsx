@@ -4,13 +4,10 @@ import { notFound } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 import { z } from 'zod';
 
-import { getAudienceOptions } from '@/lib/campaigns/queries';
-import { getSavedAudience } from '@/lib/campaigns/saved-audiences';
-import { loadUserPermissions } from '@/lib/rbac/authorization';
-import { requireAuthWithPermission } from '@/lib/rbac/guards';
-import { anyPermissionMatches } from '@/lib/rbac/permissions';
+import * as Campaigns from '@/lib/campaigns/server';
+import * as Rbac from '@/lib/rbac/server';
 import { BreadcrumbSegment } from '@/components/breadcrumb-context';
-import { SavedAudienceEditor } from '../../_components/saved-audience-editor';
+import { SavedAudienceEditor } from '@/app/dashboard/admin/campaigns/_components/saved-audience-editor';
 
 type Props = { params: Promise<{ audienceId: string }> };
 
@@ -32,13 +29,13 @@ export default function SavedAudiencePage({ params }: Props) {
 
 async function AudienceContent({ paramsPromise }: { paramsPromise: Promise<{ audienceId: string }> }) {
   const { audienceId } = await paramsPromise;
-  const user = await requireAuthWithPermission('campaign:read:all');
+  const user = await Rbac.requireAuthWithPermission('campaign:read:all');
   if (!z.uuid().safeParse(audienceId).success) notFound();
 
   const [audience, options, permissions] = await Promise.all([
-    getSavedAudience(audienceId),
-    getAudienceOptions(),
-    loadUserPermissions(user.id),
+    Campaigns.getSavedAudience(audienceId),
+    Campaigns.getAudienceOptions(),
+    Rbac.loadUserPermissions(user.id),
   ]);
   if (!audience) notFound();
 
@@ -49,8 +46,8 @@ async function AudienceContent({ paramsPromise }: { paramsPromise: Promise<{ aud
         key={`${audience.id}:${audience.updatedAt.toISOString()}`}
         audience={audience}
         options={options}
-        canWrite={anyPermissionMatches(permissions, 'campaign:write:all')}
-        canPreview={anyPermissionMatches(permissions, 'participant:read:all')}
+        canWrite={Rbac.anyPermissionMatches(permissions, 'campaign:write:all')}
+        canPreview={Rbac.anyPermissionMatches(permissions, 'participant:read:all')}
       />
     </>
   );

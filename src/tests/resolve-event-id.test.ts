@@ -2,7 +2,7 @@ import { describe, test, expect, beforeAll, afterAll, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 
 import { db } from '@/utils/db';
-import { events } from '@/db/schema';
+import * as schema from '@/db/schema';
 
 vi.mock('next/cache', () => ({
   revalidatePath: vi.fn(),
@@ -17,30 +17,30 @@ let plainEventId: string;
 
 beforeAll(async () => {
   const [slugged] = await db
-    .insert(events)
+    .insert(schema.events)
     .values({
       name: 'Slug Resolution Event',
       hasApplication: false,
       applicationQuestions: [],
       slug: 'resolution-2026',
     })
-    .returning({ id: events.id });
+    .returning({ id: schema.events.id });
   sluggedEventId = slugged.id;
 
   const [plain] = await db
-    .insert(events)
+    .insert(schema.events)
     .values({
       name: 'Uuid Only Event',
       hasApplication: false,
       applicationQuestions: [],
     })
-    .returning({ id: events.id });
+    .returning({ id: schema.events.id });
   plainEventId = plain.id;
 });
 
 afterAll(async () => {
-  await db.delete(events).where(eq(events.id, sluggedEventId));
-  await db.delete(events).where(eq(events.id, plainEventId));
+  await db.delete(schema.events).where(eq(schema.events.id, sluggedEventId));
+  await db.delete(schema.events).where(eq(schema.events.id, plainEventId));
 });
 
 describe('resolveEventId', () => {

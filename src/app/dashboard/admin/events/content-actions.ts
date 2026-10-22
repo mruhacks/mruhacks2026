@@ -18,10 +18,10 @@ import { revalidatePath, updateTag } from 'next/cache';
 import { getParentEventId, subeventsCacheTag } from '@/lib/subevents';
 import { adminEventCacheTag } from '@/lib/admin-event';
 import { db } from '@/utils/db';
-import { events, eventArticles, eventTerms } from '@/db/schema';
+import * as schema from '@/db/schema';
 import { getUser } from '@/utils/auth';
 import { ok, fail, type ActionResult } from '@/utils/action-result';
-import { hasPermission, requirePermission } from '@/lib/rbac/authorization';
+import * as Rbac from '@/lib/rbac/server';
 import { eventWikiCacheTag } from '@/lib/event-wiki';
 import { eventUrlSegments } from '@/lib/events';
 import { writeAuditLog } from '@/utils/audit-log';
@@ -42,7 +42,11 @@ import {
 // ── Attachment uploads ────────────────────────────────────────────────────
 
 async function storeAttachment(eventId: string, formData: FormData): Promise<ActionResult<{ url: string }>> {
-  const [eventRow] = await db.select({ id: events.id }).from(events).where(eq(events.id, eventId)).limit(1);
+  const [eventRow] = await db
+    .select({ id: schema.events.id })
+    .from(schema.events)
+    .where(eq(schema.events.id, eventId))
+    .limit(1);
   if (!eventRow) return fail('Event not found');
 
   const read = await readImageUpload(formData);
@@ -73,7 +77,7 @@ export async function uploadEventDescriptionAttachment(
 ): Promise<ActionResult<{ url: string }>> {
   const user = await getUser();
   if (!user) return fail('Not authenticated');
-  await requirePermission(user.id, 'event:manage');
+  await Rbac.requirePermission(user.id, 'event:manage');
   return storeAttachment(eventId, formData);
 }
 
@@ -87,7 +91,7 @@ export async function uploadArticleAttachment(
 ): Promise<ActionResult<{ url: string }>> {
   const user = await getUser();
   if (!user) return fail('Not authenticated');
-  await requirePermission(user.id, 'article:write:all');
+  await Rbac.requirePermission(user.id, 'article:write:all');
   return storeAttachment(eventId, formData);
 }
 
@@ -113,7 +117,7 @@ async function updateEventMarkdown(
 ): Promise<ActionResult> {
   const user = await getUser();
   if (!user) return fail('Not authenticated');
-  await requirePermission(user.id, 'event:manage');
+  await Rbac.requirePermission(user.id, 'event:manage');
 
   const parsed =
     kind === 'terms'
@@ -125,34 +129,37 @@ async function updateEventMarkdown(
   const found = await db.transaction(async (tx) => {
     // Serialize terms edits with RSVP acceptance on the same event row.
     const [event] = await tx
-      .select({ id: events.id, termsId: events.termsId })
-      .from(events)
-      .where(eq(events.id, eventId))
+      .select({ id: schema.events.id, termsId: schema.events.termsId })
+      .from(schema.events)
+      .where(eq(schema.events.id, eventId))
       .for('update')
       .limit(1);
     if (!event) return false;
     if (kind === 'description') {
       await tx
-        .update(events)
+        .update(schema.events)
         .set({ descriptionMarkdown: trimmed || null, updatedAt: new Date() })
-        .where(eq(events.id, eventId));
+        .where(eq(schema.events.id, eventId));
       return true;
     }
 
     const [current] = event.termsId
-      ? await tx.select({ markdown: eventTerms.markdown }).from(eventTerms).where(eq(eventTerms.id, event.termsId))
+      ? await tx
+          .select({ markdown: schema.eventTerms.markdown })
+          .from(schema.eventTerms)
+          .where(eq(schema.eventTerms.id, event.termsId))
       : [];
     if ((current?.markdown ?? '') === trimmed) return true;
 
     let termsId: string | null = null;
     if (trimmed) {
       const [version] = await tx
-        .insert(eventTerms)
+        .insert(schema.eventTerms)
         .values({ eventId, markdown: trimmed })
-        .returning({ id: eventTerms.id });
+        .returning({ id: schema.eventTerms.id });
       termsId = version.id;
     }
-    await tx.update(events).set({ termsId, updatedAt: new Date() }).where(eq(events.id, eventId));
+    await tx.update(schema.events).set({ termsId, updatedAt: new Date() }).where(eq(schema.events.id, eventId));
     return true;
   });
   if (!found) return fail('Event not found');
@@ -201,20 +208,20 @@ export type ArticleDetail = ArticleSummary & {
 export async function listEventArticles(eventId: string): Promise<ActionResult<ArticleSummary[]>> {
   const user = await getUser();
   if (!user) return fail('Not authenticated');
-  await requirePermission(user.id, 'article:read:all');
+  await Rbac.requirePermission(user.id, 'article:read:all');
 
   const rows = await db
     .select({
-      id: eventArticles.id,
-      slug: eventArticles.slug,
-      title: eventArticles.title,
-      published: eventArticles.published,
-      sortOrder: eventArticles.sortOrder,
-      updatedAt: eventArticles.updatedAt,
+      id: schema.eventArticles.id,
+      slug: schema.eventArticles.slug,
+      title: schema.eventArticles.title,
+      published: schema.eventArticles.published,
+      sortOrder: schema.eventArticles.sortOrder,
+      updatedAt: schema.eventArticles.updatedAt,
     })
-    .from(eventArticles)
-    .where(eq(eventArticles.eventId, eventId))
-    .orderBy(asc(eventArticles.sortOrder), asc(eventArticles.title));
+    .from(schema.eventArticles)
+    .where(eq(schema.eventArticles.eventId, eventId))
+    .orderBy(asc(schema.eventArticles.sortOrder), asc(schema.eventArticles.title));
 
   return ok(rows);
 }
@@ -226,12 +233,12 @@ export async function listEventArticles(eventId: string): Promise<ActionResult<A
 export async function getEventArticle(eventId: string, articleId: string): Promise<ActionResult<ArticleDetail>> {
   const user = await getUser();
   if (!user) return fail('Not authenticated');
-  await requirePermission(user.id, 'article:read:all');
+  await Rbac.requirePermission(user.id, 'article:read:all');
 
   const [row] = await db
     .select()
-    .from(eventArticles)
-    .where(and(eq(eventArticles.id, articleId), eq(eventArticles.eventId, eventId)))
+    .from(schema.eventArticles)
+    .where(and(eq(schema.eventArticles.id, articleId), eq(schema.eventArticles.eventId, eventId)))
     .limit(1);
   if (!row) return fail('Article not found');
 
@@ -255,18 +262,18 @@ export async function getEventArticle(eventId: string, articleId: string): Promi
 export async function canWriteArticles(): Promise<boolean> {
   const user = await getUser();
   if (!user) return false;
-  return hasPermission(user.id, 'article:write:all');
+  return Rbac.hasPermission(user.id, 'article:write:all');
 }
 
 /** Slugs already used within an event, optionally excluding one article. */
 async function takenSlugs(eventId: string, exceptArticleId?: string) {
   const rows = await db
-    .select({ slug: eventArticles.slug })
-    .from(eventArticles)
+    .select({ slug: schema.eventArticles.slug })
+    .from(schema.eventArticles)
     .where(
       exceptArticleId
-        ? and(eq(eventArticles.eventId, eventId), ne(eventArticles.id, exceptArticleId))
-        : eq(eventArticles.eventId, eventId),
+        ? and(eq(schema.eventArticles.eventId, eventId), ne(schema.eventArticles.id, exceptArticleId))
+        : eq(schema.eventArticles.eventId, eventId),
     );
   return rows.map((row) => row.slug);
 }
@@ -282,12 +289,16 @@ export async function createEventArticle(
 ): Promise<ActionResult<{ id: string; slug: string }>> {
   const user = await getUser();
   if (!user) return fail('Not authenticated');
-  await requirePermission(user.id, 'article:write:all');
+  await Rbac.requirePermission(user.id, 'article:write:all');
 
   const parsed = createArticleSchema.safeParse(data);
   if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? 'Invalid input');
 
-  const [eventRow] = await db.select({ id: events.id }).from(events).where(eq(events.id, eventId)).limit(1);
+  const [eventRow] = await db
+    .select({ id: schema.events.id })
+    .from(schema.events)
+    .where(eq(schema.events.id, eventId))
+    .limit(1);
   if (!eventRow) return fail('Event not found');
 
   const requested = parsed.data.slug ?? slugify(parsed.data.title);
@@ -304,7 +315,7 @@ export async function createEventArticle(
   const slug = uniqueSlug(requested, [...existing, ...RESERVED_ARTICLE_SLUGS]);
 
   const [created] = await db
-    .insert(eventArticles)
+    .insert(schema.eventArticles)
     .values({
       eventId,
       slug,
@@ -315,7 +326,7 @@ export async function createEventArticle(
       createdBy: user.id,
       updatedBy: user.id,
     })
-    .returning({ id: eventArticles.id, slug: eventArticles.slug });
+    .returning({ id: schema.eventArticles.id, slug: schema.eventArticles.slug });
 
   for (const segment of await eventUrlSegments(eventId)) {
     revalidatePath(`/dashboard/admin/events/${segment}`);
@@ -337,7 +348,7 @@ export async function createEventArticle(
 export async function reorderEventArticles(eventId: string, orderedIds: string[]): Promise<ActionResult> {
   const user = await getUser();
   if (!user) return fail('Not authenticated');
-  await requirePermission(user.id, 'article:write:all');
+  await Rbac.requirePermission(user.id, 'article:write:all');
 
   const parsed = reorderArticlesSchema.safeParse(orderedIds);
   if (!parsed.success) return fail('Invalid article order.');
@@ -345,10 +356,10 @@ export async function reorderEventArticles(eventId: string, orderedIds: string[]
   const result = await db.transaction(async (tx) => {
     // Lock in a stable order so simultaneous reorders cannot interleave.
     const articles = await tx
-      .select({ id: eventArticles.id })
-      .from(eventArticles)
-      .where(eq(eventArticles.eventId, eventId))
-      .orderBy(asc(eventArticles.id))
+      .select({ id: schema.eventArticles.id })
+      .from(schema.eventArticles)
+      .where(eq(schema.eventArticles.eventId, eventId))
+      .orderBy(asc(schema.eventArticles.id))
       .for('update');
     const ids = new Set(parsed.data);
     if (
@@ -361,9 +372,9 @@ export async function reorderEventArticles(eventId: string, orderedIds: string[]
 
     for (const [sortOrder, id] of parsed.data.entries()) {
       await tx
-        .update(eventArticles)
+        .update(schema.eventArticles)
         .set({ sortOrder, updatedBy: user.id, updatedAt: new Date() })
-        .where(and(eq(eventArticles.id, id), eq(eventArticles.eventId, eventId)));
+        .where(and(eq(schema.eventArticles.id, id), eq(schema.eventArticles.eventId, eventId)));
     }
     return ok('Articles reordered.');
   });
@@ -397,16 +408,16 @@ export async function updateEventArticle(
 ): Promise<ActionResult> {
   const user = await getUser();
   if (!user) return fail('Not authenticated');
-  await requirePermission(user.id, 'article:write:all');
+  await Rbac.requirePermission(user.id, 'article:write:all');
 
   const parsed = updateArticleSchema.safeParse(data);
   if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? 'Invalid input');
 
   const input = parsed.data;
   const [existing] = await db
-    .select({ id: eventArticles.id, slug: eventArticles.slug })
-    .from(eventArticles)
-    .where(and(eq(eventArticles.id, articleId), eq(eventArticles.eventId, eventId)))
+    .select({ id: schema.eventArticles.id, slug: schema.eventArticles.slug })
+    .from(schema.eventArticles)
+    .where(and(eq(schema.eventArticles.id, articleId), eq(schema.eventArticles.eventId, eventId)))
     .limit(1);
   if (!existing) return fail('Article not found');
 
@@ -418,7 +429,7 @@ export async function updateEventArticle(
   }
 
   await db
-    .update(eventArticles)
+    .update(schema.eventArticles)
     .set({
       ...(input.title !== undefined ? { title: input.title } : {}),
       ...(input.slug !== undefined ? { slug: input.slug } : {}),
@@ -428,7 +439,7 @@ export async function updateEventArticle(
       updatedBy: user.id,
       updatedAt: new Date(),
     })
-    .where(eq(eventArticles.id, articleId));
+    .where(eq(schema.eventArticles.id, articleId));
 
   for (const segment of await eventUrlSegments(eventId)) {
     revalidatePath(`/dashboard/admin/events/${segment}`);
@@ -458,20 +469,20 @@ export async function updateEventArticle(
 export async function deleteEventArticle(eventId: string, articleId: string): Promise<ActionResult> {
   const user = await getUser();
   if (!user) return fail('Not authenticated');
-  await requirePermission(user.id, 'article:write:all');
+  await Rbac.requirePermission(user.id, 'article:write:all');
 
   const [existing] = await db
     .select({
-      id: eventArticles.id,
-      slug: eventArticles.slug,
-      bodyMarkdown: eventArticles.bodyMarkdown,
+      id: schema.eventArticles.id,
+      slug: schema.eventArticles.slug,
+      bodyMarkdown: schema.eventArticles.bodyMarkdown,
     })
-    .from(eventArticles)
-    .where(and(eq(eventArticles.id, articleId), eq(eventArticles.eventId, eventId)))
+    .from(schema.eventArticles)
+    .where(and(eq(schema.eventArticles.id, articleId), eq(schema.eventArticles.eventId, eventId)))
     .limit(1);
   if (!existing) return fail('Article not found');
 
-  await db.delete(eventArticles).where(eq(eventArticles.id, articleId));
+  await db.delete(schema.eventArticles).where(eq(schema.eventArticles.id, articleId));
 
   await deleteOrphanedAttachments(eventId, existing.bodyMarkdown);
 
@@ -508,15 +519,18 @@ async function deleteOrphanedAttachments(eventId: string, removedMarkdown: strin
   try {
     const [remainingArticles, [eventRow], termsVersions] = await Promise.all([
       db
-        .select({ bodyMarkdown: eventArticles.bodyMarkdown })
-        .from(eventArticles)
-        .where(eq(eventArticles.eventId, eventId)),
+        .select({ bodyMarkdown: schema.eventArticles.bodyMarkdown })
+        .from(schema.eventArticles)
+        .where(eq(schema.eventArticles.eventId, eventId)),
       db
-        .select({ descriptionMarkdown: events.descriptionMarkdown })
-        .from(events)
-        .where(eq(events.id, eventId))
+        .select({ descriptionMarkdown: schema.events.descriptionMarkdown })
+        .from(schema.events)
+        .where(eq(schema.events.id, eventId))
         .limit(1),
-      db.select({ markdown: eventTerms.markdown }).from(eventTerms).where(eq(eventTerms.eventId, eventId)),
+      db
+        .select({ markdown: schema.eventTerms.markdown })
+        .from(schema.eventTerms)
+        .where(eq(schema.eventTerms.eventId, eventId)),
     ]);
 
     const stillReferenced = new Set<string>();

@@ -5,14 +5,7 @@ import Link from 'next/link';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  EMAIL_LINK_FAILED_PARAM,
-  EMAIL_LINK_KIND_PARAM,
-  EMAIL_LINKS,
-  type EmailLinkKind,
-  isEmailLinkKind,
-  MAGIC_LINK_ERROR_CALLBACK_URL,
-} from '@/lib/auth/email-link-confirm-url';
+import * as Auth from '@/lib/auth';
 
 // The URL carries a live token; don't leak it to anything we link to.
 export const metadata: Metadata = {
@@ -22,7 +15,7 @@ export const metadata: Metadata = {
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
-const COPY: Record<EmailLinkKind, { title: string; description: string; label: string }> = {
+const COPY: Record<Auth.EmailLinkKind, { title: string; description: string; label: string }> = {
   'magic-link': {
     title: 'Sign in to MRUHacks',
     description: 'Press continue to finish signing in.',
@@ -58,13 +51,13 @@ function failureMessage(error: SearchParams[string]): string {
 export default async function EmailLinkConfirmPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const params = await searchParams;
 
-  if (params[EMAIL_LINK_FAILED_PARAM] === '1') {
+  if (params[Auth.EMAIL_LINK_FAILED_PARAM] === '1') {
     return <LinkProblem title='Sign in to MRUHacks' message={failureMessage(params.error)} />;
   }
 
-  const kind = params[EMAIL_LINK_KIND_PARAM];
+  const kind = params[Auth.EMAIL_LINK_KIND_PARAM];
   const token = params.token;
-  if (!isEmailLinkKind(kind) || typeof token !== 'string' || !token) {
+  if (!Auth.isEmailLinkKind(kind) || typeof token !== 'string' || !token) {
     return (
       <LinkProblem
         title='Sign in to MRUHacks'
@@ -73,7 +66,7 @@ export default async function EmailLinkConfirmPage({ searchParams }: { searchPar
     );
   }
 
-  const { endpoint, params: forwarded } = EMAIL_LINKS[kind];
+  const { endpoint, params: forwarded } = Auth.EMAIL_LINKS[kind];
   const fields = forwarded.flatMap((name): { name: string; value: string }[] => {
     const value = params[name];
     return typeof value === 'string' && value ? [{ name, value }] : [];
@@ -81,7 +74,7 @@ export default async function EmailLinkConfirmPage({ searchParams }: { searchPar
   if (kind === 'magic-link') {
     fields.push({
       name: 'errorCallbackURL',
-      value: MAGIC_LINK_ERROR_CALLBACK_URL,
+      value: Auth.MAGIC_LINK_ERROR_CALLBACK_URL,
     });
   }
 

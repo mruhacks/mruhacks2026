@@ -7,7 +7,7 @@ import { generateKeyPairSync } from 'node:crypto';
 import { eq, inArray } from 'drizzle-orm';
 
 import { db } from '@/utils/db';
-import { campaigns, events, marketingConsents, permission, user, userPermission } from '@/db/schema';
+import * as schema from '@/db/schema';
 import { insertAttendees } from '@/tests/participation-fixtures';
 
 vi.mock('@/utils/auth', () => ({ getUser: vi.fn() }));
@@ -45,11 +45,11 @@ const createdCampaigns: string[] = [];
 async function grant(userId: string, slugs: string[]) {
   for (const slug of slugs) {
     const [row] = await db
-      .insert(permission)
+      .insert(schema.permission)
       .values({ slug })
-      .onConflictDoUpdate({ target: permission.slug, set: { slug } })
-      .returning({ id: permission.id });
-    await db.insert(userPermission).values({ userId, permissionId: row.id }).onConflictDoNothing();
+      .onConflictDoUpdate({ target: schema.permission.slug, set: { slug } })
+      .returning({ id: schema.permission.id });
+    await db.insert(schema.userPermission).values({ userId, permissionId: row.id }).onConflictDoNothing();
   }
 }
 
@@ -67,13 +67,13 @@ beforeAll(async () => {
   }).privateKey as unknown as string;
   for (const name of ['writer', 'previewer', 'operator', 'reader', 'member']) {
     const [row] = await db
-      .insert(user)
+      .insert(schema.user)
       .values({
         name: `Campaign action ${name}`,
         email: `campaign-action-${name}@example.com`,
         emailVerified: true,
       })
-      .returning({ id: user.id });
+      .returning({ id: schema.user.id });
     userIds[name] = row.id;
   }
   await grant(userIds.writer, ['campaign:write:all', 'campaign:read:all']);
@@ -81,23 +81,26 @@ beforeAll(async () => {
   await grant(userIds.operator, ['campaign:write:all', 'campaign:operational:all']);
   await grant(userIds.reader, ['campaign:read:all']);
 
-  const [event] = await db.insert(events).values({ name: 'Campaign actions event' }).returning({ id: events.id });
+  const [event] = await db
+    .insert(schema.events)
+    .values({ name: 'Campaign actions event' })
+    .returning({ id: schema.events.id });
   eventId = event.id;
   const [sub] = await db
-    .insert(events)
+    .insert(schema.events)
     .values({ name: 'Campaign actions lunch', parentEventId: eventId })
-    .returning({ id: events.id });
+    .returning({ id: schema.events.id });
   subeventId = sub.id;
   await insertAttendees({ eventId, userId: userIds.member });
-  await db.insert(marketingConsents).values({ userId: userIds.member, optedIn: true });
+  await db.insert(schema.marketingConsents).values({ userId: userIds.member, optedIn: true });
 });
 
 beforeEach(() => vi.mocked(getUser).mockReset());
 
 afterAll(async () => {
-  await db.delete(campaigns).where(inArray(campaigns.id, createdCampaigns));
-  await db.delete(events).where(inArray(events.id, [subeventId, eventId]));
-  await db.delete(user).where(inArray(user.id, Object.values(userIds)));
+  await db.delete(schema.campaigns).where(inArray(schema.campaigns.id, createdCampaigns));
+  await db.delete(schema.events).where(inArray(schema.events.id, [subeventId, eventId]));
+  await db.delete(schema.user).where(inArray(schema.user.id, Object.values(userIds)));
 });
 
 const audienceForEvent = () => ({
@@ -125,7 +128,7 @@ describe('createCampaign', () => {
     expect(result.success).toBe(true);
     const id = result.success ? result.data!.id : '';
     createdCampaigns.push(id);
-    const [row] = await db.select().from(campaigns).where(eq(campaigns.id, id));
+    const [row] = await db.select().from(schema.campaigns).where(eq(schema.campaigns.id, id));
     expect(row).toMatchObject({
       status: 'draft',
       type: 'marketing',
@@ -194,7 +197,7 @@ describe('updateCampaignAudience', () => {
       success: true,
       data: undefined,
     });
-    const [row] = await db.select().from(campaigns).where(eq(campaigns.id, id));
+    const [row] = await db.select().from(schema.campaigns).where(eq(schema.campaigns.id, id));
     expect(row.audienceRules).toEqual(rules);
 
     const bad = await updateCampaignAudience(id, {
@@ -203,7 +206,7 @@ describe('updateCampaignAudience', () => {
     } as never);
     expect(bad.success).toBe(false);
 
-    await db.update(campaigns).set({ status: 'sent' }).where(eq(campaigns.id, id));
+    await db.update(schema.campaigns).set({ status: 'sent' }).where(eq(schema.campaigns.id, id));
     expect(await updateCampaignAudience(id, rules)).toMatchObject({
       success: false,
       error: expect.stringMatching(/Only drafts/),
@@ -271,13 +274,19 @@ describe('audience builder count and preview', () => {
 
   test('marketing context forces the opt-in filter', async () => {
     actAs('writer');
-    await db.update(marketingConsents).set({ optedIn: false }).where(eq(marketingConsents.userId, userIds.member));
+    await db
+      .update(schema.marketingConsents)
+      .set({ optedIn: false })
+      .where(eq(schema.marketingConsents.userId, userIds.member));
     const result = await countAudienceForBuilder({
       ...audienceForEvent(),
       context: { type: 'marketing', eventId: null },
     });
     expect(result).toEqual({ success: true, data: 0 });
-    await db.update(marketingConsents).set({ optedIn: true }).where(eq(marketingConsents.userId, userIds.member));
+    await db
+      .update(schema.marketingConsents)
+      .set({ optedIn: true })
+      .where(eq(schema.marketingConsents.userId, userIds.member));
   });
 
   test('operational context without an event is rejected', async () => {
@@ -312,7 +321,7 @@ describe('campaign content', () => {
       bodyMarkdown: 'Hello {{firstName|friend}}',
     });
     expect(saved.success).toBe(true);
-    const [row] = await db.select().from(campaigns).where(eq(campaigns.id, id));
+    const [row] = await db.select().from(schema.campaigns).where(eq(schema.campaigns.id, id));
     expect(row).toMatchObject({
       name: 'Renamed',
       subject: 'Hi {{firstName}}',

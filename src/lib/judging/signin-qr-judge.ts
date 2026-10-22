@@ -3,9 +3,9 @@ import 'server-only';
 import { and, eq } from 'drizzle-orm';
 import { notFound, redirect } from 'next/navigation';
 
-import { eventJudges, user as authUser } from '@/db/schema';
+import * as schema from '@/db/schema';
 import { resolveEventId } from '@/lib/events';
-import { requirePermission } from '@/lib/rbac/authorization';
+import * as Rbac from '@/lib/rbac/server';
 import { getUser } from '@/utils/auth';
 import { db } from '@/utils/db';
 
@@ -27,17 +27,17 @@ export async function loadSignInQrJudge(segment: string, judgeId: string): Promi
   if (!eventId) notFound();
   const user = await getUser();
   if (!user) redirect('/signin');
-  await requirePermission(user.id, 'judging:signin:all');
+  await Rbac.requirePermission(user.id, 'judging:signin:all');
 
   const [row] = await db
     .select({
-      email: eventJudges.email,
-      disabledAt: eventJudges.disabledAt,
-      name: authUser.name,
+      email: schema.eventJudges.email,
+      disabledAt: schema.eventJudges.disabledAt,
+      name: schema.user.name,
     })
-    .from(eventJudges)
-    .leftJoin(authUser, eq(authUser.id, eventJudges.userId))
-    .where(and(eq(eventJudges.id, judgeId), eq(eventJudges.eventId, eventId)))
+    .from(schema.eventJudges)
+    .leftJoin(schema.user, eq(schema.user.id, schema.eventJudges.userId))
+    .where(and(eq(schema.eventJudges.id, judgeId), eq(schema.eventJudges.eventId, eventId)))
     .limit(1);
   if (!row?.email || row.disabledAt) notFound();
 

@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { notFound, redirect } from 'next/navigation';
 
-import { hasPermission, requirePermission } from '@/lib/rbac/authorization';
+import * as Rbac from '@/lib/rbac/server';
 import { getUser } from '@/utils/auth';
 import { hasEventElapsed, resolveEventId } from '@/lib/events';
 import { getAdminEventHeader } from '@/lib/admin-event';
@@ -53,7 +53,7 @@ async function CheckInContent({
   if (!eventId) notFound();
   const user = await getUser();
   if (!user) redirect('/signin');
-  await requirePermission(user.id, 'checkin:write:all');
+  await Rbac.requirePermission(user.id, 'checkin:write:all');
 
   // A sub-event has no check-in desk of its own: its roster is the parent's and
   // the passes are the parent's. Arriving here from a sub-event's own admin
@@ -72,7 +72,7 @@ async function CheckInContent({
   const [event, subeventRows, canPickAnyTarget] = await Promise.all([
     getAdminEventHeader(eventId),
     listSubevents(eventId),
-    hasPermission(user.id, 'checkin:override:all'),
+    Rbac.hasPermission(user.id, 'checkin:override:all'),
   ]);
   if (!event) notFound();
   if (!event.checkInEnabled) return <p>Check-in is disabled for this event.</p>;

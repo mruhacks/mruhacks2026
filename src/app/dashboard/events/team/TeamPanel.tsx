@@ -1,5 +1,5 @@
 import { getUser } from '@/utils/auth';
-import { getMyTeam } from '@/app/dashboard/events/team-actions';
+import { getMyTeam } from '../team-actions';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { TeamCodeDisplay } from './TeamCodeDisplay';

@@ -2,7 +2,7 @@ import React from 'react';
 import { render } from 'react-email';
 import { RsvpInvitationEmail } from '@/emails/RsvpInvitationEmail';
 import type { SendMailOptions } from '@/utils/mail';
-import { formatRsvpDeadline } from '@/lib/rsvp/rsvp-datetime';
+import { formatRsvpDeadline } from './rsvp-datetime';
 
 /**
  * Builds RSVP invitation email copy. Auth tokens and delivery stay outside.

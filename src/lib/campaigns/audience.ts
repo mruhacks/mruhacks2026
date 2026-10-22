@@ -2,18 +2,7 @@ import 'server-only';
 
 import { and, asc, count, eq, exists, inArray, not, or, sql, type SQL } from 'drizzle-orm';
 
-import {
-  checkIns,
-  eventInvitations,
-  eventParticipants,
-  eventRsvpWaves,
-  marketingConsents,
-  participationStatuses,
-  teamMembers,
-  user,
-  userRole,
-  type CampaignType,
-} from '@/db/schema';
+import * as schema from '@/db/schema';
 import { db } from '@/utils/db';
 import { isAudienceGroup, type AudienceRule, type AudienceRuleGroup } from './audience-rules';
 
@@ -29,7 +18,7 @@ import { isAudienceGroup, type AudienceRule, type AudienceRuleGroup } from './au
  */
 
 export type AudienceContext = {
-  type: CampaignType;
+  type: schema.CampaignType;
   /** Required for operational campaigns; their audience never leaves this event's participants. */
   eventId: string | null;
 };
@@ -43,31 +32,33 @@ function participatedIn(value: Extract<AudienceRule, { field: 'participatedIn' }
     return exists(
       db
         .select({ one: sql`1` })
-        .from(eventParticipants)
-        .where(and(eq(eventParticipants.userId, user.id), eq(eventParticipants.eventId, value.eventId))),
+        .from(schema.eventParticipants)
+        .where(
+          and(eq(schema.eventParticipants.userId, schema.user.id), eq(schema.eventParticipants.eventId, value.eventId)),
+        ),
     );
   }
 
   // The *effective* status: a stored `invited` past its deadline reads as
   // `timed_out`, exactly as `resolveEffectiveStatus` does for every other read.
   const effectiveStatus = sql<string>`CASE
-    WHEN ${participationStatuses.label} = 'invited'
-     AND ${eventRsvpWaves.respondBy} < now()
+    WHEN ${schema.participationStatuses.label} = 'invited'
+     AND ${schema.eventRsvpWaves.respondBy} < now()
     THEN 'timed_out'
-    ELSE ${participationStatuses.label}
+    ELSE ${schema.participationStatuses.label}
   END`;
 
   return exists(
     db
       .select({ one: sql`1` })
-      .from(eventParticipants)
-      .innerJoin(participationStatuses, eq(eventParticipants.statusId, participationStatuses.id))
-      .leftJoin(eventInvitations, eq(eventInvitations.participantId, eventParticipants.id))
-      .leftJoin(eventRsvpWaves, eq(eventInvitations.rsvpWaveId, eventRsvpWaves.id))
+      .from(schema.eventParticipants)
+      .innerJoin(schema.participationStatuses, eq(schema.eventParticipants.statusId, schema.participationStatuses.id))
+      .leftJoin(schema.eventInvitations, eq(schema.eventInvitations.participantId, schema.eventParticipants.id))
+      .leftJoin(schema.eventRsvpWaves, eq(schema.eventInvitations.rsvpWaveId, schema.eventRsvpWaves.id))
       .where(
         and(
-          eq(eventParticipants.userId, user.id),
-          eq(eventParticipants.eventId, value.eventId),
+          eq(schema.eventParticipants.userId, schema.user.id),
+          eq(schema.eventParticipants.eventId, value.eventId),
           inArray(effectiveStatus, statuses),
         ),
       ),
@@ -78,8 +69,8 @@ function optedIntoMarketing(): SQL {
   return exists(
     db
       .select({ one: sql`1` })
-      .from(marketingConsents)
-      .where(and(eq(marketingConsents.userId, user.id), eq(marketingConsents.optedIn, true))),
+      .from(schema.marketingConsents)
+      .where(and(eq(schema.marketingConsents.userId, schema.user.id), eq(schema.marketingConsents.optedIn, true))),
   );
 }
 
@@ -93,16 +84,18 @@ function compileRule(rule: AudienceRule): SQL {
       condition = exists(
         db
           .select({ one: sql`1` })
-          .from(checkIns)
-          .where(and(eq(checkIns.userId, user.id), eq(checkIns.eventId, rule.value.eventId))),
+          .from(schema.checkIns)
+          .where(and(eq(schema.checkIns.userId, schema.user.id), eq(schema.checkIns.eventId, rule.value.eventId))),
       );
       break;
     case 'onTeam':
       condition = exists(
         db
           .select({ one: sql`1` })
-          .from(teamMembers)
-          .where(and(eq(teamMembers.userId, user.id), eq(teamMembers.eventId, rule.value.eventId))),
+          .from(schema.teamMembers)
+          .where(
+            and(eq(schema.teamMembers.userId, schema.user.id), eq(schema.teamMembers.eventId, rule.value.eventId)),
+          ),
       );
       break;
     case 'marketingConsent':
@@ -113,8 +106,8 @@ function compileRule(rule: AudienceRule): SQL {
       condition = exists(
         db
           .select({ one: sql`1` })
-          .from(userRole)
-          .where(and(eq(userRole.userId, user.id), eq(userRole.roleId, rule.value.roleId))),
+          .from(schema.userRole)
+          .where(and(eq(schema.userRole.userId, schema.user.id), eq(schema.userRole.roleId, rule.value.roleId))),
       );
       break;
   }
@@ -143,7 +136,7 @@ function forcedConditions(context: AudienceContext): SQL {
 }
 
 /** Only accounts that can actually receive email. */
-const deliverable = and(eq(user.emailVerified, true), sql`coalesce(${user.banned}, false) = false`)!;
+const deliverable = and(eq(schema.user.emailVerified, true), sql`coalesce(${schema.user.banned}, false) = false`)!;
 
 /** The full `WHERE` for an audience, forced conditions included. */
 function compileAudience(tree: AudienceRuleGroup, context: AudienceContext): SQL {
@@ -152,7 +145,7 @@ function compileAudience(tree: AudienceRuleGroup, context: AudienceContext): SQL
 
 /** How many users the audience currently resolves to. Unique by user id. */
 export async function countAudience(tree: AudienceRuleGroup, context: AudienceContext): Promise<number> {
-  const [row] = await db.select({ c: count() }).from(user).where(compileAudience(tree, context));
+  const [row] = await db.select({ c: count() }).from(schema.user).where(compileAudience(tree, context));
   return Number(row?.c ?? 0);
 }
 
@@ -165,18 +158,18 @@ export async function sampleAudience(
   limit: number,
 ): Promise<AudienceMember[]> {
   return db
-    .select({ id: user.id, name: user.name, email: user.email })
-    .from(user)
+    .select({ id: schema.user.id, name: schema.user.name, email: schema.user.email })
+    .from(schema.user)
     .where(compileAudience(tree, context))
-    .orderBy(asc(user.name), asc(user.id))
+    .orderBy(asc(schema.user.name), asc(schema.user.id))
     .limit(limit);
 }
 
 /** Every member of the audience, for dispatch. */
 export async function resolveAudience(tree: AudienceRuleGroup, context: AudienceContext): Promise<AudienceMember[]> {
   return db
-    .select({ id: user.id, name: user.name, email: user.email })
-    .from(user)
+    .select({ id: schema.user.id, name: schema.user.name, email: schema.user.email })
+    .from(schema.user)
     .where(compileAudience(tree, context))
-    .orderBy(asc(user.id));
+    .orderBy(asc(schema.user.id));
 }

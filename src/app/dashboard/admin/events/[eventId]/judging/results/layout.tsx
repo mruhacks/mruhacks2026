@@ -4,7 +4,7 @@ import { notFound, redirect } from 'next/navigation';
 import { getJudgingResults } from '@/app/dashboard/admin/events/judging-actions';
 import { Card } from '@/components/ui/card';
 import { resolveEventId } from '@/lib/events';
-import { requireAnyPermission } from '@/lib/rbac/authorization';
+import * as Rbac from '@/lib/rbac/server';
 import { getUser } from '@/utils/auth';
 
 import { ResultsHeader } from './_components/results-header';
@@ -46,7 +46,7 @@ async function ResultsShell({
   if (!user) redirect('/signin');
   // Either permission opens the section; `getJudgingResults` decides what's
   // in it, and the ranking-only pages gate themselves.
-  await requireAnyPermission(user.id, ['judging:results:all', 'judging:award:all']);
+  await Rbac.requireAnyPermission(user.id, ['judging:results:all', 'judging:award:all']);
 
   const result = await getJudgingResults(eventId);
   if (!result.success || !result.data) {

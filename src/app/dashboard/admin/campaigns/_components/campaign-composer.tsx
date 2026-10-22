@@ -5,15 +5,8 @@ import { useQuery } from '@tanstack/react-query';
 import { Send } from 'lucide-react';
 import { toast } from 'sonner';
 
-import {
-  previewCampaignEmail,
-  sendCampaignTest,
-  updateCampaignContent,
-  uploadCampaignImage,
-} from '@/app/dashboard/admin/campaigns/actions';
-import { DraftSaver, type DraftSaveState, type DraftEditorHandle } from '@/lib/campaigns/draft-saver';
-import { mergeFieldError } from '@/lib/campaigns/merge-fields';
-import type { CampaignDetail } from '@/lib/campaigns/queries';
+import { previewCampaignEmail, sendCampaignTest, updateCampaignContent, uploadCampaignImage } from '../actions';
+import * as Campaigns from '@/lib/campaigns';
 import { MarkdownEditor } from '@/components/markdown/markdown-editor';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -31,7 +24,7 @@ type Content = {
   bodyMarkdown: string;
 };
 
-type SaveState = DraftSaveState;
+type SaveState = Campaigns.DraftSaveState;
 
 function useDebounced<T>(value: T, delayMs: number): T {
   const [debounced, setDebounced] = React.useState(value);
@@ -49,8 +42,8 @@ export function CampaignComposer({
   editorRef,
   onSavedChange,
 }: {
-  campaign: CampaignDetail;
-  editorRef: React.Ref<DraftEditorHandle>;
+  campaign: Campaigns.CampaignDetail;
+  editorRef: React.Ref<Campaigns.DraftEditorHandle>;
   onSavedChange: (saved: boolean) => void;
   /** Draft and `campaign:write:all`. */
   editable: boolean;
@@ -71,15 +64,15 @@ export function CampaignComposer({
   const [isSendingTest, setIsSendingTest] = React.useState(false);
 
   const fieldErrors = {
-    subject: mergeFieldError(content.subject),
-    previewText: mergeFieldError(content.previewText),
-    bodyMarkdown: mergeFieldError(content.bodyMarkdown),
+    subject: Campaigns.mergeFieldError(content.subject),
+    previewText: Campaigns.mergeFieldError(content.previewText),
+    bodyMarkdown: Campaigns.mergeFieldError(content.bodyMarkdown),
   };
   const hasFieldErrors = Object.values(fieldErrors).some(Boolean);
 
   const [saver] = React.useState(
     () =>
-      new DraftSaver(
+      new Campaigns.DraftSaver(
         content,
         (snapshot) => updateCampaignContent(campaign.id, snapshot),
         (state) => {

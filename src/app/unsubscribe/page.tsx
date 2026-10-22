@@ -2,7 +2,7 @@ import { Suspense } from 'react';
 import Link from 'next/link';
 import { MailX } from 'lucide-react';
 
-import { verifyUnsubscribeToken } from '@/lib/signing/email-tokens';
+import * as Signing from '@/lib/signing/server';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { UnsubscribeForm } from './unsubscribe-form';
 
@@ -34,7 +34,7 @@ export default function UnsubscribePage({ searchParams }: Props) {
 async function UnsubscribeContent({ searchParams }: Props) {
   const { t } = await searchParams;
   const token = typeof t === 'string' ? t : '';
-  const claims = token ? await verifyUnsubscribeToken(token) : null;
+  const claims = token ? await Signing.verifyUnsubscribeToken(token) : null;
 
   if (!claims) {
     return (

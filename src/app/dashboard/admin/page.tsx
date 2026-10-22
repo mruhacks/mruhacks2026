@@ -1,10 +1,7 @@
 import { Suspense } from 'react';
 import Link from 'next/link';
 import { getAdminCounts } from '@/lib/admin-counts';
-import { requireAuthWithPermission } from '@/lib/rbac/guards';
-import { loadUserPermissions } from '@/lib/rbac/authorization';
-import { canOpenEventDashboard, EVENT_DASHBOARD_PERMISSIONS } from '@/lib/rbac/event-access';
-import { anyPermissionMatches } from '@/lib/rbac/permissions';
+import * as Rbac from '@/lib/rbac/server';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Users, ShieldCheck, KeyRound, ArrowRight, CalendarDays, Mail } from 'lucide-react';
@@ -34,42 +31,42 @@ const STAT_TILES = [
     countKey: 'events',
     icon: CalendarDays,
     href: '/dashboard/admin/events',
-    visible: canOpenEventDashboard,
+    visible: Rbac.canOpenEventDashboard,
   },
   {
     label: 'Campaigns',
     countKey: 'campaigns',
     icon: Mail,
     href: '/dashboard/admin/campaigns',
-    visible: (p: Set<string>) => anyPermissionMatches(p, 'campaign:read:all'),
+    visible: (p: Set<string>) => Rbac.anyPermissionMatches(p, 'campaign:read:all'),
   },
   {
     label: 'Users',
     countKey: 'users',
     icon: Users,
     href: '/dashboard/admin/users',
-    visible: (p: Set<string>) => anyPermissionMatches(p, 'user:read:all'),
+    visible: (p: Set<string>) => Rbac.anyPermissionMatches(p, 'user:read:all'),
   },
   {
     label: 'Roles',
     countKey: 'roles',
     icon: ShieldCheck,
     href: '/dashboard/admin/roles',
-    visible: (p: Set<string>) => anyPermissionMatches(p, 'role:read:all'),
+    visible: (p: Set<string>) => Rbac.anyPermissionMatches(p, 'role:read:all'),
   },
   {
     label: 'Permissions',
     countKey: 'permissions',
     icon: KeyRound,
     href: '/dashboard/admin/permissions',
-    visible: (p: Set<string>) => anyPermissionMatches(p, 'permission:read:all'),
+    visible: (p: Set<string>) => Rbac.anyPermissionMatches(p, 'permission:read:all'),
   },
   {
     label: 'Role assignments',
     countKey: 'assignments',
     icon: Users,
     href: '/dashboard/admin/users',
-    visible: (p: Set<string>) => anyPermissionMatches(p, 'user:read:all'),
+    visible: (p: Set<string>) => Rbac.anyPermissionMatches(p, 'user:read:all'),
   },
 ] as const;
 
@@ -77,37 +74,37 @@ const JUMP_LINKS = [
   {
     label: 'Manage events',
     href: '/dashboard/admin/events',
-    visible: canOpenEventDashboard,
+    visible: Rbac.canOpenEventDashboard,
   },
   {
     label: 'Email campaigns',
     href: '/dashboard/admin/campaigns',
-    visible: (p: Set<string>) => anyPermissionMatches(p, 'campaign:read:all'),
+    visible: (p: Set<string>) => Rbac.anyPermissionMatches(p, 'campaign:read:all'),
   },
   {
     label: 'Manage users',
     href: '/dashboard/admin/users',
-    visible: (p: Set<string>) => anyPermissionMatches(p, 'user:read:all'),
+    visible: (p: Set<string>) => Rbac.anyPermissionMatches(p, 'user:read:all'),
   },
   {
     label: 'Manage roles',
     href: '/dashboard/admin/roles',
-    visible: (p: Set<string>) => anyPermissionMatches(p, 'role:read:all'),
+    visible: (p: Set<string>) => Rbac.anyPermissionMatches(p, 'role:read:all'),
   },
   {
     label: 'Manage permissions',
     href: '/dashboard/admin/permissions',
-    visible: (p: Set<string>) => anyPermissionMatches(p, 'permission:read:all'),
+    visible: (p: Set<string>) => Rbac.anyPermissionMatches(p, 'permission:read:all'),
   },
   {
     label: 'Lobby displays',
     href: '/dashboard/admin/displays',
-    visible: (p: Set<string>) => anyPermissionMatches(p, 'display:manage:all'),
+    visible: (p: Set<string>) => Rbac.anyPermissionMatches(p, 'display:manage:all'),
   },
   {
     label: 'Audit log',
     href: '/dashboard/admin/audit-log',
-    visible: (p: Set<string>) => anyPermissionMatches(p, 'audit:read:all'),
+    visible: (p: Set<string>) => Rbac.anyPermissionMatches(p, 'audit:read:all'),
   },
 ] as const;
 
@@ -116,8 +113,8 @@ const JUMP_LINKS = [
 async function OverviewStats() {
   // Exactly the permissions behind the tiles below, so nobody who passes
   // this check ends up looking at an empty page.
-  const caller = await requireAuthWithPermission([
-    ...EVENT_DASHBOARD_PERMISSIONS,
+  const caller = await Rbac.requireAuthWithPermission([
+    ...Rbac.EVENT_DASHBOARD_PERMISSIONS,
     'campaign:read:all',
     'user:read:all',
     'role:read:all',
@@ -125,7 +122,7 @@ async function OverviewStats() {
     'display:manage:all',
     'audit:read:all',
   ]);
-  const permissions = await loadUserPermissions(caller.id);
+  const permissions = await Rbac.loadUserPermissions(caller.id);
 
   const counts = await getAdminCounts();
   const stats = STAT_TILES.filter((tile) => tile.visible(permissions));

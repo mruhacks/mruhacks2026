@@ -3,7 +3,7 @@
 import { useTransition } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { leaveTeam } from '@/app/dashboard/events/team-actions';
+import { leaveTeam } from '../team-actions';
 
 type Props = { eventId: string };
 

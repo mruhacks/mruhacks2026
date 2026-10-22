@@ -9,26 +9,7 @@ import { afterAll, beforeEach, describe, expect, test, vi } from 'vitest';
 import { and, eq, inArray, or } from 'drizzle-orm';
 
 import { db } from '@/utils/db';
-import {
-  auditLog,
-  eventJudges,
-  eventParticipants,
-  events,
-  invite,
-  magicLinkCooldown,
-  session,
-  judgeState,
-  judgingCriteria,
-  judgingVotes,
-  permission,
-  submissionScores,
-  submissions,
-  teamMembers,
-  teams,
-  user,
-  userPermission,
-  verification,
-} from '@/db/schema';
+import * as schema from '@/db/schema';
 
 vi.mock('@/utils/auth', () => ({ getUser: vi.fn() }));
 vi.mock('next/cache', () => ({
@@ -64,10 +45,9 @@ import {
 import { beginJudging, skipJudgeProject, submitJudgeVote } from '@/app/dashboard/events/judge-actions';
 import { registerForEvent } from '@/app/register/actions';
 import { prepareUserDeletion } from '@/lib/account-deletion';
-import { statusIdOf } from '@/lib/participation/server';
-import { getJudgeView, type JudgeView } from '@/lib/judging/judge-session';
-import { assignTableSlot, getTableLabels, linkJudgeRosterRows } from '@/lib/judging/server';
-import { unwrap } from './unwrap';
+import * as Participation from '@/lib/participation/server';
+import * as Judging from '@/lib/judging/server';
+import { unwrap } from '@/tests/unwrap';
 
 type TestUser = {
   id: string;
@@ -92,18 +72,18 @@ let counter = 0;
 async function makeUser(label: string): Promise<TestUser> {
   counter += 1;
   const [u] = await db
-    .insert(user)
+    .insert(schema.user)
     .values({
       name: `Judging ${label}`,
       email: `judging-test-${label.toLowerCase()}-${counter}-${Date.now()}@example.com`,
       emailVerified: true,
     })
     .returning({
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      image: user.image,
-      emailVerified: user.emailVerified,
+      id: schema.user.id,
+      email: schema.user.email,
+      name: schema.user.name,
+      image: schema.user.image,
+      emailVerified: schema.user.emailVerified,
     });
   created.users.push(u.id);
   return u;
@@ -111,17 +91,20 @@ async function makeUser(label: string): Promise<TestUser> {
 
 async function grant(userId: string, slugs: string[]) {
   for (const slug of slugs) {
-    await db.insert(permission).values({ slug, description: 'test permission' }).onConflictDoNothing();
-    const [p] = await db.select({ id: permission.id }).from(permission).where(eq(permission.slug, slug));
-    await db.insert(userPermission).values({ userId, permissionId: p!.id }).onConflictDoNothing();
+    await db.insert(schema.permission).values({ slug, description: 'test permission' }).onConflictDoNothing();
+    const [p] = await db
+      .select({ id: schema.permission.id })
+      .from(schema.permission)
+      .where(eq(schema.permission.slug, slug));
+    await db.insert(schema.userPermission).values({ userId, permissionId: p!.id }).onConflictDoNothing();
   }
 }
 
 /** An event in progress: judging open, submissions still open. */
-async function makeEvent(overrides: Partial<typeof events.$inferInsert> = {}): Promise<string> {
+async function makeEvent(overrides: Partial<typeof schema.events.$inferInsert> = {}): Promise<string> {
   const now = Date.now();
   const [e] = await db
-    .insert(events)
+    .insert(schema.events)
     .values({
       name: 'Judging Test Event',
       hasApplication: true,
@@ -131,7 +114,7 @@ async function makeEvent(overrides: Partial<typeof events.$inferInsert> = {}): P
       endsAt: new Date(now + 2 * HOUR),
       ...overrides,
     })
-    .returning({ id: events.id });
+    .returning({ id: schema.events.id });
   created.events.push(e.id);
   return e.id;
 }
@@ -145,11 +128,11 @@ async function makeProjects(eventId: string, n: number, { published = true } = {
   const base = Date.now() - 10 * HOUR;
   for (let i = 0; i < n; i++) {
     const [team] = await db
-      .insert(teams)
+      .insert(schema.teams)
       .values({ eventId, code: `J${String(counter++).padStart(7, '0')}` })
-      .returning({ id: teams.id });
+      .returning({ id: schema.teams.id });
     const [s] = await db
-      .insert(submissions)
+      .insert(schema.submissions)
       .values({
         eventId,
         teamId: team.id,
@@ -158,8 +141,8 @@ async function makeProjects(eventId: string, n: number, { published = true } = {
         publishedAt: published ? new Date() : null,
         createdAt: new Date(base + (ids.length + 1) * 1000),
       })
-      .returning({ id: submissions.id });
-    if (published) await assignTableSlot(db, eventId, s.id);
+      .returning({ id: schema.submissions.id });
+    if (published) await Judging.assignTableSlot(db, eventId, s.id);
     ids.push(s.id);
   }
   return ids;
@@ -168,9 +151,9 @@ async function makeProjects(eventId: string, n: number, { published = true } = {
 async function loadEventCriteria(eventId: string) {
   return db
     .select()
-    .from(judgingCriteria)
-    .where(eq(judgingCriteria.eventId, eventId))
-    .orderBy(judgingCriteria.position);
+    .from(schema.judgingCriteria)
+    .where(eq(schema.judgingCriteria.eventId, eventId))
+    .orderBy(schema.judgingCriteria.position);
 }
 
 /** Equally weighted criteria, saved the way the criteria table saves them. */
@@ -190,7 +173,7 @@ async function addCriteria(eventId: string, names: string[]) {
 
 /** The criteria table's rows for what's stored, with some fields changed. */
 function asRows(
-  criteria: (typeof judgingCriteria.$inferSelect)[],
+  criteria: (typeof schema.judgingCriteria.$inferSelect)[],
   patch: Record<string, Partial<{ name: string; weight: number }>> = {},
 ) {
   return criteria.map(({ id, name, description, weight }) => ({
@@ -204,19 +187,22 @@ function asRows(
 
 async function rosterJudge(eventId: string, judge: TestUser, { link = true } = {}): Promise<string> {
   const [row] = await db
-    .insert(eventJudges)
+    .insert(schema.eventJudges)
     .values({
       eventId,
       email: judge.email.toLowerCase(),
       userId: link ? judge.id : null,
     })
-    .returning({ id: eventJudges.id });
+    .returning({ id: schema.eventJudges.id });
   return row.id;
 }
 
-function expectKind<K extends JudgeView['kind']>(view: JudgeView, kind: K): Extract<JudgeView, { kind: K }> {
+function expectKind<K extends Judging.JudgeView['kind']>(
+  view: Judging.JudgeView,
+  kind: K,
+): Extract<Judging.JudgeView, { kind: K }> {
   expect(view.kind).toBe(kind);
-  return view as Extract<JudgeView, { kind: K }>;
+  return view as Extract<Judging.JudgeView, { kind: K }>;
 }
 
 /** The judge actions take what their forms post. */
@@ -237,22 +223,26 @@ function voteForm(previousId: string, currentId: string, winners: Record<string,
 /** Each action refreshes the judge page; these return what it then shows. */
 async function begin(eventId: string, currentId: string) {
   unwrap(await beginJudging(eventId, formData({ currentId })));
-  return getJudgeView(eventId);
+  return Judging.getJudgeView(eventId);
 }
 
 async function skip(eventId: string, currentId: string, reason: 'not_here' | 'conflict') {
   unwrap(await skipJudgeProject(eventId, formData({ currentId, reason })));
-  return getJudgeView(eventId);
+  return Judging.getJudgeView(eventId);
 }
 
-async function voteAll(eventId: string, view: Extract<JudgeView, { kind: 'compare' }>, side: 'previous' | 'current') {
+async function voteAll(
+  eventId: string,
+  view: Extract<Judging.JudgeView, { kind: 'compare' }>,
+  side: 'previous' | 'current',
+) {
   unwrap(
     await submitJudgeVote(
       eventId,
       voteForm(view.previous.id, view.current.id, Object.fromEntries(view.criteria.map((c) => [c.id, side]))),
     ),
   );
-  return getJudgeView(eventId);
+  return Judging.getJudgeView(eventId);
 }
 
 let organizer: TestUser;
@@ -295,10 +285,10 @@ const settle = () => new Promise((resolve) => setTimeout(resolve, 150));
 
 afterAll(async () => {
   if (created.events.length > 0) {
-    await db.delete(events).where(inArray(events.id, created.events));
+    await db.delete(schema.events).where(inArray(schema.events.id, created.events));
   }
   if (created.users.length > 0) {
-    await db.delete(user).where(inArray(user.id, created.users));
+    await db.delete(schema.user).where(inArray(schema.user.id, created.users));
   }
 });
 
@@ -368,7 +358,7 @@ describe('criteria', () => {
   test('older weights that don’t add up to 1 are shown as shares of their total', async () => {
     const eventId = await makeEvent();
     loginAs(organizer);
-    await db.insert(judgingCriteria).values([
+    await db.insert(schema.judgingCriteria).values([
       { eventId, name: 'Design', position: 0, weight: 1 },
       { eventId, name: 'Tech', position: 1, weight: 3 },
     ]);
@@ -431,7 +421,7 @@ describe('criteria', () => {
     await rosterJudge(eventId, judge);
 
     loginAs(judge);
-    const first = expectKind(await getJudgeView(eventId), 'begin');
+    const first = expectKind(await Judging.getJudgeView(eventId), 'begin');
     const compare = expectKind(await begin(eventId, first.current.id), 'compare');
     await voteAll(eventId, compare, 'current');
 
@@ -479,13 +469,13 @@ describe('criteria vs. votes', () => {
     const judge = await makeUser('RaceJudge');
     const judgeId = await rosterJudge(eventId, judge);
     loginAs(judge);
-    const first = expectKind(await getJudgeView(eventId), 'begin');
+    const first = expectKind(await Judging.getJudgeView(eventId), 'begin');
     const compare = expectKind(await begin(eventId, first.current.id), 'compare');
     return { eventId, criteria, judge, judgeId, compare };
   }
 
   async function votesBy(judgeId: string) {
-    return db.select().from(judgingVotes).where(eq(judgingVotes.judgeId, judgeId));
+    return db.select().from(schema.judgingVotes).where(eq(schema.judgingVotes.judgeId, judgeId));
   }
 
   /** Holds the event row in `mode` until `release()`; runs `during` first. */
@@ -499,7 +489,7 @@ describe('criteria vs. votes', () => {
     let held!: () => void;
     const acquired = new Promise<void>((resolve) => (held = resolve));
     const done = db.transaction(async (tx) => {
-      await tx.select({ id: events.id }).from(events).where(eq(events.id, eventId)).for(mode);
+      await tx.select({ id: schema.events.id }).from(schema.events).where(eq(schema.events.id, eventId)).for(mode);
       held();
       await released;
       await during(tx);
@@ -510,7 +500,7 @@ describe('criteria vs. votes', () => {
   test('a vote waits for a criteria save, then asks for the criterion it added', async () => {
     const { eventId, judgeId, compare } = await readyToVote(['Design']);
     const save = holdEventLock(eventId, 'update', async (tx) => {
-      await tx.insert(judgingCriteria).values({ eventId, name: 'Late', position: 1, weight: 0 });
+      await tx.insert(schema.judgingCriteria).values({ eventId, name: 'Late', position: 1, weight: 0 });
     });
     await save.acquired;
 
@@ -538,7 +528,7 @@ describe('criteria vs. votes', () => {
     // Stands in for a vote transaction: the shared lock, then a vote on
     // Tech, committed only after the save has started waiting.
     const vote = holdEventLock(eventId, 'key share', async (tx) => {
-      await tx.insert(judgingVotes).values({
+      await tx.insert(schema.judgingVotes).values({
         judgeId,
         criterionId: criteria[1].id,
         winnerSubmissionId: compare.current.id,
@@ -593,11 +583,18 @@ function freshEmail(label: string): string {
 }
 
 async function rosterRows(eventId: string) {
-  return db.select().from(eventJudges).where(eq(eventJudges.eventId, eventId)).orderBy(eventJudges.createdAt);
+  return db
+    .select()
+    .from(schema.eventJudges)
+    .where(eq(schema.eventJudges.eventId, eventId))
+    .orderBy(schema.eventJudges.createdAt);
 }
 
 async function auditActions(targetId: string): Promise<string[]> {
-  const rows = await db.select({ action: auditLog.action }).from(auditLog).where(eq(auditLog.targetId, targetId));
+  const rows = await db
+    .select({ action: schema.auditLog.action })
+    .from(schema.auditLog)
+    .where(eq(schema.auditLog.targetId, targetId));
   return rows.map((row) => row.action);
 }
 
@@ -726,9 +723,9 @@ describe('roster', () => {
 
     // Once the cooldown lapses the resend goes out, and is audited.
     await db
-      .update(magicLinkCooldown)
+      .update(schema.magicLinkCooldown)
       .set({ lastSentAt: new Date(Date.now() - 2 * 60 * 1000) })
-      .where(eq(magicLinkCooldown.email, email));
+      .where(eq(schema.magicLinkCooldown.email, email));
     unwrap(await resendJudgeInvite(eventId, row.id));
     expect(sendJudgeInvite).toHaveBeenCalledTimes(2);
     expect(await auditActions(row.id)).toEqual(
@@ -739,7 +736,7 @@ describe('roster', () => {
     // bulk send and stays outstanding.
     const other = freshEmail('signing-in');
     unwrap(await addEventJudge(eventId, other, { sendInvite: false }));
-    await db.insert(magicLinkCooldown).values({ email: other });
+    await db.insert(schema.magicLinkCooldown).values({ email: other });
     expect(unwrap(await sendOutstandingJudgeInvites(eventId))).toEqual({
       sent: 0,
       failed: 0,
@@ -787,10 +784,10 @@ describe('roster', () => {
 
     const teamed = await makeUser('Teamed');
     const [team] = await db
-      .insert(teams)
+      .insert(schema.teams)
       .values({ eventId, code: `T${String(counter++).padStart(7, '0')}` })
-      .returning({ id: teams.id });
-    await db.insert(teamMembers).values({ teamId: team.id, userId: teamed.id, eventId });
+      .returning({ id: schema.teams.id });
+    await db.insert(schema.teamMembers).values({ teamId: team.id, userId: teamed.id, eventId });
 
     loginAs(organizer);
     for (const person of [registered, teamed]) {
@@ -804,9 +801,9 @@ describe('roster', () => {
 
     // Someone turned away is free to judge.
     await db
-      .update(eventParticipants)
-      .set({ statusId: statusIdOf('declined') })
-      .where(and(eq(eventParticipants.eventId, eventId), eq(eventParticipants.userId, registered.id)));
+      .update(schema.eventParticipants)
+      .set({ statusId: Participation.statusIdOf('declined') })
+      .where(and(eq(schema.eventParticipants.eventId, eventId), eq(schema.eventParticipants.userId, registered.id)));
     unwrap(await addEventJudge(eventId, registered.email));
   });
 
@@ -819,7 +816,7 @@ describe('roster', () => {
     const old = new Date(Date.now() - HOUR);
     // Signed in long before being added, and an admin impersonating them
     // since: neither counts.
-    await db.insert(session).values([
+    await db.insert(schema.session).values([
       {
         userId: judge.id,
         token: `old-${judge.id}`,
@@ -852,7 +849,7 @@ describe('roster', () => {
       startedJudging: false,
     });
 
-    await db.insert(session).values({
+    await db.insert(schema.session).values({
       userId: judge.id,
       token: `new-${judge.id}`,
       expiresAt: new Date(Date.now() + HOUR),
@@ -863,7 +860,7 @@ describe('roster', () => {
     });
 
     loginAs(judge);
-    expectKind(await getJudgeView(eventId), 'begin');
+    expectKind(await Judging.getJudgeView(eventId), 'begin');
     loginAs(organizer);
     expect(await status()).toMatchObject({ startedJudging: true });
   });
@@ -872,8 +869,8 @@ describe('roster', () => {
     const eventId = await makeEvent();
     const later = await makeUser('Later');
     await rosterJudge(eventId, later, { link: false });
-    await linkJudgeRosterRows(later.id);
-    const [row] = await db.select().from(eventJudges).where(eq(eventJudges.eventId, eventId));
+    await Judging.linkJudgeRosterRows(later.id);
+    const [row] = await db.select().from(schema.eventJudges).where(eq(schema.eventJudges.eventId, eventId));
     expect(row.userId).toBe(later.id);
   });
 
@@ -888,7 +885,7 @@ describe('roster', () => {
     const idleId = await rosterJudge(eventId, idle);
 
     loginAs(voter);
-    const first = expectKind(await getJudgeView(eventId), 'begin');
+    const first = expectKind(await Judging.getJudgeView(eventId), 'begin');
     await voteAll(eventId, expectKind(await begin(eventId, first.current.id), 'compare'), 'previous');
 
     loginAs(organizer);
@@ -946,8 +943,8 @@ describe('sign-in QR codes', () => {
 
     const audits = await db
       .select()
-      .from(auditLog)
-      .where(and(eq(auditLog.action, 'judging.judge.signin_qr_created'), eq(auditLog.targetId, judgeId)));
+      .from(schema.auditLog)
+      .where(and(eq(schema.auditLog.action, 'judging.judge.signin_qr_created'), eq(schema.auditLog.targetId, judgeId)));
     expect(audits).toHaveLength(1);
     expect(audits[0]).toMatchObject({
       actorId: admin.id,
@@ -977,8 +974,10 @@ describe('sign-in QR codes', () => {
     expect(
       await db
         .select()
-        .from(auditLog)
-        .where(and(eq(auditLog.action, 'judging.judge.signin_qr_created'), eq(auditLog.targetId, judgeId))),
+        .from(schema.auditLog)
+        .where(
+          and(eq(schema.auditLog.action, 'judging.judge.signin_qr_created'), eq(schema.auditLog.targetId, judgeId)),
+        ),
     ).toHaveLength(0);
   });
 
@@ -1010,8 +1009,10 @@ describe('sign-in QR codes', () => {
     expect(
       await db
         .select()
-        .from(auditLog)
-        .where(and(eq(auditLog.action, 'judging.judge.signin_qr_created'), eq(auditLog.targetId, judgeId))),
+        .from(schema.auditLog)
+        .where(
+          and(eq(schema.auditLog.action, 'judging.judge.signin_qr_created'), eq(schema.auditLog.targetId, judgeId)),
+        ),
     ).toHaveLength(0);
   });
 });
@@ -1030,9 +1031,14 @@ describe('signing up', () => {
       success: false,
       error: 'You’re judging this event, so you can’t also sign up for it.',
     });
-    await db.update(eventJudges).set({ userId: judge.id, disabledAt: new Date() }).where(eq(eventJudges.id, judgeId));
+    await db
+      .update(schema.eventJudges)
+      .set({ userId: judge.id, disabledAt: new Date() })
+      .where(eq(schema.eventJudges.id, judgeId));
     expect((await registerForEvent(eventId)).success).toBe(false);
-    expect(await db.select().from(eventParticipants).where(eq(eventParticipants.eventId, eventId))).toHaveLength(0);
+    expect(
+      await db.select().from(schema.eventParticipants).where(eq(schema.eventParticipants.eventId, eventId)),
+    ).toHaveLength(0);
 
     // Other events are unaffected.
     unwrap(await registerForEvent(other));
@@ -1046,7 +1052,7 @@ describe('judge flow', () => {
     await addCriteria(eventId, ['Design']);
     const stranger = await makeUser('Stranger');
     loginAs(stranger);
-    expect((await getJudgeView(eventId)).kind).toBe('not_judge');
+    expect((await Judging.getJudgeView(eventId)).kind).toBe('not_judge');
   });
 
   test('an unlinked roster row matches the signed-in email', async () => {
@@ -1057,7 +1063,7 @@ describe('judge flow', () => {
     const judge = await makeUser('Unlinked');
     await rosterJudge(eventId, judge, { link: false });
     loginAs(judge);
-    expect((await getJudgeView(eventId)).kind).toBe('begin');
+    expect((await Judging.getJudgeView(eventId)).kind).toBe('begin');
   });
 
   test('judging is only open between the event start and end', async () => {
@@ -1076,8 +1082,8 @@ describe('judge flow', () => {
     await rosterJudge(future, judge);
     await rosterJudge(past, judge);
     loginAs(judge);
-    expect((await getJudgeView(future)).kind).toBe('not_open');
-    expect((await getJudgeView(past)).kind).toBe('closed');
+    expect((await Judging.getJudgeView(future)).kind).toBe('not_open');
+    expect((await Judging.getJudgeView(past)).kind).toBe('closed');
   });
 
   test('no dispatch until the event has a criterion', async () => {
@@ -1086,7 +1092,7 @@ describe('judge flow', () => {
     const judge = await makeUser('NoCriteria');
     await rosterJudge(eventId, judge);
     loginAs(judge);
-    expect((await getJudgeView(eventId)).kind).toBe('no_criteria');
+    expect((await Judging.getJudgeView(eventId)).kind).toBe('no_criteria');
   });
 
   test('begin, then compare on every criterion, updating votes and scores', async () => {
@@ -1098,11 +1104,11 @@ describe('judge flow', () => {
     const judgeId = await rosterJudge(eventId, judge);
 
     loginAs(judge);
-    const first = expectKind(await getJudgeView(eventId), 'begin');
+    const first = expectKind(await Judging.getJudgeView(eventId), 'begin');
     expect(projects).toContain(first.current.id);
     expect(first.current.tableLabel).toBe(String(projects.indexOf(first.current.id) + 1));
     // Reloading keeps the same assignment.
-    expect(expectKind(await getJudgeView(eventId), 'begin').current.id).toBe(first.current.id);
+    expect(expectKind(await Judging.getJudgeView(eventId), 'begin').current.id).toBe(first.current.id);
 
     const compare = expectKind(await begin(eventId, first.current.id), 'compare');
     expect(compare.previous.id).toBe(first.current.id);
@@ -1120,13 +1126,13 @@ describe('judge flow', () => {
     expect(partial.success).toBe(false);
 
     const next = await voteAll(eventId, compare, 'current');
-    const votes = await db.select().from(judgingVotes).where(eq(judgingVotes.judgeId, judgeId));
+    const votes = await db.select().from(schema.judgingVotes).where(eq(schema.judgingVotes.judgeId, judgeId));
     expect(votes).toHaveLength(2);
     expect(votes.every((v) => v.winnerSubmissionId === compare.current.id)).toBe(true);
     const scores = await db
       .select()
-      .from(submissionScores)
-      .where(eq(submissionScores.submissionId, compare.current.id));
+      .from(schema.submissionScores)
+      .where(eq(schema.submissionScores.submissionId, compare.current.id));
     expect(scores).toHaveLength(2);
     expect(scores.every((s) => s.mu > 0)).toBe(true);
 
@@ -1149,10 +1155,10 @@ describe('judge flow', () => {
     const judgeId = await rosterJudge(eventId, judge);
 
     loginAs(judge);
-    const first = expectKind(await getJudgeView(eventId), 'begin');
+    const first = expectKind(await Judging.getJudgeView(eventId), 'begin');
     const compare = expectKind(await begin(eventId, first.current.id), 'compare');
     await Promise.all([voteAll(eventId, compare, 'current'), voteAll(eventId, compare, 'current')]);
-    const votes = await db.select().from(judgingVotes).where(eq(judgingVotes.judgeId, judgeId));
+    const votes = await db.select().from(schema.judgingVotes).where(eq(schema.judgingVotes.judgeId, judgeId));
     expect(votes).toHaveLength(1);
   });
 
@@ -1165,18 +1171,18 @@ describe('judge flow', () => {
     const judgeId = await rosterJudge(eventId, judge);
 
     loginAs(judge);
-    expectKind(await getJudgeView(eventId), 'begin');
+    expectKind(await Judging.getJudgeView(eventId), 'begin');
     const afterNotHere = await skip(eventId, only, 'not_here');
     expect(afterNotHere.kind).toBe('waiting');
 
     // Ten minutes on, the team may be back.
     await db.execute(`UPDATE judge_skips SET created_at = now() - interval '11 minutes' WHERE judge_id = '${judgeId}'`);
-    expect(expectKind(await getJudgeView(eventId), 'begin').current.id).toBe(only);
+    expect(expectKind(await Judging.getJudgeView(eventId), 'begin').current.id).toBe(only);
 
     const afterConflict = await skip(eventId, only, 'conflict');
     expect(afterConflict.kind).toBe('waiting');
     await db.execute(`UPDATE judge_skips SET created_at = now() - interval '1 day' WHERE judge_id = '${judgeId}'`);
-    expect((await getJudgeView(eventId)).kind).toBe('waiting');
+    expect((await Judging.getJudgeView(eventId)).kind).toBe('waiting');
   });
 
   test('“not here” is timed on the app’s clock, like the busy window', async () => {
@@ -1188,16 +1194,16 @@ describe('judge flow', () => {
     await rosterJudge(eventId, judge);
 
     loginAs(judge);
-    expectKind(await getJudgeView(eventId), 'begin');
+    expectKind(await Judging.getJudgeView(eventId), 'begin');
     // The app server's clock runs five minutes ahead of the database's.
     vi.useFakeTimers({ toFake: ['Date'] });
     try {
       vi.setSystemTime(Date.now() + 5 * MINUTE);
       expect((await skip(eventId, only, 'not_here')).kind).toBe('waiting');
       vi.setSystemTime(Date.now() + 6 * MINUTE);
-      expect((await getJudgeView(eventId)).kind).toBe('waiting');
+      expect((await Judging.getJudgeView(eventId)).kind).toBe('waiting');
       vi.setSystemTime(Date.now() + 5 * MINUTE);
-      expect(expectKind(await getJudgeView(eventId), 'begin').current.id).toBe(only);
+      expect(expectKind(await Judging.getJudgeView(eventId), 'begin').current.id).toBe(only);
     } finally {
       vi.useRealTimers();
     }
@@ -1212,7 +1218,7 @@ describe('judge flow', () => {
     await rosterJudge(eventId, judge);
 
     loginAs(judge);
-    const first = expectKind(await getJudgeView(eventId), 'begin');
+    const first = expectKind(await Judging.getJudgeView(eventId), 'begin');
     const compare = expectKind(await begin(eventId, first.current.id), 'compare');
     // Both leave the pool while the judge is at the second: the vote is
     // dropped, and with nothing left to compare against they begin afresh.
@@ -1243,11 +1249,11 @@ describe('judge flow', () => {
     const judgeId = await rosterJudge(eventId, judge);
 
     loginAs(judge);
-    const first = expectKind(await getJudgeView(eventId), 'begin');
+    const first = expectKind(await Judging.getJudgeView(eventId), 'begin');
     const compare = expectKind(await begin(eventId, first.current.id), 'compare');
     // The organizer's Disable, committed only once the vote is under way.
     const disabling = holdTransaction(async (tx) => {
-      await tx.update(eventJudges).set({ disabledAt: new Date() }).where(eq(eventJudges.id, judgeId));
+      await tx.update(schema.eventJudges).set({ disabledAt: new Date() }).where(eq(schema.eventJudges.id, judgeId));
     });
     await disabling.acquired;
     const vote = submitJudgeVote(
@@ -1261,8 +1267,8 @@ describe('judge flow', () => {
     await disabling.done;
 
     expect((await vote).success).toBe(true);
-    expect(await db.select().from(judgingVotes).where(eq(judgingVotes.judgeId, judgeId))).toEqual([]);
-    expect((await getJudgeView(eventId)).kind).toBe('disabled');
+    expect(await db.select().from(schema.judgingVotes).where(eq(schema.judgingVotes.judgeId, judgeId))).toEqual([]);
+    expect((await Judging.getJudgeView(eventId)).kind).toBe('disabled');
   });
 
   test('a judge removed while their request is in flight is told so, without an error', async () => {
@@ -1274,10 +1280,10 @@ describe('judge flow', () => {
     const judgeId = await rosterJudge(eventId, judge);
 
     loginAs(judge);
-    const first = expectKind(await getJudgeView(eventId), 'begin');
+    const first = expectKind(await Judging.getJudgeView(eventId), 'begin');
     // The organizer's Remove, committed only once Begin is under way.
     const removing = holdTransaction(async (tx) => {
-      await tx.delete(eventJudges).where(eq(eventJudges.id, judgeId));
+      await tx.delete(schema.eventJudges).where(eq(schema.eventJudges.id, judgeId));
     });
     await removing.acquired;
     const begun = beginJudging(eventId, formData({ currentId: first.current.id }));
@@ -1286,7 +1292,7 @@ describe('judge flow', () => {
     await removing.done;
 
     expect((await begun).success).toBe(true);
-    expect((await getJudgeView(eventId)).kind).toBe('not_judge');
+    expect((await Judging.getJudgeView(eventId)).kind).toBe('not_judge');
   });
 
   test('a project another judge was just sent to is not sent to a second', async () => {
@@ -1300,9 +1306,9 @@ describe('judge flow', () => {
     await rosterJudge(eventId, b);
 
     loginAs(a);
-    const viewA = expectKind(await getJudgeView(eventId), 'begin');
+    const viewA = expectKind(await Judging.getJudgeView(eventId), 'begin');
     loginAs(b);
-    const viewB = expectKind(await getJudgeView(eventId), 'begin');
+    const viewB = expectKind(await Judging.getJudgeView(eventId), 'begin');
     expect(viewB.current.id).not.toBe(viewA.current.id);
   });
 
@@ -1317,7 +1323,7 @@ describe('judge flow', () => {
     const judge = await makeUser('Pool');
     await rosterJudge(eventId, judge);
     loginAs(judge);
-    const first = expectKind(await getJudgeView(eventId), 'begin');
+    const first = expectKind(await Judging.getJudgeView(eventId), 'begin');
     expect(first.current.id).toBe(kept);
     expect((await begin(eventId, kept)).kind).toBe('waiting');
   });
@@ -1331,13 +1337,13 @@ describe('judge flow', () => {
     const judgeId = await rosterJudge(eventId, judge);
 
     loginAs(judge);
-    const first = expectKind(await getJudgeView(eventId), 'begin');
+    const first = expectKind(await Judging.getJudgeView(eventId), 'begin');
     const compare = expectKind(await begin(eventId, first.current.id), 'compare');
     loginAs(organizer);
     unwrap(await setSubmissionDeactivated(eventId, compare.current.id, true));
     loginAs(judge);
     await voteAll(eventId, compare, 'current');
-    expect(await db.select().from(judgingVotes).where(eq(judgingVotes.judgeId, judgeId))).toHaveLength(0);
+    expect(await db.select().from(schema.judgingVotes).where(eq(schema.judgingVotes.judgeId, judgeId))).toHaveLength(0);
   });
 
   test('a disabled judge is not dispatched', async () => {
@@ -1349,7 +1355,7 @@ describe('judge flow', () => {
     const judgeId = await rosterJudge(eventId, judge);
     unwrap(await setEventJudgeDisabled(eventId, judgeId, true));
     loginAs(judge);
-    expect((await getJudgeView(eventId)).kind).toBe('disabled');
+    expect((await Judging.getJudgeView(eventId)).kind).toBe('disabled');
   });
 
   test('a judge who ended up on a team is never sent to its project', async () => {
@@ -1361,13 +1367,13 @@ describe('judge flow', () => {
     // Unlinked: matched to the team member by email, as before sign-in.
     await rosterJudge(eventId, judge, { link: false });
     const [ownSubmission] = await db
-      .select({ teamId: submissions.teamId })
-      .from(submissions)
-      .where(eq(submissions.id, own));
-    await db.insert(teamMembers).values({ teamId: ownSubmission.teamId, userId: judge.id, eventId });
+      .select({ teamId: schema.submissions.teamId })
+      .from(schema.submissions)
+      .where(eq(schema.submissions.id, own));
+    await db.insert(schema.teamMembers).values({ teamId: ownSubmission.teamId, userId: judge.id, eventId });
 
     loginAs(judge);
-    const first = expectKind(await getJudgeView(eventId), 'begin');
+    const first = expectKind(await Judging.getJudgeView(eventId), 'begin');
     expect(first.current.id).toBe(other);
     // Nothing else to compare it with.
     expect((await begin(eventId, other)).kind).toBe('waiting');
@@ -1385,7 +1391,7 @@ describe('results and awards', () => {
 
     // Project 1 beats everything on both criteria.
     loginAs(judge);
-    let view = await getJudgeView(eventId);
+    let view = await Judging.getJudgeView(eventId);
     view = await begin(eventId, expectKind(view, 'begin').current.id);
     while (view.kind === 'compare') {
       const best = projects[0];
@@ -1460,7 +1466,7 @@ describe('results and awards', () => {
 
   test('criterion weights are reported as shares, even if stored at 1 each', async () => {
     const eventId = await makeEvent();
-    await db.insert(judgingCriteria).values([
+    await db.insert(schema.judgingCriteria).values([
       { eventId, name: 'Old A', position: 0, weight: 1 },
       { eventId, name: 'Old B', position: 1, weight: 1 },
     ]);
@@ -1487,7 +1493,7 @@ describe('results and awards', () => {
     const firstId = await rosterJudge(eventId, first);
     const secondId = await rosterJudge(eventId, second);
     // Both judges are at B: the first came from A, the second from C.
-    await db.insert(judgeState).values([
+    await db.insert(schema.judgeState).values([
       {
         judgeId: firstId,
         previousSubmissionId: a,
@@ -1505,7 +1511,7 @@ describe('results and awards', () => {
     // The first judge's vote starts, then stalls on its own state row; the
     // second's starts later, but updates B first.
     const stall = holdTransaction(async (tx) => {
-      await tx.select().from(judgeState).where(eq(judgeState.judgeId, firstId)).for('update');
+      await tx.select().from(schema.judgeState).where(eq(schema.judgeState.judgeId, firstId)).for('update');
     });
     await stall.acquired;
     loginAs(first);
@@ -1519,8 +1525,8 @@ describe('results and awards', () => {
 
     const votes = await db
       .select()
-      .from(judgingVotes)
-      .where(inArray(judgingVotes.judgeId, [firstId, secondId]));
+      .from(schema.judgingVotes)
+      .where(inArray(schema.judgingVotes.judgeId, [firstId, secondId]));
     const slowVote = votes.find((v) => v.judgeId === firstId)!;
     const fastVote = votes.find((v) => v.judgeId === secondId)!;
     expect(slowVote.createdAt.getTime()).toBeLessThan(fastVote.createdAt.getTime());
@@ -1529,7 +1535,10 @@ describe('results and awards', () => {
     // So the replay lands exactly where the online model did.
     loginAs(organizer);
     const results = unwrap(await getJudgingResults(eventId));
-    const online = await db.select().from(submissionScores).where(eq(submissionScores.criterionId, criterion.id));
+    const online = await db
+      .select()
+      .from(schema.submissionScores)
+      .where(eq(schema.submissionScores.criterionId, criterion.id));
     for (const row of results.byCriterion[0].rows) {
       const live = online.find((s) => s.submissionId === row.id)!;
       expect([row.mu, row.sigmaSq]).toEqual([live.mu, live.sigmaSq]);
@@ -1542,9 +1551,9 @@ describe('results and awards', () => {
     // Deactivation in flight: the row is updated but not yet committed.
     const deactivating = holdTransaction(async (tx) => {
       await tx
-        .update(submissions)
+        .update(schema.submissions)
         .set({ deactivatedAt: new Date(), placement: null })
-        .where(eq(submissions.id, projects[0]));
+        .where(eq(schema.submissions.id, projects[0]));
     });
     await deactivating.acquired;
     const placing = setSubmissionPlacement(eventId, projects[0], 1);
@@ -1557,9 +1566,9 @@ describe('results and awards', () => {
       error: 'That project isn’t in the judging results.',
     });
     const [row] = await db
-      .select({ placement: submissions.placement })
-      .from(submissions)
-      .where(eq(submissions.id, projects[0]));
+      .select({ placement: schema.submissions.placement })
+      .from(schema.submissions)
+      .where(eq(schema.submissions.id, projects[0]));
     expect(row?.placement).toBeNull();
   });
 
@@ -1595,9 +1604,9 @@ describe('results and awards', () => {
     unwrap(await setSubmissionDeactivated(eventId, projects[0], true));
 
     const [row] = await db
-      .select({ placement: submissions.placement })
-      .from(submissions)
-      .where(eq(submissions.id, projects[0]));
+      .select({ placement: schema.submissions.placement })
+      .from(schema.submissions)
+      .where(eq(schema.submissions.id, projects[0]));
     expect(row?.placement).toBeNull();
     // The place it held can go to someone else straight away…
     unwrap(await setSubmissionPlacement(eventId, projects[1], 1));
@@ -1615,26 +1624,26 @@ describe('table numbers', () => {
       ...(await makeProjects(eventId, 1, { published: false })),
       ...(await makeProjects(eventId, 1)),
     ];
-    const label = async (id: string) => (await getTableLabels(eventId)).get(id)?.label;
+    const label = async (id: string) => (await Judging.getTableLabels(eventId)).get(id)?.label;
     // A draft has no table, so it leaves no gap.
     expect([await label(a), await label(draft), await label(b)]).toEqual(['1', undefined, '2']);
 
     // Deleting a project leaves the others where they are, and its table is
     // never handed out again.
-    await db.delete(submissions).where(eq(submissions.id, a));
-    await assignTableSlot(db, eventId, draft);
+    await db.delete(schema.submissions).where(eq(schema.submissions.id, a));
+    await Judging.assignTableSlot(db, eventId, draft);
     expect(await label(b)).toBe('2');
     expect(await label(draft)).toBe('3');
     // Republishing keeps the table it already has.
-    await assignTableSlot(db, eventId, draft);
+    await Judging.assignTableSlot(db, eventId, draft);
     expect(await label(draft)).toBe('3');
   });
 
   test('concurrent publishes never share a table', async () => {
     const eventId = await makeEvent();
     const drafts = await makeProjects(eventId, 6, { published: false });
-    await Promise.all(drafts.map((id) => db.transaction((tx) => assignTableSlot(tx, eventId, id))));
-    const slots = [...(await getTableLabels(eventId)).values()].map((t) => t.slot).sort((x, y) => x - y);
+    await Promise.all(drafts.map((id) => db.transaction((tx) => Judging.assignTableSlot(tx, eventId, id))));
+    const slots = [...(await Judging.getTableLabels(eventId)).values()].map((t) => t.slot).sort((x, y) => x - y);
     expect(slots).toEqual([0, 1, 2, 3, 4, 5]);
   });
 
@@ -1688,7 +1697,7 @@ describe('table numbers', () => {
     // A judge on the roster hasn't been sent anywhere yet.
     expect(unwrap(await getJudgingAdmin(eventId)).layoutLocked).toBe(false);
     loginAs(judge);
-    const first = expectKind(await getJudgeView(eventId), 'begin');
+    const first = expectKind(await Judging.getJudgeView(eventId), 'begin');
     expect(first.current.tableLabel).toMatch(/^I{1,2}-[12]$/);
 
     // Sent to a table, no vote yet: the label they were given has to hold.
@@ -1718,7 +1727,7 @@ describe('table numbers', () => {
     await rosterJudge(eventId, judge);
     loginAs(judge);
     // Opening the judging screen gives them a state row, but no table.
-    expect((await getJudgeView(eventId)).kind).toBe('waiting');
+    expect((await Judging.getJudgeView(eventId)).kind).toBe('waiting');
 
     loginAs(organizer);
     expect(unwrap(await getJudgingAdmin(eventId)).layoutLocked).toBe(false);
@@ -1741,21 +1750,21 @@ describe('table numbers', () => {
     // Stands in for a layout save: the event row FOR UPDATE and the new
     // layout, committed only once the judge's screen is waiting on it.
     const save = holdTransaction(async (tx) => {
-      await tx.select({ id: events.id }).from(events).where(eq(events.id, eventId)).for('update');
+      await tx.select({ id: schema.events.id }).from(schema.events).where(eq(schema.events.id, eventId)).for('update');
       await tx
-        .update(events)
+        .update(schema.events)
         .set({
           judgingTableRows: 2,
           judgingTableRowAlphabet: 'roman',
           judgingTableColumnAlphabet: 'arabic',
         })
-        .where(eq(events.id, eventId));
+        .where(eq(schema.events.id, eventId));
     });
     await save.acquired;
 
     loginAs(judge);
     let finished = false;
-    const view = getJudgeView(eventId).finally(() => (finished = true));
+    const view = Judging.getJudgeView(eventId).finally(() => (finished = true));
     await settle();
     expect(finished).toBe(false);
 
@@ -1777,8 +1786,12 @@ describe('table numbers', () => {
     // Stands in for a judge's first dispatch: the shared lock, then an
     // assignment, committed only after the save has started waiting.
     const dispatch = holdTransaction(async (tx) => {
-      await tx.select({ id: events.id }).from(events).where(eq(events.id, eventId)).for('key share');
-      await tx.insert(judgeState).values({
+      await tx
+        .select({ id: schema.events.id })
+        .from(schema.events)
+        .where(eq(schema.events.id, eventId))
+        .for('key share');
+      await tx.insert(schema.judgeState).values({
         judgeId,
         currentSubmissionId: project,
         assignedAt: new Date(),
@@ -1814,15 +1827,15 @@ describe('account deletion', () => {
     const judgeId = await rosterJudge(eventId, judge);
 
     loginAs(judge);
-    const first = expectKind(await getJudgeView(eventId), 'begin');
+    const first = expectKind(await Judging.getJudgeView(eventId), 'begin');
     await voteAll(eventId, expectKind(await begin(eventId, first.current.id), 'compare'), 'current');
 
     await prepareUserDeletion(judge.id);
-    await db.delete(user).where(eq(user.id, judge.id));
+    await db.delete(schema.user).where(eq(schema.user.id, judge.id));
 
-    const [row] = await db.select().from(eventJudges).where(eq(eventJudges.id, judgeId));
+    const [row] = await db.select().from(schema.eventJudges).where(eq(schema.eventJudges.id, judgeId));
     expect(row).toMatchObject({ userId: null, email: null });
-    expect(await db.select().from(judgingVotes).where(eq(judgingVotes.judgeId, judgeId))).toHaveLength(1);
+    expect(await db.select().from(schema.judgingVotes).where(eq(schema.judgingVotes.judgeId, judgeId))).toHaveLength(1);
 
     loginAs(organizer);
     const results = unwrap(await getJudgingResults(eventId));
@@ -1837,10 +1850,10 @@ describe('account deletion', () => {
     const judgeId = await rosterJudge(eventId, leaver, { link: false });
     const shouted = leaver.email.toUpperCase();
     const later = new Date(Date.now() + HOUR);
-    await db.insert(invite).values({ email: leaver.email, expiresAt: later });
-    await db.insert(magicLinkCooldown).values({ email: shouted });
+    await db.insert(schema.invite).values({ email: leaver.email, expiresAt: later });
+    await db.insert(schema.magicLinkCooldown).values({ email: shouted });
     const tokens = await db
-      .insert(verification)
+      .insert(schema.verification)
       .values([
         // Better Auth's magic-link and delete-account token shapes.
         {
@@ -1866,26 +1879,28 @@ describe('account deletion', () => {
           expiresAt: later,
         },
       ])
-      .returning({ identifier: verification.identifier });
+      .returning({ identifier: schema.verification.identifier });
 
     await prepareUserDeletion(leaver.id);
-    await db.delete(user).where(eq(user.id, leaver.id));
+    await db.delete(schema.user).where(eq(schema.user.id, leaver.id));
 
-    const [judgeRow] = await db.select().from(eventJudges).where(eq(eventJudges.id, judgeId));
+    const [judgeRow] = await db.select().from(schema.eventJudges).where(eq(schema.eventJudges.id, judgeId));
     expect(judgeRow).toMatchObject({ userId: null, email: null });
-    expect(await db.select().from(invite).where(eq(invite.email, leaver.email))).toHaveLength(0);
-    expect(await db.select().from(magicLinkCooldown).where(eq(magicLinkCooldown.email, shouted))).toHaveLength(0);
+    expect(await db.select().from(schema.invite).where(eq(schema.invite.email, leaver.email))).toHaveLength(0);
+    expect(
+      await db.select().from(schema.magicLinkCooldown).where(eq(schema.magicLinkCooldown.email, shouted)),
+    ).toHaveLength(0);
     const left = await db
-      .select({ identifier: verification.identifier })
-      .from(verification)
+      .select({ identifier: schema.verification.identifier })
+      .from(schema.verification)
       .where(
         inArray(
-          verification.identifier,
+          schema.verification.identifier,
           tokens.map((t) => t.identifier),
         ),
       );
     expect(left.map((t) => t.identifier).sort()).toEqual(['d', 'e']);
-    await db.delete(verification).where(inArray(verification.identifier, ['d', 'e']));
+    await db.delete(schema.verification).where(inArray(schema.verification.identifier, ['d', 'e']));
   });
 
   test('deleting the event removes its judging data', async () => {
@@ -1896,21 +1911,21 @@ describe('account deletion', () => {
     const judge = await makeUser('EventDelete');
     const judgeId = await rosterJudge(eventId, judge);
     loginAs(judge);
-    const first = expectKind(await getJudgeView(eventId), 'begin');
+    const first = expectKind(await Judging.getJudgeView(eventId), 'begin');
     await voteAll(eventId, expectKind(await begin(eventId, first.current.id), 'compare'), 'current');
 
-    await db.delete(events).where(eq(events.id, eventId));
+    await db.delete(schema.events).where(eq(schema.events.id, eventId));
     expect(
       await db
         .select()
-        .from(eventJudges)
-        .where(or(eq(eventJudges.id, judgeId), eq(eventJudges.eventId, eventId))),
+        .from(schema.eventJudges)
+        .where(or(eq(schema.eventJudges.id, judgeId), eq(schema.eventJudges.eventId, eventId))),
     ).toHaveLength(0);
     expect(
       await db
         .select()
-        .from(judgeState)
-        .where(and(eq(judgeState.judgeId, judgeId))),
+        .from(schema.judgeState)
+        .where(and(eq(schema.judgeState.judgeId, judgeId))),
     ).toHaveLength(0);
   });
 });

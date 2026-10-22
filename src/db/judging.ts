@@ -34,8 +34,8 @@ import {
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
-import { user } from './auth-schema';
-import { events, submissions } from './events-and-participation';
+import { user } from '@/db/auth-schema';
+import { events, submissions } from '@/db/events-and-participation';
 
 export const judgingCriteria = pgTable(
   'judging_criteria',

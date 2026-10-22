@@ -11,7 +11,7 @@
 import { describe, test, expect, beforeAll, afterAll, vi } from 'vitest';
 import { db } from '@/utils/db';
 import { eq } from 'drizzle-orm';
-import { user, permission, userPermission, role, rolePermissions, userRole } from '@/db/schema';
+import * as schema from '@/db/schema';
 
 vi.mock('@/utils/auth', () => ({ getUser: vi.fn() }));
 
@@ -39,21 +39,21 @@ let testRoleId: number;
 
 beforeAll(async () => {
   const [a] = await db
-    .insert(user)
+    .insert(schema.user)
     .values({
       name: 'Authz User A',
       email: 'authz-a@example.com',
       emailVerified: true,
     })
-    .returning({ id: user.id });
+    .returning({ id: schema.user.id });
   const [b] = await db
-    .insert(user)
+    .insert(schema.user)
     .values({
       name: 'Authz User B',
       email: 'authz-b@example.com',
       emailVerified: true,
     })
-    .returning({ id: user.id });
+    .returning({ id: schema.user.id });
 
   userAId = a.id;
   userBId = b.id;
@@ -73,15 +73,15 @@ beforeAll(async () => {
   // Grant userB user:read:all and role:read:all for cross-user inspection tests
   const ensurePerm = async (slug: string) => {
     const [created] = await db
-      .insert(permission)
+      .insert(schema.permission)
       .values({ slug })
       .onConflictDoNothing()
-      .returning({ id: permission.id });
+      .returning({ id: schema.permission.id });
     if (created) return created.id;
     const [existing] = await db
-      .select({ id: permission.id })
-      .from(permission)
-      .where(eq(permission.slug, slug))
+      .select({ id: schema.permission.id })
+      .from(schema.permission)
+      .where(eq(schema.permission.slug, slug))
       .limit(1);
     return existing!.id;
   };
@@ -90,28 +90,31 @@ beforeAll(async () => {
   const roleReadId = await ensurePerm('role:read:all');
 
   await db
-    .insert(userPermission)
+    .insert(schema.userPermission)
     .values([
       { userId: userBId, permissionId: userReadId },
       { userId: userBId, permissionId: roleReadId },
     ])
     .onConflictDoNothing();
 
-  const [r] = await db.insert(role).values({ slug: 'authz-test-role', description: 'test' }).returning({ id: role.id });
+  const [r] = await db
+    .insert(schema.role)
+    .values({ slug: 'authz-test-role', description: 'test' })
+    .returning({ id: schema.role.id });
   testRoleId = r.id;
 
   vi.mocked(getUser).mockResolvedValue(userA as never);
 });
 
 afterAll(async () => {
-  await db.delete(rolePermissions).where(eq(rolePermissions.roleId, testRoleId));
-  await db.delete(userRole).where(eq(userRole.userId, userBId));
-  await db.delete(userPermission).where(eq(userPermission.userId, userBId));
-  await db.delete(role).where(eq(role.id, testRoleId));
-  await db.delete(user).where(eq(user.id, userAId));
-  await db.delete(user).where(eq(user.id, userBId));
-  await db.delete(permission).where(eq(permission.slug, 'user:read:all'));
-  await db.delete(permission).where(eq(permission.slug, 'role:read:all'));
+  await db.delete(schema.rolePermissions).where(eq(schema.rolePermissions.roleId, testRoleId));
+  await db.delete(schema.userRole).where(eq(schema.userRole.userId, userBId));
+  await db.delete(schema.userPermission).where(eq(schema.userPermission.userId, userBId));
+  await db.delete(schema.role).where(eq(schema.role.id, testRoleId));
+  await db.delete(schema.user).where(eq(schema.user.id, userAId));
+  await db.delete(schema.user).where(eq(schema.user.id, userBId));
+  await db.delete(schema.permission).where(eq(schema.permission.slug, 'user:read:all'));
+  await db.delete(schema.permission).where(eq(schema.permission.slug, 'role:read:all'));
 });
 
 // ─── getUserPermissions ────────────────────────────────────────────────────────

@@ -37,17 +37,7 @@ import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest';
 import { asc, eq, inArray } from 'drizzle-orm';
 
 import { db } from '@/utils/db';
-import {
-  eventJudges,
-  events,
-  judgeReliability,
-  judgingCriteria,
-  judgingVotes,
-  submissionScores,
-  submissions,
-  teams,
-  user,
-} from '@/db/schema';
+import * as schema from '@/db/schema';
 
 vi.mock('@/utils/auth', () => ({ getUser: vi.fn() }));
 vi.mock('next/cache', () => ({
@@ -60,10 +50,8 @@ vi.mock('next/cache', () => ({
 
 import { getUser } from '@/utils/auth';
 import { beginJudging, skipJudgeProject, submitJudgeVote } from '@/app/dashboard/events/judge-actions';
-import { betaln, expectedInformationGain, psi, update } from '@/lib/judging/crowd-bt';
-import { getJudgeView } from '@/lib/judging/judge-session';
-import { replayVotes } from '@/lib/judging/results';
-import { unwrap } from './unwrap';
+import * as Judging from '@/lib/judging/server';
+import { unwrap } from '@/tests/unwrap';
 
 const VENDOR_DIR = path.resolve(process.cwd(), 'vendor');
 const ORACLE_IMAGE = 'mruhacks-gavel-oracle';
@@ -213,13 +201,13 @@ async function compareCrowdBt(seed: number, n: number) {
     const [alpha, beta, muW, sigmaSqW, muL, sigmaSqL] = args;
     const winner = { mu: muW, sigmaSq: sigmaSqW };
     const loser = { mu: muL, sigmaSq: sigmaSqL };
-    const ours = update({ alpha, beta }, winner, loser);
+    const ours = Judging.update({ alpha, beta }, winner, loser);
     expectClose(
       [ours.judge.alpha, ours.judge.beta, ours.winner.mu, ours.winner.sigmaSq, ours.loser.mu, ours.loser.sigmaSq],
       updates.result[i],
       { fn: 'update', args },
     );
-    expectClose([expectedInformationGain({ alpha, beta }, winner, loser)], [gains.result[i]], {
+    expectClose([Judging.expectedInformationGain({ alpha, beta }, winner, loser)], [gains.result[i]], {
       fn: 'expected_information_gain',
       args,
     });
@@ -258,18 +246,18 @@ let counter = 0;
 async function makeUser(): Promise<TestUser> {
   counter += 1;
   const [u] = await db
-    .insert(user)
+    .insert(schema.user)
     .values({
       name: `Gavel judge ${counter}`,
       email: `gavel-diff-${counter}-${Date.now()}@example.com`,
       emailVerified: true,
     })
     .returning({
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      image: user.image,
-      emailVerified: user.emailVerified,
+      id: schema.user.id,
+      email: schema.user.email,
+      name: schema.user.name,
+      image: schema.user.image,
+      emailVerified: schema.user.emailVerified,
     });
   created.users.push(u.id);
   return u;
@@ -279,7 +267,7 @@ async function makeUser(): Promise<TestUser> {
 async function makeScenarioEvent(n: number, m: number) {
   const now = Date.now();
   const [event] = await db
-    .insert(events)
+    .insert(schema.events)
     .values({
       name: 'Gavel Differential Event',
       hasApplication: true,
@@ -287,25 +275,25 @@ async function makeScenarioEvent(n: number, m: number) {
       startsAt: new Date(now - 60 * 60 * 1000),
       endsAt: new Date(now + 30 * 24 * 60 * 60 * 1000),
     })
-    .returning({ id: events.id });
+    .returning({ id: schema.events.id });
   created.events.push(event.id);
 
   const [criterion] = await db
-    .insert(judgingCriteria)
+    .insert(schema.judgingCriteria)
     .values({ eventId: event.id, name: 'Overall', position: 0 })
-    .returning({ id: judgingCriteria.id });
+    .returning({ id: schema.judgingCriteria.id });
 
   const projectIds: string[] = [];
   for (let i = 0; i < n; i++) {
     const [team] = await db
-      .insert(teams)
+      .insert(schema.teams)
       .values({
         eventId: event.id,
         code: `G${String(counter++).padStart(7, '0')}`,
       })
-      .returning({ id: teams.id });
+      .returning({ id: schema.teams.id });
     const [s] = await db
-      .insert(submissions)
+      .insert(schema.submissions)
       .values({
         eventId: event.id,
         teamId: team.id,
@@ -315,7 +303,7 @@ async function makeScenarioEvent(n: number, m: number) {
         // Gavel lists items by id; the port lists the pool by creation.
         createdAt: new Date(now - 10 * 60 * 60 * 1000 + i * 1000),
       })
-      .returning({ id: submissions.id });
+      .returning({ id: schema.submissions.id });
     projectIds.push(s.id);
   }
 
@@ -323,9 +311,9 @@ async function makeScenarioEvent(n: number, m: number) {
   for (let j = 0; j < m; j++) {
     const u = await makeUser();
     const [row] = await db
-      .insert(eventJudges)
+      .insert(schema.eventJudges)
       .values({ eventId: event.id, email: u.email.toLowerCase(), userId: u.id })
-      .returning({ id: eventJudges.id });
+      .returning({ id: schema.eventJudges.id });
     judges.push({ user: u, judgeId: row.id });
   }
 
@@ -380,7 +368,7 @@ async function runScenario(seed: number) {
 
   async function ourScreen(j: number): Promise<Screen> {
     vi.mocked(getUser).mockResolvedValue(judges[j].user as never);
-    const view = await getJudgeView(eventId);
+    const view = await Judging.getJudgeView(eventId);
     switch (view.kind) {
       case 'waiting':
         return { kind: 'waiting' };
@@ -468,14 +456,14 @@ async function runScenario(seed: number) {
 
   const votes = await db
     .select({
-      judgeId: judgingVotes.judgeId,
-      criterionId: judgingVotes.criterionId,
-      winnerId: judgingVotes.winnerSubmissionId,
-      loserId: judgingVotes.loserSubmissionId,
+      judgeId: schema.judgingVotes.judgeId,
+      criterionId: schema.judgingVotes.criterionId,
+      winnerId: schema.judgingVotes.winnerSubmissionId,
+      loserId: schema.judgingVotes.loserSubmissionId,
     })
-    .from(judgingVotes)
-    .where(eq(judgingVotes.criterionId, criterionId))
-    .orderBy(asc(judgingVotes.seq));
+    .from(schema.judgingVotes)
+    .where(eq(schema.judgingVotes.criterionId, criterionId))
+    .orderBy(asc(schema.judgingVotes.seq));
   const judgeIndex = new Map(judges.map((judge, i) => [judge.judgeId, i]));
   expect(
     votes.map((v) => ({
@@ -487,12 +475,11 @@ async function runScenario(seed: number) {
   ).toEqual(gavel.votes);
 
   const scores = new Map(
-    (await db.select().from(submissionScores).where(inArray(submissionScores.submissionId, projectIds))).map((row) => [
-      row.submissionId,
-      row,
-    ]),
+    (
+      await db.select().from(schema.submissionScores).where(inArray(schema.submissionScores.submissionId, projectIds))
+    ).map((row) => [row.submissionId, row]),
   );
-  const replay = replayVotes(votes, new Set(projectIds), [criterionId]);
+  const replay = Judging.replayVotes(votes, new Set(projectIds), [criterionId]);
   projectIds.forEach((id, i) => {
     const expected = [gavel.projects[i].mu, gavel.projects[i].sigmaSq];
     const online = scores.get(id) ?? { mu: 0, sigmaSq: 1 };
@@ -513,10 +500,10 @@ async function runScenario(seed: number) {
     (
       await db
         .select()
-        .from(judgeReliability)
+        .from(schema.judgeReliability)
         .where(
           inArray(
-            judgeReliability.judgeId,
+            schema.judgeReliability.judgeId,
             judges.map((judge) => judge.judgeId),
           ),
         )
@@ -547,10 +534,10 @@ describe.runIf(RUN)('Gavel differential', () => {
   afterAll(async () => {
     oracle?.close();
     if (created.events.length > 0) {
-      await db.delete(events).where(inArray(events.id, created.events));
+      await db.delete(schema.events).where(inArray(schema.events.id, created.events));
     }
     if (created.users.length > 0) {
-      await db.delete(user).where(inArray(user.id, created.users));
+      await db.delete(schema.user).where(inArray(schema.user.id, created.users));
     }
   });
 
@@ -573,13 +560,13 @@ describe.runIf(RUN)('Gavel differential', () => {
       calls: xs,
     });
     pairs.forEach(([a, b], i) =>
-      expectClose([betaln(a, b)], [gavelBetaln.result[i]], {
+      expectClose([Judging.betaln(a, b)], [gavelBetaln.result[i]], {
         fn: 'betaln',
         a,
         b,
       }),
     );
-    xs.forEach(([x], i) => expectClose([psi(x)], [gavelPsi.result[i]], { fn: 'psi', x }));
+    xs.forEach(([x], i) => expectClose([Judging.psi(x)], [gavelPsi.result[i]], { fn: 'psi', x }));
   });
 
   describe('judge flow, step for step', () => {

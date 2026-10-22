@@ -4,7 +4,7 @@ import { notFound, redirect } from 'next/navigation';
 import { getAdminEventSettings } from '@/lib/admin-event';
 import { listEventTypes } from '@/lib/event-types';
 import { resolveEventId } from '@/lib/events';
-import { requirePermission } from '@/lib/rbac/authorization';
+import * as Rbac from '@/lib/rbac/server';
 import { getUser } from '@/utils/auth';
 import { EventSettingsForm } from './event-settings-form';
 
@@ -32,7 +32,7 @@ async function SettingsContent({ paramsPromise }: { paramsPromise: Promise<{ eve
   if (!eventId) notFound();
   const user = await getUser();
   if (!user) redirect('/signin');
-  await requirePermission(user.id, 'event:manage:all');
+  await Rbac.requirePermission(user.id, 'event:manage:all');
 
   const [event, eventTypes] = await Promise.all([getAdminEventSettings(eventId), listEventTypes()]);
   if (!event) notFound();

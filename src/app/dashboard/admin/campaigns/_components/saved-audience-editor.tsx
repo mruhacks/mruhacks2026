@@ -5,9 +5,8 @@ import { useRouter } from 'next/navigation';
 import { AlertTriangle, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
-import { deleteSavedAudience, updateSavedAudience } from '@/app/dashboard/admin/campaigns/audience-actions';
-import type { AudienceOptions } from '@/lib/campaigns/audience-options';
-import type { AudienceRuleGroup } from '@/lib/campaigns/audience-rules';
+import { deleteSavedAudience, updateSavedAudience } from '../audience-actions';
+import type * as Campaigns from '@/lib/campaigns';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Field, FieldError, FieldLabel } from '@/components/ui/field';
@@ -18,11 +17,11 @@ type Props = {
   audience: {
     id: string;
     name: string;
-    rules: AudienceRuleGroup;
+    rules: Campaigns.AudienceRuleGroup;
     usedBy: number;
     scheduled: number;
   };
-  options: AudienceOptions;
+  options: Campaigns.AudienceOptions;
   canWrite: boolean;
   canPreview: boolean;
 };
@@ -35,7 +34,7 @@ export function SavedAudienceEditor({ audience, options, canWrite, canPreview }:
   const [deleteError, setDeleteError] = React.useState<string | null>(null);
   const [isBusy, setIsBusy] = React.useState(false);
 
-  const handleChange = React.useCallback((next: AudienceRuleGroup) => {
+  const handleChange = React.useCallback((next: Campaigns.AudienceRuleGroup) => {
     setRules(next);
     setError(null);
   }, []);

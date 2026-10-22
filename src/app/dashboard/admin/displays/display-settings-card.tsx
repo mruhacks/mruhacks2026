@@ -4,14 +4,14 @@ import * as React from 'react';
 import { toast } from 'sonner';
 
 import { updateDisplaySettings } from './actions';
-import type { DisplaySettings } from '@/lib/display/schedule';
+import type * as Display from '@/lib/display';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Field, FieldContent, FieldDescription, FieldError, FieldLabel } from '@/components/ui/field';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 
-export function DisplaySettingsCard({ initial }: { initial: DisplaySettings }) {
+export function DisplaySettingsCard({ initial }: { initial: Display.DisplaySettings }) {
   const [saved, setSaved] = React.useState(initial);
   const [settings, setSettings] = React.useState(initial);
   const [error, setError] = React.useState<string | null>(null);
@@ -19,7 +19,7 @@ export function DisplaySettingsCard({ initial }: { initial: DisplaySettings }) {
 
   const dirty = settings.showClock !== saved.showClock || settings.theme !== saved.theme;
 
-  const update = (patch: Partial<DisplaySettings>) => {
+  const update = (patch: Partial<Display.DisplaySettings>) => {
     setSettings((current) => ({ ...current, ...patch }));
     setError(null);
   };
@@ -64,7 +64,7 @@ export function DisplaySettingsCard({ initial }: { initial: DisplaySettings }) {
             </FieldContent>
             <Select
               value={settings.theme}
-              onValueChange={(theme) => update({ theme: theme as DisplaySettings['theme'] })}
+              onValueChange={(theme) => update({ theme: theme as Display.DisplaySettings['theme'] })}
             >
               <SelectTrigger id='display-theme' className='w-32'>
                 <SelectValue />

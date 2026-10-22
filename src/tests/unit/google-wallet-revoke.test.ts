@@ -5,7 +5,7 @@ vi.mock('@/lib/wallet/google/client', () => ({
   walletApiRequest: (...args: unknown[]) => walletApiRequest(...args),
 }));
 
-import { revokeGoogleWalletPasses } from '@/lib/wallet/google/event-ticket';
+import * as Wallet from '@/lib/wallet/server';
 
 describe('revokeGoogleWalletPasses', () => {
   beforeEach(() => {
@@ -16,7 +16,7 @@ describe('revokeGoogleWalletPasses', () => {
   });
 
   test('replaces each ticket with an expired object that has no name or barcode', async () => {
-    await revokeGoogleWalletPasses('u1', ['e1', 'e2']);
+    await Wallet.revokeGoogleWalletPasses('u1', ['e1', 'e2']);
 
     expect(walletApiRequest).toHaveBeenCalledTimes(2);
     expect(walletApiRequest).toHaveBeenCalledWith('eventTicketObject/338.event-e1-user-u1', {
@@ -31,7 +31,7 @@ describe('revokeGoogleWalletPasses', () => {
 
   test('does nothing without Wallet credentials', async () => {
     vi.stubEnv('GOOGLE_WALLET_ISSUER_ID', '');
-    await revokeGoogleWalletPasses('u1', ['e1']);
+    await Wallet.revokeGoogleWalletPasses('u1', ['e1']);
     expect(walletApiRequest).not.toHaveBeenCalled();
   });
 });

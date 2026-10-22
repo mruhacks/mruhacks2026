@@ -5,16 +5,16 @@ import { eq } from 'drizzle-orm';
 import { FileText, Pencil } from 'lucide-react';
 
 import { db } from '@/utils/db';
-import { events, eventTerms } from '@/db/schema';
+import * as schema from '@/db/schema';
 import { getAllArticlesForAdmin } from '@/lib/event-wiki';
 import { resolveEventId } from '@/lib/events';
-import { hasPermission } from '@/lib/rbac/authorization';
+import * as Rbac from '@/lib/rbac/server';
 import { getUser } from '@/utils/auth';
 import { LocalDateTime } from '@/components/local-date-time';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
-import { BentoCard, BentoCardSkeleton } from '../../_components/bento-card';
+import { BentoCard, BentoCardSkeleton } from '@/app/dashboard/admin/events/[eventId]/_components/bento-card';
 import { CreateArticleDialog } from './create-article-dialog';
 import { WikiArticleList } from './wiki-article-list';
 
@@ -41,13 +41,13 @@ async function WikiSection({ paramsPromise }: { paramsPromise: Promise<{ eventId
   if (!user) redirect('/signin');
 
   const [canRead, canWrite, canManageEvent] = await Promise.all([
-    hasPermission(user.id, 'article:read:all'),
-    hasPermission(user.id, 'article:write:all'),
+    Rbac.hasPermission(user.id, 'article:read:all'),
+    Rbac.hasPermission(user.id, 'article:write:all'),
     // Event Terms is edited through the event settings surface, which is
     // gated on event:manage — a different permission than the wiki's own
     // article:write:all, so its edit link here is gated the same way rather
     // than piggybacking on `canWrite`.
-    hasPermission(user.id, 'event:manage'),
+    Rbac.hasPermission(user.id, 'event:manage'),
   ]);
   if (!canRead) return null;
 
@@ -55,10 +55,10 @@ async function WikiSection({ paramsPromise }: { paramsPromise: Promise<{ eventId
   const [articles, [eventRow]] = await Promise.all([
     getAllArticlesForAdmin(eventId),
     db
-      .select({ termsId: events.termsId, termsUpdatedAt: eventTerms.createdAt })
-      .from(events)
-      .leftJoin(eventTerms, eq(events.termsId, eventTerms.id))
-      .where(eq(events.id, eventId))
+      .select({ termsId: schema.events.termsId, termsUpdatedAt: schema.eventTerms.createdAt })
+      .from(schema.events)
+      .leftJoin(schema.eventTerms, eq(schema.events.termsId, schema.eventTerms.id))
+      .where(eq(schema.events.id, eventId))
       .limit(1),
   ]);
   const hasTerms = Boolean(eventRow?.termsId);

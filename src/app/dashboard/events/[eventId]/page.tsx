@@ -7,27 +7,26 @@ import { getUser } from '@/utils/auth';
 import { db } from '@/utils/db';
 import { BreadcrumbSegment } from '@/components/breadcrumb-context';
 import { MarkdownContent } from '@/components/markdown/markdown-content';
-import { events, eventTypes, eventArticles, eventTerms } from '@/db/schema';
+import * as schema from '@/db/schema';
 import { hasEventElapsed, resolveEventId } from '@/lib/events';
-import { countAttending } from '@/lib/participation/server';
-import { findJudgeForUser } from '@/lib/judging/server';
+import * as Participation from '@/lib/participation/server';
+import * as Judging from '@/lib/judging/server';
 import { eventPath } from '@/lib/event-slug';
 import { isScheduleVisible, listSubevents } from '@/lib/subevents';
 import { serializeInstant } from '@/lib/datetime';
-import { EventSchedule, type ScheduleEntry } from '@/app/dashboard/events/[eventId]/event-schedule';
-import { getUserParticipation, type ParticipationForUser } from '@/app/dashboard/events/actions';
-import { ParticipationStatusCard } from '@/app/dashboard/events/ParticipationStatusCard';
-import { RsvpPendingPrompt } from '@/app/dashboard/events/RsvpPendingPrompt';
+import { EventSchedule, type ScheduleEntry } from './event-schedule';
+import { getUserParticipation, type ParticipationForUser } from '../actions';
+import { ParticipationStatusCard } from '../ParticipationStatusCard';
+import { RsvpPendingPrompt } from '../RsvpPendingPrompt';
 import { LocalDateRange } from '@/components/local-date-time';
-import { canEditApplication, canFormTeam, isAttending } from '@/lib/participation/status';
-import { RegisterEventButton } from '@/app/dashboard/events/RegisterEventButton';
-import { UnregisterEventButton } from '@/app/dashboard/events/UnregisterEventButton';
-import { TeamPanel } from '@/app/dashboard/events/team/TeamPanel';
-import { ProjectPanel } from '@/app/dashboard/events/project/ProjectPanel';
+import { RegisterEventButton } from '../RegisterEventButton';
+import { UnregisterEventButton } from '../UnregisterEventButton';
+import { TeamPanel } from '../team/TeamPanel';
+import { ProjectPanel } from '../project/ProjectPanel';
 import { AddToWalletButton } from '@/components/add-to-wallet-button';
 import { AddToGoogleWalletButton } from '@/components/add-to-google-wallet-button';
 import { EventTicketButton } from '@/components/event-ticket-button';
-import { detectWalletPlatform, type WalletPlatform } from '@/lib/wallet/detect-platform';
+import * as Wallet from '@/lib/wallet/server';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -99,30 +98,30 @@ async function EventEntryContent({ params, searchParams }: Props) {
   const user = await getUser();
   if (!user) redirect('/signin');
 
-  const walletPlatform = await detectWalletPlatform();
+  const walletPlatform = await Wallet.detectWalletPlatform();
 
   const [row] = await db
     .select({
-      id: events.id,
-      slug: events.slug,
-      name: events.name,
-      parentEventId: events.parentEventId,
-      descriptionMarkdown: events.descriptionMarkdown,
-      termsMarkdown: eventTerms.markdown,
-      termsId: events.termsId,
-      hasApplication: events.hasApplication,
-      startsAt: events.startsAt,
-      endsAt: events.endsAt,
-      checkInEnabled: events.checkInEnabled,
-      capacity: events.capacity,
-      capacityVisible: events.capacityVisible,
-      teamsEnabled: events.teamsEnabled,
-      eventTypeLabel: eventTypes.label,
+      id: schema.events.id,
+      slug: schema.events.slug,
+      name: schema.events.name,
+      parentEventId: schema.events.parentEventId,
+      descriptionMarkdown: schema.events.descriptionMarkdown,
+      termsMarkdown: schema.eventTerms.markdown,
+      termsId: schema.events.termsId,
+      hasApplication: schema.events.hasApplication,
+      startsAt: schema.events.startsAt,
+      endsAt: schema.events.endsAt,
+      checkInEnabled: schema.events.checkInEnabled,
+      capacity: schema.events.capacity,
+      capacityVisible: schema.events.capacityVisible,
+      teamsEnabled: schema.events.teamsEnabled,
+      eventTypeLabel: schema.eventTypes.label,
     })
-    .from(events)
-    .leftJoin(eventTerms, eq(events.termsId, eventTerms.id))
-    .leftJoin(eventTypes, eq(events.eventTypeId, eventTypes.id))
-    .where(eq(events.id, eventId))
+    .from(schema.events)
+    .leftJoin(schema.eventTerms, eq(schema.events.termsId, schema.eventTerms.id))
+    .leftJoin(schema.eventTypes, eq(schema.events.eventTypeId, schema.eventTypes.id))
+    .where(eq(schema.events.id, eventId))
     .limit(1);
 
   if (!row) notFound();
@@ -138,10 +137,10 @@ async function EventEntryContent({ params, searchParams }: Props) {
 
   const [publishedArticlesRows, subeventRows] = await Promise.all([
     db
-      .select({ slug: eventArticles.slug, title: eventArticles.title })
-      .from(eventArticles)
-      .where(and(eq(eventArticles.eventId, eventId), eq(eventArticles.published, true)))
-      .orderBy(asc(eventArticles.sortOrder), asc(eventArticles.title)),
+      .select({ slug: schema.eventArticles.slug, title: schema.eventArticles.title })
+      .from(schema.eventArticles)
+      .where(and(eq(schema.eventArticles.eventId, eventId), eq(schema.eventArticles.published, true)))
+      .orderBy(asc(schema.eventArticles.sortOrder), asc(schema.eventArticles.title)),
     listSubevents(eventId),
   ]);
 
@@ -165,7 +164,10 @@ async function EventEntryContent({ params, searchParams }: Props) {
     ? [...publishedArticlesRows, { slug: 'terms', title: 'Event Terms' }]
     : publishedArticlesRows;
 
-  const [participation, judge] = await Promise.all([getUserParticipation(eventId), findJudgeForUser(eventId, user)]);
+  const [participation, judge] = await Promise.all([
+    getUserParticipation(eventId),
+    Judging.findJudgeForUser(eventId, user),
+  ]);
   // Every participant action is refused server-side once the event is over,
   // so the page drops the controls instead of offering ones that will fail.
   const hasEnded = hasEventElapsed(row.endsAt);
@@ -188,7 +190,7 @@ async function EventEntryContent({ params, searchParams }: Props) {
   }
 
   if (row.hasApplication) {
-    const canManageTeam = row.teamsEnabled && participation != null && canFormTeam(participation.status);
+    const canManageTeam = row.teamsEnabled && participation != null && Participation.canFormTeam(participation.status);
 
     return (
       <EventPageLayout
@@ -200,7 +202,7 @@ async function EventEntryContent({ params, searchParams }: Props) {
         mobileAction={
           // Once the application is decided, the only thing left to act on
           // (an RSVP, giving up a spot) lives in the panel — no sticky bar.
-          hasEnded || (participation && !canEditApplication(participation.status))
+          hasEnded || (participation && !Participation.canEditApplication(participation.status))
             ? null
             : {
                 label: participation ? 'Edit application' : 'Start application',
@@ -226,9 +228,9 @@ async function EventEntryContent({ params, searchParams }: Props) {
     );
   }
 
-  const isRegistered = participation != null && isAttending(participation.status);
+  const isRegistered = participation != null && Participation.isAttending(participation.status);
 
-  const attendeeCount = await countAttending(eventId);
+  const attendeeCount = await Participation.countAttending(eventId);
   const isFull = row.capacity != null && attendeeCount >= row.capacity;
 
   return (
@@ -347,7 +349,7 @@ function EventPageLayout({
 }
 
 /** Shows exactly one wallet action, picked by the visitor's detected platform. */
-function WalletAction({ eventId, walletPlatform }: { eventId: string; walletPlatform: WalletPlatform }) {
+function WalletAction({ eventId, walletPlatform }: { eventId: string; walletPlatform: Wallet.WalletPlatform }) {
   if (walletPlatform === 'apple') return <AddToWalletButton eventId={eventId} />;
   if (walletPlatform === 'google') return <AddToGoogleWalletButton eventId={eventId} />;
 }
@@ -369,7 +371,7 @@ function ApplicationParticipationPanel({
   termsMarkdown: string | null;
   termsId: string | null;
   participation: ParticipationForUser | null;
-  walletPlatform: WalletPlatform;
+  walletPlatform: Wallet.WalletPlatform;
   checkInEnabled: boolean;
   hasEnded: boolean;
 }) {
@@ -477,7 +479,7 @@ function RegistrationParticipationPanel({
   isRegistered: boolean;
   isFull: boolean;
   spotsRemaining: number | null;
-  walletPlatform: WalletPlatform;
+  walletPlatform: Wallet.WalletPlatform;
   checkInEnabled: boolean;
   hasEnded: boolean;
 }) {

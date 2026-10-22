@@ -25,8 +25,8 @@ import {
   type CampaignStatus,
   type CampaignType,
 } from '@/lib/campaigns/constants';
-import { user } from './auth-schema';
-import { events } from './events-and-participation';
+import { user } from '@/db/auth-schema';
+import { events } from '@/db/events-and-participation';
 
 export type { CampaignDeliveryStatus, CampaignStatus, CampaignType };
 

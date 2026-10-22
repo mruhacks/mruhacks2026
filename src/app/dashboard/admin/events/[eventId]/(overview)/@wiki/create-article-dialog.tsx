@@ -20,7 +20,7 @@ import {
 import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 
-import { useEventBasePath } from '../../_components/use-event-base-path';
+import { useEventBasePath } from '@/app/dashboard/admin/events/[eventId]/_components/use-event-base-path';
 
 /**
  * The wiki cell's "Add" action. Creates an empty draft and goes straight to

@@ -39,7 +39,7 @@ import { relations, sql } from 'drizzle-orm';
 
 import type { TableAlphabet } from '@/lib/judging/table-label';
 import type { ApplicationQuestion } from '@/types/application';
-import { user } from './auth-schema';
+import { user } from '@/db/auth-schema';
 import {
   genders,
   universities,
@@ -49,7 +49,7 @@ import {
   dietaryRestrictions,
   participationStatuses,
   eventTypes,
-} from './lookups';
+} from '@/db/lookups';
 
 // ---------------------------------------------------------------------------
 // Events

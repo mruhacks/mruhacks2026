@@ -3,11 +3,11 @@ import { redirect } from 'next/navigation';
 
 import { getEventApplicationStats } from '@/lib/admin-event';
 import { resolveEventId } from '@/lib/events';
-import { hasPermission } from '@/lib/rbac/authorization';
+import * as Rbac from '@/lib/rbac/server';
 import { getUser } from '@/utils/auth';
 
-import { BentoCardSkeleton } from '../../_components/bento-card';
-import { QuestionStatsGrid } from '../../_components/question-stats-grid';
+import { BentoCardSkeleton } from '@/app/dashboard/admin/events/[eventId]/_components/bento-card';
+import { QuestionStatsGrid } from '@/app/dashboard/admin/events/[eventId]/_components/question-stats-grid';
 
 type Props = { params: Promise<{ eventId: string }> };
 
@@ -39,7 +39,7 @@ async function BreakdownSection({ paramsPromise }: { paramsPromise: Promise<{ ev
   const user = await getUser();
   if (!user) redirect('/signin');
 
-  if (!(await hasPermission(user.id, 'application:stats'))) return null;
+  if (!(await Rbac.hasPermission(user.id, 'application:stats'))) return null;
 
   // Shares the cache entry the applications cell already filled — same
   // eventId, same cached function, so this is a hit rather than a re-scan.

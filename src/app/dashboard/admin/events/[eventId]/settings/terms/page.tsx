@@ -4,7 +4,7 @@ import { notFound, redirect } from 'next/navigation';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getAdminEventHeader } from '@/lib/admin-event';
 import { resolveEventId } from '@/lib/events';
-import { requirePermission } from '@/lib/rbac/authorization';
+import * as Rbac from '@/lib/rbac/server';
 import { getUser } from '@/utils/auth';
 import { EventContentForm } from '../event-content-form';
 
@@ -24,7 +24,7 @@ async function TermsContent({ params }: Props) {
   if (!eventId) notFound();
   const user = await getUser();
   if (!user) redirect('/signin');
-  await requirePermission(user.id, 'event:manage');
+  await Rbac.requirePermission(user.id, 'event:manage');
 
   const event = await getAdminEventHeader(eventId);
   if (!event) notFound();

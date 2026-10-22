@@ -4,7 +4,7 @@ import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus } from 'lucide-react';
 
-import { createSavedAudience } from '@/app/dashboard/admin/campaigns/audience-actions';
+import { createSavedAudience } from '../audience-actions';
 import { Button } from '@/components/ui/button';
 import { FieldError } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
