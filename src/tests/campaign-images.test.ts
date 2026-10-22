@@ -5,14 +5,15 @@ vi.mock('@/utils/auth', () => ({ getUser: vi.fn().mockResolvedValue(null) }));
 vi.mock('@/utils/object-storage', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/utils/object-storage')>()),
   putObject: vi.fn().mockResolvedValue(undefined),
-  campaignImageRedirect: vi.fn(async (key: string) =>
-    new Response(null, {
-      status: 302,
-      headers: {
-        location: `https://storage.example.com/${key}`,
-        'cache-control': 'public, max-age=60',
-      },
-    }),
+  campaignImageRedirect: vi.fn(
+    async (key: string) =>
+      new Response(null, {
+        status: 302,
+        headers: {
+          location: `https://storage.example.com/${key}`,
+          'cache-control': 'public, max-age=60',
+        },
+      }),
   ),
 }));
 
