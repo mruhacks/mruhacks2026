@@ -16,6 +16,7 @@ export type ProcessDispatchOutcome =
   | { kind: 'dispatched'; recipients: number; published: number }
   | { kind: 'resumed'; published: number }
   | { kind: 'not_found' }
+  | { kind: 'stale_schedule' }
   | { kind: 'not_scheduled'; status: string };
 
 /** Delivery rows are written this many at a time. */
@@ -39,6 +40,7 @@ const PUBLISH_CONCURRENCY = 20;
  */
 export async function processCampaignDispatch(
   campaignId: string,
+  scheduledFor: string,
 ): Promise<ProcessDispatchOutcome> {
   const claimed = await db.transaction(async (tx) => {
     const [campaign] = await tx
@@ -48,10 +50,18 @@ export async function processCampaignDispatch(
       .for('update')
       .limit(1);
     if (!campaign) return { kind: 'not_found' } as const;
-    if (campaign.status === 'sending') return { kind: 'resume' } as const;
-    if (campaign.status !== 'scheduled') {
+    if (!['scheduled', 'sending'].includes(campaign.status)) {
       return { kind: 'not_scheduled', status: campaign.status } as const;
     }
+
+    if (
+      !scheduledFor ||
+      campaign.scheduledFor?.toISOString() !== scheduledFor ||
+      campaign.scheduledFor.getTime() > Date.now()
+    ) {
+      return { kind: 'stale_schedule' } as const;
+    }
+    if (campaign.status === 'sending') return { kind: 'resume' } as const;
 
     const rules = await currentCampaignRules(campaign);
     if (!rules) throw new Error(`Campaign ${campaignId} has no audience`);
@@ -92,7 +102,11 @@ export async function processCampaignDispatch(
     } as const;
   });
 
-  if (claimed.kind === 'not_found' || claimed.kind === 'not_scheduled') {
+  if (
+    claimed.kind === 'not_found' ||
+    claimed.kind === 'not_scheduled' ||
+    claimed.kind === 'stale_schedule'
+  ) {
     return claimed;
   }
 

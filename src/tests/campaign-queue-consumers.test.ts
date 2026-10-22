@@ -40,8 +40,14 @@ describe('campaign queue consumers', () => {
   test('dispatch hands the campaign id to processCampaignDispatch', async () => {
     processCampaignDispatch.mockResolvedValue({ kind: 'dispatched' });
     vi.spyOn(console, 'info').mockImplementation(() => {});
-    await handlers[0]({ campaignId: 'c1' }, meta(1));
-    expect(processCampaignDispatch).toHaveBeenCalledWith('c1');
+    await handlers[0](
+      { campaignId: 'c1', scheduledFor: '2026-10-21T12:00:00Z' },
+      meta(1),
+    );
+    expect(processCampaignDispatch).toHaveBeenCalledWith(
+      'c1',
+      '2026-10-21T12:00:00Z',
+    );
   });
 
   test('deliveries hand the delivery id over, and a thrown error propagates for retry', async () => {

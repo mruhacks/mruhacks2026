@@ -4,8 +4,8 @@ import type { CampaignDispatchMessage } from '@/lib/campaigns/campaign-queue';
 import { processCampaignDispatch } from '@/lib/campaigns/process-dispatch';
 
 export const POST = handleCallback<CampaignDispatchMessage>(
-  async ({ campaignId }) => {
-    const outcome = await processCampaignDispatch(campaignId);
+  async ({ campaignId, scheduledFor }) => {
+    const outcome = await processCampaignDispatch(campaignId, scheduledFor);
     console.info('[campaigns/dispatch] processed', { campaignId, outcome });
   },
   {

@@ -14,7 +14,10 @@ import { send } from '@vercel/queue';
 const CAMPAIGN_DISPATCH_TOPIC = 'campaign-dispatch';
 const CAMPAIGN_DELIVERY_TOPIC = 'campaign-deliveries';
 
-export type CampaignDispatchMessage = { campaignId: string };
+export type CampaignDispatchMessage = {
+  campaignId: string;
+  scheduledFor: string;
+};
 export type CampaignDeliveryMessage = { deliveryId: string };
 
 /**
@@ -78,7 +81,7 @@ export function publishCampaignDispatch(
 ) {
   return publish<CampaignDispatchMessage>(
     CAMPAIGN_DISPATCH_TOPIC,
-    { campaignId },
+    { campaignId, scheduledFor: scheduledFor.toISOString() },
     { idempotencyKey: `${campaignId}:${scheduledFor.toISOString()}` },
   );
 }

@@ -16,6 +16,7 @@ import {
   emptyAudience,
   type AudienceRuleGroup,
 } from '@/lib/campaigns/audience-rules';
+import type { DraftEditorHandle } from '@/lib/campaigns/draft-saver';
 import type { CampaignDetail } from '@/lib/campaigns/queries';
 import { LocalDateTime } from '@/components/local-date-time';
 import { Badge } from '@/components/ui/badge';
@@ -73,6 +74,42 @@ export function CampaignEditor({
   permissions,
 }: Props) {
   const editable = permissions.canWrite && campaign.status === 'draft';
+  const [contentSaved, setContentSaved] = React.useState(true);
+  const composer = React.useRef<DraftEditorHandle>(null);
+  const audience = React.useRef<DraftEditorHandle>(null);
+  const [preparing, setPreparing] = React.useState(false);
+  const preparingRef = React.useRef(false);
+  const [prepareError, setPrepareError] = React.useState<string | null>(null);
+
+  function finishPreparing() {
+    preparingRef.current = false;
+    setPreparing(false);
+  }
+
+  async function prepareSend() {
+    if (preparingRef.current) return false;
+    preparingRef.current = true;
+    setPreparing(true);
+    setPrepareError(null);
+    try {
+      if (
+        editable &&
+        (!(await composer.current!.flush()) ||
+          !(await audience.current!.flush()))
+      ) {
+        setPrepareError(
+          'Save your edits successfully before sending or scheduling. Check the errors below.',
+        );
+        finishPreparing();
+        return false;
+      }
+      return true;
+    } catch {
+      setPrepareError('Could not save your edits. Please try again.');
+      finishPreparing();
+      return false;
+    }
+  }
 
   return (
     <div className='space-y-6'>
@@ -100,21 +137,31 @@ export function CampaignEditor({
         status={campaign.status}
         scheduledFor={campaign.scheduledFor}
         canSend={permissions.canSend}
+        prepareSend={prepareSend}
+        finishPreparing={finishPreparing}
+        preparing={preparing}
+        draftSaved={contentSaved}
       />
 
-      <CampaignComposer
-        campaign={campaign}
-        editable={editable}
-        canSendTest={permissions.canWrite}
-      />
+      {prepareError && <FieldError>{prepareError}</FieldError>}
+      <div inert={preparing} className='flex flex-col gap-6'>
+        <CampaignComposer
+          campaign={campaign}
+          editable={editable}
+          canSendTest={permissions.canWrite}
+          editorRef={composer}
+          onSavedChange={setContentSaved}
+        />
 
-      <AudienceCard
-        campaign={campaign}
-        options={options}
-        savedAudiences={savedAudiences}
-        editable={editable}
-        canPreview={permissions.canPreviewRecipients}
-      />
+        <AudienceCard
+          campaign={campaign}
+          options={options}
+          savedAudiences={savedAudiences}
+          editable={editable}
+          canPreview={permissions.canPreviewRecipients}
+          editorRef={audience}
+        />
+      </div>
     </div>
   );
 }
@@ -125,12 +172,14 @@ function AudienceCard({
   savedAudiences,
   editable,
   canPreview,
+  editorRef,
 }: {
   campaign: CampaignDetail;
   options: AudienceOptions;
   savedAudiences: SavedAudienceOption[];
   editable: boolean;
   canPreview: boolean;
+  editorRef: React.Ref<DraftEditorHandle>;
 }) {
   const linked = savedAudiences.find((a) => a.id === campaign.savedAudienceId);
   // A sent campaign shows the rules it was actually sent with, not whatever
@@ -159,16 +208,37 @@ function AudienceCard({
   ) {
     setIsBusy(true);
     setError(null);
-    const result = await action();
-    setIsBusy(false);
-    if (!result.success) {
-      setError(result.error ?? 'Something went wrong');
+    try {
+      const result = await action();
+      if (!result.success) {
+        setError(result.error ?? 'Something went wrong');
+        return false;
+      }
+      setDirty(false);
+      toast.success(success);
+      return true;
+    } catch {
+      setError('Could not save the audience. Please try again.');
       return false;
+    } finally {
+      setIsBusy(false);
     }
-    setDirty(false);
-    toast.success(success);
-    return true;
   }
+
+  React.useImperativeHandle(editorRef, () => ({
+    flush: async () => {
+      if (isBusy) {
+        setError('Wait for the audience save to finish, then try again.');
+        return false;
+      }
+      return (
+        !editable ||
+        Boolean(linked) ||
+        !dirty ||
+        run(() => updateCampaignAudience(campaign.id, rules), 'Audience saved')
+      );
+    },
+  }));
 
   const sourceValue = campaign.savedAudienceId ?? INLINE;
   const showSnapshot = Boolean(campaign.audienceSnapshot);

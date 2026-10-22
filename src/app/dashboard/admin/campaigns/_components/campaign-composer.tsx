@@ -11,6 +11,11 @@ import {
   updateCampaignContent,
   uploadCampaignImage,
 } from '@/app/dashboard/admin/campaigns/actions';
+import {
+  DraftSaver,
+  type DraftSaveState,
+  type DraftEditorHandle,
+} from '@/lib/campaigns/draft-saver';
 import { mergeFieldError } from '@/lib/campaigns/merge-fields';
 import type { CampaignDetail } from '@/lib/campaigns/queries';
 import { MarkdownEditor } from '@/components/markdown/markdown-editor';
@@ -41,11 +46,7 @@ type Content = {
   bodyMarkdown: string;
 };
 
-type SaveState =
-  | { kind: 'saved' }
-  | { kind: 'dirty' }
-  | { kind: 'saving' }
-  | { kind: 'error'; message: string };
+type SaveState = DraftSaveState;
 
 function useDebounced<T>(value: T, delayMs: number): T {
   const [debounced, setDebounced] = React.useState(value);
@@ -60,8 +61,12 @@ export function CampaignComposer({
   campaign,
   editable,
   canSendTest,
+  editorRef,
+  onSavedChange,
 }: {
   campaign: CampaignDetail;
+  editorRef: React.Ref<DraftEditorHandle>;
+  onSavedChange: (saved: boolean) => void;
   /** Draft and `campaign:write:all`. */
   editable: boolean;
   /** `campaign:write:all` — test sends work in any status. */
@@ -87,32 +92,27 @@ export function CampaignComposer({
   };
   const hasFieldErrors = Object.values(fieldErrors).some(Boolean);
 
+  const [saver] = React.useState(
+    () =>
+      new DraftSaver(
+        content,
+        (snapshot) => updateCampaignContent(campaign.id, snapshot),
+        (state) => {
+          setSaveState(state);
+          onSavedChange(state.kind === 'saved');
+        },
+      ),
+  );
+  const latest = React.useRef(content);
   const update = (patch: Partial<Content>) => {
-    setContent((current) => ({ ...current, ...patch }));
-    setSaveState({ kind: 'dirty' });
+    const next = { ...latest.current, ...patch };
+    latest.current = next;
+    setContent(next);
+    saver.update(next);
     setTestError(null);
   };
-
-  // Autosave. Skipped while a merge field is unknown: the server would refuse
-  // it anyway, and the inline error already says why.
-  const latest = React.useRef(content);
-  React.useEffect(() => {
-    latest.current = content;
-  }, [content]);
-  const save = React.useCallback(async (): Promise<boolean> => {
-    setSaveState({ kind: 'saving' });
-    const snapshot = latest.current;
-    const result = await updateCampaignContent(campaign.id, snapshot);
-    if (!result.success) {
-      setSaveState({ kind: 'error', message: result.error });
-      return false;
-    }
-    // Edits made while saving stay dirty and save on the next tick.
-    setSaveState(
-      latest.current === snapshot ? { kind: 'saved' } : { kind: 'dirty' },
-    );
-    return true;
-  }, [campaign.id]);
+  const save = saver.flush;
+  React.useImperativeHandle(editorRef, () => ({ flush: save }), [save]);
 
   React.useEffect(() => {
     if (!editable || saveState.kind !== 'dirty' || hasFieldErrors) return;

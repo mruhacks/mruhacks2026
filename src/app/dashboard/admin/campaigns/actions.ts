@@ -45,7 +45,11 @@ import {
   walletLinksFor,
 } from '@/lib/campaigns/wallet-block';
 import { buildCampaignMessage } from '@/lib/campaigns/unsubscribe';
-import { hasPermission, requirePermission } from '@/lib/rbac/authorization';
+import {
+  hasPermission,
+  requirePermission,
+  requireAnyPermission,
+} from '@/lib/rbac/authorization';
 import { fail, ok, type ActionResult } from '@/utils/action-result';
 import { writeAuditLog } from '@/utils/audit-log';
 import { getUser } from '@/utils/auth';
@@ -199,13 +203,16 @@ async function parseAudienceQuery(
   return { rules, context };
 }
 
-/** Live recipient count for the builder. Needs only `campaign:write:all`. */
+/** Live recipient count for the builder. Available to campaign readers and writers. */
 export async function countAudienceForBuilder(
   input: AudienceQueryInput,
 ): Promise<ActionResult<number>> {
   const user = await getUser();
   if (!user) return fail('Not authenticated');
-  await requirePermission(user.id, 'campaign:write:all');
+  await requireAnyPermission(user.id, [
+    'campaign:read:all',
+    'campaign:write:all',
+  ]);
 
   const query = await parseAudienceQuery(input);
   if ('error' in query) return fail(query.error);
@@ -218,7 +225,7 @@ export async function countAudienceForBuilder(
 
 /**
  * A sample of who the audience reaches. Names and emails are participant
- * data, so this needs `participant:read:all` as well as `campaign:write:all`,
+ * data, so this needs `participant:read:all` as well as campaign read or write access,
  * and refuses (rather than redirecting) without it.
  */
 export async function previewAudienceForBuilder(
@@ -226,7 +233,10 @@ export async function previewAudienceForBuilder(
 ): Promise<ActionResult<AudienceMember[]>> {
   const user = await getUser();
   if (!user) return fail('Not authenticated');
-  await requirePermission(user.id, 'campaign:write:all');
+  await requireAnyPermission(user.id, [
+    'campaign:read:all',
+    'campaign:write:all',
+  ]);
   if (!(await hasPermission(user.id, 'participant:read:all'))) {
     return fail("You don't have permission to see recipients.");
   }

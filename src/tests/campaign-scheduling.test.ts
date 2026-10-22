@@ -192,8 +192,8 @@ describe('hourly dispatch', () => {
     expect(dispatchesFor(future)).toHaveLength(0);
 
     // …and even if both were delivered, only one claims the campaign.
-    const first = await processCampaignDispatch(id);
-    const second = await processCampaignDispatch(id);
+    const first = await processCampaignDispatch(id, due.toISOString());
+    const second = await processCampaignDispatch(id, due.toISOString());
     expect(first).toMatchObject({ kind: 'dispatched', recipients: 1 });
     expect(second).toMatchObject({ kind: 'resumed' });
     expect(
@@ -213,10 +213,65 @@ describe('hourly dispatch', () => {
     await dispatchDueCampaigns();
     expect(dispatchesFor(id)).toHaveLength(0);
     // A dispatch message that was already in flight doesn't claim it either.
-    expect(await processCampaignDispatch(id)).toEqual({
+    expect(
+      await processCampaignDispatch(id, wholeHour(-2).toISOString()),
+    ).toEqual({
       kind: 'not_scheduled',
       status: 'draft',
     });
+  });
+
+  test('old dispatches cannot send a rescheduled campaign, even after it becomes due', async () => {
+    const oldTime = wholeHour(-2);
+    const id = await newCampaign({
+      status: 'scheduled',
+      scheduledFor: oldTime,
+    });
+    await unscheduleCampaign(id);
+    const future = wholeHour(3);
+    expect((await scheduleCampaign(id, future.toISOString())).success).toBe(
+      true,
+    );
+    expect(await processCampaignDispatch(id, oldTime.toISOString())).toEqual({
+      kind: 'stale_schedule',
+    });
+    expect(await processCampaignDispatch(id, future.toISOString())).toEqual({
+      kind: 'stale_schedule',
+    });
+    const laterDue = wholeHour(-1);
+    await db
+      .update(campaigns)
+      .set({ scheduledFor: laterDue })
+      .where(eq(campaigns.id, id));
+    expect(await processCampaignDispatch(id, oldTime.toISOString())).toEqual({
+      kind: 'stale_schedule',
+    });
+    expect(send).not.toHaveBeenCalled();
+    expect(
+      await processCampaignDispatch(id, laterDue.toISOString()),
+    ).toMatchObject({ kind: 'dispatched', recipients: 1 });
+  });
+
+  test('the scheduler recovers queued deliveries of a sending campaign', async () => {
+    const id = await newCampaign({
+      status: 'sending',
+      scheduledFor: wholeHour(-1),
+    });
+    const [delivery] = await db
+      .insert(campaignDeliveries)
+      .values({
+        campaignId: id,
+        userId: memberId,
+        email: 'scheduling-member@example.com',
+        attempts: 1,
+      })
+      .returning();
+    await dispatchDueCampaigns();
+    expect(send).toHaveBeenCalledWith(
+      'campaign-deliveries',
+      { deliveryId: delivery.id },
+      { idempotencyKey: `${delivery.id}:1`, delaySeconds: 0 },
+    );
   });
 
   test('a publish failure fails the run', async () => {

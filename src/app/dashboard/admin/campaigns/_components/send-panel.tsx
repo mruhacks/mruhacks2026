@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { CalendarClock, RotateCcw, Send, Square, Undo2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -14,11 +15,11 @@ import {
   stopCampaign,
   unscheduleCampaign,
 } from '@/app/dashboard/admin/campaigns/send-actions';
-import { fromDateTimeLocalValue } from '@/lib/datetime';
+import { campaignScheduleSlots } from '@/lib/campaigns/schedule-slots';
 import type { CampaignStatus } from '@/lib/campaigns/constants';
 import {
   LocalDateTime,
-  useZoneAbbreviation,
+  useDisplayTimeZone,
 } from '@/components/local-date-time';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -42,6 +43,7 @@ import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -62,6 +64,10 @@ type Props = {
   scheduledFor: Date | null;
   /** `campaign:send:all` (plus `campaign:operational:all` for operational). */
   canSend: boolean;
+  prepareSend: () => Promise<boolean>;
+  finishPreparing: () => void;
+  preparing: boolean;
+  draftSaved: boolean;
 };
 
 /** Send now / Stop controls and, once sending has started, the results. */
@@ -70,9 +76,21 @@ export function SendPanel({
   status,
   scheduledFor,
   canSend,
+  prepareSend,
+  finishPreparing,
+  preparing,
+  draftSaved,
 }: Props) {
   if (status === 'draft') {
-    return canSend ? <SendNowCard campaignId={campaignId} /> : null;
+    return canSend ? (
+      <SendNowCard
+        campaignId={campaignId}
+        prepareSend={prepareSend}
+        finishPreparing={finishPreparing}
+        preparing={preparing}
+        draftSaved={draftSaved}
+      />
+    ) : null;
   }
   if (status === 'scheduled') {
     return (
@@ -88,7 +106,16 @@ export function SendPanel({
   );
 }
 
-function SendNowCard({ campaignId }: { campaignId: string }) {
+function SendNowCard({
+  campaignId,
+  prepareSend,
+  finishPreparing,
+  preparing,
+  draftSaved,
+}: Pick<
+  Props,
+  'campaignId' | 'prepareSend' | 'finishPreparing' | 'preparing' | 'draftSaved'
+>) {
   const [open, setOpen] = React.useState(false);
   const [scheduling, setScheduling] = React.useState(false);
   return (
@@ -102,21 +129,43 @@ function SendNowCard({ campaignId }: { campaignId: string }) {
           </CardDescription>
         </div>
         <div className='flex flex-wrap gap-2'>
-          <Button variant='outline' onClick={() => setScheduling(true)}>
+          <Button
+            variant='outline'
+            disabled={preparing}
+            onClick={async () => {
+              if (await prepareSend()) setScheduling(true);
+            }}
+          >
             <CalendarClock /> Schedule
           </Button>
-          <Button onClick={() => setOpen(true)}>
+          <Button
+            disabled={preparing}
+            onClick={async () => {
+              if (await prepareSend()) setOpen(true);
+            }}
+          >
             <Send /> Send now
           </Button>
         </div>
       </CardHeader>
       {open && (
-        <SendNowDialog campaignId={campaignId} onClose={() => setOpen(false)} />
+        <SendNowDialog
+          draftSaved={draftSaved}
+          campaignId={campaignId}
+          onClose={() => {
+            setOpen(false);
+            finishPreparing();
+          }}
+        />
       )}
       {scheduling && (
         <ScheduleDialog
+          draftSaved={draftSaved}
           campaignId={campaignId}
-          onClose={() => setScheduling(false)}
+          onClose={() => {
+            setScheduling(false);
+            finishPreparing();
+          }}
         />
       )}
     </Card>
@@ -126,9 +175,11 @@ function SendNowCard({ campaignId }: { campaignId: string }) {
 function SendNowDialog({
   campaignId,
   onClose,
+  draftSaved,
 }: {
   campaignId: string;
   onClose: () => void;
+  draftSaved: boolean;
 }) {
   const summary = useQuery({
     queryKey: ['campaign-send-summary', campaignId],
@@ -138,6 +189,7 @@ function SendNowDialog({
       return result.data!;
     },
     gcTime: 0,
+    enabled: draftSaved,
   });
   const [typed, setTyped] = React.useState('');
   const [error, setError] = React.useState<string | null>(null);
@@ -147,27 +199,37 @@ function SendNowDialog({
   const typedOk =
     !data?.requiresTypedConfirmation ||
     Number(typed.replace(/[,\s]/g, '')) === data.recipients;
-  const canConfirm = data && data.problems.length === 0 && typedOk;
+  const canConfirm =
+    draftSaved &&
+    !summary.isFetching &&
+    data &&
+    data.problems.length === 0 &&
+    typedOk;
 
   async function confirm() {
-    if (!data) return;
+    if (!data || !canConfirm || isSending) return;
     setIsSending(true);
     setError(null);
-    const result = await sendCampaignNow(
-      campaignId,
-      data.requiresTypedConfirmation ? data.recipients : undefined,
-    );
-    setIsSending(false);
-    if (!result.success) {
-      setError(result.error);
-      return;
+    try {
+      const result = await sendCampaignNow(
+        campaignId,
+        data.requiresTypedConfirmation ? data.recipients : undefined,
+      );
+      if (!result.success) {
+        setError(result.error);
+        return;
+      }
+      toast.success('Campaign is sending');
+      onClose();
+    } catch {
+      setError('Could not send the campaign. Please try again.');
+    } finally {
+      setIsSending(false);
     }
-    toast.success('Campaign is sending');
-    onClose();
   }
 
   return (
-    <Dialog open onOpenChange={(next) => !next && onClose()}>
+    <Dialog open onOpenChange={(next) => !next && !isSending && onClose()}>
       <DialogContent className='sm:max-w-md'>
         <DialogHeader>
           <DialogTitle>
@@ -214,10 +276,15 @@ function SendNowDialog({
           </Field>
         ) : null}
 
+        {!draftSaved && (
+          <FieldError>
+            Waiting for edits to save. Fix any save errors before confirming.
+          </FieldError>
+        )}
         {error && <FieldError>{error}</FieldError>}
 
         <DialogFooter>
-          <Button variant='outline' onClick={onClose}>
+          <Button variant='outline' disabled={isSending} onClick={onClose}>
             Cancel
           </Button>
           <Button onClick={confirm} disabled={!canConfirm || isSending}>
@@ -229,60 +296,61 @@ function SendNowDialog({
   );
 }
 
-const HOURS = Array.from({ length: 24 }, (_, h) => h);
-
-function hourLabel(hour: number): string {
-  const suffix = hour < 12 ? 'AM' : 'PM';
-  return `${hour % 12 === 0 ? 12 : hour % 12}:00 ${suffix}`;
-}
-
-/**
- * Whole hours only: the hourly cron is what sends scheduled campaigns. The
- * date and hour are the viewer's own wall clock, turned into an instant here
- * in the browser (AGENTS.md).
- */
+/** UTC-hour slots are shown in the viewer's zone, including fractional offsets. */
 function ScheduleDialog({
   campaignId,
   onClose,
+  draftSaved,
 }: {
   campaignId: string;
   onClose: () => void;
+  draftSaved: boolean;
 }) {
   const [date, setDate] = React.useState('');
-  const [hour, setHour] = React.useState('9');
+  const [selectedSlot, setSelectedSlot] = React.useState('');
   const [error, setError] = React.useState<string | null>(null);
   const [isSaving, setIsSaving] = React.useState(false);
-  const local = date ? `${date}T${hour.padStart(2, '0')}:00` : '';
-  const zone = useZoneAbbreviation(local);
+  const zone = useDisplayTimeZone();
+  const slots = React.useMemo(
+    () => campaignScheduleSlots(date, zone),
+    [date, zone],
+  );
+  const slot = slots.includes(selectedSlot) ? selectedSlot : '';
 
   async function save(event: React.FormEvent) {
     event.preventDefault();
-    const instant = fromDateTimeLocalValue(local);
-    if (!instant) {
+    if (!draftSaved || isSaving) return;
+    if (!slot) {
       setError('Choose a date and hour.');
       return;
     }
     setIsSaving(true);
     setError(null);
-    const result = await scheduleCampaign(campaignId, instant.toISOString());
-    setIsSaving(false);
-    if (!result.success) {
-      setError(result.error);
-      return;
+    try {
+      const result = await scheduleCampaign(campaignId, slot);
+      if (!result.success) {
+        setError(result.error);
+        return;
+      }
+      toast.success('Campaign scheduled');
+      onClose();
+    } catch {
+      setError('Could not schedule the campaign. Please try again.');
+    } finally {
+      setIsSaving(false);
     }
-    toast.success('Campaign scheduled');
-    onClose();
   }
 
   return (
-    <Dialog open onOpenChange={(next) => !next && onClose()}>
+    <Dialog open onOpenChange={(next) => !next && !isSaving && onClose()}>
       <DialogContent className='sm:max-w-md'>
-        <form onSubmit={save} className='space-y-4'>
+        <form onSubmit={save} className='flex flex-col gap-4'>
           <DialogHeader>
             <DialogTitle>Schedule</DialogTitle>
             <DialogDescription>
-              Sends on the hour. The audience is worked out then, and the
-              campaign can&apos;t be edited until it&apos;s unscheduled.
+              Choose an available hourly slot in your time zone. The audience is
+              worked out then, and the campaign can&apos;t be edited until
+              it&apos;s unscheduled.
             </DialogDescription>
           </DialogHeader>
           <div className='grid grid-cols-2 gap-3'>
@@ -294,38 +362,55 @@ function ScheduleDialog({
                 value={date}
                 onChange={(e) => {
                   setDate(e.target.value);
+                  setSelectedSlot('');
                   setError(null);
                 }}
               />
             </Field>
             <Field>
-              <FieldLabel htmlFor='schedule-hour'>Hour ({zone})</FieldLabel>
+              <FieldLabel htmlFor='schedule-hour'>Time ({zone})</FieldLabel>
               <Select
-                value={hour}
+                value={slot}
                 onValueChange={(next) => {
-                  setHour(next);
+                  setSelectedSlot(next);
                   setError(null);
                 }}
               >
                 <SelectTrigger id='schedule-hour' className='w-full'>
-                  <SelectValue />
+                  <SelectValue placeholder='Choose a time' />
                 </SelectTrigger>
                 <SelectContent>
-                  {HOURS.map((h) => (
-                    <SelectItem key={h} value={String(h)}>
-                      {hourLabel(h)}
-                    </SelectItem>
-                  ))}
+                  <SelectGroup>
+                    {slots.map((instant) => (
+                      <SelectItem key={instant} value={instant}>
+                        <LocalDateTime
+                          value={instant}
+                          timeOnly
+                          timeZoneName='short'
+                        />
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
                 </SelectContent>
               </Select>
             </Field>
           </div>
+          {!draftSaved && (
+            <FieldError>
+              Waiting for edits to save. Fix any save errors before confirming.
+            </FieldError>
+          )}
           {error && <FieldError>{error}</FieldError>}
           <DialogFooter>
-            <Button type='button' variant='outline' onClick={onClose}>
+            <Button
+              type='button'
+              variant='outline'
+              disabled={isSaving}
+              onClick={onClose}
+            >
               Cancel
             </Button>
-            <Button type='submit' disabled={isSaving}>
+            <Button type='submit' disabled={isSaving || !slot || !draftSaved}>
               {isSaving ? 'Scheduling…' : 'Schedule'}
             </Button>
           </DialogFooter>
@@ -345,6 +430,37 @@ function ScheduledCard({
   canSend: boolean;
 }) {
   const [busy, setBusy] = React.useState(false);
+  const router = useRouter();
+  const status = useQuery({
+    queryKey: ['campaign-results', campaignId],
+    queryFn: async () => {
+      const result = await getCampaignResults(campaignId);
+      if (!result.success) throw new Error(result.error);
+      return result.data!;
+    },
+    refetchInterval: 5000,
+  });
+  const currentStatus = status.data?.status;
+  React.useEffect(() => {
+    if (currentStatus && currentStatus !== 'scheduled') {
+      // The editor's status and audience snapshot are Server Component props.
+      // eslint-disable-next-line custom/no-router-refresh
+      router.refresh();
+    }
+  }, [currentStatus, router]);
+  if (
+    currentStatus &&
+    currentStatus !== 'scheduled' &&
+    currentStatus !== 'draft'
+  ) {
+    return (
+      <ResultsCard
+        campaignId={campaignId}
+        status={currentStatus as CampaignStatus}
+        canSend={canSend}
+      />
+    );
+  }
   return (
     <Card>
       <CardHeader className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
@@ -464,18 +580,19 @@ function ResultsCard({
               </Button>
             )}
             {(currentStatus === 'sent' || currentStatus === 'sending') &&
-              (counts?.failed ?? 0) > 0 && (
+              ((counts?.failed ?? 0) > 0 || (counts?.queued ?? 0) > 0) && (
                 <Button
                   variant='outline'
                   disabled={busy}
                   onClick={() =>
                     void run(
                       () => retryFailedDeliveries(campaignId),
-                      'Failed deliveries requeued',
+                      'Pending deliveries queued',
                     )
                   }
                 >
-                  <RotateCcw /> Retry failed
+                  <RotateCcw />{' '}
+                  {(counts?.failed ?? 0) > 0 ? 'Retry failed' : 'Resume queued'}
                 </Button>
               )}
           </div>

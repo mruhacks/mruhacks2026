@@ -36,7 +36,7 @@ vi.mock('next/cache', async (importOriginal) => ({
 
 import { sendMail } from '@/utils/mail';
 import { getUser } from '@/utils/auth';
-import { processCampaignDispatch } from '@/lib/campaigns/process-dispatch';
+import { processCampaignDispatch as dispatch } from '@/lib/campaigns/process-dispatch';
 import {
   campaignDeliveryRetryDelay,
   classifySendError,
@@ -82,6 +82,11 @@ async function newCampaign(
     .returning({ id: campaigns.id });
   campaignIds.push(row.id);
   return row.id;
+}
+
+async function processCampaignDispatch(id: string) {
+  const row = await campaignRow(id);
+  return dispatch(id, row.scheduledFor?.toISOString() ?? '');
 }
 
 async function deliveriesOf(campaignId: string) {
@@ -281,6 +286,30 @@ describe('delivery', () => {
     expect(sent.sentAt).toBeInstanceOf(Date);
   });
 
+  test('concurrent wallet deliveries render without exhausting the connection pool', async () => {
+    const ids: string[] = [];
+    for (let i = 0; i < 3; i++) {
+      const id = await newCampaign({
+        eventId,
+        bodyMarkdown: 'Your pass\n\n::wallet',
+      });
+      ids.push(id);
+      await processCampaignDispatch(id);
+    }
+    const deliveries = (await Promise.all(ids.map(deliveriesOf))).flat();
+    expect(deliveries).toHaveLength(36);
+    expect(
+      await Promise.all(
+        deliveries.map((row) => processCampaignDelivery(row.id)),
+      ),
+    ).toEqual(Array(36).fill('sent'));
+    expect(sendMail).toHaveBeenCalledTimes(36);
+    for (const [mail] of vi.mocked(sendMail).mock.calls) {
+      expect(mail.html).toContain('/api/wallet/email/');
+    }
+    for (const id of ids) expect((await campaignRow(id)).status).toBe('sent');
+  });
+
   test('a recipient who opted out after dispatch is skipped', async () => {
     const id = await newCampaign();
     await processCampaignDispatch(id);
@@ -348,6 +377,63 @@ describe('delivery', () => {
     expect(results.sort()).toEqual(['already_done', 'sent']);
     expect(await processCampaignDelivery(d.id)).toBe('already_done');
     expect(sendMail).toHaveBeenCalledTimes(1);
+  });
+
+  test('a consumer arriving during SMTP cannot claim the same delivery', async () => {
+    const id = await newCampaign();
+    await processCampaignDispatch(id);
+    const [delivery] = await deliveriesOf(id);
+    let release!: () => void;
+    let started!: () => void;
+    const sending = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    vi.mocked(sendMail).mockImplementationOnce(async () => {
+      started();
+      await new Promise<void>((resolve) => {
+        release = resolve;
+      });
+    });
+    const first = processCampaignDelivery(delivery.id);
+    await sending;
+    try {
+      expect(await processCampaignDelivery(delivery.id)).toBe('already_done');
+      expect(sendMail).toHaveBeenCalledTimes(1);
+      expect((await campaignRow(id)).status).toBe('sending');
+    } finally {
+      release();
+      expect(await first).toBe('sent');
+    }
+    expect(
+      (await deliveriesOf(id)).find((row) => row.id === delivery.id),
+    ).toMatchObject({ attempts: 1, status: 'sent' });
+  });
+
+  test('Stop can finish while an in-progress delivery commits, without a deadlock', async () => {
+    const id = await newCampaign();
+    await processCampaignDispatch(id);
+    const [delivery] = await deliveriesOf(id);
+    let release!: () => void;
+    let started!: () => void;
+    const sending = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    vi.mocked(sendMail).mockImplementationOnce(async () => {
+      started();
+      await new Promise<void>((resolve) => {
+        release = resolve;
+      });
+    });
+    const first = processCampaignDelivery(delivery.id);
+    await sending;
+    const stopping = stopCampaign(id);
+    release();
+    expect(await stopping).toMatchObject({ success: true });
+    expect(await first).toBe('sent');
+    const rows = await deliveriesOf(id);
+    expect(rows.filter((row) => row.status === 'sent')).toHaveLength(1);
+    expect(rows.filter((row) => row.status === 'skipped')).toHaveLength(11);
+    expect((await campaignRow(id)).status).toBe('cancelled');
   });
 
   test('throttling is retried; suppression fails with a reason', async () => {
@@ -437,7 +523,7 @@ describe('send actions', () => {
     expect(row.status).toBe('scheduled');
     expect(send).toHaveBeenCalledWith(
       'campaign-dispatch',
-      { campaignId: id },
+      { campaignId: id, scheduledFor: row.scheduledFor!.toISOString() },
       { idempotencyKey: `${id}:${row.scheduledFor!.toISOString()}` },
     );
     // Not a draft anymore.
@@ -496,6 +582,31 @@ describe('send actions', () => {
       data: { counts: { queued: 0, sent: 12, failed: 0, skipped: 0 } },
     });
     expect(results.success && results.data!.recipients).toHaveLength(12);
+  });
+
+  test('retry publishing can recover even when no failed rows remain', async () => {
+    const id = await newCampaign({ status: 'sent' });
+    await db.insert(campaignDeliveries).values({
+      campaignId: id,
+      userId: memberIds[0],
+      email: 'pipeline-0@example.com',
+      status: 'failed',
+      attempts: 1,
+    });
+    send.mockRejectedValue(new Error('queue down'));
+    expect((await retryFailedDeliveries(id)).success).toBe(false);
+    expect((await deliveriesOf(id))[0].status).toBe('queued');
+    send.mockReset();
+    send.mockResolvedValue({ messageId: 'recovered' });
+    expect(await retryFailedDeliveries(id)).toMatchObject({
+      success: true,
+      data: { requeued: 0 },
+    });
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(await processCampaignDelivery((await deliveriesOf(id))[0].id)).toBe(
+      'sent',
+    );
+    expect((await campaignRow(id)).status).toBe('sent');
   });
 
   test('over 100 recipients, Send now needs the count typed back', async () => {

@@ -251,11 +251,32 @@ describe('audience builder count and preview', () => {
     });
   });
 
-  test('count is refused without campaign:write:all', async () => {
-    actAs('reader');
+  test('count is refused without campaign read or write access', async () => {
+    actAs('member');
     await expect(countAudienceForBuilder(audienceForEvent())).rejects.toThrow(
       FORBIDDEN,
     );
+  });
+
+  test('read-only viewers can count and participant readers can preview', async () => {
+    actAs('reader');
+    expect(await countAudienceForBuilder(audienceForEvent())).toEqual({
+      success: true,
+      data: 1,
+    });
+    expect(await previewAudienceForBuilder(audienceForEvent())).toMatchObject({
+      success: false,
+    });
+    await grant(userIds.reader, ['participant:read:all']);
+    expect(await previewAudienceForBuilder(audienceForEvent())).toMatchObject({
+      success: true,
+      data: [
+        expect.objectContaining({
+          id: expect.any(String),
+          email: expect.any(String),
+        }),
+      ],
+    });
   });
 
   test('preview is refused without participant:read:all', async () => {

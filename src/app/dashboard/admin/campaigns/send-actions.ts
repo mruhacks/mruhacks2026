@@ -137,7 +137,11 @@ export async function sendCampaignNow(
       .update(campaigns)
       .set({ status: 'draft', scheduledFor: null })
       .where(
-        and(eq(campaigns.id, campaignId), eq(campaigns.status, 'scheduled')),
+        and(
+          eq(campaigns.id, campaignId),
+          eq(campaigns.status, 'scheduled'),
+          eq(campaigns.scheduledFor, scheduledFor),
+        ),
       );
     return serverActionError('queue the campaign', error);
   }
@@ -154,8 +158,7 @@ export async function sendCampaignNow(
 }
 
 /**
- * Schedules a draft for a whole hour (UTC instant, from the browser's
- * `fromDateTimeLocalValue`). The hourly cron dispatches it at or after that
+ * Schedules a draft for a whole UTC hour selected from localized slots. The hourly cron dispatches it at or after that
  * hour; the audience is worked out then, not now.
  */
 export async function scheduleCampaign(
@@ -303,6 +306,16 @@ export async function retryFailedDeliveries(
 
   try {
     const requeued = await db.transaction(async (tx) => {
+      const [current] = await tx
+        .select()
+        .from(campaigns)
+        .where(eq(campaigns.id, campaignId))
+        .for('update');
+      if (!current || !['sending', 'sent'].includes(current.status)) {
+        throw new Error(
+          'Only a sent campaign can retry its failed deliveries.',
+        );
+      }
       const rows = await tx
         .update(campaignDeliveries)
         .set({ status: 'queued', lastError: null, queuedAt: new Date() })
@@ -321,7 +334,7 @@ export async function retryFailedDeliveries(
       }
       return rows.length;
     });
-    if (requeued > 0) await publishQueuedDeliveries(campaignId);
+    await publishQueuedDeliveries(campaignId);
 
     await writeAuditLog({
       actorId: user.id,

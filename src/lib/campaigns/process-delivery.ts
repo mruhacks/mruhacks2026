@@ -78,31 +78,11 @@ function errorText(error: unknown): string {
   return (err?.response || err?.message || 'Unknown send error').slice(0, 500);
 }
 
-async function finish(
+function deliveryQuery(
   deliveryId: string,
-  campaignId: string,
-  set: Partial<typeof campaignDeliveries.$inferInsert>,
+  query: Pick<typeof db, 'select'> = db,
 ) {
-  await db
-    .update(campaignDeliveries)
-    .set(set)
-    .where(eq(campaignDeliveries.id, deliveryId));
-  await completeCampaignIfDone(campaignId);
-}
-
-/**
- * Consumer logic for one `campaign-deliveries` message. Returns normally
- * (ack) for every outcome except a retryable send failure, which it rethrows
- * so the queue redelivers it with backoff.
- *
- * A delivery is only sent while its row is `queued`, and the attempt is
- * claimed first with a compare-and-set on `attempts` — so a redelivered or
- * duplicated message can never send the same email twice.
- */
-export async function processCampaignDelivery(
-  deliveryId: string,
-): Promise<ProcessDeliveryOutcome> {
-  const [row] = await db
+  return query
     .select({
       delivery: campaignDeliveries,
       campaign: {
@@ -128,41 +108,31 @@ export async function processCampaignDelivery(
     )
     .where(eq(campaignDeliveries.id, deliveryId))
     .limit(1);
+}
 
-  if (!row) return 'not_found';
-  const { delivery, campaign } = row;
-  if (delivery.status !== 'queued') return 'already_done';
-
-  if (campaign.status === 'cancelled') {
-    await finish(delivery.id, campaign.id, {
-      status: 'skipped',
-      skipReason: SKIP_REASONS.stopped,
-    });
-    return 'skipped';
-  }
-  // Consent is checked again here, not just at dispatch: someone who
-  // unsubscribes mid-send must not get the email.
-  if (campaign.type === 'marketing' && !row.optedIn) {
-    await finish(delivery.id, campaign.id, {
-      status: 'skipped',
-      skipReason: SKIP_REASONS.unsubscribed,
-    });
-    return 'skipped';
-  }
-
-  const [claimed] = await db
-    .update(campaignDeliveries)
-    .set({ attempts: sql`${campaignDeliveries.attempts} + 1` })
-    .where(
-      and(
-        eq(campaignDeliveries.id, delivery.id),
-        eq(campaignDeliveries.status, 'queued'),
-        eq(campaignDeliveries.attempts, delivery.attempts),
-      ),
-    )
-    .returning({ attempts: campaignDeliveries.attempts });
-  if (!claimed) return 'already_done';
-
+/**
+ * Consumer logic for one `campaign-deliveries` message. Returns normally
+ * (ack) for every outcome except a retryable send failure, which it rethrows
+ * so the queue redelivers it with backoff.
+ *
+ * Hold an exclusive row lock through SMTP and the final update.
+ * Overlapping consumers skip the locked row. A terminated worker releases
+ * its lock automatically, leaving the queued row available for redelivery.
+ * SMTP acceptance and the DB commit are not atomic; a crash between them
+ * still has the usual at-least-once delivery ambiguity.
+ */
+export async function processCampaignDelivery(
+  deliveryId: string,
+): Promise<ProcessDeliveryOutcome> {
+  const [initial] = await deliveryQuery(deliveryId);
+  if (!initial) return 'not_found';
+  if (initial.delivery.status !== 'queued') return 'already_done';
+  // Rendering may perform wallet lookups and register signing keys. Do it
+  // before reserving a transaction connection so concurrent workers cannot
+  // exhaust the pool while waiting for these additional queries.
+  const { delivery, campaign } = initial;
+  let message: Awaited<ReturnType<typeof buildCampaignMessage>> | undefined;
+  let renderError: unknown;
   let note: string | null = null;
   try {
     const baseUrl = getAppBaseUrl();
@@ -175,52 +145,129 @@ export async function processCampaignDelivery(
       );
       if (!walletLinks) note = SKIP_REASONS.noWallet;
     }
-    const message = await buildCampaignMessage(
+    message = await buildCampaignMessage(
       {
         type: campaign.type,
         subject: campaign.subject,
         previewText: campaign.previewText,
         bodyMarkdown: campaign.bodyMarkdown,
-        eventName: row.eventName,
+        eventName: initial.eventName,
       },
-      { email: delivery.email, firstName: firstNameOf(row.userName) },
+      { email: delivery.email, firstName: firstNameOf(initial.userName) },
       { blocks: walletBlockRenderers(walletLinks, baseUrl) },
     );
-    await sendMail(message);
   } catch (error) {
-    const kind = classifySendError(error);
-    const lastError = errorText(error);
-    const giveUp =
-      kind === 'suppressed' ||
-      kind === 'permanent' ||
-      claimed.attempts >= MAX_CAMPAIGN_DELIVERY_ATTEMPTS;
-    if (giveUp) {
-      await finish(delivery.id, campaign.id, {
-        status: 'failed',
-        lastError:
-          kind === 'suppressed'
-            ? `Address is on the SES suppression list: ${lastError}`
-            : lastError,
-      });
-      console.error('[campaigns/delivery] giving up', {
-        deliveryId,
-        kind,
-        attempts: claimed.attempts,
-      });
-      return 'failed';
-    }
-    await db
-      .update(campaignDeliveries)
-      .set({ lastError })
-      .where(eq(campaignDeliveries.id, delivery.id));
-    throw error;
+    renderError = error;
   }
 
-  await finish(delivery.id, campaign.id, {
-    status: 'sent',
-    sentAt: new Date(),
-    lastError: null,
-    skipReason: note,
+  const result = await db.transaction(async (tx) => {
+    let campaignId: string | undefined;
+    async function finish(
+      deliveryId: string,
+      id: string,
+      set: Partial<typeof campaignDeliveries.$inferInsert>,
+    ) {
+      campaignId = id;
+      await tx
+        .update(campaignDeliveries)
+        .set(set)
+        .where(eq(campaignDeliveries.id, deliveryId));
+    }
+    const outcome = await attempt();
+    return { outcome, campaignId };
+
+    async function attempt(): Promise<
+      ProcessDeliveryOutcome | { retry: unknown }
+    > {
+      const [row] = await deliveryQuery(deliveryId, tx).for('update', {
+        of: campaignDeliveries,
+        skipLocked: true,
+      });
+
+      if (!row) {
+        const [existing] = await tx
+          .select({ id: campaignDeliveries.id })
+          .from(campaignDeliveries)
+          .where(eq(campaignDeliveries.id, deliveryId));
+        return existing ? 'already_done' : 'not_found';
+      }
+      const { delivery, campaign } = row;
+      if (delivery.status !== 'queued') return 'already_done';
+
+      if (campaign.status === 'cancelled') {
+        await finish(delivery.id, campaign.id, {
+          status: 'skipped',
+          skipReason: SKIP_REASONS.stopped,
+        });
+        return 'skipped';
+      }
+      // Consent is checked again here, not just at dispatch: someone who
+      // unsubscribes mid-send must not get the email.
+      if (campaign.type === 'marketing' && !row.optedIn) {
+        await finish(delivery.id, campaign.id, {
+          status: 'skipped',
+          skipReason: SKIP_REASONS.unsubscribed,
+        });
+        return 'skipped';
+      }
+
+      const [claimed] = await tx
+        .update(campaignDeliveries)
+        .set({ attempts: sql`${campaignDeliveries.attempts} + 1` })
+        .where(
+          and(
+            eq(campaignDeliveries.id, delivery.id),
+            eq(campaignDeliveries.status, 'queued'),
+            eq(campaignDeliveries.attempts, delivery.attempts),
+          ),
+        )
+        .returning({ attempts: campaignDeliveries.attempts });
+      if (!claimed) return 'already_done';
+
+      try {
+        if (!message) throw renderError;
+        await sendMail(message);
+      } catch (error) {
+        const kind = classifySendError(error);
+        const lastError = errorText(error);
+        const giveUp =
+          kind === 'suppressed' ||
+          kind === 'permanent' ||
+          claimed.attempts >= MAX_CAMPAIGN_DELIVERY_ATTEMPTS;
+        if (giveUp) {
+          await finish(delivery.id, campaign.id, {
+            status: 'failed',
+            lastError:
+              kind === 'suppressed'
+                ? `Address is on the SES suppression list: ${lastError}`
+                : lastError,
+          });
+          console.error('[campaigns/delivery] giving up', {
+            deliveryId,
+            kind,
+            attempts: claimed.attempts,
+          });
+          return 'failed';
+        }
+        await tx
+          .update(campaignDeliveries)
+          .set({ lastError })
+          .where(eq(campaignDeliveries.id, delivery.id));
+        return { retry: error };
+      }
+
+      await finish(delivery.id, campaign.id, {
+        status: 'sent',
+        sentAt: new Date(),
+        lastError: null,
+        skipReason: note,
+      });
+      return 'sent';
+    }
   });
-  return 'sent';
+  // Release the delivery lock before locking the campaign, matching Stop's
+  // campaign → delivery lock order and avoiding a deadlock.
+  if (result.campaignId) await completeCampaignIfDone(result.campaignId);
+  if (typeof result.outcome === 'object') throw result.outcome.retry;
+  return result.outcome;
 }
