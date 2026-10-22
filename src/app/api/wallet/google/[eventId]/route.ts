@@ -1,10 +1,8 @@
-import { buildCheckInPayload } from '@/lib/wallet/check-in-token';
-import { buildGoogleWalletSaveUrl } from '@/lib/wallet/google/event-ticket';
-import {
-  getEventParticipation,
-  resolveParticipantName,
-} from '@/lib/wallet/participation';
 import { checkWalletRateLimit } from '@/lib/wallet/rate-limit';
+import {
+  googleWalletResponse,
+  walletParticipation,
+} from '@/lib/wallet/wallet-responses';
 import { getUser } from '@/utils/auth';
 
 /**
@@ -22,35 +20,13 @@ export async function GET(
   }
 
   const { eventId } = await params;
-  const participation = await getEventParticipation(eventId, user.id);
-  if (
-    !participation ||
-    !participation.isParticipant ||
-    !participation.checkInEnabled
-  ) {
-    return new Response('Not found', { status: 404 });
-  }
+  const participation = await walletParticipation(eventId, user.id);
+  if (!participation) return new Response('Not found', { status: 404 });
 
-  try {
-    const name = resolveParticipantName(participation.fullName, user.name);
-    const checkInPayload = buildCheckInPayload(eventId, user.id);
-
-    const saveUrl = await buildGoogleWalletSaveUrl({
-      eventId,
-      userId: user.id,
-      name,
-      eventName: participation.eventName,
-      startsAt: participation.startsAt,
-      endsAt: participation.endsAt,
-      location: participation.location,
-      checkInPayload,
-    });
-
-    return Response.redirect(saveUrl, 302);
-  } catch (error) {
-    console.error('[wallet/google] failed to build save link', error);
-    return new Response('Could not generate Google Wallet pass', {
-      status: 500,
-    });
-  }
+  return googleWalletResponse({
+    eventId,
+    userId: user.id,
+    accountName: user.name,
+    participation,
+  });
 }

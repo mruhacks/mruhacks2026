@@ -48,18 +48,29 @@ function buildV1Token(eventId: string, userId: string, name: string): Buffer {
   return Buffer.concat([body, signature]);
 }
 
-const originalKey = process.env.CHECK_IN_SIGNING_PRIVATE_KEY;
+const SIGNING_ENV = [
+  'APP_SIGNING_PRIVATE_KEY',
+  'APP_SIGNING_PUBLIC_KEY',
+  'CHECK_IN_SIGNING_PRIVATE_KEY',
+  'CHECK_IN_SIGNING_PUBLIC_KEY',
+] as const;
+const originalEnv = Object.fromEntries(
+  SIGNING_ENV.map((name) => [name, process.env[name]]),
+);
 const testKeyPem = generateTestKeyPem();
 
+// Most of this file exercises the legacy CHECK_IN_SIGNING_* names, which the
+// APP_SIGNING_* ones take precedence over, so clear those first.
 beforeAll(() => {
+  for (const name of SIGNING_ENV) delete process.env[name];
   process.env.CHECK_IN_SIGNING_PRIVATE_KEY = testKeyPem;
 });
 
 afterAll(() => {
-  if (originalKey === undefined) {
-    delete process.env.CHECK_IN_SIGNING_PRIVATE_KEY;
-  } else {
-    process.env.CHECK_IN_SIGNING_PRIVATE_KEY = originalKey;
+  for (const name of SIGNING_ENV) {
+    const value = originalEnv[name];
+    if (value === undefined) delete process.env[name];
+    else process.env[name] = value;
   }
 });
 
@@ -244,5 +255,72 @@ describe('verifyCheckInToken / verifyCheckInPayload', () => {
       token.writeUInt8(255, 37); // name-length byte, now far too large
       expect(verifyCheckInToken(token)).toBeNull();
     });
+  });
+});
+
+describe('APP_SIGNING_* env var names', () => {
+  it('signs and verifies under APP_SIGNING_PRIVATE_KEY alone', () => {
+    delete process.env.CHECK_IN_SIGNING_PRIVATE_KEY;
+    process.env.APP_SIGNING_PRIVATE_KEY = testKeyPem;
+    try {
+      const token = buildCheckInToken(EVENT_ID, USER_ID);
+      expect(verifyCheckInToken(token)).toEqual({
+        eventId: EVENT_ID,
+        userId: USER_ID,
+      });
+    } finally {
+      delete process.env.APP_SIGNING_PRIVATE_KEY;
+      process.env.CHECK_IN_SIGNING_PRIVATE_KEY = testKeyPem;
+    }
+  });
+
+  it('verifies v1 and v2 tokens signed under the legacy name after switching to the new one', () => {
+    const v2 = buildCheckInToken(EVENT_ID, USER_ID);
+    const v1 = buildV1Token(EVENT_ID, USER_ID, 'Legacy');
+    delete process.env.CHECK_IN_SIGNING_PRIVATE_KEY;
+    process.env.APP_SIGNING_PRIVATE_KEY = testKeyPem;
+    try {
+      expect(verifyCheckInToken(v2)).toEqual({
+        eventId: EVENT_ID,
+        userId: USER_ID,
+      });
+      expect(verifyCheckInToken(v1)).toEqual({
+        eventId: EVENT_ID,
+        userId: USER_ID,
+      });
+    } finally {
+      delete process.env.APP_SIGNING_PRIVATE_KEY;
+      process.env.CHECK_IN_SIGNING_PRIVATE_KEY = testKeyPem;
+    }
+  });
+
+  it('prefers APP_SIGNING_PRIVATE_KEY over the legacy name when both are set', () => {
+    process.env.APP_SIGNING_PRIVATE_KEY = generateTestKeyPem();
+    try {
+      const token = buildCheckInToken(EVENT_ID, USER_ID);
+      // Verifies against the APP key...
+      expect(verifyCheckInToken(token)).not.toBeNull();
+      // ...and not against the legacy one alone.
+      delete process.env.APP_SIGNING_PRIVATE_KEY;
+      expect(verifyCheckInToken(token)).toBeNull();
+    } finally {
+      delete process.env.APP_SIGNING_PRIVATE_KEY;
+    }
+  });
+
+  it('verifies with only APP_SIGNING_PUBLIC_KEY present', () => {
+    const token = buildCheckInToken(EVENT_ID, USER_ID);
+    delete process.env.CHECK_IN_SIGNING_PRIVATE_KEY;
+    process.env.APP_SIGNING_PUBLIC_KEY = createPublicKey(
+      createPrivateKey(testKeyPem),
+    )
+      .export({ type: 'spki', format: 'pem' })
+      .toString();
+    try {
+      expect(verifyCheckInToken(token)).not.toBeNull();
+    } finally {
+      delete process.env.APP_SIGNING_PUBLIC_KEY;
+      process.env.CHECK_IN_SIGNING_PRIVATE_KEY = testKeyPem;
+    }
   });
 });

@@ -386,6 +386,20 @@
       "when": 1792455752884,
       "tag": "0054_onboarding_skip_permission",
       "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1792635211648,
+      "tag": "0055_campaigns",
+      "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1792635224315,
+      "tag": "0056_signing_public_keys",
+      "breakpoints": true
     }
   ]
 }

@@ -7,6 +7,13 @@ export type SendMailOptions = {
   subject: string;
   text?: string;
   html?: string;
+  /**
+   * Marketing email only: the RFC 8058 one-click target. Adds
+   * `List-Unsubscribe: <url>` and `List-Unsubscribe-Post:
+   * List-Unsubscribe=One-Click`, so mail providers show their own
+   * unsubscribe button.
+   */
+  listUnsubscribeUrl?: string;
 };
 
 /** Reads and validates `EMAIL_FROM` from the env */
@@ -70,6 +77,12 @@ export async function sendMail(options: SendMailOptions): Promise<void> {
     subject: options.subject,
     text: options.text,
     html: options.html,
+    ...(options.listUnsubscribeUrl && {
+      headers: {
+        'List-Unsubscribe': `<${options.listUnsubscribeUrl}>`,
+        'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+      },
+    }),
   });
 }
 

@@ -35,6 +35,8 @@ const SEGMENT_LABELS: Record<string, string> = {
   users: 'Users',
   roles: 'Roles',
   permissions: 'Permissions',
+  campaigns: 'Campaigns',
+  audiences: 'Saved audiences',
   register: 'Register',
   apply: 'Apply',
   judge: 'Judging',

@@ -1,11 +1,10 @@
 import { configDefaults, defineConfig } from 'vitest/config';
+import { GAVEL_DIFFERENTIAL_TEST } from './vitest.shared.mts';
 
 /**
  * Slow (~30s, needs Docker): left out of `pnpm test`, run by `pnpm test:gavel`
- * (vitest.gavel.config.ts) and in CI.
+ * (vitest.gavel.config.mts) and in CI.
  */
-export const GAVEL_DIFFERENTIAL_TEST = 'src/tests/gavel-differential.test.ts';
-
 export default defineConfig({
   test: {
     globals: true,

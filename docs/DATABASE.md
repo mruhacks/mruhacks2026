@@ -114,6 +114,7 @@ Our database schema is split across multiple files to be more manageable.
 - `src/db/lookups.ts`: Defines reference/lookup tables (genders, universities, majors, event_types, etc.).
 - `src/db/events-and-participation.ts`: Defines events (with `parent_event_id`, `event_type_id` FK to `event_types`, `capacity`, `rsvp_response_window_hours`), user profiles, event participants (with `id`, `status_id`, `reviewed_at`, `reviewed_by`), application votes (one yes/no per reviewer per participant; the waitlist's order is derived from them, never stored), event RSVP waves and invitations, user interests/dietary (user-level), check-ins, groups, group members, submissions, and application views
 - `src/db/authz.ts`: Defines authorization (what you can do) related tables.
+- `src/db/campaigns.ts`: Defines email campaigns (inline audience rules or a linked saved audience, never both), saved audiences, and `campaign_deliveries` (one row per recipient per campaign, tracked through the delivery queue).
 - `scripts/seed-static.ts`: Seeds static lookup/reference data (including `participation_statuses`) into the lookup tables defined in `src/db/lookups.ts`.
 - `src/types/lookups.ts`: Defines the TypeScript types and source lists of valid values for the reference/lookup tables used by `scripts/seed-static.ts`.
 
