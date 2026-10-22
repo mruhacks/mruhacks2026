@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 import * as Campaigns from '@/lib/campaigns';
 
-const campaignTypeSchema = z.enum(Campaigns.CAMPAIGN_TYPES);
+const campaignTypeSchema = z.enum(Campaigns.TYPES);
 
 /** Where an audience is evaluated: a campaign type and, for operational, its event. */
 const audienceContextSchema = z

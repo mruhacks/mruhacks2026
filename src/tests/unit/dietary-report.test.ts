@@ -14,7 +14,7 @@ function person(userId: string, restrictions: DietaryRestriction[] = [], otherTe
   return { userId, name: `User ${userId}`, restrictions, otherText };
 }
 
-function source(overrides: Partial<Dietary.DietaryReportSource> = {}) {
+function source(overrides: Partial<Dietary.ReportSource> = {}) {
   return Dietary.buildDietaryReport({
     mainEventId: EVENT,
     eventEndsAt: at('23:00'),

@@ -2,7 +2,7 @@ import { handleCallback } from '@vercel/queue';
 
 import * as Rsvp from '@/lib/rsvp/server';
 
-export const POST = handleCallback<Rsvp.RsvpInvitationMessage>(
+export const POST = handleCallback<Rsvp.InvitationMessage>(
   async ({ responseId }, metadata) => {
     await Rsvp.processRsvpInvitation(responseId, metadata.deliveryCount);
   },

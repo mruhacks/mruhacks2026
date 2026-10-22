@@ -13,7 +13,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ eve
   }
 
   const { eventId } = await params;
-  const participation = await Wallet.walletParticipation(eventId, user.id);
+  const participation = await Wallet.participation(eventId, user.id);
   if (!participation) return new Response('Not found', { status: 404 });
 
   return Wallet.googleWalletResponse({

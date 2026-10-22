@@ -4,7 +4,7 @@ import { and, desc, eq, inArray } from 'drizzle-orm';
 
 import * as schema from '@/db/schema';
 import * as Participation from '@/lib/participation/server';
-import { RSVP_WAVE_ALREADY_ACTIVE_MESSAGE, RSVP_WAVE_EVENT_STARTED_MESSAGE } from './constants';
+import { WAVE_ALREADY_ACTIVE_MESSAGE, WAVE_EVENT_STARTED_MESSAGE } from './constants';
 import { computeRsvpRespondBy, isRsvpWaveActive } from './compute-rsvp-respond-by';
 import { getEligibleRsvpApplicants, type EligibleRsvpApplicant } from './eligible-rsvp-applicants';
 import { publishRsvpInvitation } from './rsvp-invitation-queue';
@@ -12,7 +12,7 @@ import { selectRsvpWaveInvitees } from './select-rsvp-wave-invitees';
 import { timeoutExpiredInvitations } from './timeout-expired-invitations';
 import { db } from '@/utils/db';
 
-export type RsvpWaveRecord = {
+export type WaveRecord = {
   id: string;
   eventId: string;
   wave: number;
@@ -20,7 +20,7 @@ export type RsvpWaveRecord = {
   createdAt: Date;
 };
 
-export type RsvpWaveQueueFailure = {
+export type WaveQueueFailure = {
   userId: string;
   email: string;
   error: string;
@@ -28,13 +28,13 @@ export type RsvpWaveQueueFailure = {
 
 export type SendRsvpWaveSuccess = {
   success: true;
-  wave: RsvpWaveRecord;
+  wave: WaveRecord;
   /** The still-open wave this send closed early, when `closeActiveWave`. */
   closedWave: { wave: number; timedOutCount: number } | null;
   eligibleApplicantCount: number;
   responsesCreated: number;
   invitationsQueued: number;
-  queueFailures: RsvpWaveQueueFailure[];
+  queueFailures: WaveQueueFailure[];
 };
 
 export type SendRsvpWaveFailure = {
@@ -92,7 +92,7 @@ export async function sendRsvpWave(eventId: string, options: SendRsvpWaveOptions
   }
 
   if (eventRow.startsAt && now.getTime() >= eventRow.startsAt.getTime()) {
-    return { success: false, error: RSVP_WAVE_EVENT_STARTED_MESSAGE };
+    return { success: false, error: WAVE_EVENT_STARTED_MESSAGE };
   }
 
   if (!Number.isInteger(eventRow.rsvpResponseWindowHours) || eventRow.rsvpResponseWindowHours < 1) {
@@ -115,7 +115,7 @@ export async function sendRsvpWave(eventId: string, options: SendRsvpWaveOptions
     .limit(1);
 
   if (latestWave && isRsvpWaveActive(latestWave.respondBy, now) && !options.closeActiveWave) {
-    return { success: false, error: RSVP_WAVE_ALREADY_ACTIVE_MESSAGE };
+    return { success: false, error: WAVE_ALREADY_ACTIVE_MESSAGE };
   }
 
   const eligibility = await getEligibleRsvpApplicants(eventId);
@@ -147,7 +147,7 @@ export async function sendRsvpWave(eventId: string, options: SendRsvpWaveOptions
 
   const respondBy = computeRsvpRespondBy(now, eventRow.rsvpResponseWindowHours);
 
-  let waveRecord: RsvpWaveRecord;
+  let waveRecord: WaveRecord;
   let invitedApplicants: EligibleRsvpApplicant[];
   let insertedResponses: { id: string; userId: string }[];
   let closedWave: SendRsvpWaveSuccess['closedWave'];
@@ -169,7 +169,7 @@ export async function sendRsvpWave(eventId: string, options: SendRsvpWaveOptions
       }
 
       if (lockedEvent.startsAt && now.getTime() >= lockedEvent.startsAt.getTime()) {
-        throw new SendRsvpWaveError(RSVP_WAVE_EVENT_STARTED_MESSAGE);
+        throw new SendRsvpWaveError(WAVE_EVENT_STARTED_MESSAGE);
       }
 
       const [lockedLatestWave] = await tx
@@ -186,7 +186,7 @@ export async function sendRsvpWave(eventId: string, options: SendRsvpWaveOptions
       let closed: SendRsvpWaveSuccess['closedWave'] = null;
       if (lockedLatestWave && isRsvpWaveActive(lockedLatestWave.respondBy, now)) {
         if (!options.closeActiveWave) {
-          throw new SendRsvpWaveError(RSVP_WAVE_ALREADY_ACTIVE_MESSAGE);
+          throw new SendRsvpWaveError(WAVE_ALREADY_ACTIVE_MESSAGE);
         }
         // Close the open wave now. The event lock serializes this with
         // `submitRsvpResponse`, which re-reads `respond_by` under the same
@@ -305,7 +305,7 @@ export async function sendRsvpWave(eventId: string, options: SendRsvpWaveOptions
   }
 
   const emailByUserId = new Map(invitedApplicants.map((applicant) => [applicant.userId, applicant.email]));
-  const queueFailures: RsvpWaveQueueFailure[] = [];
+  const queueFailures: WaveQueueFailure[] = [];
   let invitationsQueued = 0;
 
   // Publish concurrently — a wave can be hundreds of invitees, and awaiting

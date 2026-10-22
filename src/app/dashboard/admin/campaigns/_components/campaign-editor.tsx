@@ -45,7 +45,7 @@ type SavedAudienceOption = {
 const INLINE = '__inline__';
 
 type Props = {
-  campaign: Campaigns.CampaignDetail;
+  campaign: Campaigns.Detail;
   options: Campaigns.AudienceOptions;
   savedAudiences: SavedAudienceOption[];
   permissions: CampaignEditorPermissions;
@@ -143,7 +143,7 @@ function AudienceCard({
   canPreview,
   editorRef,
 }: {
-  campaign: Campaigns.CampaignDetail;
+  campaign: Campaigns.Detail;
   options: Campaigns.AudienceOptions;
   savedAudiences: SavedAudienceOption[];
   editable: boolean;

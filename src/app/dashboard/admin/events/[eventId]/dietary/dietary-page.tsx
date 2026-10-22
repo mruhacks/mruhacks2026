@@ -16,7 +16,7 @@ import { dietaryRestrictionsList } from '@/types/lookups';
 export function DietaryPage({ eventId, threshold: initialThreshold }: { eventId: string; threshold: number }) {
   const pathname = usePathname();
   const [threshold, setThreshold] = React.useState(initialThreshold);
-  const [report, setReport] = React.useState<Dietary.DietaryReport | null>(null);
+  const [report, setReport] = React.useState<Dietary.Report | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [updatedAt, setUpdatedAt] = React.useState<string | null>(null);
   const [stale, setStale] = React.useState(false);
@@ -248,7 +248,7 @@ function PersonRow({
   showMeals,
   currentMeal,
 }: {
-  row: Dietary.DietaryReportRow;
+  row: Dietary.ReportRow;
   threshold: number;
   showMeals: boolean;
   currentMeal: string | null;

@@ -418,8 +418,8 @@ describe('delivery', () => {
     expect(Campaigns.classifySendError(new Error('ECONNRESET'))).toBe('transient');
     for (const n of [1, 3, 10]) {
       const ceiling = Math.min(300, 2 ** n * 5);
-      expect(Campaigns.campaignDeliveryRetryDelay(n, () => 0)).toBe(Math.max(1, Math.round(ceiling / 2)));
-      expect(Campaigns.campaignDeliveryRetryDelay(n, () => 1)).toBe(ceiling);
+      expect(Campaigns.deliveryRetryDelay(n, () => 0)).toBe(Math.max(1, Math.round(ceiling / 2)));
+      expect(Campaigns.deliveryRetryDelay(n, () => 1)).toBe(ceiling);
     }
   });
 });

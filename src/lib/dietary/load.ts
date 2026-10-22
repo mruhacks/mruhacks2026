@@ -5,14 +5,14 @@ import { cacheLife, cacheTag } from 'next/cache';
 
 import * as schema from '@/db/schema';
 import { eventApplicationsCacheTag } from '@/lib/admin-event';
-import { buildDietaryReport, type DietaryReport } from './report';
+import { buildDietaryReport, type Report } from './report';
 import * as Participation from '@/lib/participation/server';
 import { listEventTreeIds, resolveEventRoot } from '@/lib/subevents';
 import * as Wallet from '@/lib/wallet/server';
 import { dietaryRestrictionsList, MEAL_EVENT_TYPE } from '@/types/lookups';
 import { db } from '@/utils/db';
 
-export async function loadDietaryReport(eventId: string): Promise<DietaryReport | null> {
+export async function loadDietaryReport(eventId: string): Promise<Report | null> {
   const root = await resolveEventRoot(eventId);
   if (!root) return null;
 

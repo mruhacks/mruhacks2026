@@ -63,11 +63,7 @@ export async function getSendSummary(campaignId: string): Promise<ActionResult<S
   const { campaign } = row;
 
   try {
-    const problems = await Campaigns.campaignContentErrors(
-      { ...campaign, eventName: row.eventName },
-      campaign.eventId,
-      'send',
-    );
+    const problems = await Campaigns.contentErrors({ ...campaign, eventName: row.eventName }, campaign.eventId, 'send');
     if (campaign.status !== 'draft') {
       problems.unshift('Only drafts can be sent.');
     }
@@ -168,7 +164,7 @@ export async function scheduleCampaign(campaignId: string, scheduledForIso: stri
     return fail('Choose an hour in the future.');
   }
 
-  const problems = await Campaigns.campaignContentErrors(
+  const problems = await Campaigns.contentErrors(
     { ...row.campaign, eventName: row.eventName },
     row.campaign.eventId,
     'send',
@@ -315,12 +311,12 @@ export async function retryFailedDeliveries(campaignId: string): Promise<ActionR
 
 export type CampaignResults = {
   status: string;
-  counts: Record<Campaigns.CampaignDeliveryStatus, number>;
+  counts: Record<Campaigns.DeliveryStatus, number>;
   /** Null without `participant:read:all`. */
   recipients:
     | {
         email: string;
-        status: Campaigns.CampaignDeliveryStatus;
+        status: Campaigns.DeliveryStatus;
         note: string | null;
         sentAt: string | null;
       }[]

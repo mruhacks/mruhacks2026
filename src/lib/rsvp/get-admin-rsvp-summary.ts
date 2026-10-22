@@ -18,7 +18,7 @@ export type AdminRsvpLifecycle =
   | 'event_started';
 
 /** Invitation email delivery state, separate from the RSVP decision itself. */
-export type RsvpInvitationEmailStatus = 'legacy' | 'unsent' | 'queued' | 'sent' | 'failed';
+export type InvitationEmailStatus = 'legacy' | 'unsent' | 'queued' | 'sent' | 'failed';
 
 export type AdminRsvpParticipant = {
   responseId: string;
@@ -29,7 +29,7 @@ export type AdminRsvpParticipant = {
   statusLabel: Participation.InvitationStatus;
   respondedAt: Date | null;
   termsAcceptedAt: Date | null;
-  invitationEmailStatus: RsvpInvitationEmailStatus;
+  invitationEmailStatus: InvitationEmailStatus;
 };
 
 export type AdminRsvpWaveSummary = {
@@ -114,7 +114,7 @@ function summarizeWave(options: {
       statusLabel: Participation.isInvitationStatus(status) ? status : 'invited',
       respondedAt: row.respondedAt,
       termsAcceptedAt: row.termsAcceptedAt,
-      invitationEmailStatus: row.invitationEmailStatus as RsvpInvitationEmailStatus,
+      invitationEmailStatus: row.invitationEmailStatus as InvitationEmailStatus,
     };
   });
 

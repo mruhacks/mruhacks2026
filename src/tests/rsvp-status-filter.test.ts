@@ -8,16 +8,16 @@ function row(statusLabel: string) {
   };
 }
 
-describe('rsvpStatusFilterFn', () => {
+describe('statusFilterFn', () => {
   test('shows all rows when no statuses are selected', () => {
-    expect(Rsvp.rsvpStatusFilterFn(row('pending'), 'status', undefined)).toBe(true);
-    expect(Rsvp.rsvpStatusFilterFn(row('accepted'), 'status', [])).toBe(true);
+    expect(Rsvp.statusFilterFn(row('pending'), 'status', undefined)).toBe(true);
+    expect(Rsvp.statusFilterFn(row('accepted'), 'status', [])).toBe(true);
   });
 
   test('keeps only the selected RSVP statuses', () => {
-    expect(Rsvp.rsvpStatusFilterFn(row('accepted'), 'status', ['accepted'])).toBe(true);
-    expect(Rsvp.rsvpStatusFilterFn(row('pending'), 'status', ['accepted'])).toBe(false);
-    expect(Rsvp.rsvpStatusFilterFn(row('timed_out'), 'status', ['pending', 'timed_out'])).toBe(true);
-    expect(Rsvp.rsvpStatusFilterFn(row('declined'), 'status', ['pending'])).toBe(false);
+    expect(Rsvp.statusFilterFn(row('accepted'), 'status', ['accepted'])).toBe(true);
+    expect(Rsvp.statusFilterFn(row('pending'), 'status', ['accepted'])).toBe(false);
+    expect(Rsvp.statusFilterFn(row('timed_out'), 'status', ['pending', 'timed_out'])).toBe(true);
+    expect(Rsvp.statusFilterFn(row('declined'), 'status', ['pending'])).toBe(false);
   });
 });

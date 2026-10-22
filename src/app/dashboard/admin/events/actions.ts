@@ -1016,7 +1016,7 @@ export type {
   AdminRsvpParticipant,
   AdminRsvpSummary,
   AdminRsvpWaveSummary,
-  RsvpInvitationEmailStatus,
+  InvitationEmailStatus as RsvpInvitationEmailStatus,
 } from '@/lib/rsvp';
 
 /**

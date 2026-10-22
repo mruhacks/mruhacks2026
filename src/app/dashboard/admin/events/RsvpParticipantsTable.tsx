@@ -174,7 +174,7 @@ export function RsvpParticipantsTable({ eventId, wave, canResend }: Props) {
         id: 'status',
         accessorKey: 'statusLabel',
         header: 'Status',
-        filterFn: Rsvp.rsvpStatusFilterFn,
+        filterFn: Rsvp.statusFilterFn,
         cell: ({ row }) => <StatusBadge status={row.original.statusLabel} />,
       },
       {
@@ -204,7 +204,7 @@ export function RsvpParticipantsTable({ eventId, wave, canResend }: Props) {
         id: 'delivery',
         accessorKey: 'invitationEmailStatus',
         header: 'Invitation',
-        filterFn: Rsvp.rsvpStatusFilterFn,
+        filterFn: Rsvp.statusFilterFn,
         cell: ({ row }) => <DeliveryBadge status={row.original.invitationEmailStatus} />,
       },
       ...(canResend

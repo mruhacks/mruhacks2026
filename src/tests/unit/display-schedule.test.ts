@@ -4,7 +4,7 @@ import * as Display from '@/lib/display';
 
 const at = (iso: string) => Date.parse(iso);
 
-function entry(name: string, startsAt: string, endsAt: string | null): Display.DisplayScheduleEntry {
+function entry(name: string, startsAt: string, endsAt: string | null): Display.ScheduleEntry {
   return { id: name, name, location: null, startsAt, endsAt };
 }
 

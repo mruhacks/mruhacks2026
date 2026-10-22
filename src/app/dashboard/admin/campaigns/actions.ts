@@ -228,7 +228,7 @@ export async function updateCampaignContent(
   const loaded = await loadEditableCampaign(campaignId);
   if (!loaded.ok) return fail(loaded.error);
 
-  const [contentError] = await Campaigns.campaignContentErrors(parsed.data, loaded.campaign.eventId, 'draft');
+  const [contentError] = await Campaigns.contentErrors(parsed.data, loaded.campaign.eventId, 'draft');
   if (contentError) return fail(contentError);
 
   try {
@@ -304,7 +304,7 @@ export async function sendCampaignTest(campaignId: string): Promise<ActionResult
     bodyMarkdown: row.campaign.bodyMarkdown,
     eventName: row.eventName,
   };
-  const [problem] = await Campaigns.campaignContentErrors(content, row.campaign.eventId, 'send');
+  const [problem] = await Campaigns.contentErrors(content, row.campaign.eventId, 'send');
   if (problem) return fail(problem);
 
   try {
@@ -354,7 +354,7 @@ export async function uploadCampaignImage(formData: FormData): Promise<ActionRes
   if (!value || typeof value === 'string' || typeof value.arrayBuffer !== 'function') {
     return fail('Choose an image to upload.');
   }
-  if (!Campaigns.CAMPAIGN_IMAGE_INPUT_TYPES.has(value.type)) {
+  if (!Campaigns.IMAGE_INPUT_TYPES.has(value.type)) {
     return fail('Images must be JPEG, PNG, WebP, GIF, AVIF or HEIC.');
   }
   if (value.size === 0 || value.size > Campaigns.MAX_CAMPAIGN_IMAGE_BYTES) {

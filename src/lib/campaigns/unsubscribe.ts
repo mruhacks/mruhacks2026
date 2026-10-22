@@ -7,7 +7,7 @@ import * as Signing from '@/lib/signing/server';
 import { writeAuditLog } from '@/utils/audit-log';
 import { db } from '@/utils/db';
 import type { SendMailOptions } from '@/utils/mail';
-import { getAppBaseUrl, renderCampaignEmail, type BlockRenderers, type CampaignContent } from './render-campaign-email';
+import { getAppBaseUrl, renderCampaignEmail, type BlockRenderers, type Content } from './render-campaign-email';
 
 /**
  * Signed unsubscribe links for marketing email. The token carries only the
@@ -72,7 +72,7 @@ export async function unsubscribeByToken(token: string): Promise<UnsubscribeOutc
  * headers; operational email gets neither.
  */
 export async function buildCampaignMessage(
-  content: CampaignContent,
+  content: Content,
   recipient: { email: string; firstName: string | null },
   options: { blocks?: BlockRenderers; subjectPrefix?: string } = {},
 ): Promise<SendMailOptions> {

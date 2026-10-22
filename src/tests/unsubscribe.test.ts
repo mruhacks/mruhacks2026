@@ -25,7 +25,7 @@ const savedEnv = {
   BETTER_AUTH_URL: process.env.BETTER_AUTH_URL,
 };
 
-const content = (type: Campaigns.CampaignContent['type']): Campaigns.CampaignContent => ({
+const content = (type: Campaigns.Content['type']): Campaigns.Content => ({
   type,
   subject: `Unsub ${type} ${ts}`,
   previewText: '',

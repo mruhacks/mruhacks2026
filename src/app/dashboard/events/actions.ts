@@ -364,7 +364,7 @@ function revalidateParticipation(eventId: string) {
  */
 export async function submitRsvpResponse(
   eventId: string,
-  decision: Rsvp.RsvpUserDecision,
+  decision: Rsvp.UserDecision,
   consent?: { accepted: boolean; termsId: string | null },
 ): Promise<ActionResult> {
   const user = await getUser();

@@ -7,7 +7,7 @@ import * as schema from '@/db/schema';
 import { db } from '@/utils/db';
 import type { AudienceOptions } from './audience-options';
 
-export type CampaignListRow = {
+export type ListRow = {
   id: string;
   name: string;
   type: schema.CampaignType;
@@ -22,7 +22,7 @@ export type CampaignListRow = {
 const editor = alias(schema.user, 'campaign_editor');
 
 /** Every campaign, most recently edited first. Ownership is shared, so there's no per-user filter. */
-export async function listCampaigns(): Promise<CampaignListRow[]> {
+export async function listCampaigns(): Promise<ListRow[]> {
   return db
     .select({
       id: schema.campaigns.id,
@@ -41,14 +41,14 @@ export async function listCampaigns(): Promise<CampaignListRow[]> {
     .orderBy(desc(schema.campaigns.updatedAt));
 }
 
-export type CampaignDetail = typeof schema.campaigns.$inferSelect & {
+export type Detail = typeof schema.campaigns.$inferSelect & {
   eventName: string | null;
   /** The event allows a wallet block: top-level (always, for a campaign event) with check-in on. */
   walletAllowed: boolean;
   updatedByName: string | null;
 };
 
-export async function getCampaign(id: string): Promise<CampaignDetail | null> {
+export async function getCampaign(id: string): Promise<Detail | null> {
   const [row] = await db
     .select({
       campaign: schema.campaigns,

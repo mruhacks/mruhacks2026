@@ -17,18 +17,14 @@ import { pgTable, uuid, text, smallint, timestamp, jsonb, index, uniqueIndex, ch
 import { relations, sql } from 'drizzle-orm';
 
 import type { AudienceRuleGroup } from '@/lib/campaigns/audience-rules';
-import {
-  CAMPAIGN_DELIVERY_STATUSES,
-  CAMPAIGN_STATUSES,
-  CAMPAIGN_TYPES,
-  type CampaignDeliveryStatus,
-  type CampaignStatus,
-  type CampaignType,
-} from '@/lib/campaigns/constants';
+// The constants file directly, not the @/lib/campaigns barrel (see eslint.config.mjs).
+import * as Campaigns from '@/lib/campaigns/constants';
 import { user } from '@/db/auth-schema';
 import { events } from '@/db/events-and-participation';
 
-export type { CampaignDeliveryStatus, CampaignStatus, CampaignType };
+export type CampaignDeliveryStatus = Campaigns.DeliveryStatus;
+export type CampaignStatus = Campaigns.Status;
+export type CampaignType = Campaigns.Type;
 
 const inList = (values: readonly string[]) => sql.raw(values.map((value) => `'${value}'`).join(', '));
 
@@ -68,7 +64,7 @@ export const campaigns = pgTable(
      * link. `operational` skips the consent filter, so it's restricted to the
      * participants of `eventId` (CASL).
      */
-    type: text('type').$type<CampaignType>().notNull(),
+    type: text('type').$type<Campaigns.Type>().notNull(),
     /**
      * The (top-level) event a campaign is about; required when operational.
      * Its campaigns go with it if the event itself is ever deleted.
@@ -88,7 +84,7 @@ export const campaigns = pgTable(
     savedAudienceId: uuid('saved_audience_id').references(() => savedAudiences.id, { onDelete: 'restrict' }),
     /** The rules actually used, copied when the send starts. */
     audienceSnapshot: jsonb('audience_snapshot').$type<AudienceRuleGroup>(),
-    status: text('status').$type<CampaignStatus>().notNull().default('draft'),
+    status: text('status').$type<Campaigns.Status>().notNull().default('draft'),
     scheduledFor: timestamp('scheduled_for', { withTimezone: true }),
     createdBy: uuid('created_by').references(() => user.id, {
       onDelete: 'set null',
@@ -104,8 +100,8 @@ export const campaigns = pgTable(
     sentAt: timestamp('sent_at', { withTimezone: true }),
   },
   (table) => [
-    check('campaigns_type_check', sql`${table.type} IN (${inList(CAMPAIGN_TYPES)})`),
-    check('campaigns_status_check', sql`${table.status} IN (${inList(CAMPAIGN_STATUSES)})`),
+    check('campaigns_type_check', sql`${table.type} IN (${inList(Campaigns.TYPES)})`),
+    check('campaigns_status_check', sql`${table.status} IN (${inList(Campaigns.STATUSES)})`),
     check('campaigns_operational_event_check', sql`${table.type} <> 'operational' OR ${table.eventId} IS NOT NULL`),
     check('campaigns_one_audience_check', sql`(${table.audienceRules} IS NULL) <> (${table.savedAudienceId} IS NULL)`),
     index('idx_campaigns_status_scheduled_for').on(table.status, table.scheduledFor),
@@ -129,7 +125,7 @@ export const campaignDeliveries = pgTable(
       .references(() => user.id, { onDelete: 'cascade' }),
     /** Address resolved at dispatch, so results still read right if the user changes it. */
     email: text('email').notNull(),
-    status: text('status').$type<CampaignDeliveryStatus>().notNull().default('queued'),
+    status: text('status').$type<Campaigns.DeliveryStatus>().notNull().default('queued'),
     /** Why a delivery was skipped, or a note on a sent one (e.g. no wallet block). */
     skipReason: text('skip_reason'),
     attempts: smallint('attempts').notNull().default(0),
@@ -138,7 +134,7 @@ export const campaignDeliveries = pgTable(
     sentAt: timestamp('sent_at', { withTimezone: true }),
   },
   (table) => [
-    check('campaign_deliveries_status_check', sql`${table.status} IN (${inList(CAMPAIGN_DELIVERY_STATUSES)})`),
+    check('campaign_deliveries_status_check', sql`${table.status} IN (${inList(Campaigns.DELIVERY_STATUSES)})`),
     uniqueIndex('campaign_deliveries_campaign_id_user_id_unique').on(table.campaignId, table.userId),
     index('idx_campaign_deliveries_campaign_id_status').on(table.campaignId, table.status),
   ],

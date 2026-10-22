@@ -32,7 +32,7 @@ function rememberedTheme(): DisplayTheme {
 const subscribeToNothing = () => () => {};
 
 export function DisplayApp() {
-  const [feed, setFeed] = React.useState<Display.DisplayFeed | null>(null);
+  const [feed, setFeed] = React.useState<Display.Feed | null>(null);
   // Only for the moments before the first feed lands. Null on the server
   // and during hydration, so both renders agree.
   const initialTheme = React.useSyncExternalStore<DisplayTheme | null>(subscribeToNothing, rememberedTheme, () => null);

@@ -66,7 +66,7 @@ export type AudienceBuilderProps = {
   onChange?: (rules: Campaigns.AudienceRuleGroup) => void;
   options: Campaigns.AudienceOptions;
   /** The campaign the audience is evaluated for — its forced conditions apply to the count. */
-  type: Campaigns.CampaignType;
+  type: Campaigns.Type;
   eventId: string | null;
   /** `participant:read:all`: shows the recipient preview. */
   canPreview: boolean;
@@ -129,7 +129,7 @@ function AudienceSummary({
   canPreview,
 }: {
   tree: Campaigns.AudienceRuleGroup;
-  type: Campaigns.CampaignType;
+  type: Campaigns.Type;
   eventId: string | null;
   canPreview: boolean;
 }) {

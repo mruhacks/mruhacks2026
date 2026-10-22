@@ -3,7 +3,7 @@ import 'server-only';
 import { desc, eq } from 'drizzle-orm';
 
 import * as schema from '@/db/schema';
-import { RSVP_WAVE_ALREADY_ACTIVE_MESSAGE, RSVP_WAVE_EVENT_STARTED_MESSAGE } from './constants';
+import { WAVE_ALREADY_ACTIVE_MESSAGE, WAVE_EVENT_STARTED_MESSAGE } from './constants';
 import { isRsvpWaveActive } from './compute-rsvp-respond-by';
 import { sendRsvpWave } from './send-rsvp-wave';
 import { timeoutExpiredInvitations } from './timeout-expired-invitations';
@@ -137,7 +137,7 @@ async function processEventScheduledWave(
 }
 
 function mapSendFailure(eventId: string, eventName: string, error: string): ScheduledEventWaveResult {
-  if (error === RSVP_WAVE_ALREADY_ACTIVE_MESSAGE) {
+  if (error === WAVE_ALREADY_ACTIVE_MESSAGE) {
     return {
       eventId,
       eventName,
@@ -145,7 +145,7 @@ function mapSendFailure(eventId: string, eventName: string, error: string): Sche
       detail: error,
     };
   }
-  if (error === RSVP_WAVE_EVENT_STARTED_MESSAGE) {
+  if (error === WAVE_EVENT_STARTED_MESSAGE) {
     return {
       eventId,
       eventName,

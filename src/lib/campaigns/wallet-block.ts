@@ -50,7 +50,7 @@ export async function walletLinksFor(
   baseUrl: string,
   now: Date = new Date(),
 ): Promise<WalletLinks | null> {
-  const participation = await Wallet.walletParticipation(eventId, userId);
+  const participation = await Wallet.participation(eventId, userId);
   if (!participation) return null;
   if (participation.endsAt && participation.endsAt.getTime() < now.getTime()) {
     return null;

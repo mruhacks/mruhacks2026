@@ -24,7 +24,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ toke
     return new Response('Too Many Requests', { status: 429 });
   }
 
-  const participation = await Wallet.walletParticipation(claims.eventId, claims.userId);
+  const participation = await Wallet.participation(claims.eventId, claims.userId);
   if (!participation || (participation.endsAt && participation.endsAt.getTime() < Date.now())) {
     return new Response('Not found', { status: 404 });
   }

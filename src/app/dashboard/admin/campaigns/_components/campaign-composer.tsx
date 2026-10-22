@@ -42,7 +42,7 @@ export function CampaignComposer({
   editorRef,
   onSavedChange,
 }: {
-  campaign: Campaigns.CampaignDetail;
+  campaign: Campaigns.Detail;
   editorRef: React.Ref<Campaigns.DraftEditorHandle>;
   onSavedChange: (saved: boolean) => void;
   /** Draft and `campaign:write:all`. */

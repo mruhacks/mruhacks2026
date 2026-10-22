@@ -14,11 +14,11 @@ import { send } from '@vercel/queue';
 const CAMPAIGN_DISPATCH_TOPIC = 'campaign-dispatch';
 const CAMPAIGN_DELIVERY_TOPIC = 'campaign-deliveries';
 
-export type CampaignDispatchMessage = {
+export type DispatchMessage = {
   campaignId: string;
   scheduledFor: string;
 };
-export type CampaignDeliveryMessage = { deliveryId: string };
+export type DeliveryMessage = { deliveryId: string };
 
 /**
  * About 10 emails a second. SES allows 14/s on this account; the gap leaves
@@ -76,7 +76,7 @@ async function publish<T>(
  * again after an unschedule doesn't.
  */
 export function publishCampaignDispatch(campaignId: string, scheduledFor: Date) {
-  return publish<CampaignDispatchMessage>(
+  return publish<DispatchMessage>(
     CAMPAIGN_DISPATCH_TOPIC,
     { campaignId, scheduledFor: scheduledFor.toISOString() },
     { idempotencyKey: `${campaignId}:${scheduledFor.toISOString()}` },
@@ -89,7 +89,7 @@ export function publishCampaignDispatch(campaignId: string, scheduledFor: Date) 
  * the original publish.
  */
 export function publishCampaignDelivery(deliveryId: string, options: { delaySeconds: number; round: number }) {
-  return publish<CampaignDeliveryMessage>(
+  return publish<DeliveryMessage>(
     CAMPAIGN_DELIVERY_TOPIC,
     { deliveryId },
     {

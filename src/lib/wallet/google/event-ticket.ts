@@ -4,7 +4,7 @@ import jwt from 'jsonwebtoken';
 
 import { MRUHACKS_LOGO_URL } from '@/content';
 import { EVENT_TIME_ZONE, toZonedOffsetString } from '@/lib/datetime';
-import { walletApiRequest } from './client';
+import { apiRequest } from './client';
 import { getGoogleWalletConfig, isGoogleWalletConfigured } from './config';
 
 export type GoogleWalletParticipant = {
@@ -80,16 +80,16 @@ function buildClassBody(issuerId: string, participant: GoogleWalletParticipant) 
 async function ensureEventTicketClass(issuerId: string, participant: GoogleWalletParticipant): Promise<string> {
   const id = eventTicketClassId(issuerId, participant.eventId);
   const body = buildClassBody(issuerId, participant);
-  const existing = await walletApiRequest('eventTicketClass/' + id, {
+  const existing = await apiRequest('eventTicketClass/' + id, {
     method: 'GET',
   });
   if (existing) {
-    await walletApiRequest(`eventTicketClass/${id}`, {
+    await apiRequest(`eventTicketClass/${id}`, {
       method: 'PATCH',
       body,
     });
   } else {
-    await walletApiRequest('eventTicketClass', { method: 'POST', body });
+    await apiRequest('eventTicketClass', { method: 'POST', body });
   }
   return id;
 }
@@ -128,16 +128,16 @@ async function ensureEventTicketObject(
 ): Promise<string> {
   const id = eventTicketObjectId(issuerId, participant.eventId, participant.userId);
   const body = buildObjectBody(issuerId, classId, participant);
-  const existing = await walletApiRequest('eventTicketObject/' + id, {
+  const existing = await apiRequest('eventTicketObject/' + id, {
     method: 'GET',
   });
   if (existing) {
-    await walletApiRequest(`eventTicketObject/${id}`, {
+    await apiRequest(`eventTicketObject/${id}`, {
       method: 'PATCH',
       body,
     });
   } else {
-    await walletApiRequest('eventTicketObject', { method: 'POST', body });
+    await apiRequest('eventTicketObject', { method: 'POST', body });
   }
   return id;
 }
@@ -179,7 +179,7 @@ export async function revokeGoogleWalletPasses(userId: string, eventIds: string[
   await Promise.all(
     eventIds.map((eventId) => {
       const id = eventTicketObjectId(issuerId, eventId, userId);
-      return walletApiRequest(`eventTicketObject/${id}`, {
+      return apiRequest(`eventTicketObject/${id}`, {
         method: 'PUT',
         body: {
           id,

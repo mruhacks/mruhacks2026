@@ -349,7 +349,7 @@ function EventPageLayout({
 }
 
 /** Shows exactly one wallet action, picked by the visitor's detected platform. */
-function WalletAction({ eventId, walletPlatform }: { eventId: string; walletPlatform: Wallet.WalletPlatform }) {
+function WalletAction({ eventId, walletPlatform }: { eventId: string; walletPlatform: Wallet.Platform }) {
   if (walletPlatform === 'apple') return <AddToWalletButton eventId={eventId} />;
   if (walletPlatform === 'google') return <AddToGoogleWalletButton eventId={eventId} />;
 }
@@ -371,7 +371,7 @@ function ApplicationParticipationPanel({
   termsMarkdown: string | null;
   termsId: string | null;
   participation: ParticipationForUser | null;
-  walletPlatform: Wallet.WalletPlatform;
+  walletPlatform: Wallet.Platform;
   checkInEnabled: boolean;
   hasEnded: boolean;
 }) {
@@ -479,7 +479,7 @@ function RegistrationParticipationPanel({
   isRegistered: boolean;
   isFull: boolean;
   spotsRemaining: number | null;
-  walletPlatform: Wallet.WalletPlatform;
+  walletPlatform: Wallet.Platform;
   checkInEnabled: boolean;
   hasEnded: boolean;
 }) {

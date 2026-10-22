@@ -7,7 +7,7 @@ import { getUser } from '@/utils/auth';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export async function getDietaryReport(eventId: string): Promise<ActionResult<Dietary.DietaryReport>> {
+export async function getDietaryReport(eventId: string): Promise<ActionResult<Dietary.Report>> {
   const actor = await getUser();
   if (!actor) return fail('Not authenticated');
   await Rbac.requirePermission(actor.id, 'dietary:read:all');

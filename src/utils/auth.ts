@@ -112,7 +112,7 @@ async function applyInviteOnSignIn(userId: string): Promise<void> {
  */
 export const auth = betterAuth({
   baseURL: getAuthBaseUrl(),
-  basePath: Auth.AUTH_BASE_PATH,
+  basePath: Auth.BASE_PATH,
   secret: getAuthSecret(),
   database: drizzleAdapter(db, {
     provider: 'pg',

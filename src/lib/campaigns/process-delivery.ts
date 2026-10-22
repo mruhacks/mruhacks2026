@@ -28,7 +28,7 @@ export type ProcessDeliveryOutcome = 'sent' | 'skipped' | 'already_done' | 'not_
  * jitter, so a burst of throttled deliveries (SES "Maximum sending rate
  * exceeded") spreads back out instead of retrying in lockstep.
  */
-export function campaignDeliveryRetryDelay(deliveryCount: number, random: () => number = Math.random): number {
+export function deliveryRetryDelay(deliveryCount: number, random: () => number = Math.random): number {
   const ceiling = Math.min(300, 2 ** deliveryCount * 5);
   return Math.max(1, Math.round(ceiling / 2 + random() * (ceiling / 2)));
 }

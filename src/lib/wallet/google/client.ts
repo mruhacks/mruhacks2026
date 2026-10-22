@@ -24,7 +24,7 @@ function getAuthClient(): JWT {
  * caller decides whether that means "create it"); throws for anything else
  * that isn't a 2xx.
  */
-export async function walletApiRequest<T>(
+export async function apiRequest<T>(
   path: string,
   init: { method: 'GET' | 'POST' | 'PATCH' | 'PUT'; body?: unknown },
 ): Promise<T | null> {

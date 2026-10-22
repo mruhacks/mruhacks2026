@@ -11,7 +11,7 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 
-export function DisplaySettingsCard({ initial }: { initial: Display.DisplaySettings }) {
+export function DisplaySettingsCard({ initial }: { initial: Display.Settings }) {
   const [saved, setSaved] = React.useState(initial);
   const [settings, setSettings] = React.useState(initial);
   const [error, setError] = React.useState<string | null>(null);
@@ -19,7 +19,7 @@ export function DisplaySettingsCard({ initial }: { initial: Display.DisplaySetti
 
   const dirty = settings.showClock !== saved.showClock || settings.theme !== saved.theme;
 
-  const update = (patch: Partial<Display.DisplaySettings>) => {
+  const update = (patch: Partial<Display.Settings>) => {
     setSettings((current) => ({ ...current, ...patch }));
     setError(null);
   };
@@ -64,7 +64,7 @@ export function DisplaySettingsCard({ initial }: { initial: Display.DisplaySetti
             </FieldContent>
             <Select
               value={settings.theme}
-              onValueChange={(theme) => update({ theme: theme as Display.DisplaySettings['theme'] })}
+              onValueChange={(theme) => update({ theme: theme as Display.Settings['theme'] })}
             >
               <SelectTrigger id='display-theme' className='w-32'>
                 <SelectValue />

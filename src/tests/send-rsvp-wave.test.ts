@@ -215,7 +215,7 @@ describe('sendRsvpWave', () => {
 
     expect(result).toMatchObject({
       success: false,
-      error: Rsvp.RSVP_WAVE_ALREADY_ACTIVE_MESSAGE,
+      error: Rsvp.WAVE_ALREADY_ACTIVE_MESSAGE,
     });
     const waves = await db
       .select({ id: schema.eventRsvpWaves.id })
@@ -513,7 +513,7 @@ describe('sendRsvpWave window, overlap, and event start', () => {
     const result = await Rsvp.sendRsvpWave(eventId, { now: frozenNow });
     expect(result).toMatchObject({
       success: false,
-      error: Rsvp.RSVP_WAVE_EVENT_STARTED_MESSAGE,
+      error: Rsvp.WAVE_EVENT_STARTED_MESSAGE,
     });
     expect(publishRsvpInvitation).not.toHaveBeenCalled();
     expect(await getStatus(eventId, userId)).toBe('waitlisted');
@@ -603,7 +603,7 @@ describe('sendRsvpWave volume', () => {
       const result = await Rsvp.sendRsvpWave(stressEventId, { now: frozenNow });
       expect(result).toMatchObject({
         success: false,
-        error: Rsvp.RSVP_WAVE_ALREADY_ACTIVE_MESSAGE,
+        error: Rsvp.WAVE_ALREADY_ACTIVE_MESSAGE,
       });
       expect(publishRsvpInvitation).not.toHaveBeenCalled();
       expect(await invitationsFor(stressEventId)).toHaveLength(VOLUME_ELIGIBLE_COUNT);

@@ -30,7 +30,7 @@ export function NewCampaignDialog({ events, canSendOperational }: Props) {
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
   const [name, setName] = React.useState('');
-  const [type, setType] = React.useState<Campaigns.CampaignType>('marketing');
+  const [type, setType] = React.useState<Campaigns.Type>('marketing');
   const [eventId, setEventId] = React.useState<string>('none');
   const [error, setError] = React.useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
@@ -99,7 +99,7 @@ export function NewCampaignDialog({ events, canSendOperational }: Props) {
               <Select
                 value={type}
                 onValueChange={(next) => {
-                  setType(next as Campaigns.CampaignType);
+                  setType(next as Campaigns.Type);
                   setError(null);
                 }}
               >

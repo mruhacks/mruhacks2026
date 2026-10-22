@@ -39,7 +39,7 @@ export async function updateDisplaySettings(input: z.infer<typeof settingsSchema
         target: schema.displaySettings.id,
         set: { ...parsed.data, updatedByUserId: callerId },
       });
-    updateTag(Display.DISPLAY_SETTINGS_CACHE_TAG);
+    updateTag(Display.SETTINGS_CACHE_TAG);
 
     await writeAuditLog({
       actorId: callerId,

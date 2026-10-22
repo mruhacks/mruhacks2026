@@ -4,7 +4,7 @@ import * as Campaigns from '@/lib/campaigns/server';
 
 const BASE = 'https://app.example.com';
 
-function content(overrides: Partial<Campaigns.CampaignContent> = {}): Campaigns.CampaignContent {
+function content(overrides: Partial<Campaigns.Content> = {}): Campaigns.Content {
   return {
     type: 'marketing',
     subject: 'Hello {{firstName}}',

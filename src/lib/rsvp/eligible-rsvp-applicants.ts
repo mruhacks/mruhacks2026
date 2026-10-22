@@ -18,7 +18,7 @@ export type EligibleRsvpApplicant = {
   applicationCreatedAt: Date;
 };
 
-export type RsvpEligibilityResult = {
+export type EligibilityResult = {
   applicants: EligibleRsvpApplicant[];
   /** Event capacity, or null when unlimited. */
   capacity: number | null;
@@ -35,7 +35,7 @@ export type RsvpEligibilityResult = {
  * Callers must not assume the returned set is the wave: use
  * `selectRsvpWaveInvitees` to order and cap by remaining capacity.
  */
-export async function getEligibleRsvpApplicants(eventId: string): Promise<RsvpEligibilityResult | null> {
+export async function getEligibleRsvpApplicants(eventId: string): Promise<EligibilityResult | null> {
   const [eventRow] = await db
     .select({ id: schema.events.id, capacity: schema.events.capacity })
     .from(schema.events)

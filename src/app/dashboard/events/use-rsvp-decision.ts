@@ -9,7 +9,7 @@ import type * as Rsvp from '@/lib/rsvp';
 
 export function useRsvpDecision(eventId: string, termsId: string | null) {
   const [isPending, startTransition] = useTransition();
-  const [activeDecision, setActiveDecision] = useState<Rsvp.RsvpUserDecision | null>(null);
+  const [activeDecision, setActiveDecision] = useState<Rsvp.UserDecision | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const [acceptedTermsId, setAcceptedTermsId] = useState<string | null>(null);
@@ -20,7 +20,7 @@ export function useRsvpDecision(eventId: string, termsId: string | null) {
     setError(null);
   }
 
-  function submit(decision: Rsvp.RsvpUserDecision) {
+  function submit(decision: Rsvp.UserDecision) {
     if (isPending) return;
     if (decision === 'accepted' && !canAccept) {
       setError('You must agree to the Event Terms before accepting your spot.');

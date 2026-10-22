@@ -58,7 +58,7 @@ function useSlide(): Slide {
 const cx = (...names: (string | false)[]) => names.filter(Boolean).join(' ');
 
 /** The screen's content; `DisplayApp` owns the shell and Aurora around it. */
-export function DisplayScreen({ feed }: { feed: Display.DisplayFeed }) {
+export function DisplayScreen({ feed }: { feed: Display.Feed }) {
   const slide = useSlide();
   const dark = feed.settings.theme === 'dark';
 
@@ -102,7 +102,7 @@ export function DisplayScreen({ feed }: { feed: Display.DisplayFeed }) {
   );
 }
 
-function ClockAndSchedule({ schedule }: { schedule: Display.DisplayScheduleEntry[] }) {
+function ClockAndSchedule({ schedule }: { schedule: Display.ScheduleEntry[] }) {
   const now = useNow(CLOCK_TICK_MS);
   if (now === null) return null;
 
@@ -173,7 +173,7 @@ function ScheduleRow({
   entry,
   children,
 }: {
-  entry: Display.DisplayScheduleEntry;
+  entry: Display.ScheduleEntry;
   /** The row's time column. */
   children: React.ReactNode;
 }) {

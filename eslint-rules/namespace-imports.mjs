@@ -17,6 +17,10 @@
  *   not allowed from outside the folder, and files inside the folder use
  *   relative imports, never their own barrel.
  *
+ * Inside a domain folder, exports don't repeat the module name, since callers
+ * already write it as the namespace: `Display.Feed`, not `Display.DisplayFeed`
+ * (also `displayFeed`, `DISPLAY_FEED`, and the singular, `Campaigns.Status`).
+ *
  * On the barrels themselves it checks that every file in the folder is exported
  * from one of them, and that index.ts doesn't value-export a file that
  * directly imports `server-only`, `next/headers`, Node APIs, the DB or auth.
@@ -43,6 +47,36 @@ function toPascalCase(name) {
 
 function isDomain(cwd, domain) {
   return fs.existsSync(path.join(cwd, LIB_DIR, domain, 'server.ts'));
+}
+
+/**
+ * The name without its module prefix, or null if it has none:
+ * ('display', 'DisplayFeed') -> 'Feed', ('campaigns', 'CAMPAIGN_TYPES') -> 'TYPES', ('rsvp', 'rsvpFoo') -> 'foo'.
+ */
+function withoutModulePrefix(domain, name) {
+  const words = [domain, domain.replace(/s$/, '')];
+  for (const word of new Set(words)) {
+    const pascal = toPascalCase(word);
+    const camel = pascal[0].toLowerCase() + pascal.slice(1);
+    const upper = `${word.replace(/-/g, '_').toUpperCase()}_`;
+    if (name.startsWith(upper) && name.length > upper.length) return name.slice(upper.length);
+    for (const prefix of [pascal, camel]) {
+      const rest = name.slice(prefix.length);
+      if (name.startsWith(prefix) && /^[A-Z]/.test(rest))
+        return prefix === camel ? rest[0].toLowerCase() + rest.slice(1) : rest;
+    }
+  }
+  return null;
+}
+
+/** Names exported by a top-level `export` statement. */
+function exportedIdentifiers(node) {
+  if (node.type !== 'ExportNamedDeclaration') return [];
+  if (!node.declaration) return node.source ? [] : node.specifiers.map((spec) => spec.exported);
+  const decl = node.declaration;
+  if (decl.type === 'VariableDeclaration')
+    return decl.declarations.map((d) => d.id).filter((id) => id.type === 'Identifier');
+  return decl.id ? [decl.id] : [];
 }
 
 /** Modules re-exported by a domain's client-safe index.ts, as './file' paths, or null if it has none. */
@@ -105,6 +139,8 @@ const rule = {
       deepReexport: "Re-export from '@/lib/{{domain}}' or '@/lib/{{domain}}/server', not from inside the module.",
       missingFromBarrel:
         "'{{file}}' isn't exported from either barrel. Add it to index.ts if it's client-safe, otherwise to server.ts (and `export type *` it from index.ts).",
+      redundantPrefix:
+        "'{{name}}' repeats the module name; callers already write it as {{alias}}.{{name}}. Call it '{{suggested}}'.",
       serverInIndex:
         "'{{file}}' is server-only, so index.ts (the client-safe barrel) may only `export type *` it. Export its values from server.ts.",
     },
@@ -281,7 +317,21 @@ const rule = {
 
     return {
       Program(node) {
-        if (isBarrelFile && isDomain(cwd, ownDomain)) checkBarrel(node);
+        if (!ownDomain || !isDomain(cwd, ownDomain)) return;
+        if (isBarrelFile) {
+          checkBarrel(node);
+          return;
+        }
+        for (const id of node.body.flatMap(exportedIdentifiers)) {
+          const suggested = withoutModulePrefix(ownDomain, id.name);
+          if (suggested) {
+            context.report({
+              node: id,
+              messageId: 'redundantPrefix',
+              data: { name: id.name, alias: toPascalCase(ownDomain), suggested },
+            });
+          }
+        }
       },
       ImportDeclaration: collect,
       ExportNamedDeclaration: checkReexport,

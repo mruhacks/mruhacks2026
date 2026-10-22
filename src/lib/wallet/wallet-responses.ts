@@ -17,7 +17,7 @@ import { getEventParticipation, resolveParticipantName, type EventParticipation 
  * sub-event, no held spot, or check-in off. Callers answer null with the
  * same 404 either way, so the endpoint can't be used to probe applications.
  */
-export async function walletParticipation(eventId: string, userId: string): Promise<EventParticipation | null> {
+export async function participation(eventId: string, userId: string): Promise<EventParticipation | null> {
   const participation = await getEventParticipation(eventId, userId);
   if (!participation || !participation.isParticipant || !participation.checkInEnabled) {
     return null;

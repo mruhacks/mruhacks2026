@@ -151,7 +151,7 @@ describe('updateDisplaySettings', () => {
       theme: 'dark',
     });
     expect(result.success).toBe(true);
-    expect(updateTag).toHaveBeenCalledWith(Display.DISPLAY_SETTINGS_CACHE_TAG);
+    expect(updateTag).toHaveBeenCalledWith(Display.SETTINGS_CACHE_TAG);
     expect((await (await getFeed()).json()).settings).toEqual({
       showClock: true,
       theme: 'dark',
