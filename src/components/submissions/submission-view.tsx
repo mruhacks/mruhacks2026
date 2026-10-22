@@ -87,14 +87,28 @@ export function ProjectStageDescription({
   stage,
   opensAt,
   closesAt,
+  tableLabel = null,
 }: {
   stage: ProjectStage;
   opensAt: Date | string | null;
   closesAt: Date | string | null;
+  /** From `getMySubmission`, which decides when a participant may see it. */
+  tableLabel?: string | null;
 }) {
   const { description, date } = PROJECT_STAGE_COPY[stage];
   const value =
     date === 'opensAt' ? opensAt : date === 'closesAt' ? closesAt : null;
+  if (tableLabel) {
+    return (
+      <>
+        {description} Your assigned table is{' '}
+        <span className='text-foreground font-semibold tabular-nums'>
+          {tableLabel}
+        </span>
+        .
+      </>
+    );
+  }
   if (!value) return <>{description}</>;
   return (
     <>

@@ -88,14 +88,14 @@ export const PROJECT_STAGE_COPY: Record<ProjectStage, ProjectStageCopy> = {
   },
   closed_private: {
     title: 'Submissions are closed',
-    description: 'Submissions are closed. Your project is final.',
+    description: 'Submissions are closed, so your project is final.',
     date: null,
     action: 'View project',
     warning: "It was still private at the deadline, so it won't be judged.",
   },
   closed_public: {
     title: 'Submissions are closed',
-    description: 'Submissions are closed. Your project is final.',
+    description: 'Submissions are closed, so your project is final.',
     date: null,
     action: 'View project',
     warning: null,
