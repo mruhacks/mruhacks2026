@@ -26,11 +26,7 @@ function SettingsSkeleton() {
   return <div className='bg-muted h-96 animate-pulse rounded-xl' />;
 }
 
-async function SettingsContent({
-  paramsPromise,
-}: {
-  paramsPromise: Promise<{ eventId: string }>;
-}) {
+async function SettingsContent({ paramsPromise }: { paramsPromise: Promise<{ eventId: string }> }) {
   const { eventId: segment } = await paramsPromise;
   const eventId = await resolveEventId(segment);
   if (!eventId) notFound();
@@ -38,13 +34,8 @@ async function SettingsContent({
   if (!user) redirect('/signin');
   await requirePermission(user.id, 'event:manage:all');
 
-  const [event, eventTypes] = await Promise.all([
-    getAdminEventSettings(eventId),
-    listEventTypes(),
-  ]);
+  const [event, eventTypes] = await Promise.all([getAdminEventSettings(eventId), listEventTypes()]);
   if (!event) notFound();
 
-  return (
-    <EventSettingsForm key={event.id} event={event} eventTypes={eventTypes} />
-  );
+  return <EventSettingsForm key={event.id} event={event} eventTypes={eventTypes} />;
 }

@@ -120,10 +120,7 @@ export default function MarkdownEditorCore({
             // The wallet descriptor is always registered so an existing
             // block stays editable (and removable) even where it's no
             // longer allowed; only inserting one is gated.
-            directiveDescriptors: [
-              CTA_DIRECTIVE_DESCRIPTOR,
-              WALLET_DIRECTIVE_DESCRIPTOR,
-            ],
+            directiveDescriptors: [CTA_DIRECTIVE_DESCRIPTOR, WALLET_DIRECTIVE_DESCRIPTOR],
           }),
           markdownShortcutPlugin(),
           toolbarPlugin({

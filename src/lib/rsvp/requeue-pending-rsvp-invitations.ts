@@ -2,12 +2,7 @@ import 'server-only';
 
 import { and, eq, lt } from 'drizzle-orm';
 
-import {
-  eventInvitations,
-  eventParticipants,
-  eventRsvpWaves,
-  participationStatuses,
-} from '@/db/schema';
+import { eventInvitations, eventParticipants, eventRsvpWaves, participationStatuses } from '@/db/schema';
 import { resolveEffectiveStatus } from '@/lib/participation/status';
 import { publishRsvpInvitation } from '@/lib/rsvp/rsvp-invitation-queue';
 import { db } from '@/utils/db';
@@ -46,37 +41,17 @@ export async function requeuePendingRsvpInvitations(
       respondBy: eventRsvpWaves.respondBy,
     })
     .from(eventInvitations)
-    .innerJoin(
-      eventRsvpWaves,
-      eq(eventInvitations.rsvpWaveId, eventRsvpWaves.id),
-    )
-    .innerJoin(
-      eventParticipants,
-      eq(eventInvitations.participantId, eventParticipants.id),
-    )
-    .innerJoin(
-      participationStatuses,
-      eq(eventParticipants.statusId, participationStatuses.id),
-    )
-    .where(
-      and(
-        eq(eventInvitations.invitationEmailStatus, 'unsent'),
-        lt(eventInvitations.createdAt, staleBefore),
-      ),
-    );
+    .innerJoin(eventRsvpWaves, eq(eventInvitations.rsvpWaveId, eventRsvpWaves.id))
+    .innerJoin(eventParticipants, eq(eventInvitations.participantId, eventParticipants.id))
+    .innerJoin(participationStatuses, eq(eventParticipants.statusId, participationStatuses.id))
+    .where(and(eq(eventInvitations.invitationEmailStatus, 'unsent'), lt(eventInvitations.createdAt, staleBefore)));
 
   let queued = 0;
   let skipped = 0;
   let publishFailures = 0;
 
   for (const candidate of candidates) {
-    if (
-      resolveEffectiveStatus(
-        candidate.statusLabel,
-        candidate.respondBy,
-        now,
-      ) !== 'invited'
-    ) {
+    if (resolveEffectiveStatus(candidate.statusLabel, candidate.respondBy, now) !== 'invited') {
       skipped += 1;
       continue;
     }
@@ -92,10 +67,7 @@ export async function requeuePendingRsvpInvitations(
           invitationEmailQueuedAt: new Date(),
         })
         .where(
-          and(
-            eq(eventInvitations.id, candidate.responseId),
-            eq(eventInvitations.invitationEmailStatus, 'unsent'),
-          ),
+          and(eq(eventInvitations.id, candidate.responseId), eq(eventInvitations.invitationEmailStatus, 'unsent')),
         );
       queued += 1;
     } catch (error) {

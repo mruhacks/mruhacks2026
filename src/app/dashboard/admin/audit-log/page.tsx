@@ -11,9 +11,7 @@ export default function AdminAuditLogPage() {
     <div className='space-y-4'>
       <div>
         <h1 className='text-2xl font-semibold tracking-tight'>Audit log</h1>
-        <p className='text-muted-foreground text-sm'>
-          Every privileged action taken across the system, newest first.
-        </p>
+        <p className='text-muted-foreground text-sm'>Every privileged action taken across the system, newest first.</p>
       </div>
       <Suspense fallback={<Skeleton className='h-96 w-full rounded-xl' />}>
         <AuditLogContent />
@@ -38,16 +36,12 @@ async function AuditLogContent() {
   if (!entriesRes.success || !entriesRes.data) {
     return (
       <div className='text-destructive text-sm'>
-        Failed to load audit log:{' '}
-        {!entriesRes.success ? entriesRes.error : 'unknown'}
+        Failed to load audit log: {!entriesRes.success ? entriesRes.error : 'unknown'}
       </div>
     );
   }
 
-  const facets =
-    facetsRes.success && facetsRes.data
-      ? facetsRes.data
-      : { actions: [], targetTypes: [] };
+  const facets = facetsRes.success && facetsRes.data ? facetsRes.data : { actions: [], targetTypes: [] };
 
   return (
     <AuditLogTable

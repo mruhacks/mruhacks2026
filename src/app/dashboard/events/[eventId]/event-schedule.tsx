@@ -14,13 +14,7 @@ export type ScheduleEntry = {
   descriptionMarkdown: string | null;
 };
 
-export function EventSchedule({
-  entries,
-  fitContainer = false,
-}: {
-  entries: ScheduleEntry[];
-  fitContainer?: boolean;
-}) {
+export function EventSchedule({ entries, fitContainer = false }: { entries: ScheduleEntry[]; fitContainer?: boolean }) {
   if (entries.length === 0) return null;
   const schedule = (
     <ScheduleDayGroups
@@ -29,18 +23,10 @@ export function EventSchedule({
         id: entry.id,
         startsAt: entry.startsAt,
         content: (
-          <li
-            key={entry.id}
-            data-schedule-entry={entry.id}
-            className='flex flex-col gap-2 px-4 py-3'
-          >
+          <li key={entry.id} data-schedule-entry={entry.id} className='flex flex-col gap-2 px-4 py-3'>
             <p className='font-medium'>{entry.name}</p>
             <p className='text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1 text-sm'>
-              <LocalDateRange
-                start={entry.startsAt}
-                end={entry.endsAt}
-                timeOnly
-              />
+              <LocalDateRange start={entry.startsAt} end={entry.endsAt} timeOnly />
               {entry.location && (
                 <span className='inline-flex items-center gap-1.5'>
                   <MapPin aria-hidden className='size-3.5 shrink-0' />
@@ -48,9 +34,7 @@ export function EventSchedule({
                 </span>
               )}
             </p>
-            {entry.descriptionMarkdown && (
-              <MarkdownContent markdown={entry.descriptionMarkdown} />
-            )}
+            {entry.descriptionMarkdown && <MarkdownContent markdown={entry.descriptionMarkdown} />}
           </li>
         ),
       }))}

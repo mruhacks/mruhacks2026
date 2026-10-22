@@ -1,18 +1,6 @@
 import 'server-only';
 
-import {
-  and,
-  asc,
-  count,
-  eq,
-  gt,
-  inArray,
-  isNotNull,
-  isNull,
-  ne,
-  or,
-  sql,
-} from 'drizzle-orm';
+import { and, asc, count, eq, gt, inArray, isNotNull, isNull, ne, or, sql } from 'drizzle-orm';
 
 import {
   eventJudges,
@@ -33,20 +21,10 @@ import {
 import type { Queryable } from '@/lib/team-membership';
 import { db } from '@/utils/db';
 
-import {
-  JUDGE_PRIOR,
-  PROJECT_PRIOR,
-  update,
-  type JudgeReliability,
-  type ProjectEstimate,
-} from './crowd-bt';
+import { JUDGE_PRIOR, PROJECT_PRIOR, update, type JudgeReliability, type ProjectEstimate } from './crowd-bt';
 import { BUSY_WINDOW_MS, chooseNext, type DispatchCandidate } from './dispatch';
 import { replayVotes, type ReplayResult } from './results';
-import {
-  DEFAULT_TABLE_LAYOUT,
-  formatTableLabel,
-  type TableLayout,
-} from './table-label';
+import { DEFAULT_TABLE_LAYOUT, formatTableLabel, type TableLayout } from './table-label';
 
 /**
  * Database side of expo judging: who is a judge, what's in the pool, where to
@@ -65,10 +43,7 @@ type JudgingEvent = {
 };
 
 /** Judging runs from the event's start to its end; no admin controls. */
-export function getJudgingWindow(
-  event: JudgingEvent,
-  now: Date = new Date(),
-): 'not_open' | 'open' | 'closed' {
+export function getJudgingWindow(event: JudgingEvent, now: Date = new Date()): 'not_open' | 'open' | 'closed' {
   if (!event.startsAt || !event.endsAt) return 'not_open';
   if (now.getTime() < event.startsAt.getTime()) return 'not_open';
   if (now.getTime() >= event.endsAt.getTime()) return 'closed';
@@ -87,10 +62,7 @@ export function normalizeJudgeEmail(email: string): string {
 export function rosterMatch(user: { id: string; email: string }) {
   return or(
     eq(eventJudges.userId, user.id),
-    and(
-      isNull(eventJudges.userId),
-      eq(eventJudges.email, normalizeJudgeEmail(user.email)),
-    ),
+    and(isNull(eventJudges.userId), eq(eventJudges.email, normalizeJudgeEmail(user.email))),
   );
 }
 
@@ -111,23 +83,18 @@ export async function findJudgeForUser(
 }
 
 /** Shown wherever a judge tries to sign up for the event they're judging. */
-export const JUDGE_SIGNUP_BLOCKED_MESSAGE =
-  'You’re judging this event, so you can’t also sign up for it.';
+export const JUDGE_SIGNUP_BLOCKED_MESSAGE = 'You’re judging this event, so you can’t also sign up for it.';
 
 /**
  * On this event's roster, disabled or not. Judges may not also sign up for
  * an event they judge: a paused judge is still one, and their votes count.
  */
-export async function isJudgingEvent(
-  eventId: string,
-  user: { id: string; email: string },
-): Promise<boolean> {
+export async function isJudgingEvent(eventId: string, user: { id: string; email: string }): Promise<boolean> {
   return (await findJudgeForUser(eventId, user)) != null;
 }
 
 /** Shown when an organizer tries to add one of the event's own participants. */
-export const JUDGE_IS_PARTICIPANT_MESSAGE =
-  'That person is taking part in this event, so they can’t judge it.';
+export const JUDGE_IS_PARTICIPANT_MESSAGE = 'That person is taking part in this event, so they can’t judge it.';
 
 /**
  * Taking part in the event, so not allowed to judge it: on a team, or
@@ -136,10 +103,7 @@ export const JUDGE_IS_PARTICIPANT_MESSAGE =
  * not have been swept to `timed_out` yet, and erring towards "conflict" is
  * the safe side.
  */
-export async function isParticipatingInEvent(
-  eventId: string,
-  userId: string,
-): Promise<boolean> {
+export async function isParticipatingInEvent(eventId: string, userId: string): Promise<boolean> {
   const [row] = await db.execute<{ participating: boolean }>(sql`
     SELECT EXISTS (
              SELECT 1 FROM ${teamMembers}
@@ -157,10 +121,7 @@ export async function isParticipatingInEvent(
 }
 
 /** Every event whose roster the user is on. */
-export async function listJudgeEventsForUser(user: {
-  id: string;
-  email: string;
-}): Promise<
+export async function listJudgeEventsForUser(user: { id: string; email: string }): Promise<
   {
     eventId: string;
     name: string;
@@ -188,15 +149,8 @@ export async function listJudgeEventsForUser(user: {
 }
 
 /** On any roster at all — decides the judge onboarding path. */
-export async function isOnAnyJudgeRoster(user: {
-  id: string;
-  email: string;
-}): Promise<boolean> {
-  const [row] = await db
-    .select({ id: eventJudges.id })
-    .from(eventJudges)
-    .where(rosterMatch(user))
-    .limit(1);
+export async function isOnAnyJudgeRoster(user: { id: string; email: string }): Promise<boolean> {
+  const [row] = await db.select({ id: eventJudges.id }).from(eventJudges).where(rosterMatch(user)).limit(1);
   return row != null;
 }
 
@@ -242,15 +196,8 @@ export async function loadCriteria(
  * set no save can change before commit. FOR KEY SHARE rather than FOR SHARE
  * so ordinary event edits aren't blocked.
  */
-export async function lockEventForJudging(
-  tx: Queryable,
-  eventId: string,
-): Promise<void> {
-  await tx
-    .select({ id: events.id })
-    .from(events)
-    .where(eq(events.id, eventId))
-    .for('key share');
+export async function lockEventForJudging(tx: Queryable, eventId: string): Promise<void> {
+  await tx.select({ id: events.id }).from(events).where(eq(events.id, eventId)).for('key share');
 }
 
 /**
@@ -258,43 +205,29 @@ export async function lockEventForJudging(
  * project has been assigned. From then on the table layout is fixed, since
  * changing it relabels tables under judges already walking to them.
  */
-export async function judgesSentToTables(
-  eventId: string,
-  dbHandle: Queryable = db,
-): Promise<boolean> {
+export async function judgesSentToTables(eventId: string, dbHandle: Queryable = db): Promise<boolean> {
   const [row] = await dbHandle
     .select({ judgeId: judgeState.judgeId })
     .from(judgeState)
     .innerJoin(eventJudges, eq(eventJudges.id, judgeState.judgeId))
-    .where(
-      and(eq(eventJudges.eventId, eventId), isNotNull(judgeState.assignedAt)),
-    )
+    .where(and(eq(eventJudges.eventId, eventId), isNotNull(judgeState.assignedAt)))
     .limit(1);
   return row != null;
 }
 
 /** Once any vote exists, criteria can only be renamed or reweighted. */
-export async function eventHasVotes(
-  eventId: string,
-  dbHandle: Queryable = db,
-): Promise<boolean> {
+export async function eventHasVotes(eventId: string, dbHandle: Queryable = db): Promise<boolean> {
   const [row] = await dbHandle
     .select({ id: judgingVotes.id })
     .from(judgingVotes)
-    .innerJoin(
-      judgingCriteria,
-      eq(judgingCriteria.id, judgingVotes.criterionId),
-    )
+    .innerJoin(judgingCriteria, eq(judgingCriteria.id, judgingVotes.criterionId))
     .where(eq(judgingCriteria.eventId, eventId))
     .limit(1);
   return row != null;
 }
 
 /** The event's expo floor layout; the default for an unknown event. */
-export async function loadTableLayout(
-  eventId: string,
-  dbHandle: Queryable = db,
-): Promise<TableLayout> {
+export async function loadTableLayout(eventId: string, dbHandle: Queryable = db): Promise<TableLayout> {
   const [row] = await dbHandle
     .select({
       rows: events.judgingTableRows,
@@ -313,32 +246,19 @@ export type TableAssignment = { slot: number; label: string };
  * submission id → its stored table slot and the label the event's layout
  * gives it. Submissions never published have no table and are left out.
  */
-export async function getTableLabels(
-  eventId: string,
-  dbHandle: Queryable = db,
-): Promise<Map<string, TableAssignment>> {
+export async function getTableLabels(eventId: string, dbHandle: Queryable = db): Promise<Map<string, TableAssignment>> {
   const [layout, rows] = await Promise.all([
     loadTableLayout(eventId, dbHandle),
     dbHandle
       .select({ id: submissions.id, slot: submissions.tableSlot })
       .from(submissions)
-      .where(
-        and(eq(submissions.eventId, eventId), isNotNull(submissions.tableSlot)),
-      ),
+      .where(and(eq(submissions.eventId, eventId), isNotNull(submissions.tableSlot))),
   ]);
-  return new Map(
-    rows.map((row) => [
-      row.id,
-      { slot: row.slot!, label: formatTableLabel(row.slot!, layout) },
-    ]),
-  );
+  return new Map(rows.map((row) => [row.id, { slot: row.slot!, label: formatTableLabel(row.slot!, layout) }]));
 }
 
 /** Orders by table slot, projects without a table last. */
-export function byTableSlot(
-  a: { tableSlot: number | null },
-  b: { tableSlot: number | null },
-): number {
+export function byTableSlot(a: { tableSlot: number | null }, b: { tableSlot: number | null }): number {
   return (a.tableSlot ?? Infinity) - (b.tableSlot ?? Infinity);
 }
 
@@ -378,16 +298,10 @@ export async function assignTableSlot(
 
 /** Projects judges can be sent to: published and not deactivated. */
 export function inPoolCondition() {
-  return and(
-    eq(submissions.published, true),
-    isNull(submissions.deactivatedAt),
-  );
+  return and(eq(submissions.published, true), isNull(submissions.deactivatedAt));
 }
 
-async function loadPoolIds(
-  eventId: string,
-  dbHandle: Queryable,
-): Promise<Set<string>> {
+async function loadPoolIds(eventId: string, dbHandle: Queryable): Promise<Set<string>> {
   const rows = await dbHandle
     .select({ id: submissions.id })
     .from(submissions)
@@ -416,32 +330,17 @@ async function loadEstimates(
   return out;
 }
 
-async function loadReliability(
-  judgeId: string,
-  dbHandle: Queryable,
-): Promise<Map<string, JudgeReliability>> {
-  const rows = await dbHandle
-    .select()
-    .from(judgeReliability)
-    .where(eq(judgeReliability.judgeId, judgeId));
-  return new Map(
-    rows.map((row) => [row.criterionId, { alpha: row.alpha, beta: row.beta }]),
-  );
+async function loadReliability(judgeId: string, dbHandle: Queryable): Promise<Map<string, JudgeReliability>> {
+  const rows = await dbHandle.select().from(judgeReliability).where(eq(judgeReliability.judgeId, judgeId));
+  return new Map(rows.map((row) => [row.criterionId, { alpha: row.alpha, beta: row.beta }]));
 }
 
 /**
  * Records that the judge has been at a project — begun on it, or compared
  * it — so they're never sent back (`judge_visits`).
  */
-export async function recordVisit(
-  tx: Queryable,
-  judgeId: string,
-  submissionId: string,
-): Promise<void> {
-  await tx
-    .insert(judgeVisits)
-    .values({ judgeId, submissionId })
-    .onConflictDoNothing();
+export async function recordVisit(tx: Queryable, judgeId: string, submissionId: string): Promise<void> {
+  await tx.insert(judgeVisits).values({ judgeId, submissionId }).onConflictDoNothing();
 }
 
 /**
@@ -466,13 +365,7 @@ async function loadExcludedForJudge(
       .where(
         and(
           eq(judgeSkips.judgeId, judgeId),
-          or(
-            eq(judgeSkips.reason, 'conflict'),
-            gt(
-              judgeSkips.createdAt,
-              new Date(now.getTime() - NOT_HERE_RETRY_MS),
-            ),
-          ),
+          or(eq(judgeSkips.reason, 'conflict'), gt(judgeSkips.createdAt, new Date(now.getTime() - NOT_HERE_RETRY_MS))),
         ),
       ),
     // Adding a participant as a judge is refused, but someone could still
@@ -483,20 +376,11 @@ async function loadExcludedForJudge(
       .from(submissions)
       .innerJoin(teamMembers, eq(teamMembers.teamId, submissions.teamId))
       .innerJoin(user, eq(user.id, teamMembers.userId))
-      .innerJoin(
-        eventJudges,
-        and(
-          eq(eventJudges.id, judgeId),
-          eq(eventJudges.eventId, teamMembers.eventId),
-        ),
-      )
+      .innerJoin(eventJudges, and(eq(eventJudges.id, judgeId), eq(eventJudges.eventId, teamMembers.eventId)))
       .where(
         or(
           eq(teamMembers.userId, eventJudges.userId),
-          and(
-            isNull(eventJudges.userId),
-            eq(sql`lower(${user.email})`, eventJudges.email),
-          ),
+          and(isNull(eventJudges.userId), eq(sql`lower(${user.email})`, eventJudges.email)),
         ),
       ),
   ]);
@@ -509,10 +393,7 @@ async function loadExcludedForJudge(
 }
 
 /** submission id → judges who have been at it (Gavel's `len(item.viewed)`). */
-async function loadViewCounts(
-  eventId: string,
-  dbHandle: Queryable,
-): Promise<Map<string, number>> {
+async function loadViewCounts(eventId: string, dbHandle: Queryable): Promise<Map<string, number>> {
   const rows = await dbHandle
     .select({ submissionId: judgeVisits.submissionId, views: count() })
     .from(judgeVisits)
@@ -523,12 +404,7 @@ async function loadViewCounts(
 }
 
 /** Projects another active judge was sent to within the busy window. */
-async function loadBusyIds(
-  eventId: string,
-  judgeId: string,
-  now: Date,
-  dbHandle: Queryable,
-): Promise<Set<string>> {
+async function loadBusyIds(eventId: string, judgeId: string, now: Date, dbHandle: Queryable): Promise<Set<string>> {
   const rows = await dbHandle
     .select({ submissionId: judgeState.currentSubmissionId })
     .from(judgeState)
@@ -588,9 +464,7 @@ export async function dispatchNext(
   return chooseNext({
     candidates,
     criterionIds: criteria.map((c) => c.id),
-    previous: options.previousId
-      ? { estimates: estimates.get(options.previousId) ?? new Map() }
-      : null,
+    previous: options.previousId ? { estimates: estimates.get(options.previousId) ?? new Map() } : null,
     reliability,
     random: options.random,
   });
@@ -640,10 +514,7 @@ export async function recordComparison(
        FOR UPDATE
   `);
 
-  const [estimates, reliability] = await Promise.all([
-    loadEstimates(pair, tx),
-    loadReliability(options.judgeId, tx),
-  ]);
+  const [estimates, reliability] = await Promise.all([loadEstimates(pair, tx), loadReliability(options.judgeId, tx)]);
 
   // Each criterion is its own model, so every update reads only the state
   // loaded above; the writes then go out as one statement per table rather
@@ -652,8 +523,7 @@ export async function recordComparison(
   const reliabilities: (typeof judgeReliability.$inferInsert)[] = [];
   const scores: (typeof submissionScores.$inferInsert)[] = [];
   for (const [criterionId, side] of options.winners) {
-    const winnerId =
-      side === 'current' ? options.currentId : options.previousId;
+    const winnerId = side === 'current' ? options.currentId : options.previousId;
     const loserId = side === 'current' ? options.previousId : options.currentId;
     const result = update(
       reliability.get(criterionId) ?? JUDGE_PRIOR,
@@ -745,10 +615,7 @@ export async function replayEventVotes(
       loserId: judgingVotes.loserSubmissionId,
     })
     .from(judgingVotes)
-    .innerJoin(
-      judgingCriteria,
-      eq(judgingCriteria.id, judgingVotes.criterionId),
-    )
+    .innerJoin(judgingCriteria, eq(judgingCriteria.id, judgingVotes.criterionId))
     .where(eq(judgingCriteria.eventId, eventId))
     .orderBy(asc(judgingVotes.seq));
   return replayVotes(votes, poolIds, criterionIds);

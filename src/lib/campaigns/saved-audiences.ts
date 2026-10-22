@@ -50,9 +50,7 @@ export async function listSavedAudiences(): Promise<SavedAudienceRow[]> {
     .orderBy(asc(savedAudiences.name));
 }
 
-export async function getSavedAudience(
-  id: string,
-): Promise<SavedAudienceRow | null> {
+export async function getSavedAudience(id: string): Promise<SavedAudienceRow | null> {
   const [row] = await db
     .select({
       id: savedAudiences.id,

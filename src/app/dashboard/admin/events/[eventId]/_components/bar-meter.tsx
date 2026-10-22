@@ -9,26 +9,12 @@ import { cn } from '@/lib/utils';
  * it would imply a grouping that doesn't exist. Inactive options are dimmed
  * rather than recoloured, matching the convention in the stats view.
  */
-export function BarMeter({
-  label,
-  percent,
-  inactive,
-}: {
-  label: string;
-  percent: number;
-  inactive?: boolean;
-}) {
+export function BarMeter({ label, percent, inactive }: { label: string; percent: number; inactive?: boolean }) {
   const width = Math.max(0, Math.min(100, percent));
 
   return (
     <div className='flex items-center gap-3'>
-      <span
-        className={cn(
-          'w-28 shrink-0 truncate text-sm sm:w-36',
-          inactive && 'text-muted-foreground',
-        )}
-        title={label}
-      >
+      <span className={cn('w-28 shrink-0 truncate text-sm sm:w-36', inactive && 'text-muted-foreground')} title={label}>
         {label}
       </span>
       <span
@@ -37,10 +23,7 @@ export function BarMeter({
         aria-label={`${label}: ${Math.round(percent)} percent`}
       >
         <span
-          className={cn(
-            'absolute inset-y-0 left-0 rounded-full',
-            inactive ? 'bg-(--chart-5)/45' : 'bg-(--chart-5)',
-          )}
+          className={cn('absolute inset-y-0 left-0 rounded-full', inactive ? 'bg-(--chart-5)/45' : 'bg-(--chart-5)')}
           style={{ width: `${width}%` }}
         />
       </span>

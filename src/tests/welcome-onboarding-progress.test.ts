@@ -1,17 +1,9 @@
 import { describe, expect, test } from 'vitest';
 
-import {
-  canReviewStep,
-  getNextStep,
-  reviewStepUrl,
-  type OnboardingProgress,
-} from '@/app/welcome/onboarding-progress';
+import { canReviewStep, getNextStep, reviewStepUrl, type OnboardingProgress } from '@/app/welcome/onboarding-progress';
 
 function progress(
-  values: Pick<
-    OnboardingProgress,
-    'needsConsent' | 'needsPersonal' | 'needsAbout' | 'featuredEvent'
-  >,
+  values: Pick<OnboardingProgress, 'needsConsent' | 'needsPersonal' | 'needsAbout' | 'featuredEvent'>,
 ): OnboardingProgress {
   return values as OnboardingProgress;
 }
@@ -68,10 +60,7 @@ describe('welcome onboarding progress', () => {
 
 describe('judge onboarding path', () => {
   function judge(
-    values: Pick<
-      OnboardingProgress,
-      'needsConsent' | 'needsPersonal' | 'needsAbout' | 'needsProfessional'
-    >,
+    values: Pick<OnboardingProgress, 'needsConsent' | 'needsPersonal' | 'needsAbout' | 'needsProfessional'>,
   ): OnboardingProgress {
     return {
       ...values,

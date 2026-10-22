@@ -7,10 +7,7 @@
  * Sign-in / invite links keep using the plugin default (24h) when no RSVP
  * mail context is set.
  */
-export function remainingMagicLinkExpiresInSeconds(
-  respondBy: Date,
-  now: Date = new Date(),
-): number {
+export function remainingMagicLinkExpiresInSeconds(respondBy: Date, now: Date = new Date()): number {
   const remainingMs = respondBy.getTime() - now.getTime();
   if (remainingMs <= 0) {
     return 0;

@@ -10,9 +10,7 @@ import { isInvitationStatus } from '@/lib/participation/status';
 
 /** The permission that governs a status: review decisions vs RSVP outcomes. */
 function statusPermission(status: ParticipationStatus): PermissionSlug {
-  return isInvitationStatus(status)
-    ? 'rsvp:write:all'
-    : 'application:review:all';
+  return isInvitationStatus(status) ? 'rsvp:write:all' : 'application:review:all';
 }
 
 /**
@@ -49,9 +47,7 @@ export function adminStatusOptions(
 }
 
 /** Moves a participant may make on their own. */
-const PARTICIPANT_TRANSITIONS: Partial<
-  Record<ParticipationStatus, readonly ParticipationStatus[]>
-> = {
+const PARTICIPANT_TRANSITIONS: Partial<Record<ParticipationStatus, readonly ParticipationStatus[]>> = {
   // Answer the RSVP.
   invited: ['accepted', 'declined'],
   // Give up a confirmed spot (frees it for the next wave).
@@ -60,9 +56,6 @@ const PARTICIPANT_TRANSITIONS: Partial<
   waitlisted: ['declined'],
 };
 
-export function canParticipantTransition(
-  from: ParticipationStatus,
-  to: ParticipationStatus,
-): boolean {
+export function canParticipantTransition(from: ParticipationStatus, to: ParticipationStatus): boolean {
   return PARTICIPANT_TRANSITIONS[from]?.includes(to) ?? false;
 }

@@ -17,12 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import {
-  Field,
-  FieldGroup,
-  FieldLabel,
-  FieldError,
-} from '@/components/ui/field';
+import { Field, FieldGroup, FieldLabel, FieldError } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
@@ -55,9 +50,7 @@ export function CreateEventDialog() {
       setOpen(false);
       reset();
       // Navigate to the new event, by the slug it was just given if any.
-      router.push(
-        adminEventPath({ id: result.data.id, slug: data.slug?.trim() || null }),
-      );
+      router.push(adminEventPath({ id: result.data.id, slug: data.slug?.trim() || null }));
     } else if (!result.success) {
       setSubmitError(result.error || 'Failed to create event');
     }
@@ -81,9 +74,8 @@ export function CreateEventDialog() {
         <DialogHeader>
           <DialogTitle>Create New Event</DialogTitle>
           <DialogDescription>
-            Give it a name to get started — everything else (schedule, location,
-            capacity, application) can be set up afterward from the event&apos;s
-            settings.
+            Give it a name to get started — everything else (schedule, location, capacity, application) can be set up
+            afterward from the event&apos;s settings.
           </DialogDescription>
         </DialogHeader>
 
@@ -94,12 +86,7 @@ export function CreateEventDialog() {
               <FieldLabel htmlFor='name'>
                 Event Name <span className='text-destructive'>*</span>
               </FieldLabel>
-              <Input
-                id='name'
-                {...register('name')}
-                placeholder='e.g. MRU Hackathon 2026'
-                autoFocus
-              />
+              <Input id='name' {...register('name')} placeholder='e.g. MRU Hackathon 2026' autoFocus />
               {errors.name && <FieldError errors={[errors.name]} />}
             </Field>
           </FieldGroup>

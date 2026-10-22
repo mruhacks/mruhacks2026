@@ -1,8 +1,5 @@
 import { isOtherOption } from '@/lib/other-option';
-import type {
-  ApplicationQuestion,
-  ApplicationQuestionOption,
-} from '@/types/application';
+import type { ApplicationQuestion, ApplicationQuestionOption } from '@/types/application';
 
 /**
  * One stored application answer as display text: option values become their
@@ -18,9 +15,7 @@ export function getAnswerDisplayValue(
   if (value === null || value === undefined) return '—';
 
   const withOtherText = (label: string) =>
-    isOtherOption(label) && typeof otherText === 'string' && otherText
-      ? `${label} (${otherText})`
-      : label;
+    isOtherOption(label) && typeof otherText === 'string' && otherText ? `${label} (${otherText})` : label;
 
   if (type === 'single_select') {
     const option = options.find((item) => item.value === value);

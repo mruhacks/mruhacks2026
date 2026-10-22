@@ -45,9 +45,7 @@ afterAll(async () => {
 
 describe('resolveEventId', () => {
   test('resolves a custom slug to the event uuid', async () => {
-    await expect(resolveEventId('resolution-2026')).resolves.toBe(
-      sluggedEventId,
-    );
+    await expect(resolveEventId('resolution-2026')).resolves.toBe(sluggedEventId);
   });
 
   test('passes a uuid segment straight through', async () => {
@@ -66,15 +64,10 @@ describe('resolveEventId', () => {
 
 describe('eventUrlSegments', () => {
   test('lists the uuid and the slug for a slugged event', async () => {
-    await expect(eventUrlSegments(sluggedEventId)).resolves.toEqual([
-      sluggedEventId,
-      'resolution-2026',
-    ]);
+    await expect(eventUrlSegments(sluggedEventId)).resolves.toEqual([sluggedEventId, 'resolution-2026']);
   });
 
   test('lists only the uuid when the event has no slug', async () => {
-    await expect(eventUrlSegments(plainEventId)).resolves.toEqual([
-      plainEventId,
-    ]);
+    await expect(eventUrlSegments(plainEventId)).resolves.toEqual([plainEventId]);
   });
 });

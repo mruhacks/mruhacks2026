@@ -68,9 +68,7 @@ export default async function EventWikiArticlePage({ params }: Props) {
           updatedAt: eventArticles.updatedAt,
         })
         .from(eventArticles)
-        .where(
-          and(eq(eventArticles.eventId, eventId), eq(eventArticles.slug, slug)),
-        )
+        .where(and(eq(eventArticles.eventId, eventId), eq(eventArticles.slug, slug)))
         .limit(1);
       article = row ?? null;
     }
@@ -83,9 +81,7 @@ export default async function EventWikiArticlePage({ params }: Props) {
         {article.bodyMarkdown.trim() ? (
           <MarkdownContent markdown={article.bodyMarkdown} allowEmbeds />
         ) : (
-          <p className='text-muted-foreground text-sm'>
-            This article has no content yet.
-          </p>
+          <p className='text-muted-foreground text-sm'>This article has no content yet.</p>
         )}
       </article>
 

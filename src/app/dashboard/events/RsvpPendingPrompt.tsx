@@ -8,13 +8,7 @@ import { RsvpTermsConsent } from './RsvpTermsConsent';
 import { useRsvpDecision } from '@/app/dashboard/events/use-rsvp-decision';
 import curtPointing from '@/assets/crt_pointing.png';
 import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { FieldError } from '@/components/ui/field';
 import { Spinner } from '@/components/ui/spinner';
 import { formatLiveCountdown, toDate } from '@/lib/rsvp/format-remaining';
@@ -28,13 +22,7 @@ type Props = {
   respondBy: Date | string;
 };
 
-export function RsvpPendingPrompt({
-  eventId,
-  eventName,
-  respondBy,
-  termsMarkdown,
-  termsId,
-}: Props) {
+export function RsvpPendingPrompt({ eventId, eventName, respondBy, termsMarkdown, termsId }: Props) {
   const router = useRouter();
   const hydrated = useIsHydrated();
   const deadline = toDate(respondBy);
@@ -42,16 +30,8 @@ export function RsvpPendingPrompt({
   const [open, setOpen] = React.useState(true);
   const [confirmDecline, setConfirmDecline] = React.useState(false);
   const refreshedOnExpiry = React.useRef(false);
-  const {
-    isPending,
-    activeDecision,
-    error,
-    submit,
-    termsAccepted,
-    setTermsAccepted,
-    canAccept,
-    clearError,
-  } = useRsvpDecision(eventId, termsId);
+  const { isPending, activeDecision, error, submit, termsAccepted, setTermsAccepted, canAccept, clearError } =
+    useRsvpDecision(eventId, termsId);
 
   React.useEffect(() => {
     if (!hydrated) return;
@@ -95,30 +75,17 @@ export function RsvpPendingPrompt({
         {confirmDecline ? (
           <div className='flex flex-col gap-6 py-4 sm:py-8'>
             <DialogHeader className='text-center sm:text-center'>
-              <DialogTitle className='text-2xl sm:text-3xl'>
-                Decline your spot?
-              </DialogTitle>
+              <DialogTitle className='text-2xl sm:text-3xl'>Decline your spot?</DialogTitle>
               <DialogDescription className='text-base'>
-                You will give up your spot and cannot accept this invitation
-                later.
+                You will give up your spot and cannot accept this invitation later.
               </DialogDescription>
             </DialogHeader>
             {error && <FieldError errors={[{ message: error }]} />}
             <div className='flex flex-col-reverse gap-2 sm:flex-row sm:justify-center'>
-              <Button
-                type='button'
-                variant='outline'
-                disabled={isPending}
-                onClick={() => setConfirmDecline(false)}
-              >
+              <Button type='button' variant='outline' disabled={isPending} onClick={() => setConfirmDecline(false)}>
                 Cancel
               </Button>
-              <Button
-                type='button'
-                variant='destructive'
-                disabled={isPending}
-                onClick={() => submit('declined')}
-              >
+              <Button type='button' variant='destructive' disabled={isPending} onClick={() => submit('declined')}>
                 {activeDecision === 'declined' && isPending ? (
                   <>
                     <Spinner data-icon='inline-start' />
@@ -133,24 +100,17 @@ export function RsvpPendingPrompt({
         ) : (
           <div className='flex max-h-[70vh] flex-col items-center gap-6 overflow-y-auto py-2 text-center sm:py-4'>
             <DialogHeader className='items-center text-center'>
-              <DialogTitle className='text-2xl tracking-tight sm:text-3xl'>
-                Your spot is ready
-              </DialogTitle>
+              <DialogTitle className='text-2xl tracking-tight sm:text-3xl'>Your spot is ready</DialogTitle>
               <DialogDescription className='text-center text-base'>
                 You&apos;ve been accepted to {eventName}.
               </DialogDescription>
             </DialogHeader>
 
             <div className='flex flex-col gap-1'>
-              <p
-                className='text-4xl font-semibold tracking-tight sm:text-5xl'
-                aria-live='polite'
-              >
+              <p className='text-4xl font-semibold tracking-tight sm:text-5xl' aria-live='polite'>
                 {remaining ?? '—'}
               </p>
-              <p className='text-muted-foreground text-sm font-medium'>
-                remaining to confirm spot
-              </p>
+              <p className='text-muted-foreground text-sm font-medium'>remaining to confirm spot</p>
             </div>
 
             {error && <FieldError errors={[{ message: error }]} />}
@@ -194,8 +154,7 @@ export function RsvpPendingPrompt({
             </div>
 
             <p className='text-muted-foreground max-w-md text-base'>
-              If you don&apos;t respond before the deadline, your spot will be
-              forfeited.
+              If you don&apos;t respond before the deadline, your spot will be forfeited.
             </p>
           </div>
         )}

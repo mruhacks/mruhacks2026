@@ -1,14 +1,12 @@
 export const EVENT_START_DATE = new Date('2026-10-23T19:00:00-06:00'); // October 23, 2026 (MDT — DST ends Nov 1, 2026)
 export const EVENT_DATE_DISPLAY = 'October 23-25, 2026';
-export const EVENT_LOCATION_DISPLAY =
-  'In-Person @ Riddell Library, Mount Royal University · Calgary, AB';
+export const EVENT_LOCATION_DISPLAY = 'In-Person @ Riddell Library, Mount Royal University · Calgary, AB';
 /** Fallback end for structured data when the featured event has no endsAt. */
 export const EVENT_END_DATE = new Date('2026-10-25T23:59:59-06:00');
 
 /** Canonical origin for metadata, the sitemap, and structured data. */
 export const SITE_URL = 'https://mruhacks.ca';
-export const SITE_TITLE =
-  "MRUHacks 2026 — Calgary's Student Hackathon | October 23–25";
+export const SITE_TITLE = "MRUHacks 2026 — Calgary's Student Hackathon | October 23–25";
 export const SITE_DESCRIPTION =
   'A free, three-day, in-person hackathon for post-secondary students at Mount Royal University in Calgary, Alberta. Beginners welcome — food, workshops, mentors, and prizes included.';
 

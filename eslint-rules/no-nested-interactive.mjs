@@ -25,10 +25,7 @@ const rule = {
     return {
       JSXElement(node) {
         const opening = node.openingElement;
-        if (
-          opening.name.type !== 'JSXIdentifier' ||
-          opening.name.name !== 'Link'
-        ) {
+        if (opening.name.type !== 'JSXIdentifier' || opening.name.name !== 'Link') {
           return;
         }
 
@@ -36,10 +33,7 @@ const rule = {
           if (child.type !== 'JSXElement') continue;
 
           const childName = child.openingElement.name;
-          if (
-            childName.type === 'JSXIdentifier' &&
-            childName.name === 'Button'
-          ) {
+          if (childName.type === 'JSXIdentifier' && childName.name === 'Button') {
             context.report({
               node: child,
               messageId: 'noLinkWrappingButton',

@@ -19,10 +19,7 @@ import {
 import { rosterMatch } from '@/lib/judging/server';
 import { revokeGoogleWalletPasses } from '@/lib/wallet/google/event-ticket';
 import { db } from '@/utils/db';
-import {
-  deleteObject,
-  parseOwnedProfilePictureKey,
-} from '@/utils/object-storage';
+import { deleteObject, parseOwnedProfilePictureKey } from '@/utils/object-storage';
 
 /**
  * Work that has to happen just before a `user` row is deleted, whichever path
@@ -52,11 +49,7 @@ import {
  */
 export async function prepareUserDeletion(userId: string): Promise<void> {
   await db.transaction(async (tx) => {
-    const [account] = await tx
-      .select({ email: user.email })
-      .from(user)
-      .where(eq(user.id, userId))
-      .limit(1);
+    const [account] = await tx.select({ email: user.email }).from(user).where(eq(user.id, userId)).limit(1);
     if (account) await clearEmailKeyedRows(tx, userId, account.email);
 
     const memberships = await tx
@@ -69,18 +62,13 @@ export async function prepareUserDeletion(userId: string): Promise<void> {
       const [nextOrganizer] = await tx
         .select({ userId: teamMembers.userId })
         .from(teamMembers)
-        .where(
-          and(eq(teamMembers.teamId, teamId), ne(teamMembers.userId, userId)),
-        )
+        .where(and(eq(teamMembers.teamId, teamId), ne(teamMembers.userId, userId)))
         .orderBy(asc(teamMembers.joinedAt))
         .limit(1);
 
       if (nextOrganizer) {
         if (organizerId === userId) {
-          await tx
-            .update(teams)
-            .set({ organizerId: nextOrganizer.userId })
-            .where(eq(teams.id, teamId));
+          await tx.update(teams).set({ organizerId: nextOrganizer.userId }).where(eq(teams.id, teamId));
         }
         continue;
       }
@@ -99,11 +87,7 @@ export async function prepareUserDeletion(userId: string): Promise<void> {
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
-async function clearEmailKeyedRows(
-  tx: Tx,
-  userId: string,
-  email: string,
-): Promise<void> {
+async function clearEmailKeyedRows(tx: Tx, userId: string, email: string): Promise<void> {
   const lowered = email.trim().toLowerCase();
   const sameEmail = (column: AnyPgColumn) => sql`lower(${column}) = ${lowered}`;
 
@@ -136,9 +120,7 @@ async function revokeWalletPasses(userId: string): Promise<void> {
       .select({ eventId: eventParticipants.eventId })
       .from(eventParticipants)
       .innerJoin(events, eq(events.id, eventParticipants.eventId))
-      .where(
-        and(eq(eventParticipants.userId, userId), isNull(events.parentEventId)),
-      );
+      .where(and(eq(eventParticipants.userId, userId), isNull(events.parentEventId)));
     await revokeGoogleWalletPasses(
       userId,
       rows.map((r) => r.eventId),
@@ -156,18 +138,12 @@ async function deleteUserObjects(userId: string): Promise<void> {
       .from(userProfiles)
       .where(eq(userProfiles.userId, userId))
       .limit(1);
-    const [row] = await db
-      .select({ image: user.image })
-      .from(user)
-      .where(eq(user.id, userId))
-      .limit(1);
+    const [row] = await db.select({ image: user.image }).from(user).where(eq(user.id, userId)).limit(1);
 
     const pictureKey = parseOwnedProfilePictureKey(row?.image, userId);
     await Promise.all([
       pictureKey ? deleteObject(pictureKey) : Promise.resolve(),
-      profile?.resumeFile
-        ? deleteObject(profile.resumeFile)
-        : Promise.resolve(),
+      profile?.resumeFile ? deleteObject(profile.resumeFile) : Promise.resolve(),
     ]);
   } catch (error) {
     console.error('[account-deletion] failed to delete user files', error);

@@ -3,8 +3,7 @@ import { buildApplicationResponses } from '@/app/dashboard/events/application-re
 import type { ApplicationQuestion } from '@/types/application';
 
 function q(
-  overrides: Partial<ApplicationQuestion> &
-    Pick<ApplicationQuestion, 'id' | 'type' | 'label'>,
+  overrides: Partial<ApplicationQuestion> & Pick<ApplicationQuestion, 'id' | 'type' | 'label'>,
 ): ApplicationQuestion {
   return { required: false, order: 0, active: true, ...overrides };
 }
@@ -17,20 +16,14 @@ describe('buildApplicationResponses', () => {
     ['boolean', 'Please check this box to continue.'],
     ['single_select', 'Please select an option.'],
     ['multi_select', 'Please select at least one option.'],
-  ] as const)(
-    'returns a friendly server error for a missing required %s answer',
-    (type, expectedMessage) => {
-      const result = buildApplicationResponses(
-        [q({ id: 'q1', type, label: 'Custom question', required: true })],
-        {},
-      );
+  ] as const)('returns a friendly server error for a missing required %s answer', (type, expectedMessage) => {
+    const result = buildApplicationResponses([q({ id: 'q1', type, label: 'Custom question', required: true })], {});
 
-      expect(result).toEqual({
-        ok: false,
-        error: `Custom question: ${expectedMessage}`,
-      });
-    },
-  );
+    expect(result).toEqual({
+      ok: false,
+      error: `Custom question: ${expectedMessage}`,
+    });
+  });
 
   test('empty questions returns empty responses', () => {
     const result = buildApplicationResponses([], {});
@@ -56,9 +49,7 @@ describe('buildApplicationResponses', () => {
   });
 
   test('section_divider questions are always skipped', () => {
-    const questions = [
-      q({ id: 'q1', type: 'section_divider', label: 'Section' }),
-    ];
+    const questions = [q({ id: 'q1', type: 'section_divider', label: 'Section' })];
     const result = buildApplicationResponses(questions, { q1: 'anything' });
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error(result.error);
@@ -67,9 +58,7 @@ describe('buildApplicationResponses', () => {
 
   describe('short_text', () => {
     test('required, valid string passes', () => {
-      const questions = [
-        q({ id: 'q1', type: 'short_text', label: 'Name', required: true }),
-      ];
+      const questions = [q({ id: 'q1', type: 'short_text', label: 'Name', required: true })];
       const result = buildApplicationResponses(questions, { q1: 'Alice' });
       expect(result.ok).toBe(true);
       if (!result.ok) throw new Error(result.error);
@@ -77,25 +66,19 @@ describe('buildApplicationResponses', () => {
     });
 
     test('required, empty string fails', () => {
-      const questions = [
-        q({ id: 'q1', type: 'short_text', label: 'Name', required: true }),
-      ];
+      const questions = [q({ id: 'q1', type: 'short_text', label: 'Name', required: true })];
       const result = buildApplicationResponses(questions, { q1: '' });
       expect(result.ok).toBe(false);
     });
 
     test('required, missing value fails', () => {
-      const questions = [
-        q({ id: 'q1', type: 'short_text', label: 'Name', required: true }),
-      ];
+      const questions = [q({ id: 'q1', type: 'short_text', label: 'Name', required: true })];
       const result = buildApplicationResponses(questions, {});
       expect(result.ok).toBe(false);
     });
 
     test('optional, undefined value is excluded from response', () => {
-      const questions = [
-        q({ id: 'q1', type: 'short_text', label: 'Name', required: false }),
-      ];
+      const questions = [q({ id: 'q1', type: 'short_text', label: 'Name', required: false })];
       const result = buildApplicationResponses(questions, {});
       expect(result.ok).toBe(true);
       if (!result.ok) throw new Error(result.error);
@@ -105,9 +88,7 @@ describe('buildApplicationResponses', () => {
 
   describe('long_text', () => {
     test('required, valid string passes', () => {
-      const questions = [
-        q({ id: 'q1', type: 'long_text', label: 'Bio', required: true }),
-      ];
+      const questions = [q({ id: 'q1', type: 'long_text', label: 'Bio', required: true })];
       const result = buildApplicationResponses(questions, {
         q1: 'I love hackathons.',
       });
@@ -115,9 +96,7 @@ describe('buildApplicationResponses', () => {
     });
 
     test('required, empty string fails', () => {
-      const questions = [
-        q({ id: 'q1', type: 'long_text', label: 'Bio', required: true }),
-      ];
+      const questions = [q({ id: 'q1', type: 'long_text', label: 'Bio', required: true })];
       const result = buildApplicationResponses(questions, { q1: '   ' });
       expect(result.ok).toBe(false);
     });
@@ -125,17 +104,13 @@ describe('buildApplicationResponses', () => {
 
   describe('number', () => {
     test('required, numeric value passes', () => {
-      const questions = [
-        q({ id: 'q1', type: 'number', label: 'Age', required: true }),
-      ];
+      const questions = [q({ id: 'q1', type: 'number', label: 'Age', required: true })];
       const result = buildApplicationResponses(questions, { q1: 21 });
       expect(result.ok).toBe(true);
     });
 
     test('required, numeric string is coerced to number', () => {
-      const questions = [
-        q({ id: 'q1', type: 'number', label: 'Age', required: true }),
-      ];
+      const questions = [q({ id: 'q1', type: 'number', label: 'Age', required: true })];
       const result = buildApplicationResponses(questions, { q1: '21' });
       expect(result.ok).toBe(true);
       if (!result.ok) throw new Error(result.error);
@@ -143,9 +118,7 @@ describe('buildApplicationResponses', () => {
     });
 
     test('required, non-numeric string fails', () => {
-      const questions = [
-        q({ id: 'q1', type: 'number', label: 'Age', required: true }),
-      ];
+      const questions = [q({ id: 'q1', type: 'number', label: 'Age', required: true })];
       const result = buildApplicationResponses(questions, { q1: 'abc' });
       expect(result.ok).toBe(false);
     });
@@ -153,25 +126,19 @@ describe('buildApplicationResponses', () => {
 
   describe('boolean', () => {
     test('required boolean must be true (consent)', () => {
-      const questions = [
-        q({ id: 'q1', type: 'boolean', label: 'Consent', required: true }),
-      ];
+      const questions = [q({ id: 'q1', type: 'boolean', label: 'Consent', required: true })];
       const result = buildApplicationResponses(questions, { q1: true });
       expect(result.ok).toBe(true);
     });
 
     test('required boolean with false value fails', () => {
-      const questions = [
-        q({ id: 'q1', type: 'boolean', label: 'Consent', required: true }),
-      ];
+      const questions = [q({ id: 'q1', type: 'boolean', label: 'Consent', required: true })];
       const result = buildApplicationResponses(questions, { q1: false });
       expect(result.ok).toBe(false);
     });
 
     test('optional boolean with false is allowed', () => {
-      const questions = [
-        q({ id: 'q1', type: 'boolean', label: 'Subscribe', required: false }),
-      ];
+      const questions = [q({ id: 'q1', type: 'boolean', label: 'Subscribe', required: false })];
       const result = buildApplicationResponses(questions, { q1: false });
       expect(result.ok).toBe(true);
     });
@@ -209,9 +176,7 @@ describe('buildApplicationResponses', () => {
 
   describe('multi_select', () => {
     test('required, non-empty array passes', () => {
-      const questions = [
-        q({ id: 'q1', type: 'multi_select', label: 'Skills', required: true }),
-      ];
+      const questions = [q({ id: 'q1', type: 'multi_select', label: 'Skills', required: true })];
       const result = buildApplicationResponses(questions, {
         q1: ['js', 'python'],
       });
@@ -219,9 +184,7 @@ describe('buildApplicationResponses', () => {
     });
 
     test('required, empty array fails', () => {
-      const questions = [
-        q({ id: 'q1', type: 'multi_select', label: 'Skills', required: true }),
-      ];
+      const questions = [q({ id: 'q1', type: 'multi_select', label: 'Skills', required: true })];
       const result = buildApplicationResponses(questions, { q1: [] });
       expect(result.ok).toBe(false);
     });
@@ -243,9 +206,7 @@ describe('buildApplicationResponses', () => {
   });
 
   test('null values are excluded from responses', () => {
-    const questions = [
-      q({ id: 'q1', type: 'short_text', label: 'Optional', required: false }),
-    ];
+    const questions = [q({ id: 'q1', type: 'short_text', label: 'Optional', required: false })];
     const result = buildApplicationResponses(questions, { q1: null });
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error(result.error);
@@ -389,12 +350,8 @@ describe('buildApplicationResponses', () => {
 
 describe('buildApplicationResponses — max length', () => {
   test('rejects a short_text answer past the 255-character default', () => {
-    const questions = [
-      q({ id: 'q1', type: 'short_text', label: 'Q1', required: true }),
-    ];
-    expect(
-      buildApplicationResponses(questions, { q1: 'a'.repeat(255) }).ok,
-    ).toBe(true);
+    const questions = [q({ id: 'q1', type: 'short_text', label: 'Q1', required: true })];
+    expect(buildApplicationResponses(questions, { q1: 'a'.repeat(255) }).ok).toBe(true);
 
     const result = buildApplicationResponses(questions, {
       q1: 'a'.repeat(256),
@@ -405,15 +362,9 @@ describe('buildApplicationResponses — max length', () => {
   });
 
   test('rejects a long_text answer past the 2000-character default', () => {
-    const questions = [
-      q({ id: 'q1', type: 'long_text', label: 'Q1', required: true }),
-    ];
-    expect(
-      buildApplicationResponses(questions, { q1: 'a'.repeat(2000) }).ok,
-    ).toBe(true);
-    expect(
-      buildApplicationResponses(questions, { q1: 'a'.repeat(2001) }).ok,
-    ).toBe(false);
+    const questions = [q({ id: 'q1', type: 'long_text', label: 'Q1', required: true })];
+    expect(buildApplicationResponses(questions, { q1: 'a'.repeat(2000) }).ok).toBe(true);
+    expect(buildApplicationResponses(questions, { q1: 'a'.repeat(2001) }).ok).toBe(false);
   });
 
   test('honours a configured maxLength over the type default', () => {
@@ -426,12 +377,8 @@ describe('buildApplicationResponses — max length', () => {
         maxLength: 10,
       }),
     ];
-    expect(
-      buildApplicationResponses(questions, { q1: 'a'.repeat(10) }).ok,
-    ).toBe(true);
-    expect(
-      buildApplicationResponses(questions, { q1: 'a'.repeat(11) }).ok,
-    ).toBe(false);
+    expect(buildApplicationResponses(questions, { q1: 'a'.repeat(10) }).ok).toBe(true);
+    expect(buildApplicationResponses(questions, { q1: 'a'.repeat(11) }).ok).toBe(false);
   });
 
   test('a configured maxLength can raise the cap above the default', () => {
@@ -444,9 +391,7 @@ describe('buildApplicationResponses — max length', () => {
         maxLength: 500,
       }),
     ];
-    expect(
-      buildApplicationResponses(questions, { q1: 'a'.repeat(400) }).ok,
-    ).toBe(true);
+    expect(buildApplicationResponses(questions, { q1: 'a'.repeat(400) }).ok).toBe(true);
   });
 
   test('the cap is applied after trimming', () => {

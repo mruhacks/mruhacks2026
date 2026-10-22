@@ -85,9 +85,7 @@ export function ProfileAssets({
     const result = await getOwnResume();
     setBusy(null);
     if (!result.success || !result.data) {
-      toast.error(
-        result.success ? 'Resume is no longer available.' : result.error,
-      );
+      toast.error(result.success ? 'Resume is no longer available.' : result.error);
       return;
     }
     const link = document.createElement('a');
@@ -101,8 +99,7 @@ export function ProfileAssets({
   return (
     <section className='border-border mb-8 space-y-3 border-b pb-8'>
       <p className='text-sm font-medium'>
-        Resume{' '}
-        <span className='text-muted-foreground font-normal'>(optional)</span>
+        Resume <span className='text-muted-foreground font-normal'>(optional)</span>
       </p>
 
       <Input
@@ -118,9 +115,7 @@ export function ProfileAssets({
         <div
           className={cn(
             'hidden cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-6 py-8 text-center transition-colors md:flex',
-            isDragOver
-              ? 'border-primary bg-primary/5'
-              : 'border-border hover:border-primary/50 hover:bg-muted/40',
+            isDragOver ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50 hover:bg-muted/40',
             busyOrDisabled && 'pointer-events-none opacity-50',
           )}
           onDragOver={handleDragOver}
@@ -139,19 +134,12 @@ export function ProfileAssets({
         >
           <Upload className='text-muted-foreground size-6' />
           <div>
-            <p className='text-sm font-medium'>
-              Drag &amp; drop your resume here
-            </p>
+            <p className='text-sm font-medium'>Drag &amp; drop your resume here</p>
             <p className='text-muted-foreground text-xs'>
-              or{' '}
-              <span className='text-primary underline underline-offset-2'>
-                click to browse
-              </span>
+              or <span className='text-primary underline underline-offset-2'>click to browse</span>
             </p>
           </div>
-          <p className='text-muted-foreground text-xs'>
-            PDF, DOC, or DOCX up to {MAX_RESUME_MB} MB
-          </p>
+          <p className='text-muted-foreground text-xs'>PDF, DOC, or DOCX up to {MAX_RESUME_MB} MB</p>
         </div>
       )}
 
@@ -175,12 +163,8 @@ export function ProfileAssets({
       {queuedResume && (
         <div className='flex min-h-10 items-center gap-2'>
           <FileText className='text-muted-foreground size-4 shrink-0' />
-          <span className='min-w-0 flex-1 truncate text-sm'>
-            {queuedResume.name}
-          </span>
-          <span className='text-muted-foreground shrink-0 text-xs'>
-            Will upload on save
-          </span>
+          <span className='min-w-0 flex-1 truncate text-sm'>{queuedResume.name}</span>
+          <span className='text-muted-foreground shrink-0 text-xs'>Will upload on save</span>
           <Button
             type='button'
             variant='outline'
@@ -198,21 +182,9 @@ export function ProfileAssets({
       {hasResume && !queuedResume && (
         <div className='flex min-h-10 items-center gap-2'>
           <FileText className='text-muted-foreground size-4 shrink-0' />
-          <span className='min-w-0 flex-1 truncate text-sm'>
-            {resumeFileName ?? 'Resume'}
-          </span>
-          <Button
-            type='button'
-            variant='outline'
-            size='sm'
-            onClick={downloadResume}
-            disabled={busyOrDisabled}
-          >
-            {busy === 'download' ? (
-              <Loader2 className='size-4 animate-spin' />
-            ) : (
-              <Download className='size-4' />
-            )}
+          <span className='min-w-0 flex-1 truncate text-sm'>{resumeFileName ?? 'Resume'}</span>
+          <Button type='button' variant='outline' size='sm' onClick={downloadResume} disabled={busyOrDisabled}>
+            {busy === 'download' ? <Loader2 className='size-4 animate-spin' /> : <Download className='size-4' />}
             <span className='sr-only'>Download resume</span>
           </Button>
           <Button
@@ -225,18 +197,8 @@ export function ProfileAssets({
             <Upload className='size-4' />
             <span className='sr-only'>Replace resume</span>
           </Button>
-          <Button
-            type='button'
-            variant='outline'
-            size='sm'
-            onClick={remove}
-            disabled={busyOrDisabled}
-          >
-            {busy === 'remove' ? (
-              <Loader2 className='size-4 animate-spin' />
-            ) : (
-              <Trash2 className='size-4' />
-            )}
+          <Button type='button' variant='outline' size='sm' onClick={remove} disabled={busyOrDisabled}>
+            {busy === 'remove' ? <Loader2 className='size-4 animate-spin' /> : <Trash2 className='size-4' />}
             <span className='sr-only'>Remove resume</span>
           </Button>
         </div>
@@ -244,8 +206,7 @@ export function ProfileAssets({
 
       <p className='text-muted-foreground text-xs'>
         PDF, DOC, or DOCX up to {MAX_RESUME_MB} MB.
-        {queuedResume &&
-          ' Not uploaded yet — it will be saved with the rest of this form.'}
+        {queuedResume && ' Not uploaded yet — it will be saved with the rest of this form.'}
       </p>
     </section>
   );

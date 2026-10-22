@@ -1,26 +1,10 @@
 import { describe, test, expect, beforeAll, afterAll, vi } from 'vitest';
 import { and, eq } from 'drizzle-orm';
 import { db } from '@/utils/db';
-import {
-  user,
-  events,
-  eventParticipants,
-  teams,
-  permission,
-  userPermission,
-  auditLog,
-} from '@/db/schema';
+import { user, events, eventParticipants, teams, permission, userPermission, auditLog } from '@/db/schema';
 import { insertAttendees } from '@/tests/participation-fixtures';
-import {
-  getMyTeam,
-  joinTeamByCode,
-  leaveTeam,
-  removeMember,
-} from '@/app/dashboard/events/team-actions';
-import {
-  getFormedTeamsForEvent,
-  canModerateTeams,
-} from '@/app/dashboard/admin/events/actions';
+import { getMyTeam, joinTeamByCode, leaveTeam, removeMember } from '@/app/dashboard/events/team-actions';
+import { getFormedTeamsForEvent, canModerateTeams } from '@/app/dashboard/admin/events/actions';
 
 vi.mock('@/utils/auth', () => ({ getUser: vi.fn() }));
 vi.mock('next/cache', () => ({
@@ -114,23 +98,12 @@ beforeAll(async () => {
       { slug: 'team:read:all', description: 'test permission' },
     ])
     .returning({ id: permission.id });
-  await db
-    .insert(userPermission)
-    .values(perms.map((p) => ({ userId: adminUser.id, permissionId: p.id })));
+  await db.insert(userPermission).values(perms.map((p) => ({ userId: adminUser.id, permissionId: p.id })));
 });
 
 afterAll(async () => {
   await db.delete(events).where(eq(events.id, eventId));
-  const testUsers = [
-    userA,
-    userB,
-    userC,
-    userD,
-    userE,
-    userF,
-    userG,
-    adminUser,
-  ];
+  const testUsers = [userA, userB, userC, userD, userE, userF, userG, adminUser];
   for (const u of testUsers) {
     await db.delete(user).where(eq(user.id, u.id));
   }
@@ -206,26 +179,19 @@ describe('joinTeamByCode', () => {
 
     loginAs(userB);
     const bTeamBefore = await getMyTeam(eventId);
-    if (!bTeamBefore.success || !bTeamBefore.data)
-      throw new Error('expected data');
+    if (!bTeamBefore.success || !bTeamBefore.data) throw new Error('expected data');
     const bOldTeamId = bTeamBefore.data.teamId;
 
     const joinResult = await joinTeamByCode(eventId, aCode);
     expect(joinResult.success).toBe(true);
 
     const rosterAfter = await getMyTeam(eventId);
-    if (!rosterAfter.success || !rosterAfter.data)
-      throw new Error('expected data');
+    if (!rosterAfter.success || !rosterAfter.data) throw new Error('expected data');
     expect(rosterAfter.data.teamId).toBe(aTeamId);
     expect(rosterAfter.data.organizerId).toBe(userA.id);
-    expect(rosterAfter.data.members.map((m) => m.userId).sort()).toEqual(
-      [userA.id, userB.id].sort(),
-    );
+    expect(rosterAfter.data.members.map((m) => m.userId).sort()).toEqual([userA.id, userB.id].sort());
 
-    const dissolvedTeam = await db
-      .select()
-      .from(teams)
-      .where(eq(teams.id, bOldTeamId));
+    const dissolvedTeam = await db.select().from(teams).where(eq(teams.id, bOldTeamId));
     expect(dissolvedTeam).toHaveLength(0);
   });
 
@@ -269,15 +235,12 @@ describe('leaveTeam', () => {
     const bTeam = await getMyTeam(eventId);
     if (!bTeam.success || !bTeam.data) throw new Error('expected data');
     expect(bTeam.data.organizerId).toBe(userB.id);
-    expect(bTeam.data.members.map((m) => m.userId).sort()).toEqual(
-      [userB.id, userC.id].sort(),
-    );
+    expect(bTeam.data.members.map((m) => m.userId).sort()).toEqual([userB.id, userC.id].sort());
 
     // A reverted to a fresh personal team-of-one.
     loginAs(userA);
     const aTeamAfter = await getMyTeam(eventId);
-    if (!aTeamAfter.success || !aTeamAfter.data)
-      throw new Error('expected data');
+    if (!aTeamAfter.success || !aTeamAfter.data) throw new Error('expected data');
     expect(aTeamAfter.data.members).toHaveLength(1);
     expect(aTeamAfter.data.organizerId).toBe(userA.id);
   });
@@ -320,10 +283,7 @@ describe('removeMember', () => {
     const result = await removeMember(eventId, userB.id);
     expect(result.success).toBe(true);
 
-    const logs = await db
-      .select()
-      .from(auditLog)
-      .where(eq(auditLog.action, 'team.member.removed'));
+    const logs = await db.select().from(auditLog).where(eq(auditLog.action, 'team.member.removed'));
     expect(logs.some((l) => l.targetId === userB.id)).toBe(true);
   });
 });
@@ -359,12 +319,8 @@ describe('getFormedTeamsForEvent', () => {
     if (!result.success || !result.data) throw new Error('expected data');
 
     expect(result.data.every((t) => t.memberCount > 1)).toBe(true);
-    const formedTeam = result.data.find((t) =>
-      t.members.some((m) => m.userId === userA.id),
-    );
-    expect(formedTeam?.members.map((m) => m.userId).sort()).toEqual(
-      [userA.id, userC.id].sort(),
-    );
+    const formedTeam = result.data.find((t) => t.members.some((m) => m.userId === userA.id));
+    expect(formedTeam?.members.map((m) => m.userId).sort()).toEqual([userA.id, userC.id].sort());
   });
 });
 
@@ -388,10 +344,7 @@ describe('canModerateTeams', () => {
 describe('getMyTeam concurrency', () => {
   test('two simultaneous first-time reads settle on one team, with no orphan', async () => {
     loginAs(userG);
-    const [first, second] = await Promise.all([
-      getMyTeam(eventId),
-      getMyTeam(eventId),
-    ]);
+    const [first, second] = await Promise.all([getMyTeam(eventId), getMyTeam(eventId)]);
 
     expect(first.success).toBe(true);
     expect(second.success).toBe(true);
@@ -401,10 +354,7 @@ describe('getMyTeam concurrency', () => {
 
     // A non-transactional create would leave a second, member-less `teams`
     // row holding a live code for this event.
-    const rows = await db
-      .select({ id: teams.id })
-      .from(teams)
-      .where(eq(teams.organizerId, userG.id));
+    const rows = await db.select({ id: teams.id }).from(teams).where(eq(teams.organizerId, userG.id));
     expect(rows).toHaveLength(1);
   });
 });
@@ -422,12 +372,7 @@ describe('removeMember participation', () => {
     // E unregisters (or is denied) but stays `teams.organizerId`.
     await db
       .delete(eventParticipants)
-      .where(
-        and(
-          eq(eventParticipants.eventId, eventId),
-          eq(eventParticipants.userId, userE.id),
-        ),
-      );
+      .where(and(eq(eventParticipants.eventId, eventId), eq(eventParticipants.userId, userE.id)));
 
     loginAs(userE);
     const denied = await removeMember(eventId, userF.id);

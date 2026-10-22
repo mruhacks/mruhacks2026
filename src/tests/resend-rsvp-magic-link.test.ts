@@ -2,13 +2,7 @@ import { describe, test, expect, beforeAll, afterAll, vi } from 'vitest';
 import { count, eq } from 'drizzle-orm';
 
 import { db } from '@/utils/db';
-import {
-  eventInvitations,
-  eventRsvpWaves,
-  events,
-  user,
-  verification,
-} from '@/db/schema';
+import { eventInvitations, eventRsvpWaves, events, user, verification } from '@/db/schema';
 import { MAGIC_LINK_EXPIRES_IN_SECONDS } from '@/utils/auth';
 import { resendRsvpMagicLink } from '@/lib/rsvp/resend-rsvp-magic-link';
 import { getRsvpMagicLinkCallbackURL } from '@/lib/rsvp/send-rsvp-magic-link';
@@ -89,9 +83,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await db
-    .delete(eventRsvpWaves)
-    .where(eq(eventRsvpWaves.eventId, testEventId));
+  await db.delete(eventRsvpWaves).where(eq(eventRsvpWaves.eventId, testEventId));
   await db.delete(events).where(eq(events.id, testEventId));
   await db.delete(user).where(eq(user.id, testUserId));
 });
@@ -119,9 +111,7 @@ describe('RSVP magic-link expiration / resend', () => {
       const expiresAt = await getVerificationExpiresAt(token);
       const expected = Date.now() + MAGIC_LINK_EXPIRES_IN_SECONDS * 1000;
       expect(Math.abs(expiresAt.getTime() - expected)).toBeLessThan(5000);
-      expect(vi.mocked(sendMail).mock.calls[0]?.[0]?.subject).toBe(
-        'Sign in to MRUHacks',
-      );
+      expect(vi.mocked(sendMail).mock.calls[0]?.[0]?.subject).toBe('Sign in to MRUHacks');
     } finally {
       if (token) await deleteVerification(token);
     }
@@ -168,19 +158,13 @@ describe('RSVP magic-link expiration / resend', () => {
       expect(sendMail).toHaveBeenCalledTimes(1);
       const mailCall = vi.mocked(sendMail).mock.calls[0]?.[0];
       expect(mailCall?.to).toBe('resend-rsvp@example.com');
-      expect(mailCall?.subject).toBe(
-        "[Action Required] You're invited to Resend Magic Link Event!",
-      );
+      expect(mailCall?.subject).toBe("[Action Required] You're invited to Resend Magic Link Event!");
       expect(mailCall?.subject).not.toBe('Sign in to MRUHacks');
       expect(mailCall?.html).toContain('RSVP Now');
 
       const token = magicLinkTokenFromLastMail();
       const expiresAt = await getVerificationExpiresAt(token);
-      expect(
-        Math.abs(
-          expiresAt.getTime() - new Date('2099-12-01T00:00:00.000Z').getTime(),
-        ),
-      ).toBeLessThan(5000);
+      expect(Math.abs(expiresAt.getTime() - new Date('2099-12-01T00:00:00.000Z').getTime())).toBeLessThan(5000);
       await deleteVerification(token);
 
       const [{ value: wavesAfter }] = await db

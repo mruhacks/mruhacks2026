@@ -3,13 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { EditUserForm, type EditUserFormData } from './edit-user-form';
 
@@ -18,16 +12,10 @@ interface EditUserModalClientProps {
   /** Null when the viewer can't read roles: the Roles tab is hidden. */
   allRoles: { id: number; slug: string | null }[] | null;
   /** Null when the viewer can't read permissions: that tab is hidden. */
-  allPermissions:
-    | { id: number; slug: string; description: string | null }[]
-    | null;
+  allPermissions: { id: number; slug: string; description: string | null }[] | null;
 }
 
-export function EditUserModalClient({
-  user,
-  allRoles,
-  allPermissions,
-}: EditUserModalClientProps) {
+export function EditUserModalClient({ user, allRoles, allPermissions }: EditUserModalClientProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
 

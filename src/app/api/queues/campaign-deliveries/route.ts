@@ -1,10 +1,7 @@
 import { handleCallback } from '@vercel/queue';
 
 import type { CampaignDeliveryMessage } from '@/lib/campaigns/campaign-queue';
-import {
-  campaignDeliveryRetryDelay,
-  processCampaignDelivery,
-} from '@/lib/campaigns/process-delivery';
+import { campaignDeliveryRetryDelay, processCampaignDelivery } from '@/lib/campaigns/process-delivery';
 
 export const POST = handleCallback<CampaignDeliveryMessage>(
   async ({ deliveryId }) => {

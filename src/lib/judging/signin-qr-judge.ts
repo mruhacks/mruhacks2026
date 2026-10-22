@@ -22,10 +22,7 @@ export type SignInQrJudge = {
  * request, so rendering (or prefetching) this page signs no one in. A
  * missing, deleted or disabled judge is a 404, as the route treats them.
  */
-export async function loadSignInQrJudge(
-  segment: string,
-  judgeId: string,
-): Promise<SignInQrJudge> {
+export async function loadSignInQrJudge(segment: string, judgeId: string): Promise<SignInQrJudge> {
   const eventId = await resolveEventId(segment);
   if (!eventId) notFound();
   const user = await getUser();

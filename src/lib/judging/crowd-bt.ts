@@ -54,9 +54,8 @@ export const JUDGE_PRIOR: Readonly<JudgeReliability> = Object.freeze({
 // Lanczos approximation, g = 7, n = 9: ~15 significant digits for x > 0.
 const LANCZOS_G = 7;
 const LANCZOS_COEFFICIENTS = [
-  0.99999999999980993, 676.5203681218851, -1259.1392167224028,
-  771.32342877765313, -176.61502916214059, 12.507343278686905,
-  -0.13857109526572012, 9.9843695780195716e-6, 1.5056327351493116e-7,
+  0.99999999999980993, 676.5203681218851, -1259.1392167224028, 771.32342877765313, -176.61502916214059,
+  12.507343278686905, -0.13857109526572012, 9.9843695780195716e-6, 1.5056327351493116e-7,
 ];
 
 /** ln Γ(x) for x > 0. */
@@ -71,9 +70,7 @@ function lnGamma(x: number): number {
     sum += LANCZOS_COEFFICIENTS[i] / (z + i);
   }
   const t = z + LANCZOS_G + 0.5;
-  return (
-    0.5 * Math.log(2 * Math.PI) + (z + 0.5) * Math.log(t) - t + Math.log(sum)
-  );
+  return 0.5 * Math.log(2 * Math.PI) + (z + 0.5) * Math.log(t) - t + Math.log(sum);
 }
 
 /** ln |B(a, b)|, as `scipy.special.betaln`. */
@@ -95,33 +92,20 @@ export function psi(x: number): number {
     result +
     Math.log(x) -
     0.5 * inv -
-    inv2 *
-      (1 / 12 -
-        inv2 *
-          (1 / 120 - inv2 * (1 / 252 - inv2 * (1 / 240 - inv2 * (1 / 132)))))
+    inv2 * (1 / 12 - inv2 * (1 / 120 - inv2 * (1 / 252 - inv2 * (1 / 240 - inv2 * (1 / 132)))))
   );
 }
 
 // ── Divergences ────────────────────────────────────────────────────────────
 
 /** KL divergence between two Gaussians. */
-function divergenceGaussian(
-  mu1: number,
-  sigmaSq1: number,
-  mu2: number,
-  sigmaSq2: number,
-): number {
+function divergenceGaussian(mu1: number, sigmaSq1: number, mu2: number, sigmaSq2: number): number {
   const ratio = sigmaSq1 / sigmaSq2;
   return (mu1 - mu2) ** 2 / (2 * sigmaSq2) + (ratio - 1 - Math.log(ratio)) / 2;
 }
 
 /** KL divergence between two Beta distributions. */
-function divergenceBeta(
-  alpha1: number,
-  beta1: number,
-  alpha2: number,
-  beta2: number,
-): number {
+function divergenceBeta(alpha1: number, beta1: number, alpha2: number, beta2: number): number {
   return (
     betaln(alpha2, beta2) -
     betaln(alpha1, beta1) +
@@ -143,11 +127,7 @@ export type UpdateResult = {
  * One vote: `judge` preferred `winner` over `loser`. Returns the updated
  * judge reliability and both projects' estimates.
  */
-export function update(
-  judge: JudgeReliability,
-  winner: ProjectEstimate,
-  loser: ProjectEstimate,
-): UpdateResult {
+export function update(judge: JudgeReliability, winner: ProjectEstimate, loser: ProjectEstimate): UpdateResult {
   const { alpha, beta } = updatedJudge(judge, winner, loser);
   const mus = updatedMus(judge, winner, loser);
   const sigmaSqs = updatedSigmaSqs(judge, winner, loser);
@@ -163,11 +143,7 @@ export function update(
  * the probability-weighted divergence of the posterior from the prior over
  * both outcomes. Dispatch sends a judge where this is highest.
  */
-export function expectedInformationGain(
-  judge: JudgeReliability,
-  a: ProjectEstimate,
-  b: ProjectEstimate,
-): number {
+export function expectedInformationGain(judge: JudgeReliability, a: ProjectEstimate, b: ProjectEstimate): number {
   const { alpha, beta } = judge;
 
   const judge1 = updatedJudge(judge, a, b);
@@ -198,8 +174,7 @@ function updatedMus(
 ): { winner: number; loser: number } {
   const expW = Math.exp(winner.mu);
   const expL = Math.exp(loser.mu);
-  const mult =
-    (alpha * expW) / (alpha * expW + beta * expL) - expW / (expW + expL);
+  const mult = (alpha * expW) / (alpha * expW + beta * expL) - expW / (expW + expL);
   return {
     winner: winner.mu + winner.sigmaSq * mult,
     loser: loser.mu - loser.sigmaSq * mult,
@@ -213,9 +188,7 @@ function updatedSigmaSqs(
 ): { winner: number; loser: number } {
   const expW = Math.exp(winner.mu);
   const expL = Math.exp(loser.mu);
-  const mult =
-    (alpha * expW * beta * expL) / (alpha * expW + beta * expL) ** 2 -
-    (expW * expL) / (expW + expL) ** 2;
+  const mult = (alpha * expW * beta * expL) / (alpha * expW + beta * expL) ** 2 - (expW * expL) / (expW + expL) ** 2;
   return {
     winner: winner.sigmaSq * Math.max(1 + winner.sigmaSq * mult, KAPPA),
     loser: loser.sigmaSq * Math.max(1 + loser.sigmaSq * mult, KAPPA),
@@ -232,14 +205,11 @@ function updatedJudge(
   const expL = Math.exp(loser.mu);
   const c1 =
     expW / (expW + expL) +
-    (0.5 * (winner.sigmaSq + loser.sigmaSq) * (expW * expL * (expL - expW))) /
-      (expW + expL) ** 3;
+    (0.5 * (winner.sigmaSq + loser.sigmaSq) * (expW * expL * (expL - expW))) / (expW + expL) ** 3;
   const c2 = 1 - c1;
   const c = (c1 * alpha + c2 * beta) / (alpha + beta);
 
-  const expt =
-    (c1 * (alpha + 1) * alpha + c2 * alpha * beta) /
-    (c * (alpha + beta + 1) * (alpha + beta));
+  const expt = (c1 * (alpha + 1) * alpha + c2 * alpha * beta) / (c * (alpha + beta + 1) * (alpha + beta));
   const exptSq =
     (c1 * (alpha + 2) * (alpha + 1) * alpha + c2 * (alpha + 1) * alpha * beta) /
     (c * (alpha + beta + 2) * (alpha + beta + 1) * (alpha + beta));

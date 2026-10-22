@@ -9,10 +9,7 @@ import { eventTypeExists } from '@/lib/event-types';
 import { subeventsCacheTag } from '@/lib/subevents';
 import { EVENTS_CACHE_TAG, eventUrlSegments } from '@/lib/events';
 import { eventPath } from '@/lib/event-slug';
-import {
-  adminEventCacheTag,
-  eventApplicationsCacheTag,
-} from '@/lib/admin-event';
+import { adminEventCacheTag, eventApplicationsCacheTag } from '@/lib/admin-event';
 import {
   events,
   eventParticipants,
@@ -33,32 +30,17 @@ import {
 } from '@/db/schema';
 import { getUser } from '@/utils/auth';
 import { ok, fail, type ActionResult } from '@/utils/action-result';
-import {
-  hasPermission,
-  requireAnyPermission,
-  requirePermission,
-} from '@/lib/rbac/authorization';
+import { hasPermission, requireAnyPermission, requirePermission } from '@/lib/rbac/authorization';
 import { sendRsvpWave } from '@/lib/rsvp/send-rsvp-wave';
 import { resendRsvpMagicLink } from '@/lib/rsvp/resend-rsvp-magic-link';
 import { getAdminRsvpSummary } from '@/lib/rsvp/get-admin-rsvp-summary';
-import {
-  getWaitlist,
-  syncWaitlistForEvent,
-  type WaitlistEntry,
-} from '@/lib/rsvp/waitlist';
+import { getWaitlist, syncWaitlistForEvent, type WaitlistEntry } from '@/lib/rsvp/waitlist';
 import type { AdminRsvpSummary } from '@/lib/rsvp/get-admin-rsvp-summary';
 import { DEFAULT_RSVP_RESPONSE_WINDOW_HOURS } from '@/lib/rsvp/constants';
-import {
-  isSummarizableQuestion,
-  type ApplicationQuestion,
-} from '@/types/application';
+import { isSummarizableQuestion, type ApplicationQuestion } from '@/types/application';
 import type { ParticipationStatus } from '@/types/lookups';
 import { countAttending, statusIdOf } from '@/lib/participation/server';
-import {
-  isAttending,
-  isReviewStatus,
-  resolveEffectiveStatus,
-} from '@/lib/participation/status';
+import { isAttending, isReviewStatus, resolveEffectiveStatus } from '@/lib/participation/status';
 import { adminTransitionPermissions } from '@/lib/participation/transitions';
 import { publishRsvpInvitation } from '@/lib/rsvp/rsvp-invitation-queue';
 import {
@@ -100,9 +82,7 @@ async function getAuthorizedUser() {
 }
 
 /** Fetch all current questions for an event (null if not found). */
-async function fetchQuestions(
-  eventId: string,
-): Promise<ApplicationQuestion[] | null> {
+async function fetchQuestions(eventId: string): Promise<ApplicationQuestion[] | null> {
   const [row] = await db
     .select({ applicationQuestions: events.applicationQuestions })
     .from(events)
@@ -114,9 +94,7 @@ async function fetchQuestions(
 }
 
 /** Fetch all event_participants.responses for a given event. */
-async function fetchAllResponses(
-  eventId: string,
-): Promise<Record<string, unknown>[]> {
+async function fetchAllResponses(eventId: string): Promise<Record<string, unknown>[]> {
   const rows = await db
     .select({ responses: eventParticipants.responses })
     .from(eventParticipants)
@@ -125,14 +103,8 @@ async function fetchAllResponses(
 }
 
 /** Write updated questions back. */
-async function writeQuestions(
-  eventId: string,
-  questions: ApplicationQuestion[],
-): Promise<void> {
-  await db
-    .update(events)
-    .set({ applicationQuestions: questions, updatedAt: new Date() })
-    .where(eq(events.id, eventId));
+async function writeQuestions(eventId: string, questions: ApplicationQuestion[]): Promise<void> {
+  await db.update(events).set({ applicationQuestions: questions, updatedAt: new Date() }).where(eq(events.id, eventId));
 
   // Single funnel for every question mutation (add/edit/remove/reorder/
   // reactivate), so the event dashboard's cached question list and stats
@@ -154,18 +126,12 @@ export type EventWithQuestions = {
  * Fetches an event with its application questions and whether any applications exist.
  * Requires event:manage permission.
  */
-export async function getEventWithQuestions(
-  eventId: string,
-): Promise<ActionResult<EventWithQuestions>> {
+export async function getEventWithQuestions(eventId: string): Promise<ActionResult<EventWithQuestions>> {
   const user = await getUser();
   if (!user) return fail('Not authenticated');
   await requirePermission(user.id, 'event:manage');
 
-  const [eventRow] = await db
-    .select()
-    .from(events)
-    .where(eq(events.id, eventId))
-    .limit(1);
+  const [eventRow] = await db.select().from(events).where(eq(events.id, eventId)).limit(1);
 
   if (!eventRow) return fail('Event not found');
 
@@ -193,24 +159,19 @@ export async function getEventWithQuestions(
  * Requires event:manage permission.
  * Returns the created question with backend-generated UUIDs.
  */
-export async function addQuestion(
-  eventId: string,
-  data: AddQuestionInput,
-): Promise<ActionResult<ApplicationQuestion>> {
+export async function addQuestion(eventId: string, data: AddQuestionInput): Promise<ActionResult<ApplicationQuestion>> {
   const user = await getAuthorizedUser();
   if (!user) return fail('Not authenticated');
 
   const parsed = addQuestionSchema.safeParse(data);
-  if (!parsed.success)
-    return fail(parsed.error.issues[0]?.message ?? 'Invalid input');
+  if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? 'Invalid input');
 
   const input = parsed.data;
   const questions = await fetchQuestions(eventId);
   if (!questions) return fail('Event not found');
 
   const maxOrder = questions.reduce((m, q) => Math.max(m, q.order), 0);
-  const needsOptions =
-    input.type === 'single_select' || input.type === 'multi_select';
+  const needsOptions = input.type === 'single_select' || input.type === 'multi_select';
 
   const newQuestion: ApplicationQuestion = {
     id: randomUUID(),
@@ -220,9 +181,7 @@ export async function addQuestion(
     required: input.required,
     maxLength: input.maxLength ?? undefined,
     showInApplicationReview: input.showInApplicationReview,
-    showInReports: isSummarizableQuestion(input.type)
-      ? input.showInReports
-      : undefined,
+    showInReports: isSummarizableQuestion(input.type) ? input.showInReports : undefined,
     order: maxOrder + 1,
     active: true,
     options: needsOptions
@@ -260,8 +219,7 @@ export async function editQuestion(
   if (!user) return fail('Not authenticated');
 
   const parsed = editQuestionSchema.safeParse(data);
-  if (!parsed.success)
-    return fail(parsed.error.issues[0]?.message ?? 'Invalid input');
+  if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? 'Invalid input');
 
   const questions = await fetchQuestions(eventId);
   if (!questions) return fail('Event not found');
@@ -293,10 +251,7 @@ export async function editQuestion(
  * Section dividers are always hard-deleted (they don't store any data).
  * Requires event:manage permission.
  */
-export async function removeQuestion(
-  eventId: string,
-  questionId: string,
-): Promise<ActionResult> {
+export async function removeQuestion(eventId: string, questionId: string): Promise<ActionResult> {
   const user = await getAuthorizedUser();
   if (!user) return fail('Not authenticated');
 
@@ -318,27 +273,19 @@ export async function removeQuestion(
   if (shouldHardDelete) {
     updated = questions.filter((q) => q.id !== questionId);
   } else {
-    updated = questions.map((q) =>
-      q.id === questionId ? { ...q, active: false } : q,
-    );
+    updated = questions.map((q) => (q.id === questionId ? { ...q, active: false } : q));
   }
 
   await writeQuestions(eventId, updated);
 
   await writeAuditLog({
     actorId: user.id,
-    action: shouldHardDelete
-      ? 'event.question.deleted'
-      : 'event.question.hidden',
+    action: shouldHardDelete ? 'event.question.deleted' : 'event.question.hidden',
     targetType: 'event',
     targetId: eventId,
     metadata: { questionId },
   });
-  return ok(
-    shouldHardDelete
-      ? 'Question deleted.'
-      : 'Question hidden (applications exist).',
-  );
+  return ok(shouldHardDelete ? 'Question deleted.' : 'Question hidden (applications exist).');
 }
 
 /**
@@ -346,10 +293,7 @@ export async function removeQuestion(
  * All existing question IDs must be present.
  * Requires event:manage permission.
  */
-export async function reorderQuestions(
-  eventId: string,
-  orderedIds: string[],
-): Promise<ActionResult> {
+export async function reorderQuestions(eventId: string, orderedIds: string[]): Promise<ActionResult> {
   const user = await getAuthorizedUser();
   if (!user) return fail('Not authenticated');
 
@@ -358,10 +302,7 @@ export async function reorderQuestions(
 
   const byId = new Map(questions.map((q) => [q.id, q]));
 
-  if (
-    orderedIds.length !== byId.size ||
-    !orderedIds.every((id) => byId.has(id))
-  ) {
+  if (orderedIds.length !== byId.size || !orderedIds.every((id) => byId.has(id))) {
     return fail('orderedIds must contain exactly all existing question IDs');
   }
 
@@ -385,10 +326,7 @@ export async function reorderQuestions(
  * Reactivates a hidden question (sets active=true).
  * Requires event:manage permission.
  */
-export async function reactivateQuestion(
-  eventId: string,
-  questionId: string,
-): Promise<ActionResult> {
+export async function reactivateQuestion(eventId: string, questionId: string): Promise<ActionResult> {
   const user = await getAuthorizedUser();
   if (!user) return fail('Not authenticated');
 
@@ -398,9 +336,7 @@ export async function reactivateQuestion(
   const idx = questions.findIndex((q) => q.id === questionId);
   if (idx === -1) return fail('Question not found');
 
-  const updated = questions.map((q, i) =>
-    i === idx ? { ...q, active: true } : q,
-  );
+  const updated = questions.map((q, i) => (i === idx ? { ...q, active: true } : q));
   await writeQuestions(eventId, updated);
 
   await writeAuditLog({
@@ -421,18 +357,11 @@ export async function reactivateQuestion(
  * slug comes back as a message the form can render next to the field instead
  * of a unique-violation from `idx_events_slug_unique`.
  */
-async function isEventSlugAvailable(
-  slug: string,
-  exceptEventId?: string,
-): Promise<boolean> {
+async function isEventSlugAvailable(slug: string, exceptEventId?: string): Promise<boolean> {
   const [taken] = await db
     .select({ id: events.id })
     .from(events)
-    .where(
-      exceptEventId
-        ? and(eq(events.slug, slug), ne(events.id, exceptEventId))
-        : eq(events.slug, slug),
-    )
+    .where(exceptEventId ? and(eq(events.slug, slug), ne(events.id, exceptEventId)) : eq(events.slug, slug))
     .limit(1);
 
   return !taken;
@@ -442,15 +371,12 @@ async function isEventSlugAvailable(
  * Creates a new event.
  * Requires event:manage permission.
  */
-export async function createEvent(
-  data: CreateEventInput,
-): Promise<ActionResult<{ id: string }>> {
+export async function createEvent(data: CreateEventInput): Promise<ActionResult<{ id: string }>> {
   const user = await getAuthorizedUser();
   if (!user) return fail('Not authenticated');
 
   const parsed = createEventSchema.safeParse(data);
-  if (!parsed.success)
-    return fail(parsed.error.issues[0]?.message ?? 'Invalid input');
+  if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? 'Invalid input');
 
   const input = parsed.data;
 
@@ -470,8 +396,7 @@ export async function createEvent(
       hasApplication: input.hasApplication,
       capacity: input.capacity ?? null,
       capacityVisible: input.capacityVisible ?? false,
-      rsvpResponseWindowHours:
-        input.rsvpResponseWindowHours ?? DEFAULT_RSVP_RESPONSE_WINDOW_HOURS,
+      rsvpResponseWindowHours: input.rsvpResponseWindowHours ?? DEFAULT_RSVP_RESPONSE_WINDOW_HOURS,
       teamsEnabled: input.teamsEnabled ?? false,
       maxTeamSize: input.maxTeamSize ?? null,
       startsAt: input.startsAt ? new Date(input.startsAt) : null,
@@ -529,18 +454,12 @@ export type EventDetails = {
  * Fetches full event details with stats.
  * Requires event:manage permission.
  */
-export async function getEventDetails(
-  eventId: string,
-): Promise<ActionResult<EventDetails>> {
+export async function getEventDetails(eventId: string): Promise<ActionResult<EventDetails>> {
   const user = await getUser();
   if (!user) return fail('Not authenticated');
   await requirePermission(user.id, 'event:manage');
 
-  const [eventRow] = await db
-    .select()
-    .from(events)
-    .where(eq(events.id, eventId))
-    .limit(1);
+  const [eventRow] = await db.select().from(events).where(eq(events.id, eventId)).limit(1);
 
   if (!eventRow) return fail('Event not found');
 
@@ -584,22 +503,14 @@ export async function getEventDetails(
  * Updates event settings.
  * Requires event:manage permission.
  */
-export async function updateEventSettings(
-  eventId: string,
-  data: UpdateEventSettingsInput,
-): Promise<ActionResult> {
+export async function updateEventSettings(eventId: string, data: UpdateEventSettingsInput): Promise<ActionResult> {
   const user = await getAuthorizedUser();
   if (!user) return fail('Not authenticated');
 
   const parsed = updateEventSettingsSchema.safeParse(data);
-  if (!parsed.success)
-    return fail(parsed.error.issues[0]?.message ?? 'Invalid input');
+  if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? 'Invalid input');
 
-  const [eventRow] = await db
-    .select()
-    .from(events)
-    .where(eq(events.id, eventId))
-    .limit(1);
+  const [eventRow] = await db.select().from(events).where(eq(events.id, eventId)).limit(1);
 
   if (!eventRow) return fail('Event not found');
 
@@ -611,17 +522,8 @@ export async function updateEventSettings(
   // each field will actually end up with, or a lone edit can push
   // startsAt past the untouched stored endsAt.
   const finalStartsAt =
-    input.startsAt !== undefined
-      ? input.startsAt
-        ? new Date(input.startsAt)
-        : null
-      : eventRow.startsAt;
-  const finalEndsAt =
-    input.endsAt !== undefined
-      ? input.endsAt
-        ? new Date(input.endsAt)
-        : null
-      : eventRow.endsAt;
+    input.startsAt !== undefined ? (input.startsAt ? new Date(input.startsAt) : null) : eventRow.startsAt;
+  const finalEndsAt = input.endsAt !== undefined ? (input.endsAt ? new Date(input.endsAt) : null) : eventRow.endsAt;
 
   if (finalStartsAt && finalEndsAt && finalStartsAt >= finalEndsAt) {
     return fail('Start date must be before end date');
@@ -644,10 +546,8 @@ export async function updateEventSettings(
   // deadline is what freezes them. Once any team has started a project,
   // switching one of those off would strand it, so refuse instead.
   const turnsOffTeams = input.teamsEnabled === false && eventRow.teamsEnabled;
-  const turnsOffCheckIn =
-    input.checkInEnabled === false && eventRow.checkInEnabled;
-  const clearsDeadline =
-    finalSubmissionsCloseAt == null && eventRow.submissionsCloseAt != null;
+  const turnsOffCheckIn = input.checkInEnabled === false && eventRow.checkInEnabled;
+  const clearsDeadline = finalSubmissionsCloseAt == null && eventRow.submissionsCloseAt != null;
   if (turnsOffTeams || turnsOffCheckIn || clearsDeadline) {
     const [existingSubmission] = await db
       .select({ id: submissions.id })
@@ -660,9 +560,7 @@ export async function updateEventSettings(
         : turnsOffCheckIn
           ? 'turn off check-in'
           : 'remove the submission deadline';
-      return fail(
-        `Teams have already started project submissions, so you can't ${what}.`,
-      );
+      return fail(`Teams have already started project submissions, so you can't ${what}.`);
     }
   }
 
@@ -675,34 +573,21 @@ export async function updateEventSettings(
     return fail('A schedule entry cannot be the featured event.');
   }
 
-  if (
-    input.eventTypeId != null &&
-    !(await eventTypeExists(input.eventTypeId))
-  ) {
+  if (input.eventTypeId != null && !(await eventTypeExists(input.eventTypeId))) {
     return fail('Unknown schedule entry type.');
   }
 
   // undefined leaves the stored slug alone; '' or null clears it back to
   // uuid-only addressing.
-  const finalSlug =
-    input.slug !== undefined ? input.slug?.trim() || null : eventRow.slug;
+  const finalSlug = input.slug !== undefined ? input.slug?.trim() || null : eventRow.slug;
 
-  if (
-    finalSlug &&
-    finalSlug !== eventRow.slug &&
-    !(await isEventSlugAvailable(finalSlug, eventId))
-  ) {
+  if (finalSlug && finalSlug !== eventRow.slug && !(await isEventSlugAvailable(finalSlug, eventId))) {
     return fail('That URL slug is already used by another event.');
   }
 
-  const latitude =
-    input.latitude !== undefined ? input.latitude : eventRow.latitude;
-  const longitude =
-    input.longitude !== undefined ? input.longitude : eventRow.longitude;
-  const radiusMeters =
-    input.radiusMeters !== undefined
-      ? input.radiusMeters
-      : eventRow.radiusMeters;
+  const latitude = input.latitude !== undefined ? input.latitude : eventRow.latitude;
+  const longitude = input.longitude !== undefined ? input.longitude : eventRow.longitude;
+  const radiusMeters = input.radiusMeters !== undefined ? input.radiusMeters : eventRow.radiusMeters;
 
   // latitude/longitude/radiusMeters must all be set or all unset. The Zod
   // schema can't enforce this for a partial update (a payload touching only
@@ -711,9 +596,7 @@ export async function updateEventSettings(
   const geofenceValues = [latitude, longitude, radiusMeters];
   const geofenceCount = geofenceValues.filter((v) => v != null).length;
   if (geofenceCount !== 0 && geofenceCount !== 3) {
-    return fail(
-      'Latitude, longitude, and radius must all be set together for the pass geofence',
-    );
+    return fail('Latitude, longitude, and radius must all be set together for the pass geofence');
   }
 
   await db.transaction(async (tx) => {
@@ -735,32 +618,21 @@ export async function updateEventSettings(
             ? input.descriptionMarkdown.trim() || null
             : eventRow.descriptionMarkdown,
         hasApplication: input.hasApplication ?? eventRow.hasApplication,
-        capacity:
-          input.capacity !== undefined ? input.capacity : eventRow.capacity,
+        capacity: input.capacity !== undefined ? input.capacity : eventRow.capacity,
         capacityVisible: input.capacityVisible ?? eventRow.capacityVisible,
-        rsvpResponseWindowHours:
-          input.rsvpResponseWindowHours ?? eventRow.rsvpResponseWindowHours,
+        rsvpResponseWindowHours: input.rsvpResponseWindowHours ?? eventRow.rsvpResponseWindowHours,
         teamsEnabled: input.teamsEnabled ?? eventRow.teamsEnabled,
         checkInEnabled: input.checkInEnabled ?? eventRow.checkInEnabled,
-        maxTeamSize:
-          input.maxTeamSize !== undefined
-            ? input.maxTeamSize
-            : eventRow.maxTeamSize,
+        maxTeamSize: input.maxTeamSize !== undefined ? input.maxTeamSize : eventRow.maxTeamSize,
         startsAt: finalStartsAt,
         endsAt: finalEndsAt,
         submissionsCloseAt: finalSubmissionsCloseAt,
-        location:
-          input.location !== undefined
-            ? input.location || null
-            : eventRow.location,
+        location: input.location !== undefined ? input.location || null : eventRow.location,
         latitude,
         longitude,
         radiusMeters,
         isFeatured: input.isFeatured ?? eventRow.isFeatured,
-        eventTypeId:
-          input.eventTypeId !== undefined
-            ? input.eventTypeId
-            : eventRow.eventTypeId,
+        eventTypeId: input.eventTypeId !== undefined ? input.eventTypeId : eventRow.eventTypeId,
         updatedAt: new Date(),
       })
       .where(eq(events.id, eventId));
@@ -771,8 +643,7 @@ export async function updateEventSettings(
   updateTag(FEATURED_EVENT_CACHE_TAG);
   updateTag(EVENTS_CACHE_TAG);
   updateTag(adminEventCacheTag(eventId));
-  if (eventRow.parentEventId)
-    updateTag(subeventsCacheTag(eventRow.parentEventId));
+  if (eventRow.parentEventId) updateTag(subeventsCacheTag(eventRow.parentEventId));
 
   // The event page is reachable by uuid and by every slug it has worn, so
   // drop the uuid path, the current slug's path, and the one a rename just
@@ -803,9 +674,7 @@ export type ApplicationResponseRow = {
  * Fetches all application responses for an event.
  * Requires event:manage permission.
  */
-export async function getApplicationResponses(
-  eventId: string,
-): Promise<ActionResult<ApplicationResponseRow[]>> {
+export async function getApplicationResponses(eventId: string): Promise<ActionResult<ApplicationResponseRow[]>> {
   const authUser = await getUser();
   if (!authUser) return fail('Not authenticated');
   await requirePermission(authUser.id, 'event:manage');
@@ -840,10 +709,7 @@ export type EventApplicationStats = {
   total: number;
   questionStats: QuestionStats[];
   statusBreakdown: StatsBucket[];
-  demographics: Record<
-    'university' | 'major' | 'yearOfStudy' | 'gender',
-    StatsBucket[]
-  >;
+  demographics: Record<'university' | 'major' | 'yearOfStudy' | 'gender', StatsBucket[]>;
 };
 
 /**
@@ -876,15 +742,11 @@ export async function getApplicationStats(
 
   if (!eventRow) return fail('Event not found');
 
-  const questions =
-    (eventRow.applicationQuestions as ApplicationQuestion[] | null) ?? [];
+  const questions = (eventRow.applicationQuestions as ApplicationQuestion[] | null) ?? [];
 
   const whereClause =
     status && status !== 'all'
-      ? and(
-          eq(eventParticipants.eventId, eventId),
-          eq(participationStatuses.label, status),
-        )
+      ? and(eq(eventParticipants.eventId, eventId), eq(participationStatuses.label, status))
       : eq(eventParticipants.eventId, eventId);
 
   const rows = await db
@@ -898,18 +760,12 @@ export async function getApplicationStats(
     })
     .from(eventParticipants)
     .leftJoin(userProfiles, eq(eventParticipants.userId, userProfiles.userId))
-    .leftJoin(
-      userProfileAbout,
-      eq(eventParticipants.userId, userProfileAbout.userId),
-    )
+    .leftJoin(userProfileAbout, eq(eventParticipants.userId, userProfileAbout.userId))
     .leftJoin(genders, eq(userProfiles.genderId, genders.id))
     .leftJoin(universities, eq(userProfileAbout.universityId, universities.id))
     .leftJoin(majors, eq(userProfileAbout.majorId, majors.id))
     .leftJoin(yearsOfStudy, eq(userProfileAbout.yearOfStudyId, yearsOfStudy.id))
-    .innerJoin(
-      participationStatuses,
-      eq(eventParticipants.statusId, participationStatuses.id),
-    )
+    .innerJoin(participationStatuses, eq(eventParticipants.statusId, participationStatuses.id))
     .where(whereClause);
 
   const statsRows: ApplicationStatsRow[] = rows.map((row) => ({
@@ -957,10 +813,7 @@ export async function updateParticipantStatus(
   const authUser = await getUser();
   if (!authUser) return fail('Not authenticated');
 
-  await requireAnyPermission(authUser.id, [
-    'application:review:all',
-    'rsvp:write:all',
-  ]);
+  await requireAnyPermission(authUser.id, ['application:review:all', 'rsvp:write:all']);
 
   const parsed = updateParticipantStatusSchema.safeParse(input);
   if (!parsed.success) return fail('Invalid status.');
@@ -976,11 +829,7 @@ export async function updateParticipantStatus(
       if (status === 'invited') {
         // Same lock order as `sendRsvpWave` and `submitRsvpResponse` (event,
         // then participant), so the open wave can't close underneath us.
-        await tx
-          .select({ id: events.id })
-          .from(events)
-          .where(eq(events.id, eventId))
-          .for('update');
+        await tx.select({ id: events.id }).from(events).where(eq(events.id, eventId)).for('update');
       }
 
       const [row] = await tx
@@ -991,24 +840,10 @@ export async function updateParticipantStatus(
           respondBy: eventRsvpWaves.respondBy,
         })
         .from(eventParticipants)
-        .innerJoin(
-          participationStatuses,
-          eq(eventParticipants.statusId, participationStatuses.id),
-        )
-        .leftJoin(
-          eventInvitations,
-          eq(eventInvitations.participantId, eventParticipants.id),
-        )
-        .leftJoin(
-          eventRsvpWaves,
-          eq(eventInvitations.rsvpWaveId, eventRsvpWaves.id),
-        )
-        .where(
-          and(
-            eq(eventParticipants.id, participantId),
-            eq(eventParticipants.eventId, eventId),
-          ),
-        )
+        .innerJoin(participationStatuses, eq(eventParticipants.statusId, participationStatuses.id))
+        .leftJoin(eventInvitations, eq(eventInvitations.participantId, eventParticipants.id))
+        .leftJoin(eventRsvpWaves, eq(eventInvitations.rsvpWaveId, eventRsvpWaves.id))
+        .where(and(eq(eventParticipants.id, participantId), eq(eventParticipants.eventId, eventId)))
         .for('update', { of: eventParticipants })
         .limit(1);
       if (!row) throw new StatusChangeError('Application not found.');
@@ -1022,9 +857,7 @@ export async function updateParticipantStatus(
       const required = adminTransitionPermissions(from, status) ?? [];
       for (const permission of required) {
         if (!(await hasPermission(authUser.id, permission))) {
-          throw new StatusChangeError(
-            'You do not have permission to make this change.',
-          );
+          throw new StatusChangeError('You do not have permission to make this change.');
         }
       }
 
@@ -1032,9 +865,7 @@ export async function updateParticipantStatus(
         const [checkIn] = await tx
           .select({ userId: checkIns.userId })
           .from(checkIns)
-          .where(
-            and(eq(checkIns.eventId, eventId), eq(checkIns.userId, row.userId)),
-          )
+          .where(and(eq(checkIns.eventId, eventId), eq(checkIns.userId, row.userId)))
           .limit(1);
         if (checkIn) {
           throw new StatusChangeError(
@@ -1045,8 +876,7 @@ export async function updateParticipantStatus(
 
       let newInvitationId: string | null = null;
       const needsOpenWave =
-        status === 'invited' &&
-        (!row.invitationId || (row.respondBy !== null && row.respondBy <= now));
+        status === 'invited' && (!row.invitationId || (row.respondBy !== null && row.respondBy <= now));
       if (needsOpenWave) {
         const [openWave] = await tx
           .select({
@@ -1100,9 +930,7 @@ export async function updateParticipantStatus(
       if (row.invitationId && toReview) {
         // Back in review: the invitation is withdrawn, so a later wave can
         // invite them again (one invitation per participant).
-        await tx
-          .delete(eventInvitations)
-          .where(eq(eventInvitations.id, row.invitationId));
+        await tx.delete(eventInvitations).where(eq(eventInvitations.id, row.invitationId));
       } else if (row.invitationId && !newInvitationId) {
         const decided = status === 'accepted' || status === 'declined';
         await tx
@@ -1128,10 +956,7 @@ export async function updateParticipantStatus(
   try {
     await syncWaitlistForEvent(eventId, authUser.id);
   } catch (error) {
-    console.error(
-      '[admin/events] Waitlist sync after status change failed:',
-      error,
-    );
+    console.error('[admin/events] Waitlist sync after status change failed:', error);
   }
 
   updateTag(eventApplicationsCacheTag(eventId));
@@ -1148,10 +973,7 @@ export async function updateParticipantStatus(
           invitationEmailQueuedAt: new Date(),
         })
         .where(
-          and(
-            eq(eventInvitations.id, result.newInvitationId),
-            eq(eventInvitations.invitationEmailStatus, 'unsent'),
-          ),
+          and(eq(eventInvitations.id, result.newInvitationId), eq(eventInvitations.invitationEmailStatus, 'unsent')),
         );
     } catch (error) {
       console.error('[admin/events] failed to queue RSVP invitation', error);
@@ -1187,9 +1009,7 @@ export type SendEventRsvpWaveResult = {
  * Read-only RSVP wave/capacity summary for admin RSVP surfaces.
  * Requires rsvp:read:all, the permission the RSVP page is gated on.
  */
-export async function getEventRsvpSummary(
-  eventId: string,
-): Promise<ActionResult<AdminRsvpSummary>> {
+export async function getEventRsvpSummary(eventId: string): Promise<ActionResult<AdminRsvpSummary>> {
   const user = await getUser();
   if (!user) return fail('Not authenticated');
   await requirePermission(user.id, 'rsvp:read:all');
@@ -1216,10 +1036,7 @@ export type {
  * Sends directly (not via the queue) — this is a one-off, admin-initiated
  * retry, not a wave-scale fan-out.
  */
-export async function resendRsvpInvitation(
-  eventId: string,
-  userId: string,
-): Promise<ActionResult<{ email: string }>> {
+export async function resendRsvpInvitation(eventId: string, userId: string): Promise<ActionResult<{ email: string }>> {
   const user = await getAuthorizedUser();
   if (!user) return fail('Not authenticated');
 
@@ -1309,9 +1126,7 @@ export async function sendEventRsvpWave(
  * Admin: the event's waitlist in queue order — the order RSVP waves invite
  * in. Requires rsvp:read:all, like the rest of the RSVP page.
  */
-export async function getEventWaitlist(
-  eventId: string,
-): Promise<ActionResult<WaitlistEntry[]>> {
+export async function getEventWaitlist(eventId: string): Promise<ActionResult<WaitlistEntry[]>> {
   const user = await getUser();
   if (!user) return fail('Not authenticated');
   await requirePermission(user.id, 'rsvp:read:all');
@@ -1342,9 +1157,7 @@ export type FormedTeamRow = {
  * full roster. Solo teams-of-one are excluded.
  * Requires team:read:all permission.
  */
-export async function getFormedTeamsForEvent(
-  eventId: string,
-): Promise<ActionResult<FormedTeamRow[]>> {
+export async function getFormedTeamsForEvent(eventId: string): Promise<ActionResult<FormedTeamRow[]>> {
   const authUser = await getUser();
   if (!authUser) return fail('Not authenticated');
   await requirePermission(authUser.id, 'team:read:all');
@@ -1368,9 +1181,7 @@ export async function canModerateTeams(): Promise<boolean> {
   return hasPermission(authUser.id, 'team:manage:all');
 }
 
-async function listFormedTeams(
-  eventId: string,
-): Promise<ActionResult<FormedTeamRow[]>> {
+async function listFormedTeams(eventId: string): Promise<ActionResult<FormedTeamRow[]>> {
   const formedTeams = await db
     .select({ teamId: teamMembers.teamId, memberCount: count() })
     .from(teamMembers)
@@ -1381,15 +1192,10 @@ async function listFormedTeams(
   if (formedTeams.length === 0) return ok([]);
 
   const teamIds = formedTeams.map((t) => t.teamId);
-  const countByTeamId = new Map(
-    formedTeams.map((t) => [t.teamId, t.memberCount]),
-  );
+  const countByTeamId = new Map(formedTeams.map((t) => [t.teamId, t.memberCount]));
 
   const [teamRows, memberRows] = await Promise.all([
-    db
-      .select({ id: teams.id, organizerId: teams.organizerId })
-      .from(teams)
-      .where(inArray(teams.id, teamIds)),
+    db.select({ id: teams.id, organizerId: teams.organizerId }).from(teams).where(inArray(teams.id, teamIds)),
     db
       .select({
         teamId: teamMembers.teamId,

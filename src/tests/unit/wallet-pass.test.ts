@@ -8,10 +8,7 @@ import {
   type PassParticipant,
 } from '@/lib/wallet/generate-pass';
 import { resolveParticipantName } from '@/lib/wallet/participation';
-import {
-  buildCheckInPayload,
-  DEFAULT_QR_TTL_MS,
-} from '@/lib/wallet/check-in-token';
+import { buildCheckInPayload, DEFAULT_QR_TTL_MS } from '@/lib/wallet/check-in-token';
 
 describe('formatDateRange', () => {
   it('returns null when neither date is set', () => {
@@ -137,10 +134,7 @@ function generateSelfSignedCertificate(): {
 }
 
 /** Temporarily overrides `process.env` entries for the duration of `fn`, restoring them afterward (even on throw). */
-async function withEnv<T>(
-  overrides: Record<string, string | undefined>,
-  fn: () => Promise<T>,
-): Promise<T> {
+async function withEnv<T>(overrides: Record<string, string | undefined>, fn: () => Promise<T>): Promise<T> {
   const original: Record<string, string | undefined> = {};
   for (const key of Object.keys(overrides)) {
     original[key] = process.env[key];
@@ -177,9 +171,7 @@ describe('generateParticipantPass', () => {
     // check-in-token.ts) — mocked here too so the suite doesn't depend on
     // CHECK_IN_SIGNING_PRIVATE_KEY being set in the environment it runs in.
     const { privateKey } = generateKeyPairSync('ed25519');
-    process.env.CHECK_IN_SIGNING_PRIVATE_KEY = privateKey
-      .export({ type: 'pkcs8', format: 'pem' })
-      .toString();
+    process.env.CHECK_IN_SIGNING_PRIVATE_KEY = privateKey.export({ type: 'pkcs8', format: 'pem' }).toString();
     delete process.env.CHECK_IN_SIGNING_PUBLIC_KEY;
   });
 
@@ -215,9 +207,7 @@ describe('generateParticipantPass', () => {
       const passJson = readPassJson(pkpass);
 
       expect(passJson.relevantDates).toBeUndefined();
-      expect(passJson.relevantDate).toBe(
-        new Date('2026-10-23T08:45:00-06:00').toISOString(),
-      );
+      expect(passJson.relevantDate).toBe(new Date('2026-10-23T08:45:00-06:00').toISOString());
     });
 
     it('leaves the relevant date unshifted when only the end is known', async () => {
@@ -252,12 +242,8 @@ describe('generateParticipantPass', () => {
       const pkpass = await generateParticipantPass(BASE_PARTICIPANT);
       const passJson = readPassJson(pkpass);
 
-      expect(passJson.serialNumber).toBe(
-        `${BASE_PARTICIPANT.eventId}:${BASE_PARTICIPANT.userId}`,
-      );
-      expect(passJson.description).toBe(
-        `${BASE_PARTICIPANT.eventName} Participant Pass`,
-      );
+      expect(passJson.serialNumber).toBe(`${BASE_PARTICIPANT.eventId}:${BASE_PARTICIPANT.userId}`);
+      expect(passJson.description).toBe(`${BASE_PARTICIPANT.eventName} Participant Pass`);
     });
 
     it('writes the event name into the primary field', async () => {
@@ -267,9 +253,9 @@ describe('generateParticipantPass', () => {
       });
       const passJson = readPassJson(pkpass);
 
-      expect(
-        (passJson.generic as { primaryFields: unknown }).primaryFields,
-      ).toEqual([{ key: 'event', label: 'EVENT', value: 'Winter Jam' }]);
+      expect((passJson.generic as { primaryFields: unknown }).primaryFields).toEqual([
+        { key: 'event', label: 'EVENT', value: 'Winter Jam' },
+      ]);
     });
 
     it('writes the formatted date range into the auxiliary dates field', async () => {
@@ -282,9 +268,7 @@ describe('generateParticipantPass', () => {
         endsAt,
       });
       const passJson = readPassJson(pkpass);
-      const auxiliaryFields = (
-        passJson.generic as { auxiliaryFields: { key: string }[] }
-      ).auxiliaryFields;
+      const auxiliaryFields = (passJson.generic as { auxiliaryFields: { key: string }[] }).auxiliaryFields;
 
       expect(auxiliaryFields.find((f) => f.key === 'dates')).toEqual({
         key: 'dates',
@@ -299,9 +283,7 @@ describe('generateParticipantPass', () => {
         location: 'Riddell Library',
       });
       const passJson = readPassJson(pkpass);
-      const auxiliaryFields = (
-        passJson.generic as { auxiliaryFields: { key: string }[] }
-      ).auxiliaryFields;
+      const auxiliaryFields = (passJson.generic as { auxiliaryFields: { key: string }[] }).auxiliaryFields;
 
       expect(auxiliaryFields.find((f) => f.key === 'venue')).toEqual({
         key: 'venue',
@@ -316,9 +298,7 @@ describe('generateParticipantPass', () => {
         location: null,
       });
       const passJson = readPassJson(pkpass);
-      const auxiliaryFields = (
-        passJson.generic as { auxiliaryFields: { key: string }[] }
-      ).auxiliaryFields;
+      const auxiliaryFields = (passJson.generic as { auxiliaryFields: { key: string }[] }).auxiliaryFields;
 
       expect(auxiliaryFields.find((f) => f.key === 'venue')).toBeUndefined();
     });
@@ -331,9 +311,7 @@ describe('generateParticipantPass', () => {
       });
       const passJson = readPassJson(pkpass);
 
-      expect(
-        (passJson.generic as { secondaryFields: unknown }).secondaryFields,
-      ).toEqual([
+      expect((passJson.generic as { secondaryFields: unknown }).secondaryFields).toEqual([
         { key: 'name', label: 'NAME', value: 'Jordan Lee' },
         { key: 'role', label: 'ROLE', value: 'Volunteer' },
       ]);
@@ -404,10 +382,7 @@ describe('generateParticipantPass', () => {
       expect(passJson.barcodes).toEqual([
         {
           format: 'PKBarcodeFormatAztec',
-          message: buildCheckInPayload(
-            BASE_PARTICIPANT.eventId,
-            BASE_PARTICIPANT.userId,
-          ),
+          message: buildCheckInPayload(BASE_PARTICIPANT.eventId, BASE_PARTICIPANT.userId),
           messageEncoding: 'iso-8859-1',
         },
       ]);
@@ -436,9 +411,7 @@ describe('generateParticipantPass', () => {
       const after = Date.now();
       const passJson = readPassJson(pkpass);
 
-      const expirationMs = new Date(
-        passJson.expirationDate as string,
-      ).getTime();
+      const expirationMs = new Date(passJson.expirationDate as string).getTime();
       expect(expirationMs).toBeGreaterThanOrEqual(before + DEFAULT_QR_TTL_MS);
       expect(expirationMs).toBeLessThanOrEqual(after + DEFAULT_QR_TTL_MS);
     });
@@ -448,30 +421,23 @@ describe('generateParticipantPass', () => {
     it('accepts base64-encoded certificates and key, not just raw PEM', async () => {
       await withEnv(
         {
-          APPLE_WALLET_WWDR_CERT:
-            Buffer.from(certificatePem).toString('base64'),
-          APPLE_WALLET_SIGNER_CERT:
-            Buffer.from(certificatePem).toString('base64'),
-          APPLE_WALLET_SIGNER_KEY:
-            Buffer.from(privateKeyPem).toString('base64'),
+          APPLE_WALLET_WWDR_CERT: Buffer.from(certificatePem).toString('base64'),
+          APPLE_WALLET_SIGNER_CERT: Buffer.from(certificatePem).toString('base64'),
+          APPLE_WALLET_SIGNER_KEY: Buffer.from(privateKeyPem).toString('base64'),
         },
         async () => {
           const pkpass = await generateParticipantPass(BASE_PARTICIPANT);
           const passJson = readPassJson(pkpass);
-          expect(passJson.serialNumber).toBe(
-            `${BASE_PARTICIPANT.eventId}:${BASE_PARTICIPANT.userId}`,
-          );
+          expect(passJson.serialNumber).toBe(`${BASE_PARTICIPANT.eventId}:${BASE_PARTICIPANT.userId}`);
         },
       );
     });
 
     it('supports a passphrase-protected signer key', async () => {
       const { privateKey } = generateSelfSignedCertificate();
-      const encryptedKeyPem = forge.pki.encryptRsaPrivateKey(
-        privateKey,
-        'correct horse battery staple',
-        { algorithm: 'aes256' },
-      );
+      const encryptedKeyPem = forge.pki.encryptRsaPrivateKey(privateKey, 'correct horse battery staple', {
+        algorithm: 'aes256',
+      });
 
       await withEnv(
         {
@@ -481,36 +447,32 @@ describe('generateParticipantPass', () => {
         async () => {
           const pkpass = await generateParticipantPass(BASE_PARTICIPANT);
           const passJson = readPassJson(pkpass);
-          expect(passJson.serialNumber).toBe(
-            `${BASE_PARTICIPANT.eventId}:${BASE_PARTICIPANT.userId}`,
-          );
+          expect(passJson.serialNumber).toBe(`${BASE_PARTICIPANT.eventId}:${BASE_PARTICIPANT.userId}`);
         },
       );
     });
 
-    it.each([
-      ['APPLE_WALLET_WWDR_CERT'],
-      ['APPLE_WALLET_SIGNER_CERT'],
-      ['APPLE_WALLET_SIGNER_KEY'],
-    ])('throws a descriptive error when %s is missing', async (envVar) => {
-      await withEnv({ [envVar]: undefined }, async () => {
-        await expect(generateParticipantPass(BASE_PARTICIPANT)).rejects.toThrow(
-          `${envVar} is required to sign Apple Wallet passes`,
-        );
-      });
-    });
+    it.each([['APPLE_WALLET_WWDR_CERT'], ['APPLE_WALLET_SIGNER_CERT'], ['APPLE_WALLET_SIGNER_KEY']])(
+      'throws a descriptive error when %s is missing',
+      async (envVar) => {
+        await withEnv({ [envVar]: undefined }, async () => {
+          await expect(generateParticipantPass(BASE_PARTICIPANT)).rejects.toThrow(
+            `${envVar} is required to sign Apple Wallet passes`,
+          );
+        });
+      },
+    );
 
-    it.each([
-      ['APPLE_WALLET_WWDR_CERT'],
-      ['APPLE_WALLET_SIGNER_CERT'],
-      ['APPLE_WALLET_SIGNER_KEY'],
-    ])('throws a descriptive error when %s is blank', async (envVar) => {
-      await withEnv({ [envVar]: '   ' }, async () => {
-        await expect(generateParticipantPass(BASE_PARTICIPANT)).rejects.toThrow(
-          `${envVar} is required to sign Apple Wallet passes`,
-        );
-      });
-    });
+    it.each([['APPLE_WALLET_WWDR_CERT'], ['APPLE_WALLET_SIGNER_CERT'], ['APPLE_WALLET_SIGNER_KEY']])(
+      'throws a descriptive error when %s is blank',
+      async (envVar) => {
+        await withEnv({ [envVar]: '   ' }, async () => {
+          await expect(generateParticipantPass(BASE_PARTICIPANT)).rejects.toThrow(
+            `${envVar} is required to sign Apple Wallet passes`,
+          );
+        });
+      },
+    );
   });
 });
 
@@ -518,9 +480,7 @@ describe('setFieldByKey', () => {
   it('overwrites the value of an existing field', () => {
     const fields = [{ key: 'event', label: 'EVENT', value: 'placeholder' }];
     setFieldByKey(fields, 'event', 'MRUHacks 2026');
-    expect(fields).toEqual([
-      { key: 'event', label: 'EVENT', value: 'MRUHacks 2026' },
-    ]);
+    expect(fields).toEqual([{ key: 'event', label: 'EVENT', value: 'MRUHacks 2026' }]);
   });
 
   it('removes the field when value is null', () => {
@@ -529,25 +489,19 @@ describe('setFieldByKey', () => {
       { key: 'venue', label: 'VENUE', value: 'placeholder' },
     ];
     setFieldByKey(fields, 'venue', null);
-    expect(fields).toEqual([
-      { key: 'dates', label: 'DATES', value: 'placeholder' },
-    ]);
+    expect(fields).toEqual([{ key: 'dates', label: 'DATES', value: 'placeholder' }]);
   });
 
   it('is a no-op when the key is not found and value is non-null', () => {
     const fields = [{ key: 'dates', label: 'DATES', value: 'placeholder' }];
     setFieldByKey(fields, 'missing', 'value');
-    expect(fields).toEqual([
-      { key: 'dates', label: 'DATES', value: 'placeholder' },
-    ]);
+    expect(fields).toEqual([{ key: 'dates', label: 'DATES', value: 'placeholder' }]);
   });
 
   it('is a no-op when the key is not found and value is null', () => {
     const fields = [{ key: 'dates', label: 'DATES', value: 'placeholder' }];
     setFieldByKey(fields, 'missing', null);
-    expect(fields).toEqual([
-      { key: 'dates', label: 'DATES', value: 'placeholder' },
-    ]);
+    expect(fields).toEqual([{ key: 'dates', label: 'DATES', value: 'placeholder' }]);
   });
 });
 

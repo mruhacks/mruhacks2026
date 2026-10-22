@@ -12,13 +12,7 @@ export { formatDateRange } from './format';
 /** How long before an event's start the pass should become relevant (lock-screen surfacing, geofence). */
 const RELEVANCE_LEAD_MS = 15 * 60 * 1000;
 
-const MODEL_PATH = path.join(
-  process.cwd(),
-  'src',
-  'lib',
-  'wallet',
-  'mruhacks.pass',
-);
+const MODEL_PATH = path.join(process.cwd(), 'src', 'lib', 'wallet', 'mruhacks.pass');
 
 export type PassParticipant = {
   eventId: string;
@@ -39,13 +33,9 @@ export type PassParticipant = {
 function readCertificate(name: string): Buffer {
   const value = process.env[name]?.trim();
   if (!value) {
-    throw new Error(
-      `${name} is required to sign Apple Wallet passes; see .env.example`,
-    );
+    throw new Error(`${name} is required to sign Apple Wallet passes; see .env.example`);
   }
-  return value.startsWith('-----BEGIN')
-    ? Buffer.from(value, 'utf8')
-    : Buffer.from(value, 'base64');
+  return value.startsWith('-----BEGIN') ? Buffer.from(value, 'utf8') : Buffer.from(value, 'base64');
 }
 
 function getCertificates() {
@@ -74,17 +64,12 @@ export function setFieldByKey<T extends { key: string; value: unknown }>(
   }
 }
 
-export async function generateParticipantPass(
-  participant: PassParticipant,
-): Promise<Buffer> {
-  const expiresAt =
-    participant.expiresAt ?? new Date(Date.now() + DEFAULT_QR_TTL_MS);
+export async function generateParticipantPass(participant: PassParticipant): Promise<Buffer> {
+  const expiresAt = participant.expiresAt ?? new Date(Date.now() + DEFAULT_QR_TTL_MS);
   const serialNumber = `${participant.eventId}:${participant.userId}`;
 
   const geofence =
-    participant.latitude != null &&
-    participant.longitude != null &&
-    participant.radiusMeters != null
+    participant.latitude != null && participant.longitude != null && participant.radiusMeters != null
       ? {
           latitude: participant.latitude,
           longitude: participant.longitude,
@@ -102,17 +87,11 @@ export async function generateParticipantPass(
   );
 
   if (pass.props.serialNumber !== serialNumber) {
-    throw new Error(
-      `Pass serial number was not applied for event ${participant.eventId}`,
-    );
+    throw new Error(`Pass serial number was not applied for event ${participant.eventId}`);
   }
 
   setFieldByKey(pass.primaryFields, 'event', participant.eventName);
-  setFieldByKey(
-    pass.auxiliaryFields,
-    'dates',
-    formatDateRange(participant.startsAt, participant.endsAt),
-  );
+  setFieldByKey(pass.auxiliaryFields, 'dates', formatDateRange(participant.startsAt, participant.endsAt));
   setFieldByKey(pass.auxiliaryFields, 'venue', participant.location);
 
   pass.secondaryFields.push(
@@ -134,14 +113,10 @@ export async function generateParticipantPass(
     });
   }
 
-  const relevantStart = participant.startsAt
-    ? new Date(participant.startsAt.getTime() - RELEVANCE_LEAD_MS)
-    : null;
+  const relevantStart = participant.startsAt ? new Date(participant.startsAt.getTime() - RELEVANCE_LEAD_MS) : null;
   const relevantDate = relevantStart ?? participant.endsAt;
   if (relevantStart && participant.endsAt) {
-    pass.setRelevantDates([
-      { startDate: relevantStart, endDate: participant.endsAt },
-    ]);
+    pass.setRelevantDates([{ startDate: relevantStart, endDate: participant.endsAt }]);
   } else if (relevantDate) {
     pass.setRelevantDate(relevantDate);
   }

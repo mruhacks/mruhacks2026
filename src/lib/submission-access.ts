@@ -12,10 +12,7 @@ import {
   submissions,
   teamMembers,
 } from '@/db/schema';
-import {
-  canSubmitProject,
-  resolveEffectiveStatus,
-} from '@/lib/participation/status';
+import { canSubmitProject, resolveEffectiveStatus } from '@/lib/participation/status';
 import { getSubmissionWindow, type SubmissionWindow } from '@/lib/submissions';
 import type { Queryable } from '@/lib/team-membership';
 import { db } from '@/utils/db';
@@ -71,10 +68,7 @@ export async function loadSubmissionAccess(
       endsAt: events.endsAt,
       submissionsCloseAt: events.submissionsCloseAt,
       hasSentRsvpWave: sql<boolean>`${exists(
-        dbHandle
-          .select({ id: eventRsvpWaves.id })
-          .from(eventRsvpWaves)
-          .where(eq(eventRsvpWaves.eventId, events.id)),
+        dbHandle.select({ id: eventRsvpWaves.id }).from(eventRsvpWaves).where(eq(eventRsvpWaves.eventId, events.id)),
       )}`,
     })
     .from(events)
@@ -89,24 +83,10 @@ export async function loadSubmissionAccess(
         respondBy: eventRsvpWaves.respondBy,
       })
       .from(eventParticipants)
-      .innerJoin(
-        participationStatuses,
-        eq(eventParticipants.statusId, participationStatuses.id),
-      )
-      .leftJoin(
-        eventInvitations,
-        eq(eventInvitations.participantId, eventParticipants.id),
-      )
-      .leftJoin(
-        eventRsvpWaves,
-        eq(eventInvitations.rsvpWaveId, eventRsvpWaves.id),
-      )
-      .where(
-        and(
-          eq(eventParticipants.eventId, eventId),
-          eq(eventParticipants.userId, userId),
-        ),
-      )
+      .innerJoin(participationStatuses, eq(eventParticipants.statusId, participationStatuses.id))
+      .leftJoin(eventInvitations, eq(eventInvitations.participantId, eventParticipants.id))
+      .leftJoin(eventRsvpWaves, eq(eventInvitations.rsvpWaveId, eventRsvpWaves.id))
+      .where(and(eq(eventParticipants.eventId, eventId), eq(eventParticipants.userId, userId)))
       .limit(1),
     dbHandle
       .select({ userId: checkIns.userId })
@@ -116,9 +96,7 @@ export async function loadSubmissionAccess(
     dbHandle
       .select({ teamId: teamMembers.teamId })
       .from(teamMembers)
-      .where(
-        and(eq(teamMembers.eventId, eventId), eq(teamMembers.userId, userId)),
-      )
+      .where(and(eq(teamMembers.eventId, eventId), eq(teamMembers.userId, userId)))
       .limit(1),
   ]);
 
@@ -127,21 +105,13 @@ export async function loadSubmissionAccess(
     participant != null &&
     canSubmitProject(
       { checkInEnabled: event.checkInEnabled, hasSentRsvpWave },
-      resolveEffectiveStatus(
-        participant.statusLabel,
-        participant.respondBy,
-        now,
-      ),
+      resolveEffectiveStatus(participant.statusLabel, participant.respondBy, now),
       checkIn != null,
     );
 
   const teamId = membership?.teamId ?? null;
   const [submission] = teamId
-    ? await dbHandle
-        .select()
-        .from(submissions)
-        .where(eq(submissions.teamId, teamId))
-        .limit(1)
+    ? await dbHandle.select().from(submissions).where(eq(submissions.teamId, teamId)).limit(1)
     : [];
 
   return {

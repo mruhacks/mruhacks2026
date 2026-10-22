@@ -15,10 +15,7 @@ export function ScheduleCard({
   return (
     <section
       aria-labelledby='event-schedule-heading'
-      className={cn(
-        'flex min-w-0 flex-col gap-4',
-        fitContainer && 'lg:h-full lg:min-h-0',
-      )}
+      className={cn('flex min-w-0 flex-col gap-4', fitContainer && 'lg:h-full lg:min-h-0')}
     >
       <div className='flex shrink-0 items-center justify-between gap-3'>
         <div className='flex items-center gap-2'>
@@ -29,18 +26,8 @@ export function ScheduleCard({
         </div>
         {action}
       </div>
-      <Card
-        className={cn(
-          'overflow-hidden py-0',
-          fitContainer && 'lg:min-h-0 lg:flex-1',
-        )}
-      >
-        <CardContent
-          className={cn(
-            'p-0',
-            fitContainer && 'lg:flex lg:min-h-0 lg:flex-1 lg:flex-col',
-          )}
-        >
+      <Card className={cn('overflow-hidden py-0', fitContainer && 'lg:min-h-0 lg:flex-1')}>
+        <CardContent className={cn('p-0', fitContainer && 'lg:flex lg:min-h-0 lg:flex-1 lg:flex-col')}>
           {children}
         </CardContent>
       </Card>

@@ -26,9 +26,7 @@ const settingsSchema = z.object({
   theme: z.enum(['light', 'dark']),
 });
 
-export async function updateDisplaySettings(
-  input: z.infer<typeof settingsSchema>,
-): Promise<ActionResult> {
+export async function updateDisplaySettings(input: z.infer<typeof settingsSchema>): Promise<ActionResult> {
   const parsed = settingsSchema.safeParse(input);
   if (!parsed.success) return fail('Invalid display settings');
 

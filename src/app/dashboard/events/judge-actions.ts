@@ -22,22 +22,14 @@ import {
   poolMembers,
   settleAssignment,
 } from '@/lib/judging/judge-session';
-import {
-  loadCriteria,
-  lockEventForJudging,
-  recordComparison,
-  recordVisit,
-} from '@/lib/judging/server';
+import { loadCriteria, lockEventForJudging, recordComparison, recordVisit } from '@/lib/judging/server';
 import { ActionResult, fail, ok } from '@/utils/action-result';
 import { db } from '@/utils/db';
 
 const idSchema = z.uuid();
 
 /** Begin: the first project becomes what the next one is compared against. */
-export async function beginJudging(
-  eventId: string,
-  formData: FormData,
-): Promise<ActionResult> {
+export async function beginJudging(eventId: string, formData: FormData): Promise<ActionResult> {
   const parsed = idSchema.safeParse(formData.get('currentId'));
   if (!parsed.success) return fail('Invalid project.');
   const currentId = parsed.data;
@@ -46,11 +38,7 @@ export async function beginJudging(
   if (ctx.ok) {
     await db.transaction(async (tx) => {
       const settled = await settleAssignment(tx, ctx);
-      if (
-        !settled ||
-        settled.previousId !== null ||
-        settled.currentId !== currentId
-      ) {
+      if (!settled || settled.previousId !== null || settled.currentId !== currentId) {
         return;
       }
       await recordVisit(tx, ctx.judge.id, currentId);
@@ -76,10 +64,7 @@ const voteSchema = z.object({
  * project that left the pool mid-visit is ignored, as in Gavel: no votes are
  * recorded, but the judge still moves on, and has still been there.
  */
-export async function submitJudgeVote(
-  eventId: string,
-  formData: FormData,
-): Promise<ActionResult> {
+export async function submitJudgeVote(eventId: string, formData: FormData): Promise<ActionResult> {
   const winners: Record<string, FormDataEntryValue> = {};
   for (const [key, value] of formData) {
     if (key.startsWith(WINNER_PREFIX)) {
@@ -118,10 +103,7 @@ export async function submitJudgeVote(
     // Disabled or removed since the context was loaded: the refresh shows it.
     if (!(await lockActiveJudge(tx, ctx.judge.id))) return ok();
     const state = await lockState(tx, ctx.judge.id);
-    if (
-      state.previousSubmissionId !== previousId ||
-      state.currentSubmissionId !== currentId
-    ) {
+    if (state.previousSubmissionId !== previousId || state.currentSubmissionId !== currentId) {
       return ok();
     }
 
@@ -154,10 +136,7 @@ const skipSchema = z.object({
  * later; "Conflict of interest" never does. Either way the project they're
  * comparing against stays the same.
  */
-export async function skipJudgeProject(
-  eventId: string,
-  formData: FormData,
-): Promise<ActionResult> {
+export async function skipJudgeProject(eventId: string, formData: FormData): Promise<ActionResult> {
   const parsed = skipSchema.safeParse({
     currentId: formData.get('currentId'),
     reason: formData.get('reason'),

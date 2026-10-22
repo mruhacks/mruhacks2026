@@ -10,9 +10,7 @@ export type GoogleWalletConfig = {
 function readEnv(name: string): string {
   const value = process.env[name]?.trim();
   if (!value) {
-    throw new Error(
-      `${name} is required for Google Wallet passes; see .env.example`,
-    );
+    throw new Error(`${name} is required for Google Wallet passes; see .env.example`);
   }
   return value;
 }
@@ -33,9 +31,6 @@ export function getGoogleWalletConfig(): GoogleWalletConfig {
     serviceAccountEmail: readEnv('GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL'),
     // The private key is normally pasted into a single-line env var with
     // literal "\n" sequences standing in for real newlines.
-    privateKey: readEnv('GOOGLE_WALLET_SERVICE_ACCOUNT_PRIVATE_KEY').replace(
-      /\\n/g,
-      '\n',
-    ),
+    privateKey: readEnv('GOOGLE_WALLET_SERVICE_ACCOUNT_PRIVATE_KEY').replace(/\\n/g, '\n'),
   };
 }

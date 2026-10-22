@@ -13,21 +13,9 @@ import {
   user,
   userRole,
 } from '@/db/schema';
-import {
-  audienceRulesSchema,
-  type AudienceRuleGroup,
-} from '@/lib/campaigns/audience-rules';
-import {
-  countAudience,
-  resolveAudience,
-  sampleAudience,
-  type AudienceContext,
-} from '@/lib/campaigns/audience';
-import {
-  insertAttendees,
-  insertInvitation,
-  insertParticipant,
-} from '@/tests/participation-fixtures';
+import { audienceRulesSchema, type AudienceRuleGroup } from '@/lib/campaigns/audience-rules';
+import { countAudience, resolveAudience, sampleAudience, type AudienceContext } from '@/lib/campaigns/audience';
+import { insertAttendees, insertInvitation, insertParticipant } from '@/tests/participation-fixtures';
 
 /**
  * Cast of characters (all verified unless noted):
@@ -46,18 +34,12 @@ let roleId: number;
 
 const MARKETING: AudienceContext = { type: 'marketing', eventId: null };
 
-function group(
-  rules: AudienceRuleGroup['rules'],
-  extra: Partial<AudienceRuleGroup> = {},
-): AudienceRuleGroup {
+function group(rules: AudienceRuleGroup['rules'], extra: Partial<AudienceRuleGroup> = {}): AudienceRuleGroup {
   return audienceRulesSchema.parse({ combinator: 'and', rules, ...extra });
 }
 
 /** Names of the cast members an audience resolves to (other test files' users are ignored). */
-async function who(
-  tree: AudienceRuleGroup,
-  context: AudienceContext = MARKETING,
-): Promise<string[]> {
+async function who(tree: AudienceRuleGroup, context: AudienceContext = MARKETING): Promise<string[]> {
   const byId = new Map(Object.entries(ids).map(([name, id]) => [id, name]));
   const members = await resolveAudience(tree, context);
   return members
@@ -67,14 +49,7 @@ async function who(
 }
 
 beforeAll(async () => {
-  const names = [
-    'accepted1',
-    'both',
-    'waitlisted',
-    'expired',
-    'outsider',
-    'unverified',
-  ];
+  const names = ['accepted1', 'both', 'waitlisted', 'expired', 'outsider', 'unverified'];
   for (const name of names) {
     const [row] = await db
       .insert(user)
@@ -91,10 +66,7 @@ beforeAll(async () => {
     .insert(events)
     .values({ name: 'Audience E1', hasApplication: true, teamsEnabled: true })
     .returning({ id: events.id });
-  const [ev2] = await db
-    .insert(events)
-    .values({ name: 'Audience E2' })
-    .returning({ id: events.id });
+  const [ev2] = await db.insert(events).values({ name: 'Audience E2' }).returning({ id: events.id });
   const [subEvent] = await db
     .insert(events)
     .values({ name: 'Audience S (lunch)', parentEventId: ev1.id })
@@ -137,9 +109,7 @@ beforeAll(async () => {
     .insert(teams)
     .values({ eventId: e1, organizerId: ids.accepted1, code: 'AUDTEAM1' })
     .returning({ id: teams.id });
-  await db
-    .insert(teamMembers)
-    .values({ teamId: team.id, userId: ids.accepted1, eventId: e1 });
+  await db.insert(teamMembers).values({ teamId: team.id, userId: ids.accepted1, eventId: e1 });
 
   await db.insert(marketingConsents).values([
     { userId: ids.accepted1, optedIn: true },
@@ -150,10 +120,7 @@ beforeAll(async () => {
     { userId: ids.unverified, optedIn: true },
   ]);
 
-  const [r] = await db
-    .insert(role)
-    .values({ slug: 'audience-test-role' })
-    .returning({ id: role.id });
+  const [r] = await db.insert(role).values({ slug: 'audience-test-role' }).returning({ id: role.id });
   roleId = r.id;
   await db.insert(userRole).values({ userId: ids.accepted1, roleId });
 });
@@ -166,13 +133,11 @@ afterAll(async () => {
 
 describe('rule types', () => {
   test('participatedIn, any status', async () => {
-    expect(
-      await who(
-        group([
-          { field: 'participatedIn', operator: '=', value: { eventId: e1 } },
-        ]),
-      ),
-    ).toEqual(['accepted1', 'both', 'expired']);
+    expect(await who(group([{ field: 'participatedIn', operator: '=', value: { eventId: e1 } }]))).toEqual([
+      'accepted1',
+      'both',
+      'expired',
+    ]);
   });
 
   test('participatedIn with a status set uses the effective status', async () => {
@@ -201,32 +166,16 @@ describe('rule types', () => {
   });
 
   test('checkedIn, for an event and for a sub-event', async () => {
-    expect(
-      await who(
-        group([{ field: 'checkedIn', operator: '=', value: { eventId: e1 } }]),
-      ),
-    ).toEqual(['accepted1']);
-    expect(
-      await who(
-        group([{ field: 'checkedIn', operator: '=', value: { eventId: sub } }]),
-      ),
-    ).toEqual(['outsider']);
+    expect(await who(group([{ field: 'checkedIn', operator: '=', value: { eventId: e1 } }]))).toEqual(['accepted1']);
+    expect(await who(group([{ field: 'checkedIn', operator: '=', value: { eventId: sub } }]))).toEqual(['outsider']);
   });
 
   test('onTeam', async () => {
-    expect(
-      await who(
-        group([{ field: 'onTeam', operator: '=', value: { eventId: e1 } }]),
-      ),
-    ).toEqual(['accepted1']);
+    expect(await who(group([{ field: 'onTeam', operator: '=', value: { eventId: e1 } }]))).toEqual(['accepted1']);
   });
 
   test('hasRole', async () => {
-    expect(
-      await who(
-        group([{ field: 'hasRole', operator: '=', value: { roleId } }]),
-      ),
-    ).toEqual(['accepted1']);
+    expect(await who(group([{ field: 'hasRole', operator: '=', value: { roleId } }]))).toEqual(['accepted1']);
   });
 
   test('marketingConsent: opted out is never reachable by marketing email', async () => {
@@ -318,12 +267,7 @@ describe('negation and nesting', () => {
   });
 
   test('an empty tree is everyone the campaign type allows', async () => {
-    expect(await who(group([]))).toEqual([
-      'accepted1',
-      'both',
-      'expired',
-      'outsider',
-    ]);
+    expect(await who(group([]))).toEqual(['accepted1', 'both', 'expired', 'outsider']);
   });
 });
 
@@ -344,47 +288,26 @@ describe('forced conditions', () => {
 
   test('operational: never leaves the event, but ignores consent', async () => {
     const operational: AudienceContext = { type: 'operational', eventId: e1 };
-    expect(await who(group([]), operational)).toEqual([
-      'accepted1',
-      'both',
-      'expired',
-      'waitlisted',
-    ]);
+    expect(await who(group([]), operational)).toEqual(['accepted1', 'both', 'expired', 'waitlisted']);
     // Targeting E2 from an E1 operational campaign only reaches E1 participants.
-    expect(
-      await who(
-        group([
-          { field: 'participatedIn', operator: '=', value: { eventId: e2 } },
-        ]),
-        operational,
-      ),
-    ).toEqual(['both']);
-    expect(
-      await who(
-        group([{ field: 'checkedIn', operator: '=', value: { eventId: sub } }]),
-        operational,
-      ),
-    ).toEqual([]);
+    expect(await who(group([{ field: 'participatedIn', operator: '=', value: { eventId: e2 } }]), operational)).toEqual(
+      ['both'],
+    );
+    expect(await who(group([{ field: 'checkedIn', operator: '=', value: { eventId: sub } }]), operational)).toEqual([]);
   });
 
   test('operational without an event is refused', async () => {
-    await expect(
-      resolveAudience(group([]), { type: 'operational', eventId: null }),
-    ).rejects.toThrow(/event context/);
+    await expect(resolveAudience(group([]), { type: 'operational', eventId: null })).rejects.toThrow(/event context/);
   });
 
   test('unverified emails are never included', async () => {
-    expect(
-      await who(group([]), { type: 'operational', eventId: e1 }),
-    ).not.toContain('unverified');
+    expect(await who(group([]), { type: 'operational', eventId: e1 })).not.toContain('unverified');
   });
 });
 
 describe('count and sample', () => {
   test('count agrees with the resolved list', async () => {
-    const tree = group([
-      { field: 'participatedIn', operator: '=', value: { eventId: e1 } },
-    ]);
+    const tree = group([{ field: 'participatedIn', operator: '=', value: { eventId: e1 } }]);
     expect(await countAudience(tree, MARKETING)).toBe(3);
     const sample = await sampleAudience(tree, MARKETING, 2);
     expect(sample).toHaveLength(2);
@@ -418,17 +341,12 @@ describe('validation', () => {
       { field: 'onTeam', operator: 'contains', value: { eventId: e1 } },
       { field: 'marketingConsent', operator: '=', value: { optedIn: 'yes' } },
     ]) {
-      expect(
-        audienceRulesSchema.safeParse({ combinator: 'and', rules: [rule] })
-          .success,
-      ).toBe(false);
+      expect(audienceRulesSchema.safeParse({ combinator: 'and', rules: [rule] }).success).toBe(false);
     }
   });
 
   test('rejects a bad combinator and over-deep nesting', () => {
-    expect(
-      audienceRulesSchema.safeParse({ combinator: 'xor', rules: [] }).success,
-    ).toBe(false);
+    expect(audienceRulesSchema.safeParse({ combinator: 'xor', rules: [] }).success).toBe(false);
     let deep: unknown = { combinator: 'and', rules: [] };
     for (let i = 0; i < 6; i++) deep = { combinator: 'and', rules: [deep] };
     expect(audienceRulesSchema.safeParse(deep).success).toBe(false);

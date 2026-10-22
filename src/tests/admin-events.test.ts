@@ -1,13 +1,7 @@
 import { describe, test, expect, beforeAll, afterAll, vi } from 'vitest';
 import { db } from '@/utils/db';
 import { eq } from 'drizzle-orm';
-import {
-  user,
-  events,
-  eventParticipants,
-  permission,
-  userPermission,
-} from '@/db/schema';
+import { user, events, eventParticipants, permission, userPermission } from '@/db/schema';
 import { insertParticipant } from '@/tests/participation-fixtures';
 import {
   createEvent,
@@ -82,19 +76,13 @@ beforeAll(async () => {
     .onConflictDoNothing();
 
   // The RSVP page's read actions are gated on their own permission.
-  await db
-    .insert(permission)
-    .values({ slug: 'rsvp:read:all' })
-    .onConflictDoNothing();
+  await db.insert(permission).values({ slug: 'rsvp:read:all' }).onConflictDoNothing();
   const [rsvpRead] = await db
     .select({ id: permission.id })
     .from(permission)
     .where(eq(permission.slug, 'rsvp:read:all'))
     .limit(1);
-  await db
-    .insert(userPermission)
-    .values({ userId: adminUserId, permissionId: rsvpRead.id })
-    .onConflictDoNothing();
+  await db.insert(userPermission).values({ userId: adminUserId, permissionId: rsvpRead.id }).onConflictDoNothing();
 
   const [e] = await db
     .insert(events)
@@ -115,9 +103,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await db
-    .delete(eventParticipants)
-    .where(eq(eventParticipants.eventId, testEventId));
+  await db.delete(eventParticipants).where(eq(eventParticipants.eventId, testEventId));
   await db.delete(events).where(eq(events.id, testEventId));
   await db.delete(userPermission).where(eq(userPermission.userId, adminUserId));
   await db.delete(user).where(eq(user.id, adminUserId));
@@ -164,10 +150,7 @@ describe('createEvent', () => {
     expect(result.success).toBe(true);
     if (!result.success) throw new Error((result as { error: string }).error);
 
-    const [row] = await db
-      .select()
-      .from(events)
-      .where(eq(events.id, result.data!.id));
+    const [row] = await db.select().from(events).where(eq(events.id, result.data!.id));
     expect(row.applicationQuestions).toEqual([]);
     await db.delete(events).where(eq(events.id, result.data!.id));
   });
@@ -226,13 +209,9 @@ describe('createEvent', () => {
       slug: '  mruhacks-2026  ',
     });
     expect(withSlug.success).toBe(true);
-    if (!withSlug.success)
-      throw new Error((withSlug as { error: string }).error);
+    if (!withSlug.success) throw new Error((withSlug as { error: string }).error);
 
-    const [slugged] = await db
-      .select({ slug: events.slug })
-      .from(events)
-      .where(eq(events.id, withSlug.data!.id));
+    const [slugged] = await db.select({ slug: events.slug }).from(events).where(eq(events.id, withSlug.data!.id));
     expect(slugged.slug).toBe('mruhacks-2026');
 
     const blank = await createEvent({
@@ -243,10 +222,7 @@ describe('createEvent', () => {
     expect(blank.success).toBe(true);
     if (!blank.success) throw new Error((blank as { error: string }).error);
 
-    const [unslugged] = await db
-      .select({ slug: events.slug })
-      .from(events)
-      .where(eq(events.id, blank.data!.id));
+    const [unslugged] = await db.select({ slug: events.slug }).from(events).where(eq(events.id, blank.data!.id));
     expect(unslugged.slug).toBeNull();
 
     const duplicate = await createEvent({
@@ -282,9 +258,7 @@ describe('getEventWithQuestions', () => {
   });
 
   test('returns error for nonexistent event', async () => {
-    const result = await getEventWithQuestions(
-      '00000000-0000-0000-0000-000000000000',
-    );
+    const result = await getEventWithQuestions('00000000-0000-0000-0000-000000000000');
     expect(result.success).toBe(false);
     expect((result as { error: string }).error).toContain('not found');
   });
@@ -301,9 +275,7 @@ describe('getEventWithQuestions', () => {
 
 describe('getEventDetails', () => {
   test('returns error for nonexistent event', async () => {
-    const result = await getEventDetails(
-      '00000000-0000-0000-0000-000000000000',
-    );
+    const result = await getEventDetails('00000000-0000-0000-0000-000000000000');
     expect(result.success).toBe(false);
     expect((result as { error: string }).error).toContain('not found');
   });
@@ -320,9 +292,7 @@ describe('getEventDetails', () => {
 
 describe('getEventRsvpSummary', () => {
   test('returns error for nonexistent event', async () => {
-    const result = await getEventRsvpSummary(
-      '00000000-0000-0000-0000-000000000000',
-    );
+    const result = await getEventRsvpSummary('00000000-0000-0000-0000-000000000000');
     expect(result.success).toBe(false);
     expect((result as { error: string }).error).toContain('not found');
   });
@@ -398,10 +368,7 @@ describe('addQuestion', () => {
   test('new question order is one greater than existing max', async () => {
     const res1 = await getEventWithQuestions(testEventId);
     if (!res1.success) throw new Error('setup failed');
-    const maxOrder = res1.data!.questions.reduce(
-      (m, q) => Math.max(m, q.order),
-      0,
-    );
+    const maxOrder = res1.data!.questions.reduce((m, q) => Math.max(m, q.order), 0);
 
     const result = await addQuestion(testEventId, {
       label: 'Last Question',
@@ -428,20 +395,12 @@ describe('editQuestion', () => {
   });
 
   test('returns error for nonexistent event', async () => {
-    const result = await editQuestion(
-      '00000000-0000-0000-0000-000000000000',
-      questionId,
-      { label: 'New' },
-    );
+    const result = await editQuestion('00000000-0000-0000-0000-000000000000', questionId, { label: 'New' });
     expect(result.success).toBe(false);
   });
 
   test('returns error for nonexistent question ID', async () => {
-    const result = await editQuestion(
-      testEventId,
-      '00000000-0000-0000-0000-000000000000',
-      { label: 'New' },
-    );
+    const result = await editQuestion(testEventId, '00000000-0000-0000-0000-000000000000', { label: 'New' });
     expect(result.success).toBe(false);
     expect((result as { error: string }).error).toContain('not found');
   });
@@ -523,17 +482,12 @@ describe('removeQuestion', () => {
     expect(q).toBeDefined();
     expect(q?.active).toBe(false);
 
-    await db
-      .delete(eventParticipants)
-      .where(eq(eventParticipants.userId, appUser.id));
+    await db.delete(eventParticipants).where(eq(eventParticipants.userId, appUser.id));
     await db.delete(user).where(eq(user.id, appUser.id));
   });
 
   test('returns error for nonexistent question', async () => {
-    const result = await removeQuestion(
-      testEventId,
-      '00000000-0000-0000-0000-000000000000',
-    );
+    const result = await removeQuestion(testEventId, '00000000-0000-0000-0000-000000000000');
     expect(result.success).toBe(false);
     expect((result as { error: string }).error).toContain('not found');
   });
@@ -565,9 +519,7 @@ describe('removeQuestion', () => {
     expect(result.success).toBe(true);
     expect((result as { data: unknown }).data).toContain('deleted');
 
-    await db
-      .delete(eventParticipants)
-      .where(eq(eventParticipants.userId, appUser.id));
+    await db.delete(eventParticipants).where(eq(eventParticipants.userId, appUser.id));
     await db.delete(user).where(eq(user.id, appUser.id));
   });
 });
@@ -649,27 +601,19 @@ describe('reactivateQuestion', () => {
     const q = evtResult.data!.questions.find((q) => q.id === qId);
     expect(q?.active).toBe(true);
 
-    await db
-      .delete(eventParticipants)
-      .where(eq(eventParticipants.userId, appUser.id));
+    await db.delete(eventParticipants).where(eq(eventParticipants.userId, appUser.id));
     await db.delete(user).where(eq(user.id, appUser.id));
   });
 
   test('returns error for nonexistent question', async () => {
-    const result = await reactivateQuestion(
-      testEventId,
-      '00000000-0000-0000-0000-000000000000',
-    );
+    const result = await reactivateQuestion(testEventId, '00000000-0000-0000-0000-000000000000');
     expect(result.success).toBe(false);
   });
 });
 
 describe('updateEventSettings', () => {
   test('returns error for nonexistent event', async () => {
-    const result = await updateEventSettings(
-      '00000000-0000-0000-0000-000000000000',
-      { name: 'X' },
-    );
+    const result = await updateEventSettings('00000000-0000-0000-0000-000000000000', { name: 'X' });
     expect(result.success).toBe(false);
     expect((result as { error: string }).error).toContain('not found');
   });
@@ -680,10 +624,7 @@ describe('updateEventSettings', () => {
     });
     expect(result.success).toBe(true);
 
-    const [row] = await db
-      .select({ name: events.name })
-      .from(events)
-      .where(eq(events.id, testEventId));
+    const [row] = await db.select({ name: events.name }).from(events).where(eq(events.id, testEventId));
     expect(row.name).toBe('Renamed Event');
   });
 
@@ -695,10 +636,7 @@ describe('updateEventSettings', () => {
     // A partial edit that never mentions the slug leaves it alone.
     const partial = await updateEventSettings(testEventId, { name: 'Kept' });
     expect(partial.success).toBe(true);
-    const [kept] = await db
-      .select({ slug: events.slug })
-      .from(events)
-      .where(eq(events.id, testEventId));
+    const [kept] = await db.select({ slug: events.slug }).from(events).where(eq(events.id, testEventId));
     expect(kept.slug).toBe('slug-one');
 
     // Renaming it has to drop the old path as well as the new one, or the
@@ -712,10 +650,7 @@ describe('updateEventSettings', () => {
 
     const cleared = await updateEventSettings(testEventId, { slug: '' });
     expect(cleared.success).toBe(true);
-    const [empty] = await db
-      .select({ slug: events.slug })
-      .from(events)
-      .where(eq(events.id, testEventId));
+    const [empty] = await db.select({ slug: events.slug }).from(events).where(eq(events.id, testEventId));
     expect(empty.slug).toBeNull();
   });
 
@@ -764,43 +699,27 @@ describe('updateEventSettings', () => {
       name: 'Renamed again',
     });
     expect(renamed.success).toBe(true);
-    const [row] = await db
-      .select()
-      .from(events)
-      .where(eq(events.id, testEventId));
+    const [row] = await db.select().from(events).where(eq(events.id, testEventId));
     expect(row.name).toBe('Renamed again');
-    expect(row.descriptionMarkdown).toBe(
-      '## Welcome\nJoin us for a weekend of building.',
-    );
-    expect(revalidatePath).toHaveBeenCalledWith(
-      `/dashboard/events/${testEventId}`,
-    );
+    expect(row.descriptionMarkdown).toBe('## Welcome\nJoin us for a weekend of building.');
+    expect(revalidatePath).toHaveBeenCalledWith(`/dashboard/events/${testEventId}`);
 
     const cleared = await updateEventSettings(testEventId, {
       descriptionMarkdown: '   ',
     });
     expect(cleared.success).toBe(true);
-    const [empty] = await db
-      .select()
-      .from(events)
-      .where(eq(events.id, testEventId));
+    const [empty] = await db.select().from(events).where(eq(events.id, testEventId));
     expect(empty.descriptionMarkdown).toBeNull();
   });
 
   test('rejects an oversized description without saving other event changes', async () => {
-    const [before] = await db
-      .select()
-      .from(events)
-      .where(eq(events.id, testEventId));
+    const [before] = await db.select().from(events).where(eq(events.id, testEventId));
     const result = await updateEventSettings(testEventId, {
       name: 'Must not be saved',
       descriptionMarkdown: 'x'.repeat(20_001),
     });
     expect(result.success).toBe(false);
-    const [after] = await db
-      .select()
-      .from(events)
-      .where(eq(events.id, testEventId));
+    const [after] = await db.select().from(events).where(eq(events.id, testEventId));
     expect(after.name).toBe(before.name);
     expect(after.descriptionMarkdown).toBe(before.descriptionMarkdown);
   });
@@ -888,10 +807,7 @@ describe('updateEventSettings', () => {
     const cleared = await updateEventSettings(testEventId, { capacity: null });
     expect(cleared.success).toBe(true);
 
-    const [row] = await db
-      .select({ capacity: events.capacity })
-      .from(events)
-      .where(eq(events.id, testEventId));
+    const [row] = await db.select({ capacity: events.capacity }).from(events).where(eq(events.id, testEventId));
     expect(row.capacity).toBeNull();
   });
 });
@@ -966,9 +882,7 @@ describe('sendEventRsvpWave', () => {
         },
       ],
     });
-    expect(revalidatePath).toHaveBeenCalledWith(
-      `/dashboard/admin/events/${testEventId}`,
-    );
+    expect(revalidatePath).toHaveBeenCalledWith(`/dashboard/admin/events/${testEventId}`);
     expect(sendRsvpWave).toHaveBeenCalledWith(testEventId, {
       closeActiveWave: false,
     });

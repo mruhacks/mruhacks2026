@@ -19,10 +19,7 @@ export async function claimMagicLinkCooldown(email: string): Promise<boolean> {
     .onConflictDoUpdate({
       target: magicLinkCooldown.email,
       set: { lastSentAt: new Date() },
-      where: lt(
-        magicLinkCooldown.lastSentAt,
-        sql`now() - interval '60 seconds'`,
-      ),
+      where: lt(magicLinkCooldown.lastSentAt, sql`now() - interval '60 seconds'`),
     })
     .returning();
 
@@ -34,14 +31,7 @@ export async function claimMagicLinkCooldown(email: string): Promise<boolean> {
   if (allowed && Math.random() < 0.1) {
     try {
       after(async () => {
-        await db
-          .delete(magicLinkCooldown)
-          .where(
-            lt(
-              magicLinkCooldown.lastSentAt,
-              sql`now() - interval '60 seconds'`,
-            ),
-          );
+        await db.delete(magicLinkCooldown).where(lt(magicLinkCooldown.lastSentAt, sql`now() - interval '60 seconds'`));
       });
     } catch {}
   }

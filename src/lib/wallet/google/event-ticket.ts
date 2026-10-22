@@ -29,9 +29,7 @@ function localizedString(value: string) {
 function getSiteUrl(): string {
   const url = process.env.BETTER_AUTH_URL?.trim();
   if (!url) {
-    throw new Error(
-      'BETTER_AUTH_URL is required to build Google Wallet passes',
-    );
+    throw new Error('BETTER_AUTH_URL is required to build Google Wallet passes');
   }
   return url;
 }
@@ -40,18 +38,11 @@ function eventTicketClassId(issuerId: string, eventId: string): string {
   return `${issuerId}.event-${eventId}`;
 }
 
-function eventTicketObjectId(
-  issuerId: string,
-  eventId: string,
-  userId: string,
-): string {
+function eventTicketObjectId(issuerId: string, eventId: string, userId: string): string {
   return `${issuerId}.event-${eventId}-user-${userId}`;
 }
 
-function buildClassBody(
-  issuerId: string,
-  participant: GoogleWalletParticipant,
-) {
+function buildClassBody(issuerId: string, participant: GoogleWalletParticipant) {
   const { eventId, eventName, location, startsAt, endsAt } = participant;
   return {
     id: eventTicketClassId(issuerId, eventId),
@@ -77,12 +68,8 @@ function buildClassBody(
           // of these verbatim rather than converting it to the viewer's or
           // the venue's zone.
           dateTime: {
-            ...(startsAt
-              ? { start: toZonedOffsetString(startsAt, EVENT_TIME_ZONE) }
-              : {}),
-            ...(endsAt
-              ? { end: toZonedOffsetString(endsAt, EVENT_TIME_ZONE) }
-              : {}),
+            ...(startsAt ? { start: toZonedOffsetString(startsAt, EVENT_TIME_ZONE) } : {}),
+            ...(endsAt ? { end: toZonedOffsetString(endsAt, EVENT_TIME_ZONE) } : {}),
           },
         }
       : {}),
@@ -90,10 +77,7 @@ function buildClassBody(
 }
 
 /** Creates the event's class if it doesn't exist yet, otherwise updates it to match current event data. */
-async function ensureEventTicketClass(
-  issuerId: string,
-  participant: GoogleWalletParticipant,
-): Promise<string> {
+async function ensureEventTicketClass(issuerId: string, participant: GoogleWalletParticipant): Promise<string> {
   const id = eventTicketClassId(issuerId, participant.eventId);
   const body = buildClassBody(issuerId, participant);
   const existing = await walletApiRequest('eventTicketClass/' + id, {
@@ -110,11 +94,7 @@ async function ensureEventTicketClass(
   return id;
 }
 
-function buildObjectBody(
-  issuerId: string,
-  classId: string,
-  participant: GoogleWalletParticipant,
-) {
+function buildObjectBody(issuerId: string, classId: string, participant: GoogleWalletParticipant) {
   return {
     id: eventTicketObjectId(issuerId, participant.eventId, participant.userId),
     classId,
@@ -146,11 +126,7 @@ async function ensureEventTicketObject(
   classId: string,
   participant: GoogleWalletParticipant,
 ): Promise<string> {
-  const id = eventTicketObjectId(
-    issuerId,
-    participant.eventId,
-    participant.userId,
-  );
+  const id = eventTicketObjectId(issuerId, participant.eventId, participant.userId);
   const body = buildObjectBody(issuerId, classId, participant);
   const existing = await walletApiRequest('eventTicketObject/' + id, {
     method: 'GET',
@@ -170,17 +146,11 @@ async function ensureEventTicketObject(
  * Ensures the Google Wallet class/object for this participant exist and are
  * current, then returns the "Save to Google Wallet" URL to redirect them to.
  */
-export async function buildGoogleWalletSaveUrl(
-  participant: GoogleWalletParticipant,
-): Promise<string> {
+export async function buildGoogleWalletSaveUrl(participant: GoogleWalletParticipant): Promise<string> {
   const config = getGoogleWalletConfig();
 
   const classId = await ensureEventTicketClass(config.issuerId, participant);
-  const objectId = await ensureEventTicketObject(
-    config.issuerId,
-    classId,
-    participant,
-  );
+  const objectId = await ensureEventTicketObject(config.issuerId, classId, participant);
 
   const claims = {
     iss: config.serviceAccountEmail,
@@ -203,10 +173,7 @@ export async function buildGoogleWalletSaveUrl(
  * those fields. A 404 means no pass was ever made for that event. Without
  * Wallet credentials no pass can exist, so there is nothing to revoke.
  */
-export async function revokeGoogleWalletPasses(
-  userId: string,
-  eventIds: string[],
-): Promise<void> {
+export async function revokeGoogleWalletPasses(userId: string, eventIds: string[]): Promise<void> {
   if (eventIds.length === 0 || !isGoogleWalletConfigured()) return;
   const { issuerId } = getGoogleWalletConfig();
   await Promise.all(

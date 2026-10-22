@@ -4,9 +4,7 @@ import { canOpenEventDashboard } from '@/lib/rbac/event-access';
 
 describe('canOpenEventDashboard', () => {
   test('a check-in volunteer can open it', () => {
-    expect(
-      canOpenEventDashboard(['participant:read:all', 'checkin:write:all']),
-    ).toBe(true);
+    expect(canOpenEventDashboard(['participant:read:all', 'checkin:write:all'])).toBe(true);
   });
 
   test.each([
@@ -33,13 +31,8 @@ describe('canOpenEventDashboard', () => {
 
   test('permissions that gate nothing under an event do not', () => {
     expect(canOpenEventDashboard([])).toBe(false);
-    expect(
-      canOpenEventDashboard([
-        'participant:read:all',
-        'user:read:all',
-        'role:read:all',
-        'team:manage:all',
-      ]),
-    ).toBe(false);
+    expect(canOpenEventDashboard(['participant:read:all', 'user:read:all', 'role:read:all', 'team:manage:all'])).toBe(
+      false,
+    );
   });
 });

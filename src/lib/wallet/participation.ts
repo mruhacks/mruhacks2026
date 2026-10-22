@@ -2,17 +2,11 @@ import 'server-only';
 
 import { and, eq, isNull } from 'drizzle-orm';
 
-import {
-  eventParticipants,
-  events,
-  participationStatuses,
-  userProfiles,
-} from '@/db/schema';
+import { eventParticipants, events, participationStatuses, userProfiles } from '@/db/schema';
 import { isAttending, resolveStoredStatus } from '@/lib/participation/status';
 import { db } from '@/utils/db';
 
-export const EVENT_ID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export const EVENT_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export type EventParticipation = {
   eventName: string;
@@ -35,10 +29,7 @@ export type EventParticipation = {
  *
  * Returns null for a malformed id, a sub-event, or a nonexistent event.
  */
-export async function getEventParticipation(
-  eventId: string,
-  userId: string,
-): Promise<EventParticipation | null> {
+export async function getEventParticipation(eventId: string, userId: string): Promise<EventParticipation | null> {
   if (!EVENT_ID_PATTERN.test(eventId)) return null;
 
   const [row] = await db
@@ -55,17 +46,8 @@ export async function getEventParticipation(
       fullName: userProfiles.fullName,
     })
     .from(events)
-    .leftJoin(
-      eventParticipants,
-      and(
-        eq(eventParticipants.eventId, events.id),
-        eq(eventParticipants.userId, userId),
-      ),
-    )
-    .leftJoin(
-      participationStatuses,
-      eq(participationStatuses.id, eventParticipants.statusId),
-    )
+    .leftJoin(eventParticipants, and(eq(eventParticipants.eventId, events.id), eq(eventParticipants.userId, userId)))
+    .leftJoin(participationStatuses, eq(participationStatuses.id, eventParticipants.statusId))
     .leftJoin(userProfiles, eq(userProfiles.userId, userId))
     .where(and(eq(events.id, eventId), isNull(events.parentEventId)))
     .limit(1);
@@ -84,16 +66,11 @@ export async function getEventParticipation(
     fullName: row.fullName,
     // An invited applicant who never accepted their RSVP (or who declined
     // or let it expire) doesn't get a pass — only a held spot does.
-    isParticipant:
-      row.statusLabel !== null &&
-      isAttending(resolveStoredStatus(row.statusLabel)),
+    isParticipant: row.statusLabel !== null && isAttending(resolveStoredStatus(row.statusLabel)),
   };
 }
 
 /** The wallet routes' shared name fallback: profile name, then account name, then a generic label — never undefined. */
-export function resolveParticipantName(
-  fullName: string | null,
-  accountName: string,
-): string {
+export function resolveParticipantName(fullName: string | null, accountName: string): string {
   return fullName || accountName || 'Participant';
 }

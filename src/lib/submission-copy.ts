@@ -58,8 +58,7 @@ export const PROJECT_STAGE_COPY: Record<ProjectStage, ProjectStageCopy> = {
   },
   not_started: {
     title: 'Start your project',
-    description:
-      'One write-up per team, shared by every teammate. Submissions close',
+    description: 'One write-up per team, shared by every teammate. Submissions close',
     date: 'closesAt',
     action: 'Start project',
     warning: null,

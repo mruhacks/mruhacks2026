@@ -15,11 +15,7 @@ export const signingPublicKeys = pgTable('signing_public_keys', {
   id: serial('id').primaryKey(),
   /** SPKI PEM, as produced by `publicKeyToPem`. */
   publicKey: text('public_key').notNull().unique(),
-  firstUsedAt: timestamp('first_used_at', { withTimezone: true })
-    .defaultNow()
-    .notNull(),
-  lastUsedAt: timestamp('last_used_at', { withTimezone: true })
-    .defaultNow()
-    .notNull(),
+  firstUsedAt: timestamp('first_used_at', { withTimezone: true }).defaultNow().notNull(),
+  lastUsedAt: timestamp('last_used_at', { withTimezone: true }).defaultNow().notNull(),
   revokedAt: timestamp('revoked_at', { withTimezone: true }),
 });

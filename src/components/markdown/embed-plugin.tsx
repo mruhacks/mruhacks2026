@@ -125,13 +125,7 @@ export class EmbedNode extends DecoratorNode<React.ReactNode> {
   }
 
   decorate(editor: LexicalEditor): React.ReactNode {
-    return (
-      <EmbedPreview
-        editor={editor}
-        nodeKey={this.getKey()}
-        {...this.getAttributes()}
-      />
-    );
+    return <EmbedPreview editor={editor} nodeKey={this.getKey()} {...this.getAttributes()} />;
   }
 }
 
@@ -144,25 +138,20 @@ export function $createEmbedNode(attributes: EmbedAttributes): EmbedNode {
   });
 }
 
-export function $isEmbedNode(
-  node: LexicalNode | null | undefined,
-): node is EmbedNode {
+export function $isEmbedNode(node: LexicalNode | null | undefined): node is EmbedNode {
   return node instanceof EmbedNode;
 }
 
 type JsxAttribute = { type: string; name?: string; value?: unknown };
 
 function readAttribute(attributes: JsxAttribute[], name: string) {
-  const attribute = attributes.find(
-    (a) => a.type === 'mdxJsxAttribute' && a.name === name,
-  );
+  const attribute = attributes.find((a) => a.type === 'mdxJsxAttribute' && a.name === name);
   return typeof attribute?.value === 'string' ? attribute.value : undefined;
 }
 
 const EmbedImportVisitor: MdastImportVisitor<never> = {
   testNode: (node) =>
-    (node.type === 'mdxJsxFlowElement' || node.type === 'mdxJsxTextElement') &&
-    node.name === 'iframe',
+    (node.type === 'mdxJsxFlowElement' || node.type === 'mdxJsxTextElement') && node.name === 'iframe',
   visitNode({ mdastNode, lexicalParent }) {
     const { attributes } = mdastNode as unknown as {
       attributes: JsxAttribute[];
@@ -278,23 +267,16 @@ export function InsertEmbed() {
 
     const src = getAllowedEmbedSrc(toEmbedUrl(url));
     if (!src) {
-      setError(
-        `Paste a link or embed code from one of: ${EMBED_PROVIDER_NAMES.join(', ')}.`,
-      );
+      setError(`Paste a link or embed code from one of: ${EMBED_PROVIDER_NAMES.join(', ')}.`);
       return;
     }
-    insertDecoratorNode(() =>
-      $createEmbedNode({ src, title: title.trim() || undefined }),
-    );
+    insertDecoratorNode(() => $createEmbedNode({ src, title: title.trim() || undefined }));
     setOpen(false);
   }
 
   return (
     <>
-      <ButtonWithTooltip
-        title='Insert embed'
-        onClick={() => handleOpenChange(true)}
-      >
+      <ButtonWithTooltip title='Insert embed' onClick={() => handleOpenChange(true)}>
         <SquarePlay className='size-5' />
       </ButtonWithTooltip>
       <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -302,9 +284,7 @@ export function InsertEmbed() {
           <form onSubmit={handleSubmit} className='space-y-4'>
             <DialogHeader>
               <DialogTitle>Insert embed</DialogTitle>
-              <DialogDescription>
-                Supported: {EMBED_PROVIDER_NAMES.join(', ')}.
-              </DialogDescription>
+              <DialogDescription>Supported: {EMBED_PROVIDER_NAMES.join(', ')}.</DialogDescription>
             </DialogHeader>
             <Field data-invalid={error ? true : undefined}>
               <FieldLabel htmlFor='embed-url'>Link or embed code</FieldLabel>
@@ -322,14 +302,8 @@ export function InsertEmbed() {
               {error && <FieldError>{error}</FieldError>}
             </Field>
             <Field>
-              <FieldLabel htmlFor='embed-title'>
-                Title (for screen readers)
-              </FieldLabel>
-              <Input
-                id='embed-title'
-                value={title}
-                onChange={(event) => setTitle(event.target.value)}
-              />
+              <FieldLabel htmlFor='embed-title'>Title (for screen readers)</FieldLabel>
+              <Input id='embed-title' value={title} onChange={(event) => setTitle(event.target.value)} />
             </Field>
             <DialogFooter>
               <Button type='submit'>Insert</Button>

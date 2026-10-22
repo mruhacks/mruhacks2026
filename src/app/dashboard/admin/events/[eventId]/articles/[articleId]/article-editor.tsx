@@ -10,12 +10,7 @@ import {
 } from '@/app/dashboard/admin/events/content-actions';
 import { MarkdownEditor } from '@/components/markdown/markdown-editor';
 import { Button } from '@/components/ui/button';
-import {
-  Field,
-  FieldDescription,
-  FieldError,
-  FieldLabel,
-} from '@/components/ui/field';
+import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
@@ -96,14 +91,8 @@ export function ArticleEditor({ eventId, eventHref, article }: Props) {
       </div>
 
       <div className='flex items-center gap-3'>
-        <Switch
-          id='published'
-          checked={published}
-          onCheckedChange={setPublished}
-        />
-        <Label htmlFor='published'>
-          Published — visible to participants of this event
-        </Label>
+        <Switch id='published' checked={published} onCheckedChange={setPublished} />
+        <Label htmlFor='published'>Published — visible to participants of this event</Label>
       </div>
 
       <MarkdownEditor

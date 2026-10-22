@@ -20,12 +20,8 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await db
-    .delete(termsAcceptances)
-    .where(eq(termsAcceptances.userId, testUserId));
-  await db
-    .delete(privacyAcceptances)
-    .where(eq(privacyAcceptances.userId, testUserId));
+  await db.delete(termsAcceptances).where(eq(termsAcceptances.userId, testUserId));
+  await db.delete(privacyAcceptances).where(eq(privacyAcceptances.userId, testUserId));
   await db.delete(user).where(eq(user.id, testUserId));
 });
 
@@ -38,12 +34,8 @@ async function acceptPrivacy(version = CURRENT_PRIVACY_VERSION) {
 }
 
 async function clearConsent() {
-  await db
-    .delete(termsAcceptances)
-    .where(eq(termsAcceptances.userId, testUserId));
-  await db
-    .delete(privacyAcceptances)
-    .where(eq(privacyAcceptances.userId, testUserId));
+  await db.delete(termsAcceptances).where(eq(termsAcceptances.userId, testUserId));
+  await db.delete(privacyAcceptances).where(eq(privacyAcceptances.userId, testUserId));
 }
 
 describe('userNeedsConsent', () => {

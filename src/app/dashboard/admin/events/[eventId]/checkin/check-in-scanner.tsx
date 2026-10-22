@@ -11,10 +11,7 @@ import { payloadFromResult } from './scan-payload';
 
 // The library needs browser-only APIs at import time, so it can't run
 // during SSR — see its README's "Next.js / SSR errors at build time".
-const Scanner = dynamic(
-  () => import('@yudiel/react-qr-scanner').then((mod) => mod.Scanner),
-  { ssr: false },
-);
+const Scanner = dynamic(() => import('@yudiel/react-qr-scanner').then((mod) => mod.Scanner), { ssr: false });
 
 /**
  * Without `allowMultiple`, the library suppresses a repeat `onScan` for a

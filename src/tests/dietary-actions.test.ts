@@ -44,21 +44,10 @@ let viewerId: string;
 let dietaryPermissionId: number;
 const userIds: string[] = [];
 
-async function lookupId(
-  table: typeof genders | typeof dietaryRestrictions,
-  label: string,
-): Promise<number> {
-  const [inserted] = await db
-    .insert(table)
-    .values({ label })
-    .onConflictDoNothing()
-    .returning({ id: table.id });
+async function lookupId(table: typeof genders | typeof dietaryRestrictions, label: string): Promise<number> {
+  const [inserted] = await db.insert(table).values({ label }).onConflictDoNothing().returning({ id: table.id });
   if (inserted) return inserted.id;
-  const [existing] = await db
-    .select({ id: table.id })
-    .from(table)
-    .where(eq(table.label, label))
-    .limit(1);
+  const [existing] = await db.select({ id: table.id }).from(table).where(eq(table.label, label)).limit(1);
   return existing.id;
 }
 
@@ -69,10 +58,7 @@ async function loadReport(id: string) {
 }
 
 async function newUser(name: string, email: string) {
-  const [row] = await db
-    .insert(user)
-    .values({ name, email, emailVerified: true })
-    .returning({ id: user.id });
+  const [row] = await db.insert(user).values({ name, email, emailVerified: true }).returning({ id: user.id });
   userIds.push(row.id);
   return row.id;
 }
@@ -85,13 +71,8 @@ beforeAll(async () => {
     .returning({ id: eventTypes.id });
   const mealTypeId =
     mealType?.id ??
-    (
-      await db
-        .select({ id: eventTypes.id })
-        .from(eventTypes)
-        .where(eq(eventTypes.label, MEAL_EVENT_TYPE))
-        .limit(1)
-    )[0].id;
+    (await db.select({ id: eventTypes.id }).from(eventTypes).where(eq(eventTypes.label, MEAL_EVENT_TYPE)).limit(1))[0]
+      .id;
 
   const genderId = await lookupId(genders, 'Prefer not to say');
   const veganId = await lookupId(dietaryRestrictions, 'Vegan');
@@ -178,17 +159,9 @@ beforeAll(async () => {
     .returning({ id: permission.id });
   dietaryPermissionId =
     perm?.id ??
-    (
-      await db
-        .select({ id: permission.id })
-        .from(permission)
-        .where(eq(permission.slug, 'dietary:read:all'))
-        .limit(1)
-    )[0].id;
-  await db
-    .insert(userPermission)
-    .values({ userId: viewerId, permissionId: dietaryPermissionId })
-    .onConflictDoNothing();
+    (await db.select({ id: permission.id }).from(permission).where(eq(permission.slug, 'dietary:read:all')).limit(1))[0]
+      .id;
+  await db.insert(userPermission).values({ userId: viewerId, permissionId: dietaryPermissionId }).onConflictDoNothing();
 
   await db.insert(userProfiles).values([
     { userId: vegan, fullName: 'Vega Vegan', genderId },
@@ -228,9 +201,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await db.delete(events).where(eq(events.parentEventId, eventId));
   await db.delete(events).where(eq(events.id, eventId));
-  await db
-    .delete(userPermission)
-    .where(eq(userPermission.permissionId, dietaryPermissionId));
+  await db.delete(userPermission).where(eq(userPermission.permissionId, dietaryPermissionId));
   await db.delete(permission).where(eq(permission.id, dietaryPermissionId));
   await db.delete(user).where(inArray(user.id, userIds));
 });

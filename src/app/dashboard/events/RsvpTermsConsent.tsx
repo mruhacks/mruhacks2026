@@ -23,10 +23,7 @@ export function RsvpTermsConsent({
     <FieldGroup className='w-full gap-3 text-left'>
       <section aria-label='Event Terms' className='flex flex-col gap-2'>
         <h3 className='font-semibold'>Event Terms</h3>
-        <div
-          className='max-h-64 overflow-y-auto rounded-md border p-4'
-          tabIndex={0}
-        >
+        <div className='max-h-64 overflow-y-auto rounded-md border p-4' tabIndex={0}>
           <MarkdownContent markdown={markdown} />
         </div>
       </section>
@@ -38,9 +35,7 @@ export function RsvpTermsConsent({
           disabled={disabled}
           required
         />
-        <FieldLabel htmlFor={id}>
-          I have read and agree to the Event Terms.
-        </FieldLabel>
+        <FieldLabel htmlFor={id}>I have read and agree to the Event Terms.</FieldLabel>
       </Field>
     </FieldGroup>
   );

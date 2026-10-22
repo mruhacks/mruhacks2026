@@ -8,12 +8,7 @@ import { cacheLife } from 'next/cache';
 
 import { getUser } from '@/utils/auth';
 import { db } from '@/utils/db';
-import {
-  eventParticipants,
-  events,
-  user as authUser,
-  userProfileProfessional,
-} from '@/db/schema';
+import { eventParticipants, events, user as authUser, userProfileProfessional } from '@/db/schema';
 import { and, eq } from 'drizzle-orm';
 import { getConsentStatus } from '@/app/dashboard/account/actions';
 import { getUserProfile } from '@/app/dashboard/profile/actions';
@@ -27,13 +22,7 @@ import type { FeaturedOnboardingEvent } from './featured-event-step';
  * professional, skipping About and the featured-event application. Staff
  * (`onboarding:skip:event`) go legal → personal → about with no application.
  */
-export const STEPS = [
-  'legal',
-  'personal',
-  'about',
-  'professional',
-  'event',
-] as const;
+export const STEPS = ['legal', 'personal', 'about', 'professional', 'event'] as const;
 export type Step = (typeof STEPS)[number];
 
 export const isStep = (value: unknown): value is Step =>
@@ -58,15 +47,7 @@ export async function getOnboardingProgress(): Promise<OnboardingProgress> {
   const user = await getUser();
   if (!user) redirect('/signin');
 
-  const [
-    consentRes,
-    profileRes,
-    [userRow],
-    [featured],
-    isJudge,
-    [professional],
-    canSkipEvent,
-  ] = await Promise.all([
+  const [consentRes, profileRes, [userRow], [featured], isJudge, [professional], canSkipEvent] = await Promise.all([
     getConsentStatus(),
     getUserProfile(),
     db
@@ -97,13 +78,9 @@ export async function getOnboardingProgress(): Promise<OnboardingProgress> {
 
   // Fail safe: if we can't read consent/profile state, prompt for it
   // rather than skip — never let an unreadable state through the gate.
-  const needsConsent =
-    consentRes.success && consentRes.data ? consentRes.data.needsConsent : true;
+  const needsConsent = consentRes.success && consentRes.data ? consentRes.data.needsConsent : true;
   const needsPersonal = !profileRes.success || profileRes.data == null;
-  const needsAbout =
-    !profileRes.success ||
-    profileRes.data == null ||
-    profileRes.data.universityId == null;
+  const needsAbout = !profileRes.success || profileRes.data == null || profileRes.data.universityId == null;
 
   let featuredEvent: FeaturedOnboardingEvent | undefined;
   if (featured && !isJudge && !canSkipEvent) {
@@ -111,12 +88,7 @@ export async function getOnboardingProgress(): Promise<OnboardingProgress> {
     const [existingParticipation] = await db
       .select({ id: eventParticipants.id })
       .from(eventParticipants)
-      .where(
-        and(
-          eq(eventParticipants.eventId, featured.id),
-          eq(eventParticipants.userId, user.id),
-        ),
-      )
+      .where(and(eq(eventParticipants.eventId, featured.id), eq(eventParticipants.userId, user.id)))
       .limit(1);
 
     if (!existingParticipation) {
@@ -159,26 +131,16 @@ function stepNeeded(progress: OnboardingProgress, step: Step): boolean {
  * pending. This permits deliberate backward review without letting a crafted
  * URL skip an incomplete prerequisite or reopen onboarding after it is done.
  */
-export function canReviewStep(
-  progress: OnboardingProgress,
-  step: Step,
-): boolean {
+export function canReviewStep(progress: OnboardingProgress, step: Step): boolean {
   const firstNeeded = getNextStep(progress);
-  return (
-    firstNeeded !== null &&
-    !stepNeeded(progress, step) &&
-    STEPS.indexOf(step) < STEPS.indexOf(firstNeeded)
-  );
+  return firstNeeded !== null && !stepNeeded(progress, step) && STEPS.indexOf(step) < STEPS.indexOf(firstNeeded);
 }
 
 /**
  * First step still needed, scanning from just after `after` (or from the
  * start if omitted). Null means nothing remains — onboarding is done.
  */
-export function getNextStep(
-  progress: OnboardingProgress,
-  after?: Step,
-): Step | null {
+export function getNextStep(progress: OnboardingProgress, after?: Step): Step | null {
   const startIndex = after ? STEPS.indexOf(after) + 1 : 0;
   for (let i = startIndex; i < STEPS.length; i++) {
     if (stepNeeded(progress, STEPS[i])) return STEPS[i];

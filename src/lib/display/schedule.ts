@@ -37,23 +37,17 @@ export type VisibleEntries = {
  */
 const OPEN_ENDED_MAX_MS = 60 * 60 * 1000;
 
-const isDeadline = (entry: DisplayScheduleEntry) =>
-  entry.endsAt === entry.startsAt;
+const isDeadline = (entry: DisplayScheduleEntry) => entry.endsAt === entry.startsAt;
 
 /**
  * When an entry stops being "on": its own end, or for an open-ended one
  * ("Check-in opens"), the next entry's start — capped at an hour when nothing
  * follows. Deadlines don't end anything; they aren't activities.
  */
-function effectiveEnd(
-  entry: DisplayScheduleEntry,
-  sorted: DisplayScheduleEntry[],
-): number {
+function effectiveEnd(entry: DisplayScheduleEntry, sorted: DisplayScheduleEntry[]): number {
   if (entry.endsAt) return Date.parse(entry.endsAt);
   const start = Date.parse(entry.startsAt);
-  const next = sorted.find(
-    (other) => !isDeadline(other) && Date.parse(other.startsAt) > start,
-  );
+  const next = sorted.find((other) => !isDeadline(other) && Date.parse(other.startsAt) > start);
   return next ? Date.parse(next.startsAt) : start + OPEN_ENDED_MAX_MS;
 }
 
@@ -63,18 +57,10 @@ function effectiveEnd(
  * everything still to come, soonest first. An entry that starts and ends at
  * the same instant (a deadline) is never "on", only upcoming.
  */
-export function getVisibleEntries(
-  schedule: DisplayScheduleEntry[],
-  now: number,
-): VisibleEntries {
-  const sorted = [...schedule].sort(
-    (a, b) => Date.parse(a.startsAt) - Date.parse(b.startsAt),
-  );
+export function getVisibleEntries(schedule: DisplayScheduleEntry[], now: number): VisibleEntries {
+  const sorted = [...schedule].sort((a, b) => Date.parse(a.startsAt) - Date.parse(b.startsAt));
 
-  const running = sorted.filter(
-    (entry) =>
-      Date.parse(entry.startsAt) <= now && now < effectiveEnd(entry, sorted),
-  );
+  const running = sorted.filter((entry) => Date.parse(entry.startsAt) <= now && now < effectiveEnd(entry, sorted));
   const current = running.at(-1) ?? null;
 
   let progress = 0;

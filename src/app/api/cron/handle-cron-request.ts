@@ -32,10 +32,7 @@ export async function handleCronRequest<T>(
   }
 
   const [scheme, token] = authorization.split(' ');
-  const authorized =
-    scheme?.toLowerCase() === 'bearer' &&
-    token !== undefined &&
-    token === secret;
+  const authorized = scheme?.toLowerCase() === 'bearer' && token !== undefined && token === secret;
 
   if (!authorized) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 });

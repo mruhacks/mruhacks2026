@@ -6,11 +6,7 @@ import {
   sendContentErrors,
   type CampaignContent,
 } from '@/lib/campaigns/render-campaign-email';
-import {
-  applyMergeFields,
-  findUnknownMergeFields,
-  firstNameOf,
-} from '@/lib/campaigns/merge-fields';
+import { applyMergeFields, findUnknownMergeFields, firstNameOf } from '@/lib/campaigns/merge-fields';
 
 const BASE = 'https://app.example.com';
 
@@ -27,31 +23,17 @@ function content(overrides: Partial<CampaignContent> = {}): CampaignContent {
 
 describe('merge fields', () => {
   test('substitutes firstName with its fallbacks', () => {
-    expect(applyMergeFields('Hi {{firstName}}', { firstName: 'Ada' })).toBe(
-      'Hi Ada',
-    );
-    expect(applyMergeFields('Hi {{ firstName }}', { firstName: null })).toBe(
-      'Hi there',
-    );
-    expect(
-      applyMergeFields('Hi {{firstName|friend}}', { firstName: null }),
-    ).toBe('Hi friend');
+    expect(applyMergeFields('Hi {{firstName}}', { firstName: 'Ada' })).toBe('Hi Ada');
+    expect(applyMergeFields('Hi {{ firstName }}', { firstName: null })).toBe('Hi there');
+    expect(applyMergeFields('Hi {{firstName|friend}}', { firstName: null })).toBe('Hi friend');
   });
 
   test('escapes markdown in the inserted name when asked', () => {
-    expect(
-      applyMergeFields(
-        '{{firstName}}',
-        { firstName: '*Bob*' },
-        { escapeMarkdown: true },
-      ),
-    ).toBe('\\*Bob\\*');
+    expect(applyMergeFields('{{firstName}}', { firstName: '*Bob*' }, { escapeMarkdown: true })).toBe('\\*Bob\\*');
   });
 
   test('finds unknown and half-typed fields', () => {
-    expect(findUnknownMergeFields('Hi {{lastName}} {{firstName}}')).toEqual([
-      '{{lastName}}',
-    ]);
+    expect(findUnknownMergeFields('Hi {{lastName}} {{firstName}}')).toEqual(['{{lastName}}']);
     expect(findUnknownMergeFields('Hi {{firs')).toEqual(['{{']);
     expect(findUnknownMergeFields('Hi {{firstName|pal}}')).toEqual([]);
   });
@@ -62,23 +44,15 @@ describe('merge fields', () => {
   });
 
   test('unknown fields block saving and sending', () => {
-    expect(
-      draftContentErrors(content({ bodyMarkdown: 'Hi {{email}}' })),
-    ).toHaveLength(1);
-    expect(sendContentErrors(content({ subject: '' }))).toContain(
-      'Add a subject line.',
-    );
+    expect(draftContentErrors(content({ bodyMarkdown: 'Hi {{email}}' }))).toHaveLength(1);
+    expect(sendContentErrors(content({ subject: '' }))).toContain('Add a subject line.');
     expect(sendContentErrors(content())).toEqual([]);
   });
 });
 
 describe('renderCampaignEmail', () => {
   test('renders merge fields into subject, body and text', async () => {
-    const email = await renderCampaignEmail(
-      content(),
-      { firstName: 'Ada' },
-      { baseUrl: BASE },
-    );
+    const email = await renderCampaignEmail(content(), { firstName: 'Ada' }, { baseUrl: BASE });
     expect(email.subject).toBe('Hello Ada');
     expect(email.html).toContain('Hi Ada');
     expect(email.html).toContain('<strong>open</strong>');
@@ -113,8 +87,7 @@ describe('renderCampaignEmail', () => {
   test('renders a CTA button block in HTML and text', async () => {
     const email = await renderCampaignEmail(
       content({
-        bodyMarkdown:
-          'Ready?\n\n::cta{label="Register now" href="https://mruhacks.ca/register"}',
+        bodyMarkdown: 'Ready?\n\n::cta{label="Register now" href="https://mruhacks.ca/register"}',
       }),
       { firstName: null },
       { baseUrl: BASE },
@@ -126,11 +99,7 @@ describe('renderCampaignEmail', () => {
 
   test('a CTA with an unsafe link is dropped and blocks sending', async () => {
     const body = '::cta{label="Click" href="javascript:alert(1)"}';
-    const email = await renderCampaignEmail(
-      content({ bodyMarkdown: body }),
-      { firstName: null },
-      { baseUrl: BASE },
-    );
+    const email = await renderCampaignEmail(content({ bodyMarkdown: body }), { firstName: null }, { baseUrl: BASE });
     expect(email.html).not.toContain('javascript:');
     expect(sendContentErrors(content({ bodyMarkdown: body }))).toHaveLength(1);
   });
@@ -138,15 +107,12 @@ describe('renderCampaignEmail', () => {
   test('makes our own asset paths absolute and drops other relative images', async () => {
     const email = await renderCampaignEmail(
       content({
-        bodyMarkdown:
-          '![logo](/api/assets/campaign-content/abc.jpg)\n\n![x](/etc/passwd)',
+        bodyMarkdown: '![logo](/api/assets/campaign-content/abc.jpg)\n\n![x](/etc/passwd)',
       }),
       { firstName: null },
       { baseUrl: BASE },
     );
-    expect(email.html).toContain(
-      'src="https://app.example.com/api/assets/campaign-content/abc.jpg"',
-    );
+    expect(email.html).toContain('src="https://app.example.com/api/assets/campaign-content/abc.jpg"');
     expect(email.html).not.toContain('/etc/passwd');
   });
 
@@ -164,9 +130,7 @@ describe('renderCampaignEmail', () => {
       { firstName: null },
       { baseUrl: BASE },
     );
-    expect(operational.html).toContain(
-      'because you registered for MRUHacks 2026',
-    );
+    expect(operational.html).toContain('because you registered for MRUHacks 2026');
     expect(operational.html).not.toContain('Unsubscribe');
   });
 

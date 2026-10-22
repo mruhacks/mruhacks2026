@@ -66,9 +66,7 @@ export type AccountOverview = {
  * Summary of the signed-in account for the Account page header. Never exposes
  * secrets (passwords, OAuth tokens) — only the provider identifiers.
  */
-export async function getAccountOverview(): Promise<
-  ActionResult<AccountOverview>
-> {
+export async function getAccountOverview(): Promise<ActionResult<AccountOverview>> {
   const user = await getUser();
   if (!user) return fail('User not authenticated');
 
@@ -108,11 +106,7 @@ export async function getConsent(): Promise<ActionResult<ConsentData>> {
       .where(eq(privacyAcceptances.userId, user.id))
       .orderBy(desc(privacyAcceptances.acceptedAt))
       .limit(1),
-    db
-      .select()
-      .from(marketingConsents)
-      .where(eq(marketingConsents.userId, user.id))
-      .limit(1),
+    db.select().from(marketingConsents).where(eq(marketingConsents.userId, user.id)).limit(1),
   ]);
 
   const optedIn = marketingRow?.optedIn ?? false;
@@ -121,8 +115,7 @@ export async function getConsent(): Promise<ActionResult<ConsentData>> {
     marketingEmails: optedIn,
     // Only surface a timestamp while opted in — mirrors the withdrawal-clears
     // semantics the consent UI expects.
-    marketingConsentAt:
-      optedIn && marketingRow ? marketingRow.changedAt.toISOString() : null,
+    marketingConsentAt: optedIn && marketingRow ? marketingRow.changedAt.toISOString() : null,
     termsVersion: termsRow?.version ?? null,
     termsAcceptedAt: termsRow?.acceptedAt.toISOString() ?? null,
     privacyVersion: privacyRow?.version ?? null,
@@ -135,9 +128,7 @@ export async function getConsent(): Promise<ActionResult<ConsentData>> {
  * Privacy Policy. Used to gate onboarding on /welcome. True when either
  * document has never been accepted or was accepted at an older version.
  */
-export async function getConsentStatus(): Promise<
-  ActionResult<{ needsConsent: boolean }>
-> {
+export async function getConsentStatus(): Promise<ActionResult<{ needsConsent: boolean }>> {
   const user = await getUser();
   if (!user) return fail('User not authenticated');
 
@@ -149,9 +140,7 @@ export async function getConsentStatus(): Promise<
  * `changed_at` timestamp on the row is the auditable record of the most recent
  * opt-in or opt-out.
  */
-export async function setMarketingConsent(
-  optIn: boolean,
-): Promise<ActionResult<ConsentData>> {
+export async function setMarketingConsent(optIn: boolean): Promise<ActionResult<ConsentData>> {
   const user = await getUser();
   if (!user) return fail('User not authenticated');
 
@@ -171,9 +160,7 @@ export async function setMarketingConsent(
  * the current version isn't already the user's latest acceptance, so replaying
  * the flow doesn't create duplicate rows.
  */
-export async function recordOnboardingConsent(
-  marketingOptIn: boolean,
-): Promise<ActionResult<ConsentData>> {
+export async function recordOnboardingConsent(marketingOptIn: boolean): Promise<ActionResult<ConsentData>> {
   const user = await getUser();
   if (!user) return fail('User not authenticated');
 
@@ -193,22 +180,12 @@ export async function recordOnboardingConsent(
         .limit(1),
     ]);
 
-    const writes: Promise<unknown>[] = [
-      upsertMarketingConsent(user.id, marketingOptIn),
-    ];
+    const writes: Promise<unknown>[] = [upsertMarketingConsent(user.id, marketingOptIn)];
     if (latestTerms?.version !== CURRENT_TERMS_VERSION) {
-      writes.push(
-        db
-          .insert(termsAcceptances)
-          .values({ userId: user.id, version: CURRENT_TERMS_VERSION }),
-      );
+      writes.push(db.insert(termsAcceptances).values({ userId: user.id, version: CURRENT_TERMS_VERSION }));
     }
     if (latestPrivacy?.version !== CURRENT_PRIVACY_VERSION) {
-      writes.push(
-        db
-          .insert(privacyAcceptances)
-          .values({ userId: user.id, version: CURRENT_PRIVACY_VERSION }),
-      );
+      writes.push(db.insert(privacyAcceptances).values({ userId: user.id, version: CURRENT_PRIVACY_VERSION }));
     }
     await Promise.all(writes);
     revalidatePath('/welcome', 'layout');
@@ -245,19 +222,12 @@ export async function completeWelcomeOnboarding(): Promise<ActionResult> {
     .from(userProfileProfessional)
     .where(eq(userProfileProfessional.userId, currentUser.id))
     .limit(1);
-  if (
-    !profile ||
-    (!about && !professional) ||
-    (await userNeedsConsent(currentUser.id))
-  ) {
+  if (!profile || (!about && !professional) || (await userNeedsConsent(currentUser.id))) {
     return fail('Finish your profile and accept the required policies first.');
   }
 
   try {
-    await db
-      .update(authUser)
-      .set({ onboardingCompletedAt: new Date() })
-      .where(eq(authUser.id, currentUser.id));
+    await db.update(authUser).set({ onboardingCompletedAt: new Date() }).where(eq(authUser.id, currentUser.id));
     revalidatePath('/welcome', 'layout');
     return ok();
   } catch (error) {
@@ -307,15 +277,9 @@ export async function exportMyData(): Promise<ActionResult<unknown>> {
       linkedAccounts,
     ] = await Promise.all([
       db.select().from(userProfiles).where(eq(userProfiles.userId, uid)),
-      db
-        .select()
-        .from(userProfileAbout)
-        .where(eq(userProfileAbout.userId, uid)),
+      db.select().from(userProfileAbout).where(eq(userProfileAbout.userId, uid)),
       db.select().from(userInterests).where(eq(userInterests.userId, uid)),
-      db
-        .select()
-        .from(userDietaryRestrictions)
-        .where(eq(userDietaryRestrictions.userId, uid)),
+      db.select().from(userDietaryRestrictions).where(eq(userDietaryRestrictions.userId, uid)),
       db
         .select({
           id: eventParticipants.id,
@@ -327,19 +291,13 @@ export async function exportMyData(): Promise<ActionResult<unknown>> {
           updatedAt: eventParticipants.updatedAt,
         })
         .from(eventParticipants)
-        .innerJoin(
-          participationStatuses,
-          eq(eventParticipants.statusId, participationStatuses.id),
-        )
+        .innerJoin(participationStatuses, eq(eventParticipants.statusId, participationStatuses.id))
         .where(eq(eventParticipants.userId, uid)),
       db.select().from(checkIns).where(eq(checkIns.userId, uid)),
       db
         .select({ invitation: eventInvitations })
         .from(eventInvitations)
-        .innerJoin(
-          eventParticipants,
-          eq(eventInvitations.participantId, eventParticipants.id),
-        )
+        .innerJoin(eventParticipants, eq(eventInvitations.participantId, eventParticipants.id))
         .where(eq(eventParticipants.userId, uid))
         .then((rows) => rows.map((row) => row.invitation)),
       db
@@ -355,18 +313,9 @@ export async function exportMyData(): Promise<ActionResult<unknown>> {
         .innerJoin(teams, eq(teamMembers.teamId, teams.id))
         .innerJoin(events, eq(teams.eventId, events.id))
         .where(eq(teamMembers.userId, uid)),
-      db
-        .select()
-        .from(termsAcceptances)
-        .where(eq(termsAcceptances.userId, uid)),
-      db
-        .select()
-        .from(privacyAcceptances)
-        .where(eq(privacyAcceptances.userId, uid)),
-      db
-        .select()
-        .from(marketingConsents)
-        .where(eq(marketingConsents.userId, uid)),
+      db.select().from(termsAcceptances).where(eq(termsAcceptances.userId, uid)),
+      db.select().from(privacyAcceptances).where(eq(privacyAcceptances.userId, uid)),
+      db.select().from(marketingConsents).where(eq(marketingConsents.userId, uid)),
       // Linked auth providers only — no secrets.
       db
         .select({
@@ -399,9 +348,7 @@ export async function exportMyData(): Promise<ActionResult<unknown>> {
       },
       // Merged so the export's shape doesn't reveal the internal Personal/About
       // table split.
-      profile: profile[0]
-        ? { ...profile[0], ...(profileAbout[0] ?? {}) }
-        : null,
+      profile: profile[0] ? { ...profile[0], ...(profileAbout[0] ?? {}) } : null,
       interests,
       dietaryRestrictions,
       eventParticipation: participation,

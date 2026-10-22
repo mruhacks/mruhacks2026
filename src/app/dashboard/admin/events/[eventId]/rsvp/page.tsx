@@ -25,21 +25,12 @@ export default function EventRsvpRoute({ params }: Props) {
 }
 
 function RsvpSkeleton() {
-  return (
-    <div className='text-muted-foreground py-8 text-center'>Loading...</div>
-  );
+  return <div className='text-muted-foreground py-8 text-center'>Loading...</div>;
 }
 
-async function RsvpContent({
-  paramsPromise,
-}: {
-  paramsPromise: Props['params'];
-}) {
+async function RsvpContent({ paramsPromise }: { paramsPromise: Props['params'] }) {
   const { eventId: segment } = await paramsPromise;
-  const [eventId, user] = await Promise.all([
-    resolveEventId(segment),
-    getUser(),
-  ]);
+  const [eventId, user] = await Promise.all([resolveEventId(segment), getUser()]);
   if (!eventId) notFound();
   if (!user) redirect('/signin');
   // The same permission the read actions behind this page check, and the one

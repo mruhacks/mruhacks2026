@@ -12,13 +12,7 @@ import { Suspense } from 'react';
  */
 export const instant = false;
 
-export default function JudgingLayout({
-  children,
-  modal,
-}: {
-  children: React.ReactNode;
-  modal: React.ReactNode;
-}) {
+export default function JudgingLayout({ children, modal }: { children: React.ReactNode; modal: React.ReactNode }) {
   return (
     <>
       {children}

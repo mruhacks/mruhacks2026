@@ -37,47 +37,48 @@ type TurnstileProps = {
 
 /** Renders a Cloudflare Turnstile widget. Send the resulting token as the
  *  `x-captcha-response` header on the request it's meant to gate. */
-export const Turnstile = React.forwardRef<TurnstileHandle, TurnstileProps>(
-  function Turnstile({ siteKey, onVerify, onExpire, action, className }, ref) {
-    const containerRef = React.useRef<HTMLDivElement>(null);
-    const widgetIdRef = React.useRef<string | null>(null);
-    const [scriptReady, setScriptReady] = React.useState(false);
+export const Turnstile = React.forwardRef<TurnstileHandle, TurnstileProps>(function Turnstile(
+  { siteKey, onVerify, onExpire, action, className },
+  ref,
+) {
+  const containerRef = React.useRef<HTMLDivElement>(null);
+  const widgetIdRef = React.useRef<string | null>(null);
+  const [scriptReady, setScriptReady] = React.useState(false);
 
-    React.useImperativeHandle(ref, () => ({
-      reset: () => {
-        if (widgetIdRef.current) {
-          window.turnstile?.reset(widgetIdRef.current);
-        }
-      },
-    }));
+  React.useImperativeHandle(ref, () => ({
+    reset: () => {
+      if (widgetIdRef.current) {
+        window.turnstile?.reset(widgetIdRef.current);
+      }
+    },
+  }));
 
-    React.useEffect(() => {
-      if (!scriptReady || !containerRef.current || !window.turnstile) return;
+  React.useEffect(() => {
+    if (!scriptReady || !containerRef.current || !window.turnstile) return;
 
-      const widgetId = window.turnstile.render(containerRef.current, {
-        sitekey: siteKey,
-        action,
-        callback: onVerify,
-        'expired-callback': onExpire,
-      });
-      widgetIdRef.current = widgetId;
+    const widgetId = window.turnstile.render(containerRef.current, {
+      sitekey: siteKey,
+      action,
+      callback: onVerify,
+      'expired-callback': onExpire,
+    });
+    widgetIdRef.current = widgetId;
 
-      return () => {
-        window.turnstile?.remove(widgetId);
-        widgetIdRef.current = null;
-      };
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [scriptReady, siteKey, action]);
+    return () => {
+      window.turnstile?.remove(widgetId);
+      widgetIdRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scriptReady, siteKey, action]);
 
-    return (
-      <>
-        <Script
-          src='https://challenges.cloudflare.com/turnstile/v0/api.js'
-          strategy='afterInteractive'
-          onReady={() => setScriptReady(true)}
-        />
-        <div ref={containerRef} className={className} />
-      </>
-    );
-  },
-);
+  return (
+    <>
+      <Script
+        src='https://challenges.cloudflare.com/turnstile/v0/api.js'
+        strategy='afterInteractive'
+        onReady={() => setScriptReady(true)}
+      />
+      <div ref={containerRef} className={className} />
+    </>
+  );
+});

@@ -1,11 +1,6 @@
 import { and, count, eq } from 'drizzle-orm';
 
-import {
-  applicationVotes,
-  eventInvitations,
-  eventParticipants,
-  participationStatuses,
-} from '@/db/schema';
+import { applicationVotes, eventInvitations, eventParticipants, participationStatuses } from '@/db/schema';
 import type { ParticipationStatus } from '@/types/lookups';
 import { db } from '@/utils/db';
 
@@ -38,9 +33,7 @@ export async function insertParticipant(input: {
       userId: input.userId,
       statusId: await statusId(input.status),
       responses: input.responses === undefined ? {} : input.responses,
-      ...(input.createdAt
-        ? { createdAt: input.createdAt, updatedAt: input.createdAt }
-        : {}),
+      ...(input.createdAt ? { createdAt: input.createdAt, updatedAt: input.createdAt } : {}),
     })
     .returning({ id: eventParticipants.id });
   return row.id;
@@ -71,10 +64,7 @@ export async function insertVotes(input: {
  */
 export async function insertInvitation(input: {
   rsvpWaveId: string;
-  status?: Extract<
-    ParticipationStatus,
-    'invited' | 'accepted' | 'declined' | 'timed_out'
-  >;
+  status?: Extract<ParticipationStatus, 'invited' | 'accepted' | 'declined' | 'timed_out'>;
   participantId?: string;
   eventId?: string;
   userId?: string;
@@ -94,12 +84,7 @@ export async function insertInvitation(input: {
     const [existing] = await db
       .select({ id: eventParticipants.id })
       .from(eventParticipants)
-      .where(
-        and(
-          eq(eventParticipants.eventId, input.eventId),
-          eq(eventParticipants.userId, input.userId),
-        ),
-      )
+      .where(and(eq(eventParticipants.eventId, input.eventId), eq(eventParticipants.userId, input.userId)))
       .limit(1);
     participantId =
       existing?.id ??
@@ -123,56 +108,32 @@ export async function insertInvitation(input: {
       respondedAt: input.respondedAt ?? null,
       termsAcceptedAt: input.termsAcceptedAt ?? null,
       acceptedTermsId: input.acceptedTermsId ?? null,
-      ...(input.invitationEmailStatus
-        ? { invitationEmailStatus: input.invitationEmailStatus }
-        : {}),
+      ...(input.invitationEmailStatus ? { invitationEmailStatus: input.invitationEmailStatus } : {}),
       ...(input.invitationEmailAttempts !== undefined
         ? { invitationEmailAttempts: input.invitationEmailAttempts }
         : {}),
-      ...(input.createdAt
-        ? { createdAt: input.createdAt, updatedAt: input.createdAt }
-        : {}),
+      ...(input.createdAt ? { createdAt: input.createdAt, updatedAt: input.createdAt } : {}),
     })
     .returning({ id: eventInvitations.id });
   return { participantId, invitationId: invitation.id };
 }
 
 /** Stored (not effective) status label for (event, user), or null. */
-export async function getStatus(
-  eventId: string,
-  userId: string,
-): Promise<ParticipationStatus | null> {
+export async function getStatus(eventId: string, userId: string): Promise<ParticipationStatus | null> {
   const [row] = await db
     .select({ label: participationStatuses.label })
     .from(eventParticipants)
-    .innerJoin(
-      participationStatuses,
-      eq(eventParticipants.statusId, participationStatuses.id),
-    )
-    .where(
-      and(
-        eq(eventParticipants.eventId, eventId),
-        eq(eventParticipants.userId, userId),
-      ),
-    )
+    .innerJoin(participationStatuses, eq(eventParticipants.statusId, participationStatuses.id))
+    .where(and(eq(eventParticipants.eventId, eventId), eq(eventParticipants.userId, userId)))
     .limit(1);
   return (row?.label as ParticipationStatus | undefined) ?? null;
 }
 
-export async function setStatus(
-  eventId: string,
-  userId: string,
-  status: ParticipationStatus,
-): Promise<void> {
+export async function setStatus(eventId: string, userId: string, status: ParticipationStatus): Promise<void> {
   await db
     .update(eventParticipants)
     .set({ statusId: await statusId(status) })
-    .where(
-      and(
-        eq(eventParticipants.eventId, eventId),
-        eq(eventParticipants.userId, userId),
-      ),
-    );
+    .where(and(eq(eventParticipants.eventId, eventId), eq(eventParticipants.userId, userId)));
 }
 
 /** Participants holding a spot for an event. */
@@ -180,12 +141,7 @@ export async function countAccepted(eventId: string): Promise<number> {
   const [row] = await db
     .select({ c: count() })
     .from(eventParticipants)
-    .where(
-      and(
-        eq(eventParticipants.eventId, eventId),
-        eq(eventParticipants.statusId, await statusId('accepted')),
-      ),
-    );
+    .where(and(eq(eventParticipants.eventId, eventId), eq(eventParticipants.statusId, await statusId('accepted'))));
   return Number(row?.c ?? 0);
 }
 
@@ -209,9 +165,7 @@ export async function insertAttendees(
         userId: row.userId,
         statusId: accepted,
         responses: null,
-        ...(row.registeredAt
-          ? { createdAt: row.registeredAt, updatedAt: row.registeredAt }
-          : {}),
+        ...(row.registeredAt ? { createdAt: row.registeredAt, updatedAt: row.registeredAt } : {}),
       })),
     )
     .onConflictDoNothing();

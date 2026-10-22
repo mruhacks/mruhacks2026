@@ -2,14 +2,8 @@
 
 import * as React from 'react';
 
-import {
-  getEventRsvpSummary,
-  getEventWaitlist,
-} from '@/app/dashboard/admin/events/actions';
-import type {
-  AdminRsvpSummary,
-  WaitlistEntry,
-} from '@/app/dashboard/admin/events/actions';
+import { getEventRsvpSummary, getEventWaitlist } from '@/app/dashboard/admin/events/actions';
+import type { AdminRsvpSummary, WaitlistEntry } from '@/app/dashboard/admin/events/actions';
 import { AdminRsvpOverviewCard } from '@/app/dashboard/admin/events/AdminRsvpOverviewCard';
 import { RsvpSettingsCard } from '@/app/dashboard/admin/events/RsvpSettingsCard';
 import { RsvpWavesCard } from '@/app/dashboard/admin/events/RsvpWavesCard';
@@ -40,17 +34,10 @@ export function EventRsvpPage({
   /** Viewer holds `rsvp:write:all`: may close an open wave early. */
   canManageRsvp: boolean;
 }) {
-  const [rsvpResponseWindowHours, setRsvpResponseWindowHours] = React.useState(
-    initialResponseWindowHours,
-  );
-  const [rsvpSummary, setRsvpSummary] = React.useState<AdminRsvpSummary | null>(
-    null,
-  );
-  const [rsvpSummaryError, setRsvpSummaryError] = React.useState<string | null>(
-    null,
-  );
-  const [rsvpSummaryLoading, setRsvpSummaryLoading] =
-    React.useState(hasApplication);
+  const [rsvpResponseWindowHours, setRsvpResponseWindowHours] = React.useState(initialResponseWindowHours);
+  const [rsvpSummary, setRsvpSummary] = React.useState<AdminRsvpSummary | null>(null);
+  const [rsvpSummaryError, setRsvpSummaryError] = React.useState<string | null>(null);
+  const [rsvpSummaryLoading, setRsvpSummaryLoading] = React.useState(hasApplication);
   const [rsvpReloadToken, setRsvpReloadToken] = React.useState(0);
   const [waitlist, setWaitlist] = React.useState<WaitlistEntry[] | null>(null);
   const [waitlistError, setWaitlistError] = React.useState<string | null>(null);
@@ -78,9 +65,7 @@ export function EventRsvpPage({
         setRsvpSummaryError(null);
       } else if (!summaryResult.success) {
         setRsvpSummary(null);
-        setRsvpSummaryError(
-          summaryResult.error || 'Failed to load RSVP status',
-        );
+        setRsvpSummaryError(summaryResult.error || 'Failed to load RSVP status');
       }
       setRsvpSummaryLoading(false);
     }
@@ -106,11 +91,7 @@ export function EventRsvpPage({
     <div className='flex flex-col gap-6'>
       <h2 className='text-lg font-semibold'>RSVP</h2>
 
-      <AdminRsvpOverviewCard
-        summary={rsvpSummary}
-        loading={rsvpSummaryLoading}
-        error={rsvpSummaryError}
-      />
+      <AdminRsvpOverviewCard summary={rsvpSummary} loading={rsvpSummaryLoading} error={rsvpSummaryError} />
 
       {rsvpSummary && (
         <RsvpWavesCard

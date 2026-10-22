@@ -63,9 +63,7 @@ export function SendNextWaveButton({
         closeActiveWave: openWave !== null,
       });
       if (!result.success || !result.data) {
-        setError(
-          (!result.success && result.error) || 'Failed to send RSVP wave',
-        );
+        setError((!result.success && result.error) || 'Failed to send RSVP wave');
         return;
       }
       const data = result.data;
@@ -94,21 +92,13 @@ export function SendNextWaveButton({
         type='button'
         size='sm'
         disabled={disabled || blocked || isSubmitting}
-        title={
-          blocked
-            ? 'Closing an open wave early needs the RSVP management permission.'
-            : undefined
-        }
+        title={blocked ? 'Closing an open wave early needs the RSVP management permission.' : undefined}
         onClick={() => {
           setError(null);
           setConfirmOpen(true);
         }}
       >
-        {openWave
-          ? `Close wave ${openWave.wave} and send`
-          : isFirstWave
-            ? 'Start waves'
-            : 'Send now'}
+        {openWave ? `Close wave ${openWave.wave} and send` : isFirstWave ? 'Start waves' : 'Send now'}
       </Button>
 
       <Dialog
@@ -131,28 +121,17 @@ export function SendNextWaveButton({
               {openWave
                 ? `The ${openWave.waitingCount} ${openWave.waitingCount === 1 ? 'person' : 'people'} in wave ${openWave.wave} who haven't answered lose their invitation now. `
                 : ''}
-              Up to {inviteCount} {inviteCount === 1 ? 'person' : 'people'} from
-              the top of the waitlist will be invited and must respond within{' '}
-              {hours}. This cannot be undone.
-              {isFirstWave &&
-                ' Once this wave ends, the next ones go out automatically as spots open up.'}
+              Up to {inviteCount} {inviteCount === 1 ? 'person' : 'people'} from the top of the waitlist will be invited
+              and must respond within {hours}. This cannot be undone.
+              {isFirstWave && ' Once this wave ends, the next ones go out automatically as spots open up.'}
             </DialogDescription>
           </DialogHeader>
           {error && <FieldError errors={[{ message: error }]} />}
           <DialogFooter>
-            <Button
-              type='button'
-              variant='outline'
-              onClick={() => setConfirmOpen(false)}
-              disabled={isSubmitting}
-            >
+            <Button type='button' variant='outline' onClick={() => setConfirmOpen(false)} disabled={isSubmitting}>
               Cancel
             </Button>
-            <Button
-              type='button'
-              onClick={handleConfirm}
-              disabled={isSubmitting}
-            >
+            <Button type='button' onClick={handleConfirm} disabled={isSubmitting}>
               {isSubmitting ? 'Sending…' : 'Send wave'}
             </Button>
           </DialogFooter>

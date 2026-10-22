@@ -1,7 +1,6 @@
 import { z } from 'zod';
 
-const requiredOption = (message: string) =>
-  z.coerce.number(message).int().positive(message);
+const requiredOption = (message: string) => z.coerce.number(message).int().positive(message);
 
 /**
  * Validates an optional profile link against a single allowed host (exact
@@ -29,10 +28,7 @@ function socialUrlSchema(host: string, label: string) {
       }
 
       const hostname = url.hostname.toLowerCase().replace(/^www\./, '');
-      if (
-        (url.protocol !== 'http:' && url.protocol !== 'https:') ||
-        hostname !== host
-      ) {
+      if ((url.protocol !== 'http:' && url.protocol !== 'https:') || hostname !== host) {
         ctx.addIssue({
           code: 'custom',
           message: `Enter a ${label} URL (${host}).`,
@@ -44,9 +40,7 @@ function socialUrlSchema(host: string, label: string) {
       url.search = '';
       url.hash = '';
       const clean = url.toString();
-      return clean.length > 1 && clean.endsWith('/')
-        ? clean.slice(0, -1)
-        : clean;
+      return clean.length > 1 && clean.endsWith('/') ? clean.slice(0, -1) : clean;
     });
 }
 
@@ -54,12 +48,7 @@ export const linkedinUrlSchema = socialUrlSchema('linkedin.com', 'LinkedIn');
 export const githubUrlSchema = socialUrlSchema('github.com', 'GitHub');
 
 /** Free-text "please specify" companion for a select's "Other" option. */
-const otherTextSchema = z
-  .string()
-  .trim()
-  .max(255, 'Keep it under 255 characters.')
-  .optional()
-  .or(z.literal(''));
+const otherTextSchema = z.string().trim().max(255, 'Keep it under 255 characters.').optional().or(z.literal(''));
 
 /**
  * Mirrors the welcome wizard's Personal step: who you are, dietary needs and
@@ -87,16 +76,8 @@ export const aboutSchema = z.object({
 
 /** Professional-step payload: what judges fill in instead of the About step. */
 export const professionalSchema = z.object({
-  company: z
-    .string()
-    .trim()
-    .min(1, 'Enter your company or organization.')
-    .max(255, 'Keep it under 255 characters.'),
-  jobTitle: z
-    .string()
-    .trim()
-    .min(1, 'Enter your job title.')
-    .max(255, 'Keep it under 255 characters.'),
+  company: z.string().trim().min(1, 'Enter your company or organization.').max(255, 'Keep it under 255 characters.'),
+  jobTitle: z.string().trim().min(1, 'Enter your job title.').max(255, 'Keep it under 255 characters.'),
 });
 
 /** About-step payload, including the onboarding-only hackathon-history field. */
@@ -155,17 +136,12 @@ export type ProfileFormInput = z.infer<typeof profileFormOptionalAboutSchema>;
 export function hasStudentDetails(
   data: Pick<
     ProfileFormInput,
-    | (typeof ACADEMIC_FIELDS)[number]
-    | 'universityOtherText'
-    | 'majorOtherText'
-    | 'githubUrl'
+    (typeof ACADEMIC_FIELDS)[number] | 'universityOtherText' | 'majorOtherText' | 'githubUrl'
   >,
 ): boolean {
   return (
     ACADEMIC_FIELDS.some((field) => data[field] != null) ||
-    [data.universityOtherText, data.majorOtherText, data.githubUrl].some(
-      (value) => (value ?? '').trim() !== '',
-    )
+    [data.universityOtherText, data.majorOtherText, data.githubUrl].some((value) => (value ?? '').trim() !== '')
   );
 }
 

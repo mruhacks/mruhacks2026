@@ -5,11 +5,7 @@ import { sql } from 'drizzle-orm';
 
 import { signingPublicKeys } from '@/db/schema';
 import { db } from '@/utils/db';
-import {
-  getAppSigningPrivateKey,
-  getAppSigningPublicKey,
-  publicKeyToPem,
-} from './app-signing-key';
+import { getAppSigningPrivateKey, getAppSigningPublicKey, publicKeyToPem } from './app-signing-key';
 
 /**
  * Signed tokens carried by links in campaign emails:
@@ -53,13 +49,7 @@ function uuidToBytes(uuid: string): Buffer {
 
 function bytesToUuid(bytes: Buffer): string {
   const hex = bytes.toString('hex');
-  return [
-    hex.slice(0, 8),
-    hex.slice(8, 12),
-    hex.slice(12, 16),
-    hex.slice(16, 20),
-    hex.slice(20, 32),
-  ].join('-');
+  return [hex.slice(0, 8), hex.slice(8, 12), hex.slice(12, 16), hex.slice(16, 20), hex.slice(20, 32)].join('-');
 }
 
 // ── Stored public keys ─────────────────────────────────────────────────────
@@ -101,9 +91,7 @@ async function verificationKeys(): Promise<KeyObject[]> {
       revokedAt: signingPublicKeys.revokedAt,
     })
     .from(signingPublicKeys);
-  const revoked = new Set(
-    rows.filter((row) => row.revokedAt).map((row) => row.publicKey),
-  );
+  const revoked = new Set(rows.filter((row) => row.revokedAt).map((row) => row.publicKey));
 
   const keys: KeyObject[] = [];
   let currentPem: string | null = null;
@@ -127,26 +115,15 @@ async function verificationKeys(): Promise<KeyObject[]> {
 
 // ── Generic sign / open ────────────────────────────────────────────────────
 
-async function signToken(
-  kind: TokenKind,
-  version: number,
-  data: Buffer,
-): Promise<string> {
+async function signToken(kind: TokenKind, version: number, data: Buffer): Promise<string> {
   await recordCurrentPublicKey();
   const body = Buffer.concat([Buffer.from([version]), data]);
-  const signature = sign(
-    null,
-    Buffer.concat([KIND_LABELS[kind], body]),
-    getAppSigningPrivateKey(),
-  );
+  const signature = sign(null, Buffer.concat([KIND_LABELS[kind], body]), getAppSigningPrivateKey());
   return Buffer.concat([body, signature]).toString('base64url');
 }
 
 /** `{ version, data }` once the signature checks out against any accepted key, else null. */
-async function openToken(
-  kind: TokenKind,
-  token: string,
-): Promise<{ version: number; data: Buffer } | null> {
+async function openToken(kind: TokenKind, token: string): Promise<{ version: number; data: Buffer } | null> {
   if (typeof token !== 'string' || !/^[A-Za-z0-9_-]+$/.test(token)) {
     return null;
   }
@@ -173,17 +150,11 @@ async function openToken(
 
 /** Unsubscribe v1: the recipient's email address, UTF-8. Never expires. */
 export function buildUnsubscribeToken(email: string): Promise<string> {
-  return signToken(
-    'unsubscribe',
-    UNSUBSCRIBE_V1,
-    Buffer.from(email.trim().toLowerCase(), 'utf8'),
-  );
+  return signToken('unsubscribe', UNSUBSCRIBE_V1, Buffer.from(email.trim().toLowerCase(), 'utf8'));
 }
 
 /** The email address an unsubscribe token was issued for, or null. */
-export async function verifyUnsubscribeToken(
-  token: string,
-): Promise<{ email: string } | null> {
+export async function verifyUnsubscribeToken(token: string): Promise<{ email: string } | null> {
   const opened = await openToken('unsubscribe', token);
   if (!opened || opened.version !== UNSUBSCRIBE_V1) return null;
   const email = opened.data.toString('utf8');
@@ -193,20 +164,11 @@ export async function verifyUnsubscribeToken(
 // ── Wallet link ────────────────────────────────────────────────────────────
 
 /** Wallet link v1: userId (16 bytes) | eventId (16 bytes). Eligibility is checked when clicked. */
-export function buildWalletLinkToken(
-  userId: string,
-  eventId: string,
-): Promise<string> {
-  return signToken(
-    'wallet',
-    WALLET_V1,
-    Buffer.concat([uuidToBytes(userId), uuidToBytes(eventId)]),
-  );
+export function buildWalletLinkToken(userId: string, eventId: string): Promise<string> {
+  return signToken('wallet', WALLET_V1, Buffer.concat([uuidToBytes(userId), uuidToBytes(eventId)]));
 }
 
-export async function verifyWalletLinkToken(
-  token: string,
-): Promise<{ userId: string; eventId: string } | null> {
+export async function verifyWalletLinkToken(token: string): Promise<{ userId: string; eventId: string } | null> {
   const opened = await openToken('wallet', token);
   if (!opened || opened.version !== WALLET_V1) return null;
   if (opened.data.length !== UUID_LENGTH * 2) return null;

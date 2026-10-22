@@ -4,23 +4,14 @@ import { listPermissions } from '@/app/actions/roles';
 import { PermissionsTable } from './permissions-table';
 
 export default async function AdminPermissionsPage() {
-  const caller = await requireAuthWithPermission([
-    'permission:read:all',
-    'permission:write:all',
-    'user:all:all',
-  ]);
+  const caller = await requireAuthWithPermission(['permission:read:all', 'permission:write:all', 'user:all:all']);
 
   const res = await listPermissions();
-  const canWrite = await hasAnyPermission(caller.id, [
-    'permission:write:all',
-    'user:all:all',
-  ]);
+  const canWrite = await hasAnyPermission(caller.id, ['permission:write:all', 'user:all:all']);
 
   if (!res.success || !res.data) {
     return (
-      <div className='text-destructive text-sm'>
-        Failed to load permissions: {!res.success ? res.error : 'unknown'}
-      </div>
+      <div className='text-destructive text-sm'>Failed to load permissions: {!res.success ? res.error : 'unknown'}</div>
     );
   }
 

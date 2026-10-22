@@ -184,10 +184,7 @@ export function Aurora({ lightMode }: { lightMode: boolean }) {
     let frame = 0;
     const update = (time: number) => {
       const theme = themeRef.current;
-      const progress = Math.min(
-        (performance.now() - theme.startedAt) / THEME_TRANSITION_MS,
-        1,
-      );
+      const progress = Math.min((performance.now() - theme.startedAt) / THEME_TRANSITION_MS, 1);
       theme.value = theme.from + (theme.target - theme.from) * progress;
       program.uniforms.uTime.value = time * 0.001 * SPEED;
       program.uniforms.uLightMode.value = theme.value;

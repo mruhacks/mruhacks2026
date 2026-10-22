@@ -23,19 +23,13 @@ type Props = { params: Promise<{ eventId: string }> };
  */
 export default function JudgingRoute({ params }: Props) {
   return (
-    <React.Suspense
-      fallback={<div className='bg-muted h-64 animate-pulse rounded-xl' />}
-    >
+    <React.Suspense fallback={<div className='bg-muted h-64 animate-pulse rounded-xl' />}>
       <JudgingContent paramsPromise={params} />
     </React.Suspense>
   );
 }
 
-async function JudgingContent({
-  paramsPromise,
-}: {
-  paramsPromise: Props['params'];
-}) {
+async function JudgingContent({ paramsPromise }: { paramsPromise: Props['params'] }) {
   const { eventId: segment } = await paramsPromise;
   const eventId = await resolveEventId(segment);
   if (!eventId) notFound();
@@ -44,21 +38,16 @@ async function JudgingContent({
   // The same permission every action on this page checks.
   await requirePermission(user.id, 'judging:manage:all');
 
-  const [event, result, canViewResults, canAward, canCreateSignInQr] =
-    await Promise.all([
-      getAdminEventHeader(eventId),
-      getJudgingAdmin(eventId),
-      hasPermission(user.id, 'judging:results:all'),
-      hasPermission(user.id, 'judging:award:all'),
-      hasPermission(user.id, 'judging:signin:all'),
-    ]);
+  const [event, result, canViewResults, canAward, canCreateSignInQr] = await Promise.all([
+    getAdminEventHeader(eventId),
+    getJudgingAdmin(eventId),
+    hasPermission(user.id, 'judging:results:all'),
+    hasPermission(user.id, 'judging:award:all'),
+    hasPermission(user.id, 'judging:signin:all'),
+  ]);
   if (!event) notFound();
   if (!result.success || !result.data) {
-    return (
-      <p className='text-destructive'>
-        {!result.success ? result.error : 'Failed to load judging.'}
-      </p>
-    );
+    return <p className='text-destructive'>{!result.success ? result.error : 'Failed to load judging.'}</p>;
   }
   const data = result.data;
 
@@ -68,17 +57,14 @@ async function JudgingContent({
         <div>
           <h2 className='text-xl font-semibold'>Judging</h2>
           <p className='text-muted-foreground text-sm'>
-            Judges walk the expo comparing projects two at a time, from the
-            event&apos;s start to its end. The app tells each judge which table
-            to visit next.
+            Judges walk the expo comparing projects two at a time, from the event&apos;s start to its end. The app tells
+            each judge which table to visit next.
           </p>
         </div>
         {/* The results page serves both rankings and awards. */}
         {(canViewResults || canAward) && (
           <Button asChild variant='outline'>
-            <Link
-              href={`/dashboard/admin/events/${segment}/judging/results/overall`}
-            >
+            <Link href={`/dashboard/admin/events/${segment}/judging/results/overall`}>
               <Trophy aria-hidden />
               {canViewResults ? 'Results' : 'Awards'}
             </Link>
@@ -86,21 +72,9 @@ async function JudgingContent({
         )}
       </div>
 
-      <CriteriaCard
-        eventId={eventId}
-        criteria={data.criteria}
-        structureLocked={data.structureLocked}
-      />
-      <RosterCard
-        eventId={eventId}
-        judges={data.judges}
-        canCreateSignInQr={canCreateSignInQr}
-      />
-      <TableLayoutCard
-        eventId={eventId}
-        layout={data.tableLayout}
-        locked={data.layoutLocked}
-      />
+      <CriteriaCard eventId={eventId} criteria={data.criteria} structureLocked={data.structureLocked} />
+      <RosterCard eventId={eventId} judges={data.judges} canCreateSignInQr={canCreateSignInQr} />
+      <TableLayoutCard eventId={eventId} layout={data.tableLayout} locked={data.layoutLocked} />
     </div>
   );
 }

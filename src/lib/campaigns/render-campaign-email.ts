@@ -7,11 +7,7 @@ import type { RootContent } from 'mdast';
 
 import { CampaignEmail } from '@/emails/CampaignEmail';
 import type { CampaignType } from './constants';
-import {
-  emailBlockErrors,
-  emailMarkdownToText,
-  parseEmailMarkdown,
-} from './email-markdown';
+import { emailBlockErrors, emailMarkdownToText, parseEmailMarkdown } from './email-markdown';
 import { applyMergeFields, mergeFieldError } from './merge-fields';
 
 /** Absolute origin links and images in email point at. */
@@ -55,8 +51,7 @@ function footerFor(
       : "You're receiving this because you registered for an MRUHacks event.";
     return { html: because, text: because };
   }
-  const because =
-    "You're receiving this because you opted into email from MRUHacks.";
+  const because = "You're receiving this because you opted into email from MRUHacks.";
   // Previews have no signed link; they point at the account page instead so
   // the footer still reads exactly as it will when sent.
   const href = recipient.unsubscribeUrl ?? `${baseUrl}/dashboard/account`;
@@ -106,9 +101,7 @@ export async function renderCampaignEmail(
 ): Promise<{ subject: string; html: string; text: string }> {
   const baseUrl = options.baseUrl ?? getAppBaseUrl();
   const values = { firstName: recipient.firstName };
-  const tree = parseEmailMarkdown(
-    applyMergeFields(content.bodyMarkdown, values, { escapeMarkdown: true }),
-  );
+  const tree = parseEmailMarkdown(applyMergeFields(content.bodyMarkdown, values, { escapeMarkdown: true }));
   const subject = applyMergeFields(content.subject, values).trim();
   const preview = applyMergeFields(content.previewText, values).trim();
   const footer = footerFor(content, recipient, baseUrl);

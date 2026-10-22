@@ -12,22 +12,14 @@ import { useRouter } from 'next/navigation';
 import { X } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { FieldError } from '@/components/ui/field';
 import { Spinner } from '@/components/ui/spinner';
 import { cn } from '@/lib/utils';
 
 import { BIG, SKIP } from './judge-styles';
 
-type FormAction = (
-  formData: FormData,
-) => Promise<{ success: boolean; error?: string }>;
+type FormAction = (formData: FormData) => Promise<{ success: boolean; error?: string }>;
 
 const OFFLINE = 'Couldn’t reach the server. Check your connection.';
 
@@ -100,21 +92,11 @@ export function SubmitButton({
 }
 
 /** Asks why before skipping: not here may come back, a conflict won't. */
-export function SkipButton({
-  action,
-  currentId,
-}: {
-  action: FormAction;
-  currentId: string;
-}) {
+export function SkipButton({ action, currentId }: { action: FormAction; currentId: string }) {
   const [open, setOpen] = React.useState(false);
   return (
     <>
-      <Button
-        type='button'
-        className={cn(BIG, SKIP)}
-        onClick={() => setOpen(true)}
-      >
+      <Button type='button' className={cn(BIG, SKIP)} onClick={() => setOpen(true)}>
         <X />
         Skip
       </Button>
@@ -123,36 +105,19 @@ export function SkipButton({
           <DialogHeader>
             <DialogTitle>Why are you skipping it?</DialogTitle>
             <DialogDescription>
-              If the team isn&apos;t here you may be sent back later. A conflict
-              of interest means you won&apos;t see this project again.
+              If the team isn&apos;t here you may be sent back later. A conflict of interest means you won&apos;t see
+              this project again.
             </DialogDescription>
           </DialogHeader>
-          <ActionForm
-            action={action}
-            onSuccess={() => setOpen(false)}
-            className='flex flex-col gap-2'
-          >
+          <ActionForm action={action} onSuccess={() => setOpen(false)} className='flex flex-col gap-2'>
             <input type='hidden' name='currentId' value={currentId} />
-            <SubmitButton
-              name='reason'
-              value='not_here'
-              className={cn(BIG, SKIP)}
-            >
+            <SubmitButton name='reason' value='not_here' className={cn(BIG, SKIP)}>
               Team not here
             </SubmitButton>
-            <SubmitButton
-              name='reason'
-              value='conflict'
-              className={cn(BIG, SKIP)}
-            >
+            <SubmitButton name='reason' value='conflict' className={cn(BIG, SKIP)}>
               Conflict of interest
             </SubmitButton>
-            <Button
-              type='button'
-              variant='ghost'
-              size='lg'
-              onClick={() => setOpen(false)}
-            >
+            <Button type='button' variant='ghost' size='lg' onClick={() => setOpen(false)}>
               Cancel
             </Button>
           </ActionForm>

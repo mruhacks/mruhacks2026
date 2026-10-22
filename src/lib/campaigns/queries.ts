@@ -3,14 +3,7 @@ import 'server-only';
 import { asc, desc, eq } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 
-import {
-  campaigns,
-  events,
-  role,
-  user,
-  type CampaignStatus,
-  type CampaignType,
-} from '@/db/schema';
+import { campaigns, events, role, user, type CampaignStatus, type CampaignType } from '@/db/schema';
 import { db } from '@/utils/db';
 import type { AudienceOptions } from './audience-options';
 
@@ -73,9 +66,7 @@ export async function getCampaign(id: string): Promise<CampaignDetail | null> {
   return {
     ...row.campaign,
     eventName: row.eventName,
-    walletAllowed: Boolean(
-      row.campaign.eventId && row.eventCheckInEnabled && !row.eventParentId,
-    ),
+    walletAllowed: Boolean(row.campaign.eventId && row.eventCheckInEnabled && !row.eventParentId),
     updatedByName: row.updatedByName,
   };
 }
@@ -93,10 +84,7 @@ export async function getAudienceOptions(): Promise<AudienceOptions> {
       })
       .from(events)
       .orderBy(desc(events.startsAt), asc(events.name)),
-    db
-      .select({ id: role.id, slug: role.slug, description: role.description })
-      .from(role)
-      .orderBy(asc(role.slug)),
+    db.select({ id: role.id, slug: role.slug, description: role.description }).from(role).orderBy(asc(role.slug)),
   ]);
 
   const topLevel = eventRows.filter((row) => !row.parentEventId);

@@ -30,9 +30,7 @@ export function InviteUserDialog({ roles, onInvited }: InviteUserDialogProps) {
   const queryClient = useQueryClient();
   const [open, setOpen] = React.useState(false);
   const [email, setEmail] = React.useState('');
-  const [selectedRoleIds, setSelectedRoleIds] = React.useState<Set<number>>(
-    new Set(),
-  );
+  const [selectedRoleIds, setSelectedRoleIds] = React.useState<Set<number>>(new Set());
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -88,16 +86,12 @@ export function InviteUserDialog({ roles, onInvited }: InviteUserDialogProps) {
         <DialogHeader>
           <DialogTitle>Invite user</DialogTitle>
           <DialogDescription>
-            For someone without an account yet. They’ll get a magic link to sign
-            in, and their chosen roles are applied when they do.
+            For someone without an account yet. They’ll get a magic link to sign in, and their chosen roles are applied
+            when they do.
           </DialogDescription>
         </DialogHeader>
 
-        <form
-          id='form-invite-user'
-          onSubmit={handleSubmit}
-          className='space-y-4'
-        >
+        <form id='form-invite-user' onSubmit={handleSubmit} className='space-y-4'>
           <div className='space-y-2'>
             <Label htmlFor='invite-email'>Email</Label>
             <Input
@@ -121,10 +115,7 @@ export function InviteUserDialog({ roles, onInvited }: InviteUserDialogProps) {
               <Label>Roles</Label>
               <div className='max-h-56 space-y-2 overflow-y-auto rounded-md border p-3'>
                 {roles.map((r) => (
-                  <label
-                    key={r.id}
-                    className='hover:bg-muted/50 flex items-center gap-2 rounded-md p-1 text-sm'
-                  >
+                  <label key={r.id} className='hover:bg-muted/50 flex items-center gap-2 rounded-md p-1 text-sm'>
                     <Checkbox
                       checked={selectedRoleIds.has(r.id)}
                       onCheckedChange={(v) => toggle(r.id, Boolean(v))}
@@ -141,18 +132,10 @@ export function InviteUserDialog({ roles, onInvited }: InviteUserDialogProps) {
         </form>
 
         <DialogFooter>
-          <Button
-            variant='outline'
-            onClick={() => setOpen(false)}
-            disabled={submitting}
-          >
+          <Button variant='outline' onClick={() => setOpen(false)} disabled={submitting}>
             Cancel
           </Button>
-          <Button
-            type='submit'
-            form='form-invite-user'
-            disabled={submitting || !email}
-          >
+          <Button type='submit' form='form-invite-user' disabled={submitting || !email}>
             {submitting ? 'Sending…' : 'Send invite'}
           </Button>
         </DialogFooter>

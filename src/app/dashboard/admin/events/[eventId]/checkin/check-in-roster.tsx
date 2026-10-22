@@ -48,10 +48,7 @@ export function CheckInRoster({
         if (filter === 'arrived' && !row.checkedInAt) return false;
         if (filter === 'not-here' && row.atMainEvent) return false;
         if (!needle) return true;
-        return (
-          row.name.toLowerCase().includes(needle) ||
-          row.email.toLowerCase().includes(needle)
-        );
+        return row.name.toLowerCase().includes(needle) || row.email.toLowerCase().includes(needle);
       })
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [rows, query, filter]);
@@ -109,9 +106,7 @@ export function CheckInRoster({
 
       {matches.length === 0 ? (
         <p className='text-muted-foreground rounded-lg border border-dashed py-10 text-center text-sm'>
-          {rows.length === 0
-            ? 'Nobody is registered for this event yet.'
-            : 'No one matches that search.'}
+          {rows.length === 0 ? 'Nobody is registered for this event yet.' : 'No one matches that search.'}
         </p>
       ) : (
         <ul className='divide-y rounded-lg border'>
@@ -152,14 +147,7 @@ type RosterRowProps = {
   onUndo: (row: CheckInRosterRow) => void;
 };
 
-function RosterRow({
-  row,
-  pending,
-  requiresDoorCheckIn,
-  frozen,
-  onCheckIn,
-  onUndo,
-}: RosterRowProps) {
+function RosterRow({ row, pending, requiresDoorCheckIn, frozen, onCheckIn, onUndo }: RosterRowProps) {
   const awaitingDoor = requiresDoorCheckIn && !row.atMainEvent;
 
   return (
@@ -176,9 +164,7 @@ function RosterRow({
               In at {row.checkedInAtLabel}
             </Badge>
             {row.checkedInByName && (
-              <span className='text-muted-foreground truncate text-xs'>
-                by {row.checkedInByName}
-              </span>
+              <span className='text-muted-foreground truncate text-xs'>by {row.checkedInByName}</span>
             )}
           </div>
         ) : awaitingDoor ? (

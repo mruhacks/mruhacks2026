@@ -2,19 +2,8 @@ import 'server-only';
 
 import { desc, eq, inArray } from 'drizzle-orm';
 
-import {
-  eventInvitations,
-  eventParticipants,
-  eventRsvpWaves,
-  events,
-  participationStatuses,
-  user,
-} from '@/db/schema';
-import {
-  isInvitationStatus,
-  resolveEffectiveStatus,
-  type InvitationStatus,
-} from '@/lib/participation/status';
+import { eventInvitations, eventParticipants, eventRsvpWaves, events, participationStatuses, user } from '@/db/schema';
+import { isInvitationStatus, resolveEffectiveStatus, type InvitationStatus } from '@/lib/participation/status';
 import { isRsvpWaveActive } from '@/lib/rsvp/compute-rsvp-respond-by';
 import { getEligibleRsvpApplicants } from '@/lib/rsvp/eligible-rsvp-applicants';
 import { db } from '@/utils/db';
@@ -29,12 +18,7 @@ export type AdminRsvpLifecycle =
   | 'event_started';
 
 /** Invitation email delivery state, separate from the RSVP decision itself. */
-export type RsvpInvitationEmailStatus =
-  | 'legacy'
-  | 'unsent'
-  | 'queued'
-  | 'sent'
-  | 'failed';
+export type RsvpInvitationEmailStatus = 'legacy' | 'unsent' | 'queued' | 'sent' | 'failed';
 
 export type AdminRsvpParticipant = {
   responseId: string;
@@ -119,11 +103,7 @@ function summarizeWave(options: {
   }[];
 }): AdminRsvpWaveSummary {
   const participants: AdminRsvpParticipant[] = options.rows.map((row) => {
-    const status = resolveEffectiveStatus(
-      row.storedLabel,
-      options.respondBy,
-      options.now,
-    );
+    const status = resolveEffectiveStatus(row.storedLabel, options.respondBy, options.now);
     return {
       responseId: row.responseId,
       userId: row.userId,
@@ -134,14 +114,12 @@ function summarizeWave(options: {
       statusLabel: isInvitationStatus(status) ? status : 'invited',
       respondedAt: row.respondedAt,
       termsAcceptedAt: row.termsAcceptedAt,
-      invitationEmailStatus:
-        row.invitationEmailStatus as RsvpInvitationEmailStatus,
+      invitationEmailStatus: row.invitationEmailStatus as RsvpInvitationEmailStatus,
     };
   });
 
   participants.sort((a, b) => {
-    const statusDiff =
-      STATUS_SORT_ORDER[a.statusLabel] - STATUS_SORT_ORDER[b.statusLabel];
+    const statusDiff = STATUS_SORT_ORDER[a.statusLabel] - STATUS_SORT_ORDER[b.statusLabel];
     if (statusDiff !== 0) return statusDiff;
     return a.name.localeCompare(b.name);
   });
@@ -176,10 +154,7 @@ function summarizeWave(options: {
  * Read-only RSVP overview for an event, derived from its waves, invitations,
  * participant statuses and eligibility — no extra tables.
  */
-export async function getAdminRsvpSummary(
-  eventId: string,
-  now: Date = new Date(),
-): Promise<AdminRsvpSummary | null> {
+export async function getAdminRsvpSummary(eventId: string, now: Date = new Date()): Promise<AdminRsvpSummary | null> {
   const [eventRow] = await db
     .select({
       id: events.id,
@@ -192,9 +167,7 @@ export async function getAdminRsvpSummary(
 
   if (!eventRow) return null;
 
-  const eventHasStarted = Boolean(
-    eventRow.startsAt && now.getTime() >= eventRow.startsAt.getTime(),
-  );
+  const eventHasStarted = Boolean(eventRow.startsAt && now.getTime() >= eventRow.startsAt.getTime());
 
   if (!eventRow.hasApplication) {
     return {
@@ -245,14 +218,8 @@ export async function getAdminRsvpSummary(
             invitationEmailStatus: eventInvitations.invitationEmailStatus,
           })
           .from(eventInvitations)
-          .innerJoin(
-            eventParticipants,
-            eq(eventInvitations.participantId, eventParticipants.id),
-          )
-          .innerJoin(
-            participationStatuses,
-            eq(eventParticipants.statusId, participationStatuses.id),
-          )
+          .innerJoin(eventParticipants, eq(eventInvitations.participantId, eventParticipants.id))
+          .innerJoin(participationStatuses, eq(eventParticipants.statusId, participationStatuses.id))
           .innerJoin(user, eq(eventParticipants.userId, user.id))
           .where(inArray(eventInvitations.rsvpWaveId, waveIds));
 

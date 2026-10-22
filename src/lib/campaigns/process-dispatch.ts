@@ -6,10 +6,7 @@ import { campaignDeliveries, campaigns } from '@/db/schema';
 import { writeAuditLog } from '@/utils/audit-log';
 import { db } from '@/utils/db';
 import { resolveAudience } from './audience';
-import {
-  deliveryDelaySeconds,
-  publishCampaignDelivery,
-} from './campaign-queue';
+import { deliveryDelaySeconds, publishCampaignDelivery } from './campaign-queue';
 import { currentCampaignRules } from './saved-audiences';
 
 export type ProcessDispatchOutcome =
@@ -43,12 +40,7 @@ export async function processCampaignDispatch(
   scheduledFor: string,
 ): Promise<ProcessDispatchOutcome> {
   const claimed = await db.transaction(async (tx) => {
-    const [campaign] = await tx
-      .select()
-      .from(campaigns)
-      .where(eq(campaigns.id, campaignId))
-      .for('update')
-      .limit(1);
+    const [campaign] = await tx.select().from(campaigns).where(eq(campaigns.id, campaignId)).for('update').limit(1);
     if (!campaign) return { kind: 'not_found' } as const;
     if (!['scheduled', 'sending'].includes(campaign.status)) {
       return { kind: 'not_scheduled', status: campaign.status } as const;
@@ -102,11 +94,7 @@ export async function processCampaignDispatch(
     } as const;
   });
 
-  if (
-    claimed.kind === 'not_found' ||
-    claimed.kind === 'not_scheduled' ||
-    claimed.kind === 'stale_schedule'
-  ) {
+  if (claimed.kind === 'not_found' || claimed.kind === 'not_scheduled' || claimed.kind === 'stale_schedule') {
     return claimed;
   }
 
@@ -136,21 +124,14 @@ export async function processCampaignDispatch(
  * `attempts` goes into its idempotency key, so a requeued row isn't taken
  * for a duplicate of its first publish.
  */
-export async function publishQueuedDeliveries(
-  campaignId: string,
-): Promise<number> {
+export async function publishQueuedDeliveries(campaignId: string): Promise<number> {
   const rows = await db
     .select({
       id: campaignDeliveries.id,
       attempts: campaignDeliveries.attempts,
     })
     .from(campaignDeliveries)
-    .where(
-      and(
-        eq(campaignDeliveries.campaignId, campaignId),
-        eq(campaignDeliveries.status, 'queued'),
-      ),
-    )
+    .where(and(eq(campaignDeliveries.campaignId, campaignId), eq(campaignDeliveries.status, 'queued')))
     .orderBy(asc(campaignDeliveries.queuedAt), asc(campaignDeliveries.id));
 
   let published = 0;
@@ -174,10 +155,7 @@ export async function publishQueuedDeliveries(
   if (failures.length > 0) {
     // Rethrowing makes the queue redeliver the dispatch message, which
     // resumes here; rows that did publish are deduplicated by key.
-    throw new AggregateError(
-      failures,
-      `Published ${published}/${rows.length} deliveries for campaign ${campaignId}`,
-    );
+    throw new AggregateError(failures, `Published ${published}/${rows.length} deliveries for campaign ${campaignId}`);
   }
   return published;
 }
@@ -187,9 +165,7 @@ export async function publishQueuedDeliveries(
  * queued. Called after every delivery reaches a final state; the
  * `NOT EXISTS` makes it a no-op until the last one.
  */
-export async function completeCampaignIfDone(
-  campaignId: string,
-): Promise<boolean> {
+export async function completeCampaignIfDone(campaignId: string): Promise<boolean> {
   const done = await db
     .update(campaigns)
     .set({ status: 'sent', sentAt: new Date() })

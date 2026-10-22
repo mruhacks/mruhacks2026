@@ -2,20 +2,9 @@ import { describe, test, expect, beforeAll, beforeEach, vi } from 'vitest';
 import { count, eq } from 'drizzle-orm';
 
 import { db } from '@/utils/db';
-import {
-  eventInvitations,
-  eventParticipants,
-  eventRsvpWaves,
-  events,
-  user,
-} from '@/db/schema';
+import { eventInvitations, eventParticipants, eventRsvpWaves, events, user } from '@/db/schema';
 import { runScheduledRsvpWaves } from '@/lib/rsvp/run-scheduled-rsvp-waves';
-import {
-  getStatus,
-  insertInvitation,
-  insertParticipant,
-  setStatus,
-} from '@/tests/participation-fixtures';
+import { getStatus, insertInvitation, insertParticipant, setStatus } from '@/tests/participation-fixtures';
 
 const { publishRsvpInvitation } = vi.hoisted(() => ({
   publishRsvpInvitation: vi.fn(),
@@ -24,11 +13,7 @@ vi.mock('@/lib/rsvp/rsvp-invitation-queue', () => ({
   publishRsvpInvitation,
 }));
 
-async function insertWaitlistedUser(
-  eventId: string,
-  email: string,
-  createdAt?: Date,
-): Promise<string> {
+async function insertWaitlistedUser(eventId: string, email: string, createdAt?: Date): Promise<string> {
   const [row] = await db
     .insert(user)
     .values({
@@ -95,14 +80,8 @@ describe('runScheduledRsvpWaves', () => {
       })
       .returning({ id: events.id });
 
-    const pendingUserId = await insertWaitlistedUser(
-      eventRow.id,
-      'scheduled-active-pending@example.com',
-    );
-    const waitingUserId = await insertWaitlistedUser(
-      eventRow.id,
-      'scheduled-active-waiting@example.com',
-    );
+    const pendingUserId = await insertWaitlistedUser(eventRow.id, 'scheduled-active-pending@example.com');
+    const waitingUserId = await insertWaitlistedUser(eventRow.id, 'scheduled-active-waiting@example.com');
 
     const [wave] = await db
       .insert(eventRsvpWaves)
@@ -127,12 +106,8 @@ describe('runScheduledRsvpWaves', () => {
       expect(match?.action).toBe('skipped_active_wave');
       expect(await waveCount(eventRow.id)).toBe(1);
     } finally {
-      await db
-        .delete(eventRsvpWaves)
-        .where(eq(eventRsvpWaves.eventId, eventRow.id));
-      await db
-        .delete(eventParticipants)
-        .where(eq(eventParticipants.eventId, eventRow.id));
+      await db.delete(eventRsvpWaves).where(eq(eventRsvpWaves.eventId, eventRow.id));
+      await db.delete(eventParticipants).where(eq(eventParticipants.eventId, eventRow.id));
       await db.delete(events).where(eq(events.id, eventRow.id));
       await db.delete(user).where(eq(user.id, pendingUserId));
       await db.delete(user).where(eq(user.id, waitingUserId));
@@ -150,14 +125,8 @@ describe('runScheduledRsvpWaves', () => {
       })
       .returning({ id: events.id });
 
-    const declinedUserId = await insertWaitlistedUser(
-      eventRow.id,
-      'scheduled-early-decline@example.com',
-    );
-    const waitingUserId = await insertWaitlistedUser(
-      eventRow.id,
-      'scheduled-early-waiting@example.com',
-    );
+    const declinedUserId = await insertWaitlistedUser(eventRow.id, 'scheduled-early-decline@example.com');
+    const waitingUserId = await insertWaitlistedUser(eventRow.id, 'scheduled-early-waiting@example.com');
 
     const [wave] = await db
       .insert(eventRsvpWaves)
@@ -184,12 +153,8 @@ describe('runScheduledRsvpWaves', () => {
       expect(await waveCount(eventRow.id)).toBe(1);
       expect(publishRsvpInvitation).not.toHaveBeenCalled();
     } finally {
-      await db
-        .delete(eventRsvpWaves)
-        .where(eq(eventRsvpWaves.eventId, eventRow.id));
-      await db
-        .delete(eventParticipants)
-        .where(eq(eventParticipants.eventId, eventRow.id));
+      await db.delete(eventRsvpWaves).where(eq(eventRsvpWaves.eventId, eventRow.id));
+      await db.delete(eventParticipants).where(eq(eventParticipants.eventId, eventRow.id));
       await db.delete(events).where(eq(events.id, eventRow.id));
       await db.delete(user).where(eq(user.id, declinedUserId));
       await db.delete(user).where(eq(user.id, waitingUserId));
@@ -210,10 +175,7 @@ describe('runScheduledRsvpWaves', () => {
       })
       .returning({ id: events.id });
 
-    const expiredUserId = await insertWaitlistedUser(
-      eventRow.id,
-      'scheduled-rsvp@example.com',
-    );
+    const expiredUserId = await insertWaitlistedUser(eventRow.id, 'scheduled-rsvp@example.com');
     const nextUserId = await insertWaitlistedUser(
       eventRow.id,
       'scheduled-rsvp-next@example.com',
@@ -255,12 +217,8 @@ describe('runScheduledRsvpWaves', () => {
       expect(secondMatch?.action).toBe('skipped_active_wave');
       expect(await waveCount(eventRow.id)).toBe(2);
     } finally {
-      await db
-        .delete(eventRsvpWaves)
-        .where(eq(eventRsvpWaves.eventId, eventRow.id));
-      await db
-        .delete(eventParticipants)
-        .where(eq(eventParticipants.eventId, eventRow.id));
+      await db.delete(eventRsvpWaves).where(eq(eventRsvpWaves.eventId, eventRow.id));
+      await db.delete(eventParticipants).where(eq(eventParticipants.eventId, eventRow.id));
       await db.delete(events).where(eq(events.id, eventRow.id));
       await db.delete(user).where(eq(user.id, expiredUserId));
       await db.delete(user).where(eq(user.id, nextUserId));
@@ -277,14 +235,8 @@ describe('runScheduledRsvpWaves', () => {
       })
       .returning({ id: events.id });
 
-    const attendeeId = await insertWaitlistedUser(
-      eventRow.id,
-      'scheduled-full-attendee@example.com',
-    );
-    const eligibleId = await insertWaitlistedUser(
-      eventRow.id,
-      'scheduled-full-eligible@example.com',
-    );
+    const attendeeId = await insertWaitlistedUser(eventRow.id, 'scheduled-full-attendee@example.com');
+    const eligibleId = await insertWaitlistedUser(eventRow.id, 'scheduled-full-eligible@example.com');
 
     await setStatus(eventRow.id, attendeeId, 'accepted');
     await db.insert(eventRsvpWaves).values({
@@ -302,12 +254,8 @@ describe('runScheduledRsvpWaves', () => {
       expect(match?.action).toBe('skipped_no_capacity');
       expect(await waveCount(eventRow.id)).toBe(1);
     } finally {
-      await db
-        .delete(eventRsvpWaves)
-        .where(eq(eventRsvpWaves.eventId, eventRow.id));
-      await db
-        .delete(eventParticipants)
-        .where(eq(eventParticipants.eventId, eventRow.id));
+      await db.delete(eventRsvpWaves).where(eq(eventRsvpWaves.eventId, eventRow.id));
+      await db.delete(eventParticipants).where(eq(eventParticipants.eventId, eventRow.id));
       await db.delete(events).where(eq(events.id, eventRow.id));
       await db.delete(user).where(eq(user.id, attendeeId));
       await db.delete(user).where(eq(user.id, eligibleId));
@@ -354,20 +302,13 @@ describe('runScheduledRsvpWaves', () => {
       const invited = await db
         .select({ userId: eventParticipants.userId })
         .from(eventInvitations)
-        .innerJoin(
-          eventParticipants,
-          eq(eventInvitations.participantId, eventParticipants.id),
-        )
+        .innerJoin(eventParticipants, eq(eventInvitations.participantId, eventParticipants.id))
         .where(eq(eventParticipants.eventId, eventRow.id));
       expect(invited.map((row) => row.userId)).toContain(userAId);
       expect(invited.map((row) => row.userId)).not.toContain(userBId);
     } finally {
-      await db
-        .delete(eventRsvpWaves)
-        .where(eq(eventRsvpWaves.eventId, eventRow.id));
-      await db
-        .delete(eventParticipants)
-        .where(eq(eventParticipants.eventId, eventRow.id));
+      await db.delete(eventRsvpWaves).where(eq(eventRsvpWaves.eventId, eventRow.id));
+      await db.delete(eventParticipants).where(eq(eventParticipants.eventId, eventRow.id));
       await db.delete(events).where(eq(events.id, eventRow.id));
       await db.delete(user).where(eq(user.id, userAId));
       await db.delete(user).where(eq(user.id, userBId));
@@ -384,10 +325,7 @@ describe('runScheduledRsvpWaves', () => {
       })
       .returning({ id: events.id });
 
-    const applicantId = await insertWaitlistedUser(
-      eventRow.id,
-      'scheduled-still-pending@example.com',
-    );
+    const applicantId = await insertWaitlistedUser(eventRow.id, 'scheduled-still-pending@example.com');
 
     const [priorWave] = await db
       .insert(eventRsvpWaves)
@@ -416,12 +354,8 @@ describe('runScheduledRsvpWaves', () => {
 
       expect(await getStatus(eventRow.id, applicantId)).toBe('timed_out');
     } finally {
-      await db
-        .delete(eventRsvpWaves)
-        .where(eq(eventRsvpWaves.eventId, eventRow.id));
-      await db
-        .delete(eventParticipants)
-        .where(eq(eventParticipants.eventId, eventRow.id));
+      await db.delete(eventRsvpWaves).where(eq(eventRsvpWaves.eventId, eventRow.id));
+      await db.delete(eventParticipants).where(eq(eventParticipants.eventId, eventRow.id));
       await db.delete(events).where(eq(events.id, eventRow.id));
       await db.delete(user).where(eq(user.id, applicantId));
     }
@@ -438,10 +372,7 @@ describe('runScheduledRsvpWaves', () => {
       })
       .returning({ id: events.id });
 
-    const applicantId = await insertWaitlistedUser(
-      eventRow.id,
-      'scheduled-started@example.com',
-    );
+    const applicantId = await insertWaitlistedUser(eventRow.id, 'scheduled-started@example.com');
 
     await db.insert(eventRsvpWaves).values({
       eventId: eventRow.id,
@@ -456,12 +387,8 @@ describe('runScheduledRsvpWaves', () => {
       expect(match?.action).toBe('skipped_event_started');
       expect(await waveCount(eventRow.id)).toBe(1);
     } finally {
-      await db
-        .delete(eventRsvpWaves)
-        .where(eq(eventRsvpWaves.eventId, eventRow.id));
-      await db
-        .delete(eventParticipants)
-        .where(eq(eventParticipants.eventId, eventRow.id));
+      await db.delete(eventRsvpWaves).where(eq(eventRsvpWaves.eventId, eventRow.id));
+      await db.delete(eventParticipants).where(eq(eventParticipants.eventId, eventRow.id));
       await db.delete(events).where(eq(events.id, eventRow.id));
       await db.delete(user).where(eq(user.id, applicantId));
     }
@@ -478,10 +405,7 @@ describe('runScheduledRsvpWaves', () => {
       })
       .returning({ id: events.id });
 
-    const applicantId = await insertWaitlistedUser(
-      eventRow.id,
-      'scheduled-concurrent@example.com',
-    );
+    const applicantId = await insertWaitlistedUser(eventRow.id, 'scheduled-concurrent@example.com');
 
     await db.insert(eventRsvpWaves).values({
       eventId: eventRow.id,
@@ -491,23 +415,14 @@ describe('runScheduledRsvpWaves', () => {
     });
 
     try {
-      const [first, second] = await Promise.all([
-        runScheduledRsvpWaves({ now }),
-        runScheduledRsvpWaves({ now }),
-      ]);
-      const actions = [first, second].map(
-        (run) => run.results.find((r) => r.eventId === eventRow.id)?.action,
-      );
+      const [first, second] = await Promise.all([runScheduledRsvpWaves({ now }), runScheduledRsvpWaves({ now })]);
+      const actions = [first, second].map((run) => run.results.find((r) => r.eventId === eventRow.id)?.action);
       expect(actions).toContain('sent');
       expect(actions.filter((action) => action === 'sent')).toHaveLength(1);
       expect(await waveCount(eventRow.id)).toBe(2);
     } finally {
-      await db
-        .delete(eventRsvpWaves)
-        .where(eq(eventRsvpWaves.eventId, eventRow.id));
-      await db
-        .delete(eventParticipants)
-        .where(eq(eventParticipants.eventId, eventRow.id));
+      await db.delete(eventRsvpWaves).where(eq(eventRsvpWaves.eventId, eventRow.id));
+      await db.delete(eventParticipants).where(eq(eventParticipants.eventId, eventRow.id));
       await db.delete(events).where(eq(events.id, eventRow.id));
       await db.delete(user).where(eq(user.id, applicantId));
     }

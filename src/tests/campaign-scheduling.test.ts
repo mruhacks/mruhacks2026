@@ -1,12 +1,4 @@
-import {
-  afterAll,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  test,
-  vi,
-} from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
 import { eq, inArray } from 'drizzle-orm';
 
 import { db } from '@/utils/db';
@@ -32,10 +24,7 @@ vi.mock('next/cache', async (importOriginal) => ({
 import { getUser } from '@/utils/auth';
 import { dispatchDueCampaigns } from '@/lib/campaigns/dispatch-due-campaigns';
 import { processCampaignDispatch } from '@/lib/campaigns/process-dispatch';
-import {
-  scheduleCampaign,
-  unscheduleCampaign,
-} from '@/app/dashboard/admin/campaigns/send-actions';
+import { scheduleCampaign, unscheduleCampaign } from '@/app/dashboard/admin/campaigns/send-actions';
 
 let senderId: string;
 let memberId: string;
@@ -49,9 +38,7 @@ function wholeHour(offsetHours: number): Date {
   return d;
 }
 
-async function newCampaign(
-  overrides: Partial<typeof campaigns.$inferInsert> = {},
-): Promise<string> {
+async function newCampaign(overrides: Partial<typeof campaigns.$inferInsert> = {}): Promise<string> {
   const [row] = await db
     .insert(campaigns)
     .values({
@@ -72,16 +59,11 @@ async function newCampaign(
 
 /** Dispatch messages the cron published for one campaign. */
 function dispatchesFor(id: string) {
-  return send.mock.calls.filter(
-    (c) => c[0] === 'campaign-dispatch' && c[1].campaignId === id,
-  );
+  return send.mock.calls.filter((c) => c[0] === 'campaign-dispatch' && c[1].campaignId === id);
 }
 
 beforeAll(async () => {
-  const [event] = await db
-    .insert(events)
-    .values({ name: 'Scheduling event' })
-    .returning({ id: events.id });
+  const [event] = await db.insert(events).values({ name: 'Scheduling event' }).returning({ id: events.id });
   eventId = event.id;
   const [member] = await db
     .insert(user)
@@ -92,9 +74,7 @@ beforeAll(async () => {
     })
     .returning({ id: user.id });
   memberId = member.id;
-  await db
-    .insert(marketingConsents)
-    .values({ userId: memberId, optedIn: true });
+  await db.insert(marketingConsents).values({ userId: memberId, optedIn: true });
   await insertAttendees({ eventId, userId: memberId });
 
   const [sender] = await db
@@ -114,9 +94,7 @@ beforeAll(async () => {
       set: { slug: 'campaign:send:all' },
     })
     .returning({ id: permission.id });
-  await db
-    .insert(userPermission)
-    .values({ userId: senderId, permissionId: p.id });
+  await db.insert(userPermission).values({ userId: senderId, permissionId: p.id });
 });
 
 beforeEach(() => {
@@ -186,9 +164,7 @@ describe('hourly dispatch', () => {
     // Both runs publish with the same idempotency key, so the queue keeps one…
     const published = dispatchesFor(id);
     expect(published).toHaveLength(2);
-    expect(new Set(published.map((c) => c[2].idempotencyKey))).toEqual(
-      new Set([`${id}:${due.toISOString()}`]),
-    );
+    expect(new Set(published.map((c) => c[2].idempotencyKey))).toEqual(new Set([`${id}:${due.toISOString()}`]));
     expect(dispatchesFor(future)).toHaveLength(0);
 
     // …and even if both were delivered, only one claims the campaign.
@@ -196,12 +172,7 @@ describe('hourly dispatch', () => {
     const second = await processCampaignDispatch(id, due.toISOString());
     expect(first).toMatchObject({ kind: 'dispatched', recipients: 1 });
     expect(second).toMatchObject({ kind: 'resumed' });
-    expect(
-      await db
-        .select()
-        .from(campaignDeliveries)
-        .where(eq(campaignDeliveries.campaignId, id)),
-    ).toHaveLength(1);
+    expect(await db.select().from(campaignDeliveries).where(eq(campaignDeliveries.campaignId, id))).toHaveLength(1);
   });
 
   test('an unscheduled campaign is not dispatched', async () => {
@@ -213,9 +184,7 @@ describe('hourly dispatch', () => {
     await dispatchDueCampaigns();
     expect(dispatchesFor(id)).toHaveLength(0);
     // A dispatch message that was already in flight doesn't claim it either.
-    expect(
-      await processCampaignDispatch(id, wholeHour(-2).toISOString()),
-    ).toEqual({
+    expect(await processCampaignDispatch(id, wholeHour(-2).toISOString())).toEqual({
       kind: 'not_scheduled',
       status: 'draft',
     });
@@ -229,9 +198,7 @@ describe('hourly dispatch', () => {
     });
     await unscheduleCampaign(id);
     const future = wholeHour(3);
-    expect((await scheduleCampaign(id, future.toISOString())).success).toBe(
-      true,
-    );
+    expect((await scheduleCampaign(id, future.toISOString())).success).toBe(true);
     expect(await processCampaignDispatch(id, oldTime.toISOString())).toEqual({
       kind: 'stale_schedule',
     });
@@ -239,17 +206,15 @@ describe('hourly dispatch', () => {
       kind: 'stale_schedule',
     });
     const laterDue = wholeHour(-1);
-    await db
-      .update(campaigns)
-      .set({ scheduledFor: laterDue })
-      .where(eq(campaigns.id, id));
+    await db.update(campaigns).set({ scheduledFor: laterDue }).where(eq(campaigns.id, id));
     expect(await processCampaignDispatch(id, oldTime.toISOString())).toEqual({
       kind: 'stale_schedule',
     });
     expect(send).not.toHaveBeenCalled();
-    expect(
-      await processCampaignDispatch(id, laterDue.toISOString()),
-    ).toMatchObject({ kind: 'dispatched', recipients: 1 });
+    expect(await processCampaignDispatch(id, laterDue.toISOString())).toMatchObject({
+      kind: 'dispatched',
+      recipients: 1,
+    });
   });
 
   test('the scheduler recovers queued deliveries of a sending campaign', async () => {

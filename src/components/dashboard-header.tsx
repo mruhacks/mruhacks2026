@@ -15,10 +15,7 @@ import { authClient } from '@/utils/auth-client';
 import { usePathname, useRouter } from 'next/navigation';
 import Chevron from '@/assets/Chevron';
 import { useBreadcrumbContext } from '@/components/breadcrumb-context';
-import {
-  DashboardBackLink,
-  type Crumb,
-} from '@/components/dashboard-back-link';
+import { DashboardBackLink, type Crumb } from '@/components/dashboard-back-link';
 import { getInitials } from '@/lib/initials';
 import { useIsHydrated } from '@/lib/use-is-hydrated';
 
@@ -61,10 +58,7 @@ const PAGELESS_PATHS = new Set(['/dashboard/events']);
 
 const EMPTY_DYNAMIC_SEGMENTS: Record<string, string> = {};
 
-function buildBreadcrumbs(
-  pathname: string,
-  dynamicSegments: Record<string, string>,
-) {
+function buildBreadcrumbs(pathname: string, dynamicSegments: Record<string, string>) {
   const segments = pathname.split('/').filter(Boolean);
   const crumbs: Crumb[] = [];
   let path = '';
@@ -108,15 +102,8 @@ export function DashboardHeader({ user }: Props) {
         className='mx-auto flex w-full items-center justify-between p-4 sm:px-6'
         style={{ maxWidth: 'var(--content-max)' }}
       >
-        <div
-          className='min-w-0'
-          style={{ display: 'flex', alignItems: 'center', gap: '16px' }}
-        >
-          <Link
-            href='/'
-            className='flex shrink-0 items-center gap-2'
-            aria-label='MRUHacks home'
-          >
+        <div className='min-w-0' style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <Link href='/' className='flex shrink-0 items-center gap-2' aria-label='MRUHacks home'>
             <Chevron className='h-7 w-auto' />
             <span
               style={{
@@ -132,18 +119,11 @@ export function DashboardHeader({ user }: Props) {
 
           <DashboardBackLink pathname={pathname} crumbs={crumbs} />
 
-          <nav
-            className='hidden sm:flex'
-            aria-label='Breadcrumb'
-            style={{ alignItems: 'center', gap: '0' }}
-          >
+          <nav className='hidden sm:flex' aria-label='Breadcrumb' style={{ alignItems: 'center', gap: '0' }}>
             {crumbs.map((crumb, i, arr) => {
               const isLast = i === arr.length - 1;
               return (
-                <span
-                  key={crumb.href}
-                  style={{ display: 'flex', alignItems: 'center' }}
-                >
+                <span key={crumb.href} style={{ display: 'flex', alignItems: 'center' }}>
                   <span
                     style={{
                       fontFamily: 'var(--font-ui)',
@@ -232,9 +212,7 @@ export function DashboardHeader({ user }: Props) {
           <DropdownMenuContent align='end' className='w-52'>
             <div className='px-2 py-1.5'>
               <p className='text-sm/tight font-medium'>{user.name}</p>
-              <p className='text-muted-foreground truncate text-xs'>
-                {user.email}
-              </p>
+              <p className='text-muted-foreground truncate text-xs'>{user.email}</p>
             </div>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
@@ -250,10 +228,7 @@ export function DashboardHeader({ user }: Props) {
               </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onClick={handleLogout}
-              className='text-destructive focus:text-destructive'
-            >
+            <DropdownMenuItem onClick={handleLogout} className='text-destructive focus:text-destructive'>
               <LogOut className='mr-2 size-4' />
               Log out
             </DropdownMenuItem>

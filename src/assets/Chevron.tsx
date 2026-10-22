@@ -17,11 +17,7 @@ export interface ChevronProps extends Omit<ImageProps, 'src' | 'alt'> {
   alt?: string;
 }
 
-export default function Chevron({
-  variant = 'gradient',
-  alt = 'MRUHacks Chevron Logo',
-  ...props
-}: ChevronProps) {
+export default function Chevron({ variant = 'gradient', alt = 'MRUHacks Chevron Logo', ...props }: ChevronProps) {
   const src = chevronSources[variant];
   return <Image src={src} alt={alt} {...props} />;
 }

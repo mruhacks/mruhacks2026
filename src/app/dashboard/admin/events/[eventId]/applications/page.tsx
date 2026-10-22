@@ -13,10 +13,7 @@ import {
   getParticipantStatuses,
 } from '@/lib/admin-event';
 import { resolveEventId } from '@/lib/events';
-import {
-  deriveAttendance,
-  resolveEffectiveStatus,
-} from '@/lib/participation/status';
+import { deriveAttendance, resolveEffectiveStatus } from '@/lib/participation/status';
 import { hasPermission, requirePermission } from '@/lib/rbac/authorization';
 import { getUser } from '@/utils/auth';
 
@@ -38,19 +35,13 @@ type Props = { params: Promise<{ eventId: string }> };
  */
 export default function ApplicationsPage({ params }: Props) {
   return (
-    <React.Suspense
-      fallback={<div className='bg-muted h-96 animate-pulse rounded-xl' />}
-    >
+    <React.Suspense fallback={<div className='bg-muted h-96 animate-pulse rounded-xl' />}>
       <ApplicationsContent paramsPromise={params} />
     </React.Suspense>
   );
 }
 
-async function ApplicationsContent({
-  paramsPromise,
-}: {
-  paramsPromise: Promise<{ eventId: string }>;
-}) {
+async function ApplicationsContent({ paramsPromise }: { paramsPromise: Promise<{ eventId: string }> }) {
   const { eventId: segment } = await paramsPromise;
   const eventId = await resolveEventId(segment);
   if (!eventId) notFound();
@@ -71,9 +62,7 @@ async function ApplicationsContent({
       <div className='space-y-4'>
         <div>
           <h2 className='text-lg font-semibold'>Registered attendees</h2>
-          <p className='text-muted-foreground mt-1 text-sm'>
-            {attendees.length.toLocaleString()} registered
-          </p>
+          <p className='text-muted-foreground mt-1 text-sm'>{attendees.length.toLocaleString()} registered</p>
         </div>
         <AttendeesTable rows={attendees} />
       </div>
@@ -83,15 +72,14 @@ async function ApplicationsContent({
   // Status is read fresh rather than folded into the cached roster: an RSVP
   // wave from cron, or a deadline passing, changes it without touching the
   // applications cache tag.
-  const [roster, questions, statusRows, canReview, canManageRsvp, canVote] =
-    await Promise.all([
-      getApplicationRoster(eventId),
-      getEventQuestions(eventId),
-      getParticipantStatuses(eventId),
-      hasPermission(user.id, 'application:review:all'),
-      hasPermission(user.id, 'rsvp:write:all'),
-      hasPermission(user.id, 'application:vote:all'),
-    ]);
+  const [roster, questions, statusRows, canReview, canManageRsvp, canVote] = await Promise.all([
+    getApplicationRoster(eventId),
+    getEventQuestions(eventId),
+    getParticipantStatuses(eventId),
+    hasPermission(user.id, 'application:review:all'),
+    hasPermission(user.id, 'rsvp:write:all'),
+    hasPermission(user.id, 'application:vote:all'),
+  ]);
   const now = new Date();
   const statusById = new Map(
     statusRows.map((r) => {
@@ -122,8 +110,7 @@ async function ApplicationsContent({
         <div>
           <h2 className='text-lg font-semibold'>All applications</h2>
           <p className='text-muted-foreground mt-1 text-sm'>
-            {rows.length.toLocaleString()}{' '}
-            {rows.length === 1 ? 'application' : 'applications'} submitted.
+            {rows.length.toLocaleString()} {rows.length === 1 ? 'application' : 'applications'} submitted.
           </p>
         </div>
         {canVote && (

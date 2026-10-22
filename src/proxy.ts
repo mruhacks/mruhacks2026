@@ -25,18 +25,10 @@ import type { NextRequest } from 'next/server';
 import { headers } from 'next/headers';
 import { auth } from './utils/auth';
 import { userNeedsConsent } from './utils/consent-check';
-import {
-  EMAIL_LINK_CONFIRM_PATH,
-  EMAIL_LINK_KIND_PARAM,
-  toSameOriginPath,
-} from './lib/auth/email-link-confirm-url';
+import { EMAIL_LINK_CONFIRM_PATH, EMAIL_LINK_KIND_PARAM, toSameOriginPath } from './lib/auth/email-link-confirm-url';
 
 function isSignInPage(pathname: string): boolean {
-  return (
-    pathname === '/signin' ||
-    pathname.startsWith('/signin/') ||
-    pathname === '/signup'
-  );
+  return pathname === '/signin' || pathname.startsWith('/signin/') || pathname === '/signup';
 }
 
 /** Where a signed-in user on a sign-in page goes instead, or null to stay. */
@@ -57,9 +49,7 @@ export async function proxy(request: NextRequest) {
 
   if (isSignInPage(request.nextUrl.pathname)) {
     const target = session && signedInTarget(request.nextUrl);
-    return target
-      ? NextResponse.redirect(new URL(target, request.url))
-      : NextResponse.next();
+    return target ? NextResponse.redirect(new URL(target, request.url)) : NextResponse.next();
   }
 
   const original = request.nextUrl.pathname + request.nextUrl.search;

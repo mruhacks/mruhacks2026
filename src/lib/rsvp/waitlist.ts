@@ -2,14 +2,7 @@ import 'server-only';
 
 import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 
-import {
-  applicationVotes,
-  eventParticipants,
-  events,
-  participationStatuses,
-  teamMembers,
-  user,
-} from '@/db/schema';
+import { applicationVotes, eventParticipants, events, participationStatuses, teamMembers, user } from '@/db/schema';
 import {
   orderWaitlist,
   planReviewTransitions,
@@ -57,28 +50,18 @@ async function loadTallyInputs(
         statusLabel: participationStatuses.label,
       })
       .from(eventParticipants)
-      .innerJoin(
-        participationStatuses,
-        eq(eventParticipants.statusId, participationStatuses.id),
-      )
+      .innerJoin(participationStatuses, eq(eventParticipants.statusId, participationStatuses.id))
       .leftJoin(
         teamMembers,
-        and(
-          eq(teamMembers.eventId, eventParticipants.eventId),
-          eq(teamMembers.userId, eventParticipants.userId),
-        ),
+        and(eq(teamMembers.eventId, eventParticipants.eventId), eq(teamMembers.userId, eventParticipants.userId)),
       )
       .where(eq(eventParticipants.eventId, eventId))
       .orderBy(asc(eventParticipants.createdAt), asc(eventParticipants.id)),
     executor
       .select({
         participantId: applicationVotes.participantId,
-        yes: sql<number>`count(*) FILTER (WHERE ${applicationVotes.approve})`.mapWith(
-          Number,
-        ),
-        no: sql<number>`count(*) FILTER (WHERE NOT ${applicationVotes.approve})`.mapWith(
-          Number,
-        ),
+        yes: sql<number>`count(*) FILTER (WHERE ${applicationVotes.approve})`.mapWith(Number),
+        no: sql<number>`count(*) FILTER (WHERE NOT ${applicationVotes.approve})`.mapWith(Number),
       })
       .from(applicationVotes)
       .where(eq(applicationVotes.eventId, eventId))
@@ -91,17 +74,12 @@ async function loadTallyInputs(
       teamId: p.teamId,
       status: resolveStoredStatus(p.statusLabel),
     })),
-    tallies: new Map(
-      voteRows.map((row) => [row.participantId, { yes: row.yes, no: row.no }]),
-    ),
+    tallies: new Map(voteRows.map((row) => [row.participantId, { yes: row.yes, no: row.no }])),
   };
 }
 
 /** Waitlisted participant ids in queue order — the order waves invite in. */
-export async function getWaitlistOrder(
-  eventId: string,
-  executor: Executor = db,
-): Promise<string[]> {
+export async function getWaitlistOrder(eventId: string, executor: Executor = db): Promise<string[]> {
   const { participants, tallies } = await loadTallyInputs(executor, eventId);
   return orderWaitlist(participants, tallies);
 }
@@ -119,9 +97,7 @@ export async function getWaitlist(eventId: string): Promise<WaitlistEntry[]> {
       })
       .from(eventParticipants)
       .innerJoin(user, eq(eventParticipants.userId, user.id))
-      .where(
-        and(eq(eventParticipants.eventId, eventId), hasStatus('waitlisted')),
-      ),
+      .where(and(eq(eventParticipants.eventId, eventId), hasStatus('waitlisted'))),
   ]);
 
   const byId = new Map(rows.map((row) => [row.participantId, row]));
@@ -165,20 +141,13 @@ export async function syncWaitlist(
     await tx
       .update(eventParticipants)
       .set({ statusId: statusIdOf('waitlisted'), ...reviewed })
-      .where(
-        and(
-          inArray(eventParticipants.id, promote),
-          hasStatus('pending_review'),
-        ),
-      );
+      .where(and(inArray(eventParticipants.id, promote), hasStatus('pending_review')));
   }
   if (demote.length > 0) {
     await tx
       .update(eventParticipants)
       .set({ statusId: statusIdOf('pending_review'), ...reviewed })
-      .where(
-        and(inArray(eventParticipants.id, demote), hasStatus('waitlisted')),
-      );
+      .where(and(inArray(eventParticipants.id, demote), hasStatus('waitlisted')));
   }
 
   return { promoted: promote, demoted: demote };
@@ -194,11 +163,7 @@ export async function syncWaitlistForEvent(
   actorId: string | null = null,
 ): Promise<WaitlistSyncResult> {
   return db.transaction(async (tx) => {
-    await tx
-      .select({ id: events.id })
-      .from(events)
-      .where(eq(events.id, eventId))
-      .for('update');
+    await tx.select({ id: events.id }).from(events).where(eq(events.id, eventId)).for('update');
     return syncWaitlist(tx, eventId, { actorId });
   });
 }

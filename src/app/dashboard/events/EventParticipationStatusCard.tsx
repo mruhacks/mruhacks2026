@@ -1,12 +1,5 @@
 import { Badge } from '@/components/ui/badge';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 
 type Props = {
   /** e.g. "RSVP", "Application" — read together with the badge as a sentence. */
@@ -63,11 +56,7 @@ export function EventParticipationStatusCard({
       {(footer || stamp) && (
         <CardFooter className='flex flex-col items-center gap-3'>
           {footer && <div className='flex flex-row gap-2'>{footer}</div>}
-          {stamp && (
-            <p className='text-muted-foreground mr-auto text-[10px] leading-tight'>
-              {stamp}
-            </p>
-          )}
+          {stamp && <p className='text-muted-foreground mr-auto text-[10px] leading-tight'>{stamp}</p>}
         </CardFooter>
       )}
     </Card>

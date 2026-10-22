@@ -4,13 +4,7 @@ import * as React from 'react';
 import { Download } from 'lucide-react';
 import { toast } from 'sonner';
 
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { exportMyData } from './actions';
 
@@ -48,9 +42,8 @@ export function DataExportCard() {
       <CardHeader>
         <CardTitle>Export your data</CardTitle>
         <CardDescription>
-          Download a copy of all the personal data we hold about you — your
-          profile, applications, event history, and preferences — as a
-          machine-readable JSON file.
+          Download a copy of all the personal data we hold about you — your profile, applications, event history, and
+          preferences — as a machine-readable JSON file.
         </CardDescription>
       </CardHeader>
       <CardContent>

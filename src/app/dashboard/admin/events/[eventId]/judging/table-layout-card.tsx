@@ -5,29 +5,10 @@ import { Lock, Printer } from 'lucide-react';
 
 import { updateJudgingTableLayout } from '@/app/dashboard/admin/events/judging-actions';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardAction,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import {
-  Field,
-  FieldDescription,
-  FieldError,
-  FieldGroup,
-  FieldLabel,
-} from '@/components/ui/field';
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
 import {
   formatTableLabel,
@@ -69,16 +50,13 @@ export function TableLayoutCard({
   const [saving, setSaving] = React.useState(false);
 
   const rows = Number(draft.rows);
-  const rowsValid =
-    Number.isInteger(rows) && rows >= 1 && rows <= MAX_TABLE_ROWS;
+  const rowsValid = Number.isInteger(rows) && rows >= 1 && rows <= MAX_TABLE_ROWS;
   const dirty =
     draft.rows !== String(layout.rows) ||
     draft.rowAlphabet !== layout.rowAlphabet ||
     draft.columnAlphabet !== layout.columnAlphabet;
   const preview = rowsValid
-    ? Array.from({ length: PREVIEW_COUNT }, (_, slot) =>
-        formatTableLabel(slot, { ...draft, rows }),
-      )
+    ? Array.from({ length: PREVIEW_COUNT }, (_, slot) => formatTableLabel(slot, { ...draft, rows }))
     : [];
 
   function change<K extends keyof Draft>(field: K, value: Draft[K]) {
@@ -207,11 +185,7 @@ function AlphabetField({
   return (
     <Field>
       <FieldLabel htmlFor={id}>{label}</FieldLabel>
-      <Select
-        value={value}
-        disabled={disabled}
-        onValueChange={(next) => onChange(next as TableAlphabet)}
-      >
+      <Select value={value} disabled={disabled} onValueChange={(next) => onChange(next as TableAlphabet)}>
         <SelectTrigger id={id} className='w-full'>
           <SelectValue />
         </SelectTrigger>

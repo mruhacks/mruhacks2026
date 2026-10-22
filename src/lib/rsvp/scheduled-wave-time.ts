@@ -14,9 +14,7 @@ const RSVP_CRON_INTERVAL_MS = 60 * 60 * 1000;
 /** First scheduler run at or after `instant` (top of an hour, UTC). */
 export function nextRsvpCronRunAt(instant: Date): Date {
   const ms = instant.getTime();
-  return new Date(
-    Math.ceil(ms / RSVP_CRON_INTERVAL_MS) * RSVP_CRON_INTERVAL_MS,
-  );
+  return new Date(Math.ceil(ms / RSVP_CRON_INTERVAL_MS) * RSVP_CRON_INTERVAL_MS);
 }
 
 /**
@@ -25,12 +23,8 @@ export function nextRsvpCronRunAt(instant: Date): Date {
  * manual). Whether anyone is left to invite, and whether a spot is open, are
  * the caller's to check: the scheduler skips the run otherwise.
  */
-export function estimateAutoWaveAt(
-  latestWaveRespondBy: Date | null,
-  now: Date,
-): Date | null {
+export function estimateAutoWaveAt(latestWaveRespondBy: Date | null, now: Date): Date | null {
   if (!latestWaveRespondBy) return null;
-  const earliest =
-    latestWaveRespondBy.getTime() > now.getTime() ? latestWaveRespondBy : now;
+  const earliest = latestWaveRespondBy.getTime() > now.getTime() ? latestWaveRespondBy : now;
   return nextRsvpCronRunAt(earliest);
 }

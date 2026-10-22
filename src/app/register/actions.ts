@@ -14,15 +14,8 @@ import { and, eq, isNull } from 'drizzle-orm';
 import { revalidatePath, updateTag } from 'next/cache';
 import { eventApplicationsCacheTag } from '@/lib/admin-event';
 import { hasEventElapsed } from '@/lib/events';
-import {
-  isJudgingEvent,
-  JUDGE_SIGNUP_BLOCKED_MESSAGE,
-} from '@/lib/judging/server';
-import {
-  countAttending,
-  hasStatus,
-  statusIdOf,
-} from '@/lib/participation/server';
+import { isJudgingEvent, JUDGE_SIGNUP_BLOCKED_MESSAGE } from '@/lib/judging/server';
+import { countAttending, hasStatus, statusIdOf } from '@/lib/participation/server';
 
 /**
  * The event's end instant and whether it takes applications, or `undefined`
@@ -83,21 +76,12 @@ export async function registerForEvent(eventId: string): Promise<ActionResult> {
       const [existing] = await tx
         .select({ id: eventParticipants.id })
         .from(eventParticipants)
-        .where(
-          and(
-            eq(eventParticipants.eventId, eventId),
-            eq(eventParticipants.userId, user.id),
-          ),
-        )
+        .where(and(eq(eventParticipants.eventId, eventId), eq(eventParticipants.userId, user.id)))
         .limit(1);
 
       // Only a new registration counts against capacity; re-registering
       // (already a participant) stays a no-op regardless of fill level.
-      if (
-        !existing &&
-        eventRow.capacity != null &&
-        (await countAttending(eventId, tx)) >= eventRow.capacity
-      ) {
+      if (!existing && eventRow.capacity != null && (await countAttending(eventId, tx)) >= eventRow.capacity) {
         return fail('This event is full.');
       }
 
@@ -132,9 +116,7 @@ export async function registerForEvent(eventId: string): Promise<ActionResult> {
 /**
  * Form action wrapper for registerForEvent (used by dashboard/events page).
  */
-export async function registerForEventFormAction(
-  formData: FormData,
-): Promise<ActionResult> {
+export async function registerForEventFormAction(formData: FormData): Promise<ActionResult> {
   const eventId = formData.get('eventId');
   if (typeof eventId !== 'string') return fail('Missing event ID');
   return registerForEvent(eventId);
@@ -145,9 +127,7 @@ export async function registerForEventFormAction(
  * signup) by removing their participant row. An event with an application
  * keeps its row — see `withdrawParticipation`.
  */
-export async function unregisterFromEvent(
-  eventId: string,
-): Promise<ActionResult> {
+export async function unregisterFromEvent(eventId: string): Promise<ActionResult> {
   const user = await getUser();
   if (!user) return fail('User not authenticated');
 
@@ -163,13 +143,7 @@ export async function unregisterFromEvent(
   try {
     await db
       .delete(eventParticipants)
-      .where(
-        and(
-          eq(eventParticipants.eventId, eventId),
-          eq(eventParticipants.userId, user.id),
-          hasStatus('accepted'),
-        ),
-      );
+      .where(and(eq(eventParticipants.eventId, eventId), eq(eventParticipants.userId, user.id), hasStatus('accepted')));
     revalidatePath('/dashboard/events');
     revalidatePath('/dashboard');
     revalidatePath(`/dashboard/events/${eventId}`);

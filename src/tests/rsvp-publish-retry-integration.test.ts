@@ -1,12 +1,4 @@
-import {
-  describe,
-  test,
-  expect,
-  beforeAll,
-  afterAll,
-  beforeEach,
-  vi,
-} from 'vitest';
+import { describe, test, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 
 // Mock only the underlying Vercel Queue SDK call, not the wrapper — this
@@ -20,18 +12,8 @@ vi.mock('@/utils/mail', () => ({
 }));
 
 import { db } from '@/utils/db';
-import {
-  events,
-  eventParticipants,
-  eventInvitations,
-  eventRsvpWaves,
-  user,
-} from '@/db/schema';
-import {
-  insertInvitation,
-  insertParticipant,
-  setStatus,
-} from '@/tests/participation-fixtures';
+import { events, eventParticipants, eventInvitations, eventRsvpWaves, user } from '@/db/schema';
+import { insertInvitation, insertParticipant, setStatus } from '@/tests/participation-fixtures';
 import { sendRsvpWave } from '@/lib/rsvp/send-rsvp-wave';
 import { requeuePendingRsvpInvitations } from '@/lib/rsvp/requeue-pending-rsvp-invitations';
 
@@ -43,10 +25,7 @@ async function getResponseStatus(userId: string) {
   const [row] = await db
     .select({ invitationEmailStatus: eventInvitations.invitationEmailStatus })
     .from(eventInvitations)
-    .innerJoin(
-      eventParticipants,
-      eq(eventInvitations.participantId, eventParticipants.id),
-    )
+    .innerJoin(eventParticipants, eq(eventInvitations.participantId, eventParticipants.id))
     .where(eq(eventParticipants.userId, userId))
     .limit(1);
   return row?.invitationEmailStatus;
@@ -54,9 +33,7 @@ async function getResponseStatus(userId: string) {
 
 /** Drops every wave (and invitation) and puts the applicant back in line. */
 async function resetToWaitlisted() {
-  await db
-    .delete(eventRsvpWaves)
-    .where(eq(eventRsvpWaves.eventId, testEventId));
+  await db.delete(eventRsvpWaves).where(eq(eventRsvpWaves.eventId, testEventId));
   await setStatus(testEventId, testUserId, 'waitlisted');
 }
 
@@ -85,9 +62,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await db
-    .delete(eventRsvpWaves)
-    .where(eq(eventRsvpWaves.eventId, testEventId));
+  await db.delete(eventRsvpWaves).where(eq(eventRsvpWaves.eventId, testEventId));
   await db.delete(events).where(eq(events.id, testEventId));
   await db.delete(user).where(eq(user.id, testUserId));
 });
@@ -98,9 +73,7 @@ beforeEach(() => {
 
 describe('sendRsvpWave + publish retry integration', () => {
   test('a transient publish failure is retried and still ends up queued', async () => {
-    send
-      .mockRejectedValueOnce(new Error('queue unavailable'))
-      .mockResolvedValueOnce({ messageId: 'msg-1' });
+    send.mockRejectedValueOnce(new Error('queue unavailable')).mockResolvedValueOnce({ messageId: 'msg-1' });
 
     const result = await sendRsvpWave(testEventId);
 
@@ -150,9 +123,7 @@ describe('requeuePendingRsvpInvitations + publish retry integration', () => {
     });
     const response = { id: invitationId };
 
-    send
-      .mockRejectedValueOnce(new Error('queue unavailable'))
-      .mockResolvedValueOnce({ messageId: 'msg-sweep' });
+    send.mockRejectedValueOnce(new Error('queue unavailable')).mockResolvedValueOnce({ messageId: 'msg-sweep' });
 
     try {
       const result = await requeuePendingRsvpInvitations();

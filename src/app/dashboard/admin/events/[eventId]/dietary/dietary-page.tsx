@@ -8,21 +8,8 @@ import { getDietaryReport } from '@/app/dashboard/admin/events/dietary-actions';
 import { LocalDateTime } from '@/components/local-date-time';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
   MISSED_MEAL_THRESHOLDS,
   TOTAL_LABEL,
@@ -32,13 +19,7 @@ import {
 } from '@/lib/dietary/report';
 import { dietaryRestrictionsList } from '@/types/lookups';
 
-export function DietaryPage({
-  eventId,
-  threshold: initialThreshold,
-}: {
-  eventId: string;
-  threshold: number;
-}) {
+export function DietaryPage({ eventId, threshold: initialThreshold }: { eventId: string; threshold: number }) {
   const pathname = usePathname();
   const [threshold, setThreshold] = React.useState(initialThreshold);
   const [report, setReport] = React.useState<DietaryReport | null>(null);
@@ -97,21 +78,14 @@ export function DietaryPage({
   }
 
   if (!report && !error) {
-    return (
-      <div className='text-muted-foreground py-8 text-center'>Loading...</div>
-    );
+    return <div className='text-muted-foreground py-8 text-center'>Loading...</div>;
   }
 
   if (!report) {
     return (
       <div className='space-y-3 py-8 text-center'>
         <p className='text-destructive text-sm'>{error}</p>
-        <Button
-          type='button'
-          variant='outline'
-          size='sm'
-          onClick={() => setTick((n) => n + 1)}
-        >
+        <Button type='button' variant='outline' size='sm' onClick={() => setTick((n) => n + 1)}>
           Try again
         </Button>
       </div>
@@ -120,15 +94,10 @@ export function DietaryPage({
 
   const summary = summarizeDietaryReport(report.rows, threshold);
   const people = report.rows
-    .filter(
-      (row) =>
-        filter.length === 0 ||
-        row.restrictions.some((label) => filter.includes(label)),
-    )
+    .filter((row) => filter.length === 0 || row.restrictions.some((label) => filter.includes(label)))
     .sort((a, b) => {
       if (warningsFirst) {
-        if (b.missedStreak !== a.missedStreak)
-          return b.missedStreak - a.missedStreak;
+        if (b.missedStreak !== a.missedStreak) return b.missedStreak - a.missedStreak;
         if (a.atDoor !== b.atDoor) return a.atDoor ? 1 : -1;
       }
       return a.name.localeCompare(b.name);
@@ -140,8 +109,7 @@ export function DietaryPage({
         <div>
           <h2 className='text-lg font-semibold'>Dietary</h2>
           <p className='text-muted-foreground mt-1 text-sm'>
-            Who&apos;s coming and what they can eat. Don&apos;t take anyone off
-            the totals.
+            Who&apos;s coming and what they can eat. Don&apos;t take anyone off the totals.
           </p>
         </div>
         <div className='flex flex-wrap items-center gap-2'>
@@ -175,22 +143,12 @@ export function DietaryPage({
 
       {stale ? (
         <p className='rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-200'>
-          Couldn&apos;t refresh. Still showing{' '}
-          <LocalDateTime
-            value={updatedAt}
-            dateStyle='short'
-            timeStyle='medium'
-          />
+          Couldn&apos;t refresh. Still showing <LocalDateTime value={updatedAt} dateStyle='short' timeStyle='medium' />
         </p>
       ) : (
         updatedAt && (
           <p className='text-muted-foreground text-xs'>
-            Updated{' '}
-            <LocalDateTime
-              value={updatedAt}
-              dateStyle='short'
-              timeStyle='medium'
-            />
+            Updated <LocalDateTime value={updatedAt} dateStyle='short' timeStyle='medium' />
           </p>
         )
       )}
@@ -202,8 +160,7 @@ export function DietaryPage({
       )}
       {report.hasMeals && report.countedMealCount < threshold && (
         <p className='text-muted-foreground rounded-lg border border-dashed px-3 py-2 text-sm'>
-          Need {threshold} meals for warnings ({report.countedMealCount} so
-          far).
+          Need {threshold} meals for warnings ({report.countedMealCount} so far).
         </p>
       )}
 
@@ -224,34 +181,17 @@ export function DietaryPage({
           </TableHeader>
           <TableBody>
             {summary.map((row) => (
-              <TableRow
-                key={row.label}
-                className={
-                  row.label === TOTAL_LABEL ? 'font-medium' : undefined
-                }
-              >
+              <TableRow key={row.label} className={row.label === TOTAL_LABEL ? 'font-medium' : undefined}>
                 <TableCell>{row.label}</TableCell>
-                <TableCell className='text-right tabular-nums'>
-                  {row.expected}
-                </TableCell>
-                <TableCell className='text-right tabular-nums'>
-                  {row.atDoor}
-                </TableCell>
-                <TableCell className='text-right tabular-nums'>
-                  {row.notAtDoor}
-                </TableCell>
-                {report.hasMeals && (
-                  <TableCell className='text-right tabular-nums'>
-                    {row.missed}
-                  </TableCell>
-                )}
+                <TableCell className='text-right tabular-nums'>{row.expected}</TableCell>
+                <TableCell className='text-right tabular-nums'>{row.atDoor}</TableCell>
+                <TableCell className='text-right tabular-nums'>{row.notAtDoor}</TableCell>
+                {report.hasMeals && <TableCell className='text-right tabular-nums'>{row.missed}</TableCell>}
               </TableRow>
             ))}
           </TableBody>
         </Table>
-        <p className='text-muted-foreground text-xs'>
-          Someone can show up in more than one row. Total is people.
-        </p>
+        <p className='text-muted-foreground text-xs'>Someone can show up in more than one row. Total is people.</p>
       </div>
 
       <div className='flex flex-wrap items-center gap-2'>
@@ -262,13 +202,7 @@ export function DietaryPage({
             size='sm'
             className='h-8'
             variant={filter.includes(label) ? 'default' : 'outline'}
-            onClick={() =>
-              setFilter((cur) =>
-                cur.includes(label)
-                  ? cur.filter((x) => x !== label)
-                  : [...cur, label],
-              )
-            }
+            onClick={() => setFilter((cur) => (cur.includes(label) ? cur.filter((x) => x !== label) : [...cur, label]))}
           >
             {label}
           </Button>
@@ -332,14 +266,9 @@ function PersonRow({
       <TableCell className='align-top'>
         <p className='font-medium'>{row.name}</p>
         <div className='mt-1 flex flex-wrap gap-1'>
-          {!row.atDoor && (
-            <Badge variant='destructive'>Did not check in at door</Badge>
-          )}
+          {!row.atDoor && <Badge variant='destructive'>Did not check in at door</Badge>}
           {missed >= threshold && (
-            <Badge
-              variant='warning'
-              title={row.missedMeals.map((m) => m.name).join(', ')}
-            >
+            <Badge variant='warning' title={row.missedMeals.map((m) => m.name).join(', ')}>
               Missed last {missed} meal{missed === 1 ? '' : 's'}
             </Badge>
           )}
@@ -360,21 +289,13 @@ function PersonRow({
                 {label}
               </Badge>
             ))}
-            {row.otherText && (
-              <span className='text-muted-foreground text-xs'>
-                {row.otherText}
-              </span>
-            )}
+            {row.otherText && <span className='text-muted-foreground text-xs'>{row.otherText}</span>}
           </div>
         )}
       </TableCell>
       <TableCell className='align-top'>
         {row.lastSeenAt ? (
-          <LocalDateTime
-            value={row.lastSeenAt}
-            dateStyle='short'
-            timeStyle='short'
-          />
+          <LocalDateTime value={row.lastSeenAt} dateStyle='short' timeStyle='short' />
         ) : (
           <span className='text-muted-foreground'>—</span>
         )}

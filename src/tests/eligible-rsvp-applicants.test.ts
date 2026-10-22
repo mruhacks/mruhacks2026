@@ -61,9 +61,7 @@ afterAll(async () => {
 
 describe('getEligibleRsvpApplicants', () => {
   test('returns null for a missing event', async () => {
-    expect(
-      await getEligibleRsvpApplicants('00000000-0000-0000-0000-000000000000'),
-    ).toBeNull();
+    expect(await getEligibleRsvpApplicants('00000000-0000-0000-0000-000000000000')).toBeNull();
   });
 
   test('includes only waitlisted participants', async () => {
@@ -71,9 +69,7 @@ describe('getEligibleRsvpApplicants', () => {
     expect(result).not.toBeNull();
     if (!result) return;
 
-    expect(result.applicants.map((a) => a.userId)).toEqual([
-      userIdByStatus.get('waitlisted'),
-    ]);
+    expect(result.applicants.map((a) => a.userId)).toEqual([userIdByStatus.get('waitlisted')]);
 
     // Capacity is measured against accepted participants only.
     expect(result.capacity).toBe(10);
@@ -157,14 +153,13 @@ describe('selectRsvpWaveInvitees', () => {
       },
     ];
 
-    expect(
-      selectRsvpWaveInvitees(applicants, null).map((a) => a.userId),
-    ).toEqual(['w-1', 'w-2', 'unranked-early', 'unranked-late']);
-    expect(selectRsvpWaveInvitees(applicants, 3).map((a) => a.userId)).toEqual([
+    expect(selectRsvpWaveInvitees(applicants, null).map((a) => a.userId)).toEqual([
       'w-1',
       'w-2',
       'unranked-early',
+      'unranked-late',
     ]);
+    expect(selectRsvpWaveInvitees(applicants, 3).map((a) => a.userId)).toEqual(['w-1', 'w-2', 'unranked-early']);
     expect(selectRsvpWaveInvitees(applicants, 0)).toEqual([]);
   });
 });

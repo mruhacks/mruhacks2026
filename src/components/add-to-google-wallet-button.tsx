@@ -7,13 +7,7 @@ import { cn } from '@/lib/utils';
  * <img> from /public, same as the Apple badge, so it isn't run through
  * next/image's static-import pipeline.
  */
-export function AddToGoogleWalletButton({
-  eventId,
-  className,
-}: {
-  eventId: string;
-  className?: string;
-}) {
+export function AddToGoogleWalletButton({ eventId, className }: { eventId: string; className?: string }) {
   return (
     <a
       href={`/api/wallet/google/${eventId}`}
@@ -25,11 +19,7 @@ export function AddToGoogleWalletButton({
       )}
     >
       {/* eslint-disable-next-line @next/next/no-img-element -- fixed-size official brand asset, not a content image */}
-      <img
-        src='/wallet/add-to-google-wallet.svg'
-        alt='Add to Google Wallet'
-        className='h-10 w-auto'
-      />
+      <img src='/wallet/add-to-google-wallet.svg' alt='Add to Google Wallet' className='h-10 w-auto' />
     </a>
   );
 }

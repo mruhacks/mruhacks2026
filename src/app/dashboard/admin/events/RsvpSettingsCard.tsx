@@ -7,20 +7,8 @@ import { z } from 'zod';
 import { toast } from 'sonner';
 
 import { updateEventSettings } from '@/app/dashboard/admin/events/actions';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import {
-  Field,
-  FieldDescription,
-  FieldError,
-  FieldGroup,
-  FieldLabel,
-} from '@/components/ui/field';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 
@@ -40,11 +28,7 @@ type Props = {
   onSaved?: (hours: number) => void;
 };
 
-export function RsvpSettingsCard({
-  eventId,
-  rsvpResponseWindowHours,
-  onSaved,
-}: Props) {
+export function RsvpSettingsCard({ eventId, rsvpResponseWindowHours, onSaved }: Props) {
   const [formError, setFormError] = React.useState<string | null>(null);
   const {
     register,
@@ -84,24 +68,17 @@ export function RsvpSettingsCard({
         <form onSubmit={handleSubmit(onSubmit)} className='flex flex-col gap-4'>
           <FieldGroup>
             <Field>
-              <FieldLabel htmlFor='rsvpResponseWindowHours'>
-                Response window (hours)
-              </FieldLabel>
-              <FieldDescription>
-                Time invited applicants have to accept or decline.
-              </FieldDescription>
+              <FieldLabel htmlFor='rsvpResponseWindowHours'>Response window (hours)</FieldLabel>
+              <FieldDescription>Time invited applicants have to accept or decline.</FieldDescription>
               <Input
                 id='rsvpResponseWindowHours'
                 type='number'
                 {...register('rsvpResponseWindowHours', {
-                  setValueAs: (value) =>
-                    value === '' ? undefined : Number(value),
+                  setValueAs: (value) => (value === '' ? undefined : Number(value)),
                   onChange: () => setFormError(null),
                 })}
               />
-              {errors.rsvpResponseWindowHours && (
-                <FieldError errors={[errors.rsvpResponseWindowHours]} />
-              )}
+              {errors.rsvpResponseWindowHours && <FieldError errors={[errors.rsvpResponseWindowHours]} />}
               {formError && <FieldError errors={[{ message: formError }]} />}
             </Field>
           </FieldGroup>

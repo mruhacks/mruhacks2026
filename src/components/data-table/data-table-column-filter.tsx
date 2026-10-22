@@ -22,11 +22,7 @@ import {
 } from '@/components/ui/command';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { fromDateTimeLocalValue } from '@/lib/datetime';
 import { cn } from '@/lib/utils';
 
@@ -55,12 +51,7 @@ export const EMPTY_FILTER_VALUE = '__empty__';
 type DateRangeFilter = { from?: string; to?: string };
 
 function isEmptyValue(value: unknown): boolean {
-  return (
-    value === null ||
-    value === undefined ||
-    value === '' ||
-    (Array.isArray(value) && value.length === 0)
-  );
+  return value === null || value === undefined || value === '' || (Array.isArray(value) && value.length === 0);
 }
 
 /**
@@ -79,9 +70,7 @@ export const columnFilterFn: FilterFn<unknown> = (row, columnId, filter) => {
   if (typeof filter === 'string') {
     if (!filter) return true;
     if (isEmptyValue(value)) return false;
-    const haystack = Array.isArray(value)
-      ? value.map(String).join(' ')
-      : String(value);
+    const haystack = Array.isArray(value) ? value.map(String).join(' ') : String(value);
     return haystack.toLowerCase().includes(filter.toLowerCase());
   }
 
@@ -132,11 +121,7 @@ function headerTitle<TData>(column: Column<TData>): string {
   return typeof header === 'string' ? header : column.id;
 }
 
-export function DataTableColumnFilter<TData>({
-  column,
-}: {
-  column: Column<TData>;
-}) {
+export function DataTableColumnFilter<TData>({ column }: { column: Column<TData> }) {
   const variant = column.columnDef.meta?.filterVariant ?? 'text';
   const isActive = column.getIsFiltered();
   const title = headerTitle(column);
@@ -147,22 +132,14 @@ export function DataTableColumnFilter<TData>({
         <Button
           variant='ghost'
           size='icon'
-          className={cn(
-            'size-6',
-            isActive
-              ? 'text-primary'
-              : 'text-muted-foreground opacity-50 hover:opacity-100',
-          )}
+          className={cn('size-6', isActive ? 'text-primary' : 'text-muted-foreground opacity-50 hover:opacity-100')}
           aria-label={`Filter ${title}`}
           title={`Filter ${title}`}
         >
           <Filter className={cn('size-3', isActive && 'fill-current')} />
         </Button>
       </PopoverTrigger>
-      <PopoverContent
-        align='start'
-        className={cn(variant === 'select' ? 'w-60 p-0' : 'w-64 p-3')}
-      >
+      <PopoverContent align='start' className={cn(variant === 'select' ? 'w-60 p-0' : 'w-64 p-3')}>
         {variant === 'select' ? (
           <SelectFilter column={column} title={title} />
         ) : variant === 'date' ? (
@@ -175,13 +152,7 @@ export function DataTableColumnFilter<TData>({
   );
 }
 
-function TextFilter<TData>({
-  column,
-  title,
-}: {
-  column: Column<TData>;
-  title: string;
-}) {
+function TextFilter<TData>({ column, title }: { column: Column<TData>; title: string }) {
   const value = (column.getFilterValue() as string | undefined) ?? '';
   return (
     <div className='flex items-center gap-2'>
@@ -193,12 +164,7 @@ function TextFilter<TData>({
         className='h-8'
       />
       {value && (
-        <Button
-          variant='ghost'
-          size='sm'
-          className='h-8'
-          onClick={() => column.setFilterValue(undefined)}
-        >
+        <Button variant='ghost' size='sm' className='h-8' onClick={() => column.setFilterValue(undefined)}>
           Clear
         </Button>
       )}
@@ -206,13 +172,7 @@ function TextFilter<TData>({
   );
 }
 
-function SelectFilter<TData>({
-  column,
-  title,
-}: {
-  column: Column<TData>;
-  title: string;
-}) {
+function SelectFilter<TData>({ column, title }: { column: Column<TData>; title: string }) {
   const explicitOptions = column.columnDef.meta?.filterOptions;
   const facets = column.getFacetedUniqueValues();
   const options = React.useMemo(
@@ -221,9 +181,7 @@ function SelectFilter<TData>({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [explicitOptions, facets],
   );
-  const selected = new Set(
-    (column.getFilterValue() as string[] | undefined) ?? [],
-  );
+  const selected = new Set((column.getFilterValue() as string[] | undefined) ?? []);
 
   return (
     <Command>
@@ -247,9 +205,7 @@ function SelectFilter<TData>({
                 <div
                   className={cn(
                     'border-primary flex size-4 items-center justify-center rounded-sm border',
-                    isSelected
-                      ? 'bg-primary text-primary-foreground'
-                      : 'opacity-50 [&_svg]:invisible',
+                    isSelected ? 'bg-primary text-primary-foreground' : 'opacity-50 [&_svg]:invisible',
                   )}
                 >
                   <Check className='size-3' />
@@ -263,10 +219,7 @@ function SelectFilter<TData>({
           <>
             <CommandSeparator />
             <CommandGroup>
-              <CommandItem
-                onSelect={() => column.setFilterValue(undefined)}
-                className='justify-center text-center'
-              >
+              <CommandItem onSelect={() => column.setFilterValue(undefined)} className='justify-center text-center'>
                 Clear filter
               </CommandItem>
             </CommandGroup>
@@ -310,12 +263,7 @@ function DateFilter<TData>({ column }: { column: Column<TData> }) {
         />
       </div>
       {(value.from || value.to) && (
-        <Button
-          variant='ghost'
-          size='sm'
-          className='w-full'
-          onClick={() => column.setFilterValue(undefined)}
-        >
+        <Button variant='ghost' size='sm' className='w-full' onClick={() => column.setFilterValue(undefined)}>
           Clear
         </Button>
       )}

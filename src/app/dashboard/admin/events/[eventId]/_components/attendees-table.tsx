@@ -17,18 +17,14 @@ export function AttendeesTable({ rows }: { rows: AdminAttendeeRow[] }) {
         cell: ({ row }) => (
           <div className='min-w-0'>
             <div className='font-medium'>{row.original.fullName}</div>
-            <div className='text-muted-foreground text-xs'>
-              {row.original.email}
-            </div>
+            <div className='text-muted-foreground text-xs'>{row.original.email}</div>
           </div>
         ),
       },
       {
         accessorKey: 'registeredAt',
         header: 'Registered',
-        cell: ({ row }) => (
-          <LocalDateTime value={row.original.registeredAt} dateStyle='medium' />
-        ),
+        cell: ({ row }) => <LocalDateTime value={row.original.registeredAt} dateStyle='medium' />,
       },
     ],
     [],

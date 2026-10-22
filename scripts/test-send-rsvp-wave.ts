@@ -1,10 +1,7 @@
 import 'dotenv/config';
 
 import { client } from '@/utils/db';
-import {
-  sendRsvpWave,
-  type SendRsvpWaveResult,
-} from '@/lib/rsvp/send-rsvp-wave';
+import { sendRsvpWave, type SendRsvpWaveResult } from '@/lib/rsvp/send-rsvp-wave';
 
 const USAGE = `
 Usage:
@@ -81,9 +78,7 @@ function printResult(result: SendRsvpWaveResult, eventId: string): void {
 
 function assertNotProduction(): void {
   if (process.env.NODE_ENV === 'production') {
-    console.error(
-      'Refusing to run: this script creates RSVP records and sends real emails.',
-    );
+    console.error('Refusing to run: this script creates RSVP records and sends real emails.');
     console.error('It is disabled when NODE_ENV=production.');
     process.exit(1);
   }
@@ -102,12 +97,8 @@ async function main(): Promise<void> {
   console.warn('');
   console.warn('⚠️  WARNING: This script performs real actions:');
   console.warn('   • Creates a new event_rsvp_waves row');
-  console.warn(
-    '   • Creates event_rsvp_responses rows for approved applicants',
-  );
-  console.warn(
-    '   • Publishes one RSVP invitation message per response to the queue',
-  );
+  console.warn('   • Creates event_rsvp_responses rows for approved applicants');
+  console.warn('   • Publishes one RSVP invitation message per response to the queue');
   console.warn('');
   console.warn(`   Event ID:   ${eventId}`);
   console.warn('   MailHog UI: http://localhost:8025');
@@ -123,9 +114,7 @@ async function main(): Promise<void> {
     }
 
     if (result.queueFailures.length > 0) {
-      console.error(
-        'Completed with queue failures. RSVP records were kept in the database.',
-      );
+      console.error('Completed with queue failures. RSVP records were kept in the database.');
       process.exitCode = 1;
     }
   } catch (error) {

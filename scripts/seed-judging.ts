@@ -57,8 +57,7 @@ const HOUR = 3_600_000;
 const CRITERIA = [
   {
     name: 'Innovation',
-    description:
-      'How original is the idea, and how well does it solve a real problem?',
+    description: 'How original is the idea, and how well does it solve a real problem?',
   },
   {
     name: 'Technical difficulty',
@@ -153,23 +152,17 @@ async function main(): Promise<void> {
   const now = new Date();
 
   // ── Depends on the base seed: static tables and the main event ──────────
-  const [[baseEvent], statuses, [gender], universityRows, majorRows, yearRows] =
-    await Promise.all([
-      db
-        .select({ id: events.id })
-        .from(events)
-        .where(eq(events.slug, 'mruhacks-2026')),
-      db.select().from(participationStatuses),
-      db.select().from(genders).where(eq(genders.label, 'Prefer not to say')),
-      db.select().from(universities),
-      db.select().from(majors),
-      db.select().from(yearsOfStudy),
-    ]);
+  const [[baseEvent], statuses, [gender], universityRows, majorRows, yearRows] = await Promise.all([
+    db.select({ id: events.id }).from(events).where(eq(events.slug, 'mruhacks-2026')),
+    db.select().from(participationStatuses),
+    db.select().from(genders).where(eq(genders.label, 'Prefer not to say')),
+    db.select().from(universities),
+    db.select().from(majors),
+    db.select().from(yearsOfStudy),
+  ]);
   const accepted = statuses.find((row) => row.label === 'accepted');
   if (!baseEvent || !accepted || !gender || universityRows.length === 0) {
-    console.error(
-      'The base seed has not been run. Run `pnpm db:seed` first.\n',
-    );
+    console.error('The base seed has not been run. Run `pnpm db:seed` first.\n');
     console.error(USAGE);
     process.exitCode = 1;
     return;
@@ -177,10 +170,7 @@ async function main(): Promise<void> {
 
   const adminEmail = process.env.SEED_ADMIN_EMAIL?.trim().toLowerCase();
   const [admin] = adminEmail
-    ? await db
-        .select({ id: user.id, email: user.email })
-        .from(user)
-        .where(eq(user.email, adminEmail))
+    ? await db.select({ id: user.id, email: user.email }).from(user).where(eq(user.email, adminEmail))
     : [];
 
   const result = await db.transaction(async (tx) => {
@@ -275,9 +265,7 @@ async function main(): Promise<void> {
         userId: row.id!,
         eventId: event.id,
         checkedInBy: admin?.id ?? null,
-        checkedInAt: new Date(
-          event.startsAt!.getTime() + (index % 90) * 60_000,
-        ),
+        checkedInAt: new Date(event.startsAt!.getTime() + (index % 90) * 60_000),
       })),
     );
 
@@ -305,25 +293,19 @@ async function main(): Promise<void> {
 
       const title =
         PROJECT_TITLES[p % PROJECT_TITLES.length] +
-        (p >= PROJECT_TITLES.length
-          ? ` ${Math.floor(p / PROJECT_TITLES.length) + 1}`
-          : '');
+        (p >= PROJECT_TITLES.length ? ` ${Math.floor(p / PROJECT_TITLES.length) + 1}` : '');
       const repo = slugify(title);
       // The last team never published: no table, and out of the judging pool.
       const published = p !== PROJECTS - 1 || PROJECTS === 1;
       const createdAt = new Date(formedAt.getTime() + p * 60_000);
-      const publishedAt = new Date(
-        event.submissionsCloseAt!.getTime() - (PROJECTS - p) * 60_000,
-      );
+      const publishedAt = new Date(event.submissionsCloseAt!.getTime() - (PROJECTS - p) * 60_000);
       await tx.insert(submissions).values({
         eventId: event.id,
         teamId: team.id,
         title,
         markdown: projectMarkdown(title),
         repoUrl: `https://github.com/${slugify(faker.internet.username())}/${repo}`,
-        demoUrl: faker.datatype.boolean({ probability: 0.6 })
-          ? `https://${repo}.vercel.app`
-          : null,
+        demoUrl: faker.datatype.boolean({ probability: 0.6 }) ? `https://${repo}.vercel.app` : null,
         videoUrl: faker.datatype.boolean({ probability: 0.5 })
           ? `https://youtu.be/${faker.string.alphanumeric(11)}`
           : null,
@@ -388,12 +370,11 @@ async function main(): Promise<void> {
       })),
     );
 
-    const roster: { eventId: string; email: string; userId: string | null }[] =
-      judges.map((row) => ({
-        eventId: event.id,
-        email: row.email,
-        userId: row.id!,
-      }));
+    const roster: { eventId: string; email: string; userId: string | null }[] = judges.map((row) => ({
+      eventId: event.id,
+      email: row.email,
+      userId: row.id!,
+    }));
     // Invited but hasn't signed in yet: linked on their first sign-in.
     roster.push({
       eventId: event.id,
@@ -425,9 +406,7 @@ async function main(): Promise<void> {
 
   const eventId = result.event.id;
   console.log(`✅ Seeded "${result.event.name}" (${eventId}), ready to judge.`);
-  console.log(
-    `  Projects: ${PROJECTS} (${PROJECTS > 1 ? PROJECTS - 1 : 1} published)`,
-  );
+  console.log(`  Projects: ${PROJECTS} (${PROJECTS > 1 ? PROJECTS - 1 : 1} published)`);
   console.log(`  Participants: ${result.participants}, all checked in`);
   console.log(`  Criteria: ${CRITERIA.map((c) => c.name).join(', ')}`);
   console.log(
@@ -435,9 +414,7 @@ async function main(): Promise<void> {
   );
   console.log(`  Organizer page: /dashboard/admin/events/${eventId}/judging`);
   console.log(`  Judge console:  /dashboard/events/${eventId}/judge`);
-  console.log(
-    '  Judges sign in by magic link; in dev the email lands in Mailhog.',
-  );
+  console.log('  Judges sign in by magic link; in dev the email lands in Mailhog.');
 }
 
 main()

@@ -14,10 +14,7 @@ import { getUser } from '@/utils/auth';
  * `BarcodeDetector`-based decoder (which only exposes decoded text, per the
  * Barcode Detection API spec) can read it losslessly.
  */
-export async function GET(
-  _request: Request,
-  { params }: { params: Promise<{ eventId: string }> },
-) {
+export async function GET(_request: Request, { params }: { params: Promise<{ eventId: string }> }) {
   const user = await getUser();
   if (!user) return new Response('Unauthorized', { status: 401 });
   if (!(await checkWalletRateLimit(user.id))) {
@@ -26,11 +23,7 @@ export async function GET(
 
   const { eventId } = await params;
   const participation = await getEventParticipation(eventId, user.id);
-  if (
-    !participation ||
-    !participation.isParticipant ||
-    !participation.checkInEnabled
-  ) {
+  if (!participation || !participation.isParticipant || !participation.checkInEnabled) {
     return new Response('Not found', { status: 404 });
   }
 

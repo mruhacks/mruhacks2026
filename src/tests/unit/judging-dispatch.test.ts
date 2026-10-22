@@ -33,18 +33,12 @@ function sequence(...values: number[]): () => number {
 
 describe('preferredCandidates', () => {
   it('drops projects another judge is at', () => {
-    const ids = preferredCandidates([
-      candidate('a', { busy: true }),
-      candidate('b'),
-    ]).map((c) => c.id);
+    const ids = preferredCandidates([candidate('a', { busy: true }), candidate('b')]).map((c) => c.id);
     expect(ids).toEqual(['b']);
   });
 
   it('falls back to busy projects when every project is busy', () => {
-    const ids = preferredCandidates([
-      candidate('a', { busy: true }),
-      candidate('b', { busy: true }),
-    ]).map((c) => c.id);
+    const ids = preferredCandidates([candidate('a', { busy: true }), candidate('b', { busy: true })]).map((c) => c.id);
     expect(ids).toEqual(['a', 'b']);
   });
 
@@ -153,12 +147,7 @@ describe('chooseNext', () => {
 describe('summedInformationGain', () => {
   it('adds one term per criterion', () => {
     const one = summedInformationGain(['a'], new Map(), new Map(), new Map());
-    const two = summedInformationGain(
-      ['a', 'b'],
-      new Map(),
-      new Map(),
-      new Map(),
-    );
+    const two = summedInformationGain(['a', 'b'], new Map(), new Map(), new Map());
     expect(two).toBeCloseTo(2 * one, 12);
   });
 });

@@ -56,9 +56,7 @@ describe('uniqueSlug', () => {
   });
 
   test('appends the first free numeric suffix', () => {
-    expect(uniqueSlug('schedule', ['schedule', 'schedule-2'])).toBe(
-      'schedule-3',
-    );
+    expect(uniqueSlug('schedule', ['schedule', 'schedule-2'])).toBe('schedule-3');
   });
 
   test('keeps the suffixed slug inside the length budget and valid', () => {

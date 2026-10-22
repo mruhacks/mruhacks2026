@@ -9,13 +9,7 @@
 import { describe, test, expect, beforeAll, afterAll, vi } from 'vitest';
 import { and, eq, isNull } from 'drizzle-orm';
 
-import {
-  checkIns,
-  events,
-  permission,
-  user,
-  userPermission,
-} from '@/db/schema';
+import { checkIns, events, permission, user, userPermission } from '@/db/schema';
 import { db } from '@/utils/db';
 
 vi.mock('@/utils/auth', () => ({ getUser: vi.fn() }));
@@ -33,15 +27,8 @@ vi.mock('next/cache', () => ({
 }));
 
 import { getUser } from '@/utils/auth';
-import {
-  createSubevent,
-  deleteSubevent,
-} from '@/app/dashboard/admin/events/subevent-actions';
-import {
-  isScheduleVisible,
-  listSubevents,
-  subeventsCacheTag,
-} from '@/lib/subevents';
+import { createSubevent, deleteSubevent } from '@/app/dashboard/admin/events/subevent-actions';
+import { isScheduleVisible, listSubevents, subeventsCacheTag } from '@/lib/subevents';
 import { updateTag } from 'next/cache';
 import { updateEventDescription } from '@/app/dashboard/admin/events/content-actions';
 import { updateEventSettings } from '@/app/dashboard/admin/events/actions';
@@ -104,10 +91,7 @@ beforeAll(async () => {
       .limit(1);
     permissionId = existing!.id;
   }
-  await db
-    .insert(userPermission)
-    .values({ userId: adminUserId, permissionId })
-    .onConflictDoNothing();
+  await db.insert(userPermission).values({ userId: adminUserId, permissionId }).onConflictDoNothing();
 
   const rows = await db
     .insert(events)
@@ -224,9 +208,7 @@ describe('createSubevent', () => {
     vi.mocked(updateTag).mockClear();
     await updateEventDescription(entry.id, '# Updated copy');
     expect(updateTag).toHaveBeenCalledWith(subeventsCacheTag(eventId));
-    const updated = (await listSubevents(eventId)).find(
-      (row) => row.id === entry.id,
-    )!;
+    const updated = (await listSubevents(eventId)).find((row) => row.id === entry.id)!;
     expect(updated.endsAt).toBeNull();
     expect(updated.checkInEnabled).toBe(true);
     expect(updated.descriptionMarkdown).toBe('# Updated copy');
@@ -235,11 +217,7 @@ describe('createSubevent', () => {
   test('creates a child with participation flags pinned off', async () => {
     const id = await newSubevent('Saturday Lunch');
 
-    const [row] = await db
-      .select()
-      .from(events)
-      .where(eq(events.id, id))
-      .limit(1);
+    const [row] = await db.select().from(events).where(eq(events.id, id)).limit(1);
 
     expect(row).toMatchObject({
       parentEventId: eventId,
@@ -307,10 +285,7 @@ describe('deleteSubevent', () => {
     const rows = await db.select().from(events).where(eq(events.id, id));
     expect(rows).toHaveLength(0);
     // check_ins.event_id cascades, so the attendance goes with it.
-    const checkInRows = await db
-      .select()
-      .from(checkIns)
-      .where(eq(checkIns.eventId, id));
+    const checkInRows = await db.select().from(checkIns).where(eq(checkIns.eventId, id));
     expect(checkInRows).toHaveLength(0);
   });
 
@@ -363,30 +338,19 @@ describe('featured-event guard', () => {
   test('updateEventSettings refuses to feature a sub-event', async () => {
     const id = await newSubevent('Not Featured');
 
-    await expect(
-      updateEventSettings(id, { isFeatured: true }),
-    ).resolves.toMatchObject({
+    await expect(updateEventSettings(id, { isFeatured: true })).resolves.toMatchObject({
       success: false,
       error: expect.stringContaining('cannot be the featured event'),
     });
 
-    const [row] = await db
-      .select({ isFeatured: events.isFeatured })
-      .from(events)
-      .where(eq(events.id, id))
-      .limit(1);
+    const [row] = await db.select({ isFeatured: events.isFeatured }).from(events).where(eq(events.id, id)).limit(1);
     expect(row.isFeatured).toBe(false);
   });
 
   test('a main event can still be featured', async () => {
-    await expect(
-      updateEventSettings(otherEventId, { isFeatured: true }),
-    ).resolves.toMatchObject({ success: true });
+    await expect(updateEventSettings(otherEventId, { isFeatured: true })).resolves.toMatchObject({ success: true });
 
     // Put it back, so this doesn't leak into another suite's expectations.
-    await db
-      .update(events)
-      .set({ isFeatured: false })
-      .where(eq(events.id, otherEventId));
+    await db.update(events).set({ isFeatured: false }).where(eq(events.id, otherEventId));
   });
 });

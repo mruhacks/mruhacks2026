@@ -30,49 +30,23 @@ export async function seedAdminOnboarding(
 ) {
   const submittedAt = new Date(now.getTime() - 7 * 86_400_000);
   await db.transaction(async (tx) => {
-    const [gender] = await tx
-      .select()
-      .from(genders)
-      .where(eq(genders.label, 'Prefer not to say'));
-    const [university] = await tx
-      .select()
-      .from(universities)
-      .where(eq(universities.label, 'Mount Royal University'));
-    const [major] = await tx
-      .select()
-      .from(majors)
-      .where(eq(majors.label, 'Computer Science'));
-    const [year] = await tx
-      .select()
-      .from(yearsOfStudy)
-      .where(eq(yearsOfStudy.label, '3rd'));
-    const [interest] = await tx
-      .select()
-      .from(interests)
-      .where(eq(interests.label, 'Web Development'));
+    const [gender] = await tx.select().from(genders).where(eq(genders.label, 'Prefer not to say'));
+    const [university] = await tx.select().from(universities).where(eq(universities.label, 'Mount Royal University'));
+    const [major] = await tx.select().from(majors).where(eq(majors.label, 'Computer Science'));
+    const [year] = await tx.select().from(yearsOfStudy).where(eq(yearsOfStudy.label, '3rd'));
+    const [interest] = await tx.select().from(interests).where(eq(interests.label, 'Web Development'));
     // Applications start on the waitlist so the RSVP seeder invites (and
     // accepts) them like anyone else; simple signups are accepted from the
     // start.
     const statuses = await tx.select().from(participationStatuses);
     const waitlisted = statuses.find((row) => row.label === 'waitlisted');
     const accepted = statuses.find((row) => row.label === 'accepted');
-    if (
-      !gender ||
-      !university ||
-      !major ||
-      !year ||
-      !interest ||
-      !waitlisted ||
-      !accepted
-    ) {
+    if (!gender || !university || !major || !year || !interest || !waitlisted || !accepted) {
       throw new Error('Seed static tables before completing admin onboarding.');
     }
 
     // Fill missing records while preserving any profile edits on subsequent runs.
-    await tx
-      .insert(userProfiles)
-      .values({ userId, fullName: name, genderId: gender.id })
-      .onConflictDoNothing();
+    await tx.insert(userProfiles).values({ userId, fullName: name, genderId: gender.id }).onConflictDoNothing();
     await tx
       .insert(userProfileAbout)
       .values({
@@ -83,14 +57,8 @@ export async function seedAdminOnboarding(
         attendedHackathonBefore: true,
       })
       .onConflictDoNothing();
-    await tx
-      .insert(userInterests)
-      .values({ userId, interestId: interest.id })
-      .onConflictDoNothing();
-    await tx
-      .insert(marketingConsents)
-      .values({ userId, optedIn: false, changedAt: now })
-      .onConflictDoNothing();
+    await tx.insert(userInterests).values({ userId, interestId: interest.id }).onConflictDoNothing();
+    await tx.insert(marketingConsents).values({ userId, optedIn: false, changedAt: now }).onConflictDoNothing();
 
     // Acceptance logs have no unique key on (user, version): don't append on every run.
     for (const [table, version] of [
@@ -109,17 +77,9 @@ export async function seedAdminOnboarding(
     }
 
     // Include the current featured event too if it differs from the sample hackathon.
-    const featured = await tx
-      .select()
-      .from(events)
-      .where(eq(events.isFeatured, true));
-    const [applicationEvent] = await tx
-      .select()
-      .from(events)
-      .where(eq(events.id, applicationEventId));
-    const onboardingEvents = new Map(
-      [...featured, applicationEvent].map((event) => [event.id, event]),
-    );
+    const featured = await tx.select().from(events).where(eq(events.isFeatured, true));
+    const [applicationEvent] = await tx.select().from(events).where(eq(events.id, applicationEventId));
+    const onboardingEvents = new Map([...featured, applicationEvent].map((event) => [event.id, event]));
     for (const event of onboardingEvents.values()) {
       if (event.hasApplication) {
         await tx

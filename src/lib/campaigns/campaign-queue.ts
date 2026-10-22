@@ -75,10 +75,7 @@ async function publish<T>(
  * scheduled for, so a duplicate for the same send collapses but sending
  * again after an unschedule doesn't.
  */
-export function publishCampaignDispatch(
-  campaignId: string,
-  scheduledFor: Date,
-) {
+export function publishCampaignDispatch(campaignId: string, scheduledFor: Date) {
   return publish<CampaignDispatchMessage>(
     CAMPAIGN_DISPATCH_TOPIC,
     { campaignId, scheduledFor: scheduledFor.toISOString() },
@@ -91,10 +88,7 @@ export function publishCampaignDispatch(
  * "Retry failed" bumps it — so a retry isn't swallowed as a duplicate of
  * the original publish.
  */
-export function publishCampaignDelivery(
-  deliveryId: string,
-  options: { delaySeconds: number; round: number },
-) {
+export function publishCampaignDelivery(deliveryId: string, options: { delaySeconds: number; round: number }) {
   return publish<CampaignDeliveryMessage>(
     CAMPAIGN_DELIVERY_TOPIC,
     { deliveryId },

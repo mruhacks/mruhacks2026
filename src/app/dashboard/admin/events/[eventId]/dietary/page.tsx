@@ -16,18 +16,13 @@ type Props = {
 export default function DietaryRoute({ params, searchParams }: Props) {
   return (
     <React.Suspense fallback={<DietarySkeleton />}>
-      <DietaryContent
-        paramsPromise={params}
-        searchParamsPromise={searchParams}
-      />
+      <DietaryContent paramsPromise={params} searchParamsPromise={searchParams} />
     </React.Suspense>
   );
 }
 
 function DietarySkeleton() {
-  return (
-    <div className='text-muted-foreground py-8 text-center'>Loading...</div>
-  );
+  return <div className='text-muted-foreground py-8 text-center'>Loading...</div>;
 }
 
 async function DietaryContent({
@@ -46,7 +41,5 @@ async function DietaryContent({
 
   const { missed } = await searchParamsPromise;
 
-  return (
-    <DietaryPage eventId={eventId} threshold={parseMissedThreshold(missed)} />
-  );
+  return <DietaryPage eventId={eventId} threshold={parseMissedThreshold(missed)} />;
 }

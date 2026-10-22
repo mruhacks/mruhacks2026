@@ -38,19 +38,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import {
-  Field,
-  FieldError,
-  FieldGroup,
-  FieldLabel,
-} from '@/components/ui/field';
+import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { imageUploadError } from '@/lib/image-attachments';
 import { PROJECT_VISIBILITY_COPY } from '@/lib/submission-copy';
-import {
-  SUBMISSION_HEARTBEAT_INTERVAL_MS,
-  SUBMISSION_TITLE_MAX_LENGTH,
-} from '@/lib/submissions';
+import { SUBMISSION_HEARTBEAT_INTERVAL_MS, SUBMISSION_TITLE_MAX_LENGTH } from '@/lib/submissions';
 
 /** A submission as the editor holds it — instants as ISO strings. */
 export type EditableSubmission = {
@@ -65,10 +57,7 @@ export type EditableSubmission = {
   lastEditedByName: string | null;
 };
 
-type Content = Pick<
-  EditableSubmission,
-  'title' | 'markdown' | 'coverImageUrl' | 'repoUrl' | 'demoUrl' | 'videoUrl'
->;
+type Content = Pick<EditableSubmission, 'title' | 'markdown' | 'coverImageUrl' | 'repoUrl' | 'demoUrl' | 'videoUrl'>;
 
 function contentOf(submission: Content): Content {
   return {
@@ -93,14 +82,7 @@ function sameContent(a: Content, b: Content): boolean {
 }
 
 /** Field order on the page, for focusing the first invalid one. */
-const FIELD_ORDER: SubmissionField[] = [
-  'title',
-  'repoUrl',
-  'demoUrl',
-  'videoUrl',
-  'coverImageUrl',
-  'markdown',
-];
+const FIELD_ORDER: SubmissionField[] = ['title', 'repoUrl', 'demoUrl', 'videoUrl', 'coverImageUrl', 'markdown'];
 
 /** The focusable input per field; the markdown editor has none to target. */
 const FIELD_INPUT_IDS: Record<SubmissionField, string | null> = {
@@ -112,9 +94,7 @@ const FIELD_INPUT_IDS: Record<SubmissionField, string | null> = {
   markdown: null,
 };
 
-function issuesByField(
-  issues: { path: PropertyKey[]; message: string }[],
-): Partial<Record<SubmissionField, string>> {
+function issuesByField(issues: { path: PropertyKey[]; message: string }[]): Partial<Record<SubmissionField, string>> {
   const errors: Partial<Record<SubmissionField, string>> = {};
   for (const issue of issues) {
     const field = issue.path[0] as SubmissionField;
@@ -146,15 +126,11 @@ export function SubmissionEditor({
   initial: EditableSubmission;
 }) {
   const [saved, setSaved] = React.useState<EditableSubmission>(initial);
-  const [content, setContent] = React.useState<Content>(() =>
-    contentOf(initial),
-  );
+  const [content, setContent] = React.useState<Content>(() => contentOf(initial));
   // Remounts the (uncontrolled) markdown editor when content is replaced
   // from the server, e.g. after "Discard mine and reload".
   const [editorKey, setEditorKey] = React.useState(0);
-  const [fieldErrors, setFieldErrors] = React.useState<
-    Partial<Record<SubmissionField, string>>
-  >({});
+  const [fieldErrors, setFieldErrors] = React.useState<Partial<Record<SubmissionField, string>>>({});
   const [formError, setFormError] = React.useState<string | null>(null);
   const [conflict, setConflict] = React.useState<Conflict | null>(null);
   const [isSaving, setIsSaving] = React.useState(false);
@@ -181,8 +157,7 @@ export function SubmissionEditor({
     setFormError(null);
   }, []);
   const onUploadError = React.useCallback(
-    (message: string) =>
-      setFieldErrors((current) => ({ ...current, markdown: message })),
+    (message: string) => setFieldErrors((current) => ({ ...current, markdown: message })),
     [],
   );
 
@@ -206,10 +181,7 @@ export function SubmissionEditor({
   }
 
   /** Resolves true once the content is saved; errors are shown inline. */
-  async function save(
-    force: boolean,
-    { silent = false }: { silent?: boolean } = {},
-  ): Promise<boolean> {
+  async function save(force: boolean, { silent = false }: { silent?: boolean } = {}): Promise<boolean> {
     setFormError(null);
     const input = saveInput(force);
 
@@ -259,9 +231,7 @@ export function SubmissionEditor({
     setFormError(null);
     const result = await getMySubmission(eventId);
     if (!result.success || !result.data?.submission) {
-      setFormError(
-        !result.success ? result.error : 'Your project no longer exists.',
-      );
+      setFormError(!result.success ? result.error : 'Your project no longer exists.');
       return;
     }
     const fresh = result.data.submission;
@@ -325,8 +295,7 @@ export function SubmissionEditor({
   }
 
   async function handleCoverFile(file: File) {
-    const showCoverError = (message: string) =>
-      setFieldErrors((current) => ({ ...current, coverImageUrl: message }));
+    const showCoverError = (message: string) => setFieldErrors((current) => ({ ...current, coverImageUrl: message }));
     const invalid = imageUploadError(file);
     if (invalid) return showCoverError(invalid);
 
@@ -337,9 +306,7 @@ export function SubmissionEditor({
     try {
       const result = await uploadSubmissionAttachment(eventId, formData);
       if (!result.success || !result.data) {
-        return showCoverError(
-          !result.success ? result.error : 'Upload failed.',
-        );
+        return showCoverError(!result.success ? result.error : 'Upload failed.');
       }
       update('coverImageUrl', result.data.url);
     } catch {
@@ -367,11 +334,7 @@ export function SubmissionEditor({
           />
         </div>
         <p className='text-muted-foreground text-sm'>
-          <ProjectStageDescription
-            stage={stage}
-            opensAt={null}
-            closesAt={closesAt}
-          />
+          <ProjectStageDescription stage={stage} opensAt={null} closesAt={closesAt} />
         </p>
         <ProjectStageWarning stage={stage} />
       </SubmissionBanner>
@@ -383,9 +346,8 @@ export function SubmissionEditor({
         >
           <Users className='mt-0.5 size-4 shrink-0' aria-hidden />
           <span>
-            {others.map((other) => other.name).join(', ')}{' '}
-            {others.length === 1 ? 'is' : 'are'} also editing — saving may
-            overwrite their changes.
+            {others.map((other) => other.name).join(', ')} {others.length === 1 ? 'is' : 'are'} also editing — saving
+            may overwrite their changes.
           </span>
         </div>
       )}
@@ -410,9 +372,7 @@ export function SubmissionEditor({
                 aria-invalid={!!fieldErrors.title}
                 onChange={(event) => update('title', event.target.value)}
               />
-              {fieldErrors.title && (
-                <FieldError>{fieldErrors.title}</FieldError>
-              )}
+              {fieldErrors.title && <FieldError>{fieldErrors.title}</FieldError>}
             </Field>
 
             <div className='grid gap-4 md:grid-cols-3'>
@@ -429,9 +389,7 @@ export function SubmissionEditor({
                   aria-invalid={!!fieldErrors.repoUrl}
                   onChange={(event) => update('repoUrl', event.target.value)}
                 />
-                {fieldErrors.repoUrl && (
-                  <FieldError>{fieldErrors.repoUrl}</FieldError>
-                )}
+                {fieldErrors.repoUrl && <FieldError>{fieldErrors.repoUrl}</FieldError>}
               </Field>
               <Field data-invalid={!!fieldErrors.demoUrl}>
                 <FieldLabel htmlFor='demoUrl'>Live demo</FieldLabel>
@@ -444,9 +402,7 @@ export function SubmissionEditor({
                   aria-invalid={!!fieldErrors.demoUrl}
                   onChange={(event) => update('demoUrl', event.target.value)}
                 />
-                {fieldErrors.demoUrl && (
-                  <FieldError>{fieldErrors.demoUrl}</FieldError>
-                )}
+                {fieldErrors.demoUrl && <FieldError>{fieldErrors.demoUrl}</FieldError>}
               </Field>
               <Field data-invalid={!!fieldErrors.videoUrl}>
                 <FieldLabel htmlFor='videoUrl'>Video</FieldLabel>
@@ -459,9 +415,7 @@ export function SubmissionEditor({
                   aria-invalid={!!fieldErrors.videoUrl}
                   onChange={(event) => update('videoUrl', event.target.value)}
                 />
-                {fieldErrors.videoUrl && (
-                  <FieldError>{fieldErrors.videoUrl}</FieldError>
-                )}
+                {fieldErrors.videoUrl && <FieldError>{fieldErrors.videoUrl}</FieldError>}
               </Field>
             </div>
 
@@ -488,21 +442,11 @@ export function SubmissionEditor({
                   onClick={() => coverInput.current?.click()}
                 >
                   <ImagePlus data-icon='inline-start' />
-                  {isUploadingCover
-                    ? 'Uploading…'
-                    : content.coverImageUrl
-                      ? 'Replace cover'
-                      : 'Upload cover'}
+                  {isUploadingCover ? 'Uploading…' : content.coverImageUrl ? 'Replace cover' : 'Upload cover'}
                 </Button>
-                {content.coverImageUrl && (
-                  <RemoveCoverButton
-                    onConfirm={() => update('coverImageUrl', null)}
-                  />
-                )}
+                {content.coverImageUrl && <RemoveCoverButton onConfirm={() => update('coverImageUrl', null)} />}
               </div>
-              {fieldErrors.coverImageUrl && (
-                <FieldError>{fieldErrors.coverImageUrl}</FieldError>
-              )}
+              {fieldErrors.coverImageUrl && <FieldError>{fieldErrors.coverImageUrl}</FieldError>}
             </Field>
 
             <Field data-invalid={!!fieldErrors.markdown}>
@@ -515,9 +459,7 @@ export function SubmissionEditor({
                 onUploadError={onUploadError}
                 placeholder='What you built, how it works, and what it looks like. Paste or drop images straight in.'
               />
-              {fieldErrors.markdown && (
-                <FieldError>{fieldErrors.markdown}</FieldError>
-              )}
+              {fieldErrors.markdown && <FieldError>{fieldErrors.markdown}</FieldError>}
             </Field>
           </FieldGroup>
 
@@ -528,16 +470,9 @@ export function SubmissionEditor({
             >
               <p>
                 A teammate saved a newer version
-                {conflict.lastEditedByName
-                  ? ` (${conflict.lastEditedByName})`
-                  : ` (${DELETED_USER_LABEL})`}{' '}
-                at{' '}
-                <LocalDateTime
-                  value={conflict.updatedAt}
-                  dateStyle='medium'
-                  timeStyle='short'
-                />
-                . Your changes weren&apos;t saved.
+                {conflict.lastEditedByName ? ` (${conflict.lastEditedByName})` : ` (${DELETED_USER_LABEL})`} at{' '}
+                <LocalDateTime value={conflict.updatedAt} dateStyle='medium' timeStyle='short' />. Your changes
+                weren&apos;t saved.
               </p>
               <div className='flex flex-wrap gap-2'>
                 <Button
@@ -567,11 +502,7 @@ export function SubmissionEditor({
             <div className='flex flex-wrap items-center justify-between gap-2'>
               <p className='text-muted-foreground text-xs'>
                 Last saved by {saved.lastEditedByName ?? DELETED_USER_LABEL} on{' '}
-                <LocalDateTime
-                  value={saved.updatedAt}
-                  dateStyle='medium'
-                  timeStyle='short'
-                />
+                <LocalDateTime value={saved.updatedAt} dateStyle='medium' timeStyle='short' />
               </p>
               <Button type='submit' disabled={isSaving || !isDirty}>
                 {isSaving ? 'Saving…' : isDirty ? 'Save project' : 'Saved'}
@@ -647,16 +578,10 @@ function RemoveCoverButton({ onConfirm }: { onConfirm: () => void }) {
         <DialogContent className='sm:max-w-md'>
           <DialogHeader>
             <DialogTitle>Remove the cover image?</DialogTitle>
-            <DialogDescription>
-              Your project will show without a cover once you save.
-            </DialogDescription>
+            <DialogDescription>Your project will show without a cover once you save.</DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button
-              type='button'
-              variant='outline'
-              onClick={() => setOpen(false)}
-            >
+            <Button type='button' variant='outline' onClick={() => setOpen(false)}>
               Cancel
             </Button>
             <Button
@@ -711,25 +636,14 @@ function DeleteProjectButton({ eventId }: { eventId: string }) {
           <DialogHeader>
             <DialogTitle>Delete your project?</DialogTitle>
             <DialogDescription>
-              This deletes the write-up, links and images for your whole team.
-              It can&apos;t be undone.
+              This deletes the write-up, links and images for your whole team. It can&apos;t be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button
-              type='button'
-              variant='outline'
-              onClick={() => setOpen(false)}
-              disabled={isDeleting}
-            >
+            <Button type='button' variant='outline' onClick={() => setOpen(false)} disabled={isDeleting}>
               Cancel
             </Button>
-            <Button
-              type='button'
-              variant='destructive'
-              onClick={handleDelete}
-              disabled={isDeleting}
-            >
+            <Button type='button' variant='destructive' onClick={handleDelete} disabled={isDeleting}>
               {isDeleting ? 'Deleting…' : 'Delete project'}
             </Button>
           </DialogFooter>

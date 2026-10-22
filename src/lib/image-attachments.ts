@@ -32,10 +32,7 @@ export type ImageUpload = {
  * server action body limit never reaches `readImageUpload` at all — the
  * request itself fails.
  */
-export function imageUploadError(file: {
-  type: string;
-  size: number;
-}): string | null {
+export function imageUploadError(file: { type: string; size: number }): string | null {
   if (!ATTACHMENT_TYPES.has(file.type)) {
     return 'Images must be JPEG, PNG, WebP, GIF or AVIF.';
   }
@@ -50,15 +47,9 @@ export function imageUploadError(file: {
  * shared limits. Returns either the bytes to store or the reason to show the
  * author.
  */
-export async function readImageUpload(
-  formData: FormData,
-): Promise<{ upload: ImageUpload } | { error: string }> {
+export async function readImageUpload(formData: FormData): Promise<{ upload: ImageUpload } | { error: string }> {
   const value = formData.get('file');
-  if (
-    !value ||
-    typeof value === 'string' ||
-    typeof value.arrayBuffer !== 'function'
-  ) {
+  if (!value || typeof value === 'string' || typeof value.arrayBuffer !== 'function') {
     return { error: 'Choose an image to upload.' };
   }
 

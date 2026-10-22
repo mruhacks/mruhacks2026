@@ -13,13 +13,7 @@ import { MAX_TABLE_SIGNS } from '@/lib/judging/table-label';
  * exactly what's asked for on the server; clearing the field goes back to
  * the tables handed out so far.
  */
-export function SignCountForm({
-  count,
-  handedOut,
-}: {
-  count: number;
-  handedOut: number;
-}) {
+export function SignCountForm({ count, handedOut }: { count: number; handedOut: number }) {
   const router = useRouter();
   const pathname = usePathname();
   const [value, setValue] = React.useState(String(count));
@@ -68,11 +62,7 @@ export function SignCountForm({
             setError(undefined);
           }}
         />
-        <Button
-          type='submit'
-          variant='outline'
-          disabled={value.trim() === String(count)}
-        >
+        <Button type='submit' variant='outline' disabled={value.trim() === String(count)}>
           Update
         </Button>
       </div>

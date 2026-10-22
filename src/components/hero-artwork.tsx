@@ -43,9 +43,7 @@ function getCountdown(target: Date): CountdownState {
   const nowDay = new Date(now);
   nowDay.setHours(0, 0, 0, 0);
 
-  let months =
-    (target.getFullYear() - nowDay.getFullYear()) * 12 +
-    (target.getMonth() - nowDay.getMonth());
+  let months = (target.getFullYear() - nowDay.getFullYear()) * 12 + (target.getMonth() - nowDay.getMonth());
   if (target.getDate() < nowDay.getDate()) {
     months--;
   }
@@ -60,9 +58,7 @@ function getCountdown(target: Date): CountdownState {
   afterMonths.setDate(Math.min(afterMonths.getDate(), maxDay));
   afterMonths.setMonth(rawMonth);
 
-  const remainingDays = Math.floor(
-    (target.getTime() - afterMonths.getTime()) / DAY_MS,
-  );
+  const remainingDays = Math.floor((target.getTime() - afterMonths.getTime()) / DAY_MS);
 
   return {
     mode: 'months',
@@ -86,12 +82,7 @@ export function HeroArtwork() {
     function update() {
       const next = getCountdown(EVENT_START_DATE);
       setCountdown(next);
-      const delay =
-        next.mode === 'time'
-          ? 1000
-          : next.mode === 'days'
-            ? 60 * 1000
-            : HOUR_MS;
+      const delay = next.mode === 'time' ? 1000 : next.mode === 'days' ? 60 * 1000 : HOUR_MS;
       timer = setTimeout(update, delay);
     }
 
@@ -654,76 +645,28 @@ export function HeroArtwork() {
         fontWeight='600'
         textAnchor='middle'
       >
-        <text
-          x='77.69'
-          y='127.32'
-          fontSize='64'
-          letterSpacing='-3.2'
-          transform='rotate(-2.29 77.69 127.32)'
-        >
+        <text x='77.69' y='127.32' fontSize='64' letterSpacing='-3.2' transform='rotate(-2.29 77.69 127.32)'>
           {pad(primary)}
         </text>
-        <text
-          x='129.15'
-          y='126.68'
-          fontSize='64'
-          letterSpacing='-3.2'
-          transform='rotate(-2.29 129.15 126.68)'
-        >
+        <text x='129.15' y='126.68' fontSize='64' letterSpacing='-3.2' transform='rotate(-2.29 129.15 126.68)'>
           :
         </text>
-        <text
-          x='180.61'
-          y='123.22'
-          fontSize='64'
-          letterSpacing='-3.2'
-          transform='rotate(-2.29 180.61 123.22)'
-        >
+        <text x='180.61' y='123.22' fontSize='64' letterSpacing='-3.2' transform='rotate(-2.29 180.61 123.22)'>
           {pad(secondary)}
         </text>
-        <text
-          x='232.07'
-          y='122.58'
-          fontSize='64'
-          letterSpacing='-3.2'
-          transform='rotate(-2.29 232.07 122.58)'
-        >
+        <text x='232.07' y='122.58' fontSize='64' letterSpacing='-3.2' transform='rotate(-2.29 232.07 122.58)'>
           :
         </text>
-        <text
-          x='283.53'
-          y='119.11'
-          fontSize='64'
-          letterSpacing='-3.2'
-          transform='rotate(-2.29 283.53 119.11)'
-        >
+        <text x='283.53' y='119.11' fontSize='64' letterSpacing='-3.2' transform='rotate(-2.29 283.53 119.11)'>
           {pad(tertiary)}
         </text>
-        <text
-          x='79.35'
-          y='159.15'
-          fontSize='20'
-          letterSpacing='-1'
-          transform='rotate(-2.29 79.35 159.15)'
-        >
+        <text x='79.35' y='159.15' fontSize='20' letterSpacing='-1' transform='rotate(-2.29 79.35 159.15)'>
           {label1}
         </text>
-        <text
-          x='182.27'
-          y='155.20'
-          fontSize='20'
-          letterSpacing='-1'
-          transform='rotate(-2.29 182.27 155.20)'
-        >
+        <text x='182.27' y='155.20' fontSize='20' letterSpacing='-1' transform='rotate(-2.29 182.27 155.20)'>
           {label2}
         </text>
-        <text
-          x='285.18'
-          y='151.41'
-          fontSize='20'
-          letterSpacing='-1'
-          transform='rotate(-2.29 285.18 151.41)'
-        >
+        <text x='285.18' y='151.41' fontSize='20' letterSpacing='-1' transform='rotate(-2.29 285.18 151.41)'>
           {label3}
         </text>
       </g>

@@ -33,11 +33,7 @@ export default function WikiCell({ params }: Props) {
  * happen from this cell, which is why there is no longer a `/wiki` route
  * under the event. The sortable list receives fresh server data after mutations.
  */
-async function WikiSection({
-  paramsPromise,
-}: {
-  paramsPromise: Promise<{ eventId: string }>;
-}) {
+async function WikiSection({ paramsPromise }: { paramsPromise: Promise<{ eventId: string }> }) {
   const { eventId: segment } = await paramsPromise;
   const eventId = await resolveEventId(segment);
   if (!eventId) return null;
@@ -80,13 +76,7 @@ async function WikiSection({
         </p>
       ) : (
         <>
-          {articles.length > 0 && (
-            <WikiArticleList
-              eventId={eventId}
-              articles={articles}
-              canWrite={canWrite}
-            />
-          )}
+          {articles.length > 0 && <WikiArticleList eventId={eventId} articles={articles} canWrite={canWrite} />}
           {hasTerms && (
             <WikiTermsRow
               eventId={eventId}
@@ -122,12 +112,7 @@ function WikiTermsRow({
   bordered: boolean;
 }) {
   return (
-    <div
-      className={cn(
-        'hover:bg-accent/50 relative flex items-center gap-2 px-4 py-3',
-        bordered && 'border-t',
-      )}
-    >
+    <div className={cn('hover:bg-accent/50 relative flex items-center gap-2 px-4 py-3', bordered && 'border-t')}>
       {/* `after:inset-0` stretches the link over the whole row, which leaves
           room beside it for the edit button — positioned, so it stays
           clickable (same trick as `WikiArticleRow`). */}
@@ -135,14 +120,9 @@ function WikiTermsRow({
         href={`/dashboard/events/${eventId}/wiki/terms`}
         className='flex min-w-0 flex-1 items-center gap-3 after:absolute after:inset-0'
       >
-        <FileText
-          aria-hidden
-          className='text-muted-foreground size-4 shrink-0'
-        />
+        <FileText aria-hidden className='text-muted-foreground size-4 shrink-0' />
         <span className='min-w-0'>
-          <span className='block truncate text-sm font-medium'>
-            Event Terms
-          </span>
+          <span className='block truncate text-sm font-medium'>Event Terms</span>
           <span className='text-muted-foreground block truncate text-xs'>
             /terms
             {updatedAt && (
@@ -156,16 +136,8 @@ function WikiTermsRow({
       </Link>
 
       {canManageEvent && (
-        <Button
-          asChild
-          variant='ghost'
-          size='icon-sm'
-          className='relative shrink-0'
-        >
-          <Link
-            href={`${basePath}/settings/terms`}
-            aria-label='Edit Event Terms'
-          >
+        <Button asChild variant='ghost' size='icon-sm' className='relative shrink-0'>
+          <Link href={`${basePath}/settings/terms`} aria-label='Edit Event Terms'>
             <Pencil className='size-4' />
           </Link>
         </Button>

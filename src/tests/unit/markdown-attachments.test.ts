@@ -37,9 +37,7 @@ describe('eventAttachmentUrl / parseEventAttachmentKey', () => {
   });
 
   test('ignores URLs that are not attachment assets', () => {
-    expect(
-      parseEventAttachmentKey('/api/assets/profile-pictures/a/b.webp'),
-    ).toBe(null);
+    expect(parseEventAttachmentKey('/api/assets/profile-pictures/a/b.webp')).toBe(null);
     expect(parseEventAttachmentKey('https://example.com/image.png')).toBe(null);
     expect(parseEventAttachmentKey(null)).toBe(null);
   });
@@ -47,9 +45,7 @@ describe('eventAttachmentUrl / parseEventAttachmentKey', () => {
 
 describe('collectAttachmentKeys', () => {
   test('finds keys behind markdown image syntax', () => {
-    expect([...collectAttachmentKeys(`![map](/api/assets/${KEY})`)]).toEqual([
-      KEY,
-    ]);
+    expect([...collectAttachmentKeys(`![map](/api/assets/${KEY})`)]).toEqual([KEY]);
   });
 
   test('finds keys in autolinks and raw img tags', () => {
@@ -73,30 +69,22 @@ describe('collectAttachmentKeys', () => {
   });
 
   test('ignores assets served from other prefixes', () => {
-    expect(
-      collectAttachmentKeys('![a](/api/assets/profile-pictures/a/b.webp)').size,
-    ).toBe(0);
+    expect(collectAttachmentKeys('![a](/api/assets/profile-pictures/a/b.webp)').size).toBe(0);
   });
 });
 
 describe('submission attachments', () => {
   test('submission keys have their own shape and parser', () => {
-    expect(SUBMISSION_KEY).toBe(
-      `submission-content/${EVENT_ID}/${FILE_ID}.png`,
-    );
+    expect(SUBMISSION_KEY).toBe(`submission-content/${EVENT_ID}/${FILE_ID}.png`);
     expect(isSubmissionAttachmentKey(SUBMISSION_KEY)).toBe(true);
     expect(isEventAttachmentKey(SUBMISSION_KEY)).toBe(false);
     expect(isSubmissionAttachmentKey(KEY)).toBe(false);
-    expect(
-      parseSubmissionAttachmentKey(eventAttachmentUrl(SUBMISSION_KEY)),
-    ).toBe(SUBMISSION_KEY);
+    expect(parseSubmissionAttachmentKey(eventAttachmentUrl(SUBMISSION_KEY))).toBe(SUBMISSION_KEY);
     expect(parseSubmissionAttachmentKey(eventAttachmentUrl(KEY))).toBe(null);
   });
 
   test('collectAttachmentKeys matches both prefixes', () => {
     const markdown = `![a](/api/assets/${KEY}) ![b](/api/assets/${SUBMISSION_KEY})`;
-    expect([...collectAttachmentKeys(markdown)].sort()).toEqual(
-      [KEY, SUBMISSION_KEY].sort(),
-    );
+    expect([...collectAttachmentKeys(markdown)].sort()).toEqual([KEY, SUBMISSION_KEY].sort());
   });
 });

@@ -9,12 +9,7 @@ import ApplicationForm from '@/components/application-form';
 import type { ApplicationQuestion } from '@/types/application';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import {
-  Field,
-  FieldLabel,
-  FieldDescription,
-  FieldError,
-} from '@/components/ui/field';
+import { Field, FieldLabel, FieldDescription, FieldError } from '@/components/ui/field';
 import { submitEventApplication } from '@/app/dashboard/events/actions';
 import { joinTeamByCode } from '@/app/dashboard/events/team-actions';
 import { registerForEvent } from '@/app/register/actions';
@@ -112,18 +107,12 @@ export function FeaturedEventStep({
     <div className='flex flex-col gap-6'>
       <div className='flex flex-col gap-1'>
         <h2 className='text-lg font-semibold'>
-          {event.hasApplication
-            ? `Apply for ${event.name}`
-            : `Register for ${event.name}`}
+          {event.hasApplication ? `Apply for ${event.name}` : `Register for ${event.name}`}
         </h2>
         {event.startsAt && (
           <p className='text-muted-foreground flex items-center gap-1.5 text-sm'>
             <CalendarDays className='size-4' />
-            <LocalDateTime
-              value={event.startsAt}
-              dateStyle='medium'
-              timeStyle='short'
-            />
+            <LocalDateTime value={event.startsAt} dateStyle='medium' timeStyle='short' />
           </p>
         )}
         <p className='text-muted-foreground text-sm'>
@@ -137,12 +126,10 @@ export function FeaturedEventStep({
 
       {event.teamsEnabled && (
         <Field data-invalid={teamCodeError != null}>
-          <FieldLabel htmlFor='welcome-team-code'>
-            Team code (optional)
-          </FieldLabel>
+          <FieldLabel htmlFor='welcome-team-code'>Team code (optional)</FieldLabel>
           <FieldDescription>
-            Have a code from a teammate? Enter it to join their team when you
-            submit below — you can also do this later from the event page.
+            Have a code from a teammate? Enter it to join their team when you submit below — you can also do this later
+            from the event page.
           </FieldDescription>
           <Input
             id='welcome-team-code'
@@ -170,12 +157,7 @@ export function FeaturedEventStep({
         />
       ) : (
         <div className='flex items-center justify-between gap-3'>
-          <Button
-            type='button'
-            variant='outline'
-            onClick={() => router.push(backHref)}
-            disabled={registering}
-          >
+          <Button type='button' variant='outline' onClick={() => router.push(backHref)} disabled={registering}>
             Back
           </Button>
           <Button onClick={register} disabled={registering}>
@@ -190,12 +172,7 @@ export function FeaturedEventStep({
         </div>
       )}
       {event.hasApplication && (
-        <Button
-          type='button'
-          variant='outline'
-          className='self-start'
-          onClick={() => router.push(backHref)}
-        >
+        <Button type='button' variant='outline' className='self-start' onClick={() => router.push(backHref)}>
           Back
         </Button>
       )}

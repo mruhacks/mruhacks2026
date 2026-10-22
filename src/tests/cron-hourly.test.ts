@@ -81,9 +81,7 @@ describe('/api/cron/hourly', () => {
 
   test('rejects every request when no cron secret is configured', async () => {
     delete process.env.CRON_SECRET;
-    const consoleError = vi
-      .spyOn(console, 'error')
-      .mockImplementation(() => {});
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     const { POST } = await import('@/app/api/cron/hourly/route');
     const response = await POST(request(''));
@@ -111,9 +109,7 @@ describe('/api/cron/hourly', () => {
 
   test('still dispatches campaigns when the RSVP job fails, then returns 500', async () => {
     runScheduledRsvpWaves.mockRejectedValueOnce(new Error('db down'));
-    const consoleError = vi
-      .spyOn(console, 'error')
-      .mockImplementation(() => {});
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     const { POST } = await import('@/app/api/cron/hourly/route');
     const response = await POST(request('test-cron-secret'));
@@ -125,9 +121,7 @@ describe('/api/cron/hourly', () => {
 
   test('returns 500 when the campaign job fails, after running RSVP', async () => {
     dispatchDueCampaigns.mockRejectedValueOnce(new Error('queue down'));
-    const consoleError = vi
-      .spyOn(console, 'error')
-      .mockImplementation(() => {});
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     const { POST } = await import('@/app/api/cron/hourly/route');
     const response = await POST(request('test-cron-secret'));
@@ -140,9 +134,7 @@ describe('/api/cron/hourly', () => {
 
   test('still runs the sweep when the wave step throws, then returns 500', async () => {
     runScheduledRsvpWaves.mockRejectedValueOnce(new Error('db down'));
-    const consoleError = vi
-      .spyOn(console, 'error')
-      .mockImplementation(() => {});
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     const { POST } = await import('@/app/api/cron/hourly/route');
     const response = await POST(request('test-cron-secret'));
@@ -154,9 +146,7 @@ describe('/api/cron/hourly', () => {
 
   test('returns 500 when the sweep throws', async () => {
     requeuePendingRsvpInvitations.mockRejectedValueOnce(new Error('db down'));
-    const consoleError = vi
-      .spyOn(console, 'error')
-      .mockImplementation(() => {});
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     const { POST } = await import('@/app/api/cron/hourly/route');
     const response = await POST(request('test-cron-secret'));
@@ -171,37 +161,25 @@ describe('hourly cron schedule', () => {
   test('the old /api/cron/rsvp path is rewritten to /api/cron/hourly', async () => {
     const { default: config } = await import('../../next.config');
     const rewrites = await config.rewrites!();
-    expect(rewrites).toEqual(
-      expect.arrayContaining([
-        { source: '/api/cron/rsvp', destination: '/api/cron/hourly' },
-      ]),
-    );
+    expect(rewrites).toEqual(expect.arrayContaining([{ source: '/api/cron/rsvp', destination: '/api/cron/hourly' }]));
   });
 
   test('the Cloudflare Worker calls /api/cron/hourly', () => {
-    const worker = readFileSync(
-      path.join(process.cwd(), 'workers/rsvp-cron/src/index.ts'),
-      'utf8',
-    );
+    const worker = readFileSync(path.join(process.cwd(), 'workers/rsvp-cron/src/index.ts'), 'utf8');
     expect(worker).toContain("'/api/cron/hourly'");
   });
 
   test('is not also scheduled by Vercel Cron', () => {
     // A second scheduler could run the invitation sweep concurrently with the
     // Worker and double-send a stuck invitation.
-    const vercel = JSON.parse(
-      readFileSync(path.join(process.cwd(), 'vercel.json'), 'utf8'),
-    ) as { crons?: unknown[] };
+    const vercel = JSON.parse(readFileSync(path.join(process.cwd(), 'vercel.json'), 'utf8')) as { crons?: unknown[] };
     expect(vercel.crons ?? []).toEqual([]);
   });
 
   test('runs hourly via the Cloudflare Worker scheduler', () => {
-    const wrangler = JSON.parse(
-      readFileSync(
-        path.join(process.cwd(), 'workers/rsvp-cron/wrangler.json'),
-        'utf8',
-      ),
-    ) as { triggers: { crons: string[] } };
+    const wrangler = JSON.parse(readFileSync(path.join(process.cwd(), 'workers/rsvp-cron/wrangler.json'), 'utf8')) as {
+      triggers: { crons: string[] };
+    };
     expect(wrangler.triggers.crons).toEqual(['0 * * * *']);
   });
 });

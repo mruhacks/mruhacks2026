@@ -11,13 +11,7 @@ import { Suspense } from 'react';
  */
 export const instant = false;
 
-export default function EventEntryLayout({
-  children,
-  modal,
-}: {
-  children: React.ReactNode;
-  modal: React.ReactNode;
-}) {
+export default function EventEntryLayout({ children, modal }: { children: React.ReactNode; modal: React.ReactNode }) {
   return (
     <>
       <Suspense fallback={null}>{children}</Suspense>

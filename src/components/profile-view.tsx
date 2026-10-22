@@ -1,10 +1,7 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { PencilIcon } from 'lucide-react';
-import type {
-  ProfileFormValues,
-  ProfileFormOptions,
-} from '@/components/profile-form/schema';
+import type { ProfileFormValues, ProfileFormOptions } from '@/components/profile-form/schema';
 import { isOtherOption } from '@/lib/other-option';
 
 type ProfileViewProps = {
@@ -21,26 +18,15 @@ export function ProfileView({ profile, options }: ProfileViewProps) {
     isOtherOption(label) && otherText ? `${label} (${otherText})` : label;
 
   const genderLabel = profile.genderId
-    ? withOtherText(
-        getLabel(profile.genderId, options.genders),
-        profile.genderOtherText,
-      )
+    ? withOtherText(getLabel(profile.genderId, options.genders), profile.genderOtherText)
     : '—';
   const universityLabel = profile.universityId
-    ? withOtherText(
-        getLabel(profile.universityId, options.universities),
-        profile.universityOtherText,
-      )
+    ? withOtherText(getLabel(profile.universityId, options.universities), profile.universityOtherText)
     : '—';
   const majorLabel = profile.majorId
-    ? withOtherText(
-        getLabel(profile.majorId, options.majors),
-        profile.majorOtherText,
-      )
+    ? withOtherText(getLabel(profile.majorId, options.majors), profile.majorOtherText)
     : '—';
-  const yearLabel = profile.yearOfStudyId
-    ? getLabel(profile.yearOfStudyId, options.years)
-    : '—';
+  const yearLabel = profile.yearOfStudyId ? getLabel(profile.yearOfStudyId, options.years) : '—';
 
   const dietaryLabels = (profile.dietaryRestrictions ?? []).map((id) =>
     withOtherText(getLabel(id, options.dietary), profile.dietaryOtherText),
@@ -51,16 +37,14 @@ export function ProfileView({ profile, options }: ProfileViewProps) {
       <div>
         <h3 className='text-lg font-semibold'>Your Profile</h3>
         <p className='text-muted-foreground mt-1 text-sm'>
-          Some of the information on your profile might be used by event
-          organizers, so please make sure it is up to date.
+          Some of the information on your profile might be used by event organizers, so please make sure it is up to
+          date.
         </p>
       </div>
 
       <div className='space-y-3 rounded-lg border p-4'>
         <div className='mb-4 flex items-center justify-between'>
-          <p className='text-muted-foreground text-xs font-semibold'>
-            PROFILE DETAILS
-          </p>
+          <p className='text-muted-foreground text-xs font-semibold'>PROFILE DETAILS</p>
           <Button variant='ghost' size='sm' asChild>
             <Link href='/dashboard/profile'>
               <PencilIcon className='mr-2 size-4' />
@@ -70,21 +54,15 @@ export function ProfileView({ profile, options }: ProfileViewProps) {
         </div>
         <div className='grid grid-cols-2 gap-4 sm:grid-cols-3'>
           <div>
-            <p className='text-muted-foreground text-xs font-semibold'>
-              Full Name
-            </p>
+            <p className='text-muted-foreground text-xs font-semibold'>Full Name</p>
             <p className='text-sm'>{profile.fullName || '—'}</p>
           </div>
           <div>
-            <p className='text-muted-foreground text-xs font-semibold'>
-              Gender
-            </p>
+            <p className='text-muted-foreground text-xs font-semibold'>Gender</p>
             <p className='text-sm'>{genderLabel}</p>
           </div>
           <div>
-            <p className='text-muted-foreground text-xs font-semibold'>
-              University
-            </p>
+            <p className='text-muted-foreground text-xs font-semibold'>University</p>
             <p className='text-sm'>{universityLabel}</p>
           </div>
           <div>
@@ -92,16 +70,12 @@ export function ProfileView({ profile, options }: ProfileViewProps) {
             <p className='text-sm'>{majorLabel}</p>
           </div>
           <div>
-            <p className='text-muted-foreground text-xs font-semibold'>
-              Year of Study
-            </p>
+            <p className='text-muted-foreground text-xs font-semibold'>Year of Study</p>
             <p className='text-sm'>{yearLabel}</p>
           </div>
           {profile.linkedinUrl && (
             <div>
-              <p className='text-muted-foreground text-xs font-semibold'>
-                LinkedIn
-              </p>
+              <p className='text-muted-foreground text-xs font-semibold'>LinkedIn</p>
               <a
                 href={profile.linkedinUrl}
                 target='_blank'
@@ -114,9 +88,7 @@ export function ProfileView({ profile, options }: ProfileViewProps) {
           )}
           {profile.githubUrl && (
             <div>
-              <p className='text-muted-foreground text-xs font-semibold'>
-                GitHub
-              </p>
+              <p className='text-muted-foreground text-xs font-semibold'>GitHub</p>
               <a
                 href={profile.githubUrl}
                 target='_blank'
@@ -131,15 +103,10 @@ export function ProfileView({ profile, options }: ProfileViewProps) {
 
         {dietaryLabels.length > 0 && (
           <div>
-            <p className='text-muted-foreground text-xs font-semibold'>
-              Dietary Restrictions
-            </p>
+            <p className='text-muted-foreground text-xs font-semibold'>Dietary Restrictions</p>
             <div className='mt-1 flex flex-wrap gap-1'>
               {dietaryLabels.map((label) => (
-                <span
-                  key={label}
-                  className='bg-muted inline-block rounded-full px-2 py-0.5 text-xs'
-                >
+                <span key={label} className='bg-muted inline-block rounded-full px-2 py-0.5 text-xs'>
                   {label}
                 </span>
               ))}

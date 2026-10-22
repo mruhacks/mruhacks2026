@@ -15,21 +15,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import {
-  Field,
-  FieldDescription,
-  FieldError,
-  FieldGroup,
-  FieldLabel,
-} from '@/components/ui/field';
+import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 type Props = {
   /** Top-level events an operational campaign can be about. */
@@ -88,9 +76,7 @@ export function NewCampaignDialog({ events, canSendOperational }: Props) {
       <DialogContent className='sm:max-w-md'>
         <DialogHeader>
           <DialogTitle>New campaign</DialogTitle>
-          <DialogDescription>
-            You&apos;ll write the email and pick its audience next.
-          </DialogDescription>
+          <DialogDescription>You&apos;ll write the email and pick its audience next.</DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className='space-y-4'>
           <FieldGroup className='gap-4'>
@@ -122,9 +108,7 @@ export function NewCampaignDialog({ events, canSendOperational }: Props) {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value='marketing'>Marketing</SelectItem>
-                  {canSendOperational && (
-                    <SelectItem value='operational'>Operational</SelectItem>
-                  )}
+                  {canSendOperational && <SelectItem value='operational'>Operational</SelectItem>}
                 </SelectContent>
               </Select>
               <FieldDescription>
@@ -134,9 +118,7 @@ export function NewCampaignDialog({ events, canSendOperational }: Props) {
               </FieldDescription>
             </Field>
             <Field>
-              <FieldLabel htmlFor='campaign-event'>
-                Event{type === 'marketing' && ' (optional)'}
-              </FieldLabel>
+              <FieldLabel htmlFor='campaign-event'>Event{type === 'marketing' && ' (optional)'}</FieldLabel>
               <Select
                 value={eventId}
                 onValueChange={(next) => {
@@ -148,9 +130,7 @@ export function NewCampaignDialog({ events, canSendOperational }: Props) {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {type === 'marketing' && (
-                    <SelectItem value='none'>No event</SelectItem>
-                  )}
+                  {type === 'marketing' && <SelectItem value='none'>No event</SelectItem>}
                   {events.map((e) => (
                     <SelectItem key={e.id} value={e.id}>
                       {e.name}
@@ -164,11 +144,7 @@ export function NewCampaignDialog({ events, canSendOperational }: Props) {
           {error && <FieldError>{error}</FieldError>}
 
           <DialogFooter>
-            <Button
-              type='button'
-              variant='outline'
-              onClick={() => setOpen(false)}
-            >
+            <Button type='button' variant='outline' onClick={() => setOpen(false)}>
               Cancel
             </Button>
             <Button type='submit' disabled={isSubmitting}>

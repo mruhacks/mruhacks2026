@@ -23,20 +23,14 @@ export default function SavedAudiencePage({ params }: Props) {
       >
         <ArrowLeft className='size-4' /> Saved audiences
       </Link>
-      <React.Suspense
-        fallback={<div className='bg-muted h-96 animate-pulse rounded-xl' />}
-      >
+      <React.Suspense fallback={<div className='bg-muted h-96 animate-pulse rounded-xl' />}>
         <AudienceContent paramsPromise={params} />
       </React.Suspense>
     </div>
   );
 }
 
-async function AudienceContent({
-  paramsPromise,
-}: {
-  paramsPromise: Promise<{ audienceId: string }>;
-}) {
+async function AudienceContent({ paramsPromise }: { paramsPromise: Promise<{ audienceId: string }> }) {
   const { audienceId } = await paramsPromise;
   const user = await requireAuthWithPermission('campaign:read:all');
   if (!z.uuid().safeParse(audienceId).success) notFound();

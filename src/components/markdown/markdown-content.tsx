@@ -12,10 +12,7 @@ import {
   parseEmbedDimension,
 } from '@/lib/embeds';
 import { cn } from '@/lib/utils';
-import {
-  MARKDOWN_EMBED_SANITIZE_SCHEMA,
-  MARKDOWN_SANITIZE_SCHEMA,
-} from './sanitize-schema';
+import { MARKDOWN_EMBED_SANITIZE_SCHEMA, MARKDOWN_SANITIZE_SCHEMA } from './sanitize-schema';
 
 type TreeNode = { type: string; value?: unknown; children?: TreeNode[] };
 
@@ -30,10 +27,7 @@ const SELF_CLOSING_IFRAME = /<iframe\b([^>]*?)\s*\/>/gi;
 function rehypeCloseSelfClosingIframes() {
   const walk = (node: TreeNode) => {
     if (node.type === 'raw' && typeof node.value === 'string') {
-      node.value = node.value.replace(
-        SELF_CLOSING_IFRAME,
-        '<iframe$1></iframe>',
-      );
+      node.value = node.value.replace(SELF_CLOSING_IFRAME, '<iframe$1></iframe>');
     }
     node.children?.forEach(walk);
   };
@@ -52,11 +46,7 @@ function parseLoneImage(html: unknown): TreeNode | null {
     (node) => !(node.type === 'text' && !node.value.trim()),
   );
   const [image] = nodes;
-  return nodes.length === 1 &&
-    image.type === 'element' &&
-    image.tagName === 'img'
-    ? image
-    : null;
+  return nodes.length === 1 && image.type === 'element' && image.tagName === 'img' ? image : null;
 }
 
 /**
@@ -121,13 +111,8 @@ export function MarkdownContent({
       <Markdown
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[
-          ...(allowRawHtml
-            ? [rehypeCloseSelfClosingIframes, rehypeRaw]
-            : [rehypeKeepOnlyImageHtml]),
-          [
-            rehypeSanitize,
-            embeds ? MARKDOWN_EMBED_SANITIZE_SCHEMA : MARKDOWN_SANITIZE_SCHEMA,
-          ],
+          ...(allowRawHtml ? [rehypeCloseSelfClosingIframes, rehypeRaw] : [rehypeKeepOnlyImageHtml]),
+          [rehypeSanitize, embeds ? MARKDOWN_EMBED_SANITIZE_SCHEMA : MARKDOWN_SANITIZE_SCHEMA],
         ]}
         components={{
           // `node` is the hast node react-markdown hands to every custom
@@ -137,12 +122,7 @@ export function MarkdownContent({
           // resized image, title, aria-*) still reach the element.
           // eslint-disable-next-line @typescript-eslint/no-unused-vars
           a: ({ node: _node, href, children, ...props }) => (
-            <a
-              {...props}
-              href={href}
-              target={href?.startsWith('/') ? undefined : '_blank'}
-              rel='noreferrer'
-            >
+            <a {...props} href={href} target={href?.startsWith('/') ? undefined : '_blank'} rel='noreferrer'>
               {children}
             </a>
           ),
@@ -152,12 +132,7 @@ export function MarkdownContent({
             // viewer's session cookie — the Next image optimizer fetches
             // server-side without one, so it can't be used here.
             // eslint-disable-next-line @next/next/no-img-element
-            <img
-              {...props}
-              src={typeof src === 'string' ? src : undefined}
-              alt={alt ?? ''}
-              loading='lazy'
-            />
+            <img {...props} src={typeof src === 'string' ? src : undefined} alt={alt ?? ''} loading='lazy' />
           ),
           // Only reachable when `allowEmbeds` let the tag past the sanitizer.
           // Nothing is spread from the source: every attribute is rebuilt here

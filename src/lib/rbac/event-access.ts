@@ -46,7 +46,5 @@ export const EVENT_DASHBOARD_PERMISSIONS = [
 
 export function canOpenEventDashboard(granted: Iterable<string>): boolean {
   const held = [...granted];
-  return EVENT_DASHBOARD_PERMISSIONS.some((required) =>
-    anyPermissionMatches(held, required),
-  );
+  return EVENT_DASHBOARD_PERMISSIONS.some((required) => anyPermissionMatches(held, required));
 }

@@ -29,12 +29,7 @@ export async function getPublishedArticleList(eventId: string) {
       updatedAt: eventArticles.updatedAt,
     })
     .from(eventArticles)
-    .where(
-      and(
-        eq(eventArticles.eventId, eventId),
-        eq(eventArticles.published, true),
-      ),
-    )
+    .where(and(eq(eventArticles.eventId, eventId), eq(eventArticles.published, true)))
     .orderBy(asc(eventArticles.sortOrder), asc(eventArticles.title));
 }
 
@@ -70,9 +65,7 @@ export async function getWikiSidebarArticles(
         published: a.published,
       }));
 
-  return hasTerms
-    ? [...articles, { slug: 'terms', title: 'Event Terms', published: true }]
-    : articles;
+  return hasTerms ? [...articles, { slug: 'terms', title: 'Event Terms', published: true }] : articles;
 }
 
 /**
@@ -95,13 +88,7 @@ export async function getPublishedArticle(eventId: string, slug: string) {
       updatedAt: eventArticles.updatedAt,
     })
     .from(eventArticles)
-    .where(
-      and(
-        eq(eventArticles.eventId, eventId),
-        eq(eventArticles.slug, slug),
-        eq(eventArticles.published, true),
-      ),
-    )
+    .where(and(eq(eventArticles.eventId, eventId), eq(eventArticles.slug, slug), eq(eventArticles.published, true)))
     .limit(1);
 
   return article ?? null;

@@ -7,14 +7,7 @@ import { hasPermission } from '@/lib/rbac/authorization';
 import { requireAuthWithPermission } from '@/lib/rbac/guards';
 import { LocalDateTime } from '@/components/local-date-time';
 import { Card, CardContent } from '@/components/ui/card';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { NewAudienceForm } from '../_components/new-audience-form';
 
 function ListSkeleton() {
@@ -23,10 +16,7 @@ function ListSkeleton() {
 
 async function AudienceList() {
   const user = await requireAuthWithPermission('campaign:read:all');
-  const [rows, canWrite] = await Promise.all([
-    listSavedAudiences(),
-    hasPermission(user.id, 'campaign:write:all'),
-  ]);
+  const [rows, canWrite] = await Promise.all([listSavedAudiences(), hasPermission(user.id, 'campaign:write:all')]);
 
   return (
     <div className='space-y-4'>
@@ -34,9 +24,7 @@ async function AudienceList() {
       {rows.length === 0 ? (
         <Card>
           <CardContent className='py-8 text-center'>
-            <p className='text-muted-foreground text-sm'>
-              No saved audiences yet.
-            </p>
+            <p className='text-muted-foreground text-sm'>No saved audiences yet.</p>
           </CardContent>
         </Card>
       ) : (
@@ -46,34 +34,23 @@ async function AudienceList() {
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Used by</TableHead>
-                <TableHead className='hidden sm:table-cell'>
-                  Last edited
-                </TableHead>
+                <TableHead className='hidden sm:table-cell'>Last edited</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {rows.map((row) => (
                 <TableRow key={row.id}>
                   <TableCell className='max-w-56 truncate font-medium'>
-                    <Link
-                      href={`/dashboard/admin/campaigns/audiences/${row.id}`}
-                      className='hover:underline'
-                    >
+                    <Link href={`/dashboard/admin/campaigns/audiences/${row.id}`} className='hover:underline'>
                       {row.name}
                     </Link>
                   </TableCell>
                   <TableCell className='text-muted-foreground'>
-                    {row.usedBy === 0
-                      ? '—'
-                      : `${row.usedBy} ${row.usedBy === 1 ? 'campaign' : 'campaigns'}`}
+                    {row.usedBy === 0 ? '—' : `${row.usedBy} ${row.usedBy === 1 ? 'campaign' : 'campaigns'}`}
                     {row.scheduled > 0 && ` (${row.scheduled} scheduled)`}
                   </TableCell>
                   <TableCell className='text-muted-foreground hidden text-xs sm:table-cell'>
-                    <LocalDateTime
-                      value={row.updatedAt}
-                      dateStyle='medium'
-                      timeStyle='short'
-                    />
+                    <LocalDateTime value={row.updatedAt} dateStyle='medium' timeStyle='short' />
                     {row.updatedByName && <> by {row.updatedByName}</>}
                   </TableCell>
                 </TableRow>
@@ -98,8 +75,7 @@ export default function SavedAudiencesPage() {
       <div>
         <h1 className='text-2xl font-semibold'>Saved audiences</h1>
         <p className='text-muted-foreground mt-1 text-sm'>
-          Reusable audience rules. A campaign linked to one always uses its
-          current rules.
+          Reusable audience rules. A campaign linked to one always uses its current rules.
         </p>
       </div>
       <Suspense fallback={<ListSkeleton />}>

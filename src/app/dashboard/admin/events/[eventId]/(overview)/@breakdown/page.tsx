@@ -32,11 +32,7 @@ function BreakdownSkeleton() {
   );
 }
 
-async function BreakdownSection({
-  paramsPromise,
-}: {
-  paramsPromise: Promise<{ eventId: string }>;
-}) {
+async function BreakdownSection({ paramsPromise }: { paramsPromise: Promise<{ eventId: string }> }) {
   const { eventId: segment } = await paramsPromise;
   const eventId = await resolveEventId(segment);
   if (!eventId) return null;
@@ -59,9 +55,7 @@ async function BreakdownSection({
       eventId={eventId}
       profile={stats.profileStats}
       questions={stats.questionStats}
-      statusCounts={Object.fromEntries(
-        stats.statusBreakdown.map((bucket) => [bucket.key, bucket.count]),
-      )}
+      statusCounts={Object.fromEntries(stats.statusBreakdown.map((bucket) => [bucket.key, bucket.count]))}
     />
   );
 }

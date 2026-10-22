@@ -42,9 +42,7 @@ export default function EventOverviewLayout({
       <div className='grid grid-cols-1 gap-4 lg:min-h-96 lg:grid-cols-5'>
         {/* Size containment lets the neighboring column determine the row's
             height; the schedule scrolls inside that available space. */}
-        <div className='min-w-0 lg:col-span-3 lg:contain-[size]'>
-          {description}
-        </div>
+        <div className='min-w-0 lg:col-span-3 lg:contain-[size]'>{description}</div>
         {/* Wiki, then applications-over-time beneath it. A cell the viewer
             can't see renders null, so the column simply gets shorter. */}
         <div className='flex flex-col gap-4 lg:col-span-2'>

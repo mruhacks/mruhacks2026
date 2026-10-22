@@ -1,9 +1,5 @@
 import { describe, test, expect } from 'vitest';
-import {
-  parsePermission,
-  permissionMatches,
-  anyPermissionMatches,
-} from '@/lib/rbac/permissions';
+import { parsePermission, permissionMatches, anyPermissionMatches } from '@/lib/rbac/permissions';
 
 describe('parsePermission', () => {
   test('parses a full 3-part permission string', () => {
@@ -106,33 +102,19 @@ describe('anyPermissionMatches', () => {
   });
 
   test('returns true when exact match exists', () => {
-    expect(
-      anyPermissionMatches(new Set(['user:read:all']), 'user:read:all'),
-    ).toBe(true);
+    expect(anyPermissionMatches(new Set(['user:read:all']), 'user:read:all')).toBe(true);
   });
 
   test('returns true when a wildcard covers the required permission', () => {
-    expect(
-      anyPermissionMatches(new Set(['user:all:all']), 'user:read:self'),
-    ).toBe(true);
+    expect(anyPermissionMatches(new Set(['user:all:all']), 'user:read:self')).toBe(true);
   });
 
   test('returns false when no granted permission covers required', () => {
-    expect(
-      anyPermissionMatches(
-        new Set(['role:read:all', 'event:manage:all']),
-        'user:read:all',
-      ),
-    ).toBe(false);
+    expect(anyPermissionMatches(new Set(['role:read:all', 'event:manage:all']), 'user:read:all')).toBe(false);
   });
 
   test('returns true if at least one of multiple granted permissions matches', () => {
-    expect(
-      anyPermissionMatches(
-        new Set(['role:read:all', 'user:read:all']),
-        'user:read:all',
-      ),
-    ).toBe(true);
+    expect(anyPermissionMatches(new Set(['role:read:all', 'user:read:all']), 'user:read:all')).toBe(true);
   });
 
   test('works with array iterables', () => {

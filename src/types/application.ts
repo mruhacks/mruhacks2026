@@ -51,10 +51,7 @@ export type ApplicationQuestion = {
  * not set an explicit `maxLength`. Kept here so the form UI, the client schema,
  * and the server-side response validator all agree on one number.
  */
-export const DEFAULT_QUESTION_MAX_LENGTH: Record<
-  'short_text' | 'long_text',
-  number
-> = {
+export const DEFAULT_QUESTION_MAX_LENGTH: Record<'short_text' | 'long_text', number> = {
   short_text: 255,
   long_text: 2000,
 };
@@ -63,9 +60,7 @@ export const DEFAULT_QUESTION_MAX_LENGTH: Record<
 export const QUESTION_MAX_LENGTH_LIMIT = 10000;
 
 /** True for question types whose answer is free text and therefore capped. */
-export function isStringQuestion(
-  type: ApplicationQuestionType,
-): type is 'short_text' | 'long_text' {
+export function isStringQuestion(type: ApplicationQuestionType): type is 'short_text' | 'long_text' {
   return type === 'short_text' || type === 'long_text';
 }
 
@@ -78,21 +73,14 @@ export function isStringQuestion(
 export function isSummarizableQuestion(
   type: ApplicationQuestionType,
 ): type is 'single_select' | 'multi_select' | 'number' | 'boolean' {
-  return (
-    type === 'single_select' ||
-    type === 'multi_select' ||
-    type === 'number' ||
-    type === 'boolean'
-  );
+  return type === 'single_select' || type === 'multi_select' || type === 'number' || type === 'boolean';
 }
 
 /**
  * Effective character cap for a question: the admin-configured `maxLength` when
  * present, otherwise the type default. Returns null for non-string questions.
  */
-export function resolveMaxLength(
-  question: Pick<ApplicationQuestion, 'type' | 'maxLength'>,
-): number | null {
+export function resolveMaxLength(question: Pick<ApplicationQuestion, 'type' | 'maxLength'>): number | null {
   if (!isStringQuestion(question.type)) return null;
   return question.maxLength ?? DEFAULT_QUESTION_MAX_LENGTH[question.type];
 }
@@ -112,9 +100,7 @@ export function resolveShowInApplicationReview(
  * Always false for non-summarizable types (free text, section dividers),
  * regardless of the stored flag; unset otherwise defaults to false.
  */
-export function resolveShowInReports(
-  question: Pick<ApplicationQuestion, 'type' | 'showInReports'>,
-): boolean {
+export function resolveShowInReports(question: Pick<ApplicationQuestion, 'type' | 'showInReports'>): boolean {
   if (!isSummarizableQuestion(question.type)) return false;
   return question.showInReports ?? false;
 }

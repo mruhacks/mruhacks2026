@@ -33,13 +33,7 @@ type Decision = { card: ReviewCard; approve: boolean };
  * undo can never overtake the vote it reverses and a refill never returns a
  * card whose vote is still in flight.
  */
-export function ReviewDeck({
-  eventId,
-  initial,
-}: {
-  eventId: string;
-  initial: ReviewQueue;
-}) {
+export function ReviewDeck({ eventId, initial }: { eventId: string; initial: ReviewQueue }) {
   const [cards, setCards] = React.useState(initial.cards);
   const [remaining, setRemaining] = React.useState(initial.remaining);
   const [reviewed, setReviewed] = React.useState(initial.reviewed);
@@ -80,10 +74,7 @@ export function ReviewDeck({
           const { cards: fresh, remaining: left, reviewed: done } = result.data;
           setCards((prev) => {
             const seen = new Set(prev.map((c) => c.participantId));
-            return [
-              ...prev,
-              ...fresh.filter((c) => !seen.has(c.participantId)),
-            ];
+            return [...prev, ...fresh.filter((c) => !seen.has(c.participantId))];
           });
           setRemaining(left);
           setReviewed(done);
@@ -204,12 +195,8 @@ export function ReviewDeck({
   return (
     <div className='mx-auto flex max-w-xl flex-col gap-4'>
       <p className='text-muted-foreground text-center text-sm tabular-nums'>
-        <strong className='text-foreground'>{reviewed.toLocaleString()}</strong>{' '}
-        reviewed ·{' '}
-        <strong className='text-foreground'>
-          {remaining.toLocaleString()}
-        </strong>{' '}
-        left
+        <strong className='text-foreground'>{reviewed.toLocaleString()}</strong> reviewed ·{' '}
+        <strong className='text-foreground'>{remaining.toLocaleString()}</strong> left
       </p>
 
       <div className='relative h-112 sm:h-128'>
@@ -249,8 +236,7 @@ export function ReviewDeck({
             <PartyPopper aria-hidden className='text-muted-foreground size-8' />
             <p className='m-0 font-semibold'>You&apos;re all caught up</p>
             <p className='text-muted-foreground m-0 text-sm'>
-              You&apos;ve voted on every application still in review. New ones
-              will show up here as they come in.
+              You&apos;ve voted on every application still in review. New ones will show up here as they come in.
             </p>
           </div>
         )}
@@ -290,9 +276,7 @@ export function ReviewDeck({
           <Check className='size-6' />
         </Button>
       </div>
-      <p className='text-muted-foreground m-0 text-center text-xs'>
-        Swipe or use ← / → to vote, Z to undo.
-      </p>
+      <p className='text-muted-foreground m-0 text-center text-xs'>Swipe or use ← / → to vote, Z to undo.</p>
     </div>
   );
 }
@@ -306,23 +290,13 @@ function ApplicationCard({
   className?: string;
 } & React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <Card
-      className={cn('h-full gap-0 overflow-y-auto p-6 shadow-md', className)}
-      {...props}
-    >
+    <Card className={cn('h-full gap-0 overflow-y-auto p-6 shadow-md', className)} {...props}>
       <dl className='m-0 space-y-5'>
         {card.answers.map((answer) => (
           <div key={answer.questionId}>
-            <dt className='text-muted-foreground text-xs font-medium tracking-wide uppercase'>
-              {answer.label}
-            </dt>
+            <dt className='text-muted-foreground text-xs font-medium tracking-wide uppercase'>{answer.label}</dt>
             <dd className='m-0 mt-1 text-sm/relaxed wrap-break-word whitespace-pre-wrap'>
-              {getAnswerDisplayValue(
-                answer.value,
-                answer.type,
-                answer.options,
-                answer.otherText,
-              )}
+              {getAnswerDisplayValue(answer.value, answer.type, answer.options, answer.otherText)}
             </dd>
           </div>
         ))}

@@ -36,10 +36,7 @@ const participatedInRule = z.object({
   value: z.object({
     eventId,
     /** Effective statuses (an expired invitation reads as `timed_out`). Omitted or empty = any status. */
-    statuses: z
-      .array(z.enum(participationStatusesList))
-      .max(participationStatusesList.length)
-      .optional(),
+    statuses: z.array(z.enum(participationStatusesList)).max(participationStatusesList.length).optional(),
   }),
 });
 
@@ -94,15 +91,11 @@ const groupSchema: z.ZodType<AudienceRuleGroup> = z.lazy(() =>
     id,
     combinator: z.enum(['and', 'or']),
     not: z.boolean().optional(),
-    rules: z
-      .array(z.union([audienceRuleSchema, groupSchema]))
-      .max(MAX_AUDIENCE_NODES),
+    rules: z.array(z.union([audienceRuleSchema, groupSchema])).max(MAX_AUDIENCE_NODES),
   }),
 );
 
-export function isAudienceGroup(
-  node: AudienceRule | AudienceRuleGroup,
-): node is AudienceRuleGroup {
+export function isAudienceGroup(node: AudienceRule | AudienceRuleGroup): node is AudienceRuleGroup {
   return 'combinator' in node;
 }
 

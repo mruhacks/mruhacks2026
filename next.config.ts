@@ -79,8 +79,7 @@ const nextConfig: NextConfig = {
             // matter what the user has granted. `self` still keeps the
             // camera away from any embedded third-party frame.
             key: 'Permissions-Policy',
-            value:
-              'camera=(self), microphone=(), geolocation=(), payment=(), usb=()',
+            value: 'camera=(self), microphone=(), geolocation=(), payment=(), usb=()',
           },
         ],
       },

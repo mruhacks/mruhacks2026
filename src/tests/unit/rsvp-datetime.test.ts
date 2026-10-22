@@ -32,12 +32,8 @@ describe('RSVP deadline formatting', () => {
     });
 
     expect(email.subject).toContain('MRUHacks & Friends');
-    expect(email.text).toContain(
-      'MRUHacks & Friends <img src=x onerror=alert(1)>',
-    );
-    expect(email.html).toContain(
-      'MRUHacks &amp; Friends &lt;img src=x onerror=alert(1)&gt;',
-    );
+    expect(email.text).toContain('MRUHacks & Friends <img src=x onerror=alert(1)>');
+    expect(email.html).toContain('MRUHacks &amp; Friends &lt;img src=x onerror=alert(1)&gt;');
     expect(email.html).not.toContain('<img src=x');
   });
 

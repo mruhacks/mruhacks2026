@@ -29,11 +29,5 @@ async function DescriptionContent({ params }: Props) {
   const event = await getAdminEventHeader(eventId);
   if (!event) notFound();
 
-  return (
-    <EventContentForm
-      key={eventId}
-      eventId={eventId}
-      initialMarkdown={event.descriptionMarkdown}
-    />
-  );
+  return <EventContentForm key={eventId} eventId={eventId} initialMarkdown={event.descriptionMarkdown} />;
 }

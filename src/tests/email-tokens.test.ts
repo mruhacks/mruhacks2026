@@ -20,9 +20,7 @@ const SIGNING_ENV = [
   'CHECK_IN_SIGNING_PRIVATE_KEY',
   'CHECK_IN_SIGNING_PUBLIC_KEY',
 ] as const;
-const originalEnv = Object.fromEntries(
-  SIGNING_ENV.map((name) => [name, process.env[name]]),
-);
+const originalEnv = Object.fromEntries(SIGNING_ENV.map((name) => [name, process.env[name]]));
 
 function newKeyPem(): string {
   const { privateKey } = generateKeyPairSync('ed25519', {
@@ -40,11 +38,7 @@ function useKey(pem: string) {
 /** Re-signs `version | data` under the unsubscribe label, as a future version might. */
 function forgeUnsubscribe(pem: string, version: number, data: string): string {
   const body = Buffer.concat([Buffer.from([version]), Buffer.from(data)]);
-  const signature = sign(
-    null,
-    Buffer.concat([Buffer.from('mruhacks:unsubscribe\0'), body]),
-    createPrivateKey(pem),
-  );
+  const signature = sign(null, Buffer.concat([Buffer.from('mruhacks:unsubscribe\0'), body]), createPrivateKey(pem));
   return Buffer.concat([body, signature]).toString('base64url');
 }
 
@@ -72,10 +66,7 @@ describe('unsubscribe tokens', () => {
   });
 
   test('a tampered address or signature is rejected', async () => {
-    const token = Buffer.from(
-      await buildUnsubscribeToken('a@example.com'),
-      'base64url',
-    );
+    const token = Buffer.from(await buildUnsubscribeToken('a@example.com'), 'base64url');
     const data = Buffer.from(token);
     data[1] ^= 0x01;
     expect(await verifyUnsubscribeToken(data.toString('base64url'))).toBeNull();
@@ -89,12 +80,8 @@ describe('unsubscribe tokens', () => {
     useKey(pem);
     // Record the key the way a real sign would.
     await buildUnsubscribeToken('x@example.com');
-    expect(
-      await verifyUnsubscribeToken(forgeUnsubscribe(pem, 1, 'v@example.com')),
-    ).toEqual({ email: 'v@example.com' });
-    expect(
-      await verifyUnsubscribeToken(forgeUnsubscribe(pem, 2, 'v@example.com')),
-    ).toBeNull();
+    expect(await verifyUnsubscribeToken(forgeUnsubscribe(pem, 1, 'v@example.com'))).toEqual({ email: 'v@example.com' });
+    expect(await verifyUnsubscribeToken(forgeUnsubscribe(pem, 2, 'v@example.com'))).toBeNull();
   });
 
   test('garbage is rejected', async () => {
@@ -119,10 +106,7 @@ describe('wallet link tokens', () => {
   });
 
   test('tampered ids are rejected', async () => {
-    const token = Buffer.from(
-      await buildWalletLinkToken(USER_ID, EVENT_ID),
-      'base64url',
-    );
+    const token = Buffer.from(await buildWalletLinkToken(USER_ID, EVENT_ID), 'base64url');
     token[5] ^= 0x01;
     expect(await verifyWalletLinkToken(token.toString('base64url'))).toBeNull();
   });
@@ -167,16 +151,8 @@ describe('stored public keys', () => {
       .select()
       .from(signingPublicKeys)
       .orderBy(signingPublicKeys.firstUsedAt, signingPublicKeys.id);
-    await db
-      .update(signingPublicKeys)
-      .set({ revokedAt: new Date() })
-      .where(eq(signingPublicKeys.id, current.id));
-    expect(
-      await db
-        .select()
-        .from(signingPublicKeys)
-        .where(isNull(signingPublicKeys.revokedAt)),
-    ).toHaveLength(1);
+    await db.update(signingPublicKeys).set({ revokedAt: new Date() }).where(eq(signingPublicKeys.id, current.id));
+    expect(await db.select().from(signingPublicKeys).where(isNull(signingPublicKeys.revokedAt))).toHaveLength(1);
 
     expect(await verifyUnsubscribeToken(unsubscribe)).toBeNull();
     expect(await verifyWalletLinkToken(wallet)).toBeNull();

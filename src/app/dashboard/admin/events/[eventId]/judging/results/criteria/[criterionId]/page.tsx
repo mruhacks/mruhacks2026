@@ -17,11 +17,7 @@ export default function CriterionResultsPage({ params }: Props) {
   );
 }
 
-async function CriterionResults({
-  paramsPromise,
-}: {
-  paramsPromise: Props['params'];
-}) {
+async function CriterionResults({ paramsPromise }: { paramsPromise: Props['params'] }) {
   const { criterionId } = await paramsPromise;
   const user = await getUser();
   if (!user) redirect('/signin');

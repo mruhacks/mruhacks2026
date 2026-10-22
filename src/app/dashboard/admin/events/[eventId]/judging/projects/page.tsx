@@ -17,19 +17,13 @@ type Props = { params: Promise<{ eventId: string }> };
  */
 export default function JudgingProjectsRoute({ params }: Props) {
   return (
-    <React.Suspense
-      fallback={<div className='bg-muted h-64 animate-pulse rounded-xl' />}
-    >
+    <React.Suspense fallback={<div className='bg-muted h-64 animate-pulse rounded-xl' />}>
       <ProjectsContent paramsPromise={params} />
     </React.Suspense>
   );
 }
 
-async function ProjectsContent({
-  paramsPromise,
-}: {
-  paramsPromise: Props['params'];
-}) {
+async function ProjectsContent({ paramsPromise }: { paramsPromise: Props['params'] }) {
   const { eventId: segment } = await paramsPromise;
   const eventId = await resolveEventId(segment);
   if (!eventId) notFound();
@@ -44,11 +38,7 @@ async function ProjectsContent({
     hasPermission(user.id, 'submission:read:all'),
   ]);
   if (!result.success || !result.data) {
-    return (
-      <p className='text-destructive'>
-        {!result.success ? result.error : 'Failed to load projects.'}
-      </p>
-    );
+    return <p className='text-destructive'>{!result.success ? result.error : 'Failed to load projects.'}</p>;
   }
 
   return (

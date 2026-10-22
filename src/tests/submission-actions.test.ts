@@ -5,15 +5,7 @@
  *
  * Object storage is mocked: these are about the actions' logic, not the bucket.
  */
-import {
-  afterAll,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  test,
-  vi,
-} from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
 import { and, eq } from 'drizzle-orm';
 
 import { db } from '@/utils/db';
@@ -40,8 +32,7 @@ vi.mock('next/cache', () => ({
   cacheTag: vi.fn(),
   cacheLife: vi.fn(),
 }));
-const putObject =
-  vi.fn<(args: { key: string; contentType: string }) => Promise<void>>();
+const putObject = vi.fn<(args: { key: string; contentType: string }) => Promise<void>>();
 const deleteObject = vi.fn<(key: string) => Promise<void>>();
 vi.mock('@/utils/object-storage', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/utils/object-storage')>()),
@@ -63,12 +54,7 @@ import {
   setSubmissionPublished,
   uploadSubmissionAttachment,
 } from '@/app/dashboard/events/submission-actions';
-import {
-  getMyTeam,
-  joinTeamByCode,
-  leaveTeam,
-  removeMember,
-} from '@/app/dashboard/events/team-actions';
+import { getMyTeam, joinTeamByCode, leaveTeam, removeMember } from '@/app/dashboard/events/team-actions';
 import { updateEventSettings } from '@/app/dashboard/admin/events/actions';
 import { purgeUser } from '@/app/actions/users';
 import { prepareUserDeletion } from '@/lib/account-deletion';
@@ -114,25 +100,14 @@ async function makeUser(label: string): Promise<TestUser> {
 
 async function grant(userId: string, slugs: string[]) {
   for (const slug of slugs) {
-    await db
-      .insert(permission)
-      .values({ slug, description: 'test permission' })
-      .onConflictDoNothing();
-    const [p] = await db
-      .select({ id: permission.id })
-      .from(permission)
-      .where(eq(permission.slug, slug));
-    await db
-      .insert(userPermission)
-      .values({ userId, permissionId: p!.id })
-      .onConflictDoNothing();
+    await db.insert(permission).values({ slug, description: 'test permission' }).onConflictDoNothing();
+    const [p] = await db.select({ id: permission.id }).from(permission).where(eq(permission.slug, slug));
+    await db.insert(userPermission).values({ userId, permissionId: p!.id }).onConflictDoNothing();
   }
 }
 
 /** An application event with teams, mid-way through its submission window. */
-async function makeEvent(
-  overrides: Partial<typeof events.$inferInsert> = {},
-): Promise<string> {
+async function makeEvent(overrides: Partial<typeof events.$inferInsert> = {}): Promise<string> {
   const now = Date.now();
   const [e] = await db
     .insert(events)
@@ -172,10 +147,7 @@ async function setDeadlinePassed(eventId: string, passed: boolean) {
 
 function pngForm(): FormData {
   const formData = new FormData();
-  formData.append(
-    'file',
-    new File([new Uint8Array([1, 2, 3])], 'a.png', { type: 'image/png' }),
-  );
+  formData.append('file', new File([new Uint8Array([1, 2, 3])], 'a.png', { type: 'image/png' }));
   return formData;
 }
 
@@ -184,10 +156,7 @@ async function currentSubmission(eventId: string) {
   return state.submission!;
 }
 
-function saveInput(
-  submission: { updatedAt: Date },
-  overrides: Record<string, unknown> = {},
-) {
+function saveInput(submission: { updatedAt: Date }, overrides: Record<string, unknown> = {}) {
   return {
     title: 'Snack Overflow',
     markdown: 'We built a thing.',
@@ -275,9 +244,7 @@ describe('eligibility and access', () => {
     loginAs(userA);
     expect((await getMySubmission(checkInEvent)).success).toBe(false);
 
-    await db
-      .insert(checkIns)
-      .values({ userId: userA.id, eventId: checkInEvent });
+    await db.insert(checkIns).values({ userId: userA.id, eventId: checkInEvent });
     expect((await getMySubmission(checkInEvent)).success).toBe(true);
   });
 
@@ -336,27 +303,18 @@ describe('creating and saving', () => {
     loginAs(userB);
     const loadedByB = await currentSubmission(eventId);
 
-    const saved = unwrap(
-      await saveSubmission(eventId, saveInput(loadedByB, { title: 'B wins' })),
-    );
+    const saved = unwrap(await saveSubmission(eventId, saveInput(loadedByB, { title: 'B wins' })));
     expect(saved.status).toBe('saved');
 
     loginAs(userA);
-    const stale = unwrap(
-      await saveSubmission(eventId, saveInput(loadedByA, { title: 'A later' })),
-    );
+    const stale = unwrap(await saveSubmission(eventId, saveInput(loadedByA, { title: 'A later' })));
     expect(stale).toMatchObject({
       status: 'conflict',
       lastEditedByName: userB.name,
     });
     expect((await currentSubmission(eventId)).title).toBe('B wins');
 
-    const forced = unwrap(
-      await saveSubmission(
-        eventId,
-        saveInput(loadedByA, { title: 'A later', force: true }),
-      ),
-    );
+    const forced = unwrap(await saveSubmission(eventId, saveInput(loadedByA, { title: 'A later', force: true })));
     expect(forced.status).toBe('saved');
     expect((await currentSubmission(eventId)).title).toBe('A later');
   });
@@ -364,10 +322,7 @@ describe('creating and saving', () => {
   test('validates links against their host lists', async () => {
     loginAs(userA);
     const submission = await currentSubmission(eventId);
-    const result = await saveSubmission(
-      eventId,
-      saveInput(submission, { repoUrl: 'https://example.com/repo' }),
-    );
+    const result = await saveSubmission(eventId, saveInput(submission, { repoUrl: 'https://example.com/repo' }));
     expect(result.success).toBe(false);
   });
 
@@ -375,10 +330,7 @@ describe('creating and saving', () => {
     loginAs(userA);
     const submission = await currentSubmission(eventId);
     const foreign = `/api/assets/${submissionAttachmentPrefix(crypto.randomUUID())}${crypto.randomUUID()}.png`;
-    const result = await saveSubmission(
-      eventId,
-      saveInput(submission, { coverImageUrl: foreign }),
-    );
+    const result = await saveSubmission(eventId, saveInput(submission, { coverImageUrl: foreign }));
     expect(result.success).toBe(false);
   });
 
@@ -386,16 +338,10 @@ describe('creating and saving', () => {
     loginAs(userA);
     const submission = await currentSubmission(eventId);
     const prefix = `/api/assets/${submissionAttachmentPrefix(submission.id)}`;
-    const images = Array.from(
-      { length: 20 },
-      () => `![x](${prefix}${crypto.randomUUID()}.png)`,
-    ).join('\n');
+    const images = Array.from({ length: 20 }, () => `![x](${prefix}${crypto.randomUUID()}.png)`).join('\n');
     const cover = `${prefix}${crypto.randomUUID()}.png`;
 
-    const ok = await saveSubmission(
-      eventId,
-      saveInput(submission, { markdown: images }),
-    );
+    const ok = await saveSubmission(eventId, saveInput(submission, { markdown: images }));
     expect(ok.success).toBe(true);
 
     const tooMany = await saveSubmission(
@@ -411,9 +357,7 @@ describe('creating and saving', () => {
   test('uploads images under the submission prefix', async () => {
     loginAs(userA);
     const submission = await currentSubmission(eventId);
-    const { url } = unwrap(
-      await uploadSubmissionAttachment(eventId, pngForm()),
-    );
+    const { url } = unwrap(await uploadSubmissionAttachment(eventId, pngForm()));
     expect(url).toContain(submissionAttachmentPrefix(submission.id));
     expect(putObject).toHaveBeenCalledOnce();
   });
@@ -425,20 +369,13 @@ describe('publishing', () => {
     expect((await setSubmissionPublished(eventId, true)).success).toBe(false);
 
     const submission = await currentSubmission(eventId);
-    unwrap(
-      await saveSubmission(
-        eventId,
-        saveInput(submission, { repoUrl: 'https://github.com/team/project' }),
-      ),
-    );
+    unwrap(await saveSubmission(eventId, saveInput(submission, { repoUrl: 'https://github.com/team/project' })));
     unwrap(await setSubmissionPublished(eventId, true));
     const published = await currentSubmission(eventId);
     expect(published.published).toBe(true);
 
     // Publishing doesn't count as a content save for the staleness check.
-    expect(published.updatedAt.getTime()).toBe(
-      (await currentSubmission(eventId)).updatedAt.getTime(),
-    );
+    expect(published.updatedAt.getTime()).toBe((await currentSubmission(eventId)).updatedAt.getTime());
 
     unwrap(
       await saveSubmission(
@@ -478,10 +415,7 @@ describe('publishing', () => {
     const { tableSlot } = await row();
     expect(tableSlot).not.toBeNull();
 
-    await db
-      .update(submissions)
-      .set({ placement: 1 })
-      .where(eq(submissions.id, id));
+    await db.update(submissions).set({ placement: 1 }).where(eq(submissions.id, id));
     unwrap(await setSubmissionPublished(eventId, false));
     expect(await row()).toEqual({ tableSlot, placement: null });
     unwrap(await setSubmissionPublished(eventId, true));
@@ -495,9 +429,7 @@ describe('editor presence', () => {
     expect(unwrap(await heartbeatSubmissionEditor(eventId))).toEqual([]);
 
     loginAs(userB);
-    expect(unwrap(await heartbeatSubmissionEditor(eventId))).toEqual([
-      { userId: userA.id, name: userA.name },
-    ]);
+    expect(unwrap(await heartbeatSubmissionEditor(eventId))).toEqual([{ userId: userA.id, name: userA.name }]);
 
     loginAs(userA);
     unwrap(await leaveSubmissionEditor(eventId));
@@ -522,19 +454,13 @@ describe('the deadline', () => {
     await setDeadlinePassed(eventId, true);
     loginAs(userA);
     const submission = await currentSubmission(eventId);
-    expect(unwrap(await getMySubmission(eventId)).submissionWindow).toBe(
-      'closed',
-    );
-    expect((await saveSubmission(eventId, saveInput(submission))).success).toBe(
-      false,
-    );
+    expect(unwrap(await getMySubmission(eventId)).submissionWindow).toBe('closed');
+    expect((await saveSubmission(eventId, saveInput(submission))).success).toBe(false);
     expect((await setSubmissionPublished(eventId, false)).success).toBe(false);
     expect((await deleteSubmission(eventId)).success).toBe(false);
 
     await setDeadlinePassed(eventId, false);
-    expect(unwrap(await getMySubmission(eventId)).submissionWindow).toBe(
-      'open',
-    );
+    expect(unwrap(await getMySubmission(eventId)).submissionWindow).toBe('open');
   });
 
   test('locks self-service team changes, but not moderation', async () => {
@@ -599,9 +525,7 @@ describe('admin access', () => {
 
   test('participants without submission:read:all are refused', async () => {
     loginAs(userA);
-    await expect(listEventSubmissions(eventId)).rejects.toThrow(
-      /REDIRECT:\/forbidden/,
-    );
+    await expect(listEventSubmissions(eventId)).rejects.toThrow(/REDIRECT:\/forbidden/);
   });
 });
 
@@ -616,13 +540,8 @@ describe('event settings', () => {
 
   test('blocks turning off teams or check-in, or clearing the deadline, once a submission exists', async () => {
     loginAs(admin);
-    expect(
-      (await updateEventSettings(eventId, { teamsEnabled: false })).success,
-    ).toBe(false);
-    expect(
-      (await updateEventSettings(eventId, { submissionsCloseAt: null }))
-        .success,
-    ).toBe(false);
+    expect((await updateEventSettings(eventId, { teamsEnabled: false })).success).toBe(false);
+    expect((await updateEventSettings(eventId, { submissionsCloseAt: null })).success).toBe(false);
 
     const checkInEvent = await makeEvent({ checkInEnabled: true });
     await insertParticipant({
@@ -630,16 +549,11 @@ describe('event settings', () => {
       userId: userD.id,
       status: 'accepted',
     });
-    await db
-      .insert(checkIns)
-      .values({ userId: userD.id, eventId: checkInEvent });
+    await db.insert(checkIns).values({ userId: userD.id, eventId: checkInEvent });
     loginAs(userD);
     unwrap(await createSubmission(checkInEvent));
     loginAs(admin);
-    expect(
-      (await updateEventSettings(checkInEvent, { checkInEnabled: false }))
-        .success,
-    ).toBe(false);
+    expect((await updateEventSettings(checkInEvent, { checkInEnabled: false })).success).toBe(false);
   });
 });
 
@@ -667,9 +581,7 @@ describe('deletion', () => {
     );
 
     unwrap(await deleteSubmission(solo));
-    expect(deleteObject.mock.calls.map(([key]) => key).sort()).toEqual(
-      [own, cover].sort(),
-    );
+    expect(deleteObject.mock.calls.map(([key]) => key).sort()).toEqual([own, cover].sort());
     expect(unwrap(await getMySubmission(solo)).submission).toBeNull();
   });
 
@@ -686,12 +598,7 @@ describe('deletion', () => {
     const logs = await db
       .select()
       .from(auditLog)
-      .where(
-        and(
-          eq(auditLog.action, 'submission.deleted'),
-          eq(auditLog.targetId, row!.id),
-        ),
-      );
+      .where(and(eq(auditLog.action, 'submission.deleted'), eq(auditLog.targetId, row!.id)));
     expect(logs).toHaveLength(1);
     await setDeadlinePassed(eventId, false);
   });
@@ -706,9 +613,7 @@ describe('deletion', () => {
     loginAs(userD);
     const { id } = unwrap(await createSubmission(doomed));
     await db.delete(events).where(eq(events.id, doomed));
-    expect(
-      await db.select().from(submissions).where(eq(submissions.id, id)),
-    ).toHaveLength(0);
+    expect(await db.select().from(submissions).where(eq(submissions.id, id))).toHaveLength(0);
   });
 
   test('a team holding a submission cannot be dissolved directly', async () => {
@@ -721,9 +626,7 @@ describe('deletion', () => {
     loginAs(userD);
     unwrap(await createSubmission(guarded));
     const { teamId } = unwrap(await getMyTeam(guarded));
-    await expect(
-      db.delete(teams).where(eq(teams.id, teamId)),
-    ).rejects.toThrow();
+    await expect(db.delete(teams).where(eq(teams.id, teamId))).rejects.toThrow();
   });
 });
 
@@ -762,10 +665,7 @@ describe('account deletion', () => {
 
     const [team] = await db.select().from(teams).where(eq(teams.id, teamId));
     expect(team?.organizerId).toBe(teammate.id);
-    const [submission] = await db
-      .select()
-      .from(submissions)
-      .where(eq(submissions.teamId, teamId));
+    const [submission] = await db.select().from(submissions).where(eq(submissions.teamId, teamId));
     expect(submission?.lastEditedBy).toBeNull();
 
     const votes = await db
@@ -777,9 +677,7 @@ describe('account deletion', () => {
 
     loginAs(teammate);
     expect((await getMySubmission(ev)).success).toBe(true);
-    expect(
-      unwrap(await getMySubmission(ev)).submission?.lastEditedByName,
-    ).toBeNull();
+    expect(unwrap(await getMySubmission(ev)).submission?.lastEditedByName).toBeNull();
   });
 
   test('a last member with a submission leaves an empty team behind; without one, the team goes', async () => {
@@ -806,21 +704,9 @@ describe('account deletion', () => {
 
     const [kept] = await db.select().from(teams).where(eq(teams.id, keptTeam));
     expect(kept?.organizerId).toBeNull();
-    expect(
-      await db
-        .select()
-        .from(teamMembers)
-        .where(eq(teamMembers.teamId, keptTeam)),
-    ).toHaveLength(0);
-    expect(
-      await db
-        .select()
-        .from(submissions)
-        .where(eq(submissions.teamId, keptTeam)),
-    ).toHaveLength(1);
-    expect(
-      await db.select().from(teams).where(eq(teams.id, goneTeam)),
-    ).toHaveLength(0);
+    expect(await db.select().from(teamMembers).where(eq(teamMembers.teamId, keptTeam))).toHaveLength(0);
+    expect(await db.select().from(submissions).where(eq(submissions.teamId, keptTeam))).toHaveLength(1);
+    expect(await db.select().from(teams).where(eq(teams.id, goneTeam))).toHaveLength(0);
   });
 
   test('purgeUser needs user:purge:all and logs only the user id', async () => {
@@ -830,18 +716,11 @@ describe('account deletion', () => {
 
     loginAs(admin);
     unwrap(await purgeUser(target.id));
-    expect(
-      await db.select().from(user).where(eq(user.id, target.id)),
-    ).toHaveLength(0);
+    expect(await db.select().from(user).where(eq(user.id, target.id))).toHaveLength(0);
     const [log] = await db
       .select()
       .from(auditLog)
-      .where(
-        and(
-          eq(auditLog.action, 'user.purged'),
-          eq(auditLog.targetId, target.id),
-        ),
-      );
+      .where(and(eq(auditLog.action, 'user.purged'), eq(auditLog.targetId, target.id)));
     expect(log).toBeDefined();
     expect(JSON.stringify(log!.metadata ?? {})).not.toContain(target.email);
   });
@@ -854,8 +733,6 @@ describe('account deletion', () => {
     const result = await purgeUser(superAdmin.id);
     expect(result.success).toBe(false);
     expect((result as { error: string }).error).toContain('administrator');
-    expect(
-      await db.select().from(user).where(eq(user.id, superAdmin.id)),
-    ).toHaveLength(1);
+    expect(await db.select().from(user).where(eq(user.id, superAdmin.id))).toHaveLength(1);
   });
 });

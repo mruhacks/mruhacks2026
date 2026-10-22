@@ -1,23 +1,7 @@
-import {
-  describe,
-  test,
-  expect,
-  beforeAll,
-  afterAll,
-  beforeEach,
-  vi,
-} from 'vitest';
+import { describe, test, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import { db } from '@/utils/db';
 import { eq, and } from 'drizzle-orm';
-import {
-  user,
-  account,
-  invite,
-  permission,
-  role,
-  userPermission,
-  userRole,
-} from '@/db/schema';
+import { user, account, invite, permission, role, userPermission, userRole } from '@/db/schema';
 
 vi.mock('@/utils/auth', () => ({
   getUser: vi.fn(),
@@ -159,11 +143,7 @@ beforeAll(async () => {
   };
 
   for (const slug of ALL_PERMS) {
-    const [p] = await db
-      .insert(permission)
-      .values({ slug })
-      .onConflictDoNothing()
-      .returning({ id: permission.id });
+    const [p] = await db.insert(permission).values({ slug }).onConflictDoNothing().returning({ id: permission.id });
     if (p) {
       permIds[slug] = p.id;
     } else {
@@ -177,10 +157,7 @@ beforeAll(async () => {
   }
 
   for (const slug of ADMIN_ONLY_PERMS) {
-    await db
-      .insert(userPermission)
-      .values({ userId: adminUserId, permissionId: permIds[slug]! })
-      .onConflictDoNothing();
+    await db.insert(userPermission).values({ userId: adminUserId, permissionId: permIds[slug]! }).onConflictDoNothing();
   }
   for (const slug of ALL_PERMS) {
     await db
@@ -195,14 +172,7 @@ beforeAll(async () => {
     .onConflictDoNothing()
     .returning({ id: role.id });
   adminRoleId =
-    r?.id ??
-    (
-      await db
-        .select({ id: role.id })
-        .from(role)
-        .where(eq(role.slug, 'users-test-role'))
-        .limit(1)
-    )[0].id;
+    r?.id ?? (await db.select({ id: role.id }).from(role).where(eq(role.slug, 'users-test-role')).limit(1))[0].id;
 });
 
 beforeEach(() => {
@@ -211,9 +181,7 @@ beforeEach(() => {
 
 afterAll(async () => {
   await db.delete(userPermission).where(eq(userPermission.userId, adminUserId));
-  await db
-    .delete(userPermission)
-    .where(eq(userPermission.userId, superAdminUserId));
+  await db.delete(userPermission).where(eq(userPermission.userId, superAdminUserId));
   await db.delete(userRole).where(eq(userRole.userId, targetUserId));
   await db.delete(invite).where(eq(invite.email, 'invited@example.com'));
   await db.delete(role).where(eq(role.id, adminRoleId));
@@ -235,9 +203,7 @@ describe('listUsers', () => {
 
   test('fails when caller has no permission', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(noPermUser as never);
-    await expect(listUsers()).rejects.toThrow(
-      'REDIRECT:/forbidden?reason=missing_permission&permission=user:read:all',
-    );
+    await expect(listUsers()).rejects.toThrow('REDIRECT:/forbidden?reason=missing_permission&permission=user:read:all');
   });
 
   test('returns users list with pagination metadata', async () => {
@@ -266,24 +232,14 @@ describe('listUsers', () => {
   });
 
   test('filters users by a single role slug', async () => {
-    await db
-      .insert(userRole)
-      .values({ userId: targetUserId, roleId: adminRoleId })
-      .onConflictDoNothing();
+    await db.insert(userRole).values({ userId: targetUserId, roleId: adminRoleId }).onConflictDoNothing();
 
     const result = await listUsers({ roleSlugs: ['users-test-role'] });
     expect(result.success).toBe(true);
     if (!result.success) throw new Error(result.error);
     expect(result.data?.users.map((entry) => entry.id)).toContain(targetUserId);
 
-    await db
-      .delete(userRole)
-      .where(
-        and(
-          eq(userRole.userId, targetUserId),
-          eq(userRole.roleId, adminRoleId),
-        ),
-      );
+    await db.delete(userRole).where(and(eq(userRole.userId, targetUserId), eq(userRole.roleId, adminRoleId)));
   });
 
   test('lists an invite to an email with no account as an invite row', async () => {
@@ -401,9 +357,7 @@ describe('updateUserProfile', () => {
 
   test('fails when no permission', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(noPermUser as never);
-    await expect(
-      updateUserProfile(targetUserId, { name: 'X' }),
-    ).rejects.toThrow(
+    await expect(updateUserProfile(targetUserId, { name: 'X' })).rejects.toThrow(
       'REDIRECT:/forbidden?reason=missing_permission&permission=user:write:all',
     );
   });
@@ -418,15 +372,9 @@ describe('updateUserProfile', () => {
       name: 'Updated Name',
     });
     expect(result.success).toBe(true);
-    const [row] = await db
-      .select({ name: user.name })
-      .from(user)
-      .where(eq(user.id, targetUserId));
+    const [row] = await db.select({ name: user.name }).from(user).where(eq(user.id, targetUserId));
     expect(row.name).toBe('Updated Name');
-    await db
-      .update(user)
-      .set({ name: 'Target User' })
-      .where(eq(user.id, targetUserId));
+    await db.update(user).set({ name: 'Target User' }).where(eq(user.id, targetUserId));
   });
 
   test('updates emailVerified flag', async () => {
@@ -434,27 +382,15 @@ describe('updateUserProfile', () => {
       emailVerified: false,
     });
     expect(result.success).toBe(true);
-    const [row] = await db
-      .select({ emailVerified: user.emailVerified })
-      .from(user)
-      .where(eq(user.id, targetUserId));
+    const [row] = await db.select({ emailVerified: user.emailVerified }).from(user).where(eq(user.id, targetUserId));
     expect(row.emailVerified).toBe(false);
-    await db
-      .update(user)
-      .set({ emailVerified: true })
-      .where(eq(user.id, targetUserId));
+    await db.update(user).set({ emailVerified: true }).where(eq(user.id, targetUserId));
   });
 
   test('whitespace-only name is not applied', async () => {
-    const [before] = await db
-      .select({ name: user.name })
-      .from(user)
-      .where(eq(user.id, targetUserId));
+    const [before] = await db.select({ name: user.name }).from(user).where(eq(user.id, targetUserId));
     await updateUserProfile(targetUserId, { name: '   ' });
-    const [after] = await db
-      .select({ name: user.name })
-      .from(user)
-      .where(eq(user.id, targetUserId));
+    const [after] = await db.select({ name: user.name }).from(user).where(eq(user.id, targetUserId));
     expect(after.name).toBe(before.name);
   });
 });
@@ -478,10 +414,7 @@ describe('updateUserRoles', () => {
   test('sets roles for user', async () => {
     const result = await updateUserRoles(targetUserId, [adminRoleId]);
     expect(result.success).toBe(true);
-    const rows = await db
-      .select()
-      .from(userRole)
-      .where(eq(userRole.userId, targetUserId));
+    const rows = await db.select().from(userRole).where(eq(userRole.userId, targetUserId));
     expect(rows.some((r) => r.roleId === adminRoleId)).toBe(true);
     await updateUserRoles(targetUserId, []);
   });
@@ -502,17 +435,10 @@ describe('updateUserDirectPermissions', () => {
   });
 
   test('sets direct permissions for user', async () => {
-    const result = await updateUserDirectPermissions(targetUserId, [
-      permIds['user:read:all']!,
-    ]);
+    const result = await updateUserDirectPermissions(targetUserId, [permIds['user:read:all']!]);
     expect(result.success).toBe(true);
-    const rows = await db
-      .select()
-      .from(userPermission)
-      .where(eq(userPermission.userId, targetUserId));
-    expect(rows.some((r) => r.permissionId === permIds['user:read:all'])).toBe(
-      true,
-    );
+    const rows = await db.select().from(userPermission).where(eq(userPermission.userId, targetUserId));
+    expect(rows.some((r) => r.permissionId === permIds['user:read:all'])).toBe(true);
     await updateUserDirectPermissions(targetUserId, []);
   });
 });
@@ -615,14 +541,7 @@ describe('currentUserHasPassword', () => {
     expect(result.success).toBe(true);
     if (!result.success) throw new Error((result as { error: string }).error);
     expect(result.data?.hasPassword).toBe(true);
-    await db
-      .delete(account)
-      .where(
-        and(
-          eq(account.userId, targetUserId),
-          eq(account.providerId, 'credential'),
-        ),
-      );
+    await db.delete(account).where(and(eq(account.userId, targetUserId), eq(account.providerId, 'credential')));
   });
 
   test('returns hasPassword: false when credential account has null password', async () => {
@@ -637,14 +556,7 @@ describe('currentUserHasPassword', () => {
     expect(result.success).toBe(true);
     if (!result.success) throw new Error((result as { error: string }).error);
     expect(result.data?.hasPassword).toBe(false);
-    await db
-      .delete(account)
-      .where(
-        and(
-          eq(account.userId, targetUserId),
-          eq(account.providerId, 'credential'),
-        ),
-      );
+    await db.delete(account).where(and(eq(account.userId, targetUserId), eq(account.providerId, 'credential')));
   });
 });
 
@@ -672,29 +584,17 @@ describe('setOwnName', () => {
   test('updates the user display name', async () => {
     const result = await setOwnName('Alice Renamed');
     expect(result.success).toBe(true);
-    const [row] = await db
-      .select({ name: user.name })
-      .from(user)
-      .where(eq(user.id, adminUserId));
+    const [row] = await db.select({ name: user.name }).from(user).where(eq(user.id, adminUserId));
     expect(row.name).toBe('Alice Renamed');
-    await db
-      .update(user)
-      .set({ name: 'Admin User' })
-      .where(eq(user.id, adminUserId));
+    await db.update(user).set({ name: 'Admin User' }).where(eq(user.id, adminUserId));
   });
 
   test('trims leading and trailing whitespace from name', async () => {
     const result = await setOwnName('  Trimmed  ');
     expect(result.success).toBe(true);
-    const [row] = await db
-      .select({ name: user.name })
-      .from(user)
-      .where(eq(user.id, adminUserId));
+    const [row] = await db.select({ name: user.name }).from(user).where(eq(user.id, adminUserId));
     expect(row.name).toBe('Trimmed');
-    await db
-      .update(user)
-      .set({ name: 'Admin User' })
-      .where(eq(user.id, adminUserId));
+    await db.update(user).set({ name: 'Admin User' }).where(eq(user.id, adminUserId));
   });
 });
 
@@ -723,28 +623,14 @@ describe('setInitialPassword', () => {
     const result = await setInitialPassword('newpassword123');
     expect(result.success).toBe(false);
     expect((result as { error: string }).error).toContain('already');
-    await db
-      .delete(account)
-      .where(
-        and(
-          eq(account.userId, adminUserId),
-          eq(account.providerId, 'credential'),
-        ),
-      );
+    await db.delete(account).where(and(eq(account.userId, adminUserId), eq(account.providerId, 'credential')));
   });
 
   test('succeeds when no credential account exists', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(targetUser as never);
     const result = await setInitialPassword('newpassword123');
     expect(result.success).toBe(true);
-    await db
-      .delete(account)
-      .where(
-        and(
-          eq(account.userId, targetUserId),
-          eq(account.providerId, 'credential'),
-        ),
-      );
+    await db.delete(account).where(and(eq(account.userId, targetUserId), eq(account.providerId, 'credential')));
   });
 });
 
@@ -767,15 +653,10 @@ describe('applyPendingInvite', () => {
     const assigned = await db
       .select()
       .from(userRole)
-      .where(
-        and(eq(userRole.userId, adminUserId), eq(userRole.roleId, adminRoleId)),
-      );
+      .where(and(eq(userRole.userId, adminUserId), eq(userRole.roleId, adminRoleId)));
     expect(assigned).toHaveLength(1);
 
-    const remaining = await db
-      .select()
-      .from(invite)
-      .where(eq(invite.email, 'users-admin@test.com'));
+    const remaining = await db.select().from(invite).where(eq(invite.email, 'users-admin@test.com'));
     expect(remaining).toHaveLength(0);
 
     await db.delete(userRole).where(eq(userRole.userId, adminUserId));
@@ -788,17 +669,11 @@ describe('applyPendingInvite', () => {
       invitedBy: null,
       expiresAt: new Date(Date.now() + 60_000),
     });
-    await db
-      .update(user)
-      .set({ email: 'Users-Admin@Test.com' })
-      .where(eq(user.id, adminUserId));
+    await db.update(user).set({ email: 'Users-Admin@Test.com' }).where(eq(user.id, adminUserId));
     try {
       expect(await applyPendingInvite(adminUserId)).toBe(true);
     } finally {
-      await db
-        .update(user)
-        .set({ email: 'users-admin@test.com' })
-        .where(eq(user.id, adminUserId));
+      await db.update(user).set({ email: 'users-admin@test.com' }).where(eq(user.id, adminUserId));
     }
   });
 
@@ -809,34 +684,20 @@ describe('applyPendingInvite', () => {
       invitedBy: null,
       expiresAt: new Date(Date.now() + 60_000),
     });
-    await db
-      .update(user)
-      .set({ emailVerified: false })
-      .where(eq(user.id, adminUserId));
+    await db.update(user).set({ emailVerified: false }).where(eq(user.id, adminUserId));
     try {
       expect(await applyPendingInvite(adminUserId)).toBe(false);
 
       const assigned = await db
         .select()
         .from(userRole)
-        .where(
-          and(
-            eq(userRole.userId, adminUserId),
-            eq(userRole.roleId, adminRoleId),
-          ),
-        );
+        .where(and(eq(userRole.userId, adminUserId), eq(userRole.roleId, adminRoleId)));
       expect(assigned).toHaveLength(0);
 
-      const remaining = await db
-        .select()
-        .from(invite)
-        .where(eq(invite.email, 'users-admin@test.com'));
+      const remaining = await db.select().from(invite).where(eq(invite.email, 'users-admin@test.com'));
       expect(remaining).toHaveLength(1);
     } finally {
-      await db
-        .update(user)
-        .set({ emailVerified: true })
-        .where(eq(user.id, adminUserId));
+      await db.update(user).set({ emailVerified: true }).where(eq(user.id, adminUserId));
       await db.delete(invite).where(eq(invite.email, 'users-admin@test.com'));
     }
   });
@@ -859,21 +720,13 @@ describe('applyPendingInvite', () => {
     const assigned = await db
       .select()
       .from(userRole)
-      .where(
-        and(eq(userRole.userId, adminUserId), eq(userRole.roleId, adminRoleId)),
-      );
+      .where(and(eq(userRole.userId, adminUserId), eq(userRole.roleId, adminRoleId)));
     expect(assigned).toHaveLength(0);
 
-    const credentials = await db
-      .delete(account)
-      .where(eq(account.userId, adminUserId))
-      .returning();
+    const credentials = await db.delete(account).where(eq(account.userId, adminUserId)).returning();
     expect(credentials).toHaveLength(1);
 
-    const remaining = await db
-      .select()
-      .from(invite)
-      .where(eq(invite.email, 'users-admin@test.com'));
+    const remaining = await db.select().from(invite).where(eq(invite.email, 'users-admin@test.com'));
     expect(remaining).toHaveLength(0);
   });
 });
@@ -883,9 +736,7 @@ describe('applyPendingInvite', () => {
 describe('revokeInvite', () => {
   test('fails when caller has no permission', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(noPermUser as never);
-    await expect(
-      revokeInvite('00000000-0000-0000-0000-000000000000'),
-    ).rejects.toThrow('REDIRECT:/forbidden');
+    await expect(revokeInvite('00000000-0000-0000-0000-000000000000')).rejects.toThrow('REDIRECT:/forbidden');
   });
 
   test('fails when the invite does not exist', async () => {
@@ -906,10 +757,7 @@ describe('revokeInvite', () => {
     const result = await revokeInvite(row.id);
     expect(result.success).toBe(true);
 
-    const remaining = await db
-      .select()
-      .from(invite)
-      .where(eq(invite.id, row.id));
+    const remaining = await db.select().from(invite).where(eq(invite.id, row.id));
     expect(remaining).toHaveLength(0);
   });
 });
@@ -942,10 +790,7 @@ describe('inviteUser', () => {
     expect(result.success).toBe(false);
     expect((result as { error: string }).error).toContain('already exists');
 
-    const rows = await db
-      .select()
-      .from(invite)
-      .where(eq(invite.email, 'users-target@test.com'));
+    const rows = await db.select().from(invite).where(eq(invite.email, 'users-target@test.com'));
     expect(rows).toHaveLength(0);
     expect(vi.mocked(auth.api.signInMagicLink)).not.toHaveBeenCalled();
   });
@@ -954,10 +799,7 @@ describe('inviteUser', () => {
     const result = await inviteUser('invited@example.com', [adminRoleId]);
     expect(result.success).toBe(true);
 
-    const rows = await db
-      .select()
-      .from(invite)
-      .where(eq(invite.email, 'invited@example.com'));
+    const rows = await db.select().from(invite).where(eq(invite.email, 'invited@example.com'));
     expect(rows).toHaveLength(1);
     expect(rows[0].roleIds).toContain(adminRoleId);
     expect(vi.mocked(auth.api.signInMagicLink)).toHaveBeenCalled();
@@ -970,10 +812,7 @@ describe('inviteUser', () => {
     const result = await inviteUser('invited@example.com', [adminRoleId]);
     expect(result.success).toBe(true);
 
-    const rows = await db
-      .select()
-      .from(invite)
-      .where(eq(invite.email, 'invited@example.com'));
+    const rows = await db.select().from(invite).where(eq(invite.email, 'invited@example.com'));
     expect(rows).toHaveLength(1);
     expect(rows[0].roleIds).toContain(adminRoleId);
 
@@ -1073,9 +912,7 @@ describe('adminSetUserPassword', () => {
 
   test('fails when no permission', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(noPermUser as never);
-    await expect(
-      adminSetUserPassword(targetUserId, 'newpass123'),
-    ).rejects.toThrow(
+    await expect(adminSetUserPassword(targetUserId, 'newpass123')).rejects.toThrow(
       'REDIRECT:/forbidden?reason=missing_permission&permission=user:write:all',
     );
   });
@@ -1108,9 +945,7 @@ describe('adminSendPasswordReset', () => {
 
   test('fails when no permission', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(noPermUser as never);
-    await expect(
-      adminSendPasswordReset('users-target@test.com'),
-    ).rejects.toThrow(
+    await expect(adminSendPasswordReset('users-target@test.com')).rejects.toThrow(
       'REDIRECT:/forbidden?reason=missing_permission&permission=user:write:all',
     );
   });

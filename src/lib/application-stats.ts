@@ -93,9 +93,7 @@ function percentOf(count: number, denominator: number): number {
  * reads as "Other" (see `isOtherOption`) is flagged `isOther` so free text
  * collected during row iteration lands on the right bucket.
  */
-function seedOptionBuckets(
-  options: ApplicationQuestionOption[] = [],
-): Map<string, StatsBucket> {
+function seedOptionBuckets(options: ApplicationQuestionOption[] = []): Map<string, StatsBucket> {
   const buckets = new Map<string, StatsBucket>();
   for (const option of options) {
     const bucket: StatsBucket = {
@@ -117,10 +115,7 @@ function seedOptionBuckets(
  * option was deleted from the question after old responses were recorded.
  * Never drops the answer.
  */
-function getOrCreateBucket(
-  buckets: Map<string, StatsBucket>,
-  value: unknown,
-): StatsBucket {
+function getOrCreateBucket(buckets: Map<string, StatsBucket>, value: unknown): StatsBucket {
   const key = String(value);
   let bucket = buckets.get(key);
   if (!bucket) {
@@ -130,10 +125,7 @@ function getOrCreateBucket(
   return bucket;
 }
 
-function finalizeBuckets(
-  buckets: Map<string, StatsBucket>,
-  denominator: number,
-): StatsBucket[] {
+function finalizeBuckets(buckets: Map<string, StatsBucket>, denominator: number): StatsBucket[] {
   return Array.from(buckets.values()).map((bucket) => ({
     ...bucket,
     percent: percentOf(bucket.count, denominator),
@@ -184,11 +176,7 @@ function buildSelectStats(
   };
 }
 
-function buildBooleanStats(
-  question: ApplicationQuestion,
-  rows: ApplicationStatsRow[],
-  total: number,
-): QuestionStats {
+function buildBooleanStats(question: ApplicationQuestion, rows: ApplicationStatsRow[], total: number): QuestionStats {
   let yes = 0;
   let no = 0;
 
@@ -230,11 +218,7 @@ function formatNumberForLabel(value: number): string {
 
 type NumberRange = { min: number; max: number };
 
-function buildNumberHistogram(
-  values: number[],
-  { min, max }: NumberRange,
-  answered: number,
-): StatsBucket[] {
+function buildNumberHistogram(values: number[], { min, max }: NumberRange, answered: number): StatsBucket[] {
   if (values.length === 0) return [];
 
   if (min === max) {
@@ -260,8 +244,7 @@ function buildNumberHistogram(
 
   return counts.map((count, index) => {
     const rangeStart = min + index * width;
-    const rangeEnd =
-      index === NUMBER_HISTOGRAM_BUCKETS - 1 ? max : min + (index + 1) * width;
+    const rangeEnd = index === NUMBER_HISTOGRAM_BUCKETS - 1 ? max : min + (index + 1) * width;
     const label = `${formatNumberForLabel(rangeStart)}–${formatNumberForLabel(rangeEnd)}`;
     return {
       key: `bucket-${index}`,
@@ -306,10 +289,7 @@ function buildNumberStats(
           const mean = values.reduce((sum, v) => sum + v, 0) / values.length;
           const sorted = [...values].sort((a, b) => a - b);
           const mid = Math.floor(sorted.length / 2);
-          const median =
-            sorted.length % 2 === 0
-              ? (sorted[mid - 1] + sorted[mid]) / 2
-              : sorted[mid];
+          const median = sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
           return { min, max, mean, median };
         })();
 
@@ -361,10 +341,7 @@ function buildOneQuestionStats(
  * questions and defaults an unset flag to `false`). Questions not flagged
  * are simply absent from the result — never rendered as an empty chart.
  */
-export function buildQuestionStats(
-  questions: ApplicationQuestion[],
-  rows: ApplicationStatsRow[],
-): QuestionStats[] {
+export function buildQuestionStats(questions: ApplicationQuestion[], rows: ApplicationStatsRow[]): QuestionStats[] {
   const total = rows.length;
   return questions
     .filter((question) => resolveShowInReports(question))
@@ -379,9 +356,7 @@ export function buildQuestionStats(
  * with a `status` outside the known set (or `null`) is bucketed under
  * `"unknown"` rather than dropped.
  */
-export function buildStatusBreakdown(
-  rows: ApplicationStatsRow[],
-): StatsBucket[] {
+export function buildStatusBreakdown(rows: ApplicationStatsRow[]): StatsBucket[] {
   const bucketMap = new Map<string, StatsBucket>();
   for (const status of participationStatusesList) {
     bucketMap.set(status, { key: status, label: status, count: 0, percent: 0 });
@@ -402,10 +377,7 @@ export function buildStatusBreakdown(
 
 type DemographicField = 'university' | 'major' | 'yearOfStudy' | 'gender';
 
-function buildFieldBreakdown(
-  rows: ApplicationStatsRow[],
-  field: DemographicField,
-): StatsBucket[] {
+function buildFieldBreakdown(rows: ApplicationStatsRow[], field: DemographicField): StatsBucket[] {
   const bucketMap = new Map<string, StatsBucket>();
 
   for (const row of rows) {
@@ -434,9 +406,7 @@ function buildFieldBreakdown(
  * `"unknown"` rather than dropped, so counts still sum to `rows.length` per
  * field.
  */
-export function buildDemographicStats(
-  rows: ApplicationStatsRow[],
-): Record<DemographicField, StatsBucket[]> {
+export function buildDemographicStats(rows: ApplicationStatsRow[]): Record<DemographicField, StatsBucket[]> {
   return {
     university: buildFieldBreakdown(rows, 'university'),
     major: buildFieldBreakdown(rows, 'major'),
@@ -496,14 +466,12 @@ function splitByStatus(
     else groups.set(key, [row]);
   }
 
-  const buckets: StatusSplitBucket[] = aggregate(rows).buckets.map(
-    (bucket) => ({
-      key: bucket.key,
-      label: bucket.label,
-      ...(bucket.inactive ? { inactive: true } : {}),
-      counts: {},
-    }),
-  );
+  const buckets: StatusSplitBucket[] = aggregate(rows).buckets.map((bucket) => ({
+    key: bucket.key,
+    label: bucket.label,
+    ...(bucket.inactive ? { inactive: true } : {}),
+    counts: {},
+  }));
   const byKey = new Map(buckets.map((bucket) => [bucket.key, bucket]));
 
   const answered: Record<string, number> = {};
@@ -531,10 +499,7 @@ export function buildQuestionStatsByStatus(
   return questions
     .filter((question) => resolveShowInReports(question))
     .map((question) => {
-      const range =
-        question.type === 'number'
-          ? buildNumberStats(question, rows, rows.length).numeric
-          : undefined;
+      const range = question.type === 'number' ? buildNumberStats(question, rows, rows.length).numeric : undefined;
       return splitByStatus(question.id, question.label, rows, (group) =>
         question.type === 'number'
           ? buildNumberStats(question, group, group.length, range)
@@ -598,44 +563,24 @@ function single(value: string | null | undefined): string[] | null {
  * Ids are prefixed so they can't collide with question UUIDs when both share
  * one "Choose stats" list.
  */
-export function buildProfileStatsByStatus(
-  rows: ApplicationStatsRow[],
-): StatusSplitStat[] {
+export function buildProfileStatsByStatus(rows: ApplicationStatsRow[]): StatusSplitStat[] {
   const field = (
     id: string,
     label: string,
     seed: readonly string[],
     read: (row: ApplicationStatsRow) => string[] | null,
     noneLabel?: string,
-  ) =>
-    splitByStatus(`profile:${id}`, label, rows, (group) =>
-      countProfileValues(group, seed, read, noneLabel),
-    );
+  ) => splitByStatus(`profile:${id}`, label, rows, (group) => countProfileValues(group, seed, read, noneLabel));
 
   return [
     field('gender', 'Gender', gendersList, (row) => single(row.gender)),
-    field('university', 'University', universitiesList, (row) =>
-      single(row.university),
-    ),
+    field('university', 'University', universitiesList, (row) => single(row.university)),
     field('major', 'Major', majorsList, (row) => single(row.major)),
-    field('yearOfStudy', 'Year of study', yearsOfStudyList, (row) =>
-      single(row.yearOfStudy),
+    field('yearOfStudy', 'Year of study', yearsOfStudyList, (row) => single(row.yearOfStudy)),
+    field('attendedHackathonBefore', 'Attended a hackathon before', ['Yes', 'No'], (row) =>
+      row.attendedHackathonBefore == null ? null : [row.attendedHackathonBefore ? 'Yes' : 'No'],
     ),
-    field(
-      'attendedHackathonBefore',
-      'Attended a hackathon before',
-      ['Yes', 'No'],
-      (row) =>
-        row.attendedHackathonBefore == null
-          ? null
-          : [row.attendedHackathonBefore ? 'Yes' : 'No'],
-    ),
-    field(
-      'interests',
-      'Interests',
-      interestsList,
-      (row) => row.interests ?? null,
-    ),
+    field('interests', 'Interests', interestsList, (row) => row.interests ?? null),
     field(
       'dietaryRestrictions',
       'Dietary restrictions',

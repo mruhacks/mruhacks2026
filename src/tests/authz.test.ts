@@ -20,14 +20,7 @@ import {
 } from '@/app/actions/roles';
 import { getUserPermissions } from '@/app/actions/authz';
 import { hasPermission, requirePermission } from '@/lib/rbac/authorization';
-import {
-  user,
-  role,
-  permission,
-  userRole,
-  rolePermissions,
-  userPermission,
-} from '@/db/schema';
+import { user, role, permission, userRole, rolePermissions, userPermission } from '@/db/schema';
 // Note: rolePermissions is used, others are imported but not directly used in this file
 import { eq } from 'drizzle-orm';
 
@@ -81,27 +74,13 @@ describe('Authorization system', () => {
     await db.delete(rolePermissions);
     await db.delete(role);
     await db.delete(permission);
-    const privilegeSlugs = [
-      'role:all:all',
-      'permission:all:all',
-      'user:all:all',
-    ];
+    const privilegeSlugs = ['role:all:all', 'permission:all:all', 'user:all:all'];
     for (const slug of privilegeSlugs) {
-      const [created] = await db
-        .insert(permission)
-        .values({ slug })
-        .returning({ id: permission.id });
-      await db
-        .insert(userPermission)
-        .values({ userId, permissionId: created.id });
+      const [created] = await db.insert(permission).values({ slug }).returning({ id: permission.id });
+      await db.insert(userPermission).values({ userId, permissionId: created.id });
     }
-    const [superPerm] = await db
-      .insert(permission)
-      .values({ slug: 'all:all:all' })
-      .returning({ id: permission.id });
-    await db
-      .insert(userPermission)
-      .values({ userId: actorId, permissionId: superPerm.id });
+    const [superPerm] = await db.insert(permission).values({ slug: 'all:all:all' }).returning({ id: permission.id });
+    await db.insert(userPermission).values({ userId: actorId, permissionId: superPerm.id });
     vi.mocked(getUser).mockResolvedValue({ id: actorId } as never);
     await db.delete(role);
   });
@@ -143,10 +122,7 @@ describe('Authorization system', () => {
     const result = await assignRoleToUser(userId, roleId);
     expect(result.success).toBe(true);
 
-    const assigned = await db
-      .select()
-      .from(userRole)
-      .where(eq(userRole.userId, userId));
+    const assigned = await db.select().from(userRole).where(eq(userRole.userId, userId));
     expect(assigned.length).toBe(1);
   });
 
@@ -154,10 +130,7 @@ describe('Authorization system', () => {
     const result = await grantPermissionToRole(roleId, permIdEditSelf);
     expect(result.success).toBe(true);
 
-    const assigned = await db
-      .select()
-      .from(rolePermissions)
-      .where(eq(rolePermissions.roleId, roleId));
+    const assigned = await db.select().from(rolePermissions).where(eq(rolePermissions.roleId, roleId));
     expect(assigned.length).toBe(1);
   });
 
@@ -165,19 +138,13 @@ describe('Authorization system', () => {
     const grant = await grantPermissionToUser(userId, permIdAllAll);
     expect(grant.success).toBe(true);
 
-    let perms = await db
-      .select()
-      .from(userPermission)
-      .where(eq(userPermission.userId, userId));
+    let perms = await db.select().from(userPermission).where(eq(userPermission.userId, userId));
     expect(perms.length).toBe(4);
 
     const revoke = await revokePermissionFromUser(userId, permIdAllAll);
     expect(revoke.success).toBe(true);
 
-    perms = await db
-      .select()
-      .from(userPermission)
-      .where(eq(userPermission.userId, userId));
+    perms = await db.select().from(userPermission).where(eq(userPermission.userId, userId));
     expect(perms.length).toBe(3);
   });
 
@@ -221,19 +188,14 @@ describe('Authorization system', () => {
     expect(thrown).toContain('reason=');
 
     for (const slug of ['role:all:all', 'permission:all:all', 'user:all:all']) {
-      const [row] = await db
-        .select({ id: permission.id })
-        .from(permission)
-        .where(eq(permission.slug, slug));
+      const [row] = await db.select({ id: permission.id }).from(permission).where(eq(permission.slug, slug));
       await db.insert(userPermission).values({ userId, permissionId: row.id });
     }
     const [superPerm] = await db
       .select({ id: permission.id })
       .from(permission)
       .where(eq(permission.slug, 'all:all:all'));
-    await db
-      .insert(userPermission)
-      .values({ userId: actorId, permissionId: superPerm.id });
+    await db.insert(userPermission).values({ userId: actorId, permissionId: superPerm.id });
   });
 
   test('requirePermission should allow authorized user', async () => {
@@ -252,10 +214,7 @@ describe('Authorization system', () => {
 
   test('revokePermissionFromRole removes role permission', async () => {
     await revokePermissionFromRole(roleId, permIdEditSelf);
-    const remaining = await db
-      .select()
-      .from(rolePermissions)
-      .where(eq(rolePermissions.roleId, roleId));
+    const remaining = await db.select().from(rolePermissions).where(eq(rolePermissions.roleId, roleId));
     expect(remaining.length).toBe(0);
   });
 });

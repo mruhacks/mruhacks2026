@@ -8,15 +8,7 @@
  */
 
 import * as React from 'react';
-import {
-  ArrowDown,
-  ArrowUp,
-  Check,
-  ChevronsUpDown,
-  FolderPlus,
-  Plus,
-  X,
-} from 'lucide-react';
+import { ArrowDown, ArrowUp, Check, ChevronsUpDown, FolderPlus, Plus, X } from 'lucide-react';
 import type {
   ActionProps,
   ControlElementsProp,
@@ -33,18 +25,9 @@ import { participationStatusesList } from '@/types/lookups';
 import type { ParticipationStatus } from '@/types/lookups';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import {
-  Command,
-  CommandGroup,
-  CommandItem,
-  CommandList,
-} from '@/components/ui/command';
+import { Command, CommandGroup, CommandItem, CommandList } from '@/components/ui/command';
 import { Label } from '@/components/ui/label';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
   Select,
   SelectContent,
@@ -59,9 +42,7 @@ import { Switch } from '@/components/ui/switch';
 /** Passed to every control through RQB's `context` prop. */
 export type BuilderContext = { options: AudienceOptions };
 
-function flatOptions(
-  options: ValueSelectorProps['options'],
-): { name: string; label: string }[] {
+function flatOptions(options: ValueSelectorProps['options']): { name: string; label: string }[] {
   return options.flatMap((option) =>
     'options' in option
       ? (option.options as { name: string; label: string }[])
@@ -71,14 +52,7 @@ function flatOptions(
 
 // ── Selectors (field, operator, combinator) ────────────────────────────────
 
-function ValueSelector({
-  value,
-  options,
-  handleOnChange,
-  disabled,
-  title,
-  className,
-}: ValueSelectorProps) {
+function ValueSelector({ value, options, handleOnChange, disabled, title, className }: ValueSelectorProps) {
   return (
     <Select value={value} onValueChange={handleOnChange} disabled={disabled}>
       <SelectTrigger size='sm' aria-label={title} className={className}>
@@ -95,22 +69,11 @@ function ValueSelector({
   );
 }
 
-function NotToggle({
-  checked,
-  handleOnChange,
-  disabled,
-  path,
-  className,
-}: NotToggleProps) {
+function NotToggle({ checked, handleOnChange, disabled, path, className }: NotToggleProps) {
   const id = `not-${path.join('-') || 'root'}`;
   return (
     <div className={cn('flex items-center gap-1.5', className)}>
-      <Switch
-        id={id}
-        checked={!!checked}
-        onCheckedChange={handleOnChange}
-        disabled={disabled}
-      />
+      <Switch id={id} checked={!!checked} onCheckedChange={handleOnChange} disabled={disabled} />
       <Label htmlFor={id} className='text-xs font-normal'>
         Not
       </Label>
@@ -120,12 +83,7 @@ function NotToggle({
 
 // ── Actions ────────────────────────────────────────────────────────────────
 
-function makeAction(
-  icon: React.ReactNode,
-  label: string,
-  variant: 'outline' | 'ghost' = 'outline',
-  iconOnly = false,
-) {
+function makeAction(icon: React.ReactNode, label: string, variant: 'outline' | 'ghost' = 'outline', iconOnly = false) {
   function Action({ handleOnClick, disabled, title, className }: ActionProps) {
     return (
       <Button
@@ -205,32 +163,17 @@ function EventPicker({
   disabled?: boolean;
 }) {
   return (
-    <Select
-      value={value || undefined}
-      onValueChange={onChange}
-      disabled={disabled}
-    >
-      <SelectTrigger
-        size='sm'
-        aria-label='Event'
-        className='max-w-full min-w-40'
-        aria-invalid={!value}
-      >
+    <Select value={value || undefined} onValueChange={onChange} disabled={disabled}>
+      <SelectTrigger size='sm' aria-label='Event' className='max-w-full min-w-40' aria-invalid={!value}>
         <SelectValue placeholder='Choose an event' />
       </SelectTrigger>
       <SelectContent>
-        {options.events.length === 0 && (
-          <div className='text-muted-foreground px-2 py-1.5 text-sm'>
-            No events yet
-          </div>
-        )}
+        {options.events.length === 0 && <div className='text-muted-foreground px-2 py-1.5 text-sm'>No events yet</div>}
         {options.events.map((event) =>
           includeSubevents && event.subevents.length > 0 ? (
             <SelectGroup key={event.id}>
               <SelectLabel>{event.name}</SelectLabel>
-              <SelectItem value={event.id}>
-                {event.name} (whole event)
-              </SelectItem>
+              <SelectItem value={event.id}>{event.name} (whole event)</SelectItem>
               {event.subevents.map((sub) => (
                 <SelectItem key={sub.id} value={sub.id}>
                   {sub.name}
@@ -294,17 +237,13 @@ function StatusMultiSelect({
                       if (isSelected) next.delete(status);
                       else next.add(status);
                       // Keep lifecycle order, not click order.
-                      onChange(
-                        participationStatusesList.filter((s) => next.has(s)),
-                      );
+                      onChange(participationStatusesList.filter((s) => next.has(s)));
                     }}
                   >
                     <div
                       className={cn(
                         'border-primary flex size-4 items-center justify-center rounded-sm border',
-                        isSelected
-                          ? 'bg-primary text-primary-foreground'
-                          : 'opacity-50 [&_svg]:invisible',
+                        isSelected ? 'bg-primary text-primary-foreground' : 'opacity-50 [&_svg]:invisible',
                       )}
                     >
                       <Check className='size-3' />
@@ -321,17 +260,10 @@ function StatusMultiSelect({
   );
 }
 
-function AudienceValueEditor({
-  field,
-  value,
-  handleOnChange,
-  disabled,
-  context,
-}: ValueEditorProps) {
+function AudienceValueEditor({ field, value, handleOnChange, disabled, context }: ValueEditorProps) {
   const { options } = context as BuilderContext;
   const current = (value ?? {}) as Record<string, unknown>;
-  const update = (patch: Record<string, unknown>) =>
-    handleOnChange({ ...current, ...patch });
+  const update = (patch: Record<string, unknown>) => handleOnChange({ ...current, ...patch });
 
   switch (field) {
     case 'participatedIn':
@@ -395,12 +327,7 @@ function AudienceValueEditor({
           onValueChange={(next) => update({ roleId: Number(next) })}
           disabled={disabled}
         >
-          <SelectTrigger
-            size='sm'
-            aria-label='Role'
-            className='min-w-32'
-            aria-invalid={!current.roleId}
-          >
+          <SelectTrigger size='sm' aria-label='Role' className='min-w-32' aria-invalid={!current.roleId}>
             <SelectValue placeholder='Choose a role' />
           </SelectTrigger>
           <SelectContent>
@@ -431,14 +358,13 @@ export const AUDIENCE_FIELD_OPTIONS: FullField[] = [
   { name: 'hasRole', label: 'Has role', value: 'hasRole' },
 ];
 
-export const AUDIENCE_CONTROL_ELEMENTS: ControlElementsProp<FullField, string> =
-  {
-    valueSelector: ValueSelector,
-    valueEditor: AudienceValueEditor,
-    notToggle: NotToggle,
-    shiftActions: ShiftActions,
-    addRuleAction: makeAction(<Plus />, 'Rule'),
-    addGroupAction: makeAction(<FolderPlus />, 'Group'),
-    removeRuleAction: makeAction(<X />, 'Remove rule', 'ghost', true),
-    removeGroupAction: makeAction(<X />, 'Remove group', 'ghost', true),
-  };
+export const AUDIENCE_CONTROL_ELEMENTS: ControlElementsProp<FullField, string> = {
+  valueSelector: ValueSelector,
+  valueEditor: AudienceValueEditor,
+  notToggle: NotToggle,
+  shiftActions: ShiftActions,
+  addRuleAction: makeAction(<Plus />, 'Rule'),
+  addGroupAction: makeAction(<FolderPlus />, 'Group'),
+  removeRuleAction: makeAction(<X />, 'Remove rule', 'ghost', true),
+  removeGroupAction: makeAction(<X />, 'Remove group', 'ghost', true),
+};

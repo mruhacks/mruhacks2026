@@ -2,13 +2,7 @@ import 'server-only';
 
 import { and, eq, ne, sql } from 'drizzle-orm';
 
-import {
-  events,
-  eventInvitations,
-  eventParticipants,
-  eventRsvpWaves,
-  user,
-} from '@/db/schema';
+import { events, eventInvitations, eventParticipants, eventRsvpWaves, user } from '@/db/schema';
 import { hasStatus } from '@/lib/participation/server';
 import { resolveEffectiveStatus } from '@/lib/participation/status';
 import { sendRsvpMagicLink } from '@/lib/rsvp/send-rsvp-magic-link';
@@ -29,9 +23,7 @@ export type ResendRsvpMagicLinkFailure = {
   error: string;
 };
 
-export type ResendRsvpMagicLinkResult =
-  | ResendRsvpMagicLinkSuccess
-  | ResendRsvpMagicLinkFailure;
+export type ResendRsvpMagicLinkResult = ResendRsvpMagicLinkSuccess | ResendRsvpMagicLinkFailure;
 
 export type ResendRsvpMagicLinkOptions = {
   eventId: string;
@@ -45,9 +37,7 @@ export type ResendRsvpMagicLinkOptions = {
  * still `invited`). Token lifetime is remaining time until the wave
  * `respondBy`. Does not create a wave or invitation.
  */
-export async function resendRsvpMagicLink(
-  options: ResendRsvpMagicLinkOptions,
-): Promise<ResendRsvpMagicLinkResult> {
+export async function resendRsvpMagicLink(options: ResendRsvpMagicLinkOptions): Promise<ResendRsvpMagicLinkResult> {
   const eventId = options.eventId.trim();
   if (!eventId) {
     return { success: false, error: 'Event ID is required.' };
@@ -78,23 +68,14 @@ export async function resendRsvpMagicLink(
       respondBy: eventRsvpWaves.respondBy,
     })
     .from(eventInvitations)
-    .innerJoin(
-      eventRsvpWaves,
-      eq(eventInvitations.rsvpWaveId, eventRsvpWaves.id),
-    )
-    .innerJoin(
-      eventParticipants,
-      eq(eventInvitations.participantId, eventParticipants.id),
-    )
+    .innerJoin(eventRsvpWaves, eq(eventInvitations.rsvpWaveId, eventRsvpWaves.id))
+    .innerJoin(eventParticipants, eq(eventInvitations.participantId, eventParticipants.id))
     .innerJoin(events, eq(eventParticipants.eventId, events.id))
     .innerJoin(user, eq(eventParticipants.userId, user.id))
     .where(whereClause)
     .limit(1);
 
-  if (
-    !pending ||
-    resolveEffectiveStatus('invited', pending.respondBy) !== 'invited'
-  ) {
+  if (!pending || resolveEffectiveStatus('invited', pending.respondBy) !== 'invited') {
     return {
       success: false,
       error: 'No pending RSVP response found for this user and event.',
@@ -109,8 +90,7 @@ export async function resendRsvpMagicLink(
       respondBy: pending.respondBy,
     });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : 'Unknown magic-link error';
+    const message = error instanceof Error ? error.message : 'Unknown magic-link error';
     console.error('[rsvp/resend-magic-link] failed to send magic link', {
       userId: pending.userId,
       error,
@@ -123,12 +103,7 @@ export async function resendRsvpMagicLink(
         invitationEmailAttempts: sql`${eventInvitations.invitationEmailAttempts} + 1`,
         invitationEmailLastError: message,
       })
-      .where(
-        and(
-          eq(eventInvitations.id, pending.responseId),
-          ne(eventInvitations.invitationEmailStatus, 'sent'),
-        ),
-      );
+      .where(and(eq(eventInvitations.id, pending.responseId), ne(eventInvitations.invitationEmailStatus, 'sent')));
     return { success: false, error: message };
   }
 
@@ -139,12 +114,7 @@ export async function resendRsvpMagicLink(
       invitationEmailSentAt: new Date(),
       invitationEmailLastError: null,
     })
-    .where(
-      and(
-        eq(eventInvitations.id, pending.responseId),
-        ne(eventInvitations.invitationEmailStatus, 'sent'),
-      ),
-    );
+    .where(and(eq(eventInvitations.id, pending.responseId), ne(eventInvitations.invitationEmailStatus, 'sent')));
 
   return {
     success: true,

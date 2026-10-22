@@ -1,14 +1,7 @@
 import { describe, test, expect, beforeAll, afterAll, vi } from 'vitest';
 import { db } from '@/utils/db';
 import { eq } from 'drizzle-orm';
-import {
-  user,
-  role,
-  permission,
-  rolePermissions,
-  userRole,
-  userPermission,
-} from '@/db/schema';
+import { user, role, permission, rolePermissions, userRole, userPermission } from '@/db/schema';
 vi.mock('server-only', () => ({}));
 vi.mock('@/utils/auth', () => ({ getUser: vi.fn() }));
 vi.mock('next/cache', () => ({ updateTag: vi.fn() }));
@@ -66,17 +59,8 @@ beforeAll(async () => {
       .returning({ id: permission.id });
     const permissionId =
       created?.id ??
-      (
-        await db
-          .select({ id: permission.id })
-          .from(permission)
-          .where(eq(permission.slug, slug))
-          .limit(1)
-      )[0]!.id;
-    await db
-      .insert(userPermission)
-      .values({ userId: actorUserId, permissionId })
-      .onConflictDoNothing();
+      (await db.select({ id: permission.id }).from(permission).where(eq(permission.slug, slug)).limit(1))[0]!.id;
+    await db.insert(userPermission).values({ userId: actorUserId, permissionId }).onConflictDoNothing();
   }
   vi.mocked(getUser).mockResolvedValue({ id: actorUserId } as never);
 });
@@ -218,20 +202,14 @@ describe('addPermission / deletePermission / updatePermission / listPermissions'
   test('deletes a permission', async () => {
     const permId = unwrap(await addPermission('test:delete-me:all'));
     await deletePermission(permId);
-    const rows = await db
-      .select()
-      .from(permission)
-      .where(eq(permission.id, permId!));
+    const rows = await db.select().from(permission).where(eq(permission.id, permId!));
     expect(rows).toHaveLength(0);
   });
 
   test('updatePermission auto-lowercases the slug', async () => {
     const permId = unwrap(await addPermission('test:lowercase:all'));
     await updatePermission(permId, { slug: 'TEST:LOWERCASE:ALL' });
-    const [row] = await db
-      .select()
-      .from(permission)
-      .where(eq(permission.id, permId!));
+    const [row] = await db.select().from(permission).where(eq(permission.id, permId!));
     expect(row.slug).toBe('test:lowercase:all');
     await db.delete(permission).where(eq(permission.id, permId!));
   });
@@ -257,10 +235,7 @@ describe('assignRoleToUser / revokeRoleFromUser', () => {
     const roleId = unwrap(await createRole('test-assign-role'));
     await assignRoleToUser(testUserId, roleId!);
 
-    const rows = await db
-      .select()
-      .from(userRole)
-      .where(eq(userRole.userId, testUserId));
+    const rows = await db.select().from(userRole).where(eq(userRole.userId, testUserId));
     expect(rows.some((r) => r.roleId === roleId)).toBe(true);
 
     await db.delete(userRole).where(eq(userRole.userId, testUserId));
@@ -273,10 +248,7 @@ describe('assignRoleToUser / revokeRoleFromUser', () => {
     const result = await assignRoleToUser(testUserId, roleId!);
     expect(result.success).toBe(true);
 
-    const rows = await db
-      .select()
-      .from(userRole)
-      .where(eq(userRole.userId, testUserId));
+    const rows = await db.select().from(userRole).where(eq(userRole.userId, testUserId));
     expect(rows.filter((r) => r.roleId === roleId)).toHaveLength(1);
 
     await db.delete(userRole).where(eq(userRole.userId, testUserId));
@@ -288,10 +260,7 @@ describe('assignRoleToUser / revokeRoleFromUser', () => {
     await assignRoleToUser(testUserId, roleId!);
     await revokeRoleFromUser(testUserId, roleId!);
 
-    const rows = await db
-      .select()
-      .from(userRole)
-      .where(eq(userRole.userId, testUserId));
+    const rows = await db.select().from(userRole).where(eq(userRole.userId, testUserId));
     expect(rows.some((r) => r.roleId === roleId)).toBe(false);
 
     await db.delete(role).where(eq(role.id, roleId!));
@@ -304,10 +273,7 @@ describe('grantPermissionToRole / revokePermissionFromRole', () => {
     const permId = unwrap(await addPermission('test:grant:role'));
     await grantPermissionToRole(roleId!, permId!);
 
-    const rows = await db
-      .select()
-      .from(rolePermissions)
-      .where(eq(rolePermissions.roleId, roleId!));
+    const rows = await db.select().from(rolePermissions).where(eq(rolePermissions.roleId, roleId!));
     expect(rows.some((r) => r.permissionId === permId)).toBe(true);
 
     await db.delete(rolePermissions).where(eq(rolePermissions.roleId, roleId!));
@@ -322,10 +288,7 @@ describe('grantPermissionToRole / revokePermissionFromRole', () => {
     const result = await grantPermissionToRole(roleId!, permId!);
     expect(result.success).toBe(true);
 
-    const rows = await db
-      .select()
-      .from(rolePermissions)
-      .where(eq(rolePermissions.roleId, roleId!));
+    const rows = await db.select().from(rolePermissions).where(eq(rolePermissions.roleId, roleId!));
     expect(rows.filter((r) => r.permissionId === permId)).toHaveLength(1);
 
     await db.delete(rolePermissions).where(eq(rolePermissions.roleId, roleId!));
@@ -339,10 +302,7 @@ describe('grantPermissionToRole / revokePermissionFromRole', () => {
     await grantPermissionToRole(roleId!, permId!);
     await revokePermissionFromRole(roleId!, permId!);
 
-    const rows = await db
-      .select()
-      .from(rolePermissions)
-      .where(eq(rolePermissions.roleId, roleId!));
+    const rows = await db.select().from(rolePermissions).where(eq(rolePermissions.roleId, roleId!));
     expect(rows.some((r) => r.permissionId === permId)).toBe(false);
 
     await db.delete(permission).where(eq(permission.id, permId!));
@@ -355,15 +315,10 @@ describe('grantPermissionToUser / revokePermissionFromUser', () => {
     const permId = unwrap(await addPermission('test:grant:user'));
     await grantPermissionToUser(testUserId, permId!);
 
-    const rows = await db
-      .select()
-      .from(userPermission)
-      .where(eq(userPermission.userId, testUserId));
+    const rows = await db.select().from(userPermission).where(eq(userPermission.userId, testUserId));
     expect(rows.some((r) => r.permissionId === permId)).toBe(true);
 
-    await db
-      .delete(userPermission)
-      .where(eq(userPermission.userId, testUserId));
+    await db.delete(userPermission).where(eq(userPermission.userId, testUserId));
     await db.delete(permission).where(eq(permission.id, permId!));
   });
 
@@ -372,10 +327,7 @@ describe('grantPermissionToUser / revokePermissionFromUser', () => {
     await grantPermissionToUser(testUserId, permId!);
     await revokePermissionFromUser(testUserId, permId!);
 
-    const rows = await db
-      .select()
-      .from(userPermission)
-      .where(eq(userPermission.userId, testUserId));
+    const rows = await db.select().from(userPermission).where(eq(userPermission.userId, testUserId));
     expect(rows.some((r) => r.permissionId === permId)).toBe(false);
 
     await db.delete(permission).where(eq(permission.id, permId!));
@@ -388,18 +340,12 @@ describe('setUserRoles', () => {
     const r2 = unwrap(await createRole('test-set-role-2'));
 
     await setUserRoles(testUserId, [r1!]);
-    let rows = await db
-      .select()
-      .from(userRole)
-      .where(eq(userRole.userId, testUserId));
+    let rows = await db.select().from(userRole).where(eq(userRole.userId, testUserId));
     expect(rows).toHaveLength(1);
     expect(rows[0].roleId).toBe(r1);
 
     await setUserRoles(testUserId, [r2!]);
-    rows = await db
-      .select()
-      .from(userRole)
-      .where(eq(userRole.userId, testUserId));
+    rows = await db.select().from(userRole).where(eq(userRole.userId, testUserId));
     expect(rows).toHaveLength(1);
     expect(rows[0].roleId).toBe(r2);
 
@@ -413,16 +359,10 @@ describe('setUserRoles', () => {
     await setUserRoles(testUserId, [roleId!]);
     await setUserRoles(testUserId, []);
 
-    const rows = await db
-      .select()
-      .from(userRole)
-      .where(eq(userRole.userId, testUserId));
+    const rows = await db.select().from(userRole).where(eq(userRole.userId, testUserId));
     expect(rows).toHaveLength(0);
 
-    const [u] = await db
-      .select({ role: user.role })
-      .from(user)
-      .where(eq(user.id, testUserId));
+    const [u] = await db.select({ role: user.role }).from(user).where(eq(user.id, testUserId));
     expect(u.role).toBe('user');
 
     await db.delete(role).where(eq(role.id, roleId!));
@@ -433,10 +373,7 @@ describe('setUserRoles', () => {
 
     await setUserRoles(testUserId, [adminRoleId!]);
 
-    const [u] = await db
-      .select({ role: user.role })
-      .from(user)
-      .where(eq(user.id, testUserId));
+    const [u] = await db.select({ role: user.role }).from(user).where(eq(user.id, testUserId));
     expect(u.role).toBe('admin');
 
     await db.delete(userRole).where(eq(userRole.userId, testUserId));
@@ -451,23 +388,15 @@ describe('setUserDirectPermissions', () => {
     const p2 = unwrap(await addPermission('test:set-direct:p2'));
 
     await setUserDirectPermissions(testUserId, [p1!, p2!]);
-    let rows = await db
-      .select()
-      .from(userPermission)
-      .where(eq(userPermission.userId, testUserId));
+    let rows = await db.select().from(userPermission).where(eq(userPermission.userId, testUserId));
     expect(rows).toHaveLength(2);
 
     await setUserDirectPermissions(testUserId, [p1!]);
-    rows = await db
-      .select()
-      .from(userPermission)
-      .where(eq(userPermission.userId, testUserId));
+    rows = await db.select().from(userPermission).where(eq(userPermission.userId, testUserId));
     expect(rows).toHaveLength(1);
     expect(rows[0].permissionId).toBe(p1);
 
-    await db
-      .delete(userPermission)
-      .where(eq(userPermission.userId, testUserId));
+    await db.delete(userPermission).where(eq(userPermission.userId, testUserId));
     await db.delete(permission).where(eq(permission.id, p1!));
     await db.delete(permission).where(eq(permission.id, p2!));
   });
@@ -477,10 +406,7 @@ describe('setUserDirectPermissions', () => {
     await setUserDirectPermissions(testUserId, [permId!]);
     await setUserDirectPermissions(testUserId, []);
 
-    const rows = await db
-      .select()
-      .from(userPermission)
-      .where(eq(userPermission.userId, testUserId));
+    const rows = await db.select().from(userPermission).where(eq(userPermission.userId, testUserId));
     expect(rows).toHaveLength(0);
 
     await db.delete(permission).where(eq(permission.id, permId!));
@@ -494,17 +420,11 @@ describe('setRolePermissions', () => {
     const p2 = unwrap(await addPermission('test:set-role-perms:p2'));
 
     await setRolePermissions(roleId!, [p1!, p2!]);
-    let rows = await db
-      .select()
-      .from(rolePermissions)
-      .where(eq(rolePermissions.roleId, roleId!));
+    let rows = await db.select().from(rolePermissions).where(eq(rolePermissions.roleId, roleId!));
     expect(rows).toHaveLength(2);
 
     await setRolePermissions(roleId!, [p1!]);
-    rows = await db
-      .select()
-      .from(rolePermissions)
-      .where(eq(rolePermissions.roleId, roleId!));
+    rows = await db.select().from(rolePermissions).where(eq(rolePermissions.roleId, roleId!));
     expect(rows).toHaveLength(1);
     expect(rows[0].permissionId).toBe(p1);
 
@@ -521,10 +441,7 @@ describe('setRolePermissions', () => {
     await setRolePermissions(roleId!, [permId!]);
     await setRolePermissions(roleId!, []);
 
-    const rows = await db
-      .select()
-      .from(rolePermissions)
-      .where(eq(rolePermissions.roleId, roleId!));
+    const rows = await db.select().from(rolePermissions).where(eq(rolePermissions.roleId, roleId!));
     expect(rows).toHaveLength(0);
 
     await db.delete(permission).where(eq(permission.id, permId!));

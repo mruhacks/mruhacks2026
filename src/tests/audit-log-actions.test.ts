@@ -41,10 +41,7 @@ describe('audit log viewer actions', () => {
         set: { slug: 'audit:read:all' },
       })
       .returning({ id: permission.id });
-    await db
-      .insert(userPermission)
-      .values({ userId: auditorId, permissionId: perm.id })
-      .onConflictDoNothing();
+    await db.insert(userPermission).values({ userId: auditorId, permissionId: perm.id }).onConflictDoNothing();
 
     await db.insert(auditLog).values([
       {
@@ -87,11 +84,7 @@ describe('audit log viewer actions', () => {
     if (!res.success) return;
 
     expect(res.data!.total).toBe(3);
-    expect(res.data!.entries.map((e) => e.targetId)).toEqual([
-      '43',
-      '42',
-      actorId,
-    ]);
+    expect(res.data!.entries.map((e) => e.targetId)).toEqual(['43', '42', actorId]);
     expect(res.data!.entries[1]!.actor).toBeNull();
     expect(res.data!.entries[2]!.actor).toMatchObject({
       id: actorId,
@@ -110,17 +103,13 @@ describe('audit log viewer actions', () => {
     expect(byTarget.success && byTarget.data!.total).toBe(2);
 
     const byActor = await listAuditLog({ search: tag, actorId });
-    expect(
-      byActor.success && byActor.data!.entries.map((e) => e.action),
-    ).toEqual([`${tag}.first`]);
+    expect(byActor.success && byActor.data!.entries.map((e) => e.action)).toEqual([`${tag}.first`]);
 
     const byActorName = await listAuditLog({
       search: 'Audit Test auditor',
       actions: [`${tag}.second`],
     });
-    expect(
-      byActorName.success && byActorName.data!.entries.map((e) => e.targetId),
-    ).toEqual(['43']);
+    expect(byActorName.success && byActorName.data!.entries.map((e) => e.targetId)).toEqual(['43']);
   });
 
   test('paginates and sorts ascending', async () => {
@@ -142,18 +131,10 @@ describe('audit log viewer actions', () => {
     const res = await listAuditLogFacets();
     expect(res.success).toBe(true);
     if (!res.success) return;
-    expect(res.data!.actions).toEqual(
-      expect.arrayContaining([`${tag}.first`, `${tag}.second`]),
-    );
-    expect(res.data!.actions.filter((a) => a === `${tag}.second`)).toHaveLength(
-      1,
-    );
-    expect(res.data!.targetTypes).toEqual(
-      expect.arrayContaining(['user', `${tag}-thing`]),
-    );
+    expect(res.data!.actions).toEqual(expect.arrayContaining([`${tag}.first`, `${tag}.second`]));
+    expect(res.data!.actions.filter((a) => a === `${tag}.second`)).toHaveLength(1);
+    expect(res.data!.targetTypes).toEqual(expect.arrayContaining(['user', `${tag}-thing`]));
 
-    await db
-      .delete(auditLog)
-      .where(inArray(auditLog.action, [`${tag}.first`, `${tag}.second`]));
+    await db.delete(auditLog).where(inArray(auditLog.action, [`${tag}.first`, `${tag}.second`]));
   });
 });

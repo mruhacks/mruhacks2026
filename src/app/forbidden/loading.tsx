@@ -8,9 +8,7 @@ export default function ForbiddenPageLoading() {
       <Card className='w-md text-center shadow-md'>
         <CardHeader className='flex flex-col items-center gap-2'>
           <ShieldAlert className='size-10 text-yellow-500' />
-          <CardTitle className='text-3xl font-semibold text-yellow-500'>
-            403 – Forbidden
-          </CardTitle>
+          <CardTitle className='text-3xl font-semibold text-yellow-500'>403 – Forbidden</CardTitle>
         </CardHeader>
 
         <CardContent className='space-y-5'>

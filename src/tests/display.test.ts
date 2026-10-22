@@ -1,23 +1,8 @@
-import {
-  describe,
-  test,
-  expect,
-  afterAll,
-  beforeAll,
-  beforeEach,
-  vi,
-} from 'vitest';
+import { describe, test, expect, afterAll, beforeAll, beforeEach, vi } from 'vitest';
 import { and, eq, inArray } from 'drizzle-orm';
 
 import { db } from '@/utils/db';
-import {
-  auditLog,
-  displaySettings,
-  events,
-  permission,
-  user,
-  userPermission,
-} from '@/db/schema';
+import { auditLog, displaySettings, events, permission, user, userPermission } from '@/db/schema';
 
 vi.mock('next/cache', () => ({
   cacheLife: vi.fn(),
@@ -69,31 +54,19 @@ describe('feed', () => {
   // back afterwards so later test files (and the dev app) still find it.
   let featuredIds: string[] = [];
   beforeAll(async () => {
-    featuredIds = (
-      await db
-        .select({ id: events.id })
-        .from(events)
-        .where(eq(events.isFeatured, true))
-    ).map((row) => row.id);
+    featuredIds = (await db.select({ id: events.id }).from(events).where(eq(events.isFeatured, true))).map(
+      (row) => row.id,
+    );
   });
   afterAll(async () => {
-    await db
-      .update(events)
-      .set({ isFeatured: false })
-      .where(eq(events.isFeatured, true));
+    await db.update(events).set({ isFeatured: false }).where(eq(events.isFeatured, true));
     if (featuredIds.length > 0) {
-      await db
-        .update(events)
-        .set({ isFeatured: true })
-        .where(inArray(events.id, featuredIds));
+      await db.update(events).set({ isFeatured: true }).where(inArray(events.id, featuredIds));
     }
   });
 
   test('serves the featured event schedule and settings, unauthenticated', async () => {
-    await db
-      .update(events)
-      .set({ isFeatured: false })
-      .where(eq(events.isFeatured, true));
+    await db.update(events).set({ isFeatured: false }).where(eq(events.isFeatured, true));
     const [parent] = await db
       .insert(events)
       .values({
@@ -140,10 +113,7 @@ describe('feed', () => {
   });
 
   test('with no featured event: an empty schedule', async () => {
-    await db
-      .update(events)
-      .set({ isFeatured: false })
-      .where(eq(events.isFeatured, true));
+    await db.update(events).set({ isFeatured: false }).where(eq(events.isFeatured, true));
     const body = await (await getFeed()).json();
     expect(body.schedule).toEqual([]);
   });
@@ -162,19 +132,14 @@ describe('updateDisplaySettings', () => {
         set: { slug: 'display:manage:all' },
       })
       .returning({ id: permission.id });
-    await db
-      .insert(userPermission)
-      .values({ userId: organizerId, permissionId: perm.id })
-      .onConflictDoNothing();
+    await db.insert(userPermission).values({ userId: organizerId, permissionId: perm.id }).onConflictDoNothing();
   });
 
   test('requires display:manage:all', async () => {
     vi.mocked(getUser).mockResolvedValue({
       id: await makeUser('outsider'),
     } as never);
-    await expect(
-      updateDisplaySettings({ showClock: true, theme: 'dark' }),
-    ).rejects.toThrow(/REDIRECT:\/forbidden/);
+    await expect(updateDisplaySettings({ showClock: true, theme: 'dark' })).rejects.toThrow(/REDIRECT:\/forbidden/);
   });
 
   test('saves, clears the cached feed and audits', async () => {
@@ -195,12 +160,7 @@ describe('updateDisplaySettings', () => {
     const [entry] = await db
       .select()
       .from(auditLog)
-      .where(
-        and(
-          eq(auditLog.action, 'display.settings_updated'),
-          eq(auditLog.actorId, organizerId),
-        ),
-      );
+      .where(and(eq(auditLog.action, 'display.settings_updated'), eq(auditLog.actorId, organizerId)));
     expect(entry).toBeDefined();
   });
 });

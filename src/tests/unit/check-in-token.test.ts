@@ -1,9 +1,4 @@
-import {
-  generateKeyPairSync,
-  createPrivateKey,
-  createPublicKey,
-  sign,
-} from 'node:crypto';
+import { generateKeyPairSync, createPrivateKey, createPublicKey, sign } from 'node:crypto';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import {
   buildCheckInToken,
@@ -31,8 +26,7 @@ function generateTestKeyPem(): string {
  * already-issued passes even though nothing builds them anymore.
  */
 function buildV1Token(eventId: string, userId: string, name: string): Buffer {
-  const uuidBytes = (uuid: string) =>
-    Buffer.from(uuid.replace(/-/g, ''), 'hex');
+  const uuidBytes = (uuid: string) => Buffer.from(uuid.replace(/-/g, ''), 'hex');
   const nameBytes = Buffer.from(name, 'utf8');
   const expiresAt = Buffer.alloc(4);
   expiresAt.writeUInt32BE(Math.floor(Date.now() / 1000) + 3600);
@@ -54,9 +48,7 @@ const SIGNING_ENV = [
   'CHECK_IN_SIGNING_PRIVATE_KEY',
   'CHECK_IN_SIGNING_PUBLIC_KEY',
 ] as const;
-const originalEnv = Object.fromEntries(
-  SIGNING_ENV.map((name) => [name, process.env[name]]),
-);
+const originalEnv = Object.fromEntries(SIGNING_ENV.map((name) => [name, process.env[name]]));
 const testKeyPem = generateTestKeyPem();
 
 // Most of this file exercises the legacy CHECK_IN_SIGNING_* names, which the
@@ -87,12 +79,8 @@ describe('buildCheckInToken', () => {
 
   it('embeds the raw UUID bytes rather than their hex/dash text form', () => {
     const token = buildCheckInToken(EVENT_ID, USER_ID);
-    expect(token.subarray(1, 17).toString('hex')).toBe(
-      EVENT_ID.replace(/-/g, ''),
-    );
-    expect(token.subarray(17, 33).toString('hex')).toBe(
-      USER_ID.replace(/-/g, ''),
-    );
+    expect(token.subarray(1, 17).toString('hex')).toBe(EVENT_ID.replace(/-/g, ''));
+    expect(token.subarray(17, 33).toString('hex')).toBe(USER_ID.replace(/-/g, ''));
   });
 
   it('carries no participant name or expiry — just the two ids and a signature', () => {
@@ -108,14 +96,8 @@ describe('buildCheckInToken', () => {
 
   it('changes the token when either id changes', () => {
     const base = buildCheckInToken(EVENT_ID, USER_ID);
-    const otherUser = buildCheckInToken(
-      EVENT_ID,
-      '00000000-0000-0000-0000-000000000000',
-    );
-    const otherEvent = buildCheckInToken(
-      '00000000-0000-0000-0000-000000000000',
-      USER_ID,
-    );
+    const otherUser = buildCheckInToken(EVENT_ID, '00000000-0000-0000-0000-000000000000');
+    const otherEvent = buildCheckInToken('00000000-0000-0000-0000-000000000000', USER_ID);
     expect(base.equals(otherUser)).toBe(false);
     expect(base.equals(otherEvent)).toBe(false);
   });
@@ -126,9 +108,7 @@ describe('buildCheckInToken', () => {
 
   it('throws when the signing key is not configured', () => {
     delete process.env.CHECK_IN_SIGNING_PRIVATE_KEY;
-    expect(() => buildCheckInToken(EVENT_ID, USER_ID)).toThrow(
-      /CHECK_IN_SIGNING_PRIVATE_KEY/,
-    );
+    expect(() => buildCheckInToken(EVENT_ID, USER_ID)).toThrow(/CHECK_IN_SIGNING_PRIVATE_KEY/);
     process.env.CHECK_IN_SIGNING_PRIVATE_KEY = testKeyPem;
   });
 
@@ -179,9 +159,7 @@ describe('verifyCheckInToken / verifyCheckInPayload', () => {
         userId: USER_ID,
       });
       // Confirms this really is verify-only: signing has no private key to use.
-      expect(() => buildCheckInToken(EVENT_ID, USER_ID)).toThrow(
-        /CHECK_IN_SIGNING_PRIVATE_KEY/,
-      );
+      expect(() => buildCheckInToken(EVENT_ID, USER_ID)).toThrow(/CHECK_IN_SIGNING_PRIVATE_KEY/);
     } finally {
       delete process.env.CHECK_IN_SIGNING_PUBLIC_KEY;
       process.env.CHECK_IN_SIGNING_PRIVATE_KEY = testKeyPem;
@@ -203,17 +181,11 @@ describe('verifyCheckInToken / verifyCheckInPayload', () => {
 
   it('rejects a token of the wrong length', () => {
     expect(verifyCheckInToken(Buffer.alloc(10))).toBeNull();
-    expect(
-      verifyCheckInToken(
-        Buffer.concat([buildCheckInToken(EVENT_ID, USER_ID), Buffer.from([0])]),
-      ),
-    ).toBeNull();
+    expect(verifyCheckInToken(Buffer.concat([buildCheckInToken(EVENT_ID, USER_ID), Buffer.from([0])]))).toBeNull();
   });
 
   it('rejects garbage input instead of throwing', () => {
-    expect(
-      verifyCheckInToken(Buffer.from('not a real token at all')),
-    ).toBeNull();
+    expect(verifyCheckInToken(Buffer.from('not a real token at all'))).toBeNull();
     expect(verifyCheckInPayload('not-valid-base64url!!!')).toBeNull();
   });
 
@@ -311,9 +283,7 @@ describe('APP_SIGNING_* env var names', () => {
   it('verifies with only APP_SIGNING_PUBLIC_KEY present', () => {
     const token = buildCheckInToken(EVENT_ID, USER_ID);
     delete process.env.CHECK_IN_SIGNING_PRIVATE_KEY;
-    process.env.APP_SIGNING_PUBLIC_KEY = createPublicKey(
-      createPrivateKey(testKeyPem),
-    )
+    process.env.APP_SIGNING_PUBLIC_KEY = createPublicKey(createPrivateKey(testKeyPem))
       .export({ type: 'spki', format: 'pem' })
       .toString();
     try {

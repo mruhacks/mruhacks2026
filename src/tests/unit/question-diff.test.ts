@@ -1,14 +1,8 @@
 import { describe, test, expect } from 'vitest';
-import {
-  hasResponsesForOption,
-  hasResponsesForQuestion,
-  validateQuestionEdit,
-} from '@/lib/question-diff';
+import { hasResponsesForOption, hasResponsesForQuestion, validateQuestionEdit } from '@/lib/question-diff';
 import type { ApplicationQuestion } from '@/types/application';
 
-function makeQuestion(
-  overrides: Partial<ApplicationQuestion> = {},
-): ApplicationQuestion {
+function makeQuestion(overrides: Partial<ApplicationQuestion> = {}): ApplicationQuestion {
   return {
     id: 'q1',
     label: 'Test Question',
@@ -107,11 +101,7 @@ describe('validateQuestionEdit', () => {
 
     test('updates label', () => {
       const q = makeQuestion();
-      const result = validateQuestionEdit(
-        q,
-        { label: 'New Label' },
-        noResponses,
-      );
+      const result = validateQuestionEdit(q, { label: 'New Label' }, noResponses);
       expect(result.ok).toBe(true);
       if (!result.ok) throw new Error(result.error);
       expect(result.question.label).toBe('New Label');
@@ -127,11 +117,7 @@ describe('validateQuestionEdit', () => {
 
     test('adds new options (no value = new)', () => {
       const q = makeQuestion({ options: [] });
-      const result = validateQuestionEdit(
-        q,
-        { options: [{ label: 'Option X', active: true }] },
-        noResponses,
-      );
+      const result = validateQuestionEdit(q, { options: [{ label: 'Option X', active: true }] }, noResponses);
       expect(result.ok).toBe(true);
       if (!result.ok) throw new Error(result.error);
       expect(result.question.options).toHaveLength(1);
@@ -166,11 +152,7 @@ describe('validateQuestionEdit', () => {
 
     test('preserves unchanged fields', () => {
       const q = makeQuestion({ description: 'A helpful description' });
-      const result = validateQuestionEdit(
-        q,
-        { label: 'New Label' },
-        noResponses,
-      );
+      const result = validateQuestionEdit(q, { label: 'New Label' }, noResponses);
       expect(result.ok).toBe(true);
       if (!result.ok) throw new Error(result.error);
       expect(result.question.description).toBe('A helpful description');
@@ -289,9 +271,7 @@ describe('validateQuestionEdit', () => {
       expect(result.ok).toBe(true);
       if (!result.ok) throw new Error(result.error);
       expect(result.question.options).toHaveLength(3);
-      const newOpt = result.question.options!.find(
-        (o) => o.label === 'Brand New',
-      );
+      const newOpt = result.question.options!.find((o) => o.label === 'Brand New');
       expect(newOpt).toBeDefined();
       expect(newOpt!.value).toBeTruthy();
     });
@@ -338,22 +318,14 @@ describe('validateQuestionEdit — maxLength', () => {
   });
 
   test('null clears the cap back to the type default', () => {
-    const result = validateQuestionEdit(
-      { ...base, maxLength: 40 },
-      { maxLength: null },
-      [],
-    );
+    const result = validateQuestionEdit({ ...base, maxLength: 40 }, { maxLength: null }, []);
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error(result.error);
     expect(result.question.maxLength).toBeUndefined();
   });
 
   test('non-string questions never carry a cap', () => {
-    const result = validateQuestionEdit(
-      { ...base, type: 'single_select', options: [] },
-      { maxLength: 120 },
-      [],
-    );
+    const result = validateQuestionEdit({ ...base, type: 'single_select', options: [] }, { maxLength: 120 }, []);
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error(result.error);
     expect(result.question.maxLength).toBeUndefined();

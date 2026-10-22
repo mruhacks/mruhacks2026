@@ -11,28 +11,13 @@ import {
   updateCampaignContent,
   uploadCampaignImage,
 } from '@/app/dashboard/admin/campaigns/actions';
-import {
-  DraftSaver,
-  type DraftSaveState,
-  type DraftEditorHandle,
-} from '@/lib/campaigns/draft-saver';
+import { DraftSaver, type DraftSaveState, type DraftEditorHandle } from '@/lib/campaigns/draft-saver';
 import { mergeFieldError } from '@/lib/campaigns/merge-fields';
 import type { CampaignDetail } from '@/lib/campaigns/queries';
 import { MarkdownEditor } from '@/components/markdown/markdown-editor';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import {
-  Field,
-  FieldDescription,
-  FieldError,
-  FieldLabel,
-} from '@/components/ui/field';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
 
@@ -163,9 +148,8 @@ export function CampaignComposer({
         <CardHeader>
           <CardTitle>Email</CardTitle>
           <CardDescription>
-            Use <code>{'{{firstName}}'}</code> for the recipient&apos;s first
-            name (it falls back to &quot;there&quot;, or{' '}
-            <code>{'{{firstName|friend}}'}</code> picks your own).
+            Use <code>{'{{firstName}}'}</code> for the recipient&apos;s first name (it falls back to &quot;there&quot;,
+            or <code>{'{{firstName|friend}}'}</code> picks your own).
           </CardDescription>
         </CardHeader>
         <CardContent className='space-y-4'>
@@ -188,14 +172,10 @@ export function CampaignComposer({
               aria-invalid={Boolean(fieldErrors.subject)}
               onChange={(e) => update({ subject: e.target.value })}
             />
-            {fieldErrors.subject && (
-              <FieldError>{fieldErrors.subject}</FieldError>
-            )}
+            {fieldErrors.subject && <FieldError>{fieldErrors.subject}</FieldError>}
           </Field>
           <Field>
-            <FieldLabel htmlFor='campaign-preview-text'>
-              Preview text
-            </FieldLabel>
+            <FieldLabel htmlFor='campaign-preview-text'>Preview text</FieldLabel>
             <Input
               id='campaign-preview-text'
               value={content.previewText}
@@ -204,9 +184,7 @@ export function CampaignComposer({
               placeholder='Shown next to the subject in most inboxes'
               onChange={(e) => update({ previewText: e.target.value })}
             />
-            {fieldErrors.previewText && (
-              <FieldError>{fieldErrors.previewText}</FieldError>
-            )}
+            {fieldErrors.previewText && <FieldError>{fieldErrors.previewText}</FieldError>}
           </Field>
           <Field>
             <FieldLabel>Body</FieldLabel>
@@ -225,32 +203,22 @@ export function CampaignComposer({
               />
             ) : (
               <p className='text-muted-foreground text-sm'>
-                This campaign can no longer be edited. The preview shows what
-                was sent.
+                This campaign can no longer be edited. The preview shows what was sent.
               </p>
             )}
-            {fieldErrors.bodyMarkdown && (
-              <FieldError>{fieldErrors.bodyMarkdown}</FieldError>
-            )}
+            {fieldErrors.bodyMarkdown && <FieldError>{fieldErrors.bodyMarkdown}</FieldError>}
             {uploadError && <FieldError>{uploadError}</FieldError>}
           </Field>
 
           <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
             {editable ? <SaveStatus state={saveState} /> : <span />}
             {canSendTest && (
-              <Button
-                type='button'
-                variant='outline'
-                onClick={sendTest}
-                disabled={isSendingTest}
-              >
+              <Button type='button' variant='outline' onClick={sendTest} disabled={isSendingTest}>
                 <Send /> {isSendingTest ? 'Sending…' : 'Send test to me'}
               </Button>
             )}
           </div>
-          {saveState.kind === 'error' && (
-            <FieldError>{saveState.message}</FieldError>
-          )}
+          {saveState.kind === 'error' && <FieldError>{saveState.message}</FieldError>}
           {testError && <FieldError>{testError}</FieldError>}
         </CardContent>
       </Card>
@@ -259,11 +227,7 @@ export function CampaignComposer({
         <CardHeader>
           <CardTitle>Preview</CardTitle>
           <CardDescription className='truncate'>
-            {preview.data?.subject ? (
-              <>Subject: {preview.data.subject}</>
-            ) : (
-              'No subject yet'
-            )}
+            {preview.data?.subject ? <>Subject: {preview.data.subject}</> : 'No subject yet'}
           </CardDescription>
         </CardHeader>
         <CardContent>

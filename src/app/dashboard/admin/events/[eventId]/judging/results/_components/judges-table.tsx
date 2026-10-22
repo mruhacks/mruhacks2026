@@ -27,9 +27,7 @@ export function JudgesTable() {
         cell: ({ row }) => (
           <span className='whitespace-normal'>
             <span className='font-medium'>{row.original.label}</span>{' '}
-            {row.original.disabled && (
-              <Badge variant='destructive'>Disabled</Badge>
-            )}
+            {row.original.disabled && <Badge variant='destructive'>Disabled</Badge>}
           </span>
         ),
       },
@@ -63,9 +61,8 @@ export function JudgesTable() {
         compact
       />
       <p className='text-muted-foreground text-xs'>
-        Reliability is how likely the model thinks each judge is to vote with
-        the consensus on that criterion — α / (α + β). Every judge starts at{' '}
-        {formatPercent(reliabilityMean(JUDGE_PRIOR))}.
+        Reliability is how likely the model thinks each judge is to vote with the consensus on that criterion — α / (α +
+        β). Every judge starts at {formatPercent(reliabilityMean(JUDGE_PRIOR))}.
       </p>
     </div>
   );

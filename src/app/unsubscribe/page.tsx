@@ -22,11 +22,7 @@ export default function UnsubscribePage({ searchParams }: Props) {
           <CardTitle>Email preferences</CardTitle>
         </CardHeader>
         <CardContent>
-          <Suspense
-            fallback={
-              <div className='bg-muted h-24 animate-pulse rounded-md' />
-            }
-          >
+          <Suspense fallback={<div className='bg-muted h-24 animate-pulse rounded-md' />}>
             <UnsubscribeContent searchParams={searchParams} />
           </Suspense>
         </CardContent>
@@ -43,8 +39,7 @@ async function UnsubscribeContent({ searchParams }: Props) {
   if (!claims) {
     return (
       <p className='text-muted-foreground text-sm'>
-        This unsubscribe link isn&apos;t valid. You can manage email preferences
-        from{' '}
+        This unsubscribe link isn&apos;t valid. You can manage email preferences from{' '}
         <Link href='/dashboard/account' className='underline'>
           your account
         </Link>

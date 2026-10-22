@@ -45,9 +45,7 @@ async function main() {
 
   console.log(`${DIM}GET ${url}${RESET}`);
   if (!accessKey) {
-    console.log(
-      `${DIM}(no HEALTH_CHECK_ACCESS_KEY in env — you'll only get the bare status)${RESET}`,
-    );
+    console.log(`${DIM}(no HEALTH_CHECK_ACCESS_KEY in env — you'll only get the bare status)${RESET}`);
   }
 
   let res: Response;
@@ -57,10 +55,7 @@ async function main() {
       signal: AbortSignal.timeout(10_000),
     });
   } catch (error) {
-    console.error(
-      `${RED}${BOLD}Could not reach ${url}${RESET}`,
-      error instanceof Error ? `— ${error.message}` : '',
-    );
+    console.error(`${RED}${BOLD}Could not reach ${url}${RESET}`, error instanceof Error ? `— ${error.message}` : '');
     process.exit(3);
   }
 
@@ -68,16 +63,12 @@ async function main() {
   try {
     report = await res.json();
   } catch {
-    console.error(
-      `${RED}${BOLD}Unexpected response (HTTP ${res.status}) — not valid JSON${RESET}`,
-    );
+    console.error(`${RED}${BOLD}Unexpected response (HTTP ${res.status}) — not valid JSON${RESET}`);
     process.exit(3);
   }
 
   const color = statusColor(report.status);
-  console.log(
-    `\n${BOLD}Status: ${color}${report.status.toUpperCase()}${RESET} ${DIM}(HTTP ${res.status})${RESET}`,
-  );
+  console.log(`\n${BOLD}Status: ${color}${report.status.toUpperCase()}${RESET} ${DIM}(HTTP ${res.status})${RESET}`);
 
   if (report.checkedAt) {
     console.log(`${DIM}Checked at: ${report.checkedAt}${RESET}`);
@@ -94,9 +85,7 @@ async function main() {
 
   if (report.missingEnv) {
     if (report.missingEnv.length > 0) {
-      console.log(
-        `\n${YELLOW}${BOLD}Missing env vars:${RESET} ${report.missingEnv.join(', ')}`,
-      );
+      console.log(`\n${YELLOW}${BOLD}Missing env vars:${RESET} ${report.missingEnv.join(', ')}`);
     } else {
       console.log(`\n${GREEN}No missing env vars.${RESET}`);
     }
@@ -109,9 +98,7 @@ async function main() {
     );
   }
 
-  process.exit(
-    report.status === 'ok' ? 0 : report.status === 'degraded' ? 1 : 2,
-  );
+  process.exit(report.status === 'ok' ? 0 : report.status === 'degraded' ? 1 : 2);
 }
 
 void main();

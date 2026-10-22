@@ -1,11 +1,7 @@
 import 'server-only';
 
 import { hasWalletBlock } from './email-markdown';
-import {
-  draftContentErrors,
-  sendContentErrors,
-  type CampaignContent,
-} from './render-campaign-email';
+import { draftContentErrors, sendContentErrors, type CampaignContent } from './render-campaign-email';
 import { walletBlockError } from './wallet-block';
 
 /**
@@ -14,15 +10,11 @@ import { walletBlockError } from './wallet-block';
  * held to fewer rules than a send.
  */
 export async function campaignContentErrors(
-  content: Pick<CampaignContent, 'subject' | 'previewText' | 'bodyMarkdown'> &
-    Partial<CampaignContent>,
+  content: Pick<CampaignContent, 'subject' | 'previewText' | 'bodyMarkdown'> & Partial<CampaignContent>,
   eventId: string | null,
   stage: 'draft' | 'send',
 ): Promise<string[]> {
-  const errors =
-    stage === 'send'
-      ? sendContentErrors(content as CampaignContent)
-      : draftContentErrors(content);
+  const errors = stage === 'send' ? sendContentErrors(content as CampaignContent) : draftContentErrors(content);
   if (hasWalletBlock(content.bodyMarkdown)) {
     const walletError = await walletBlockError(eventId);
     if (walletError) errors.push(walletError);

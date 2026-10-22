@@ -19,23 +19,14 @@ import { randomUUID } from 'crypto';
 import { and, asc, desc, eq, gt, inArray, ne, sql } from 'drizzle-orm';
 import { revalidatePath, updateTag } from 'next/cache';
 
-import {
-  submissionEditors,
-  submissions,
-  teamMembers,
-  user as authUser,
-} from '@/db/schema';
+import { submissionEditors, submissions, teamMembers, user as authUser } from '@/db/schema';
 import { eventApplicationsCacheTag } from '@/lib/admin-event';
 import { eventUrlSegments } from '@/lib/events';
 import { assignTableSlot, getTableLabels } from '@/lib/judging/server';
 import { collectAttachmentKeys } from '@/lib/markdown-attachments';
 import { readImageUpload } from '@/lib/image-attachments';
 import { requirePermission, hasPermission } from '@/lib/rbac/authorization';
-import {
-  loadSubmissionAccess,
-  type SubmissionAccess,
-  type SubmissionRow,
-} from '@/lib/submission-access';
+import { loadSubmissionAccess, type SubmissionAccess, type SubmissionRow } from '@/lib/submission-access';
 import {
   NEW_SUBMISSION_TITLE,
   SUBMISSION_MAX_IMAGES,
@@ -54,11 +45,7 @@ import {
   putObject,
   submissionAttachmentPrefix,
 } from '@/utils/object-storage';
-import {
-  publishSubmissionSchema,
-  saveSubmissionSchema,
-  type SaveSubmissionInput,
-} from './submission-schemas';
+import { publishSubmissionSchema, saveSubmissionSchema, type SaveSubmissionInput } from './submission-schemas';
 
 // ── Shared shapes ─────────────────────────────────────────────────────────
 
@@ -97,11 +84,7 @@ export type MySubmissionState = {
 
 async function toView(row: SubmissionRow): Promise<SubmissionView> {
   const [editor] = row.lastEditedBy
-    ? await db
-        .select({ name: authUser.name })
-        .from(authUser)
-        .where(eq(authUser.id, row.lastEditedBy))
-        .limit(1)
+    ? await db.select({ name: authUser.name }).from(authUser).where(eq(authUser.id, row.lastEditedBy)).limit(1)
     : [];
   return {
     id: row.id,
@@ -150,17 +133,9 @@ async function revalidateSubmissionPaths(eventId: string): Promise<void> {
  * project's image, a wiki attachment) is never this submission's to count
  * or delete.
  */
-function ownImageKeys(
-  submissionId: string,
-  markdown: string,
-  coverImageUrl: string | null,
-): Set<string> {
+function ownImageKeys(submissionId: string, markdown: string, coverImageUrl: string | null): Set<string> {
   const prefix = submissionAttachmentPrefix(submissionId);
-  const keys = new Set(
-    [...collectAttachmentKeys(markdown)].filter((key) =>
-      key.startsWith(prefix),
-    ),
-  );
+  const keys = new Set([...collectAttachmentKeys(markdown)].filter((key) => key.startsWith(prefix)));
   const coverKey = parseSubmissionAttachmentKey(coverImageUrl);
   if (coverKey?.startsWith(prefix)) keys.add(coverKey);
   return keys;
@@ -169,11 +144,7 @@ function ownImageKeys(
 /** Best effort: the row is already gone, so a storage hiccup only leaves orphans. */
 async function deleteSubmissionImages(row: SubmissionRow): Promise<void> {
   try {
-    await Promise.all(
-      [...ownImageKeys(row.id, row.markdown, row.coverImageUrl)].map((key) =>
-        deleteObject(key),
-      ),
-    );
+    await Promise.all([...ownImageKeys(row.id, row.markdown, row.coverImageUrl)].map((key) => deleteObject(key)));
   } catch (error) {
     console.error('[submissions] failed to delete submission images', {
       submissionId: row.id,
@@ -189,9 +160,7 @@ async function deleteSubmissionImages(row: SubmissionRow): Promise<void> {
  * not eligible — an ineligible teammate (e.g. not yet checked in) can't see
  * the project at all.
  */
-export async function getMySubmission(
-  eventId: string,
-): Promise<ActionResult<MySubmissionState>> {
+export async function getMySubmission(eventId: string): Promise<ActionResult<MySubmissionState>> {
   const currentUser = await getUser();
   if (!currentUser) return fail('Not authenticated');
 
@@ -223,9 +192,7 @@ export async function getMySubmission(
  * Starts the team's project as an empty draft. The row has to exist before
  * the editor opens, because uploaded images are stored under its id.
  */
-export async function createSubmission(
-  eventId: string,
-): Promise<ActionResult<{ id: string }>> {
+export async function createSubmission(eventId: string): Promise<ActionResult<{ id: string }>> {
   const currentUser = await getUser();
   if (!currentUser) return fail('Not authenticated');
 
@@ -237,11 +204,7 @@ export async function createSubmission(
 
   try {
     const created = await db.transaction(async (tx) => {
-      const { teamId } = await getOrCreatePersonalTeam(
-        currentUser.id,
-        eventId,
-        tx,
-      );
+      const { teamId } = await getOrCreatePersonalTeam(currentUser.id, eventId, tx);
       const now = new Date();
       const [row] = await tx
         .insert(submissions)
@@ -316,16 +279,9 @@ export async function saveSubmission(
         .for('update');
       if (!row) return fail('Your project no longer exists.');
 
-      if (
-        !data.force &&
-        row.updatedAt.getTime() > new Date(data.expectedUpdatedAt).getTime()
-      ) {
+      if (!data.force && row.updatedAt.getTime() > new Date(data.expectedUpdatedAt).getTime()) {
         const [editor] = row.lastEditedBy
-          ? await tx
-              .select({ name: authUser.name })
-              .from(authUser)
-              .where(eq(authUser.id, row.lastEditedBy))
-              .limit(1)
+          ? await tx.select({ name: authUser.name }).from(authUser).where(eq(authUser.id, row.lastEditedBy)).limit(1)
           : [];
         return ok<SaveSubmissionResult>({
           status: 'conflict',
@@ -339,18 +295,11 @@ export async function saveSubmission(
       if (data.coverImageUrl && !coverKey?.startsWith(prefix)) {
         return fail('Upload the cover image here rather than linking one.');
       }
-      if (
-        ownImageKeys(row.id, data.markdown, data.coverImageUrl).size >
-        SUBMISSION_MAX_IMAGES
-      ) {
-        return fail(
-          `A project can have at most ${SUBMISSION_MAX_IMAGES} images, including the cover.`,
-        );
+      if (ownImageKeys(row.id, data.markdown, data.coverImageUrl).size > SUBMISSION_MAX_IMAGES) {
+        return fail(`A project can have at most ${SUBMISSION_MAX_IMAGES} images, including the cover.`);
       }
       if (row.published && !data.repoUrl) {
-        return fail(
-          'A public project needs a repository link. Make it private first to remove the link.',
-        );
+        return fail('A public project needs a repository link. Make it private first to remove the link.');
       }
 
       const updatedAt = new Date();
@@ -385,10 +334,7 @@ export async function saveSubmission(
  * member may, any time the window is open. Going public needs a repository
  * link.
  */
-export async function setSubmissionPublished(
-  eventId: string,
-  published: boolean,
-): Promise<ActionResult> {
+export async function setSubmissionPublished(eventId: string, published: boolean): Promise<ActionResult> {
   const currentUser = await getUser();
   if (!currentUser) return fail('Not authenticated');
 
@@ -433,9 +379,7 @@ export async function setSubmissionPublished(
         .where(eq(submissions.id, row.id));
       // First time public: the project takes its expo table for good.
       if (published) await assignTableSlot(tx, eventId, row.id);
-      return ok(
-        published ? 'Project is now public.' : 'Project is now private.',
-      );
+      return ok(published ? 'Project is now public.' : 'Project is now private.');
     });
     if (result.success) await revalidateSubmissionPaths(eventId);
     return result;
@@ -457,10 +401,7 @@ export async function deleteSubmission(eventId: string): Promise<ActionResult> {
   if (!access.submission) return fail('Your team has no project to delete.');
 
   try {
-    const [deleted] = await db
-      .delete(submissions)
-      .where(eq(submissions.id, access.submission.id))
-      .returning();
+    const [deleted] = await db.delete(submissions).where(eq(submissions.id, access.submission.id)).returning();
     if (deleted) await deleteSubmissionImages(deleted);
     await revalidateSubmissionPaths(eventId);
     return ok('Project deleted.');
@@ -497,10 +438,7 @@ export async function uploadSubmissionAttachment(
     });
     return ok({ url: eventAttachmentUrl(key) });
   } catch (error) {
-    console.error(
-      '[team/submission] Submission attachment upload error:',
-      error,
-    );
+    console.error('[team/submission] Submission attachment upload error:', error);
     return fail('Unable to upload that image.');
   }
 }
@@ -514,9 +452,7 @@ export type SubmissionEditorPresence = { userId: string; name: string };
  * have done the same within the presence window — the editor's "<name> is
  * also editing" banner.
  */
-export async function heartbeatSubmissionEditor(
-  eventId: string,
-): Promise<ActionResult<SubmissionEditorPresence[]>> {
+export async function heartbeatSubmissionEditor(eventId: string): Promise<ActionResult<SubmissionEditorPresence[]>> {
   const currentUser = await getUser();
   if (!currentUser) return fail('Not authenticated');
 
@@ -543,10 +479,7 @@ export async function heartbeatSubmissionEditor(
         and(
           eq(submissionEditors.submissionId, submissionId),
           ne(submissionEditors.userId, currentUser.id),
-          gt(
-            submissionEditors.lastSeenAt,
-            new Date(now.getTime() - SUBMISSION_PRESENCE_WINDOW_MS),
-          ),
+          gt(submissionEditors.lastSeenAt, new Date(now.getTime() - SUBMISSION_PRESENCE_WINDOW_MS)),
         ),
       )
       .orderBy(asc(authUser.name));
@@ -558,9 +491,7 @@ export async function heartbeatSubmissionEditor(
 }
 
 /** Clears the caller's presence row when the editor closes. Best effort. */
-export async function leaveSubmissionEditor(
-  eventId: string,
-): Promise<ActionResult> {
+export async function leaveSubmissionEditor(eventId: string): Promise<ActionResult> {
   const currentUser = await getUser();
   if (!currentUser) return fail('Not authenticated');
 
@@ -569,12 +500,7 @@ export async function leaveSubmissionEditor(
 
   await db
     .delete(submissionEditors)
-    .where(
-      and(
-        eq(submissionEditors.submissionId, access.submission.id),
-        eq(submissionEditors.userId, currentUser.id),
-      ),
-    );
+    .where(and(eq(submissionEditors.submissionId, access.submission.id), eq(submissionEditors.userId, currentUser.id)));
   return ok();
 }
 
@@ -590,9 +516,7 @@ export type AdminSubmissionRow = {
   members: string[];
 };
 
-async function teamMemberNames(
-  teamIds: string[],
-): Promise<Map<string, string[]>> {
+async function teamMemberNames(teamIds: string[]): Promise<Map<string, string[]>> {
   const byTeam = new Map<string, string[]>();
   if (teamIds.length === 0) return byTeam;
   const rows = await db
@@ -611,9 +535,7 @@ async function teamMemberNames(
  * Every submission for an event, drafts included.
  * Requires submission:read:all permission.
  */
-export async function listEventSubmissions(
-  eventId: string,
-): Promise<ActionResult<AdminSubmissionRow[]>> {
+export async function listEventSubmissions(eventId: string): Promise<ActionResult<AdminSubmissionRow[]>> {
   const currentUser = await getUser();
   if (!currentUser) return fail('Not authenticated');
   await requirePermission(currentUser.id, 'submission:read:all');
@@ -655,9 +577,7 @@ export async function getEventSubmission(
   const [row] = await db
     .select()
     .from(submissions)
-    .where(
-      and(eq(submissions.id, submissionId), eq(submissions.eventId, eventId)),
-    )
+    .where(and(eq(submissions.id, submissionId), eq(submissions.eventId, eventId)))
     .limit(1);
   if (!row) return fail('Submission not found.');
 
@@ -681,10 +601,7 @@ export async function canDeleteAnySubmission(): Promise<boolean> {
  * the deadline doesn't apply. Audit-logged by id.
  * Requires submission:delete:all permission.
  */
-export async function adminDeleteSubmission(
-  eventId: string,
-  submissionId: string,
-): Promise<ActionResult> {
+export async function adminDeleteSubmission(eventId: string, submissionId: string): Promise<ActionResult> {
   const currentUser = await getUser();
   if (!currentUser) return fail('Not authenticated');
   if (!(await hasPermission(currentUser.id, 'submission:delete:all'))) {
@@ -694,9 +611,7 @@ export async function adminDeleteSubmission(
   try {
     const [deleted] = await db
       .delete(submissions)
-      .where(
-        and(eq(submissions.id, submissionId), eq(submissions.eventId, eventId)),
-      )
+      .where(and(eq(submissions.id, submissionId), eq(submissions.eventId, eventId)))
       .returning();
     if (!deleted) return fail('Submission not found.');
 

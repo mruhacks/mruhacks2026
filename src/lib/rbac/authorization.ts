@@ -1,12 +1,6 @@
 import { db } from '@/utils/db';
 import { eq, inArray, or, sql } from 'drizzle-orm';
-import {
-  permission,
-  role,
-  rolePermissions,
-  userPermission,
-  userRole,
-} from '@/db/schema';
+import { permission, role, rolePermissions, userPermission, userRole } from '@/db/schema';
 import { redirect } from 'next/navigation';
 import { anyPermissionMatches } from './permissions';
 
@@ -22,9 +16,7 @@ export type PermissionRow = {
 };
 
 /** Internal RBAC lookups. Keep these outside server-action modules. */
-export async function loadUserPermissions(
-  userId: string,
-): Promise<Set<string>> {
+export async function loadUserPermissions(userId: string): Promise<Set<string>> {
   const rows = await db.execute<{ slug: string }>(sql`
     SELECT p.slug FROM authz.permission p
     WHERE p.id IN (
@@ -47,9 +39,7 @@ export async function loadUserRoles(userId: string): Promise<RoleRow[]> {
     .where(eq(userRole.userId, userId));
 }
 
-export async function loadDirectUserPermissions(
-  userId: string,
-): Promise<PermissionRow[]> {
+export async function loadDirectUserPermissions(userId: string): Promise<PermissionRow[]> {
   return db
     .select({
       id: permission.id,
@@ -61,9 +51,7 @@ export async function loadDirectUserPermissions(
     .where(eq(userPermission.userId, userId));
 }
 
-export async function loadRolePermissions(
-  roleId: number,
-): Promise<PermissionRow[]> {
+export async function loadRolePermissions(roleId: number): Promise<PermissionRow[]> {
   return db
     .select({
       id: permission.id,
@@ -87,68 +75,38 @@ export async function loadRolesForUsers(
     .from(userRole)
     .innerJoin(role, eq(userRole.roleId, role.id))
     .where(inArray(userRole.userId, userIds));
-  for (const row of rows)
-    result[row.userId]!.push({ id: row.roleId, slug: row.roleSlug });
+  for (const row of rows) result[row.userId]!.push({ id: row.roleId, slug: row.roleSlug });
   return result;
 }
 
-export async function hasPermission(
-  userId: string,
-  permissionString: string,
-): Promise<boolean> {
-  return anyPermissionMatches(
-    await loadUserPermissions(userId),
-    permissionString,
-  );
+export async function hasPermission(userId: string, permissionString: string): Promise<boolean> {
+  return anyPermissionMatches(await loadUserPermissions(userId), permissionString);
 }
 
-export async function hasAnyPermission(
-  userId: string,
-  permissionStrings: string[],
-): Promise<boolean> {
+export async function hasAnyPermission(userId: string, permissionStrings: string[]): Promise<boolean> {
   if (permissionStrings.length === 0) return true;
   const permissions = await loadUserPermissions(userId);
-  return permissionStrings.some((required) =>
-    anyPermissionMatches(permissions, required),
-  );
+  return permissionStrings.some((required) => anyPermissionMatches(permissions, required));
 }
 
-export async function hasAllPermissions(
-  userId: string,
-  permissionStrings: string[],
-): Promise<boolean> {
+export async function hasAllPermissions(userId: string, permissionStrings: string[]): Promise<boolean> {
   const permissions = await loadUserPermissions(userId);
-  return permissionStrings.every((required) =>
-    anyPermissionMatches(permissions, required),
-  );
+  return permissionStrings.every((required) => anyPermissionMatches(permissions, required));
 }
 
-export async function hasRole(
-  userId: string,
-  roleSlug: string,
-): Promise<boolean> {
+export async function hasRole(userId: string, roleSlug: string): Promise<boolean> {
   return (await loadUserRoles(userId)).some((role) => role.slug === roleSlug);
 }
 
-export async function requirePermission(
-  userId: string,
-  permissionString: string,
-): Promise<void> {
+export async function requirePermission(userId: string, permissionString: string): Promise<void> {
   if (!(await hasPermission(userId, permissionString))) {
-    redirect(
-      `/forbidden?reason=missing_permission&permission=${permissionString}`,
-    );
+    redirect(`/forbidden?reason=missing_permission&permission=${permissionString}`);
   }
 }
 
-export async function requireAnyPermission(
-  userId: string,
-  permissionStrings: string[],
-): Promise<void> {
+export async function requireAnyPermission(userId: string, permissionStrings: string[]): Promise<void> {
   if (!(await hasAnyPermission(userId, permissionStrings))) {
-    redirect(
-      `/forbidden?reason=missing_permission&permission=${permissionStrings.join(',')}`,
-    );
+    redirect(`/forbidden?reason=missing_permission&permission=${permissionStrings.join(',')}`);
   }
 }
 
@@ -181,9 +139,7 @@ export async function grantDeniedReason(
       .from(permission)
       .where(
         or(
-          permissionIds.length > 0
-            ? inArray(permission.id, permissionIds)
-            : undefined,
+          permissionIds.length > 0 ? inArray(permission.id, permissionIds) : undefined,
           roleIds.length > 0
             ? inArray(
                 permission.id,
@@ -200,9 +156,7 @@ export async function grantDeniedReason(
   if (granted.size === 0) return null;
 
   const held = await loadUserPermissions(callerId);
-  const missing = [...granted].filter(
-    (slug) => !anyPermissionMatches(held, slug),
-  );
+  const missing = [...granted].filter((slug) => !anyPermissionMatches(held, slug));
   if (missing.length === 0) return null;
   return `You can't grant permissions you don't have yourself: ${missing.sort().join(', ')}`;
 }

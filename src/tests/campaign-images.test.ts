@@ -18,17 +18,9 @@ vi.mock('@/utils/object-storage', async (importOriginal) => ({
 }));
 
 import { GET } from '@/app/api/assets/[...key]/route';
-import {
-  CAMPAIGN_IMAGE_MAX_WIDTH,
-  optimizeCampaignImage,
-} from '@/lib/campaigns/campaign-images';
+import { CAMPAIGN_IMAGE_MAX_WIDTH, optimizeCampaignImage } from '@/lib/campaigns/campaign-images';
 import { renderCampaignEmail } from '@/lib/campaigns/render-campaign-email';
-import {
-  campaignImageUrl,
-  campaignImageWidth,
-  isCampaignImageKey,
-  putObject,
-} from '@/utils/object-storage';
+import { campaignImageUrl, campaignImageWidth, isCampaignImageKey, putObject } from '@/utils/object-storage';
 
 /** A big "phone photo": 4000×3000, rotated by EXIF orientation 6, with GPS data. */
 async function phonePhoto(): Promise<Uint8Array> {
@@ -111,9 +103,7 @@ describe('optimizeCampaignImage', () => {
   });
 
   test('rejects data that is not an image', async () => {
-    await expect(
-      optimizeCampaignImage(new TextEncoder().encode('not an image')),
-    ).rejects.toThrow();
+    await expect(optimizeCampaignImage(new TextEncoder().encode('not an image'))).rejects.toThrow();
   });
 });
 
@@ -146,12 +136,8 @@ describe('/api/assets campaign images', () => {
 
 describe('campaign email image widths', () => {
   test('uploads get their stored width (capped to the column); external images get none', async () => {
-    const small = campaignImageUrl(
-      'campaign-content/9f0d6a52-2c55-4f6e-9a0e-5d1f3b6b7c8d-w300.jpg',
-    );
-    const big = campaignImageUrl(
-      'campaign-content/9f0d6a52-2c55-4f6e-9a0e-5d1f3b6b7c8e-w1200.jpg',
-    );
+    const small = campaignImageUrl('campaign-content/9f0d6a52-2c55-4f6e-9a0e-5d1f3b6b7c8d-w300.jpg');
+    const big = campaignImageUrl('campaign-content/9f0d6a52-2c55-4f6e-9a0e-5d1f3b6b7c8e-w1200.jpg');
     const email = await renderCampaignEmail(
       {
         type: 'marketing',
@@ -163,12 +149,8 @@ describe('campaign email image widths', () => {
       { firstName: null },
       { baseUrl: 'https://app.example.com' },
     );
-    expect(email.html).toMatch(
-      /alt="a"[^>]*width="300"|width="300"[^>]*alt="a"/,
-    );
-    expect(email.html).toMatch(
-      /alt="b"[^>]*width="520"|width="520"[^>]*alt="b"/,
-    );
+    expect(email.html).toMatch(/alt="a"[^>]*width="300"|width="300"[^>]*alt="a"/);
+    expect(email.html).toMatch(/alt="b"[^>]*width="520"|width="520"[^>]*alt="b"/);
     expect(email.html).toMatch(/<img[^>]*alt="c"(?![^>]*width=)[^>]*>/);
   });
 });

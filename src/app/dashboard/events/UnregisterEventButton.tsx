@@ -22,13 +22,7 @@ export function UnregisterEventButton({ eventId, className }: Props) {
   }
 
   return (
-    <Button
-      className={className}
-      onClick={handleClick}
-      disabled={isPending}
-      size='sm'
-      variant='outline'
-    >
+    <Button className={className} onClick={handleClick} disabled={isPending} size='sm' variant='outline'>
       {isPending ? 'Unregistering…' : 'Unregister'}
     </Button>
   );

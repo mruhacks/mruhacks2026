@@ -11,9 +11,7 @@ import { useEventBasePath } from './use-event-base-path';
 export function EditEventButton() {
   const pathname = usePathname();
   const basePath = useEventBasePath();
-  const isSettingsPage =
-    pathname === `${basePath}/settings` ||
-    pathname.startsWith(`${basePath}/settings/`);
+  const isSettingsPage = pathname === `${basePath}/settings` || pathname.startsWith(`${basePath}/settings/`);
 
   if (isSettingsPage) return null;
 

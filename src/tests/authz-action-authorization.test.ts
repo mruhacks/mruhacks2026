@@ -11,14 +11,7 @@
 import { describe, test, expect, beforeAll, afterAll, vi } from 'vitest';
 import { db } from '@/utils/db';
 import { eq } from 'drizzle-orm';
-import {
-  user,
-  permission,
-  userPermission,
-  role,
-  rolePermissions,
-  userRole,
-} from '@/db/schema';
+import { user, permission, userPermission, role, rolePermissions, userRole } from '@/db/schema';
 
 vi.mock('@/utils/auth', () => ({ getUser: vi.fn() }));
 
@@ -104,19 +97,14 @@ beforeAll(async () => {
     ])
     .onConflictDoNothing();
 
-  const [r] = await db
-    .insert(role)
-    .values({ slug: 'authz-test-role', description: 'test' })
-    .returning({ id: role.id });
+  const [r] = await db.insert(role).values({ slug: 'authz-test-role', description: 'test' }).returning({ id: role.id });
   testRoleId = r.id;
 
   vi.mocked(getUser).mockResolvedValue(userA as never);
 });
 
 afterAll(async () => {
-  await db
-    .delete(rolePermissions)
-    .where(eq(rolePermissions.roleId, testRoleId));
+  await db.delete(rolePermissions).where(eq(rolePermissions.roleId, testRoleId));
   await db.delete(userRole).where(eq(userRole.userId, userBId));
   await db.delete(userPermission).where(eq(userPermission.userId, userBId));
   await db.delete(role).where(eq(role.id, testRoleId));

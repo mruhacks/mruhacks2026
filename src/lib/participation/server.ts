@@ -5,10 +5,7 @@ import { cacheLife } from 'next/cache';
 
 import { eventParticipants, participationStatuses } from '@/db/schema';
 import { db } from '@/utils/db';
-import {
-  resolveStoredStatus,
-  type StatusDisplay,
-} from '@/lib/participation/status';
+import { resolveStoredStatus, type StatusDisplay } from '@/lib/participation/status';
 import type { ParticipationStatus, StatusBadgeVariant } from '@/types/lookups';
 
 /**
@@ -45,10 +42,7 @@ export function hasAnyStatus(labels: readonly ParticipationStatus[]): SQL {
  * took before waiting, so a count selected alongside the lock would miss the
  * spot a concurrent transaction just committed and both would claim it.
  */
-export async function countAttending(
-  eventId: string,
-  executor: Pick<typeof db, 'select'> = db,
-): Promise<number> {
+export async function countAttending(eventId: string, executor: Pick<typeof db, 'select'> = db): Promise<number> {
   const [row] = await executor
     .select({ c: sql<number>`count(*)`.mapWith(Number) })
     .from(eventParticipants)
@@ -61,9 +55,7 @@ export async function countAttending(
  * code never writes, so it's cached long-term rather than re-queried on
  * every render.
  */
-export async function getStatusDisplayMap(): Promise<
-  Record<ParticipationStatus, StatusDisplay>
-> {
+export async function getStatusDisplayMap(): Promise<Record<ParticipationStatus, StatusDisplay>> {
   'use cache';
   cacheLife('max');
 

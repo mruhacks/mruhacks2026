@@ -2,11 +2,7 @@ import 'server-only';
 
 import { and, eq, inArray, lt } from 'drizzle-orm';
 
-import {
-  eventInvitations,
-  eventParticipants,
-  eventRsvpWaves,
-} from '@/db/schema';
+import { eventInvitations, eventParticipants, eventRsvpWaves } from '@/db/schema';
 import { hasStatus, statusIdOf } from '@/lib/participation/server';
 import { db } from '@/utils/db';
 
@@ -43,14 +39,8 @@ export async function timeoutExpiredInvitations(
   const expired = await db
     .select({ id: eventParticipants.id })
     .from(eventParticipants)
-    .innerJoin(
-      eventInvitations,
-      eq(eventInvitations.participantId, eventParticipants.id),
-    )
-    .innerJoin(
-      eventRsvpWaves,
-      eq(eventInvitations.rsvpWaveId, eventRsvpWaves.id),
-    )
+    .innerJoin(eventInvitations, eq(eventInvitations.participantId, eventParticipants.id))
+    .innerJoin(eventRsvpWaves, eq(eventInvitations.rsvpWaveId, eventRsvpWaves.id))
     .where(and(...filters));
 
   if (expired.length === 0) {

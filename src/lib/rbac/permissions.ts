@@ -56,8 +56,7 @@ export type PermissionAction =
 
 export type PermissionScope = 'all' | 'any' | 'self' | (string & {});
 
-export type PermissionString =
-  `${PermissionEntity}:${PermissionAction}:${PermissionScope}`;
+export type PermissionString = `${PermissionEntity}:${PermissionAction}:${PermissionScope}`;
 
 /**
  * Split a permission string into its entity/action/scope parts.
@@ -96,10 +95,7 @@ export function permissionMatches(granted: string, required: string): boolean {
 /**
  * Returns true if any granted permission covers the required permission.
  */
-export function anyPermissionMatches(
-  granted: Iterable<string>,
-  required: string,
-): boolean {
+export function anyPermissionMatches(granted: Iterable<string>, required: string): boolean {
   for (const g of granted) {
     if (permissionMatches(g, required)) return true;
   }
@@ -180,13 +176,11 @@ export const CORE_PERMISSIONS = [
   },
   {
     slug: 'submission:delete:all',
-    description:
-      'Delete any project submission (moderation, takedown requests)',
+    description: 'Delete any project submission (moderation, takedown requests)',
   },
   {
     slug: 'judging:manage:all',
-    description:
-      'Manage expo judging criteria, weights, table layout and the judge roster, and deactivate projects',
+    description: 'Manage expo judging criteria, weights, table layout and the judge roster, and deactivate projects',
   },
   {
     slug: 'judging:results:all',
@@ -206,8 +200,7 @@ export const CORE_PERMISSIONS = [
   },
   {
     slug: 'onboarding:skip:event',
-    description:
-      'Skip the featured-event application step during onboarding (staff)',
+    description: 'Skip the featured-event application step during onboarding (staff)',
   },
   {
     slug: 'audit:read:all',
@@ -227,8 +220,7 @@ export const CORE_PERMISSIONS = [
   },
   {
     slug: 'campaign:operational:all',
-    description:
-      "Send operational (non-marketing) email to an event's participants",
+    description: "Send operational (non-marketing) email to an event's participants",
   },
   {
     slug: 'system:read:all',

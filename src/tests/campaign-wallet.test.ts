@@ -6,24 +6,17 @@ import { db } from '@/utils/db';
 import { events, signingPublicKeys, user } from '@/db/schema';
 import { buildWalletLinkToken } from '@/lib/signing/email-tokens';
 import { renderCampaignEmail } from '@/lib/campaigns/render-campaign-email';
-import {
-  walletBlockError,
-  walletBlockRenderers,
-  walletLinksFor,
-} from '@/lib/campaigns/wallet-block';
+import { walletBlockError, walletBlockRenderers, walletLinksFor } from '@/lib/campaigns/wallet-block';
 import { insertAttendees, setStatus } from '@/tests/participation-fixtures';
 
 // Pass signing and Google's API need real credentials; here we only care
 // whether the route decides to hand one out.
 const generateParticipantPass = vi.fn();
 vi.mock('@/lib/wallet/generate-pass', () => ({
-  generateParticipantPass: (...args: unknown[]) =>
-    generateParticipantPass(...args),
+  generateParticipantPass: (...args: unknown[]) => generateParticipantPass(...args),
 }));
 vi.mock('@/lib/wallet/google/event-ticket', () => ({
-  buildGoogleWalletSaveUrl: vi
-    .fn()
-    .mockResolvedValue('https://pay.google.com/gp/v/save/abc'),
+  buildGoogleWalletSaveUrl: vi.fn().mockResolvedValue('https://pay.google.com/gp/v/save/abc'),
 }));
 
 import { GET } from '@/app/api/wallet/email/[token]/route';
@@ -36,10 +29,9 @@ let noCheckInEventId: string;
 const savedKey = process.env.APP_SIGNING_PRIVATE_KEY;
 
 function call(token: string, platform: string) {
-  return GET(
-    new Request(`${BASE}/api/wallet/email/${token}?platform=${platform}`),
-    { params: Promise.resolve({ token }) },
-  );
+  return GET(new Request(`${BASE}/api/wallet/email/${token}?platform=${platform}`), {
+    params: Promise.resolve({ token }),
+  });
 }
 
 beforeAll(async () => {
@@ -59,10 +51,7 @@ beforeAll(async () => {
     .returning({ id: user.id });
   userId = u.id;
   const future = new Date(Date.now() + 7 * 24 * 3600 * 1000);
-  const [e] = await db
-    .insert(events)
-    .values({ name: 'Wallet event', endsAt: future })
-    .returning({ id: events.id });
+  const [e] = await db.insert(events).values({ name: 'Wallet event', endsAt: future }).returning({ id: events.id });
   const [ended] = await db
     .insert(events)
     .values({ name: 'Ended event', endsAt: new Date(Date.now() - 3600_000) })
@@ -81,9 +70,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await db
-    .delete(events)
-    .where(inArray(events.id, [eventId, endedEventId, noCheckInEventId]));
+  await db.delete(events).where(inArray(events.id, [eventId, endedEventId, noCheckInEventId]));
   await db.delete(user).where(eq(user.id, userId));
   await db.delete(signingPublicKeys);
   if (savedKey === undefined) delete process.env.APP_SIGNING_PRIVATE_KEY;
@@ -96,18 +83,14 @@ describe('/api/wallet/email/[token]', () => {
 
     const apple = await call(token, 'apple');
     expect(apple.status).toBe(200);
-    expect(apple.headers.get('content-type')).toBe(
-      'application/vnd.apple.pkpass',
-    );
+    expect(apple.headers.get('content-type')).toBe('application/vnd.apple.pkpass');
     expect(generateParticipantPass).toHaveBeenCalledWith(
       expect.objectContaining({ eventId, userId, name: 'Wallet Person' }),
     );
 
     const google = await call(token, 'google');
     expect(google.status).toBe(302);
-    expect(google.headers.get('location')).toBe(
-      'https://pay.google.com/gp/v/save/abc',
-    );
+    expect(google.headers.get('location')).toBe('https://pay.google.com/gp/v/save/abc');
 
     await setStatus(eventId, userId, 'declined');
     expect((await call(token, 'apple')).status).toBe(404);
@@ -120,10 +103,7 @@ describe('/api/wallet/email/[token]', () => {
 
     const token = await buildWalletLinkToken(userId, eventId);
     expect((await call(token, 'samsung')).status).toBe(404);
-    const forged = await buildWalletLinkToken(
-      '00000000-0000-0000-0000-000000000000',
-      eventId,
-    );
+    const forged = await buildWalletLinkToken('00000000-0000-0000-0000-000000000000', eventId);
     expect((await call(`${forged.slice(0, -3)}AAA`, 'apple')).status).toBe(404);
   });
 });
@@ -137,9 +117,7 @@ describe('wallet block', () => {
 
   test('links only for recipients holding a spot in an event that has not ended', async () => {
     const links = await walletLinksFor(userId, eventId, BASE);
-    expect(links?.apple).toMatch(
-      /^https:\/\/app\.example\.com\/api\/wallet\/email\/[A-Za-z0-9_-]+\?platform=apple$/,
-    );
+    expect(links?.apple).toMatch(/^https:\/\/app\.example\.com\/api\/wallet\/email\/[A-Za-z0-9_-]+\?platform=apple$/);
     expect(await walletLinksFor(userId, endedEventId, BASE)).toBeNull();
     await setStatus(eventId, userId, 'waitlisted');
     expect(await walletLinksFor(userId, eventId, BASE)).toBeNull();

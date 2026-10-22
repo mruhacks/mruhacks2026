@@ -9,26 +9,9 @@ vi.mock('server-only', () => ({}));
 vi.mock('@/utils/auth', () => ({ getUser: vi.fn() }));
 import { db } from '@/utils/db';
 import { eq } from 'drizzle-orm';
-import {
-  user,
-  role,
-  permission,
-  rolePermissions,
-  userRole,
-  userPermission,
-} from '@/db/schema';
-import {
-  getUserRoles,
-  getDirectUserPermissions,
-  getRolePermissions,
-  getRolesForUsers,
-} from '@/app/actions/authz';
-import {
-  hasAnyPermission,
-  hasAllPermissions,
-  hasRole,
-  requireAnyPermission,
-} from '@/lib/rbac/authorization';
+import { user, role, permission, rolePermissions, userRole, userPermission } from '@/db/schema';
+import { getUserRoles, getDirectUserPermissions, getRolePermissions, getRolesForUsers } from '@/app/actions/authz';
+import { hasAnyPermission, hasAllPermissions, hasRole, requireAnyPermission } from '@/lib/rbac/authorization';
 import {
   createRole,
   addPermission,
@@ -83,17 +66,8 @@ beforeAll(async () => {
       .returning({ id: permission.id });
     const permissionId =
       created?.id ??
-      (
-        await db
-          .select({ id: permission.id })
-          .from(permission)
-          .where(eq(permission.slug, slug))
-          .limit(1)
-      )[0]!.id;
-    await db
-      .insert(userPermission)
-      .values({ userId, permissionId })
-      .onConflictDoNothing();
+      (await db.select({ id: permission.id }).from(permission).where(eq(permission.slug, slug)).limit(1))[0]!.id;
+    await db.insert(userPermission).values({ userId, permissionId }).onConflictDoNothing();
   }
   const [superPerm] = await db
     .insert(permission)
@@ -102,23 +76,12 @@ beforeAll(async () => {
     .returning({ id: permission.id });
   const superPermId =
     superPerm?.id ??
-    (
-      await db
-        .select({ id: permission.id })
-        .from(permission)
-        .where(eq(permission.slug, 'all:all:all'))
-        .limit(1)
-    )[0]!.id;
-  await db
-    .insert(userPermission)
-    .values({ userId: actorId, permissionId: superPermId })
-    .onConflictDoNothing();
+    (await db.select({ id: permission.id }).from(permission).where(eq(permission.slug, 'all:all:all')).limit(1))[0]!.id;
+  await db.insert(userPermission).values({ userId: actorId, permissionId: superPermId }).onConflictDoNothing();
   vi.mocked(getUser).mockResolvedValue({ id: actorId } as never);
 
   roleId = unwrap(await createRole('ext-test-role-a', 'Extended test role A'));
-  altRoleId = unwrap(
-    await createRole('ext-test-role-b', 'Extended test role B'),
-  );
+  altRoleId = unwrap(await createRole('ext-test-role-b', 'Extended test role B'));
 
   permIdA = unwrap(await addPermission('ext:read:all', 'Ext read all'));
   permIdB = unwrap(await addPermission('ext:write:all', 'Ext write all'));
@@ -269,18 +232,11 @@ describe('hasAnyPermission', () => {
 
   test('returns true when user has one of the required permissions', async () => {
     // user has ext:read:all via role and ext:write:all directly
-    expect(
-      await hasAnyPermission(userId, ['ext:read:all', 'ext:delete:all']),
-    ).toBe(true);
+    expect(await hasAnyPermission(userId, ['ext:read:all', 'ext:delete:all'])).toBe(true);
   });
 
   test('returns false when user has none of the required permissions', async () => {
-    expect(
-      await hasAnyPermission(userId, [
-        'nonexistent:perm:all',
-        'also:missing:all',
-      ]),
-    ).toBe(false);
+    expect(await hasAnyPermission(userId, ['nonexistent:perm:all', 'also:missing:all'])).toBe(false);
   });
 });
 
@@ -291,21 +247,15 @@ describe('hasAllPermissions', () => {
 
   test('returns true when user has all of the required permissions', async () => {
     // user has both ext:read:all (via role) and ext:write:all (direct)
-    expect(
-      await hasAllPermissions(userId, ['ext:read:all', 'ext:write:all']),
-    ).toBe(true);
+    expect(await hasAllPermissions(userId, ['ext:read:all', 'ext:write:all'])).toBe(true);
   });
 
   test('returns false when user is missing one of the required permissions', async () => {
-    expect(
-      await hasAllPermissions(userId, ['ext:read:all', 'nonexistent:perm:all']),
-    ).toBe(false);
+    expect(await hasAllPermissions(userId, ['ext:read:all', 'nonexistent:perm:all'])).toBe(false);
   });
 
   test('returns false when user has none of the required permissions', async () => {
-    expect(
-      await hasAllPermissions(userId, ['missing:a:all', 'missing:b:all']),
-    ).toBe(false);
+    expect(await hasAllPermissions(userId, ['missing:a:all', 'missing:b:all'])).toBe(false);
   });
 });
 
@@ -327,10 +277,7 @@ describe('requireAnyPermission', () => {
   test('does not redirect when user has at least one of the permissions', async () => {
     let threw = false;
     try {
-      await requireAnyPermission(userId, [
-        'ext:read:all',
-        'nonexistent:perm:all',
-      ]);
+      await requireAnyPermission(userId, ['ext:read:all', 'nonexistent:perm:all']);
     } catch {
       threw = true;
     }

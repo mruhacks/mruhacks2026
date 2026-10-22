@@ -38,10 +38,7 @@ export async function getTicketViewData(segment: string) {
   return {
     eventId,
     eventName: participation.eventName,
-    dateRangeLabel: formatDateRange(
-      participation.startsAt,
-      participation.endsAt,
-    ),
+    dateRangeLabel: formatDateRange(participation.startsAt, participation.endsAt),
     location: participation.location,
     participantName: participation.fullName ?? user.name,
   };

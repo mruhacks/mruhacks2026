@@ -7,10 +7,7 @@ export function SubeventTypeBadge({ label }: { label: EventType | null }) {
   if (!label) return null;
 
   return (
-    <Badge
-      variant={label === MEAL_EVENT_TYPE ? 'info' : 'outline'}
-      className='capitalize'
-    >
+    <Badge variant={label === MEAL_EVENT_TYPE ? 'info' : 'outline'} className='capitalize'>
       {label === MEAL_EVENT_TYPE && <Utensils aria-hidden />}
       {label}
     </Badge>

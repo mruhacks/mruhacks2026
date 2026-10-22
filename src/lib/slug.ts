@@ -32,11 +32,7 @@ export function slugify(title: string): string {
 }
 
 export function isValidSlug(slug: string): boolean {
-  return (
-    slug.length > 0 &&
-    slug.length <= SLUG_MAX_LENGTH &&
-    /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)
-  );
+  return slug.length > 0 && slug.length <= SLUG_MAX_LENGTH && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug);
 }
 
 /**
@@ -63,9 +59,7 @@ export function uniqueSlug(base: string, taken: Iterable<string>): string {
 
   for (let n = 2; ; n += 1) {
     const suffix = `-${n}`;
-    const trimmed = base
-      .slice(0, SLUG_MAX_LENGTH - suffix.length)
-      .replace(/-+$/, '');
+    const trimmed = base.slice(0, SLUG_MAX_LENGTH - suffix.length).replace(/-+$/, '');
     const candidate = `${trimmed}${suffix}`;
     if (!used.has(candidate)) return candidate;
   }

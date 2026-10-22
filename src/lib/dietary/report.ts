@@ -1,9 +1,6 @@
 import { serializeInstant } from '@/lib/datetime';
 import { isSubeventRunning } from '@/lib/subevent-running';
-import {
-  dietaryRestrictionsList,
-  type DietaryRestriction,
-} from '@/types/lookups';
+import { dietaryRestrictionsList, type DietaryRestriction } from '@/types/lookups';
 
 export const MISSED_MEAL_THRESHOLDS = [1, 2, 3, 4, 5] as const;
 export const DEFAULT_MISSED_MEAL_THRESHOLD = 2;
@@ -44,14 +41,10 @@ type DietarySummaryRow = {
   missed: number;
 };
 
-export function parseMissedThreshold(
-  value: string | string[] | undefined,
-): number {
+export function parseMissedThreshold(value: string | string[] | undefined): number {
   const raw = Array.isArray(value) ? value[0] : value;
   const parsed = Number(raw);
-  return MISSED_MEAL_THRESHOLDS.some((option) => option === parsed)
-    ? parsed
-    : DEFAULT_MISSED_MEAL_THRESHOLD;
+  return MISSED_MEAL_THRESHOLDS.some((option) => option === parsed) ? parsed : DEFAULT_MISSED_MEAL_THRESHOLD;
 }
 
 export type DietaryReportSource = {
@@ -98,22 +91,17 @@ export function buildDietaryReport({
     attendees.set(row.eventId, present);
 
     const seen = lastSeen.get(row.userId);
-    if (!seen || seen < row.checkedInAt)
-      lastSeen.set(row.userId, row.checkedInAt);
+    if (!seen || seen < row.checkedInAt) lastSeen.set(row.userId, row.checkedInAt);
   }
 
   const started = meals
     .filter((meal) => meal.startsAt.getTime() <= nowMs)
     .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime());
 
-  const counted = started.filter(
-    (meal) => (attendees.get(meal.id)?.size ?? 0) > 0,
-  );
+  const counted = started.filter((meal) => (attendees.get(meal.id)?.size ?? 0) > 0);
 
   const eventOver = eventEndsAt !== null && eventEndsAt.getTime() <= nowMs;
-  const current = eventOver
-    ? null
-    : (counted.findLast((meal) => isSubeventRunning(meal, nowMs)) ?? null);
+  const current = eventOver ? null : (counted.findLast((meal) => isSubeventRunning(meal, nowMs)) ?? null);
 
   const streakMeals = current ? counted.slice(0, -1) : counted;
 
@@ -139,10 +127,7 @@ export function buildDietaryReport({
       lastSeenAt: serializeInstant(lastSeen.get(person.userId) ?? null),
       missedStreak: missedMeals.length,
       missedMeals,
-      notAtCurrentMeal:
-        current !== null &&
-        doorAt !== null &&
-        !attendees.get(current.id)?.has(person.userId),
+      notAtCurrentMeal: current !== null && doorAt !== null && !attendees.get(current.id)?.has(person.userId),
     };
   });
 
@@ -154,10 +139,7 @@ export function buildDietaryReport({
   };
 }
 
-export function summarizeDietaryReport(
-  rows: DietaryReportRow[],
-  threshold: number,
-): DietarySummaryRow[] {
+export function summarizeDietaryReport(rows: DietaryReportRow[], threshold: number): DietarySummaryRow[] {
   const tally = (label: string, subset: DietaryReportRow[]) => ({
     label,
     expected: subset.length,

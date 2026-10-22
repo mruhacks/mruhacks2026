@@ -26,16 +26,10 @@ export default function TeamsRoute({ params }: Props) {
 }
 
 function TeamsSkeleton() {
-  return (
-    <div className='text-muted-foreground py-8 text-center'>Loading...</div>
-  );
+  return <div className='text-muted-foreground py-8 text-center'>Loading...</div>;
 }
 
-async function TeamsContent({
-  paramsPromise,
-}: {
-  paramsPromise: Props['params'];
-}) {
+async function TeamsContent({ paramsPromise }: { paramsPromise: Props['params'] }) {
   const { eventId: segment } = await paramsPromise;
   const eventId = await resolveEventId(segment);
   if (!eventId) notFound();

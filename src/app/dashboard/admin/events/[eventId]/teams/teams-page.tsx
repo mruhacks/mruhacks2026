@@ -6,10 +6,7 @@ import type { ColumnDef } from '@tanstack/react-table';
 import { toast } from 'sonner';
 import { Eye, UserMinus } from 'lucide-react';
 
-import {
-  canModerateTeams,
-  getFormedTeamsForEvent,
-} from '@/app/dashboard/admin/events/actions';
+import { canModerateTeams, getFormedTeamsForEvent } from '@/app/dashboard/admin/events/actions';
 import type { FormedTeamRow } from '@/app/dashboard/admin/events/actions';
 import { listEventSubmissions } from '@/app/dashboard/events/submission-actions';
 import type { AdminSubmissionRow } from '@/app/dashboard/events/submission-actions';
@@ -19,13 +16,7 @@ import { LocalDateTime } from '@/components/local-date-time';
 import { SubmissionStatusBadge } from '@/components/submissions/submission-view';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Card } from '@/components/ui/card';
 
 /**
@@ -40,10 +31,7 @@ type TeamProjectRow = {
   project: AdminSubmissionRow | null;
 };
 
-function buildRows(
-  teams: FormedTeamRow[],
-  projects: AdminSubmissionRow[],
-): TeamProjectRow[] {
+function buildRows(teams: FormedTeamRow[], projects: AdminSubmissionRow[]): TeamProjectRow[] {
   const projectByTeamId = new Map(projects.map((p) => [p.teamId, p]));
   const rows: TeamProjectRow[] = teams.map((team) => {
     const project = projectByTeamId.get(team.teamId) ?? null;
@@ -91,20 +79,14 @@ export function TeamsPage({
   submissionsCloseAt: Date | null;
 }) {
   const [teamRows, setTeamRows] = React.useState<FormedTeamRow[]>([]);
-  const [projectRows, setProjectRows] = React.useState<AdminSubmissionRow[]>(
-    [],
-  );
+  const [projectRows, setProjectRows] = React.useState<AdminSubmissionRow[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [loadError, setLoadError] = React.useState<string | null>(null);
   const [canModerate, setCanModerate] = React.useState(false);
   const [reloadToken, setReloadToken] = React.useState(0);
-  const [selectedTeam, setSelectedTeam] = React.useState<FormedTeamRow | null>(
-    null,
-  );
+  const [selectedTeam, setSelectedTeam] = React.useState<FormedTeamRow | null>(null);
   const [showDetails, setShowDetails] = React.useState(false);
-  const [removingUserId, setRemovingUserId] = React.useState<string | null>(
-    null,
-  );
+  const [removingUserId, setRemovingUserId] = React.useState<string | null>(null);
 
   // Each half is only queried when the viewer may see it — the actions
   // would otherwise redirect to /forbidden.
@@ -137,10 +119,7 @@ export function TeamsPage({
 
     async function fetchData() {
       try {
-        const [data, moderate] = await Promise.all([
-          loadData(),
-          showTeams ? canModerateTeams() : false,
-        ]);
+        const [data, moderate] = await Promise.all([loadData(), showTeams ? canModerateTeams() : false]);
         if (cancelled) return;
 
         setCanModerate(moderate);
@@ -176,9 +155,7 @@ export function TeamsPage({
       toast.error(result.error);
       return;
     }
-    toast.success(
-      typeof result.data === 'string' ? result.data : 'Member removed.',
-    );
+    toast.success(typeof result.data === 'string' ? result.data : 'Member removed.');
 
     // Refetch both: a team shrunk to one member drops out of the formed
     // teams, and its project's roster changes with it.
@@ -198,10 +175,7 @@ export function TeamsPage({
     );
   };
 
-  const rows = React.useMemo(
-    () => buildRows(teamRows, projectRows),
-    [teamRows, projectRows],
-  );
+  const rows = React.useMemo(() => buildRows(teamRows, projectRows), [teamRows, projectRows]);
 
   const columns = React.useMemo<ColumnDef<TeamProjectRow>[]>(() => {
     const backHref = `/dashboard/admin/events/${segment}/teams`;
@@ -214,11 +188,7 @@ export function TeamsPage({
           const { team, members } = row.original;
           return (
             <div className='whitespace-normal'>
-              <p className='text-sm'>
-                {members.length > 0
-                  ? members.join(', ')
-                  : 'No remaining members'}
-              </p>
+              <p className='text-sm'>{members.length > 0 ? members.join(', ') : 'No remaining members'}</p>
               {team && (
                 <p className='text-muted-foreground text-xs'>
                   Led by {team.organizerName}
@@ -233,9 +203,7 @@ export function TeamsPage({
         id: 'memberCount',
         header: 'Members',
         accessorFn: (row) => row.team?.memberCount ?? row.members.length,
-        cell: ({ getValue }) => (
-          <Badge variant='outline'>{getValue<number>()}</Badge>
-        ),
+        cell: ({ getValue }) => <Badge variant='outline'>{getValue<number>()}</Badge>,
       },
     ];
     const projectColumns: ColumnDef<TeamProjectRow>[] = [
@@ -264,12 +232,9 @@ export function TeamsPage({
       {
         id: 'status',
         header: 'Status',
-        accessorFn: (row) =>
-          row.project ? (row.project.published ? 'Published' : 'Draft') : '',
+        accessorFn: (row) => (row.project ? (row.project.published ? 'Published' : 'Draft') : ''),
         cell: ({ row }) =>
-          row.original.project ? (
-            <SubmissionStatusBadge published={row.original.project.published} />
-          ) : null,
+          row.original.project ? <SubmissionStatusBadge published={row.original.project.published} /> : null,
       },
       {
         id: 'updatedAt',
@@ -279,11 +244,7 @@ export function TeamsPage({
         cell: ({ row }) =>
           row.original.project ? (
             <span className='text-muted-foreground'>
-              <LocalDateTime
-                value={row.original.project.updatedAt}
-                dateStyle='medium'
-                timeStyle='short'
-              />
+              <LocalDateTime value={row.original.project.updatedAt} dateStyle='medium' timeStyle='short' />
             </span>
           ) : null,
       },
@@ -321,16 +282,12 @@ export function TeamsPage({
 
   if (!showTeams && !showProjects) {
     return (
-      <div className='text-muted-foreground py-8 text-center'>
-        Teams and projects are not enabled for this event.
-      </div>
+      <div className='text-muted-foreground py-8 text-center'>Teams and projects are not enabled for this event.</div>
     );
   }
 
   if (loading) {
-    return (
-      <div className='text-muted-foreground py-8 text-center'>Loading...</div>
-    );
+    return <div className='text-muted-foreground py-8 text-center'>Loading...</div>;
   }
 
   if (loadError) {
@@ -359,11 +316,7 @@ export function TeamsPage({
     <Card className='space-y-4 p-6'>
       <div>
         <h2 className='text-lg font-semibold'>
-          {showTeams && showProjects
-            ? 'Teams & projects'
-            : showTeams
-              ? 'Teams'
-              : 'Projects'}
+          {showTeams && showProjects ? 'Teams & projects' : showTeams ? 'Teams' : 'Projects'}
         </h2>
         {showTeams && (
           <p className='text-muted-foreground mt-1 text-sm'>
@@ -374,19 +327,13 @@ export function TeamsPage({
         {showProjects && (
           <p className='text-muted-foreground mt-1 text-sm'>
             {publishedCount} published project
-            {publishedCount !== 1 ? 's' : ''} ·{' '}
-            {projectRows.length - publishedCount} still draft
+            {publishedCount !== 1 ? 's' : ''} · {projectRows.length - publishedCount} still draft
             {projectRows.length - publishedCount !== 1 ? 's' : ''}
             {submissionsCloseAt && (
               <>
                 {' · '}submissions close{' '}
-                <LocalDateTime
-                  value={submissionsCloseAt}
-                  dateStyle='medium'
-                  timeStyle='short'
-                  timeZoneName='short'
-                />
-                . Drafts at the deadline won&apos;t be judged.
+                <LocalDateTime value={submissionsCloseAt} dateStyle='medium' timeStyle='short' timeZoneName='short' />.
+                Drafts at the deadline won&apos;t be judged.
               </>
             )}
           </p>
@@ -396,14 +343,8 @@ export function TeamsPage({
       <DataTable
         columns={columns}
         data={rows}
-        searchPlaceholder={
-          showProjects ? 'Search teams and projects...' : 'Search teams...'
-        }
-        emptyMessage={
-          showTeams
-            ? 'No formed teams yet.'
-            : 'No team has started a project yet.'
-        }
+        searchPlaceholder={showProjects ? 'Search teams and projects...' : 'Search teams...'}
+        emptyMessage={showTeams ? 'No formed teams yet.' : 'No team has started a project yet.'}
         initialSorting={[{ id: 'memberCount', desc: true }]}
       />
 
@@ -411,30 +352,19 @@ export function TeamsPage({
         <DialogContent className='max-h-[90vh] max-w-lg overflow-y-auto'>
           <DialogHeader>
             <DialogTitle>Team roster</DialogTitle>
-            <DialogDescription>
-              Led by {selectedTeam?.organizerName}
-            </DialogDescription>
+            <DialogDescription>Led by {selectedTeam?.organizerName}</DialogDescription>
           </DialogHeader>
 
           {selectedTeam && (
             <ul className='space-y-2'>
               {selectedTeam.members.map((member) => (
-                <li
-                  key={member.userId}
-                  className='flex items-center justify-between gap-2 rounded-md border p-2'
-                >
+                <li key={member.userId} className='flex items-center justify-between gap-2 rounded-md border p-2'>
                   <div className='min-w-0'>
-                    <p className='truncate text-sm font-medium'>
-                      {member.name}
-                    </p>
-                    <p className='text-muted-foreground truncate text-xs'>
-                      {member.email}
-                    </p>
+                    <p className='truncate text-sm font-medium'>{member.name}</p>
+                    <p className='text-muted-foreground truncate text-xs'>{member.email}</p>
                   </div>
                   <div className='flex shrink-0 items-center gap-2'>
-                    {member.isOrganizer && (
-                      <Badge variant='outline'>Organizer</Badge>
-                    )}
+                    {member.isOrganizer && <Badge variant='outline'>Organizer</Badge>}
                     {canModerate && (
                       <Button
                         type='button'
@@ -442,9 +372,7 @@ export function TeamsPage({
                         size='icon'
                         aria-label={`Remove ${member.name}`}
                         disabled={removingUserId === member.userId}
-                        onClick={() =>
-                          handleRemove(selectedTeam.teamId, member.userId)
-                        }
+                        onClick={() => handleRemove(selectedTeam.teamId, member.userId)}
                       >
                         <UserMinus className='size-4' />
                       </Button>
