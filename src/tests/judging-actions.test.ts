@@ -1058,8 +1058,12 @@ async function addJudgeWithoutInvite(eventId: string, email: string) {
 }
 
 /** Requests a judge's sign-in QR code from the route, as the logged-in user. */
-function requestSignInQr(eventId: string, judgeId: string) {
-  return getSignInQr(new Request('http://localhost/'), {
+function requestSignInQr(
+  eventId: string,
+  judgeId: string,
+  headers?: HeadersInit,
+) {
+  return getSignInQr(new Request('http://localhost/', { headers }), {
     params: Promise.resolve({ eventId, judgeId }),
   });
 }
@@ -1110,6 +1114,40 @@ describe('sign-in QR codes', () => {
     });
     const { expiresAt } = audits[0].metadata as { expiresAt: string };
     expect(new Date(expiresAt).getTime()).toBeGreaterThan(before);
+  });
+
+  test('refuse prefetches without minting or auditing', async () => {
+    const eventId = await makeEvent();
+    const { judgeId } = await addJudgeWithoutInvite(
+      eventId,
+      freshEmail('qr-prefetch'),
+    );
+    const admin = await makeUser('QrAdmin');
+    await grant(admin.id, ['judging:signin:all']);
+    loginAs(admin);
+    for (const headers of [
+      ['Next-Router-Prefetch', '1'],
+      ['Sec-Purpose', 'prefetch'],
+      ['Sec-Purpose', 'prefetch;prerender'],
+      ['Purpose', 'prefetch'],
+      ['X-Moz', 'prefetch'],
+    ] satisfies [string, string][]) {
+      expect((await requestSignInQr(eventId, judgeId, [headers])).status).toBe(
+        403,
+      );
+    }
+    expect(createJudgeSignInLink).not.toHaveBeenCalled();
+    expect(
+      await db
+        .select()
+        .from(auditLog)
+        .where(
+          and(
+            eq(auditLog.action, 'judging.judge.signin_qr_created'),
+            eq(auditLog.targetId, judgeId),
+          ),
+        ),
+    ).toHaveLength(0);
   });
 
   test("won't serve another event's judge", async () => {

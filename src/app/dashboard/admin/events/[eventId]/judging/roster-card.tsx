@@ -9,6 +9,7 @@ import {
   QrCode,
   Trash2,
 } from 'lucide-react';
+import { usePathname, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 
 import {
@@ -54,8 +55,6 @@ import {
   TableRow,
 } from '@/components/ui/table';
 
-import { type SignInQr, SignInQrDialog } from './signin-qr-dialog';
-
 function JudgeStatus({ judge }: { judge: JudgingRosterRow }) {
   if (judge.deleted) return <Badge variant='secondary'>Account deleted</Badge>;
   if (judge.disabled) return <Badge variant='destructive'>Disabled</Badge>;
@@ -75,7 +74,8 @@ function isOutstanding(judge: JudgingRosterRow): boolean {
  * magic link sent straight away or held back to go out with the rest of
  * the outstanding invites. A judge with votes can be disabled but not
  * removed. Organizers with `judging:signin:all` can also show a judge a QR
- * code that signs them straight in.
+ * code that signs them straight in, at an intercepted
+ * `judges/[judgeId]/signin-qr` route.
  */
 export function RosterCard({
   eventId,
@@ -93,7 +93,8 @@ export function RosterCard({
   const [adding, setAdding] = React.useState(false);
   const [sendingAll, setSendingAll] = React.useState(false);
   const [busyId, setBusyId] = React.useState<string | null>(null);
-  const [signInQr, setSignInQr] = React.useState<SignInQr | null>(null);
+  const router = useRouter();
+  const pathname = usePathname();
   const outstanding = judges.filter(isOutstanding).length;
 
   async function add(event: React.FormEvent) {
@@ -301,7 +302,10 @@ export function RosterCard({
                           !judge.disabled && (
                             <DropdownMenuItem
                               onSelect={() =>
-                                setSignInQr({ judge, requestedAt: Date.now() })
+                                // Pushed, never a <Link>: nothing prefetches the QR route.
+                                router.push(
+                                  `${pathname}/judges/${judge.id}/signin-qr`,
+                                )
                               }
                             >
                               <QrCode className='size-4' /> Sign-in QR
@@ -349,11 +353,6 @@ export function RosterCard({
           </Table>
         )}
       </CardContent>
-      <SignInQrDialog
-        eventId={eventId}
-        qr={signInQr}
-        onClose={() => setSignInQr(null)}
-      />
     </Card>
   );
 }
