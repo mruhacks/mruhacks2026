@@ -20,6 +20,12 @@ This extends to UI visibility, not just route/action guards. Don't invent a shar
 
 Why: a role's permissions can be edited at runtime via the admin roles UI, so `hasRole(userId, 'admin')` silently drifts from intent the moment someone renames the role or reshuffles what it grants — the permission table is the actual source of truth. Likewise, a shared "admin-ish" permission list drifts from what any _specific_ element actually requires the moment one of those permissions changes meaning or a new admin feature is added that doesn't fit the bundle. `hasRole`/`loadUserRoles` may still be used for read-only display (e.g. showing a user's role badges), just never for an authorization or visibility decision.
 
+# New permissions go in the seed, not a migration
+
+When you add a permission (or grant one to a role), add it to `CORE_PERMISSIONS` in `src/lib/rbac/permissions.ts` and to `scripts/seed-static.ts` only. Don't write a Drizzle migration that `INSERT`s it into `authz.permission` / `authz.role_permission`. Migrations are for schema changes; older ones like `0052_expo_judging` and `0054_onboarding_skip_permission` that seed permissions are not a pattern to copy.
+
+Why: every deploy (`.github/workflows/migrate-and-seed.yml`) and every local `db:seed`/`db:reset` runs `seed-static.ts` right after migrating, and it upserts every permission and grants `admin` all of them. A data-only migration is redundant. It adds a SQL file, a full schema snapshot and a journal entry to the PR, and leaves two copies of the same permission data that can drift apart.
+
 # Form submission errors: inline, not toasts
 
 Never surface a form submission's validation/error result as a toast (`sonner`'s `toast.error`). Show it inline, next to the field or form it belongs to — e.g. `FieldError` from `@/components/ui/field`, or a plain error message rendered under the input/submit button. Track the error in local state (or via the form library's own error state) and clear it when the user edits the field or reopens the form.
