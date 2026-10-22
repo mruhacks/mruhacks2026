@@ -38,12 +38,15 @@ vi.mock('next/cache', () => ({
 }));
 const sendJudgeInvite =
   vi.fn<(args: { email: string; eventName: string }) => Promise<void>>();
+const createJudgeSignInLink = vi.fn<(email: string) => Promise<string>>();
 vi.mock('@/lib/judging/judge-invite', () => ({
   sendJudgeInvite: (args: { email: string; eventName: string }) =>
     sendJudgeInvite(args),
+  createJudgeSignInLink: (email: string) => createJudgeSignInLink(email),
 }));
 
 import { getUser } from '@/utils/auth';
+import { GET as getSignInQr } from '@/app/api/admin/events/[eventId]/judges/[judgeId]/signin-qr/route';
 import {
   addEventJudge,
   getJudgingAdmin,
@@ -315,6 +318,10 @@ async function makeOrganizer(): Promise<TestUser> {
 beforeEach(async () => {
   sendJudgeInvite.mockReset();
   sendJudgeInvite.mockResolvedValue();
+  createJudgeSignInLink.mockReset();
+  createJudgeSignInLink.mockResolvedValue(
+    'http://localhost:3000/signin/verify?token=abc&link=magic-link',
+  );
   if (!organizer) organizer = await makeOrganizer();
 });
 
@@ -1039,6 +1046,152 @@ describe('roster', () => {
     const remaining = unwrap(await getJudgingAdmin(eventId)).judges;
     expect(remaining.map((j) => j.id)).toEqual([voterId]);
     expect(remaining[0].comparisons).toBe(1);
+  });
+});
+
+/** Adds `email` to the roster as the organizer, without emailing it. */
+async function addJudgeWithoutInvite(eventId: string, email: string) {
+  loginAs(organizer);
+  unwrap(await addEventJudge(eventId, email, { sendInvite: false }));
+  const row = (await rosterRows(eventId)).find((r) => r.email === email);
+  return { judgeId: row!.id };
+}
+
+/** Requests a judge's sign-in QR code from the route, as the logged-in user. */
+function requestSignInQr(
+  eventId: string,
+  judgeId: string,
+  headers?: HeadersInit,
+) {
+  return getSignInQr(new Request('http://localhost/', { headers }), {
+    params: Promise.resolve({ eventId, judgeId }),
+  });
+}
+
+describe('sign-in QR codes', () => {
+  test('need their own permission, not just judging:manage:all', async () => {
+    const eventId = await makeEvent();
+    const email = freshEmail('qr-denied');
+    const { judgeId } = await addJudgeWithoutInvite(eventId, email);
+    loginAs(organizer);
+    expect((await requestSignInQr(eventId, judgeId)).status).toBe(403);
+    expect(createJudgeSignInLink).not.toHaveBeenCalled();
+  });
+
+  test("stream a QR of the judge's link and audit it", async () => {
+    const eventId = await makeEvent();
+    const email = freshEmail('qr');
+    const { judgeId } = await addJudgeWithoutInvite(eventId, email);
+    const admin = await makeUser('QrAdmin');
+    await grant(admin.id, ['judging:signin:all']);
+    loginAs(admin);
+
+    const before = Date.now();
+    const response = await requestSignInQr(eventId, judgeId);
+    expect(response.status).toBe(200);
+    expect(response.headers.get('Content-Type')).toBe('image/svg+xml');
+    expect(response.headers.get('Cache-Control')).toBe('private, no-store');
+    expect(await response.text()).toContain('<svg');
+    expect(createJudgeSignInLink).toHaveBeenCalledWith(email);
+    // A QR code doesn't count as the invite going out.
+    const [row] = (await rosterRows(eventId)).filter((r) => r.id === judgeId);
+    expect(row.inviteSentAt).toBeNull();
+
+    const audits = await db
+      .select()
+      .from(auditLog)
+      .where(
+        and(
+          eq(auditLog.action, 'judging.judge.signin_qr_created'),
+          eq(auditLog.targetId, judgeId),
+        ),
+      );
+    expect(audits).toHaveLength(1);
+    expect(audits[0]).toMatchObject({
+      actorId: admin.id,
+      targetType: 'event_judge',
+      metadata: { eventId, email },
+    });
+    const { expiresAt } = audits[0].metadata as { expiresAt: string };
+    expect(new Date(expiresAt).getTime()).toBeGreaterThan(before);
+  });
+
+  test('refuse prefetches without minting or auditing', async () => {
+    const eventId = await makeEvent();
+    const { judgeId } = await addJudgeWithoutInvite(
+      eventId,
+      freshEmail('qr-prefetch'),
+    );
+    const admin = await makeUser('QrAdmin');
+    await grant(admin.id, ['judging:signin:all']);
+    loginAs(admin);
+    for (const headers of [
+      ['Next-Router-Prefetch', '1'],
+      ['Sec-Purpose', 'prefetch'],
+      ['Sec-Purpose', 'prefetch;prerender'],
+      ['Purpose', 'prefetch'],
+      ['X-Moz', 'prefetch'],
+    ] satisfies [string, string][]) {
+      expect((await requestSignInQr(eventId, judgeId, [headers])).status).toBe(
+        403,
+      );
+    }
+    expect(createJudgeSignInLink).not.toHaveBeenCalled();
+    expect(
+      await db
+        .select()
+        .from(auditLog)
+        .where(
+          and(
+            eq(auditLog.action, 'judging.judge.signin_qr_created'),
+            eq(auditLog.targetId, judgeId),
+          ),
+        ),
+    ).toHaveLength(0);
+  });
+
+  test("won't serve another event's judge", async () => {
+    const eventId = await makeEvent();
+    const other = await makeEvent();
+    const { judgeId } = await addJudgeWithoutInvite(
+      eventId,
+      freshEmail('qr-other-event'),
+    );
+    const admin = await makeUser('QrAdmin');
+    await grant(admin.id, ['judging:signin:all']);
+    loginAs(admin);
+    expect((await requestSignInQr(other, judgeId)).status).toBe(404);
+    expect(createJudgeSignInLink).not.toHaveBeenCalled();
+  });
+
+  test('refuse a disabled judge, and audit nothing on failure', async () => {
+    const eventId = await makeEvent();
+    const { judgeId } = await addJudgeWithoutInvite(
+      eventId,
+      freshEmail('qr-disabled'),
+    );
+    unwrap(await setEventJudgeDisabled(eventId, judgeId, true));
+    const admin = await makeUser('QrAdmin');
+    await grant(admin.id, ['judging:signin:all']);
+    loginAs(admin);
+    expect((await requestSignInQr(eventId, judgeId)).status).toBe(409);
+
+    loginAs(organizer);
+    unwrap(await setEventJudgeDisabled(eventId, judgeId, false));
+    loginAs(admin);
+    createJudgeSignInLink.mockRejectedValueOnce(new Error('auth down'));
+    expect((await requestSignInQr(eventId, judgeId)).status).toBe(500);
+    expect(
+      await db
+        .select()
+        .from(auditLog)
+        .where(
+          and(
+            eq(auditLog.action, 'judging.judge.signin_qr_created'),
+            eq(auditLog.targetId, judgeId),
+          ),
+        ),
+    ).toHaveLength(0);
   });
 });
 

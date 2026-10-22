@@ -45,3 +45,18 @@ export async function buildJudgeInviteEmail(options: {
     ),
   };
 }
+
+type JudgeSignInLinkCapture = { url?: string };
+
+export const judgeSignInLinkCapture =
+  new AsyncLocalStorage<JudgeSignInLinkCapture>();
+
+/**
+ * Set only by `createJudgeSignInLink`: the magic-link hook hands the link
+ * back here instead of emailing it.
+ */
+export function getJudgeSignInLinkCapture():
+  | JudgeSignInLinkCapture
+  | undefined {
+  return judgeSignInLinkCapture.getStore();
+}

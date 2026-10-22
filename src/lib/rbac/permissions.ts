@@ -48,6 +48,7 @@ export type PermissionAction =
   | 'results'
   | 'award'
   | 'skip'
+  | 'signin'
   | 'all';
 
 export type PermissionScope = 'all' | 'any' | 'self' | (string & {});
@@ -191,6 +192,10 @@ export const CORE_PERMISSIONS = [
   {
     slug: 'judging:award:all',
     description: 'Record overall placements',
+  },
+  {
+    slug: 'judging:signin:all',
+    description: 'Generate a QR code that signs a judge in to their account',
   },
   {
     slug: 'display:manage:all',
