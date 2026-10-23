@@ -16,7 +16,6 @@ import {
 } from '@/components/ui/card';
 import { serializeInstant } from '@/lib/datetime';
 import { resolveEventId } from '@/lib/events';
-import { getTableLabels } from '@/lib/judging/server';
 import { getProjectStage, PROJECT_STAGE_COPY } from '@/lib/submission-copy';
 import { getUser } from '@/utils/auth';
 
@@ -53,7 +52,8 @@ async function ProjectContent({
   // rather than "forbidden", the same as a draft wiki article.
   const result = await getMySubmission(eventId);
   if (!result.success || !result.data) notFound();
-  const { submissionWindow, opensAt, closesAt, submission } = result.data;
+  const { submissionWindow, opensAt, closesAt, submission, tableLabel } =
+    result.data;
 
   const stage = getProjectStage(submissionWindow, submission);
   const copy = PROJECT_STAGE_COPY[stage];
@@ -61,12 +61,6 @@ async function ProjectContent({
   // own title banner; the rest are a single status card.
   const isEditing = stage === 'private' || stage === 'public';
   const isFinal = stage === 'closed_private' || stage === 'closed_public';
-  // Table numbers are visible to judges throughout, but to participants only
-  // once submissions close — and only for a project that will be judged.
-  const tableLabel =
-    stage === 'closed_public' && submission
-      ? (await getTableLabels(eventId)).get(submission.id)?.label
-      : undefined;
 
   return (
     <div className='flex flex-col gap-3'>
@@ -119,23 +113,18 @@ async function ProjectContent({
           />
         )}
 
-        {tableLabel !== undefined && (
-          <Card className='gap-1 p-5'>
-            <p className='text-muted-foreground m-0 text-sm'>
-              Set up for the expo at
-            </p>
-            <p className='m-0 text-3xl font-semibold tabular-nums'>
-              Table {tableLabel}
-            </p>
-          </Card>
-        )}
-
         {isFinal && submission && (
           <SubmissionView
             submission={submission}
             notice={
               <>
-                {copy.description} {copy.warning}
+                <ProjectStageDescription
+                  stage={stage}
+                  opensAt={opensAt}
+                  closesAt={closesAt}
+                  tableLabel={tableLabel}
+                />{' '}
+                {copy.warning}
               </>
             }
           />

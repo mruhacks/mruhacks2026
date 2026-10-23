@@ -27,7 +27,7 @@ import {
 } from '@/db/schema';
 import { eventApplicationsCacheTag } from '@/lib/admin-event';
 import { eventUrlSegments } from '@/lib/events';
-import { assignTableSlot } from '@/lib/judging/server';
+import { assignTableSlot, getTableLabels } from '@/lib/judging/server';
 import { collectAttachmentKeys } from '@/lib/markdown-attachments';
 import { readImageUpload } from '@/lib/image-attachments';
 import { requirePermission, hasPermission } from '@/lib/rbac/authorization';
@@ -88,6 +88,11 @@ export type MySubmissionState = {
   opensAt: Date | null;
   closesAt: Date | null;
   submission: SubmissionView | null;
+  /**
+   * The project's expo table. Judges see it throughout, participants only
+   * once submissions close — and only for a project that will be judged.
+   */
+  tableLabel: string | null;
 };
 
 async function toView(row: SubmissionRow): Promise<SubmissionView> {
@@ -197,11 +202,18 @@ export async function getMySubmission(
     return fail('Project submissions are not available to you.');
   }
 
+  const { submission } = access;
+  const tableLabel =
+    submissionWindow === 'closed' && submission?.published
+      ? ((await getTableLabels(eventId)).get(submission.id)?.label ?? null)
+      : null;
+
   return ok({
     submissionWindow,
     opensAt: access.event.startsAt,
     closesAt: access.event.submissionsCloseAt,
-    submission: access.submission ? await toView(access.submission) : null,
+    submission: submission ? await toView(submission) : null,
+    tableLabel,
   });
 }
 

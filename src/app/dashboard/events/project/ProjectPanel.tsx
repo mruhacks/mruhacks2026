@@ -33,7 +33,8 @@ export async function ProjectPanel({
 }) {
   const result = await getMySubmission(eventId);
   if (!result.success || !result.data) return null;
-  const { submissionWindow, opensAt, closesAt, submission } = result.data;
+  const { submissionWindow, opensAt, closesAt, submission, tableLabel } =
+    result.data;
   const stage = getProjectStage(submissionWindow, submission);
   const { action } = PROJECT_STAGE_COPY[stage];
 
@@ -60,6 +61,7 @@ export async function ProjectPanel({
             stage={stage}
             opensAt={opensAt}
             closesAt={closesAt}
+            tableLabel={tableLabel}
           />
         </CardDescription>
       </CardHeader>
