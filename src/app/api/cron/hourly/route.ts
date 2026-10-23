@@ -1,6 +1,6 @@
-import { handleCronRequest } from '@/app/api/cron/handle-cron-request';
-import { dispatchDueCampaigns } from '@/lib/campaigns/dispatch-due-campaigns';
-import { runRsvpCron } from '@/lib/rsvp/run-rsvp-cron';
+import { handleCronRequest } from '../handle-cron-request';
+import * as Campaigns from '@/lib/campaigns/server';
+import * as Rsvp from '@/lib/rsvp/server';
 import { fail } from '@/utils/action-result';
 
 /**
@@ -15,7 +15,7 @@ async function handle(request: Request): Promise<Response> {
     logLabel: 'cron/hourly',
     failureBody: fail('Scheduled hourly run failed.'),
     run: async () => {
-      const [rsvp, campaigns] = await Promise.allSettled([runRsvpCron(), dispatchDueCampaigns()]);
+      const [rsvp, campaigns] = await Promise.allSettled([Rsvp.runRsvpCron(), Campaigns.dispatchDueCampaigns()]);
       const report = {
         rsvp: settledReport(rsvp),
         campaigns: settledReport(campaigns),

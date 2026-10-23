@@ -1,7 +1,7 @@
 import { describe, test, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import { db } from '@/utils/db';
 import { eq, and } from 'drizzle-orm';
-import { user, account, invite, permission, role, userPermission, userRole } from '@/db/schema';
+import * as schema from '@/db/schema';
 
 vi.mock('@/utils/auth', () => ({
   getUser: vi.fn(),
@@ -53,7 +53,7 @@ import {
   adminRevokeUserSessions,
   updateUserProfile,
 } from '@/app/actions/users';
-import { applyPendingInvite } from '@/lib/auth/apply-pending-invite';
+import * as Auth from '@/lib/auth/server';
 
 let adminUserId: string;
 let noPermUserId: string;
@@ -81,37 +81,37 @@ let targetUser: MockUser;
 
 beforeAll(async () => {
   const [admin] = await db
-    .insert(user)
+    .insert(schema.user)
     .values({
       name: 'Admin User',
       email: 'users-admin@test.com',
       emailVerified: true,
     })
-    .returning({ id: user.id });
+    .returning({ id: schema.user.id });
   const [noPerm] = await db
-    .insert(user)
+    .insert(schema.user)
     .values({
       name: 'No Perm',
       email: 'users-noperm@test.com',
       emailVerified: true,
     })
-    .returning({ id: user.id });
+    .returning({ id: schema.user.id });
   const [target] = await db
-    .insert(user)
+    .insert(schema.user)
     .values({
       name: 'Target User',
       email: 'users-target@test.com',
       emailVerified: true,
     })
-    .returning({ id: user.id });
+    .returning({ id: schema.user.id });
   const [superAdmin] = await db
-    .insert(user)
+    .insert(schema.user)
     .values({
       name: 'Super Admin',
       email: 'users-super@test.com',
       emailVerified: true,
     })
-    .returning({ id: user.id });
+    .returning({ id: schema.user.id });
   adminUserId = admin.id;
   noPermUserId = noPerm.id;
   targetUserId = target.id;
@@ -143,36 +143,46 @@ beforeAll(async () => {
   };
 
   for (const slug of ALL_PERMS) {
-    const [p] = await db.insert(permission).values({ slug }).onConflictDoNothing().returning({ id: permission.id });
+    const [p] = await db
+      .insert(schema.permission)
+      .values({ slug })
+      .onConflictDoNothing()
+      .returning({ id: schema.permission.id });
     if (p) {
       permIds[slug] = p.id;
     } else {
       const [existing] = await db
-        .select({ id: permission.id })
-        .from(permission)
-        .where(eq(permission.slug, slug))
+        .select({ id: schema.permission.id })
+        .from(schema.permission)
+        .where(eq(schema.permission.slug, slug))
         .limit(1);
       permIds[slug] = existing.id;
     }
   }
 
   for (const slug of ADMIN_ONLY_PERMS) {
-    await db.insert(userPermission).values({ userId: adminUserId, permissionId: permIds[slug]! }).onConflictDoNothing();
+    await db
+      .insert(schema.userPermission)
+      .values({ userId: adminUserId, permissionId: permIds[slug]! })
+      .onConflictDoNothing();
   }
   for (const slug of ALL_PERMS) {
     await db
-      .insert(userPermission)
+      .insert(schema.userPermission)
       .values({ userId: superAdminUserId, permissionId: permIds[slug]! })
       .onConflictDoNothing();
   }
 
   const [r] = await db
-    .insert(role)
+    .insert(schema.role)
     .values({ slug: 'users-test-role' })
     .onConflictDoNothing()
-    .returning({ id: role.id });
+    .returning({ id: schema.role.id });
   adminRoleId =
-    r?.id ?? (await db.select({ id: role.id }).from(role).where(eq(role.slug, 'users-test-role')).limit(1))[0].id;
+    r?.id ??
+    (
+      await db.select({ id: schema.role.id }).from(schema.role).where(eq(schema.role.slug, 'users-test-role')).limit(1)
+    )[0].id;
 });
 
 beforeEach(() => {
@@ -180,15 +190,15 @@ beforeEach(() => {
 });
 
 afterAll(async () => {
-  await db.delete(userPermission).where(eq(userPermission.userId, adminUserId));
-  await db.delete(userPermission).where(eq(userPermission.userId, superAdminUserId));
-  await db.delete(userRole).where(eq(userRole.userId, targetUserId));
-  await db.delete(invite).where(eq(invite.email, 'invited@example.com'));
-  await db.delete(role).where(eq(role.id, adminRoleId));
-  await db.delete(user).where(eq(user.id, adminUserId));
-  await db.delete(user).where(eq(user.id, noPermUserId));
-  await db.delete(user).where(eq(user.id, targetUserId));
-  await db.delete(user).where(eq(user.id, superAdminUserId));
+  await db.delete(schema.userPermission).where(eq(schema.userPermission.userId, adminUserId));
+  await db.delete(schema.userPermission).where(eq(schema.userPermission.userId, superAdminUserId));
+  await db.delete(schema.userRole).where(eq(schema.userRole.userId, targetUserId));
+  await db.delete(schema.invite).where(eq(schema.invite.email, 'invited@example.com'));
+  await db.delete(schema.role).where(eq(schema.role.id, adminRoleId));
+  await db.delete(schema.user).where(eq(schema.user.id, adminUserId));
+  await db.delete(schema.user).where(eq(schema.user.id, noPermUserId));
+  await db.delete(schema.user).where(eq(schema.user.id, targetUserId));
+  await db.delete(schema.user).where(eq(schema.user.id, superAdminUserId));
 });
 
 // ─── listUsers ───────────────────────────────────────────────────────────────
@@ -232,26 +242,28 @@ describe('listUsers', () => {
   });
 
   test('filters users by a single role slug', async () => {
-    await db.insert(userRole).values({ userId: targetUserId, roleId: adminRoleId }).onConflictDoNothing();
+    await db.insert(schema.userRole).values({ userId: targetUserId, roleId: adminRoleId }).onConflictDoNothing();
 
     const result = await listUsers({ roleSlugs: ['users-test-role'] });
     expect(result.success).toBe(true);
     if (!result.success) throw new Error(result.error);
     expect(result.data?.users.map((entry) => entry.id)).toContain(targetUserId);
 
-    await db.delete(userRole).where(and(eq(userRole.userId, targetUserId), eq(userRole.roleId, adminRoleId)));
+    await db
+      .delete(schema.userRole)
+      .where(and(eq(schema.userRole.userId, targetUserId), eq(schema.userRole.roleId, adminRoleId)));
   });
 
   test('lists an invite to an email with no account as an invite row', async () => {
     const [row] = await db
-      .insert(invite)
+      .insert(schema.invite)
       .values({
         email: 'users-pending-invite@test.com',
         roleIds: [adminRoleId],
         invitedBy: null,
         expiresAt: new Date(Date.now() + 60_000),
       })
-      .returning({ id: invite.id });
+      .returning({ id: schema.invite.id });
     try {
       const result = await listUsers({ search: 'users-pending-invite' });
       if (!result.success) throw new Error(result.error);
@@ -265,14 +277,14 @@ describe('listUsers', () => {
       if (!byRole.success) throw new Error(byRole.error);
       expect(byRole.data!.users.map((u) => u.id)).toContain(row.id);
     } finally {
-      await db.delete(invite).where(eq(invite.id, row.id));
+      await db.delete(schema.invite).where(eq(schema.invite.id, row.id));
     }
   });
 
   // Not creatable through inviteUser, but an account can sign up for an
   // invited email before claiming it (or predate the existing-account check).
   test('attaches an invite to the existing account instead of a second row', async () => {
-    await db.insert(invite).values({
+    await db.insert(schema.invite).values({
       email: 'users-target@test.com',
       roleIds: [],
       invitedBy: null,
@@ -287,7 +299,7 @@ describe('listUsers', () => {
       expect(listed.id).toBe(targetUserId);
       expect(listed.invite).not.toBeNull();
     } finally {
-      await db.delete(invite).where(eq(invite.email, 'users-target@test.com'));
+      await db.delete(schema.invite).where(eq(schema.invite.email, 'users-target@test.com'));
     }
   });
 
@@ -372,9 +384,9 @@ describe('updateUserProfile', () => {
       name: 'Updated Name',
     });
     expect(result.success).toBe(true);
-    const [row] = await db.select({ name: user.name }).from(user).where(eq(user.id, targetUserId));
+    const [row] = await db.select({ name: schema.user.name }).from(schema.user).where(eq(schema.user.id, targetUserId));
     expect(row.name).toBe('Updated Name');
-    await db.update(user).set({ name: 'Target User' }).where(eq(user.id, targetUserId));
+    await db.update(schema.user).set({ name: 'Target User' }).where(eq(schema.user.id, targetUserId));
   });
 
   test('updates emailVerified flag', async () => {
@@ -382,15 +394,24 @@ describe('updateUserProfile', () => {
       emailVerified: false,
     });
     expect(result.success).toBe(true);
-    const [row] = await db.select({ emailVerified: user.emailVerified }).from(user).where(eq(user.id, targetUserId));
+    const [row] = await db
+      .select({ emailVerified: schema.user.emailVerified })
+      .from(schema.user)
+      .where(eq(schema.user.id, targetUserId));
     expect(row.emailVerified).toBe(false);
-    await db.update(user).set({ emailVerified: true }).where(eq(user.id, targetUserId));
+    await db.update(schema.user).set({ emailVerified: true }).where(eq(schema.user.id, targetUserId));
   });
 
   test('whitespace-only name is not applied', async () => {
-    const [before] = await db.select({ name: user.name }).from(user).where(eq(user.id, targetUserId));
+    const [before] = await db
+      .select({ name: schema.user.name })
+      .from(schema.user)
+      .where(eq(schema.user.id, targetUserId));
     await updateUserProfile(targetUserId, { name: '   ' });
-    const [after] = await db.select({ name: user.name }).from(user).where(eq(user.id, targetUserId));
+    const [after] = await db
+      .select({ name: schema.user.name })
+      .from(schema.user)
+      .where(eq(schema.user.id, targetUserId));
     expect(after.name).toBe(before.name);
   });
 });
@@ -414,7 +435,7 @@ describe('updateUserRoles', () => {
   test('sets roles for user', async () => {
     const result = await updateUserRoles(targetUserId, [adminRoleId]);
     expect(result.success).toBe(true);
-    const rows = await db.select().from(userRole).where(eq(userRole.userId, targetUserId));
+    const rows = await db.select().from(schema.userRole).where(eq(schema.userRole.userId, targetUserId));
     expect(rows.some((r) => r.roleId === adminRoleId)).toBe(true);
     await updateUserRoles(targetUserId, []);
   });
@@ -437,7 +458,7 @@ describe('updateUserDirectPermissions', () => {
   test('sets direct permissions for user', async () => {
     const result = await updateUserDirectPermissions(targetUserId, [permIds['user:read:all']!]);
     expect(result.success).toBe(true);
-    const rows = await db.select().from(userPermission).where(eq(userPermission.userId, targetUserId));
+    const rows = await db.select().from(schema.userPermission).where(eq(schema.userPermission.userId, targetUserId));
     expect(rows.some((r) => r.permissionId === permIds['user:read:all'])).toBe(true);
     await updateUserDirectPermissions(targetUserId, []);
   });
@@ -474,40 +495,40 @@ describe('deleteUser', () => {
   test('superadmin can delete another superadmin', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(superAdminUser as never);
     const [victim] = await db
-      .insert(user)
+      .insert(schema.user)
       .values({
         name: 'Victim Admin',
         email: 'victim-admin@test.com',
         emailVerified: true,
       })
-      .returning({ id: user.id });
+      .returning({ id: schema.user.id });
     await db
-      .insert(userPermission)
+      .insert(schema.userPermission)
       .values({ userId: victim.id, permissionId: permIds['user:all:all']! })
       .onConflictDoNothing();
     await db
-      .insert(userPermission)
+      .insert(schema.userPermission)
       .values({ userId: victim.id, permissionId: permIds['user:write:all']! })
       .onConflictDoNothing();
 
     const result = await deleteUser(victim.id);
     expect(result.success).toBe(true);
-    const rows = await db.select().from(user).where(eq(user.id, victim.id));
+    const rows = await db.select().from(schema.user).where(eq(schema.user.id, victim.id));
     expect(rows).toHaveLength(0);
   });
 
   test('deletes a regular user', async () => {
     const [deletable] = await db
-      .insert(user)
+      .insert(schema.user)
       .values({
         name: 'Deletable',
         email: 'deletable@test.com',
         emailVerified: true,
       })
-      .returning({ id: user.id });
+      .returning({ id: schema.user.id });
     const result = await deleteUser(deletable.id);
     expect(result.success).toBe(true);
-    const rows = await db.select().from(user).where(eq(user.id, deletable.id));
+    const rows = await db.select().from(schema.user).where(eq(schema.user.id, deletable.id));
     expect(rows).toHaveLength(0);
   });
 });
@@ -531,7 +552,7 @@ describe('currentUserHasPassword', () => {
 
   test('returns hasPassword: true when credential account with password exists', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(targetUser as never);
-    await db.insert(account).values({
+    await db.insert(schema.account).values({
       userId: targetUserId,
       accountId: targetUserId,
       providerId: 'credential',
@@ -541,12 +562,14 @@ describe('currentUserHasPassword', () => {
     expect(result.success).toBe(true);
     if (!result.success) throw new Error((result as { error: string }).error);
     expect(result.data?.hasPassword).toBe(true);
-    await db.delete(account).where(and(eq(account.userId, targetUserId), eq(account.providerId, 'credential')));
+    await db
+      .delete(schema.account)
+      .where(and(eq(schema.account.userId, targetUserId), eq(schema.account.providerId, 'credential')));
   });
 
   test('returns hasPassword: false when credential account has null password', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(targetUser as never);
-    await db.insert(account).values({
+    await db.insert(schema.account).values({
       userId: targetUserId,
       accountId: targetUserId,
       providerId: 'credential',
@@ -556,7 +579,9 @@ describe('currentUserHasPassword', () => {
     expect(result.success).toBe(true);
     if (!result.success) throw new Error((result as { error: string }).error);
     expect(result.data?.hasPassword).toBe(false);
-    await db.delete(account).where(and(eq(account.userId, targetUserId), eq(account.providerId, 'credential')));
+    await db
+      .delete(schema.account)
+      .where(and(eq(schema.account.userId, targetUserId), eq(schema.account.providerId, 'credential')));
   });
 });
 
@@ -584,17 +609,17 @@ describe('setOwnName', () => {
   test('updates the user display name', async () => {
     const result = await setOwnName('Alice Renamed');
     expect(result.success).toBe(true);
-    const [row] = await db.select({ name: user.name }).from(user).where(eq(user.id, adminUserId));
+    const [row] = await db.select({ name: schema.user.name }).from(schema.user).where(eq(schema.user.id, adminUserId));
     expect(row.name).toBe('Alice Renamed');
-    await db.update(user).set({ name: 'Admin User' }).where(eq(user.id, adminUserId));
+    await db.update(schema.user).set({ name: 'Admin User' }).where(eq(schema.user.id, adminUserId));
   });
 
   test('trims leading and trailing whitespace from name', async () => {
     const result = await setOwnName('  Trimmed  ');
     expect(result.success).toBe(true);
-    const [row] = await db.select({ name: user.name }).from(user).where(eq(user.id, adminUserId));
+    const [row] = await db.select({ name: schema.user.name }).from(schema.user).where(eq(schema.user.id, adminUserId));
     expect(row.name).toBe('Trimmed');
-    await db.update(user).set({ name: 'Admin User' }).where(eq(user.id, adminUserId));
+    await db.update(schema.user).set({ name: 'Admin User' }).where(eq(schema.user.id, adminUserId));
   });
 });
 
@@ -614,7 +639,7 @@ describe('setInitialPassword', () => {
   });
 
   test('fails when user already has a credential account', async () => {
-    await db.insert(account).values({
+    await db.insert(schema.account).values({
       userId: adminUserId,
       accountId: adminUserId,
       providerId: 'credential',
@@ -623,14 +648,18 @@ describe('setInitialPassword', () => {
     const result = await setInitialPassword('newpassword123');
     expect(result.success).toBe(false);
     expect((result as { error: string }).error).toContain('already');
-    await db.delete(account).where(and(eq(account.userId, adminUserId), eq(account.providerId, 'credential')));
+    await db
+      .delete(schema.account)
+      .where(and(eq(schema.account.userId, adminUserId), eq(schema.account.providerId, 'credential')));
   });
 
   test('succeeds when no credential account exists', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(targetUser as never);
     const result = await setInitialPassword('newpassword123');
     expect(result.success).toBe(true);
-    await db.delete(account).where(and(eq(account.userId, targetUserId), eq(account.providerId, 'credential')));
+    await db
+      .delete(schema.account)
+      .where(and(eq(schema.account.userId, targetUserId), eq(schema.account.providerId, 'credential')));
   });
 });
 
@@ -638,95 +667,95 @@ describe('setInitialPassword', () => {
 
 describe('applyPendingInvite', () => {
   test('returns false when no invite exists', async () => {
-    expect(await applyPendingInvite(adminUserId)).toBe(false);
+    expect(await Auth.applyPendingInvite(adminUserId)).toBe(false);
   });
 
   test('applies the invited roles and deletes the invite', async () => {
-    await db.insert(invite).values({
+    await db.insert(schema.invite).values({
       email: 'users-admin@test.com',
       roleIds: [adminRoleId],
       invitedBy: null,
       expiresAt: new Date(Date.now() + 60_000),
     });
-    expect(await applyPendingInvite(adminUserId)).toBe(true);
+    expect(await Auth.applyPendingInvite(adminUserId)).toBe(true);
 
     const assigned = await db
       .select()
-      .from(userRole)
-      .where(and(eq(userRole.userId, adminUserId), eq(userRole.roleId, adminRoleId)));
+      .from(schema.userRole)
+      .where(and(eq(schema.userRole.userId, adminUserId), eq(schema.userRole.roleId, adminRoleId)));
     expect(assigned).toHaveLength(1);
 
-    const remaining = await db.select().from(invite).where(eq(invite.email, 'users-admin@test.com'));
+    const remaining = await db.select().from(schema.invite).where(eq(schema.invite.email, 'users-admin@test.com'));
     expect(remaining).toHaveLength(0);
 
-    await db.delete(userRole).where(eq(userRole.userId, adminUserId));
+    await db.delete(schema.userRole).where(eq(schema.userRole.userId, adminUserId));
   });
 
   test('matches the invite email case-insensitively', async () => {
-    await db.insert(invite).values({
+    await db.insert(schema.invite).values({
       email: 'users-admin@test.com',
       roleIds: [],
       invitedBy: null,
       expiresAt: new Date(Date.now() + 60_000),
     });
-    await db.update(user).set({ email: 'Users-Admin@Test.com' }).where(eq(user.id, adminUserId));
+    await db.update(schema.user).set({ email: 'Users-Admin@Test.com' }).where(eq(schema.user.id, adminUserId));
     try {
-      expect(await applyPendingInvite(adminUserId)).toBe(true);
+      expect(await Auth.applyPendingInvite(adminUserId)).toBe(true);
     } finally {
-      await db.update(user).set({ email: 'users-admin@test.com' }).where(eq(user.id, adminUserId));
+      await db.update(schema.user).set({ email: 'users-admin@test.com' }).where(eq(schema.user.id, adminUserId));
     }
   });
 
   test('ignores the invite while the email is unverified', async () => {
-    await db.insert(invite).values({
+    await db.insert(schema.invite).values({
       email: 'users-admin@test.com',
       roleIds: [adminRoleId],
       invitedBy: null,
       expiresAt: new Date(Date.now() + 60_000),
     });
-    await db.update(user).set({ emailVerified: false }).where(eq(user.id, adminUserId));
+    await db.update(schema.user).set({ emailVerified: false }).where(eq(schema.user.id, adminUserId));
     try {
-      expect(await applyPendingInvite(adminUserId)).toBe(false);
+      expect(await Auth.applyPendingInvite(adminUserId)).toBe(false);
 
       const assigned = await db
         .select()
-        .from(userRole)
-        .where(and(eq(userRole.userId, adminUserId), eq(userRole.roleId, adminRoleId)));
+        .from(schema.userRole)
+        .where(and(eq(schema.userRole.userId, adminUserId), eq(schema.userRole.roleId, adminRoleId)));
       expect(assigned).toHaveLength(0);
 
-      const remaining = await db.select().from(invite).where(eq(invite.email, 'users-admin@test.com'));
+      const remaining = await db.select().from(schema.invite).where(eq(schema.invite.email, 'users-admin@test.com'));
       expect(remaining).toHaveLength(1);
     } finally {
-      await db.update(user).set({ emailVerified: true }).where(eq(user.id, adminUserId));
-      await db.delete(invite).where(eq(invite.email, 'users-admin@test.com'));
+      await db.update(schema.user).set({ emailVerified: true }).where(eq(schema.user.id, adminUserId));
+      await db.delete(schema.invite).where(eq(schema.invite.email, 'users-admin@test.com'));
     }
   });
 
   test('drops an expired invite without applying its roles', async () => {
-    await db.insert(invite).values({
+    await db.insert(schema.invite).values({
       email: 'users-admin@test.com',
       roleIds: [adminRoleId],
       invitedBy: null,
       expiresAt: new Date(Date.now() - 60_000),
     });
-    await db.insert(account).values({
+    await db.insert(schema.account).values({
       userId: adminUserId,
       accountId: adminUserId,
       providerId: 'credential',
       password: 'kept_pw',
     });
-    expect(await applyPendingInvite(adminUserId)).toBe(false);
+    expect(await Auth.applyPendingInvite(adminUserId)).toBe(false);
 
     const assigned = await db
       .select()
-      .from(userRole)
-      .where(and(eq(userRole.userId, adminUserId), eq(userRole.roleId, adminRoleId)));
+      .from(schema.userRole)
+      .where(and(eq(schema.userRole.userId, adminUserId), eq(schema.userRole.roleId, adminRoleId)));
     expect(assigned).toHaveLength(0);
 
-    const credentials = await db.delete(account).where(eq(account.userId, adminUserId)).returning();
+    const credentials = await db.delete(schema.account).where(eq(schema.account.userId, adminUserId)).returning();
     expect(credentials).toHaveLength(1);
 
-    const remaining = await db.select().from(invite).where(eq(invite.email, 'users-admin@test.com'));
+    const remaining = await db.select().from(schema.invite).where(eq(schema.invite.email, 'users-admin@test.com'));
     expect(remaining).toHaveLength(0);
   });
 });
@@ -746,18 +775,18 @@ describe('revokeInvite', () => {
 
   test('deletes the invite', async () => {
     const [row] = await db
-      .insert(invite)
+      .insert(schema.invite)
       .values({
         email: 'users-revoke@test.com',
         roleIds: [adminRoleId],
         invitedBy: null,
         expiresAt: new Date(Date.now() + 60_000),
       })
-      .returning({ id: invite.id });
+      .returning({ id: schema.invite.id });
     const result = await revokeInvite(row.id);
     expect(result.success).toBe(true);
 
-    const remaining = await db.select().from(invite).where(eq(invite.id, row.id));
+    const remaining = await db.select().from(schema.invite).where(eq(schema.invite.id, row.id));
     expect(remaining).toHaveLength(0);
   });
 });
@@ -790,7 +819,7 @@ describe('inviteUser', () => {
     expect(result.success).toBe(false);
     expect((result as { error: string }).error).toContain('already exists');
 
-    const rows = await db.select().from(invite).where(eq(invite.email, 'users-target@test.com'));
+    const rows = await db.select().from(schema.invite).where(eq(schema.invite.email, 'users-target@test.com'));
     expect(rows).toHaveLength(0);
     expect(vi.mocked(auth.api.signInMagicLink)).not.toHaveBeenCalled();
   });
@@ -799,12 +828,12 @@ describe('inviteUser', () => {
     const result = await inviteUser('invited@example.com', [adminRoleId]);
     expect(result.success).toBe(true);
 
-    const rows = await db.select().from(invite).where(eq(invite.email, 'invited@example.com'));
+    const rows = await db.select().from(schema.invite).where(eq(schema.invite.email, 'invited@example.com'));
     expect(rows).toHaveLength(1);
     expect(rows[0].roleIds).toContain(adminRoleId);
     expect(vi.mocked(auth.api.signInMagicLink)).toHaveBeenCalled();
 
-    await db.delete(invite).where(eq(invite.email, 'invited@example.com'));
+    await db.delete(schema.invite).where(eq(schema.invite.email, 'invited@example.com'));
   });
 
   test('re-inviting same email updates the invite row', async () => {
@@ -812,11 +841,11 @@ describe('inviteUser', () => {
     const result = await inviteUser('invited@example.com', [adminRoleId]);
     expect(result.success).toBe(true);
 
-    const rows = await db.select().from(invite).where(eq(invite.email, 'invited@example.com'));
+    const rows = await db.select().from(schema.invite).where(eq(schema.invite.email, 'invited@example.com'));
     expect(rows).toHaveLength(1);
     expect(rows[0].roleIds).toContain(adminRoleId);
 
-    await db.delete(invite).where(eq(invite.email, 'invited@example.com'));
+    await db.delete(schema.invite).where(eq(schema.invite.email, 'invited@example.com'));
   });
 });
 

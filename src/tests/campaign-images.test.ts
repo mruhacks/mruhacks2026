@@ -18,8 +18,7 @@ vi.mock('@/utils/object-storage', async (importOriginal) => ({
 }));
 
 import { GET } from '@/app/api/assets/[...key]/route';
-import { CAMPAIGN_IMAGE_MAX_WIDTH, optimizeCampaignImage } from '@/lib/campaigns/campaign-images';
-import { renderCampaignEmail } from '@/lib/campaigns/render-campaign-email';
+import * as Campaigns from '@/lib/campaigns/server';
 import { campaignImageUrl, campaignImageWidth, isCampaignImageKey, putObject } from '@/utils/object-storage';
 
 /** A big "phone photo": 4000×3000, rotated by EXIF orientation 6, with GPS data. */
@@ -54,12 +53,12 @@ describe('optimizeCampaignImage', () => {
     expect(inputMeta.exif).toBeDefined();
     expect(inputMeta.orientation).toBe(6);
 
-    const image = await optimizeCampaignImage(input);
+    const image = await Campaigns.optimizeCampaignImage(input);
     const meta = await sharp(image.body).metadata();
 
     expect(image.contentType).toBe('image/jpeg');
     expect(meta.format).toBe('jpeg');
-    expect(meta.width).toBeLessThanOrEqual(CAMPAIGN_IMAGE_MAX_WIDTH);
+    expect(meta.width).toBeLessThanOrEqual(Campaigns.IMAGE_MAX_WIDTH);
     // Orientation 6 is a 90° turn: the landscape source comes out portrait.
     expect(meta.height!).toBeGreaterThan(meta.width!);
     expect(meta.exif).toBeUndefined();
@@ -91,25 +90,25 @@ describe('optimizeCampaignImage', () => {
       .png()
       .toBuffer();
 
-    const a = await optimizeCampaignImage(new Uint8Array(transparent));
+    const a = await Campaigns.optimizeCampaignImage(new Uint8Array(transparent));
     expect(a.contentType).toBe('image/png');
     expect(a.key).toMatch(/-w300\.png$/);
     // Never enlarged.
     expect(a.width).toBe(300);
 
-    const b = await optimizeCampaignImage(new Uint8Array(opaquePng));
+    const b = await Campaigns.optimizeCampaignImage(new Uint8Array(opaquePng));
     expect(b.contentType).toBe('image/jpeg');
     expect(b.key).toMatch(/\.jpg$/);
   });
 
   test('rejects data that is not an image', async () => {
-    await expect(optimizeCampaignImage(new TextEncoder().encode('not an image'))).rejects.toThrow();
+    await expect(Campaigns.optimizeCampaignImage(new TextEncoder().encode('not an image'))).rejects.toThrow();
   });
 });
 
 describe('/api/assets campaign images', () => {
   test('redirects to a signed URL with no session', async () => {
-    const image = await optimizeCampaignImage(await phonePhoto());
+    const image = await Campaigns.optimizeCampaignImage(await phonePhoto());
     await putObject({
       key: image.key,
       body: image.body,
@@ -138,7 +137,7 @@ describe('campaign email image widths', () => {
   test('uploads get their stored width (capped to the column); external images get none', async () => {
     const small = campaignImageUrl('campaign-content/9f0d6a52-2c55-4f6e-9a0e-5d1f3b6b7c8d-w300.jpg');
     const big = campaignImageUrl('campaign-content/9f0d6a52-2c55-4f6e-9a0e-5d1f3b6b7c8e-w1200.jpg');
-    const email = await renderCampaignEmail(
+    const email = await Campaigns.renderCampaignEmail(
       {
         type: 'marketing',
         subject: 's',

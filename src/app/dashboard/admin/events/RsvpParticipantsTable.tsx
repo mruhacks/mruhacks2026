@@ -9,16 +9,16 @@ import {
   type AdminRsvpParticipant,
   type AdminRsvpWaveSummary,
   type RsvpInvitationEmailStatus,
-} from '@/app/dashboard/admin/events/actions';
+} from './actions';
 import { DataTable } from '@/components/data-table/data-table';
 import { DataTableFacetedFilter } from '@/components/data-table/data-table-faceted-filter';
 import { LocalDateTime } from '@/components/local-date-time';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { rsvpStatusFilterFn } from '@/lib/rsvp/rsvp-status-filter';
-import { STATIC_STATUS_DISPLAY, type InvitationStatus } from '@/lib/participation/status';
+import * as Rsvp from '@/lib/rsvp';
+import * as Participation from '@/lib/participation';
 
-const STATUS_FILTER_OPTIONS: { label: string; value: InvitationStatus }[] = [
+const STATUS_FILTER_OPTIONS: { label: string; value: Participation.InvitationStatus }[] = [
   { label: 'Waiting', value: 'invited' },
   { label: 'Accepted', value: 'accepted' },
   { label: 'Declined', value: 'declined' },
@@ -30,8 +30,8 @@ const DELIVERY_FILTER_OPTIONS: {
   value: RsvpInvitationEmailStatus;
 }[] = [{ label: 'Delivery failed', value: 'failed' }];
 
-function StatusBadge({ status }: { status: InvitationStatus }) {
-  const display = STATIC_STATUS_DISPLAY[status];
+function StatusBadge({ status }: { status: Participation.InvitationStatus }) {
+  const display = Participation.STATIC_STATUS_DISPLAY[status];
   return <Badge variant={display.variant}>{display.title}</Badge>;
 }
 
@@ -174,7 +174,7 @@ export function RsvpParticipantsTable({ eventId, wave, canResend }: Props) {
         id: 'status',
         accessorKey: 'statusLabel',
         header: 'Status',
-        filterFn: rsvpStatusFilterFn,
+        filterFn: Rsvp.statusFilterFn,
         cell: ({ row }) => <StatusBadge status={row.original.statusLabel} />,
       },
       {
@@ -204,7 +204,7 @@ export function RsvpParticipantsTable({ eventId, wave, canResend }: Props) {
         id: 'delivery',
         accessorKey: 'invitationEmailStatus',
         header: 'Invitation',
-        filterFn: rsvpStatusFilterFn,
+        filterFn: Rsvp.statusFilterFn,
         cell: ({ row }) => <DeliveryBadge status={row.original.invitationEmailStatus} />,
       },
       ...(canResend

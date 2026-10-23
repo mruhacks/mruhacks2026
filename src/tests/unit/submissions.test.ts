@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 
-import { canSubmitProject } from '@/lib/participation/status';
+import * as Participation from '@/lib/participation';
 import {
   getSubmissionWindow,
   isPastSubmissionDeadline,
@@ -25,23 +25,23 @@ const configured = {
 describe('canSubmitProject', () => {
   test('with check-in enabled, only a checked-in participant qualifies', () => {
     const event = { checkInEnabled: true, hasSentRsvpWave: true };
-    expect(canSubmitProject(event, 'accepted', false)).toBe(false);
-    expect(canSubmitProject(event, 'accepted', true)).toBe(true);
+    expect(Participation.canSubmitProject(event, 'accepted', false)).toBe(false);
+    expect(Participation.canSubmitProject(event, 'accepted', true)).toBe(true);
   });
 
   test('without check-in, once a wave has gone out, only accepted qualifies', () => {
     const event = { checkInEnabled: false, hasSentRsvpWave: true };
-    expect(canSubmitProject(event, 'accepted', false)).toBe(true);
-    expect(canSubmitProject(event, 'invited', false)).toBe(false);
-    expect(canSubmitProject(event, 'waitlisted', false)).toBe(false);
+    expect(Participation.canSubmitProject(event, 'accepted', false)).toBe(true);
+    expect(Participation.canSubmitProject(event, 'invited', false)).toBe(false);
+    expect(Participation.canSubmitProject(event, 'waitlisted', false)).toBe(false);
   });
 
   test('without check-in or waves, anyone able to form a team qualifies', () => {
     const event = { checkInEnabled: false, hasSentRsvpWave: false };
-    expect(canSubmitProject(event, 'pending_review', false)).toBe(true);
-    expect(canSubmitProject(event, 'waitlisted', false)).toBe(true);
-    expect(canSubmitProject(event, 'denied', false)).toBe(false);
-    expect(canSubmitProject(event, 'declined', false)).toBe(false);
+    expect(Participation.canSubmitProject(event, 'pending_review', false)).toBe(true);
+    expect(Participation.canSubmitProject(event, 'waitlisted', false)).toBe(true);
+    expect(Participation.canSubmitProject(event, 'denied', false)).toBe(false);
+    expect(Participation.canSubmitProject(event, 'declined', false)).toBe(false);
   });
 });
 

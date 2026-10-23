@@ -24,7 +24,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
-import { useEventBasePath } from '../../_components/use-event-base-path';
+import { useEventBasePath } from '@/app/dashboard/admin/events/[eventId]/_components/use-event-base-path';
 
 /** Exactly what `getAllArticlesForAdmin` returns per row. */
 export type WikiArticleRowData = {

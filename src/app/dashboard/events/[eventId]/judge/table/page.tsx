@@ -7,7 +7,7 @@ import { beginJudging, skipJudgeProject, submitJudgeVote } from '@/app/dashboard
 import curtWriting from '@/assets/crt_writing.png';
 import { LocalDateTime } from '@/components/local-date-time';
 import { Button } from '@/components/ui/button';
-import { getJudgeView, type JudgeProjectCard, type JudgeView } from '@/lib/judging/judge-session';
+import * as Judging from '@/lib/judging/server';
 import { cn } from '@/lib/utils';
 
 import { ActionForm, AutoRefresh, SkipButton, SubmitButton } from '../judge-controls';
@@ -35,7 +35,7 @@ export default function JudgeTablePage({ params }: Props) {
 async function JudgeTable({ paramsPromise }: { paramsPromise: Props['params'] }) {
   const { eventId: segment } = await paramsPromise;
   const event = await loadJudgeEvent(segment);
-  const view = await getJudgeView(event.id);
+  const view = await Judging.getJudgeView(event.id);
 
   return (
     <JudgeFrame segment={segment} eventName={event.name}>
@@ -55,7 +55,7 @@ async function JudgeTable({ paramsPromise }: { paramsPromise: Props['params'] })
 }
 
 /** `help` only shows on screens where how judging works is still relevant. */
-function Screen({ eventId, view, help }: { eventId: string; view: JudgeView; help: React.ReactNode }) {
+function Screen({ eventId, view, help }: { eventId: string; view: Judging.JudgeView; help: React.ReactNode }) {
   const skip = skipJudgeProject.bind(null, eventId);
 
   switch (view.kind) {
@@ -141,7 +141,7 @@ function Message({
   );
 }
 
-function GoTo({ project }: { project: JudgeProjectCard }) {
+function GoTo({ project }: { project: Judging.JudgeProjectCard }) {
   return (
     <div className='flex flex-col items-center gap-0.5 text-center'>
       <p className='text-muted-foreground m-0 inline-flex items-center gap-1 text-xs font-semibold tracking-wider uppercase'>
@@ -170,7 +170,7 @@ function CompareScreen({
   help,
 }: {
   eventId: string;
-  view: Extract<JudgeView, { kind: 'compare' }>;
+  view: Extract<Judging.JudgeView, { kind: 'compare' }>;
   skip: (formData: FormData) => Promise<{ success: boolean; error?: string }>;
   help: React.ReactNode;
 }) {

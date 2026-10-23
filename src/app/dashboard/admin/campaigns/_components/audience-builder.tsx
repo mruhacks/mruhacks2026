@@ -5,10 +5,8 @@ import { useQuery } from '@tanstack/react-query';
 import { Users } from 'lucide-react';
 import { QueryBuilder, type Classnames, type FullField, type RuleGroupType } from 'react-querybuilder';
 
-import { countAudienceForBuilder, previewAudienceForBuilder } from '@/app/dashboard/admin/campaigns/actions';
-import type { AudienceOptions } from '@/lib/campaigns/audience-options';
-import { audienceRulesSchema, type AudienceRuleGroup } from '@/lib/campaigns/audience-rules';
-import type { CampaignType } from '@/lib/campaigns/constants';
+import { countAudienceForBuilder, previewAudienceForBuilder } from '../actions';
+import * as Campaigns from '@/lib/campaigns';
 import { Button } from '@/components/ui/button';
 import { FieldError } from '@/components/ui/field';
 import { Spinner } from '@/components/ui/spinner';
@@ -64,11 +62,11 @@ function useDebounced<T>(value: T, delayMs: number): T {
 
 export type AudienceBuilderProps = {
   /** Read once on mount; remount (`key`) to load a different tree. */
-  initialValue: AudienceRuleGroup;
-  onChange?: (rules: AudienceRuleGroup) => void;
-  options: AudienceOptions;
+  initialValue: Campaigns.AudienceRuleGroup;
+  onChange?: (rules: Campaigns.AudienceRuleGroup) => void;
+  options: Campaigns.AudienceOptions;
   /** The campaign the audience is evaluated for — its forced conditions apply to the count. */
-  type: CampaignType;
+  type: Campaigns.Type;
   eventId: string | null;
   /** `participant:read:all`: shows the recipient preview. */
   canPreview: boolean;
@@ -84,12 +82,12 @@ export function AudienceBuilder({
   canPreview,
   disabled,
 }: AudienceBuilderProps) {
-  const [tree, setTree] = React.useState<AudienceRuleGroup>(initialValue);
+  const [tree, setTree] = React.useState<Campaigns.AudienceRuleGroup>(initialValue);
   const context = React.useMemo<BuilderContext>(() => ({ options }), [options]);
 
   const handleQueryChange = React.useCallback(
     (query: RuleGroupType) => {
-      const next = query as unknown as AudienceRuleGroup;
+      const next = query as unknown as Campaigns.AudienceRuleGroup;
       setTree(next);
       onChange?.(next);
     },
@@ -130,13 +128,13 @@ function AudienceSummary({
   eventId,
   canPreview,
 }: {
-  tree: AudienceRuleGroup;
-  type: CampaignType;
+  tree: Campaigns.AudienceRuleGroup;
+  type: Campaigns.Type;
   eventId: string | null;
   canPreview: boolean;
 }) {
   const debouncedTree = useDebounced(tree, COUNT_DEBOUNCE_MS);
-  const parsed = React.useMemo(() => audienceRulesSchema.safeParse(debouncedTree), [debouncedTree]);
+  const parsed = React.useMemo(() => Campaigns.audienceRulesSchema.safeParse(debouncedTree), [debouncedTree]);
   const rules = parsed.success ? parsed.data : null;
   const input = React.useMemo(() => (rules ? { context: { type, eventId }, rules } : null), [rules, type, eventId]);
 

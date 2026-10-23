@@ -6,7 +6,7 @@ import { BreadcrumbSegment } from '@/components/breadcrumb-context';
 import { SubmissionView } from '@/components/submissions/submission-view';
 import { getAdminEventHeader } from '@/lib/admin-event';
 import { resolveEventId } from '@/lib/events';
-import { requirePermission } from '@/lib/rbac/authorization';
+import * as Rbac from '@/lib/rbac/server';
 import { getUser } from '@/utils/auth';
 import { sanitizeReturnPath } from '@/utils/return-path';
 
@@ -46,7 +46,7 @@ async function SubmissionContent({
   if (!eventId) notFound();
   const user = await getUser();
   if (!user) redirect('/signin');
-  await requirePermission(user.id, 'submission:read:all');
+  await Rbac.requirePermission(user.id, 'submission:read:all');
 
   const [result, canDelete, event] = await Promise.all([
     getEventSubmission(eventId, submissionId),

@@ -1,6 +1,6 @@
 import type { ParticipationStatus } from '@/types/lookups';
-import type { CorePermissionSlug as PermissionSlug } from '@/lib/rbac/permissions';
-import { isInvitationStatus } from '@/lib/participation/status';
+import type * as Rbac from '@/lib/rbac';
+import { isInvitationStatus } from './status';
 
 /**
  * Which status changes are allowed, and who may make them. The one table of
@@ -9,7 +9,7 @@ import { isInvitationStatus } from '@/lib/participation/status';
  */
 
 /** The permission that governs a status: review decisions vs RSVP outcomes. */
-function statusPermission(status: ParticipationStatus): PermissionSlug {
+function statusPermission(status: ParticipationStatus): Rbac.CorePermissionSlug {
   return isInvitationStatus(status) ? 'rsvp:write:all' : 'application:review:all';
 }
 
@@ -26,7 +26,7 @@ function statusPermission(status: ParticipationStatus): PermissionSlug {
 export function adminTransitionPermissions(
   from: ParticipationStatus,
   to: ParticipationStatus,
-): PermissionSlug[] | null {
+): Rbac.CorePermissionSlug[] | null {
   if (from === to) return null;
   return [...new Set([statusPermission(from), statusPermission(to)])];
 }
@@ -37,7 +37,7 @@ export function adminTransitionPermissions(
  */
 export function adminStatusOptions(
   from: ParticipationStatus,
-  permissions: ReadonlySet<PermissionSlug>,
+  permissions: ReadonlySet<Rbac.CorePermissionSlug>,
   candidates: readonly ParticipationStatus[],
 ): ParticipationStatus[] {
   return candidates.filter((to) => {

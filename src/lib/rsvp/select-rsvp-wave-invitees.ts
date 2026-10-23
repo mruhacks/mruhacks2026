@@ -1,4 +1,4 @@
-import type { EligibleRsvpApplicant } from '@/lib/rsvp/eligible-rsvp-applicants';
+import type { EligibleRsvpApplicant } from './eligible-rsvp-applicants';
 
 /**
  * Who to put in the next RSVP wave given remaining event capacity.

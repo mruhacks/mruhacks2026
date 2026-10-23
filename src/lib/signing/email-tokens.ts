@@ -3,7 +3,7 @@ import 'server-only';
 import { sign, verify, createPublicKey, type KeyObject } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 
-import { signingPublicKeys } from '@/db/schema';
+import * as schema from '@/db/schema';
 import { db } from '@/utils/db';
 import { getAppSigningPrivateKey, getAppSigningPublicKey, publicKeyToPem } from './app-signing-key';
 
@@ -66,10 +66,10 @@ function recordCurrentPublicKey(): Promise<void> {
   let pending = recordedKeys.get(pem);
   if (!pending) {
     pending = db
-      .insert(signingPublicKeys)
+      .insert(schema.signingPublicKeys)
       .values({ publicKey: pem })
       .onConflictDoUpdate({
-        target: signingPublicKeys.publicKey,
+        target: schema.signingPublicKeys.publicKey,
         set: { lastUsedAt: sql`now()` },
       })
       .then(() => undefined);
@@ -87,10 +87,10 @@ function recordCurrentPublicKey(): Promise<void> {
 async function verificationKeys(): Promise<KeyObject[]> {
   const rows = await db
     .select({
-      publicKey: signingPublicKeys.publicKey,
-      revokedAt: signingPublicKeys.revokedAt,
+      publicKey: schema.signingPublicKeys.publicKey,
+      revokedAt: schema.signingPublicKeys.revokedAt,
     })
-    .from(signingPublicKeys);
+    .from(schema.signingPublicKeys);
   const revoked = new Set(rows.filter((row) => row.revokedAt).map((row) => row.publicKey));
 
   const keys: KeyObject[] = [];

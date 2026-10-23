@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { runWithRsvpMagicLinkMailContext } from '@/lib/rsvp/rsvp-magic-link-context';
+import { runWithRsvpMagicLinkMailContext } from './rsvp-magic-link-context';
 import { auth } from '@/utils/auth';
 
 /**

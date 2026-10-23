@@ -14,9 +14,8 @@ import {
   sendCampaignNow,
   stopCampaign,
   unscheduleCampaign,
-} from '@/app/dashboard/admin/campaigns/send-actions';
-import { campaignScheduleSlots } from '@/lib/campaigns/schedule-slots';
-import type { CampaignStatus } from '@/lib/campaigns/constants';
+} from '../send-actions';
+import * as Campaigns from '@/lib/campaigns';
 import { LocalDateTime, useDisplayTimeZone } from '@/components/local-date-time';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -37,7 +36,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 
 type Props = {
   campaignId: string;
-  status: CampaignStatus;
+  status: Campaigns.Status;
   scheduledFor: Date | null;
   /** `campaign:send:all` (plus `campaign:operational:all` for operational). */
   canSend: boolean;
@@ -259,7 +258,7 @@ function ScheduleDialog({
   const [error, setError] = React.useState<string | null>(null);
   const [isSaving, setIsSaving] = React.useState(false);
   const zone = useDisplayTimeZone();
-  const slots = React.useMemo(() => campaignScheduleSlots(date, zone), [date, zone]);
+  const slots = React.useMemo(() => Campaigns.scheduleSlots(date, zone), [date, zone]);
   const slot = slots.includes(selectedSlot) ? selectedSlot : '';
 
   async function save(event: React.FormEvent) {
@@ -380,7 +379,7 @@ function ScheduledCard({
     }
   }, [currentStatus, router]);
   if (currentStatus && currentStatus !== 'scheduled' && currentStatus !== 'draft') {
-    return <ResultsCard campaignId={campaignId} status={currentStatus as CampaignStatus} canSend={canSend} />;
+    return <ResultsCard campaignId={campaignId} status={currentStatus as Campaigns.Status} canSend={canSend} />;
   }
   return (
     <Card>
@@ -426,7 +425,7 @@ function ResultsCard({
   canSend,
 }: {
   campaignId: string;
-  status: CampaignStatus;
+  status: Campaigns.Status;
   canSend: boolean;
 }) {
   const queryClient = useQueryClient();

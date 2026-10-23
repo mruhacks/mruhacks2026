@@ -2,12 +2,12 @@ import { timingSafeEqual } from 'crypto';
 import { sql } from 'drizzle-orm';
 import { db } from '@/utils/db';
 import { getUser } from '@/utils/auth';
-import { hasPermission } from '@/lib/rbac/authorization';
+import * as Rbac from '@/lib/rbac/server';
 import { verifyMailConnection } from '@/utils/mail';
 import { checkObjectStorageConnection } from '@/utils/object-storage';
 import { MRUHACKS_LOGO_URL } from '@/content';
-import { WALLET_BADGE_PATHS } from '@/lib/campaigns/wallet-badges';
-import { APP_SIGNING_PRIVATE_KEY_ENV, readEnvWithFallback } from '@/lib/signing/app-signing-key';
+import * as Campaigns from '@/lib/campaigns';
+import * as Signing from '@/lib/signing/server';
 
 /** Dedicated permission for the full health report — unrelated to any other admin permission. */
 const HEALTH_PERMISSION = 'system:read:all';
@@ -35,7 +35,7 @@ const REQUIRED_ENV_VARS: readonly (string | readonly string[])[] = [
   'APPLE_WALLET_WWDR_CERT',
   'APPLE_WALLET_SIGNER_CERT',
   'APPLE_WALLET_SIGNER_KEY',
-  APP_SIGNING_PRIVATE_KEY_ENV,
+  Signing.APP_SIGNING_PRIVATE_KEY_ENV,
   // Bearer token the Cloudflare Worker scheduler (workers/rsvp-cron) sends to
   // /api/cron/*; without it the scheduled RSVP waves and invitation sweep
   // reject every invocation.
@@ -170,7 +170,7 @@ async function checkAppleWallet(): Promise<CheckResult> {
  * `CHECK_IN_SIGNING_PRIVATE_KEY` counts.
  */
 async function checkCheckInSigning(): Promise<CheckResult> {
-  return readEnvWithFallback(APP_SIGNING_PRIVATE_KEY_ENV)
+  return Signing.readEnvWithFallback(Signing.APP_SIGNING_PRIVATE_KEY_ENV)
     ? { ok: true, latencyMs: 0 }
     : { ok: false, latencyMs: 0, detail: 'not configured' };
 }
@@ -215,7 +215,7 @@ async function checkWalletBadges(): Promise<CheckResult> {
   if (!origin) return { ok: false, latencyMs: 0, detail: 'not configured' };
   try {
     const responses = await Promise.all(
-      Object.values(WALLET_BADGE_PATHS).map((path) =>
+      Object.values(Campaigns.WALLET_BADGE_PATHS).map((path) =>
         fetch(`${origin}${path}`, {
           method: 'HEAD',
           signal: AbortSignal.timeout(CHECK_TIMEOUT_MS),
@@ -243,7 +243,7 @@ async function checkWalletBadges(): Promise<CheckResult> {
 function missingEnvVars(): string[] {
   return REQUIRED_ENV_VARS.flatMap((entry) => {
     const names = typeof entry === 'string' ? [entry] : entry;
-    return readEnvWithFallback(names) ? [] : [names[0]!];
+    return Signing.readEnvWithFallback(names) ? [] : [names[0]!];
   });
 }
 
@@ -369,7 +369,7 @@ export async function GET(request: Request) {
   const httpStatus = report.status === 'down' ? 503 : 200;
 
   const user = await getUser().catch(() => null);
-  const canReadHealth = user ? await hasPermission(user.id, HEALTH_PERMISSION) : false;
+  const canReadHealth = user ? await Rbac.hasPermission(user.id, HEALTH_PERMISSION) : false;
   const hasFullAccess = canReadHealth || hasValidAccessKey(request);
 
   if (!hasFullAccess) {

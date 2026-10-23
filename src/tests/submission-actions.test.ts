@@ -9,20 +9,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, test, vi } from 'vit
 import { and, eq } from 'drizzle-orm';
 
 import { db } from '@/utils/db';
-import {
-  applicationVotes,
-  auditLog,
-  checkIns,
-  eventRsvpWaves,
-  events,
-  permission,
-  submissionEditors,
-  submissions,
-  teamMembers,
-  teams,
-  user,
-  userPermission,
-} from '@/db/schema';
+import * as schema from '@/db/schema';
 import { insertParticipant } from '@/tests/participation-fixtures';
 
 vi.mock('@/utils/auth', () => ({ getUser: vi.fn() }));
@@ -59,7 +46,7 @@ import { updateEventSettings } from '@/app/dashboard/admin/events/actions';
 import { purgeUser } from '@/app/actions/users';
 import { prepareUserDeletion } from '@/lib/account-deletion';
 import { submissionAttachmentPrefix } from '@/utils/object-storage';
-import { unwrap } from './unwrap';
+import { unwrap } from '@/tests/unwrap';
 
 type TestUser = {
   id: string;
@@ -81,18 +68,18 @@ const created: { users: string[]; events: string[] } = {
 
 async function makeUser(label: string): Promise<TestUser> {
   const [u] = await db
-    .insert(user)
+    .insert(schema.user)
     .values({
       name: `Sub ${label}`,
       email: `submission-test-${label.toLowerCase()}-${Date.now()}@example.com`,
       emailVerified: true,
     })
     .returning({
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      image: user.image,
-      emailVerified: user.emailVerified,
+      id: schema.user.id,
+      email: schema.user.email,
+      name: schema.user.name,
+      image: schema.user.image,
+      emailVerified: schema.user.emailVerified,
     });
   created.users.push(u.id);
   return u;
@@ -100,17 +87,20 @@ async function makeUser(label: string): Promise<TestUser> {
 
 async function grant(userId: string, slugs: string[]) {
   for (const slug of slugs) {
-    await db.insert(permission).values({ slug, description: 'test permission' }).onConflictDoNothing();
-    const [p] = await db.select({ id: permission.id }).from(permission).where(eq(permission.slug, slug));
-    await db.insert(userPermission).values({ userId, permissionId: p!.id }).onConflictDoNothing();
+    await db.insert(schema.permission).values({ slug, description: 'test permission' }).onConflictDoNothing();
+    const [p] = await db
+      .select({ id: schema.permission.id })
+      .from(schema.permission)
+      .where(eq(schema.permission.slug, slug));
+    await db.insert(schema.userPermission).values({ userId, permissionId: p!.id }).onConflictDoNothing();
   }
 }
 
 /** An application event with teams, mid-way through its submission window. */
-async function makeEvent(overrides: Partial<typeof events.$inferInsert> = {}): Promise<string> {
+async function makeEvent(overrides: Partial<typeof schema.events.$inferInsert> = {}): Promise<string> {
   const now = Date.now();
   const [e] = await db
-    .insert(events)
+    .insert(schema.events)
     .values({
       name: 'Submission Test Event',
       hasApplication: true,
@@ -121,7 +111,7 @@ async function makeEvent(overrides: Partial<typeof events.$inferInsert> = {}): P
       endsAt: new Date(now + 2 * HOUR),
       ...overrides,
     })
-    .returning({ id: events.id });
+    .returning({ id: schema.events.id });
   created.events.push(e.id);
   return e.id;
 }
@@ -130,7 +120,7 @@ async function makeEvent(overrides: Partial<typeof events.$inferInsert> = {}): P
 async function setDeadlinePassed(eventId: string, passed: boolean) {
   const now = Date.now();
   await db
-    .update(events)
+    .update(schema.events)
     .set(
       passed
         ? {
@@ -142,7 +132,7 @@ async function setDeadlinePassed(eventId: string, passed: boolean) {
             submissionsCloseAt: new Date(now + HOUR),
           },
     )
-    .where(eq(events.id, eventId));
+    .where(eq(schema.events.id, eventId));
 }
 
 function pngForm(): FormData {
@@ -220,10 +210,10 @@ beforeEach(() => {
 
 afterAll(async () => {
   for (const id of created.events) {
-    await db.delete(events).where(eq(events.id, id));
+    await db.delete(schema.events).where(eq(schema.events.id, id));
   }
   for (const id of created.users) {
-    await db.delete(user).where(eq(user.id, id));
+    await db.delete(schema.user).where(eq(schema.user.id, id));
   }
 });
 
@@ -244,13 +234,13 @@ describe('eligibility and access', () => {
     loginAs(userA);
     expect((await getMySubmission(checkInEvent)).success).toBe(false);
 
-    await db.insert(checkIns).values({ userId: userA.id, eventId: checkInEvent });
+    await db.insert(schema.checkIns).values({ userId: userA.id, eventId: checkInEvent });
     expect((await getMySubmission(checkInEvent)).success).toBe(true);
   });
 
   test('once an RSVP wave has gone out, only accepted participants qualify', async () => {
     const waveEvent = await makeEvent();
-    await db.insert(eventRsvpWaves).values({
+    await db.insert(schema.eventRsvpWaves).values({
       eventId: waveEvent,
       wave: 1,
       respondBy: new Date(Date.now() + HOUR),
@@ -406,16 +396,16 @@ describe('publishing', () => {
       (
         await db
           .select({
-            tableSlot: submissions.tableSlot,
-            placement: submissions.placement,
+            tableSlot: schema.submissions.tableSlot,
+            placement: schema.submissions.placement,
           })
-          .from(submissions)
-          .where(eq(submissions.id, id))
+          .from(schema.submissions)
+          .where(eq(schema.submissions.id, id))
       )[0]!;
     const { tableSlot } = await row();
     expect(tableSlot).not.toBeNull();
 
-    await db.update(submissions).set({ placement: 1 }).where(eq(submissions.id, id));
+    await db.update(schema.submissions).set({ placement: 1 }).where(eq(schema.submissions.id, id));
     unwrap(await setSubmissionPublished(eventId, false));
     expect(await row()).toEqual({ tableSlot, placement: null });
     unwrap(await setSubmissionPublished(eventId, true));
@@ -441,9 +431,9 @@ describe('editor presence', () => {
     loginAs(userA);
     await heartbeatSubmissionEditor(eventId);
     await db
-      .update(submissionEditors)
+      .update(schema.submissionEditors)
       .set({ lastSeenAt: new Date(Date.now() - 5 * 60 * 1000) })
-      .where(eq(submissionEditors.userId, userA.id));
+      .where(eq(schema.submissionEditors.userId, userA.id));
     loginAs(userB);
     expect(unwrap(await heartbeatSubmissionEditor(eventId))).toEqual([]);
   });
@@ -505,9 +495,9 @@ describe('team membership interactions', () => {
     unwrap(await joinTeamByCode(eventId, teamCode));
     unwrap(await leaveTeam(eventId));
     const [row] = await db
-      .select({ teamId: submissions.teamId })
-      .from(submissions)
-      .where(eq(submissions.teamId, teamId));
+      .select({ teamId: schema.submissions.teamId })
+      .from(schema.submissions)
+      .where(eq(schema.submissions.teamId, teamId));
     expect(row?.teamId).toBe(teamId);
   });
 });
@@ -549,7 +539,7 @@ describe('event settings', () => {
       userId: userD.id,
       status: 'accepted',
     });
-    await db.insert(checkIns).values({ userId: userD.id, eventId: checkInEvent });
+    await db.insert(schema.checkIns).values({ userId: userD.id, eventId: checkInEvent });
     loginAs(userD);
     unwrap(await createSubmission(checkInEvent));
     loginAs(admin);
@@ -597,8 +587,8 @@ describe('deletion', () => {
     unwrap(await adminDeleteSubmission(eventId, row!.id));
     const logs = await db
       .select()
-      .from(auditLog)
-      .where(and(eq(auditLog.action, 'submission.deleted'), eq(auditLog.targetId, row!.id)));
+      .from(schema.auditLog)
+      .where(and(eq(schema.auditLog.action, 'submission.deleted'), eq(schema.auditLog.targetId, row!.id)));
     expect(logs).toHaveLength(1);
     await setDeadlinePassed(eventId, false);
   });
@@ -612,8 +602,8 @@ describe('deletion', () => {
     });
     loginAs(userD);
     const { id } = unwrap(await createSubmission(doomed));
-    await db.delete(events).where(eq(events.id, doomed));
-    expect(await db.select().from(submissions).where(eq(submissions.id, id))).toHaveLength(0);
+    await db.delete(schema.events).where(eq(schema.events.id, doomed));
+    expect(await db.select().from(schema.submissions).where(eq(schema.submissions.id, id))).toHaveLength(0);
   });
 
   test('a team holding a submission cannot be dissolved directly', async () => {
@@ -626,7 +616,7 @@ describe('deletion', () => {
     loginAs(userD);
     unwrap(await createSubmission(guarded));
     const { teamId } = unwrap(await getMyTeam(guarded));
-    await expect(db.delete(teams).where(eq(teams.id, teamId))).rejects.toThrow();
+    await expect(db.delete(schema.teams).where(eq(schema.teams.id, teamId))).rejects.toThrow();
   });
 });
 
@@ -653,7 +643,7 @@ describe('account deletion', () => {
     loginAs(organizer);
     unwrap(await createSubmission(ev));
     // The organizer also cast a review vote that must survive.
-    await db.insert(applicationVotes).values({
+    await db.insert(schema.applicationVotes).values({
       eventId: ev,
       participantId: teammateParticipant,
       voterId: organizer.id,
@@ -661,17 +651,17 @@ describe('account deletion', () => {
     });
 
     await prepareUserDeletion(organizer.id);
-    await db.delete(user).where(eq(user.id, organizer.id));
+    await db.delete(schema.user).where(eq(schema.user.id, organizer.id));
 
-    const [team] = await db.select().from(teams).where(eq(teams.id, teamId));
+    const [team] = await db.select().from(schema.teams).where(eq(schema.teams.id, teamId));
     expect(team?.organizerId).toBe(teammate.id);
-    const [submission] = await db.select().from(submissions).where(eq(submissions.teamId, teamId));
+    const [submission] = await db.select().from(schema.submissions).where(eq(schema.submissions.teamId, teamId));
     expect(submission?.lastEditedBy).toBeNull();
 
     const votes = await db
       .select()
-      .from(applicationVotes)
-      .where(eq(applicationVotes.participantId, teammateParticipant));
+      .from(schema.applicationVotes)
+      .where(eq(schema.applicationVotes.participantId, teammateParticipant));
     expect(votes).toHaveLength(1);
     expect(votes[0]!.voterId).toBeNull();
 
@@ -699,14 +689,14 @@ describe('account deletion', () => {
 
     for (const u of [withProject, withoutProject]) {
       await prepareUserDeletion(u.id);
-      await db.delete(user).where(eq(user.id, u.id));
+      await db.delete(schema.user).where(eq(schema.user.id, u.id));
     }
 
-    const [kept] = await db.select().from(teams).where(eq(teams.id, keptTeam));
+    const [kept] = await db.select().from(schema.teams).where(eq(schema.teams.id, keptTeam));
     expect(kept?.organizerId).toBeNull();
-    expect(await db.select().from(teamMembers).where(eq(teamMembers.teamId, keptTeam))).toHaveLength(0);
-    expect(await db.select().from(submissions).where(eq(submissions.teamId, keptTeam))).toHaveLength(1);
-    expect(await db.select().from(teams).where(eq(teams.id, goneTeam))).toHaveLength(0);
+    expect(await db.select().from(schema.teamMembers).where(eq(schema.teamMembers.teamId, keptTeam))).toHaveLength(0);
+    expect(await db.select().from(schema.submissions).where(eq(schema.submissions.teamId, keptTeam))).toHaveLength(1);
+    expect(await db.select().from(schema.teams).where(eq(schema.teams.id, goneTeam))).toHaveLength(0);
   });
 
   test('purgeUser needs user:purge:all and logs only the user id', async () => {
@@ -716,11 +706,11 @@ describe('account deletion', () => {
 
     loginAs(admin);
     unwrap(await purgeUser(target.id));
-    expect(await db.select().from(user).where(eq(user.id, target.id))).toHaveLength(0);
+    expect(await db.select().from(schema.user).where(eq(schema.user.id, target.id))).toHaveLength(0);
     const [log] = await db
       .select()
-      .from(auditLog)
-      .where(and(eq(auditLog.action, 'user.purged'), eq(auditLog.targetId, target.id)));
+      .from(schema.auditLog)
+      .where(and(eq(schema.auditLog.action, 'user.purged'), eq(schema.auditLog.targetId, target.id)));
     expect(log).toBeDefined();
     expect(JSON.stringify(log!.metadata ?? {})).not.toContain(target.email);
   });
@@ -733,6 +723,6 @@ describe('account deletion', () => {
     const result = await purgeUser(superAdmin.id);
     expect(result.success).toBe(false);
     expect((result as { error: string }).error).toContain('administrator');
-    expect(await db.select().from(user).where(eq(user.id, superAdmin.id))).toHaveLength(1);
+    expect(await db.select().from(schema.user).where(eq(schema.user.id, superAdmin.id))).toHaveLength(1);
   });
 });

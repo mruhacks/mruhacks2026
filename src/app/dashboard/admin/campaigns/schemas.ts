@@ -1,9 +1,8 @@
 import { z } from 'zod';
 
-import { CAMPAIGN_TYPES } from '@/lib/campaigns/constants';
-import { audienceRulesSchema } from '@/lib/campaigns/audience-rules';
+import * as Campaigns from '@/lib/campaigns';
 
-const campaignTypeSchema = z.enum(CAMPAIGN_TYPES);
+const campaignTypeSchema = z.enum(Campaigns.TYPES);
 
 /** Where an audience is evaluated: a campaign type and, for operational, its event. */
 const audienceContextSchema = z
@@ -18,7 +17,7 @@ const audienceContextSchema = z
 
 export const audienceQuerySchema = z.object({
   context: audienceContextSchema,
-  rules: audienceRulesSchema,
+  rules: Campaigns.audienceRulesSchema,
 });
 export type AudienceQueryInput = z.input<typeof audienceQuerySchema>;
 

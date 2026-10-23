@@ -17,7 +17,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { FieldError } from '@/components/ui/field';
-import { joinTeamByCode } from '@/app/dashboard/events/team-actions';
+import { joinTeamByCode } from '../team-actions';
 import { TEAM_CODE_LENGTH } from '@/lib/team-code-constants';
 
 type Props = { eventId: string; defaultCode?: string };

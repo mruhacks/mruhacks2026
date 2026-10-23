@@ -11,7 +11,7 @@
 import { describe, test, expect, beforeAll, afterAll, vi } from 'vitest';
 import { db } from '@/utils/db';
 import { eq } from 'drizzle-orm';
-import { user, permission, userPermission } from '@/db/schema';
+import * as schema from '@/db/schema';
 
 vi.mock('server-only', () => ({}));
 vi.mock('@/utils/auth', () => ({ getUser: vi.fn() }));
@@ -51,29 +51,29 @@ const FORBIDDEN = (perm: string) => `REDIRECT:/forbidden?reason=missing_permissi
 
 beforeAll(async () => {
   const [noPerm] = await db
-    .insert(user)
+    .insert(schema.user)
     .values({
       name: 'No Perm',
       email: 'rpe-noperm@example.com',
       emailVerified: true,
     })
-    .returning({ id: user.id });
+    .returning({ id: schema.user.id });
   const [roUser] = await db
-    .insert(user)
+    .insert(schema.user)
     .values({
       name: 'Read Only Role User',
       email: 'rpe-ro-role@example.com',
       emailVerified: true,
     })
-    .returning({ id: user.id });
+    .returning({ id: schema.user.id });
   const [rpUser] = await db
-    .insert(user)
+    .insert(schema.user)
     .values({
       name: 'Read Only Perm User',
       email: 'rpe-ro-perm@example.com',
       emailVerified: true,
     })
-    .returning({ id: user.id });
+    .returning({ id: schema.user.id });
 
   noPermUserId = noPerm.id;
   readOnlyRoleUserId = roUser.id;
@@ -90,15 +90,15 @@ beforeAll(async () => {
 
   const ensurePerm = async (slug: string) => {
     const [created] = await db
-      .insert(permission)
+      .insert(schema.permission)
       .values({ slug })
       .onConflictDoNothing()
-      .returning({ id: permission.id });
+      .returning({ id: schema.permission.id });
     if (created) return created.id;
     const [existing] = await db
-      .select({ id: permission.id })
-      .from(permission)
-      .where(eq(permission.slug, slug))
+      .select({ id: schema.permission.id })
+      .from(schema.permission)
+      .where(eq(schema.permission.slug, slug))
       .limit(1);
     return existing!.id;
   };
@@ -107,22 +107,22 @@ beforeAll(async () => {
   const permReadId = await ensurePerm('permission:read:all');
 
   await db
-    .insert(userPermission)
+    .insert(schema.userPermission)
     .values({ userId: readOnlyRoleUserId, permissionId: roleReadId })
     .onConflictDoNothing();
   await db
-    .insert(userPermission)
+    .insert(schema.userPermission)
     .values({ userId: readOnlyPermUserId, permissionId: permReadId })
     .onConflictDoNothing();
 });
 
 afterAll(async () => {
   for (const uid of [noPermUserId, readOnlyRoleUserId, readOnlyPermUserId]) {
-    await db.delete(userPermission).where(eq(userPermission.userId, uid));
-    await db.delete(user).where(eq(user.id, uid));
+    await db.delete(schema.userPermission).where(eq(schema.userPermission.userId, uid));
+    await db.delete(schema.user).where(eq(schema.user.id, uid));
   }
-  await db.delete(permission).where(eq(permission.slug, 'role:read:all'));
-  await db.delete(permission).where(eq(permission.slug, 'permission:read:all'));
+  await db.delete(schema.permission).where(eq(schema.permission.slug, 'role:read:all'));
+  await db.delete(schema.permission).where(eq(schema.permission.slug, 'permission:read:all'));
 });
 
 // ─── listRoles — requires role:read:all ────────────────────────────────────────

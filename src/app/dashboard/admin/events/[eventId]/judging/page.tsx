@@ -7,7 +7,7 @@ import { getJudgingAdmin } from '@/app/dashboard/admin/events/judging-actions';
 import { Button } from '@/components/ui/button';
 import { getAdminEventHeader } from '@/lib/admin-event';
 import { resolveEventId } from '@/lib/events';
-import { hasPermission, requirePermission } from '@/lib/rbac/authorization';
+import * as Rbac from '@/lib/rbac/server';
 import { getUser } from '@/utils/auth';
 
 import { CriteriaCard } from './criteria-card';
@@ -36,14 +36,14 @@ async function JudgingContent({ paramsPromise }: { paramsPromise: Props['params'
   const user = await getUser();
   if (!user) redirect('/signin');
   // The same permission every action on this page checks.
-  await requirePermission(user.id, 'judging:manage:all');
+  await Rbac.requirePermission(user.id, 'judging:manage:all');
 
   const [event, result, canViewResults, canAward, canCreateSignInQr] = await Promise.all([
     getAdminEventHeader(eventId),
     getJudgingAdmin(eventId),
-    hasPermission(user.id, 'judging:results:all'),
-    hasPermission(user.id, 'judging:award:all'),
-    hasPermission(user.id, 'judging:signin:all'),
+    Rbac.hasPermission(user.id, 'judging:results:all'),
+    Rbac.hasPermission(user.id, 'judging:award:all'),
+    Rbac.hasPermission(user.id, 'judging:signin:all'),
   ]);
   if (!event) notFound();
   if (!result.success || !result.data) {

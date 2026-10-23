@@ -2,11 +2,11 @@ import 'server-only';
 
 import { desc, eq } from 'drizzle-orm';
 
-import { eventRsvpWaves, events } from '@/db/schema';
-import { RSVP_WAVE_ALREADY_ACTIVE_MESSAGE, RSVP_WAVE_EVENT_STARTED_MESSAGE } from '@/lib/rsvp/constants';
-import { isRsvpWaveActive } from '@/lib/rsvp/compute-rsvp-respond-by';
-import { sendRsvpWave } from '@/lib/rsvp/send-rsvp-wave';
-import { timeoutExpiredInvitations } from '@/lib/rsvp/timeout-expired-invitations';
+import * as schema from '@/db/schema';
+import { WAVE_ALREADY_ACTIVE_MESSAGE, WAVE_EVENT_STARTED_MESSAGE } from './constants';
+import { isRsvpWaveActive } from './compute-rsvp-respond-by';
+import { sendRsvpWave } from './send-rsvp-wave';
+import { timeoutExpiredInvitations } from './timeout-expired-invitations';
 import { db } from '@/utils/db';
 
 const NO_SPOTS_MESSAGE = 'No available spots remaining for this event.';
@@ -61,11 +61,11 @@ export async function runScheduledRsvpWaves(
 
   const candidateEvents = await db
     .select({
-      id: events.id,
-      name: events.name,
+      id: schema.events.id,
+      name: schema.events.name,
     })
-    .from(events)
-    .where(eq(events.hasApplication, true));
+    .from(schema.events)
+    .where(eq(schema.events.hasApplication, true));
 
   const results: ScheduledEventWaveResult[] = [];
   let wavesSent = 0;
@@ -93,12 +93,12 @@ async function processEventScheduledWave(
 ): Promise<ScheduledEventWaveResult> {
   const [latestWave] = await db
     .select({
-      wave: eventRsvpWaves.wave,
-      respondBy: eventRsvpWaves.respondBy,
+      wave: schema.eventRsvpWaves.wave,
+      respondBy: schema.eventRsvpWaves.respondBy,
     })
-    .from(eventRsvpWaves)
-    .where(eq(eventRsvpWaves.eventId, eventId))
-    .orderBy(desc(eventRsvpWaves.wave))
+    .from(schema.eventRsvpWaves)
+    .where(eq(schema.eventRsvpWaves.eventId, eventId))
+    .orderBy(desc(schema.eventRsvpWaves.wave))
     .limit(1);
 
   if (!latestWave) {
@@ -137,7 +137,7 @@ async function processEventScheduledWave(
 }
 
 function mapSendFailure(eventId: string, eventName: string, error: string): ScheduledEventWaveResult {
-  if (error === RSVP_WAVE_ALREADY_ACTIVE_MESSAGE) {
+  if (error === WAVE_ALREADY_ACTIVE_MESSAGE) {
     return {
       eventId,
       eventName,
@@ -145,7 +145,7 @@ function mapSendFailure(eventId: string, eventName: string, error: string): Sche
       detail: error,
     };
   }
-  if (error === RSVP_WAVE_EVENT_STARTED_MESSAGE) {
+  if (error === WAVE_EVENT_STARTED_MESSAGE) {
     return {
       eventId,
       eventName,

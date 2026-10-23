@@ -1,5 +1,5 @@
 import { listPermissions, listRoles } from '@/app/actions/roles';
-import { hasPermission } from '@/lib/rbac/authorization';
+import * as Rbac from '@/lib/rbac/server';
 
 /**
  * The roles and permissions the edit-user form offers as checkboxes. Each
@@ -12,8 +12,8 @@ export async function loadAssignableGrants(callerId: string): Promise<{
   allPermissions: { id: number; slug: string; description: string | null }[] | null;
 }> {
   const [canReadRoles, canReadPermissions] = await Promise.all([
-    hasPermission(callerId, 'role:read:all'),
-    hasPermission(callerId, 'permission:read:all'),
+    Rbac.hasPermission(callerId, 'role:read:all'),
+    Rbac.hasPermission(callerId, 'permission:read:all'),
   ]);
   const [rolesRes, permsRes] = await Promise.all([
     canReadRoles ? listRoles() : null,

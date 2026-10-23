@@ -1,9 +1,9 @@
 import { cacheTag, cacheLife } from 'next/cache';
 import { desc, eq, isNull, sql } from 'drizzle-orm';
 import { db } from '@/utils/db';
-import { events, eventParticipants } from '@/db/schema';
+import * as schema from '@/db/schema';
 import { isEventUuid } from '@/lib/event-slug';
-import { statusIdOf } from '@/lib/participation/server';
+import * as Participation from '@/lib/participation/server';
 
 /** Invalidated by updateTag() whenever an event is created or its settings change. */
 export const EVENTS_CACHE_TAG = 'events';
@@ -29,16 +29,16 @@ export async function getAllEvents() {
 
   return db
     .select({
-      id: events.id,
-      slug: events.slug,
-      name: events.name,
-      hasApplication: events.hasApplication,
-      startsAt: events.startsAt,
-      endsAt: events.endsAt,
+      id: schema.events.id,
+      slug: schema.events.slug,
+      name: schema.events.name,
+      hasApplication: schema.events.hasApplication,
+      startsAt: schema.events.startsAt,
+      endsAt: schema.events.endsAt,
     })
-    .from(events)
-    .where(isNull(events.parentEventId))
-    .orderBy(desc(events.createdAt));
+    .from(schema.events)
+    .where(isNull(schema.events.parentEventId))
+    .orderBy(desc(schema.events.createdAt));
 }
 
 /**
@@ -65,7 +65,11 @@ async function getEventIdBySlug(slug: string): Promise<string | null> {
   // move a slug; 'minutes' is the same safety net the listing above uses.
   cacheLife('minutes');
 
-  const [row] = await db.select({ id: events.id }).from(events).where(eq(events.slug, slug)).limit(1);
+  const [row] = await db
+    .select({ id: schema.events.id })
+    .from(schema.events)
+    .where(eq(schema.events.slug, slug))
+    .limit(1);
 
   return row?.id ?? null;
 }
@@ -77,7 +81,11 @@ async function getEventIdBySlug(slug: string): Promise<string | null> {
  * entry from the same page under the uuid.
  */
 export async function eventUrlSegments(eventId: string): Promise<string[]> {
-  const [row] = await db.select({ slug: events.slug }).from(events).where(eq(events.id, eventId)).limit(1);
+  const [row] = await db
+    .select({ slug: schema.events.slug })
+    .from(schema.events)
+    .where(eq(schema.events.id, eventId))
+    .limit(1);
 
   return row?.slug ? [eventId, row.slug] : [eventId];
 }
@@ -114,14 +122,15 @@ export async function getEventParticipationCounts(): Promise<Record<string, Even
 
   const rows = await db
     .select({
-      eventId: eventParticipants.eventId,
+      eventId: schema.eventParticipants.eventId,
       applications: sql<number>`COUNT(*)`.mapWith(Number),
-      attendees: sql<number>`COUNT(*) FILTER (WHERE ${eventParticipants.statusId} = ${statusIdOf('accepted')})`.mapWith(
-        Number,
-      ),
+      attendees:
+        sql<number>`COUNT(*) FILTER (WHERE ${schema.eventParticipants.statusId} = ${Participation.statusIdOf('accepted')})`.mapWith(
+          Number,
+        ),
     })
-    .from(eventParticipants)
-    .groupBy(eventParticipants.eventId);
+    .from(schema.eventParticipants)
+    .groupBy(schema.eventParticipants.eventId);
 
   return Object.fromEntries(
     rows.map((row) => [row.eventId, { applications: row.applications, attendees: row.attendees }]),

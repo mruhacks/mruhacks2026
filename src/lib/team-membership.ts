@@ -2,7 +2,7 @@ import 'server-only';
 
 import { and, eq } from 'drizzle-orm';
 
-import { teamMembers, teams } from '@/db/schema';
+import * as schema from '@/db/schema';
 import { generateTeamCode } from '@/lib/team-code';
 import { db } from '@/utils/db';
 
@@ -16,17 +16,17 @@ export async function getOrCreatePersonalTeam(
   dbHandle: Queryable = db,
 ): Promise<{ teamId: string }> {
   const [existing] = await dbHandle
-    .select({ teamId: teamMembers.teamId })
-    .from(teamMembers)
-    .where(and(eq(teamMembers.userId, userId), eq(teamMembers.eventId, eventId)))
+    .select({ teamId: schema.teamMembers.teamId })
+    .from(schema.teamMembers)
+    .where(and(eq(schema.teamMembers.userId, userId), eq(schema.teamMembers.eventId, eventId)))
     .limit(1);
   if (existing) return { teamId: existing.teamId };
 
   const code = await generateTeamCode(eventId, dbHandle);
   const [newTeam] = await dbHandle
-    .insert(teams)
+    .insert(schema.teams)
     .values({ eventId, organizerId: userId, code })
-    .returning({ id: teams.id });
-  await dbHandle.insert(teamMembers).values({ teamId: newTeam!.id, userId, eventId });
+    .returning({ id: schema.teams.id });
+  await dbHandle.insert(schema.teamMembers).values({ teamId: newTeam!.id, userId, eventId });
   return { teamId: newTeam!.id };
 }

@@ -2,8 +2,8 @@ import { Suspense } from 'react';
 import Link from 'next/link';
 import { ExternalLink } from 'lucide-react';
 
-import { getDisplaySettings } from '@/lib/display/feed';
-import { requireAuthWithPermission } from '@/lib/rbac/guards';
+import * as Display from '@/lib/display/server';
+import * as Rbac from '@/lib/rbac/server';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DisplaySettingsCard } from './display-settings-card';
@@ -33,6 +33,6 @@ export default function DisplaysPage() {
 }
 
 async function DisplaysContent() {
-  await requireAuthWithPermission('display:manage:all');
-  return <DisplaySettingsCard initial={await getDisplaySettings()} />;
+  await Rbac.requireAuthWithPermission('display:manage:all');
+  return <DisplaySettingsCard initial={await Display.getDisplaySettings()} />;
 }

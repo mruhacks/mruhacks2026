@@ -2,15 +2,14 @@ import 'server-only';
 
 import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 
-import { applicationVotes, eventParticipants, events, participationStatuses, teamMembers, user } from '@/db/schema';
+import * as schema from '@/db/schema';
 import {
   orderWaitlist,
   planReviewTransitions,
   type VoteTally,
   type WaitlistCandidate,
 } from '@/lib/application-vote-ranking';
-import { hasStatus, statusIdOf } from '@/lib/participation/server';
-import { resolveStoredStatus } from '@/lib/participation/status';
+import * as Participation from '@/lib/participation/server';
 import { db } from '@/utils/db';
 
 /**
@@ -45,34 +44,37 @@ async function loadTallyInputs(
   const [participants, voteRows] = await Promise.all([
     executor
       .select({
-        participantId: eventParticipants.id,
-        teamId: teamMembers.teamId,
-        statusLabel: participationStatuses.label,
+        participantId: schema.eventParticipants.id,
+        teamId: schema.teamMembers.teamId,
+        statusLabel: schema.participationStatuses.label,
       })
-      .from(eventParticipants)
-      .innerJoin(participationStatuses, eq(eventParticipants.statusId, participationStatuses.id))
+      .from(schema.eventParticipants)
+      .innerJoin(schema.participationStatuses, eq(schema.eventParticipants.statusId, schema.participationStatuses.id))
       .leftJoin(
-        teamMembers,
-        and(eq(teamMembers.eventId, eventParticipants.eventId), eq(teamMembers.userId, eventParticipants.userId)),
+        schema.teamMembers,
+        and(
+          eq(schema.teamMembers.eventId, schema.eventParticipants.eventId),
+          eq(schema.teamMembers.userId, schema.eventParticipants.userId),
+        ),
       )
-      .where(eq(eventParticipants.eventId, eventId))
-      .orderBy(asc(eventParticipants.createdAt), asc(eventParticipants.id)),
+      .where(eq(schema.eventParticipants.eventId, eventId))
+      .orderBy(asc(schema.eventParticipants.createdAt), asc(schema.eventParticipants.id)),
     executor
       .select({
-        participantId: applicationVotes.participantId,
-        yes: sql<number>`count(*) FILTER (WHERE ${applicationVotes.approve})`.mapWith(Number),
-        no: sql<number>`count(*) FILTER (WHERE NOT ${applicationVotes.approve})`.mapWith(Number),
+        participantId: schema.applicationVotes.participantId,
+        yes: sql<number>`count(*) FILTER (WHERE ${schema.applicationVotes.approve})`.mapWith(Number),
+        no: sql<number>`count(*) FILTER (WHERE NOT ${schema.applicationVotes.approve})`.mapWith(Number),
       })
-      .from(applicationVotes)
-      .where(eq(applicationVotes.eventId, eventId))
-      .groupBy(applicationVotes.participantId),
+      .from(schema.applicationVotes)
+      .where(eq(schema.applicationVotes.eventId, eventId))
+      .groupBy(schema.applicationVotes.participantId),
   ]);
 
   return {
     participants: participants.map((p) => ({
       participantId: p.participantId,
       teamId: p.teamId,
-      status: resolveStoredStatus(p.statusLabel),
+      status: Participation.resolveStoredStatus(p.statusLabel),
     })),
     tallies: new Map(voteRows.map((row) => [row.participantId, { yes: row.yes, no: row.no }])),
   };
@@ -89,15 +91,15 @@ export async function getWaitlist(eventId: string): Promise<WaitlistEntry[]> {
     getWaitlistOrder(eventId),
     db
       .select({
-        participantId: eventParticipants.id,
-        userId: eventParticipants.userId,
-        name: user.name,
-        email: user.email,
-        appliedAt: eventParticipants.createdAt,
+        participantId: schema.eventParticipants.id,
+        userId: schema.eventParticipants.userId,
+        name: schema.user.name,
+        email: schema.user.email,
+        appliedAt: schema.eventParticipants.createdAt,
       })
-      .from(eventParticipants)
-      .innerJoin(user, eq(eventParticipants.userId, user.id))
-      .where(and(eq(eventParticipants.eventId, eventId), hasStatus('waitlisted'))),
+      .from(schema.eventParticipants)
+      .innerJoin(schema.user, eq(schema.eventParticipants.userId, schema.user.id))
+      .where(and(eq(schema.eventParticipants.eventId, eventId), Participation.hasStatus('waitlisted'))),
   ]);
 
   const byId = new Map(rows.map((row) => [row.participantId, row]));
@@ -139,15 +141,15 @@ export async function syncWaitlist(
   };
   if (promote.length > 0) {
     await tx
-      .update(eventParticipants)
-      .set({ statusId: statusIdOf('waitlisted'), ...reviewed })
-      .where(and(inArray(eventParticipants.id, promote), hasStatus('pending_review')));
+      .update(schema.eventParticipants)
+      .set({ statusId: Participation.statusIdOf('waitlisted'), ...reviewed })
+      .where(and(inArray(schema.eventParticipants.id, promote), Participation.hasStatus('pending_review')));
   }
   if (demote.length > 0) {
     await tx
-      .update(eventParticipants)
-      .set({ statusId: statusIdOf('pending_review'), ...reviewed })
-      .where(and(inArray(eventParticipants.id, demote), hasStatus('waitlisted')));
+      .update(schema.eventParticipants)
+      .set({ statusId: Participation.statusIdOf('pending_review'), ...reviewed })
+      .where(and(inArray(schema.eventParticipants.id, demote), Participation.hasStatus('waitlisted')));
   }
 
   return { promoted: promote, demoted: demote };
@@ -163,7 +165,7 @@ export async function syncWaitlistForEvent(
   actorId: string | null = null,
 ): Promise<WaitlistSyncResult> {
   return db.transaction(async (tx) => {
-    await tx.select({ id: events.id }).from(events).where(eq(events.id, eventId)).for('update');
+    await tx.select({ id: schema.events.id }).from(schema.events).where(eq(schema.events.id, eventId)).for('update');
     return syncWaitlist(tx, eventId, { actorId });
   });
 }

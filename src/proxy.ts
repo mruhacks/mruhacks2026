@@ -23,9 +23,9 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { headers } from 'next/headers';
-import { auth } from './utils/auth';
-import { userNeedsConsent } from './utils/consent-check';
-import { EMAIL_LINK_CONFIRM_PATH, EMAIL_LINK_KIND_PARAM, toSameOriginPath } from './lib/auth/email-link-confirm-url';
+import { auth } from '@/utils/auth';
+import { userNeedsConsent } from '@/utils/consent-check';
+import * as Auth from '@/lib/auth';
 
 function isSignInPage(pathname: string): boolean {
   return pathname === '/signin' || pathname.startsWith('/signin/') || pathname === '/signup';
@@ -33,13 +33,13 @@ function isSignInPage(pathname: string): boolean {
 
 /** Where a signed-in user on a sign-in page goes instead, or null to stay. */
 function signedInTarget(url: NextRequest['nextUrl']): string | null {
-  if (url.pathname !== EMAIL_LINK_CONFIRM_PATH) return '/dashboard';
+  if (url.pathname !== Auth.EMAIL_LINK_CONFIRM_PATH) return '/dashboard';
   // Verifying an email is still needed while signed in.
-  if (url.searchParams.get(EMAIL_LINK_KIND_PARAM) === 'verify-email') {
+  if (url.searchParams.get(Auth.EMAIL_LINK_KIND_PARAM) === 'verify-email') {
     return null;
   }
   // An RSVP or judge link should still land on its event, not the dashboard.
-  return toSameOriginPath(url.searchParams.get('callbackURL')) ?? '/dashboard';
+  return Auth.toSameOriginPath(url.searchParams.get('callbackURL')) ?? '/dashboard';
 }
 
 export async function proxy(request: NextRequest) {

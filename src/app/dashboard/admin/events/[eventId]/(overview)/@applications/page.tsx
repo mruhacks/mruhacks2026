@@ -1,15 +1,15 @@
 import * as React from 'react';
-import { STATIC_STATUS_DISPLAY } from '@/lib/participation/status';
+import * as Participation from '@/lib/participation';
 import type { ParticipationStatus } from '@/types/lookups';
 import { redirect } from 'next/navigation';
 
 import { getApplicationsOverTime, getEventApplicationStats } from '@/lib/admin-event';
 import { resolveEventId } from '@/lib/events';
-import { hasPermission } from '@/lib/rbac/authorization';
+import * as Rbac from '@/lib/rbac/server';
 import { getUser } from '@/utils/auth';
 
-import { ApplicationsOverTimeChart } from '../../_components/applications-over-time-chart';
-import { BentoCard, BentoCardSkeleton } from '../../_components/bento-card';
+import { ApplicationsOverTimeChart } from '@/app/dashboard/admin/events/[eventId]/_components/applications-over-time-chart';
+import { BentoCard, BentoCardSkeleton } from '@/app/dashboard/admin/events/[eventId]/_components/bento-card';
 
 type Props = { params: Promise<{ eventId: string }> };
 
@@ -45,7 +45,7 @@ async function ApplicationsSection({ paramsPromise }: { paramsPromise: Promise<{
 
   // Cohort numbers only — gated on the stats permission, which deliberately
   // does not grant access to any individual's answers.
-  if (!(await hasPermission(user.id, 'application:stats'))) return null;
+  if (!(await Rbac.hasPermission(user.id, 'application:stats'))) return null;
 
   const [stats, overTime] = await Promise.all([getEventApplicationStats(eventId), getApplicationsOverTime(eventId)]);
 
@@ -73,7 +73,7 @@ async function ApplicationsSection({ paramsPromise }: { paramsPromise: Promise<{
         {STATUS_ROWS.map((row) => (
           <li key={row.key} className='bg-muted/50 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs'>
             <span aria-hidden className={`size-1.5 shrink-0 rounded-full ${row.dot}`} />
-            <span className='text-muted-foreground'>{STATIC_STATUS_DISPLAY[row.key].title}</span>
+            <span className='text-muted-foreground'>{Participation.STATIC_STATUS_DISPLAY[row.key].title}</span>
             <span className='font-semibold tabular-nums'>{(countByKey.get(row.key) ?? 0).toLocaleString()}</span>
           </li>
         ))}

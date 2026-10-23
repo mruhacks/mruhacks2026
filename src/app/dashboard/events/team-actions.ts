@@ -17,26 +17,16 @@ import { eventApplicationsCacheTag } from '@/lib/admin-event';
 import { db } from '@/utils/db';
 import { getUser } from '@/utils/auth';
 import { ActionResult, fail, ok } from '@/utils/action-result';
-import { hasPermission } from '@/lib/rbac/authorization';
+import * as Rbac from '@/lib/rbac/server';
 import { hasEventElapsed } from '@/lib/events';
-import { canFormTeam, resolveEffectiveStatus } from '@/lib/participation/status';
+import * as Participation from '@/lib/participation';
 import { writeAuditLog } from '@/utils/audit-log';
 import { generateTeamCode } from '@/lib/team-code';
 import { isPastSubmissionDeadline } from '@/lib/submissions';
 import { getOrCreatePersonalTeam, type Queryable } from '@/lib/team-membership';
-import { syncWaitlistForEvent } from '@/lib/rsvp/waitlist';
+import * as Rsvp from '@/lib/rsvp/server';
 import { joinTeamSchema } from './team-schemas';
-import {
-  events,
-  eventParticipants,
-  eventInvitations,
-  eventRsvpWaves,
-  participationStatuses,
-  submissions,
-  teams,
-  teamMembers,
-  user as authUser,
-} from '@/db/schema';
+import * as schema from '@/db/schema';
 
 // ── Internal helpers ────────────────────────────────────────────────────
 
@@ -48,13 +38,13 @@ async function getEventTeamSettings(eventId: string): Promise<{
 } | null> {
   const [row] = await db
     .select({
-      teamsEnabled: events.teamsEnabled,
-      maxTeamSize: events.maxTeamSize,
-      endsAt: events.endsAt,
-      submissionsCloseAt: events.submissionsCloseAt,
+      teamsEnabled: schema.events.teamsEnabled,
+      maxTeamSize: schema.events.maxTeamSize,
+      endsAt: schema.events.endsAt,
+      submissionsCloseAt: schema.events.submissionsCloseAt,
     })
-    .from(events)
-    .where(eq(events.id, eventId))
+    .from(schema.events)
+    .where(eq(schema.events.id, eventId))
     .limit(1);
   return row ?? null;
 }
@@ -68,16 +58,16 @@ async function getEventTeamSettings(eventId: string): Promise<{
 async function isEventParticipant(userId: string, eventId: string): Promise<boolean> {
   const [row] = await db
     .select({
-      statusLabel: participationStatuses.label,
-      respondBy: eventRsvpWaves.respondBy,
+      statusLabel: schema.participationStatuses.label,
+      respondBy: schema.eventRsvpWaves.respondBy,
     })
-    .from(eventParticipants)
-    .innerJoin(participationStatuses, eq(eventParticipants.statusId, participationStatuses.id))
-    .leftJoin(eventInvitations, eq(eventInvitations.participantId, eventParticipants.id))
-    .leftJoin(eventRsvpWaves, eq(eventInvitations.rsvpWaveId, eventRsvpWaves.id))
-    .where(and(eq(eventParticipants.eventId, eventId), eq(eventParticipants.userId, userId)))
+    .from(schema.eventParticipants)
+    .innerJoin(schema.participationStatuses, eq(schema.eventParticipants.statusId, schema.participationStatuses.id))
+    .leftJoin(schema.eventInvitations, eq(schema.eventInvitations.participantId, schema.eventParticipants.id))
+    .leftJoin(schema.eventRsvpWaves, eq(schema.eventInvitations.rsvpWaveId, schema.eventRsvpWaves.id))
+    .where(and(eq(schema.eventParticipants.eventId, eventId), eq(schema.eventParticipants.userId, userId)))
     .limit(1);
-  return row != null && canFormTeam(resolveEffectiveStatus(row.statusLabel, row.respondBy));
+  return row != null && Participation.canFormTeam(Participation.resolveEffectiveStatus(row.statusLabel, row.respondBy));
 }
 
 /**
@@ -94,9 +84,9 @@ async function ensurePersonalTeam(userId: string, eventId: string): Promise<{ te
     return await db.transaction((tx) => getOrCreatePersonalTeam(userId, eventId, tx));
   } catch (error) {
     const [existing] = await db
-      .select({ teamId: teamMembers.teamId })
-      .from(teamMembers)
-      .where(and(eq(teamMembers.userId, userId), eq(teamMembers.eventId, eventId)))
+      .select({ teamId: schema.teamMembers.teamId })
+      .from(schema.teamMembers)
+      .where(and(eq(schema.teamMembers.userId, userId), eq(schema.teamMembers.eventId, eventId)))
       .limit(1);
     if (existing) return { teamId: existing.teamId };
 
@@ -117,24 +107,27 @@ async function ensurePersonalTeam(userId: string, eventId: string): Promise<{ te
  */
 async function cleanUpOldTeam(dbHandle: Queryable, oldTeamId: string, departingUserId: string): Promise<void> {
   const remaining = await dbHandle
-    .select({ userId: teamMembers.userId })
-    .from(teamMembers)
-    .where(eq(teamMembers.teamId, oldTeamId))
-    .orderBy(asc(teamMembers.joinedAt));
+    .select({ userId: schema.teamMembers.userId })
+    .from(schema.teamMembers)
+    .where(eq(schema.teamMembers.teamId, oldTeamId))
+    .orderBy(asc(schema.teamMembers.joinedAt));
 
   if (remaining.length === 0) {
-    await dbHandle.delete(teams).where(eq(teams.id, oldTeamId));
+    await dbHandle.delete(schema.teams).where(eq(schema.teams.id, oldTeamId));
     return;
   }
 
   const [oldTeamRow] = await dbHandle
-    .select({ organizerId: teams.organizerId })
-    .from(teams)
-    .where(eq(teams.id, oldTeamId))
+    .select({ organizerId: schema.teams.organizerId })
+    .from(schema.teams)
+    .where(eq(schema.teams.id, oldTeamId))
     .limit(1);
 
   if (oldTeamRow?.organizerId === departingUserId) {
-    await dbHandle.update(teams).set({ organizerId: remaining[0]!.userId }).where(eq(teams.id, oldTeamId));
+    await dbHandle
+      .update(schema.teams)
+      .set({ organizerId: remaining[0]!.userId })
+      .where(eq(schema.teams.id, oldTeamId));
   }
 }
 
@@ -146,7 +139,7 @@ async function cleanUpOldTeam(dbHandle: Queryable, oldTeamId: string, departingU
  */
 async function resyncWaitlist(eventId: string): Promise<void> {
   try {
-    await syncWaitlistForEvent(eventId);
+    await Rsvp.syncWaitlistForEvent(eventId);
   } catch (error) {
     console.error('[events/teams] Waitlist sync after team change failed:', error);
   }
@@ -197,24 +190,24 @@ export async function getMyTeam(eventId: string): Promise<ActionResult<TeamView>
 
   try {
     const [teamRow] = await db
-      .select({ code: teams.code, organizerId: teams.organizerId })
-      .from(teams)
-      .where(eq(teams.id, teamId))
+      .select({ code: schema.teams.code, organizerId: schema.teams.organizerId })
+      .from(schema.teams)
+      .where(eq(schema.teams.id, teamId))
       .limit(1);
     if (!teamRow) return fail('Team not found.');
 
     const memberRows = await db
       .select({
-        userId: teamMembers.userId,
-        name: authUser.name,
-        email: authUser.email,
-        image: authUser.image,
-        joinedAt: teamMembers.joinedAt,
+        userId: schema.teamMembers.userId,
+        name: schema.user.name,
+        email: schema.user.email,
+        image: schema.user.image,
+        joinedAt: schema.teamMembers.joinedAt,
       })
-      .from(teamMembers)
-      .innerJoin(authUser, eq(teamMembers.userId, authUser.id))
-      .where(eq(teamMembers.teamId, teamId))
-      .orderBy(asc(teamMembers.joinedAt));
+      .from(schema.teamMembers)
+      .innerJoin(schema.user, eq(schema.teamMembers.userId, schema.user.id))
+      .where(eq(schema.teamMembers.teamId, teamId))
+      .orderBy(asc(schema.teamMembers.joinedAt));
 
     return ok({
       teamId,
@@ -263,9 +256,9 @@ export async function joinTeamByCode(eventId: string, code: string): Promise<Act
       // read-then-write, and without this two simultaneous joins both read
       // the pre-join count and both pass, overflowing maxTeamSize.
       const [targetTeam] = await tx
-        .select({ id: teams.id })
-        .from(teams)
-        .where(and(eq(teams.eventId, eventId), eq(teams.code, parsed.data.code)))
+        .select({ id: schema.teams.id })
+        .from(schema.teams)
+        .where(and(eq(schema.teams.eventId, eventId), eq(schema.teams.code, parsed.data.code)))
         .limit(1)
         .for('update');
       if (!targetTeam) return fail('Invalid team code.');
@@ -283,13 +276,13 @@ export async function joinTeamByCode(eventId: string, code: string): Promise<Act
       // silently drop.
       const [{ total: currentCount }] = await tx
         .select({ total: count() })
-        .from(teamMembers)
-        .where(eq(teamMembers.teamId, currentTeamId));
+        .from(schema.teamMembers)
+        .where(eq(schema.teamMembers.teamId, currentTeamId));
       if (currentCount <= 1) {
         const [ownSubmission] = await tx
-          .select({ id: submissions.id })
-          .from(submissions)
-          .where(eq(submissions.teamId, currentTeamId))
+          .select({ id: schema.submissions.id })
+          .from(schema.submissions)
+          .where(eq(schema.submissions.teamId, currentTeamId))
           .limit(1);
         if (ownSubmission) {
           return fail('Your team has a project. Delete it before joining another team.');
@@ -298,15 +291,17 @@ export async function joinTeamByCode(eventId: string, code: string): Promise<Act
 
       const [{ total: targetCount }] = await tx
         .select({ total: count() })
-        .from(teamMembers)
-        .where(eq(teamMembers.teamId, targetTeam.id));
+        .from(schema.teamMembers)
+        .where(eq(schema.teamMembers.teamId, targetTeam.id));
 
       if (settings.maxTeamSize != null && targetCount >= settings.maxTeamSize) {
         return fail('This team is full.');
       }
 
-      await tx.delete(teamMembers).where(and(eq(teamMembers.userId, currentUser.id), eq(teamMembers.eventId, eventId)));
-      await tx.insert(teamMembers).values({ teamId: targetTeam.id, userId: currentUser.id, eventId });
+      await tx
+        .delete(schema.teamMembers)
+        .where(and(eq(schema.teamMembers.userId, currentUser.id), eq(schema.teamMembers.eventId, eventId)));
+      await tx.insert(schema.teamMembers).values({ teamId: targetTeam.id, userId: currentUser.id, eventId });
 
       await cleanUpOldTeam(tx, currentTeamId, currentUser.id);
 
@@ -350,21 +345,23 @@ export async function leaveTeam(eventId: string): Promise<ActionResult> {
 
       const [{ total: memberCount }] = await tx
         .select({ total: count() })
-        .from(teamMembers)
-        .where(eq(teamMembers.teamId, currentTeamId));
+        .from(schema.teamMembers)
+        .where(eq(schema.teamMembers.teamId, currentTeamId));
 
       if (memberCount <= 1) {
         return ok('You are already on your own team.');
       }
 
-      await tx.delete(teamMembers).where(and(eq(teamMembers.userId, currentUser.id), eq(teamMembers.eventId, eventId)));
+      await tx
+        .delete(schema.teamMembers)
+        .where(and(eq(schema.teamMembers.userId, currentUser.id), eq(schema.teamMembers.eventId, eventId)));
 
       const newCode = await generateTeamCode(eventId, tx);
       const [newTeam] = await tx
-        .insert(teams)
+        .insert(schema.teams)
         .values({ eventId, organizerId: currentUser.id, code: newCode })
-        .returning({ id: teams.id });
-      await tx.insert(teamMembers).values({ teamId: newTeam!.id, userId: currentUser.id, eventId });
+        .returning({ id: schema.teams.id });
+      await tx.insert(schema.teamMembers).values({ teamId: newTeam!.id, userId: currentUser.id, eventId });
 
       await cleanUpOldTeam(tx, currentTeamId, currentUser.id);
 
@@ -404,18 +401,18 @@ export async function removeMember(eventId: string, targetUserId: string): Promi
   }
 
   const [targetMembership] = await db
-    .select({ teamId: teamMembers.teamId })
-    .from(teamMembers)
-    .where(and(eq(teamMembers.userId, targetUserId), eq(teamMembers.eventId, eventId)))
+    .select({ teamId: schema.teamMembers.teamId })
+    .from(schema.teamMembers)
+    .where(and(eq(schema.teamMembers.userId, targetUserId), eq(schema.teamMembers.eventId, eventId)))
     .limit(1);
   if (!targetMembership) {
     return fail('That user is not part of a team for this event.');
   }
 
   const [targetTeam] = await db
-    .select({ organizerId: teams.organizerId })
-    .from(teams)
-    .where(eq(teams.id, targetMembership.teamId))
+    .select({ organizerId: schema.teams.organizerId })
+    .from(schema.teams)
+    .where(eq(schema.teams.id, targetMembership.teamId))
     .limit(1);
   if (!targetTeam) return fail('Team not found.');
 
@@ -434,7 +431,7 @@ export async function removeMember(eventId: string, targetUserId: string): Promi
   const rosterLocked = isPastSubmissionDeadline(settings.submissionsCloseAt);
   let isAdminOverride = false;
   if (!isSelfServiceOrganizer || rosterLocked) {
-    isAdminOverride = await hasPermission(currentUser.id, 'team:manage:all');
+    isAdminOverride = await Rbac.hasPermission(currentUser.id, 'team:manage:all');
     if (!isAdminOverride) {
       return fail(
         rosterLocked && isSelfServiceOrganizer ? ROSTER_LOCKED_MESSAGE : 'Not authorized to remove this member.',
@@ -448,27 +445,29 @@ export async function removeMember(eventId: string, targetUserId: string): Promi
       // member out dissolves it — which a team holding a project can't be.
       const [{ total: targetTeamCount }] = await tx
         .select({ total: count() })
-        .from(teamMembers)
-        .where(eq(teamMembers.teamId, targetMembership.teamId));
+        .from(schema.teamMembers)
+        .where(eq(schema.teamMembers.teamId, targetMembership.teamId));
       if (targetTeamCount <= 1) {
         const [teamSubmission] = await tx
-          .select({ id: submissions.id })
-          .from(submissions)
-          .where(eq(submissions.teamId, targetMembership.teamId))
+          .select({ id: schema.submissions.id })
+          .from(schema.submissions)
+          .where(eq(schema.submissions.teamId, targetMembership.teamId))
           .limit(1);
         if (teamSubmission) {
           return fail('That user is on their own team, which has a project. Delete the project instead.');
         }
       }
 
-      await tx.delete(teamMembers).where(and(eq(teamMembers.userId, targetUserId), eq(teamMembers.eventId, eventId)));
+      await tx
+        .delete(schema.teamMembers)
+        .where(and(eq(schema.teamMembers.userId, targetUserId), eq(schema.teamMembers.eventId, eventId)));
 
       const newCode = await generateTeamCode(eventId, tx);
       const [newTeam] = await tx
-        .insert(teams)
+        .insert(schema.teams)
         .values({ eventId, organizerId: targetUserId, code: newCode })
-        .returning({ id: teams.id });
-      await tx.insert(teamMembers).values({ teamId: newTeam!.id, userId: targetUserId, eventId });
+        .returning({ id: schema.teams.id });
+      await tx.insert(schema.teamMembers).values({ teamId: newTeam!.id, userId: targetUserId, eventId });
 
       await cleanUpOldTeam(tx, targetMembership.teamId, targetUserId);
 

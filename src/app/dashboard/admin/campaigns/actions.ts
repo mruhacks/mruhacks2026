@@ -15,22 +15,10 @@ import { and, eq, isNull } from 'drizzle-orm';
 import { updateTag } from 'next/cache';
 import { z } from 'zod';
 
-import { campaigns, events } from '@/db/schema';
+import * as schema from '@/db/schema';
 import { ADMIN_COUNTS_CACHE_TAG } from '@/lib/admin-counts';
-import { countAudience, sampleAudience, type AudienceContext, type AudienceMember } from '@/lib/campaigns/audience';
-import { audienceRulesSchema, emptyAudience, type AudienceRuleGroup } from '@/lib/campaigns/audience-rules';
-import {
-  CAMPAIGN_IMAGE_INPUT_TYPES,
-  MAX_CAMPAIGN_IMAGE_BYTES,
-  optimizeCampaignImage,
-} from '@/lib/campaigns/campaign-images';
-import { firstNameOf } from '@/lib/campaigns/merge-fields';
-import { campaignContentErrors } from '@/lib/campaigns/content-checks';
-import { hasWalletBlock } from '@/lib/campaigns/email-markdown';
-import { getAppBaseUrl, renderCampaignEmail } from '@/lib/campaigns/render-campaign-email';
-import { walletBlockRenderers, walletLinksFor } from '@/lib/campaigns/wallet-block';
-import { buildCampaignMessage } from '@/lib/campaigns/unsubscribe';
-import { hasPermission, requirePermission, requireAnyPermission } from '@/lib/rbac/authorization';
+import * as Campaigns from '@/lib/campaigns/server';
+import * as Rbac from '@/lib/rbac/server';
 import { fail, ok, type ActionResult } from '@/utils/action-result';
 import { writeAuditLog } from '@/utils/audit-log';
 import { getUser } from '@/utils/auth';
@@ -55,9 +43,9 @@ function firstIssue(error: { issues: { message: string }[] }): string {
 /** Operational email must be about a top-level event that exists. */
 async function checkCampaignEvent(eventId: string): Promise<string | null> {
   const [row] = await db
-    .select({ id: events.id })
-    .from(events)
-    .where(and(eq(events.id, eventId), isNull(events.parentEventId)))
+    .select({ id: schema.events.id })
+    .from(schema.events)
+    .where(and(eq(schema.events.id, eventId), isNull(schema.events.parentEventId)))
     .limit(1);
   return row ? null : 'Choose an event (not a sub-event) for this campaign.';
 }
@@ -67,7 +55,7 @@ async function checkCampaignEvent(eventId: string): Promise<string | null> {
 export async function createCampaign(input: CreateCampaignInput): Promise<ActionResult<{ id: string }>> {
   const user = await getUser();
   if (!user) return fail('Not authenticated');
-  await requirePermission(user.id, 'campaign:write:all');
+  await Rbac.requirePermission(user.id, 'campaign:write:all');
 
   const parsed = createCampaignSchema.safeParse(input);
   if (!parsed.success) return fail(firstIssue(parsed.error));
@@ -75,7 +63,7 @@ export async function createCampaign(input: CreateCampaignInput): Promise<Action
   const eventId = parsed.data.eventId;
 
   if (type === 'operational') {
-    await requirePermission(user.id, 'campaign:operational:all');
+    await Rbac.requirePermission(user.id, 'campaign:operational:all');
   }
   if (eventId) {
     const eventError = await checkCampaignEvent(eventId);
@@ -84,16 +72,16 @@ export async function createCampaign(input: CreateCampaignInput): Promise<Action
 
   try {
     const [row] = await db
-      .insert(campaigns)
+      .insert(schema.campaigns)
       .values({
         name,
         type,
         eventId,
-        audienceRules: emptyAudience(),
+        audienceRules: Campaigns.emptyAudience(),
         createdBy: user.id,
         updatedBy: user.id,
       })
-      .returning({ id: campaigns.id });
+      .returning({ id: schema.campaigns.id });
     updateTag(ADMIN_COUNTS_CACHE_TAG);
     await writeAuditLog({
       actorId: user.id,
@@ -114,11 +102,11 @@ export async function createCampaign(input: CreateCampaignInput): Promise<Action
  */
 async function loadEditableCampaign(
   campaignId: string,
-): Promise<{ ok: true; campaign: typeof campaigns.$inferSelect } | { ok: false; error: string }> {
+): Promise<{ ok: true; campaign: typeof schema.campaigns.$inferSelect } | { ok: false; error: string }> {
   if (!z.uuid().safeParse(campaignId).success) {
     return { ok: false, error: 'Campaign not found' };
   }
-  const [row] = await db.select().from(campaigns).where(eq(campaigns.id, campaignId)).limit(1);
+  const [row] = await db.select().from(schema.campaigns).where(eq(schema.campaigns.id, campaignId)).limit(1);
   if (!row) return { ok: false, error: 'Campaign not found' };
   if (row.status !== 'draft') {
     return {
@@ -130,12 +118,15 @@ async function loadEditableCampaign(
 }
 
 /** Replaces a draft's inline audience rules. */
-export async function updateCampaignAudience(campaignId: string, rules: AudienceRuleGroup): Promise<ActionResult> {
+export async function updateCampaignAudience(
+  campaignId: string,
+  rules: Campaigns.AudienceRuleGroup,
+): Promise<ActionResult> {
   const user = await getUser();
   if (!user) return fail('Not authenticated');
-  await requirePermission(user.id, 'campaign:write:all');
+  await Rbac.requirePermission(user.id, 'campaign:write:all');
 
-  const parsed = audienceRulesSchema.safeParse(rules);
+  const parsed = Campaigns.audienceRulesSchema.safeParse(rules);
   if (!parsed.success) return fail(firstIssue(parsed.error));
 
   const loaded = await loadEditableCampaign(campaignId);
@@ -146,9 +137,9 @@ export async function updateCampaignAudience(campaignId: string, rules: Audience
 
   try {
     await db
-      .update(campaigns)
+      .update(schema.campaigns)
       .set({ audienceRules: parsed.data, updatedBy: user.id })
-      .where(eq(campaigns.id, campaignId));
+      .where(eq(schema.campaigns.id, campaignId));
     return ok();
   } catch (error) {
     return serverActionError('save audience', error);
@@ -159,7 +150,7 @@ export async function updateCampaignAudience(campaignId: string, rules: Audience
 
 async function parseAudienceQuery(
   input: AudienceQueryInput,
-): Promise<{ rules: AudienceRuleGroup; context: AudienceContext } | { error: string }> {
+): Promise<{ rules: Campaigns.AudienceRuleGroup; context: Campaigns.AudienceContext } | { error: string }> {
   const parsed = audienceQuerySchema.safeParse(input);
   if (!parsed.success) return { error: firstIssue(parsed.error) };
   const { context, rules } = parsed.data;
@@ -174,12 +165,12 @@ async function parseAudienceQuery(
 export async function countAudienceForBuilder(input: AudienceQueryInput): Promise<ActionResult<number>> {
   const user = await getUser();
   if (!user) return fail('Not authenticated');
-  await requireAnyPermission(user.id, ['campaign:read:all', 'campaign:write:all']);
+  await Rbac.requireAnyPermission(user.id, ['campaign:read:all', 'campaign:write:all']);
 
   const query = await parseAudienceQuery(input);
   if ('error' in query) return fail(query.error);
   try {
-    return ok(await countAudience(query.rules, query.context));
+    return ok(await Campaigns.countAudience(query.rules, query.context));
   } catch (error) {
     return serverActionError('count recipients', error);
   }
@@ -190,18 +181,20 @@ export async function countAudienceForBuilder(input: AudienceQueryInput): Promis
  * data, so this needs `participant:read:all` as well as campaign read or write access,
  * and refuses (rather than redirecting) without it.
  */
-export async function previewAudienceForBuilder(input: AudienceQueryInput): Promise<ActionResult<AudienceMember[]>> {
+export async function previewAudienceForBuilder(
+  input: AudienceQueryInput,
+): Promise<ActionResult<Campaigns.AudienceMember[]>> {
   const user = await getUser();
   if (!user) return fail('Not authenticated');
-  await requireAnyPermission(user.id, ['campaign:read:all', 'campaign:write:all']);
-  if (!(await hasPermission(user.id, 'participant:read:all'))) {
+  await Rbac.requireAnyPermission(user.id, ['campaign:read:all', 'campaign:write:all']);
+  if (!(await Rbac.hasPermission(user.id, 'participant:read:all'))) {
     return fail("You don't have permission to see recipients.");
   }
 
   const query = await parseAudienceQuery(input);
   if ('error' in query) return fail(query.error);
   try {
-    return ok(await sampleAudience(query.rules, query.context, PREVIEW_SIZE));
+    return ok(await Campaigns.sampleAudience(query.rules, query.context, PREVIEW_SIZE));
   } catch (error) {
     return serverActionError('preview recipients', error);
   }
@@ -227,7 +220,7 @@ export async function updateCampaignContent(
 ): Promise<ActionResult<{ updatedAt: string }>> {
   const user = await getUser();
   if (!user) return fail('Not authenticated');
-  await requirePermission(user.id, 'campaign:write:all');
+  await Rbac.requirePermission(user.id, 'campaign:write:all');
 
   const parsed = contentSchema.safeParse(input);
   if (!parsed.success) return fail(firstIssue(parsed.error));
@@ -235,15 +228,15 @@ export async function updateCampaignContent(
   const loaded = await loadEditableCampaign(campaignId);
   if (!loaded.ok) return fail(loaded.error);
 
-  const [contentError] = await campaignContentErrors(parsed.data, loaded.campaign.eventId, 'draft');
+  const [contentError] = await Campaigns.contentErrors(parsed.data, loaded.campaign.eventId, 'draft');
   if (contentError) return fail(contentError);
 
   try {
     const [row] = await db
-      .update(campaigns)
+      .update(schema.campaigns)
       .set({ ...parsed.data, updatedBy: user.id })
-      .where(and(eq(campaigns.id, campaignId), eq(campaigns.status, 'draft')))
-      .returning({ updatedAt: campaigns.updatedAt });
+      .where(and(eq(schema.campaigns.id, campaignId), eq(schema.campaigns.status, 'draft')))
+      .returning({ updatedAt: schema.campaigns.updatedAt });
     if (!row) return fail('Only drafts can be edited. Unschedule it first.');
     return ok({ updatedAt: row.updatedAt.toISOString() });
   } catch (error) {
@@ -254,10 +247,10 @@ export async function updateCampaignContent(
 async function loadCampaignWithEvent(campaignId: string) {
   if (!z.uuid().safeParse(campaignId).success) return null;
   const [row] = await db
-    .select({ campaign: campaigns, eventName: events.name })
-    .from(campaigns)
-    .leftJoin(events, eq(campaigns.eventId, events.id))
-    .where(eq(campaigns.id, campaignId))
+    .select({ campaign: schema.campaigns, eventName: schema.events.name })
+    .from(schema.campaigns)
+    .leftJoin(schema.events, eq(schema.campaigns.eventId, schema.events.id))
+    .where(eq(schema.campaigns.id, campaignId))
     .limit(1);
   return row ?? null;
 }
@@ -272,7 +265,7 @@ export async function previewCampaignEmail(
 ): Promise<ActionResult<{ subject: string; html: string }>> {
   const user = await getUser();
   if (!user) return fail('Not authenticated');
-  await requirePermission(user.id, 'campaign:read:all');
+  await Rbac.requirePermission(user.id, 'campaign:read:all');
 
   const parsed = contentSchema.omit({ name: true }).safeParse(input);
   if (!parsed.success) return fail(firstIssue(parsed.error));
@@ -280,11 +273,11 @@ export async function previewCampaignEmail(
   if (!row) return fail('Campaign not found');
 
   try {
-    const baseUrl = getAppBaseUrl();
-    const email = await renderCampaignEmail(
+    const baseUrl = Campaigns.getAppBaseUrl();
+    const email = await Campaigns.renderCampaignEmail(
       { ...parsed.data, type: row.campaign.type, eventName: row.eventName },
-      { firstName: firstNameOf(user.name) },
-      { baseUrl, blocks: walletBlockRenderers('placeholder', baseUrl) },
+      { firstName: Campaigns.firstNameOf(user.name) },
+      { baseUrl, blocks: Campaigns.walletBlockRenderers('placeholder', baseUrl) },
     );
     return ok({ subject: email.subject, html: email.html });
   } catch (error) {
@@ -300,7 +293,7 @@ export async function previewCampaignEmail(
 export async function sendCampaignTest(campaignId: string): Promise<ActionResult<{ to: string }>> {
   const user = await getUser();
   if (!user) return fail('Not authenticated');
-  await requirePermission(user.id, 'campaign:write:all');
+  await Rbac.requirePermission(user.id, 'campaign:write:all');
 
   const row = await loadCampaignWithEvent(campaignId);
   if (!row) return fail('Campaign not found');
@@ -311,24 +304,24 @@ export async function sendCampaignTest(campaignId: string): Promise<ActionResult
     bodyMarkdown: row.campaign.bodyMarkdown,
     eventName: row.eventName,
   };
-  const [problem] = await campaignContentErrors(content, row.campaign.eventId, 'send');
+  const [problem] = await Campaigns.contentErrors(content, row.campaign.eventId, 'send');
   if (problem) return fail(problem);
 
   try {
     // The tester's own wallet links if they hold a spot, so they can try
     // them; otherwise inert badges, so they still see the block.
-    const baseUrl = getAppBaseUrl();
+    const baseUrl = Campaigns.getAppBaseUrl();
     const walletLinks =
-      hasWalletBlock(content.bodyMarkdown) && row.campaign.eventId
-        ? await walletLinksFor(user.id, row.campaign.eventId, baseUrl)
+      Campaigns.hasWalletBlock(content.bodyMarkdown) && row.campaign.eventId
+        ? await Campaigns.walletLinksFor(user.id, row.campaign.eventId, baseUrl)
         : null;
     await sendMail(
-      await buildCampaignMessage(
+      await Campaigns.buildCampaignMessage(
         content,
-        { email: user.email, firstName: firstNameOf(user.name) },
+        { email: user.email, firstName: Campaigns.firstNameOf(user.name) },
         {
           subjectPrefix: '[Test] ',
-          blocks: walletBlockRenderers(walletLinks ?? 'placeholder', baseUrl),
+          blocks: Campaigns.walletBlockRenderers(walletLinks ?? 'placeholder', baseUrl),
         },
       ),
     );
@@ -355,22 +348,22 @@ export async function sendCampaignTest(campaignId: string): Promise<ActionResult
 export async function uploadCampaignImage(formData: FormData): Promise<ActionResult<{ url: string }>> {
   const user = await getUser();
   if (!user) return fail('Not authenticated');
-  await requirePermission(user.id, 'campaign:write:all');
+  await Rbac.requirePermission(user.id, 'campaign:write:all');
 
   const value = formData.get('file');
   if (!value || typeof value === 'string' || typeof value.arrayBuffer !== 'function') {
     return fail('Choose an image to upload.');
   }
-  if (!CAMPAIGN_IMAGE_INPUT_TYPES.has(value.type)) {
+  if (!Campaigns.IMAGE_INPUT_TYPES.has(value.type)) {
     return fail('Images must be JPEG, PNG, WebP, GIF, AVIF or HEIC.');
   }
-  if (value.size === 0 || value.size > MAX_CAMPAIGN_IMAGE_BYTES) {
-    return fail(`Images must be smaller than ${MAX_CAMPAIGN_IMAGE_BYTES / 1024 / 1024} MB.`);
+  if (value.size === 0 || value.size > Campaigns.MAX_CAMPAIGN_IMAGE_BYTES) {
+    return fail(`Images must be smaller than ${Campaigns.MAX_CAMPAIGN_IMAGE_BYTES / 1024 / 1024} MB.`);
   }
 
-  let image: Awaited<ReturnType<typeof optimizeCampaignImage>>;
+  let image: Awaited<ReturnType<typeof Campaigns.optimizeCampaignImage>>;
   try {
-    image = await optimizeCampaignImage(new Uint8Array(await value.arrayBuffer()));
+    image = await Campaigns.optimizeCampaignImage(new Uint8Array(await value.arrayBuffer()));
   } catch (error) {
     console.error('[campaigns] image processing failed', error);
     return fail('That file could not be read as an image.');

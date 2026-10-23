@@ -2,12 +2,12 @@ import 'server-only';
 
 import { sql } from 'drizzle-orm';
 
-import { marketingConsents, user } from '@/db/schema';
-import { buildUnsubscribeToken, verifyUnsubscribeToken } from '@/lib/signing/email-tokens';
+import * as schema from '@/db/schema';
+import * as Signing from '@/lib/signing/server';
 import { writeAuditLog } from '@/utils/audit-log';
 import { db } from '@/utils/db';
 import type { SendMailOptions } from '@/utils/mail';
-import { getAppBaseUrl, renderCampaignEmail, type BlockRenderers, type CampaignContent } from './render-campaign-email';
+import { getAppBaseUrl, renderCampaignEmail, type BlockRenderers, type Content } from './render-campaign-email';
 
 /**
  * Signed unsubscribe links for marketing email. The token carries only the
@@ -24,7 +24,7 @@ export async function unsubscribeUrls(
   email: string,
   baseUrl: string = getAppBaseUrl(),
 ): Promise<{ page: string; oneClick: string }> {
-  const token = encodeURIComponent(await buildUnsubscribeToken(email));
+  const token = encodeURIComponent(await Signing.buildUnsubscribeToken(email));
   return {
     page: `${baseUrl}/unsubscribe?t=${token}`,
     oneClick: `${baseUrl}/api/unsubscribe?t=${token}`,
@@ -38,22 +38,22 @@ export type UnsubscribeOutcome = 'unsubscribed' | 'no_account' | 'invalid';
  * that's already opted out just stays that way (its `changed_at` moves).
  */
 export async function unsubscribeByToken(token: string): Promise<UnsubscribeOutcome> {
-  const claims = await verifyUnsubscribeToken(token);
+  const claims = await Signing.verifyUnsubscribeToken(token);
   if (!claims) return 'invalid';
 
   const [account] = await db
-    .select({ id: user.id })
-    .from(user)
-    .where(sql`lower(${user.email}) = ${claims.email}`)
+    .select({ id: schema.user.id })
+    .from(schema.user)
+    .where(sql`lower(${schema.user.email}) = ${claims.email}`)
     .limit(1);
   if (!account) return 'no_account';
 
   const now = new Date();
   await db
-    .insert(marketingConsents)
+    .insert(schema.marketingConsents)
     .values({ userId: account.id, optedIn: false, changedAt: now })
     .onConflictDoUpdate({
-      target: marketingConsents.userId,
+      target: schema.marketingConsents.userId,
       set: { optedIn: false, changedAt: now },
     });
   await writeAuditLog({
@@ -72,7 +72,7 @@ export async function unsubscribeByToken(token: string): Promise<UnsubscribeOutc
  * headers; operational email gets neither.
  */
 export async function buildCampaignMessage(
-  content: CampaignContent,
+  content: Content,
   recipient: { email: string; firstName: string | null },
   options: { blocks?: BlockRenderers; subjectPrefix?: string } = {},
 ): Promise<SendMailOptions> {

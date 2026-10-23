@@ -2,7 +2,7 @@ import { describe, test, expect, beforeAll, vi } from 'vitest';
 import { inArray } from 'drizzle-orm';
 
 import { db } from '@/utils/db';
-import { auditLog, permission, user, userPermission } from '@/db/schema';
+import * as schema from '@/db/schema';
 
 vi.mock('@/utils/auth', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/utils/auth')>()),
@@ -14,13 +14,13 @@ import { listAuditLog, listAuditLogFacets } from '@/app/actions/audit-log';
 
 async function makeUser(label: string): Promise<string> {
   const [u] = await db
-    .insert(user)
+    .insert(schema.user)
     .values({
       name: `Audit Test ${label}`,
       email: `audit-test-${label}-${Date.now()}@example.com`,
       emailVerified: true,
     })
-    .returning({ id: user.id });
+    .returning({ id: schema.user.id });
   return u.id;
 }
 
@@ -34,16 +34,16 @@ describe('audit log viewer actions', () => {
     auditorId = await makeUser('auditor');
     actorId = await makeUser('actor');
     const [perm] = await db
-      .insert(permission)
+      .insert(schema.permission)
       .values({ slug: 'audit:read:all' })
       .onConflictDoUpdate({
-        target: permission.slug,
+        target: schema.permission.slug,
         set: { slug: 'audit:read:all' },
       })
-      .returning({ id: permission.id });
-    await db.insert(userPermission).values({ userId: auditorId, permissionId: perm.id }).onConflictDoNothing();
+      .returning({ id: schema.permission.id });
+    await db.insert(schema.userPermission).values({ userId: auditorId, permissionId: perm.id }).onConflictDoNothing();
 
-    await db.insert(auditLog).values([
+    await db.insert(schema.auditLog).values([
       {
         actorId,
         action: `${tag}.first`,
@@ -135,6 +135,6 @@ describe('audit log viewer actions', () => {
     expect(res.data!.actions.filter((a) => a === `${tag}.second`)).toHaveLength(1);
     expect(res.data!.targetTypes).toEqual(expect.arrayContaining(['user', `${tag}-thing`]));
 
-    await db.delete(auditLog).where(inArray(auditLog.action, [`${tag}.first`, `${tag}.second`]));
+    await db.delete(schema.auditLog).where(inArray(schema.auditLog.action, [`${tag}.first`, `${tag}.second`]));
   });
 });

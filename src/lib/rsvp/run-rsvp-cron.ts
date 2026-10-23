@@ -3,8 +3,8 @@ import 'server-only';
 import {
   requeuePendingRsvpInvitations,
   type RequeuePendingRsvpInvitationsResult,
-} from '@/lib/rsvp/requeue-pending-rsvp-invitations';
-import { runScheduledRsvpWaves, type RunScheduledRsvpWavesResult } from '@/lib/rsvp/run-scheduled-rsvp-waves';
+} from './requeue-pending-rsvp-invitations';
+import { runScheduledRsvpWaves, type RunScheduledRsvpWavesResult } from './run-scheduled-rsvp-waves';
 
 export type RunRsvpCronResult = {
   waves: RunScheduledRsvpWavesResult;

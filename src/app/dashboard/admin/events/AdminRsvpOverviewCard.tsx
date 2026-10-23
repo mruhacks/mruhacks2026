@@ -1,9 +1,9 @@
 'use client';
 
-import type { AdminRsvpLifecycle, AdminRsvpSummary } from '@/app/dashboard/admin/events/actions';
+import type { AdminRsvpLifecycle, AdminRsvpSummary } from './actions';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useIsHydrated } from '@/lib/use-is-hydrated';
-import { formatRemaining, toDate } from '@/lib/rsvp/format-remaining';
+import * as Rsvp from '@/lib/rsvp';
 
 const LIFECYCLE_COPY: Record<AdminRsvpLifecycle, string> = {
   no_application: '',
@@ -48,7 +48,7 @@ function NextWaveCopy({ summary }: { summary: AdminRsvpSummary }) {
 function RemainingLabel({ respondBy }: { respondBy: Date | string }) {
   const isHydrated = useIsHydrated();
   if (!isHydrated) return null;
-  const remaining = formatRemaining(toDate(respondBy), new Date());
+  const remaining = Rsvp.formatRemaining(Rsvp.toDate(respondBy), new Date());
   if (!remaining) return null;
   return <p className='text-muted-foreground text-xs'>Next wave after ~{remaining}</p>;
 }

@@ -19,8 +19,8 @@ import type {
   ValueSelectorProps,
 } from 'react-querybuilder';
 
-import type { AudienceOptions } from '@/lib/campaigns/audience-options';
-import { STATIC_STATUS_DISPLAY } from '@/lib/participation/status';
+import type * as Campaigns from '@/lib/campaigns';
+import * as Participation from '@/lib/participation';
 import { participationStatusesList } from '@/types/lookups';
 import type { ParticipationStatus } from '@/types/lookups';
 import { cn } from '@/lib/utils';
@@ -40,7 +40,7 @@ import {
 import { Switch } from '@/components/ui/switch';
 
 /** Passed to every control through RQB's `context` prop. */
-export type BuilderContext = { options: AudienceOptions };
+export type BuilderContext = { options: Campaigns.AudienceOptions };
 
 function flatOptions(options: ValueSelectorProps['options']): { name: string; label: string }[] {
   return options.flatMap((option) =>
@@ -158,7 +158,7 @@ function EventPicker({
 }: {
   value: string | undefined;
   onChange: (eventId: string) => void;
-  options: AudienceOptions;
+  options: Campaigns.AudienceOptions;
   includeSubevents: boolean;
   disabled?: boolean;
 }) {
@@ -205,7 +205,7 @@ function StatusMultiSelect({
     value.length === 0
       ? 'Any status'
       : value.length <= 2
-        ? value.map((status) => STATIC_STATUS_DISPLAY[status].title).join(', ')
+        ? value.map((status) => Participation.STATIC_STATUS_DISPLAY[status].title).join(', ')
         : `${value.length} statuses`;
 
   return (
@@ -248,7 +248,7 @@ function StatusMultiSelect({
                     >
                       <Check className='size-3' />
                     </div>
-                    {STATIC_STATUS_DISPLAY[status].title}
+                    {Participation.STATIC_STATUS_DISPLAY[status].title}
                   </CommandItem>
                 );
               })}

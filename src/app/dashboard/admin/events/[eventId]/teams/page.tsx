@@ -3,7 +3,7 @@ import { notFound, redirect } from 'next/navigation';
 
 import { getAdminEventSettings } from '@/lib/admin-event';
 import { resolveEventId } from '@/lib/events';
-import { hasPermission, requireAnyPermission } from '@/lib/rbac/authorization';
+import * as Rbac from '@/lib/rbac/server';
 import { isSubmissionsEnabled } from '@/lib/submissions';
 import { getUser } from '@/utils/auth';
 
@@ -39,12 +39,12 @@ async function TeamsContent({ paramsPromise }: { paramsPromise: Props['params'] 
   // `getFormedTeamsForEvent` and `listEventSubmissions` check, and the ones
   // the dashboard's Teams tile is shown on. Each half is then gated on its
   // own.
-  await requireAnyPermission(user.id, ['team:read:all', 'submission:read:all']);
+  await Rbac.requireAnyPermission(user.id, ['team:read:all', 'submission:read:all']);
 
   const [event, canReadTeams, canReadSubmissions] = await Promise.all([
     getAdminEventSettings(eventId),
-    hasPermission(user.id, 'team:read:all'),
-    hasPermission(user.id, 'submission:read:all'),
+    Rbac.hasPermission(user.id, 'team:read:all'),
+    Rbac.hasPermission(user.id, 'submission:read:all'),
   ]);
   if (!event) notFound();
 

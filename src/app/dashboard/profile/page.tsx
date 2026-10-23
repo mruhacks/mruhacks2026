@@ -4,8 +4,8 @@ import { InfoIcon } from 'lucide-react';
 import { getUser } from '@/utils/auth';
 import { getProfessionalProfile, getUserProfile, saveFullProfile } from './actions';
 import { ProfessionalProfileForm } from './professional-profile-form';
-import { isOnAnyJudgeRoster } from '@/lib/judging/server';
-import { getOptions } from '@/app/dashboard/events/actions';
+import * as Judging from '@/lib/judging/server';
+import { getOptions } from '../events/actions';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import ProfileForm from '@/components/profile-form';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -30,7 +30,7 @@ export default async function DashboardProfilePage({
     getOptions(),
     // On any judging roster, past or present: they get the Professional
     // profile tab, and the student half becomes optional.
-    isOnAnyJudgeRoster(user),
+    Judging.isOnAnyJudgeRoster(user),
   ]);
 
   // Null for a judge, who onboards without the About step: the form asks

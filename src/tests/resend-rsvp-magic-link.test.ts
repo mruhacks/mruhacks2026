@@ -2,10 +2,9 @@ import { describe, test, expect, beforeAll, afterAll, vi } from 'vitest';
 import { count, eq } from 'drizzle-orm';
 
 import { db } from '@/utils/db';
-import { eventInvitations, eventRsvpWaves, events, user, verification } from '@/db/schema';
+import * as schema from '@/db/schema';
 import { MAGIC_LINK_EXPIRES_IN_SECONDS } from '@/utils/auth';
-import { resendRsvpMagicLink } from '@/lib/rsvp/resend-rsvp-magic-link';
-import { getRsvpMagicLinkCallbackURL } from '@/lib/rsvp/send-rsvp-magic-link';
+import * as Rsvp from '@/lib/rsvp/server';
 import { getStatus, insertInvitation } from '@/tests/participation-fixtures';
 
 vi.mock('@/utils/mail', () => ({
@@ -26,9 +25,9 @@ function magicLinkTokenFromLastMail(): string {
 
 async function getVerificationExpiresAt(token: string): Promise<Date> {
   const [row] = await db
-    .select({ expiresAt: verification.expiresAt })
-    .from(verification)
-    .where(eq(verification.identifier, token))
+    .select({ expiresAt: schema.verification.expiresAt })
+    .from(schema.verification)
+    .where(eq(schema.verification.identifier, token))
     .limit(1);
   if (!row) {
     throw new Error('verification row missing');
@@ -37,7 +36,7 @@ async function getVerificationExpiresAt(token: string): Promise<Date> {
 }
 
 async function deleteVerification(token: string): Promise<void> {
-  await db.delete(verification).where(eq(verification.identifier, token));
+  await db.delete(schema.verification).where(eq(schema.verification.identifier, token));
 }
 
 let testEventId: string;
@@ -49,29 +48,29 @@ beforeAll(async () => {
   process.env.BETTER_AUTH_URL = 'http://localhost:3000';
 
   const [eventRow] = await db
-    .insert(events)
+    .insert(schema.events)
     .values({ name: 'Resend Magic Link Event', hasApplication: true })
-    .returning({ id: events.id });
+    .returning({ id: schema.events.id });
   testEventId = eventRow.id;
 
   const [userRow] = await db
-    .insert(user)
+    .insert(schema.user)
     .values({
       name: 'Resend RSVP User',
       email: 'resend-rsvp@example.com',
       emailVerified: true,
     })
-    .returning({ id: user.id });
+    .returning({ id: schema.user.id });
   testUserId = userRow.id;
 
   const [wave] = await db
-    .insert(eventRsvpWaves)
+    .insert(schema.eventRsvpWaves)
     .values({
       eventId: testEventId,
       wave: 1,
       respondBy: new Date('2099-12-01T00:00:00.000Z'),
     })
-    .returning({ id: eventRsvpWaves.id });
+    .returning({ id: schema.eventRsvpWaves.id });
   testWaveId = wave.id;
 
   const { invitationId } = await insertInvitation({
@@ -83,9 +82,9 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await db.delete(eventRsvpWaves).where(eq(eventRsvpWaves.eventId, testEventId));
-  await db.delete(events).where(eq(events.id, testEventId));
-  await db.delete(user).where(eq(user.id, testUserId));
+  await db.delete(schema.eventRsvpWaves).where(eq(schema.eventRsvpWaves.eventId, testEventId));
+  await db.delete(schema.events).where(eq(schema.events.id, testEventId));
+  await db.delete(schema.user).where(eq(schema.user.id, testUserId));
 });
 
 describe('RSVP magic-link expiration / resend', () => {
@@ -123,15 +122,15 @@ describe('RSVP magic-link expiration / resend', () => {
 
     const [{ value: wavesBefore }] = await db
       .select({ value: count() })
-      .from(eventRsvpWaves)
-      .where(eq(eventRsvpWaves.eventId, testEventId));
+      .from(schema.eventRsvpWaves)
+      .where(eq(schema.eventRsvpWaves.eventId, testEventId));
     const [{ value: responsesBefore }] = await db
       .select({ value: count() })
-      .from(eventInvitations)
-      .where(eq(eventInvitations.rsvpWaveId, testWaveId));
+      .from(schema.eventInvitations)
+      .where(eq(schema.eventInvitations.rsvpWaveId, testWaveId));
 
     try {
-      const result = await resendRsvpMagicLink({
+      const result = await Rsvp.resendRsvpMagicLink({
         eventId: testEventId,
         userId: testUserId,
       });
@@ -143,7 +142,7 @@ describe('RSVP magic-link expiration / resend', () => {
       expect(result.waveId).toBe(testWaveId);
       expect(result.email).toBe('resend-rsvp@example.com');
 
-      const callbackURL = getRsvpMagicLinkCallbackURL(testEventId);
+      const callbackURL = Rsvp.getRsvpMagicLinkCallbackURL(testEventId);
       expect(callbackURL).toBe(`/dashboard/events/${testEventId}?source=rsvp`);
       expect(signInSpy).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -169,12 +168,12 @@ describe('RSVP magic-link expiration / resend', () => {
 
       const [{ value: wavesAfter }] = await db
         .select({ value: count() })
-        .from(eventRsvpWaves)
-        .where(eq(eventRsvpWaves.eventId, testEventId));
+        .from(schema.eventRsvpWaves)
+        .where(eq(schema.eventRsvpWaves.eventId, testEventId));
       const [{ value: responsesAfter }] = await db
         .select({ value: count() })
-        .from(eventInvitations)
-        .where(eq(eventInvitations.rsvpWaveId, testWaveId));
+        .from(schema.eventInvitations)
+        .where(eq(schema.eventInvitations.rsvpWaveId, testWaveId));
 
       expect(Number(wavesAfter)).toBe(Number(wavesBefore));
       expect(Number(responsesAfter)).toBe(Number(responsesBefore));
@@ -188,7 +187,7 @@ describe('RSVP magic-link expiration / resend', () => {
   test('can resend by email for the same pending RSVP', async () => {
     vi.mocked(sendMail).mockClear();
 
-    const result = await resendRsvpMagicLink({
+    const result = await Rsvp.resendRsvpMagicLink({
       eventId: testEventId,
       email: 'resend-rsvp@example.com',
     });
@@ -200,7 +199,7 @@ describe('RSVP magic-link expiration / resend', () => {
   });
 
   test('fails when there is no pending RSVP', async () => {
-    const result = await resendRsvpMagicLink({
+    const result = await Rsvp.resendRsvpMagicLink({
       eventId: testEventId,
       email: 'nobody@example.com',
     });

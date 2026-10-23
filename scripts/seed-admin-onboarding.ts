@@ -1,21 +1,5 @@
 import { and, desc, eq, isNull } from 'drizzle-orm';
-import {
-  eventParticipants,
-  participationStatuses,
-  events,
-  genders,
-  interests,
-  majors,
-  marketingConsents,
-  privacyAcceptances,
-  termsAcceptances,
-  universities,
-  user,
-  userInterests,
-  userProfileAbout,
-  userProfiles,
-  yearsOfStudy,
-} from '@/db/schema';
+import * as schema from '@/db/schema';
 import { CURRENT_PRIVACY_VERSION, CURRENT_TERMS_VERSION } from '@/lib/consent';
 import { db } from '@/utils/db';
 
@@ -30,15 +14,18 @@ export async function seedAdminOnboarding(
 ) {
   const submittedAt = new Date(now.getTime() - 7 * 86_400_000);
   await db.transaction(async (tx) => {
-    const [gender] = await tx.select().from(genders).where(eq(genders.label, 'Prefer not to say'));
-    const [university] = await tx.select().from(universities).where(eq(universities.label, 'Mount Royal University'));
-    const [major] = await tx.select().from(majors).where(eq(majors.label, 'Computer Science'));
-    const [year] = await tx.select().from(yearsOfStudy).where(eq(yearsOfStudy.label, '3rd'));
-    const [interest] = await tx.select().from(interests).where(eq(interests.label, 'Web Development'));
+    const [gender] = await tx.select().from(schema.genders).where(eq(schema.genders.label, 'Prefer not to say'));
+    const [university] = await tx
+      .select()
+      .from(schema.universities)
+      .where(eq(schema.universities.label, 'Mount Royal University'));
+    const [major] = await tx.select().from(schema.majors).where(eq(schema.majors.label, 'Computer Science'));
+    const [year] = await tx.select().from(schema.yearsOfStudy).where(eq(schema.yearsOfStudy.label, '3rd'));
+    const [interest] = await tx.select().from(schema.interests).where(eq(schema.interests.label, 'Web Development'));
     // Applications start on the waitlist so the RSVP seeder invites (and
     // accepts) them like anyone else; simple signups are accepted from the
     // start.
-    const statuses = await tx.select().from(participationStatuses);
+    const statuses = await tx.select().from(schema.participationStatuses);
     const waitlisted = statuses.find((row) => row.label === 'waitlisted');
     const accepted = statuses.find((row) => row.label === 'accepted');
     if (!gender || !university || !major || !year || !interest || !waitlisted || !accepted) {
@@ -46,9 +33,9 @@ export async function seedAdminOnboarding(
     }
 
     // Fill missing records while preserving any profile edits on subsequent runs.
-    await tx.insert(userProfiles).values({ userId, fullName: name, genderId: gender.id }).onConflictDoNothing();
+    await tx.insert(schema.userProfiles).values({ userId, fullName: name, genderId: gender.id }).onConflictDoNothing();
     await tx
-      .insert(userProfileAbout)
+      .insert(schema.userProfileAbout)
       .values({
         userId,
         universityId: university.id,
@@ -57,13 +44,13 @@ export async function seedAdminOnboarding(
         attendedHackathonBefore: true,
       })
       .onConflictDoNothing();
-    await tx.insert(userInterests).values({ userId, interestId: interest.id }).onConflictDoNothing();
-    await tx.insert(marketingConsents).values({ userId, optedIn: false, changedAt: now }).onConflictDoNothing();
+    await tx.insert(schema.userInterests).values({ userId, interestId: interest.id }).onConflictDoNothing();
+    await tx.insert(schema.marketingConsents).values({ userId, optedIn: false, changedAt: now }).onConflictDoNothing();
 
     // Acceptance logs have no unique key on (user, version): don't append on every run.
     for (const [table, version] of [
-      [termsAcceptances, CURRENT_TERMS_VERSION],
-      [privacyAcceptances, CURRENT_PRIVACY_VERSION],
+      [schema.termsAcceptances, CURRENT_TERMS_VERSION],
+      [schema.privacyAcceptances, CURRENT_PRIVACY_VERSION],
     ] as const) {
       const [latest] = await tx
         .select({ version: table.version })
@@ -77,13 +64,13 @@ export async function seedAdminOnboarding(
     }
 
     // Include the current featured event too if it differs from the sample hackathon.
-    const featured = await tx.select().from(events).where(eq(events.isFeatured, true));
-    const [applicationEvent] = await tx.select().from(events).where(eq(events.id, applicationEventId));
+    const featured = await tx.select().from(schema.events).where(eq(schema.events.isFeatured, true));
+    const [applicationEvent] = await tx.select().from(schema.events).where(eq(schema.events.id, applicationEventId));
     const onboardingEvents = new Map([...featured, applicationEvent].map((event) => [event.id, event]));
     for (const event of onboardingEvents.values()) {
       if (event.hasApplication) {
         await tx
-          .insert(eventParticipants)
+          .insert(schema.eventParticipants)
           .values({
             eventId: event.id,
             userId,
@@ -97,7 +84,7 @@ export async function seedAdminOnboarding(
           .onConflictDoNothing();
       } else {
         await tx
-          .insert(eventParticipants)
+          .insert(schema.eventParticipants)
           .values({
             eventId: event.id,
             userId,
@@ -109,7 +96,7 @@ export async function seedAdminOnboarding(
       }
     }
     await tx
-      .insert(eventParticipants)
+      .insert(schema.eventParticipants)
       .values({
         eventId: workshopEventId,
         userId,
@@ -119,8 +106,8 @@ export async function seedAdminOnboarding(
       })
       .onConflictDoNothing();
     await tx
-      .update(user)
+      .update(schema.user)
       .set({ onboardingCompletedAt: now })
-      .where(and(eq(user.id, userId), isNull(user.onboardingCompletedAt)));
+      .where(and(eq(schema.user.id, userId), isNull(schema.user.onboardingCompletedAt)));
   });
 }

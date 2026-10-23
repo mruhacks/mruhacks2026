@@ -3,14 +3,14 @@ import { redirect } from 'next/navigation';
 import { CalendarCheck, CircleCheckBig, Gavel, LayoutGrid, ThumbsUp, Trophy, Users, Utensils } from 'lucide-react';
 
 import { getAdminEventHeader, getEventSummaryCounts } from '@/lib/admin-event';
-import { getDietaryExpectedCount } from '@/lib/dietary/load';
+import * as Dietary from '@/lib/dietary/server';
 import { resolveEventId } from '@/lib/events';
-import { getJudgingTileCounts } from '@/lib/judging/server';
+import * as Judging from '@/lib/judging/server';
 import { isSubmissionsEnabled, type SubmissionEventFields } from '@/lib/submissions';
-import { hasPermission } from '@/lib/rbac/authorization';
+import * as Rbac from '@/lib/rbac/server';
 import { getUser } from '@/utils/auth';
 
-import { StatTile, StatTileSkeleton } from '../../_components/stat-tile';
+import { StatTile, StatTileSkeleton } from '@/app/dashboard/admin/events/[eventId]/_components/stat-tile';
 
 type Props = { params: Promise<{ eventId: string }> };
 
@@ -71,9 +71,9 @@ async function SummaryTiles({ paramsPromise }: { paramsPromise: Promise<{ eventI
   // never a shared "is this an admin" bundle, so a check-in volunteer with
   // no team access still sees their own tile. See AGENTS.md.
   const eventPromise = getAdminEventHeader(eventId);
-  const canManageJudgingPromise = hasPermission(user.id, 'judging:manage:all');
-  const canViewResultsPromise = hasPermission(user.id, 'judging:results:all');
-  const canAwardPromise = hasPermission(user.id, 'judging:award:all');
+  const canManageJudgingPromise = Rbac.hasPermission(user.id, 'judging:manage:all');
+  const canViewResultsPromise = Rbac.hasPermission(user.id, 'judging:results:all');
+  const canAwardPromise = Rbac.hasPermission(user.id, 'judging:award:all');
   // The judging counts only feed the Judges and results tiles, so they're
   // fetched only once those tiles are known to be visible — chained off the
   // same checks rather than awaited after them, so a viewer who does see
@@ -90,7 +90,7 @@ async function SummaryTiles({ paramsPromise }: { paramsPromise: Promise<{ eventI
       canViewResults,
       canAward,
     });
-    return visible.showJudging || visible.showResults ? getJudgingTileCounts(eventId) : null;
+    return visible.showJudging || visible.showResults ? Judging.getJudgingTileCounts(eventId) : null;
   });
 
   const [
@@ -110,13 +110,13 @@ async function SummaryTiles({ paramsPromise }: { paramsPromise: Promise<{ eventI
   ] = await Promise.all([
     eventPromise,
     getEventSummaryCounts(eventId),
-    getDietaryExpectedCount(eventId),
-    hasPermission(user.id, 'application:read:all'),
-    hasPermission(user.id, 'checkin:write:all'),
-    hasPermission(user.id, 'team:read:all'),
-    hasPermission(user.id, 'rsvp:read:all'),
-    hasPermission(user.id, 'dietary:read:all'),
-    hasPermission(user.id, 'submission:read:all'),
+    Dietary.getDietaryExpectedCount(eventId),
+    Rbac.hasPermission(user.id, 'application:read:all'),
+    Rbac.hasPermission(user.id, 'checkin:write:all'),
+    Rbac.hasPermission(user.id, 'team:read:all'),
+    Rbac.hasPermission(user.id, 'rsvp:read:all'),
+    Rbac.hasPermission(user.id, 'dietary:read:all'),
+    Rbac.hasPermission(user.id, 'submission:read:all'),
     canManageJudgingPromise,
     canViewResultsPromise,
     canAwardPromise,

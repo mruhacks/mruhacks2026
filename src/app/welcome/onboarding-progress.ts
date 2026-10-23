@@ -8,12 +8,12 @@ import { cacheLife } from 'next/cache';
 
 import { getUser } from '@/utils/auth';
 import { db } from '@/utils/db';
-import { eventParticipants, events, user as authUser, userProfileProfessional } from '@/db/schema';
+import * as schema from '@/db/schema';
 import { and, eq } from 'drizzle-orm';
 import { getConsentStatus } from '@/app/dashboard/account/actions';
 import { getUserProfile } from '@/app/dashboard/profile/actions';
-import { isOnAnyJudgeRoster } from '@/lib/judging/server';
-import { hasPermission } from '@/lib/rbac/authorization';
+import * as Judging from '@/lib/judging/server';
+import * as Rbac from '@/lib/rbac/server';
 import type { FeaturedOnboardingEvent } from './featured-event-step';
 
 /**
@@ -51,29 +51,29 @@ export async function getOnboardingProgress(): Promise<OnboardingProgress> {
     getConsentStatus(),
     getUserProfile(),
     db
-      .select({ onboardingCompletedAt: authUser.onboardingCompletedAt })
-      .from(authUser)
-      .where(eq(authUser.id, user.id))
+      .select({ onboardingCompletedAt: schema.user.onboardingCompletedAt })
+      .from(schema.user)
+      .where(eq(schema.user.id, user.id))
       .limit(1),
     db
       .select({
-        id: events.id,
-        name: events.name,
-        hasApplication: events.hasApplication,
-        applicationQuestions: events.applicationQuestions,
-        startsAt: events.startsAt,
-        teamsEnabled: events.teamsEnabled,
+        id: schema.events.id,
+        name: schema.events.name,
+        hasApplication: schema.events.hasApplication,
+        applicationQuestions: schema.events.applicationQuestions,
+        startsAt: schema.events.startsAt,
+        teamsEnabled: schema.events.teamsEnabled,
       })
-      .from(events)
-      .where(eq(events.isFeatured, true))
+      .from(schema.events)
+      .where(eq(schema.events.isFeatured, true))
       .limit(1),
-    isOnAnyJudgeRoster(user),
+    Judging.isOnAnyJudgeRoster(user),
     db
-      .select({ userId: userProfileProfessional.userId })
-      .from(userProfileProfessional)
-      .where(eq(userProfileProfessional.userId, user.id))
+      .select({ userId: schema.userProfileProfessional.userId })
+      .from(schema.userProfileProfessional)
+      .where(eq(schema.userProfileProfessional.userId, user.id))
       .limit(1),
-    hasPermission(user.id, 'onboarding:skip:event'),
+    Rbac.hasPermission(user.id, 'onboarding:skip:event'),
   ]);
 
   // Fail safe: if we can't read consent/profile state, prompt for it
@@ -86,9 +86,9 @@ export async function getOnboardingProgress(): Promise<OnboardingProgress> {
   if (featured && !isJudge && !canSkipEvent) {
     // Applied or registered — either way they already have a participant row.
     const [existingParticipation] = await db
-      .select({ id: eventParticipants.id })
-      .from(eventParticipants)
-      .where(and(eq(eventParticipants.eventId, featured.id), eq(eventParticipants.userId, user.id)))
+      .select({ id: schema.eventParticipants.id })
+      .from(schema.eventParticipants)
+      .where(and(eq(schema.eventParticipants.eventId, featured.id), eq(schema.eventParticipants.userId, user.id)))
       .limit(1);
 
     if (!existingParticipation) {

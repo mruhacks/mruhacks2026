@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { getAdminEventHeader, getEventQuestions } from '@/lib/admin-event';
 import { getReviewQueue, reviewQuestions } from '@/lib/application-votes';
 import { resolveEventId } from '@/lib/events';
-import { hasPermission, requirePermission } from '@/lib/rbac/authorization';
+import * as Rbac from '@/lib/rbac/server';
 import { getUser } from '@/utils/auth';
 
 import { ReviewDeck } from './review-deck';
@@ -38,12 +38,12 @@ async function ReviewContent({ paramsPromise }: { paramsPromise: Promise<{ event
   const user = await getUser();
   if (!user) redirect('/signin');
 
-  await requirePermission(user.id, 'application:vote:all');
+  await Rbac.requirePermission(user.id, 'application:vote:all');
 
   const [event, questions, canEditQuestions] = await Promise.all([
     getAdminEventHeader(eventId),
     getEventQuestions(eventId),
-    hasPermission(user.id, 'event:manage'),
+    Rbac.hasPermission(user.id, 'event:manage'),
   ]);
   if (!event) notFound();
 

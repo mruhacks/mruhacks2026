@@ -3,7 +3,7 @@
 import { useState } from 'react';
 
 import { RsvpTermsConsent } from './RsvpTermsConsent';
-import { useRsvpDecision } from '@/app/dashboard/events/use-rsvp-decision';
+import { useRsvpDecision } from './use-rsvp-decision';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,

@@ -5,18 +5,7 @@
 import { describe, test, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import { db } from '@/utils/db';
 import { eq } from 'drizzle-orm';
-import {
-  user as authUser,
-  termsAcceptances,
-  privacyAcceptances,
-  marketingConsents,
-  userProfiles,
-  userProfileAbout,
-  genders,
-  universities,
-  majors,
-  yearsOfStudy,
-} from '@/db/schema';
+import * as schema from '@/db/schema';
 import { CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION } from '@/lib/consent';
 
 vi.mock('@/utils/auth', () => ({ getUser: vi.fn() }));
@@ -48,21 +37,21 @@ let mockUser: MockUser;
 
 async function clearConsent() {
   await Promise.all([
-    db.delete(termsAcceptances).where(eq(termsAcceptances.userId, testUserId)),
-    db.delete(privacyAcceptances).where(eq(privacyAcceptances.userId, testUserId)),
-    db.delete(marketingConsents).where(eq(marketingConsents.userId, testUserId)),
+    db.delete(schema.termsAcceptances).where(eq(schema.termsAcceptances.userId, testUserId)),
+    db.delete(schema.privacyAcceptances).where(eq(schema.privacyAcceptances.userId, testUserId)),
+    db.delete(schema.marketingConsents).where(eq(schema.marketingConsents.userId, testUserId)),
   ]);
 }
 
 beforeAll(async () => {
   const [u] = await db
-    .insert(authUser)
+    .insert(schema.user)
     .values({
       name: 'Account Test User',
       email: 'account-int@example.com',
       emailVerified: true,
     })
-    .returning({ id: authUser.id });
+    .returning({ id: schema.user.id });
   testUserId = u.id;
   mockUser = {
     id: testUserId,
@@ -78,9 +67,9 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await clearConsent();
-  await db.delete(userProfileAbout).where(eq(userProfileAbout.userId, testUserId));
-  await db.delete(userProfiles).where(eq(userProfiles.userId, testUserId));
-  await db.delete(authUser).where(eq(authUser.id, testUserId));
+  await db.delete(schema.userProfileAbout).where(eq(schema.userProfileAbout.userId, testUserId));
+  await db.delete(schema.userProfiles).where(eq(schema.userProfiles.userId, testUserId));
+  await db.delete(schema.user).where(eq(schema.user.id, testUserId));
 });
 
 beforeEach(async () => {
@@ -135,8 +124,8 @@ describe('getConsentStatus', () => {
   });
 
   test('returns needsConsent: false after accepting current versions', async () => {
-    await db.insert(termsAcceptances).values({ userId: testUserId, version: CURRENT_TERMS_VERSION });
-    await db.insert(privacyAcceptances).values({ userId: testUserId, version: CURRENT_PRIVACY_VERSION });
+    await db.insert(schema.termsAcceptances).values({ userId: testUserId, version: CURRENT_TERMS_VERSION });
+    await db.insert(schema.privacyAcceptances).values({ userId: testUserId, version: CURRENT_PRIVACY_VERSION });
     const result = await getConsentStatus();
     expect(result.success).toBe(true);
     if (!result.success) throw new Error(result.error);
@@ -168,7 +157,10 @@ describe('setMarketingConsent', () => {
     await setMarketingConsent(true);
     const result = await setMarketingConsent(true);
     expect(result.success).toBe(true);
-    const rows = await db.select().from(marketingConsents).where(eq(marketingConsents.userId, testUserId));
+    const rows = await db
+      .select()
+      .from(schema.marketingConsents)
+      .where(eq(schema.marketingConsents.userId, testUserId));
     expect(rows).toHaveLength(1);
   });
 });
@@ -179,8 +171,14 @@ describe('recordOnboardingConsent', () => {
   test('inserts terms and privacy acceptances at current versions', async () => {
     const result = await recordOnboardingConsent(false);
     expect(result.success).toBe(true);
-    const [terms] = await db.select().from(termsAcceptances).where(eq(termsAcceptances.userId, testUserId));
-    const [privacy] = await db.select().from(privacyAcceptances).where(eq(privacyAcceptances.userId, testUserId));
+    const [terms] = await db
+      .select()
+      .from(schema.termsAcceptances)
+      .where(eq(schema.termsAcceptances.userId, testUserId));
+    const [privacy] = await db
+      .select()
+      .from(schema.privacyAcceptances)
+      .where(eq(schema.privacyAcceptances.userId, testUserId));
     expect(terms?.version).toBe(CURRENT_TERMS_VERSION);
     expect(privacy?.version).toBe(CURRENT_PRIVACY_VERSION);
   });
@@ -188,7 +186,7 @@ describe('recordOnboardingConsent', () => {
   test('does not insert duplicate terms row when already at current version', async () => {
     await recordOnboardingConsent(false);
     await recordOnboardingConsent(false);
-    const rows = await db.select().from(termsAcceptances).where(eq(termsAcceptances.userId, testUserId));
+    const rows = await db.select().from(schema.termsAcceptances).where(eq(schema.termsAcceptances.userId, testUserId));
     expect(rows).toHaveLength(1);
   });
 
@@ -210,40 +208,50 @@ describe('completeWelcomeOnboarding', () => {
 
   beforeAll(async () => {
     // Seed lookup rows needed for the profile FK constraints.
-    type LookupTable = typeof genders | typeof universities | typeof majors | typeof yearsOfStudy;
+    type LookupTable =
+      | typeof schema.genders
+      | typeof schema.universities
+      | typeof schema.majors
+      | typeof schema.yearsOfStudy;
     const upsertLookup = async (tbl: LookupTable, label: string): Promise<number> => {
       const [existing] = await db.select({ id: tbl.id }).from(tbl).where(eq(tbl.label, label)).limit(1);
       if (existing) return existing.id;
       const [row] = await db.insert(tbl).values({ label }).returning({ id: tbl.id });
       return row!.id;
     };
-    genderId = await upsertLookup(genders, 'acct-gender');
-    universityId = await upsertLookup(universities, 'acct-uni');
-    majorId = await upsertLookup(majors, 'acct-major');
-    yearId = await upsertLookup(yearsOfStudy, 'acct-yr');
+    genderId = await upsertLookup(schema.genders, 'acct-gender');
+    universityId = await upsertLookup(schema.universities, 'acct-uni');
+    majorId = await upsertLookup(schema.majors, 'acct-major');
+    yearId = await upsertLookup(schema.yearsOfStudy, 'acct-yr');
   });
 
   test('fails when user has no profile at all', async () => {
-    await db.delete(userProfileAbout).where(eq(userProfileAbout.userId, testUserId));
-    await db.delete(userProfiles).where(eq(userProfiles.userId, testUserId));
+    await db.delete(schema.userProfileAbout).where(eq(schema.userProfileAbout.userId, testUserId));
+    await db.delete(schema.userProfiles).where(eq(schema.userProfiles.userId, testUserId));
     const result = await completeWelcomeOnboarding();
     expect(result.success).toBe(false);
   });
 
   test('fails when personal step is done but about step is not', async () => {
-    await db.insert(userProfiles).values({ userId: testUserId, fullName: 'Test', genderId }).onConflictDoNothing();
+    await db
+      .insert(schema.userProfiles)
+      .values({ userId: testUserId, fullName: 'Test', genderId })
+      .onConflictDoNothing();
     const result = await completeWelcomeOnboarding();
     expect(result.success).toBe(false);
 
     // Cleanup.
-    await db.delete(userProfiles).where(eq(userProfiles.userId, testUserId));
+    await db.delete(schema.userProfiles).where(eq(schema.userProfiles.userId, testUserId));
   });
 
   test('succeeds when both profile halves exist and consent is accepted', async () => {
     // Insert both profile halves and accept consent.
-    await db.insert(userProfiles).values({ userId: testUserId, fullName: 'Test', genderId }).onConflictDoNothing();
     await db
-      .insert(userProfileAbout)
+      .insert(schema.userProfiles)
+      .values({ userId: testUserId, fullName: 'Test', genderId })
+      .onConflictDoNothing();
+    await db
+      .insert(schema.userProfileAbout)
       .values({
         userId: testUserId,
         universityId,
@@ -251,15 +259,15 @@ describe('completeWelcomeOnboarding', () => {
         yearOfStudyId: yearId,
       })
       .onConflictDoNothing();
-    await db.insert(termsAcceptances).values({ userId: testUserId, version: CURRENT_TERMS_VERSION });
-    await db.insert(privacyAcceptances).values({ userId: testUserId, version: CURRENT_PRIVACY_VERSION });
+    await db.insert(schema.termsAcceptances).values({ userId: testUserId, version: CURRENT_TERMS_VERSION });
+    await db.insert(schema.privacyAcceptances).values({ userId: testUserId, version: CURRENT_PRIVACY_VERSION });
 
     const result = await completeWelcomeOnboarding();
     expect(result.success).toBe(true);
 
     // Cleanup.
-    await db.delete(userProfileAbout).where(eq(userProfileAbout.userId, testUserId));
-    await db.delete(userProfiles).where(eq(userProfiles.userId, testUserId));
+    await db.delete(schema.userProfileAbout).where(eq(schema.userProfileAbout.userId, testUserId));
+    await db.delete(schema.userProfiles).where(eq(schema.userProfiles.userId, testUserId));
   });
 });
 

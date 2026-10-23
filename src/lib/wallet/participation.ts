@@ -2,8 +2,8 @@ import 'server-only';
 
 import { and, eq, isNull } from 'drizzle-orm';
 
-import { eventParticipants, events, participationStatuses, userProfiles } from '@/db/schema';
-import { isAttending, resolveStoredStatus } from '@/lib/participation/status';
+import * as schema from '@/db/schema';
+import * as Participation from '@/lib/participation';
 import { db } from '@/utils/db';
 
 export const EVENT_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -34,22 +34,25 @@ export async function getEventParticipation(eventId: string, userId: string): Pr
 
   const [row] = await db
     .select({
-      eventName: events.name,
-      startsAt: events.startsAt,
-      endsAt: events.endsAt,
-      checkInEnabled: events.checkInEnabled,
-      location: events.location,
-      latitude: events.latitude,
-      longitude: events.longitude,
-      radiusMeters: events.radiusMeters,
-      statusLabel: participationStatuses.label,
-      fullName: userProfiles.fullName,
+      eventName: schema.events.name,
+      startsAt: schema.events.startsAt,
+      endsAt: schema.events.endsAt,
+      checkInEnabled: schema.events.checkInEnabled,
+      location: schema.events.location,
+      latitude: schema.events.latitude,
+      longitude: schema.events.longitude,
+      radiusMeters: schema.events.radiusMeters,
+      statusLabel: schema.participationStatuses.label,
+      fullName: schema.userProfiles.fullName,
     })
-    .from(events)
-    .leftJoin(eventParticipants, and(eq(eventParticipants.eventId, events.id), eq(eventParticipants.userId, userId)))
-    .leftJoin(participationStatuses, eq(participationStatuses.id, eventParticipants.statusId))
-    .leftJoin(userProfiles, eq(userProfiles.userId, userId))
-    .where(and(eq(events.id, eventId), isNull(events.parentEventId)))
+    .from(schema.events)
+    .leftJoin(
+      schema.eventParticipants,
+      and(eq(schema.eventParticipants.eventId, schema.events.id), eq(schema.eventParticipants.userId, userId)),
+    )
+    .leftJoin(schema.participationStatuses, eq(schema.participationStatuses.id, schema.eventParticipants.statusId))
+    .leftJoin(schema.userProfiles, eq(schema.userProfiles.userId, userId))
+    .where(and(eq(schema.events.id, eventId), isNull(schema.events.parentEventId)))
     .limit(1);
 
   if (!row) return null;
@@ -66,7 +69,8 @@ export async function getEventParticipation(eventId: string, userId: string): Pr
     fullName: row.fullName,
     // An invited applicant who never accepted their RSVP (or who declined
     // or let it expire) doesn't get a pass — only a held spot does.
-    isParticipant: row.statusLabel !== null && isAttending(resolveStoredStatus(row.statusLabel)),
+    isParticipant:
+      row.statusLabel !== null && Participation.isAttending(Participation.resolveStoredStatus(row.statusLabel)),
   };
 }
 

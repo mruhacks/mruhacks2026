@@ -6,7 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { FieldError } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { MAX_TABLE_SIGNS } from '@/lib/judging/table-label';
+import * as Judging from '@/lib/judging';
 
 /**
  * How many signs to print. Kept in the URL (`?count=`), so the page renders
@@ -34,8 +34,8 @@ export function SignCountForm({ count, handedOut }: { count: number; handedOut: 
       return;
     }
     const next = Number(trimmed);
-    if (!Number.isInteger(next) || next < 1 || next > MAX_TABLE_SIGNS) {
-      setError(`Enter a whole number from 1 to ${MAX_TABLE_SIGNS}.`);
+    if (!Number.isInteger(next) || next < 1 || next > Judging.MAX_TABLE_SIGNS) {
+      setError(`Enter a whole number from 1 to ${Judging.MAX_TABLE_SIGNS}.`);
       return;
     }
     router.replace(next === handedOut ? pathname : `${pathname}?count=${next}`);
@@ -52,7 +52,7 @@ export function SignCountForm({ count, handedOut }: { count: number; handedOut: 
           type='number'
           inputMode='numeric'
           min={1}
-          max={MAX_TABLE_SIGNS}
+          max={Judging.MAX_TABLE_SIGNS}
           step={1}
           className='h-9 w-24'
           aria-invalid={Boolean(error)}

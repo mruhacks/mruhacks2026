@@ -1,6 +1,6 @@
 import { getUser } from '@/utils/auth';
 import { db } from '@/utils/db';
-import { userProfiles } from '@/db/schema';
+import * as schema from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { isObjectStorageKey, resumeRedirect } from '@/utils/object-storage';
 
@@ -10,11 +10,11 @@ export async function GET() {
 
   const [profile] = await db
     .select({
-      key: userProfiles.resumeFile,
-      fileName: userProfiles.resumeFileName,
+      key: schema.userProfiles.resumeFile,
+      fileName: schema.userProfiles.resumeFileName,
     })
-    .from(userProfiles)
-    .where(eq(userProfiles.userId, user.id))
+    .from(schema.userProfiles)
+    .where(eq(schema.userProfiles.userId, user.id))
     .limit(1);
   if (!profile?.key || !isObjectStorageKey(profile.key)) {
     return new Response('Not found', { status: 404 });

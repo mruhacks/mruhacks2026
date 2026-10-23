@@ -1,7 +1,7 @@
 import { cacheTag, cacheLife } from 'next/cache';
 import { and, asc, eq } from 'drizzle-orm';
 import { db } from '@/utils/db';
-import { eventArticles } from '@/db/schema';
+import * as schema from '@/db/schema';
 
 /** One tag per event so an edit only busts that event's wiki, not every event's. */
 export function eventWikiCacheTag(eventId: string): string {
@@ -23,14 +23,14 @@ export async function getPublishedArticleList(eventId: string) {
 
   return db
     .select({
-      slug: eventArticles.slug,
-      title: eventArticles.title,
-      published: eventArticles.published,
-      updatedAt: eventArticles.updatedAt,
+      slug: schema.eventArticles.slug,
+      title: schema.eventArticles.title,
+      published: schema.eventArticles.published,
+      updatedAt: schema.eventArticles.updatedAt,
     })
-    .from(eventArticles)
-    .where(and(eq(eventArticles.eventId, eventId), eq(eventArticles.published, true)))
-    .orderBy(asc(eventArticles.sortOrder), asc(eventArticles.title));
+    .from(schema.eventArticles)
+    .where(and(eq(schema.eventArticles.eventId, eventId), eq(schema.eventArticles.published, true)))
+    .orderBy(asc(schema.eventArticles.sortOrder), asc(schema.eventArticles.title));
 }
 
 export type WikiSidebarArticle = {
@@ -52,13 +52,13 @@ export async function getWikiSidebarArticles(
   const articles = canSeeDrafts
     ? await db
         .select({
-          slug: eventArticles.slug,
-          title: eventArticles.title,
-          published: eventArticles.published,
+          slug: schema.eventArticles.slug,
+          title: schema.eventArticles.title,
+          published: schema.eventArticles.published,
         })
-        .from(eventArticles)
-        .where(eq(eventArticles.eventId, eventId))
-        .orderBy(asc(eventArticles.sortOrder), asc(eventArticles.title))
+        .from(schema.eventArticles)
+        .where(eq(schema.eventArticles.eventId, eventId))
+        .orderBy(asc(schema.eventArticles.sortOrder), asc(schema.eventArticles.title))
     : (await getPublishedArticleList(eventId)).map((a) => ({
         slug: a.slug,
         title: a.title,
@@ -82,13 +82,19 @@ export async function getPublishedArticle(eventId: string, slug: string) {
 
   const [article] = await db
     .select({
-      title: eventArticles.title,
-      bodyMarkdown: eventArticles.bodyMarkdown,
-      published: eventArticles.published,
-      updatedAt: eventArticles.updatedAt,
+      title: schema.eventArticles.title,
+      bodyMarkdown: schema.eventArticles.bodyMarkdown,
+      published: schema.eventArticles.published,
+      updatedAt: schema.eventArticles.updatedAt,
     })
-    .from(eventArticles)
-    .where(and(eq(eventArticles.eventId, eventId), eq(eventArticles.slug, slug), eq(eventArticles.published, true)))
+    .from(schema.eventArticles)
+    .where(
+      and(
+        eq(schema.eventArticles.eventId, eventId),
+        eq(schema.eventArticles.slug, slug),
+        eq(schema.eventArticles.published, true),
+      ),
+    )
     .limit(1);
 
   return article ?? null;
@@ -113,13 +119,13 @@ export async function getAllArticlesForAdmin(eventId: string) {
 
   return db
     .select({
-      id: eventArticles.id,
-      slug: eventArticles.slug,
-      title: eventArticles.title,
-      published: eventArticles.published,
-      updatedAt: eventArticles.updatedAt,
+      id: schema.eventArticles.id,
+      slug: schema.eventArticles.slug,
+      title: schema.eventArticles.title,
+      published: schema.eventArticles.published,
+      updatedAt: schema.eventArticles.updatedAt,
     })
-    .from(eventArticles)
-    .where(eq(eventArticles.eventId, eventId))
-    .orderBy(asc(eventArticles.sortOrder), asc(eventArticles.title));
+    .from(schema.eventArticles)
+    .where(eq(schema.eventArticles.eventId, eventId))
+    .orderBy(asc(schema.eventArticles.sortOrder), asc(schema.eventArticles.title));
 }

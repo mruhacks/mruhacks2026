@@ -1,9 +1,9 @@
 import * as React from 'react';
 
 import { Card, CardContent } from '@/components/ui/card';
-import { loadSignInQrJudge } from '@/lib/judging/signin-qr-judge';
+import * as Judging from '@/lib/judging/server';
 
-import { SignInQr } from '../../../signin-qr';
+import { SignInQr } from '@/app/dashboard/admin/events/[eventId]/judging/signin-qr';
 
 // Never prefetched: the page is a credential's front door, and the roster
 // opens it with `router.push` rather than a <Link> for the same reason. With
@@ -28,7 +28,7 @@ export default function SignInQrRoute({ params }: Props) {
 
 async function SignInQrContent({ paramsPromise }: { paramsPromise: Props['params'] }) {
   const { eventId: segment, judgeId } = await paramsPromise;
-  const judge = await loadSignInQrJudge(segment, judgeId);
+  const judge = await Judging.loadSignInQrJudge(segment, judgeId);
 
   return (
     <Card className='mx-auto w-full max-w-md'>

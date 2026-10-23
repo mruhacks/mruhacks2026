@@ -3,7 +3,7 @@ import { notFound, redirect } from 'next/navigation';
 
 import { getJudgingProjects } from '@/app/dashboard/admin/events/judging-actions';
 import { resolveEventId } from '@/lib/events';
-import { hasPermission, requirePermission } from '@/lib/rbac/authorization';
+import * as Rbac from '@/lib/rbac/server';
 import { getUser } from '@/utils/auth';
 
 import { JudgingProjectsTable } from './projects-table';
@@ -30,12 +30,12 @@ async function ProjectsContent({ paramsPromise }: { paramsPromise: Props['params
   const user = await getUser();
   if (!user) redirect('/signin');
   // The same permission deactivating a project checks.
-  await requirePermission(user.id, 'judging:manage:all');
+  await Rbac.requirePermission(user.id, 'judging:manage:all');
 
   const [result, canViewProjects] = await Promise.all([
     getJudgingProjects(eventId),
     // The project page itself gates on this; only link where it would open.
-    hasPermission(user.id, 'submission:read:all'),
+    Rbac.hasPermission(user.id, 'submission:read:all'),
   ]);
   if (!result.success || !result.data) {
     return <p className='text-destructive'>{!result.success ? result.error : 'Failed to load projects.'}</p>;

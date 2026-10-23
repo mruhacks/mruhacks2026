@@ -1,8 +1,8 @@
 'use server';
 
-import { unsubscribeByToken, type UnsubscribeOutcome } from '@/lib/campaigns/unsubscribe';
+import * as Campaigns from '@/lib/campaigns/server';
 
 /** The page's one button. No session needed: the signed token is the authority. */
-export async function unsubscribe(token: string): Promise<UnsubscribeOutcome> {
-  return unsubscribeByToken(token);
+export async function unsubscribe(token: string): Promise<Campaigns.UnsubscribeOutcome> {
+  return Campaigns.unsubscribeByToken(token);
 }

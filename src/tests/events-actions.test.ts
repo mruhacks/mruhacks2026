@@ -1,17 +1,7 @@
 import { describe, test, expect, beforeAll, afterAll, vi } from 'vitest';
 import { db } from '@/utils/db';
 import { eq } from 'drizzle-orm';
-import {
-  user,
-  events,
-  eventParticipants,
-  userProfiles,
-  userProfileAbout,
-  genders,
-  universities,
-  majors,
-  yearsOfStudy,
-} from '@/db/schema';
+import * as schema from '@/db/schema';
 import { statusId } from '@/tests/participation-fixtures';
 
 vi.mock('@/utils/auth', () => ({ getUser: vi.fn() }));
@@ -44,13 +34,13 @@ let testEventId: string;
 
 beforeAll(async () => {
   const [u] = await db
-    .insert(user)
+    .insert(schema.user)
     .values({
       name: 'Events Test User',
       email: 'events-test@example.com',
       emailVerified: true,
     })
-    .returning({ id: user.id });
+    .returning({ id: schema.user.id });
   testUserId = u.id;
   testUser = {
     id: testUserId,
@@ -60,23 +50,23 @@ beforeAll(async () => {
   };
 
   const [e] = await db
-    .insert(events)
+    .insert(schema.events)
     .values({
       name: 'Auth Test Event',
       hasApplication: false,
       applicationQuestions: [],
     })
-    .returning({ id: events.id });
+    .returning({ id: schema.events.id });
   testEventId = e.id;
 
   vi.mocked(getUser).mockResolvedValue(testUser as never);
 });
 
 afterAll(async () => {
-  await db.delete(eventParticipants).where(eq(eventParticipants.userId, testUserId));
-  await db.delete(userProfiles).where(eq(userProfiles.userId, testUserId));
-  await db.delete(events).where(eq(events.id, testEventId));
-  await db.delete(user).where(eq(user.id, testUserId));
+  await db.delete(schema.eventParticipants).where(eq(schema.eventParticipants.userId, testUserId));
+  await db.delete(schema.userProfiles).where(eq(schema.userProfiles.userId, testUserId));
+  await db.delete(schema.events).where(eq(schema.events.id, testEventId));
+  await db.delete(schema.user).where(eq(schema.user.id, testUserId));
 });
 
 describe('getOptions', () => {
@@ -142,7 +132,7 @@ describe('submitEventApplication', () => {
   });
 
   test('fails when user has no profile', async () => {
-    await db.delete(userProfiles).where(eq(userProfiles.userId, testUserId));
+    await db.delete(schema.userProfiles).where(eq(schema.userProfiles.userId, testUserId));
     const result = await submitEventApplication({} as never, testEventId);
     expect(result.success).toBe(false);
     expect((result as { error: string }).error).toMatch(/profile/i);
@@ -157,19 +147,19 @@ describe('getUserParticipation — with application', () => {
 
   beforeAll(async () => {
     const [e] = await db
-      .insert(events)
+      .insert(schema.events)
       .values({
         name: 'App Status Event',
         hasApplication: true,
         applicationQuestions: [],
       })
-      .returning({ id: events.id });
+      .returning({ id: schema.events.id });
     appEventId = e.id;
 
     pendingStatusId = await statusId('pending_review');
 
     await db
-      .insert(eventParticipants)
+      .insert(schema.eventParticipants)
       .values({
         eventId: appEventId,
         userId: testUserId,
@@ -180,8 +170,8 @@ describe('getUserParticipation — with application', () => {
   });
 
   afterAll(async () => {
-    await db.delete(eventParticipants).where(eq(eventParticipants.eventId, appEventId));
-    await db.delete(events).where(eq(events.id, appEventId));
+    await db.delete(schema.eventParticipants).where(eq(schema.eventParticipants.eventId, appEventId));
+    await db.delete(schema.events).where(eq(schema.events.id, appEventId));
   });
 
   test('returns application status when an application exists', async () => {
@@ -201,19 +191,19 @@ describe('getEventsWithUserStatus — applied user', () => {
 
   beforeAll(async () => {
     const [e] = await db
-      .insert(events)
+      .insert(schema.events)
       .values({
         name: 'Applied Event',
         hasApplication: true,
         applicationQuestions: [],
       })
-      .returning({ id: events.id });
+      .returning({ id: schema.events.id });
     appliedEventId = e.id;
 
     pendingStatusId = await statusId('pending_review');
 
     await db
-      .insert(eventParticipants)
+      .insert(schema.eventParticipants)
       .values({
         eventId: appliedEventId,
         userId: testUserId,
@@ -224,8 +214,8 @@ describe('getEventsWithUserStatus — applied user', () => {
   });
 
   afterAll(async () => {
-    await db.delete(eventParticipants).where(eq(eventParticipants.eventId, appliedEventId));
-    await db.delete(events).where(eq(events.id, appliedEventId));
+    await db.delete(schema.eventParticipants).where(eq(schema.eventParticipants.eventId, appliedEventId));
+    await db.delete(schema.events).where(eq(schema.events.id, appliedEventId));
   });
 
   test('shows the pending_review status for an event the user applied to', async () => {
@@ -245,27 +235,27 @@ describe('submitEventApplication — edit restrictions', () => {
   let waitlistedStatusId: number;
 
   beforeAll(async () => {
-    const [gender] = await db.select({ id: genders.id }).from(genders).limit(1);
-    const [university] = await db.select({ id: universities.id }).from(universities).limit(1);
-    const [major] = await db.select({ id: majors.id }).from(majors).limit(1);
-    const [year] = await db.select({ id: yearsOfStudy.id }).from(yearsOfStudy).limit(1);
+    const [gender] = await db.select({ id: schema.genders.id }).from(schema.genders).limit(1);
+    const [university] = await db.select({ id: schema.universities.id }).from(schema.universities).limit(1);
+    const [major] = await db.select({ id: schema.majors.id }).from(schema.majors).limit(1);
+    const [year] = await db.select({ id: schema.yearsOfStudy.id }).from(schema.yearsOfStudy).limit(1);
     if (!gender || !university || !major || !year) {
       throw new Error('Expected lookup tables to be seeded.');
     }
 
     await db
-      .insert(userProfiles)
+      .insert(schema.userProfiles)
       .values({
         userId: testUserId,
         fullName: 'Events Test User',
         genderId: gender.id,
       })
       .onConflictDoUpdate({
-        target: userProfiles.userId,
+        target: schema.userProfiles.userId,
         set: { fullName: 'Events Test User', genderId: gender.id },
       });
     await db
-      .insert(userProfileAbout)
+      .insert(schema.userProfileAbout)
       .values({
         userId: testUserId,
         universityId: university.id,
@@ -273,7 +263,7 @@ describe('submitEventApplication — edit restrictions', () => {
         yearOfStudyId: year.id,
       })
       .onConflictDoUpdate({
-        target: userProfileAbout.userId,
+        target: schema.userProfileAbout.userId,
         set: {
           universityId: university.id,
           majorId: major.id,
@@ -285,38 +275,38 @@ describe('submitEventApplication — edit restrictions', () => {
     waitlistedStatusId = await statusId('waitlisted');
 
     const [open] = await db
-      .insert(events)
+      .insert(schema.events)
       .values({
         name: 'Edit Restriction Event',
         hasApplication: true,
         applicationQuestions: [],
       })
-      .returning({ id: events.id });
+      .returning({ id: schema.events.id });
     openEventId = open.id;
 
     const [elapsed] = await db
-      .insert(events)
+      .insert(schema.events)
       .values({
         name: 'Edit Restriction Elapsed Event',
         hasApplication: true,
         applicationQuestions: [],
         endsAt: new Date(Date.now() - 60_000),
       })
-      .returning({ id: events.id });
+      .returning({ id: schema.events.id });
     elapsedEventId = elapsed.id;
   });
 
   afterAll(async () => {
-    await db.delete(eventParticipants).where(eq(eventParticipants.eventId, openEventId));
-    await db.delete(eventParticipants).where(eq(eventParticipants.eventId, elapsedEventId));
-    await db.delete(events).where(eq(events.id, openEventId));
-    await db.delete(events).where(eq(events.id, elapsedEventId));
-    await db.delete(userProfileAbout).where(eq(userProfileAbout.userId, testUserId));
+    await db.delete(schema.eventParticipants).where(eq(schema.eventParticipants.eventId, openEventId));
+    await db.delete(schema.eventParticipants).where(eq(schema.eventParticipants.eventId, elapsedEventId));
+    await db.delete(schema.events).where(eq(schema.events.id, openEventId));
+    await db.delete(schema.events).where(eq(schema.events.id, elapsedEventId));
+    await db.delete(schema.userProfileAbout).where(eq(schema.userProfileAbout.userId, testUserId));
   });
 
   test('allows editing while the application is still pending review', async () => {
     await db
-      .insert(eventParticipants)
+      .insert(schema.eventParticipants)
       .values({
         eventId: openEventId,
         userId: testUserId,
@@ -324,7 +314,7 @@ describe('submitEventApplication — edit restrictions', () => {
         responses: {},
       })
       .onConflictDoUpdate({
-        target: [eventParticipants.eventId, eventParticipants.userId],
+        target: [schema.eventParticipants.eventId, schema.eventParticipants.userId],
         set: { statusId: pendingStatusId },
       });
 
@@ -334,9 +324,9 @@ describe('submitEventApplication — edit restrictions', () => {
 
   test('rejects editing once the application has been decided', async () => {
     await db
-      .update(eventParticipants)
+      .update(schema.eventParticipants)
       .set({ statusId: waitlistedStatusId })
-      .where(eq(eventParticipants.eventId, openEventId));
+      .where(eq(schema.eventParticipants.eventId, openEventId));
 
     const result = await submitEventApplication({ applicationResponses: {} }, openEventId);
     expect(result.success).toBe(false);

@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm';
 
-import { invite, user } from '@/db/schema';
-import { replaceUserRoles } from '@/lib/rbac/role-mutations';
+import * as schema from '@/db/schema';
+import * as Rbac from '@/lib/rbac/server';
 import { db } from '@/utils/db';
 
 /**
@@ -17,24 +17,24 @@ import { db } from '@/utils/db';
  */
 export async function applyPendingInvite(userId: string): Promise<boolean> {
   const [owner] = await db
-    .select({ email: user.email, emailVerified: user.emailVerified })
-    .from(user)
-    .where(eq(user.id, userId))
+    .select({ email: schema.user.email, emailVerified: schema.user.emailVerified })
+    .from(schema.user)
+    .where(eq(schema.user.id, userId))
     .limit(1);
   if (!owner?.emailVerified) return false;
 
   const email = owner.email.toLowerCase();
   const [row] = await db
-    .select({ roleIds: invite.roleIds, expiresAt: invite.expiresAt })
-    .from(invite)
-    .where(eq(invite.email, email))
+    .select({ roleIds: schema.invite.roleIds, expiresAt: schema.invite.expiresAt })
+    .from(schema.invite)
+    .where(eq(schema.invite.email, email))
     .limit(1);
   if (!row) return false;
 
   const live = row.expiresAt > new Date();
   if (live && row.roleIds.length > 0) {
-    await replaceUserRoles(userId, row.roleIds);
+    await Rbac.replaceUserRoles(userId, row.roleIds);
   }
-  await db.delete(invite).where(eq(invite.email, email));
+  await db.delete(schema.invite).where(eq(schema.invite.email, email));
   return live;
 }

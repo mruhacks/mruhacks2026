@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm';
 
 import { BreadcrumbSegment } from '@/components/breadcrumb-context';
 import { Card, CardContent } from '@/components/ui/card';
-import { events } from '@/db/schema';
+import * as schema from '@/db/schema';
 import { resolveEventId } from '@/lib/events';
 import { cn } from '@/lib/utils';
 import { db } from '@/utils/db';
@@ -12,7 +12,11 @@ import { db } from '@/utils/db';
 export async function loadJudgeEvent(segment: string) {
   const eventId = await resolveEventId(segment);
   if (!eventId) notFound();
-  const [event] = await db.select({ name: events.name }).from(events).where(eq(events.id, eventId)).limit(1);
+  const [event] = await db
+    .select({ name: schema.events.name })
+    .from(schema.events)
+    .where(eq(schema.events.id, eventId))
+    .limit(1);
   if (!event) notFound();
   return { id: eventId, name: event.name };
 }

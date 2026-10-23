@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import { BreadcrumbSegment } from '@/components/breadcrumb-context';
 
-import { requireAuthWithPermission } from '@/lib/rbac/guards';
+import * as Rbac from '@/lib/rbac/server';
 import { getUserDetails } from '@/app/actions/users';
 import { loadAssignableGrants } from '../assignable-grants';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,7 +10,7 @@ import { EditUserFormStandalone } from './edit-user-form-standalone';
 export default async function UserEditPage({ params }: { params: Promise<{ userId: string }> }) {
   const { userId } = await params;
 
-  const caller = await requireAuthWithPermission(['user:write:all', 'user:all:all']);
+  const caller = await Rbac.requireAuthWithPermission(['user:write:all', 'user:all:all']);
 
   const [userRes, { allRoles, allPermissions }] = await Promise.all([
     getUserDetails(userId),

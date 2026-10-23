@@ -6,7 +6,7 @@ import { render } from 'react-email';
 import type { RootContent } from 'mdast';
 
 import { CampaignEmail } from '@/emails/CampaignEmail';
-import type { CampaignType } from './constants';
+import type { Type } from './constants';
 import { emailBlockErrors, emailMarkdownToText, parseEmailMarkdown } from './email-markdown';
 import { applyMergeFields, mergeFieldError } from './merge-fields';
 
@@ -17,8 +17,8 @@ export function getAppBaseUrl(): string {
   return url.replace(/\/$/, '');
 }
 
-export type CampaignContent = {
-  type: CampaignType;
+export type Content = {
+  type: Type;
   subject: string;
   previewText: string;
   bodyMarkdown: string;
@@ -26,7 +26,7 @@ export type CampaignContent = {
   eventName: string | null;
 };
 
-export type CampaignRecipient = {
+export type Recipient = {
   firstName: string | null;
   /** Signed one-click unsubscribe link (marketing only). */
   unsubscribeUrl?: string | null;
@@ -40,11 +40,7 @@ export type BlockRenderers = {
 
 const footerLink = { color: '#ffffff', textDecoration: 'underline' };
 
-function footerFor(
-  content: CampaignContent,
-  recipient: CampaignRecipient,
-  baseUrl: string,
-): { html: React.ReactNode; text: string } {
+function footerFor(content: Content, recipient: Recipient, baseUrl: string): { html: React.ReactNode; text: string } {
   if (content.type === 'operational') {
     const because = content.eventName
       ? `You're receiving this because you registered for ${content.eventName}.`
@@ -71,7 +67,7 @@ function footerFor(
  * Everything that has to be fixed before a campaign can be sent. Drafts are
  * only held to the merge-field rule (`draftContentErrors`).
  */
-export function sendContentErrors(content: CampaignContent): string[] {
+export function sendContentErrors(content: Content): string[] {
   const errors = draftContentErrors(content);
   if (!content.subject.trim()) errors.unshift('Add a subject line.');
   if (!content.bodyMarkdown.trim()) errors.push('Write the email body.');
@@ -80,9 +76,7 @@ export function sendContentErrors(content: CampaignContent): string[] {
 }
 
 /** Problems that block even saving a draft: unknown `{{…}}` merge fields. */
-export function draftContentErrors(
-  content: Pick<CampaignContent, 'subject' | 'previewText' | 'bodyMarkdown'>,
-): string[] {
+export function draftContentErrors(content: Pick<Content, 'subject' | 'previewText' | 'bodyMarkdown'>): string[] {
   return [
     mergeFieldError(content.subject),
     mergeFieldError(content.previewText),
@@ -95,8 +89,8 @@ export function draftContentErrors(
  * EmailLayout, and a plain-text version from the same parsed markdown.
  */
 export async function renderCampaignEmail(
-  content: CampaignContent,
-  recipient: CampaignRecipient,
+  content: Content,
+  recipient: Recipient,
   options: { baseUrl?: string; blocks?: BlockRenderers } = {},
 ): Promise<{ subject: string; html: string; text: string }> {
   const baseUrl = options.baseUrl ?? getAppBaseUrl();

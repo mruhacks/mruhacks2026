@@ -4,22 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { and, eq, inArray } from 'drizzle-orm';
 import { seedDemoData } from '../../scripts/seed';
 import { db } from '@/utils/db';
-import {
-  checkIns,
-  eventParticipants,
-  eventInvitations,
-  participationStatuses,
-  eventRsvpWaves,
-  events,
-  eventTerms,
-  privacyAcceptances,
-  teamMembers,
-  teams,
-  termsAcceptances,
-  user,
-  userProfileAbout,
-  userProfiles,
-} from '@/db/schema';
+import * as schema from '@/db/schema';
 import { userNeedsConsent } from '@/utils/consent-check';
 import { createApplicationQuestionSchema } from '@/components/application-form/schema';
 import { putObject } from '@/utils/object-storage';
@@ -41,48 +26,48 @@ describe('demo seed', () => {
     vi.stubEnv('SEED_COUNT', '80');
     vi.stubEnv('SEED_CHUNK_SIZE', '13');
     // These are disposable demo fixtures in the dedicated test database.
-    await db.delete(events).where(inArray(events.name, ['MRUHacks 2026', 'Intro to React Workshop']));
+    await db.delete(schema.events).where(inArray(schema.events.name, ['MRUHacks 2026', 'Intro to React Workshop']));
     faker.seed(2026);
     await seedDemoData();
-    const [admin] = await db.select().from(user).where(eq(user.email, 'seed-admin-test@example.com'));
+    const [admin] = await db.select().from(schema.user).where(eq(schema.user.email, 'seed-admin-test@example.com'));
     adminId = admin.id;
     const fixtureEvents = await db
       .select()
-      .from(events)
-      .where(inArray(events.name, ['MRUHacks 2026', 'Intro to React Workshop']));
+      .from(schema.events)
+      .where(inArray(schema.events.name, ['MRUHacks 2026', 'Intro to React Workshop']));
     fixtureEventIds = fixtureEvents.map((event) => event.id);
     eventId = fixtureEvents.find((event) => event.hasApplication)!.id;
   }, 30_000);
 
   test('seeds hackathon rules and a photo release as one shared terms version', async () => {
-    const [event] = await db.select().from(events).where(eq(events.id, eventId));
-    const [terms] = await db.select().from(eventTerms).where(eq(eventTerms.id, event.termsId!));
+    const [event] = await db.select().from(schema.events).where(eq(schema.events.id, eventId));
+    const [terms] = await db.select().from(schema.eventTerms).where(eq(schema.eventTerms.id, event.termsId!));
     expect(terms.markdown).toContain('## Hackathon rules');
     expect(terms.markdown).toContain('## Photo and video release');
-    expect(await db.select().from(eventTerms).where(eq(eventTerms.eventId, eventId))).toHaveLength(1);
+    expect(await db.select().from(schema.eventTerms).where(eq(schema.eventTerms.eventId, eventId))).toHaveLength(1);
   });
 
   afterAll(async () => {
-    if (fixtureEventIds) await db.delete(events).where(inArray(events.id, fixtureEventIds));
+    if (fixtureEventIds) await db.delete(schema.events).where(inArray(schema.events.id, fixtureEventIds));
     vi.unstubAllEnvs();
   });
 
   test('completes the admin welcome requirements and event participation', async () => {
     expect(await userNeedsConsent(adminId)).toBe(false);
-    const [admin] = await db.select().from(user).where(eq(user.id, adminId));
+    const [admin] = await db.select().from(schema.user).where(eq(schema.user.id, adminId));
     expect(admin.emailVerified).toBe(true);
     expect(admin.onboardingCompletedAt).toBeInstanceOf(Date);
-    const [profile] = await db.select().from(userProfiles).where(eq(userProfiles.userId, adminId));
-    const [about] = await db.select().from(userProfileAbout).where(eq(userProfileAbout.userId, adminId));
+    const [profile] = await db.select().from(schema.userProfiles).where(eq(schema.userProfiles.userId, adminId));
+    const [about] = await db.select().from(schema.userProfileAbout).where(eq(schema.userProfileAbout.userId, adminId));
     expect(profile.fullName).toBe('Seed Test Admin');
     expect(about.universityId).toBeTypeOf('number');
     expect(about.majorId).toBeTypeOf('number');
     expect(about.yearOfStudyId).toBeTypeOf('number');
     const [application] = await db
       .select()
-      .from(eventParticipants)
-      .where(and(eq(eventParticipants.userId, adminId), eq(eventParticipants.eventId, eventId)));
-    const [event] = await db.select().from(events).where(eq(events.id, eventId));
+      .from(schema.eventParticipants)
+      .where(and(eq(schema.eventParticipants.userId, adminId), eq(schema.eventParticipants.eventId, eventId)));
+    const [event] = await db.select().from(schema.events).where(eq(schema.events.id, eventId));
     for (const question of event.applicationQuestions.filter(
       (question) => question.active && question.type !== 'section_divider',
     )) {
@@ -93,20 +78,20 @@ describe('demo seed', () => {
     expect(
       await db
         .select()
-        .from(eventParticipants)
-        .innerJoin(participationStatuses, eq(eventParticipants.statusId, participationStatuses.id))
-        .where(and(eq(eventParticipants.userId, adminId), eq(participationStatuses.label, 'accepted'))),
+        .from(schema.eventParticipants)
+        .innerJoin(schema.participationStatuses, eq(schema.eventParticipants.statusId, schema.participationStatuses.id))
+        .where(and(eq(schema.eventParticipants.userId, adminId), eq(schema.participationStatuses.label, 'accepted'))),
     ).toHaveLength(2);
-    expect(await db.select().from(checkIns).where(eq(checkIns.userId, adminId))).toHaveLength(2);
-    expect(await db.select().from(teamMembers).where(eq(teamMembers.userId, adminId))).toHaveLength(1);
+    expect(await db.select().from(schema.checkIns).where(eq(schema.checkIns.userId, adminId))).toHaveLength(2);
+    expect(await db.select().from(schema.teamMembers).where(eq(schema.teamMembers.userId, adminId))).toHaveLength(1);
   });
 
   test('gives every fake user an isolated copy of a committed PDF', async () => {
     const profiles = await db
-      .select({ profile: userProfiles })
-      .from(userProfiles)
-      .innerJoin(eventParticipants, eq(eventParticipants.userId, userProfiles.userId))
-      .where(eq(eventParticipants.eventId, eventId));
+      .select({ profile: schema.userProfiles })
+      .from(schema.userProfiles)
+      .innerJoin(schema.eventParticipants, eq(schema.eventParticipants.userId, schema.userProfiles.userId))
+      .where(eq(schema.eventParticipants.eventId, eventId));
     const fakeProfiles = profiles.map(({ profile }) => profile).filter((profile) => profile.userId !== adminId);
     expect(fakeProfiles).toHaveLength(80);
     const uploads = vi.mocked(putObject).mock.calls.map(([upload]) => upload);
@@ -140,30 +125,30 @@ describe('demo seed', () => {
   test('links RSVP states, approvals, attendance, and timestamps consistently across chunks', async () => {
     const responses = await db
       .select({
-        response: eventInvitations,
-        userId: eventParticipants.userId,
-        wave: eventRsvpWaves,
-        status: participationStatuses.label,
-        reviewedAt: eventParticipants.reviewedAt,
+        response: schema.eventInvitations,
+        userId: schema.eventParticipants.userId,
+        wave: schema.eventRsvpWaves,
+        status: schema.participationStatuses.label,
+        reviewedAt: schema.eventParticipants.reviewedAt,
       })
-      .from(eventInvitations)
-      .innerJoin(eventRsvpWaves, eq(eventInvitations.rsvpWaveId, eventRsvpWaves.id))
-      .innerJoin(eventParticipants, eq(eventInvitations.participantId, eventParticipants.id))
-      .innerJoin(participationStatuses, eq(participationStatuses.id, eventParticipants.statusId))
-      .where(eq(eventRsvpWaves.eventId, eventId));
+      .from(schema.eventInvitations)
+      .innerJoin(schema.eventRsvpWaves, eq(schema.eventInvitations.rsvpWaveId, schema.eventRsvpWaves.id))
+      .innerJoin(schema.eventParticipants, eq(schema.eventInvitations.participantId, schema.eventParticipants.id))
+      .innerJoin(schema.participationStatuses, eq(schema.participationStatuses.id, schema.eventParticipants.statusId))
+      .where(eq(schema.eventRsvpWaves.eventId, eventId));
     expect(new Set(responses.map((row) => row.status))).toEqual(
       new Set(['accepted', 'invited', 'declined', 'timed_out']),
     );
     // Everyone holding a spot got there by accepting an invitation.
     const attendees = await db
-      .select({ userId: eventParticipants.userId })
-      .from(eventParticipants)
-      .innerJoin(participationStatuses, eq(participationStatuses.id, eventParticipants.statusId))
-      .where(and(eq(eventParticipants.eventId, eventId), eq(participationStatuses.label, 'accepted')));
+      .select({ userId: schema.eventParticipants.userId })
+      .from(schema.eventParticipants)
+      .innerJoin(schema.participationStatuses, eq(schema.participationStatuses.id, schema.eventParticipants.statusId))
+      .where(and(eq(schema.eventParticipants.eventId, eventId), eq(schema.participationStatuses.label, 'accepted')));
     expect(new Set(attendees.map((row) => row.userId))).toEqual(
       new Set(responses.filter((row) => row.status === 'accepted').map((row) => row.userId)),
     );
-    const waves = await db.select().from(eventRsvpWaves).where(eq(eventRsvpWaves.eventId, eventId));
+    const waves = await db.select().from(schema.eventRsvpWaves).where(eq(schema.eventRsvpWaves.eventId, eventId));
     expect(waves).toHaveLength(2);
     for (const row of responses) {
       expect(row.reviewedAt).not.toBeNull();
@@ -186,18 +171,23 @@ describe('demo seed', () => {
     // Some waitlisted applicants are left for a future wave.
     const waitlisted = await db
       .select()
-      .from(eventParticipants)
-      .innerJoin(participationStatuses, eq(eventParticipants.statusId, participationStatuses.id))
-      .where(and(eq(eventParticipants.eventId, eventId), eq(participationStatuses.label, 'waitlisted')));
+      .from(schema.eventParticipants)
+      .innerJoin(schema.participationStatuses, eq(schema.eventParticipants.statusId, schema.participationStatuses.id))
+      .where(and(eq(schema.eventParticipants.eventId, eventId), eq(schema.participationStatuses.label, 'waitlisted')));
     expect(waitlisted.length).toBeGreaterThan(0);
     const allAttendees = (
       await db
-        .select({ participant: eventParticipants })
-        .from(eventParticipants)
-        .innerJoin(participationStatuses, eq(eventParticipants.statusId, participationStatuses.id))
-        .where(and(inArray(eventParticipants.eventId, fixtureEventIds), eq(participationStatuses.label, 'accepted')))
+        .select({ participant: schema.eventParticipants })
+        .from(schema.eventParticipants)
+        .innerJoin(schema.participationStatuses, eq(schema.eventParticipants.statusId, schema.participationStatuses.id))
+        .where(
+          and(
+            inArray(schema.eventParticipants.eventId, fixtureEventIds),
+            eq(schema.participationStatuses.label, 'accepted'),
+          ),
+        )
     ).map((row) => row.participant);
-    const checkins = await db.select().from(checkIns).where(inArray(checkIns.eventId, fixtureEventIds));
+    const checkins = await db.select().from(schema.checkIns).where(inArray(schema.checkIns.eventId, fixtureEventIds));
     expect(checkins.length).toBeGreaterThan(2);
     expect(checkins.length).toBeLessThan(allAttendees.length);
     for (const checkin of checkins) {
@@ -209,8 +199,8 @@ describe('demo seed', () => {
   });
 
   test('seeds valid team rosters, including their organizers and size limits', async () => {
-    const seededTeams = await db.select().from(teams).where(eq(teams.eventId, eventId));
-    const members = await db.select().from(teamMembers).where(eq(teamMembers.eventId, eventId));
+    const seededTeams = await db.select().from(schema.teams).where(eq(schema.teams.eventId, eventId));
+    const members = await db.select().from(schema.teamMembers).where(eq(schema.teamMembers.eventId, eventId));
     expect(seededTeams.length).toBeGreaterThan(1);
     expect(new Set(members.map((member) => member.userId)).size).toBe(members.length);
     for (const team of seededTeams) {
@@ -224,26 +214,33 @@ describe('demo seed', () => {
   });
 
   test('can rerun with zero fake users without duplicating admin records or overwriting profile edits', async () => {
-    await db.update(userProfiles).set({ fullName: 'Edited Admin' }).where(eq(userProfiles.userId, adminId));
-    const beforeWaves = await db.select().from(eventRsvpWaves).where(eq(eventRsvpWaves.eventId, eventId));
+    await db
+      .update(schema.userProfiles)
+      .set({ fullName: 'Edited Admin' })
+      .where(eq(schema.userProfiles.userId, adminId));
+    const beforeWaves = await db.select().from(schema.eventRsvpWaves).where(eq(schema.eventRsvpWaves.eventId, eventId));
     vi.stubEnv('SEED_COUNT', '0');
     const uploadCount = vi.mocked(putObject).mock.calls.length;
     await seedDemoData();
     expect(putObject).toHaveBeenCalledTimes(uploadCount);
-    expect(await db.select().from(termsAcceptances).where(eq(termsAcceptances.userId, adminId))).toHaveLength(1);
-    expect(await db.select().from(privacyAcceptances).where(eq(privacyAcceptances.userId, adminId))).toHaveLength(1);
+    expect(
+      await db.select().from(schema.termsAcceptances).where(eq(schema.termsAcceptances.userId, adminId)),
+    ).toHaveLength(1);
+    expect(
+      await db.select().from(schema.privacyAcceptances).where(eq(schema.privacyAcceptances.userId, adminId)),
+    ).toHaveLength(1);
     expect(
       await db
         .select()
-        .from(eventInvitations)
-        .innerJoin(eventParticipants, eq(eventInvitations.participantId, eventParticipants.id))
-        .where(eq(eventParticipants.userId, adminId)),
+        .from(schema.eventInvitations)
+        .innerJoin(schema.eventParticipants, eq(schema.eventInvitations.participantId, schema.eventParticipants.id))
+        .where(eq(schema.eventParticipants.userId, adminId)),
     ).toHaveLength(1);
-    expect(await db.select().from(teamMembers).where(eq(teamMembers.userId, adminId))).toHaveLength(1);
-    expect(await db.select().from(eventRsvpWaves).where(eq(eventRsvpWaves.eventId, eventId))).toHaveLength(
-      beforeWaves.length,
-    );
-    const [profile] = await db.select().from(userProfiles).where(eq(userProfiles.userId, adminId));
+    expect(await db.select().from(schema.teamMembers).where(eq(schema.teamMembers.userId, adminId))).toHaveLength(1);
+    expect(
+      await db.select().from(schema.eventRsvpWaves).where(eq(schema.eventRsvpWaves.eventId, eventId)),
+    ).toHaveLength(beforeWaves.length);
+    const [profile] = await db.select().from(schema.userProfiles).where(eq(schema.userProfiles.userId, adminId));
     expect(profile.fullName).toBe('Edited Admin');
     expect(await userNeedsConsent(adminId)).toBe(false);
   });

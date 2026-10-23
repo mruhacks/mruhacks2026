@@ -1,9 +1,8 @@
 import { eq } from 'drizzle-orm';
 
-import { user } from '@/db/schema';
-import { verifyWalletLinkToken } from '@/lib/signing/email-tokens';
-import { checkWalletRateLimit } from '@/lib/wallet/rate-limit';
-import { applePassResponse, googleWalletResponse, walletParticipation } from '@/lib/wallet/wallet-responses';
+import * as schema from '@/db/schema';
+import * as Signing from '@/lib/signing/server';
+import * as Wallet from '@/lib/wallet/server';
 import { db } from '@/utils/db';
 
 /**
@@ -19,18 +18,22 @@ export async function GET(request: Request, { params }: { params: Promise<{ toke
     return new Response('Not found', { status: 404 });
   }
 
-  const claims = await verifyWalletLinkToken(token);
+  const claims = await Signing.verifyWalletLinkToken(token);
   if (!claims) return new Response('Not found', { status: 404 });
-  if (!(await checkWalletRateLimit(claims.userId))) {
+  if (!(await Wallet.checkWalletRateLimit(claims.userId))) {
     return new Response('Too Many Requests', { status: 429 });
   }
 
-  const participation = await walletParticipation(claims.eventId, claims.userId);
+  const participation = await Wallet.participation(claims.eventId, claims.userId);
   if (!participation || (participation.endsAt && participation.endsAt.getTime() < Date.now())) {
     return new Response('Not found', { status: 404 });
   }
 
-  const [account] = await db.select({ name: user.name }).from(user).where(eq(user.id, claims.userId)).limit(1);
+  const [account] = await db
+    .select({ name: schema.user.name })
+    .from(schema.user)
+    .where(eq(schema.user.id, claims.userId))
+    .limit(1);
   if (!account) return new Response('Not found', { status: 404 });
 
   const input = {
@@ -39,5 +42,5 @@ export async function GET(request: Request, { params }: { params: Promise<{ toke
     accountName: account.name,
     participation,
   };
-  return platform === 'apple' ? applePassResponse(input) : googleWalletResponse(input);
+  return platform === 'apple' ? Wallet.applePassResponse(input) : Wallet.googleWalletResponse(input);
 }

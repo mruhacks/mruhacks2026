@@ -1,7 +1,7 @@
 import { cacheLife, cacheTag } from 'next/cache';
 import { and, asc, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 
-import { checkIns, events, eventTypes } from '@/db/schema';
+import * as schema from '@/db/schema';
 import { db } from '@/utils/db';
 
 export { isSubeventRunning } from '@/lib/subevent-running';
@@ -49,19 +49,19 @@ export async function listSubevents(parentEventId: string): Promise<SubeventRow[
 
   return db
     .select({
-      id: events.id,
-      name: events.name,
-      startsAt: events.startsAt,
-      endsAt: events.endsAt,
-      location: events.location,
-      descriptionMarkdown: events.descriptionMarkdown,
-      checkInEnabled: events.checkInEnabled,
-      eventTypeLabel: eventTypes.label,
+      id: schema.events.id,
+      name: schema.events.name,
+      startsAt: schema.events.startsAt,
+      endsAt: schema.events.endsAt,
+      location: schema.events.location,
+      descriptionMarkdown: schema.events.descriptionMarkdown,
+      checkInEnabled: schema.events.checkInEnabled,
+      eventTypeLabel: schema.eventTypes.label,
     })
-    .from(events)
-    .leftJoin(eventTypes, eq(eventTypes.id, events.eventTypeId))
-    .where(eq(events.parentEventId, parentEventId))
-    .orderBy(asc(events.startsAt), asc(events.name));
+    .from(schema.events)
+    .leftJoin(schema.eventTypes, eq(schema.eventTypes.id, schema.events.eventTypeId))
+    .where(eq(schema.events.parentEventId, parentEventId))
+    .orderBy(asc(schema.events.startsAt), asc(schema.events.name));
 }
 
 /** A start time is enough to publish an entry in the participant schedule. */
@@ -78,12 +78,12 @@ export async function getSubeventCheckInCounts(subeventIds: string[]): Promise<R
 
   const rows = await db
     .select({
-      eventId: checkIns.eventId,
+      eventId: schema.checkIns.eventId,
       count: sql<number>`COUNT(*)`.mapWith(Number),
     })
-    .from(checkIns)
-    .where(inArray(checkIns.eventId, subeventIds))
-    .groupBy(checkIns.eventId);
+    .from(schema.checkIns)
+    .where(inArray(schema.checkIns.eventId, subeventIds))
+    .groupBy(schema.checkIns.eventId);
 
   return Object.fromEntries(rows.map((row) => [row.eventId, row.count]));
 }
@@ -131,13 +131,13 @@ export async function resolveCheckInTarget(
 
   const [row] = await db
     .select({
-      id: events.id,
-      name: events.name,
-      startsAt: events.startsAt,
-      endsAt: events.endsAt,
+      id: schema.events.id,
+      name: schema.events.name,
+      startsAt: schema.events.startsAt,
+      endsAt: schema.events.endsAt,
     })
-    .from(events)
-    .where(and(eq(events.id, targetEventId), eq(events.parentEventId, mainEventId)))
+    .from(schema.events)
+    .where(and(eq(schema.events.id, targetEventId), eq(schema.events.parentEventId, mainEventId)))
     .limit(1);
 
   if (!row) return null;
@@ -160,9 +160,9 @@ export async function resolveCheckInTarget(
  */
 export async function getParentEventId(eventId: string): Promise<string | null> {
   const [row] = await db
-    .select({ parentEventId: events.parentEventId })
-    .from(events)
-    .where(and(eq(events.id, eventId), isNotNull(events.parentEventId)))
+    .select({ parentEventId: schema.events.parentEventId })
+    .from(schema.events)
+    .where(and(eq(schema.events.id, eventId), isNotNull(schema.events.parentEventId)))
     .limit(1);
 
   return row?.parentEventId ?? null;
@@ -172,11 +172,11 @@ export async function resolveEventRoot(eventId: string): Promise<{ id: string; e
   const [walk] = await db.execute<{ id: string }>(sql`
     WITH RECURSIVE walk AS (
       SELECT id, parent_event_id
-      FROM ${events}
+      FROM ${schema.events}
       WHERE id = ${eventId}
       UNION ALL
       SELECT e.id, e.parent_event_id
-      FROM ${events} e
+      FROM ${schema.events} e
       INNER JOIN walk w ON w.parent_event_id = e.id
     )
     SELECT id FROM walk WHERE parent_event_id IS NULL
@@ -184,9 +184,9 @@ export async function resolveEventRoot(eventId: string): Promise<{ id: string; e
   if (!walk) return null;
 
   const [row] = await db
-    .select({ id: events.id, endsAt: events.endsAt })
-    .from(events)
-    .where(eq(events.id, walk.id))
+    .select({ id: schema.events.id, endsAt: schema.events.endsAt })
+    .from(schema.events)
+    .where(eq(schema.events.id, walk.id))
     .limit(1);
   return row ?? null;
 }
@@ -194,10 +194,10 @@ export async function resolveEventRoot(eventId: string): Promise<{ id: string; e
 export async function listEventTreeIds(rootId: string): Promise<string[]> {
   const rows = await db.execute<{ id: string }>(sql`
     WITH RECURSIVE tree AS (
-      SELECT id FROM ${events} WHERE id = ${rootId}
+      SELECT id FROM ${schema.events} WHERE id = ${rootId}
       UNION ALL
       SELECT e.id
-      FROM ${events} e
+      FROM ${schema.events} e
       INNER JOIN tree t ON e.parent_event_id = t.id
     )
     SELECT id FROM tree

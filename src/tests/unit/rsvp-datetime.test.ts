@@ -1,19 +1,18 @@
 import { describe, expect, test } from 'vitest';
 
 import { EVENT_TIME_ZONE } from '@/lib/datetime';
-import { buildRsvpInvitationEmail } from '@/lib/rsvp/rsvp-invitation-email';
-import { formatRsvpDeadline } from '@/lib/rsvp/rsvp-datetime';
+import * as Rsvp from '@/lib/rsvp';
 
 describe('RSVP deadline formatting', () => {
   const instant = new Date('2026-08-21T05:59:00.000Z');
 
   test('email deadline matches the intended Calgary local time and includes a zone', async () => {
-    const formatted = formatRsvpDeadline(instant);
+    const formatted = Rsvp.formatRsvpDeadline(instant);
     expect(formatted).toMatch(/August 20, 2026/i);
     expect(formatted).toMatch(/11:59/i);
     expect(formatted).toMatch(/MDT|MST|GMT-6|UTC-6/i);
 
-    const email = await buildRsvpInvitationEmail({
+    const email = await Rsvp.buildRsvpInvitationEmail({
       eventName: 'MRUHacks',
       respondBy: instant,
       magicLinkUrl: 'https://example.com/rsvp',
@@ -24,7 +23,7 @@ describe('RSVP deadline formatting', () => {
   });
 
   test('escapes event names in HTML and leaves plaintext unescaped', async () => {
-    const email = await buildRsvpInvitationEmail({
+    const email = await Rsvp.buildRsvpInvitationEmail({
       eventName: `MRUHacks & Friends <img src=x onerror=alert(1)>`,
       respondBy: instant,
       magicLinkUrl: 'https://example.com/rsvp',
@@ -38,9 +37,9 @@ describe('RSVP deadline formatting', () => {
   });
 
   test('formatting does not depend on the server process timezone', async () => {
-    const calgary = formatRsvpDeadline(instant, EVENT_TIME_ZONE);
-    const tokyo = formatRsvpDeadline(instant, 'Asia/Tokyo');
-    expect(calgary).toBe(formatRsvpDeadline(instant));
+    const calgary = Rsvp.formatRsvpDeadline(instant, EVENT_TIME_ZONE);
+    const tokyo = Rsvp.formatRsvpDeadline(instant, 'Asia/Tokyo');
+    expect(calgary).toBe(Rsvp.formatRsvpDeadline(instant));
     expect(calgary).not.toBe(tokyo);
     expect(calgary).toMatch(/MDT|MST|GMT-6|UTC-6/i);
     expect(tokyo).toMatch(/JST|GMT\+9|UTC\+9/i);

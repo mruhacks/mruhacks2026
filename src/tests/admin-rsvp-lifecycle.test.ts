@@ -1,13 +1,13 @@
 import { describe, test, expect } from 'vitest';
 
-import { deriveAdminRsvpLifecycle } from '@/lib/rsvp/get-admin-rsvp-summary';
+import * as Rsvp from '@/lib/rsvp/server';
 
 const now = new Date('2026-09-16T18:00:00.000Z');
 
 describe('deriveAdminRsvpLifecycle', () => {
   test('returns no_waves when RSVP has not started', () => {
     expect(
-      deriveAdminRsvpLifecycle({
+      Rsvp.deriveAdminRsvpLifecycle({
         hasApplication: true,
         latestWave: null,
         isFull: false,
@@ -20,7 +20,7 @@ describe('deriveAdminRsvpLifecycle', () => {
 
   test('returns active_wave while respondBy is in the future', () => {
     expect(
-      deriveAdminRsvpLifecycle({
+      Rsvp.deriveAdminRsvpLifecycle({
         hasApplication: true,
         latestWave: { respondBy: new Date('2026-09-18T18:00:00.000Z') },
         isFull: false,
@@ -33,7 +33,7 @@ describe('deriveAdminRsvpLifecycle', () => {
 
   test('returns awaiting_scheduled_wave after a closed wave when more people can be invited', () => {
     expect(
-      deriveAdminRsvpLifecycle({
+      Rsvp.deriveAdminRsvpLifecycle({
         hasApplication: true,
         latestWave: { respondBy: new Date('2026-09-16T17:00:00.000Z') },
         isFull: false,
@@ -46,7 +46,7 @@ describe('deriveAdminRsvpLifecycle', () => {
 
   test('returns event_full when no spots remain', () => {
     expect(
-      deriveAdminRsvpLifecycle({
+      Rsvp.deriveAdminRsvpLifecycle({
         hasApplication: true,
         latestWave: { respondBy: new Date('2026-09-16T17:00:00.000Z') },
         isFull: true,
@@ -59,7 +59,7 @@ describe('deriveAdminRsvpLifecycle', () => {
 
   test('returns no_eligible_applicants when spots remain but nobody can be invited', () => {
     expect(
-      deriveAdminRsvpLifecycle({
+      Rsvp.deriveAdminRsvpLifecycle({
         hasApplication: true,
         latestWave: { respondBy: new Date('2026-09-16T17:00:00.000Z') },
         isFull: false,
@@ -72,7 +72,7 @@ describe('deriveAdminRsvpLifecycle', () => {
 
   test('returns event_started after a closed wave once the event has started', () => {
     expect(
-      deriveAdminRsvpLifecycle({
+      Rsvp.deriveAdminRsvpLifecycle({
         hasApplication: true,
         latestWave: { respondBy: new Date('2026-09-16T17:00:00.000Z') },
         isFull: false,

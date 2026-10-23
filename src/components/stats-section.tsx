@@ -1,7 +1,7 @@
 'use client';
 
 import { StatsDescription, StatsText } from '@/content';
-import { StatCard } from './stats-card';
+import { StatCard } from '@/components/stats-card';
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel';
 
 export function Stats() {

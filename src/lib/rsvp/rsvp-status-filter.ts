@@ -1,5 +1,5 @@
 /** Faceted Status filter: keep rows whose column value is in the selected labels. */
-export function rsvpStatusFilterFn(
+export function statusFilterFn(
   row: { getValue: (columnId: string) => unknown },
   columnId: string,
   filterValue: unknown,

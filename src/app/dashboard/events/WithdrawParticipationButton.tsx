@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
 
-import { withdrawParticipation } from '@/app/dashboard/events/actions';
+import { withdrawParticipation } from './actions';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,

@@ -1,11 +1,9 @@
 import { and, eq } from 'drizzle-orm';
 import QRCode from 'qrcode';
 
-import { eventJudges } from '@/db/schema';
-import { checkJudgeInviteRateLimit } from '@/lib/judging/invite-rate-limit';
-import { createJudgeSignInLink } from '@/lib/judging/judge-invite';
-import { JUDGE_SIGNIN_LINK_EXPIRES_IN_SECONDS } from '@/lib/judging/signin-qr';
-import { hasPermission } from '@/lib/rbac/authorization';
+import * as schema from '@/db/schema';
+import * as Judging from '@/lib/judging/server';
+import * as Rbac from '@/lib/rbac/server';
 import { getUser } from '@/utils/auth';
 import { writeAuditLog } from '@/utils/audit-log';
 import { db } from '@/utils/db';
@@ -46,17 +44,17 @@ export async function GET(request: Request, { params }: { params: Promise<{ even
 
   const admin = await getUser();
   if (!admin) return new Response('Unauthorized', { status: 401 });
-  if (!(await hasPermission(admin.id, 'judging:signin:all'))) {
+  if (!(await Rbac.hasPermission(admin.id, 'judging:signin:all'))) {
     return new Response('Forbidden', { status: 403 });
   }
-  if (!(await checkJudgeInviteRateLimit(admin.id))) {
+  if (!(await Judging.checkJudgeInviteRateLimit(admin.id))) {
     return new Response('Too Many Requests', { status: 429 });
   }
 
   const [row] = await db
-    .select({ email: eventJudges.email, disabledAt: eventJudges.disabledAt })
-    .from(eventJudges)
-    .where(and(eq(eventJudges.id, judgeId), eq(eventJudges.eventId, eventId)))
+    .select({ email: schema.eventJudges.email, disabledAt: schema.eventJudges.disabledAt })
+    .from(schema.eventJudges)
+    .where(and(eq(schema.eventJudges.id, judgeId), eq(schema.eventJudges.eventId, eventId)))
     .limit(1);
   // A deleted account has nothing left to sign in to.
   if (!row?.email) return new Response('Not found', { status: 404 });
@@ -64,7 +62,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ even
 
   let svg: string;
   try {
-    const url = await createJudgeSignInLink(row.email);
+    const url = await Judging.createJudgeSignInLink(row.email);
     svg = await QRCode.toString(url, {
       type: 'svg',
       errorCorrectionLevel: 'medium',
@@ -74,7 +72,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ even
     console.error('[admin/judging/signin-qr] judge sign-in QR failed', error);
     return new Response('Could not generate QR code', { status: 500 });
   }
-  const expiresAt = new Date(Date.now() + JUDGE_SIGNIN_LINK_EXPIRES_IN_SECONDS * 1000);
+  const expiresAt = new Date(Date.now() + Judging.JUDGE_SIGNIN_LINK_EXPIRES_IN_SECONDS * 1000);
 
   await writeAuditLog({
     actorId: admin.id,

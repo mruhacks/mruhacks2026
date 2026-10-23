@@ -2,30 +2,28 @@ import { describe, test, expect, afterAll } from 'vitest';
 import { inArray } from 'drizzle-orm';
 
 import { db } from '@/utils/db';
-import { events, user } from '@/db/schema';
-import { getWaitlist } from '@/lib/rsvp/waitlist';
-import { selectRsvpWaveInvitees } from '@/lib/rsvp/select-rsvp-wave-invitees';
-import { getEligibleRsvpApplicants } from '@/lib/rsvp/eligible-rsvp-applicants';
+import * as schema from '@/db/schema';
+import * as Rsvp from '@/lib/rsvp/server';
 import { insertParticipant, insertVotes } from '@/tests/participation-fixtures';
 
 const createdEventIds: string[] = [];
 const createdUserIds: string[] = [];
 
 afterAll(async () => {
-  await db.delete(events).where(inArray(events.id, createdEventIds));
-  await db.delete(user).where(inArray(user.id, createdUserIds));
+  await db.delete(schema.events).where(inArray(schema.events.id, createdEventIds));
+  await db.delete(schema.user).where(inArray(schema.user.id, createdUserIds));
 });
 
 let counter = 0;
 async function createUser(name: string): Promise<string> {
   const [row] = await db
-    .insert(user)
+    .insert(schema.user)
     .values({
       name,
       email: `waitlist-${Date.now()}-${counter++}@example.com`,
       emailVerified: true,
     })
-    .returning({ id: user.id });
+    .returning({ id: schema.user.id });
   createdUserIds.push(row.id);
   return row.id;
 }
@@ -36,9 +34,9 @@ async function createUser(name: string): Promise<string> {
  */
 async function setup() {
   const [event] = await db
-    .insert(events)
+    .insert(schema.events)
     .values({ name: 'Waitlist Test', hasApplication: true })
-    .returning({ id: events.id });
+    .returning({ id: schema.events.id });
   createdEventIds.push(event.id);
   const add = async (name: string, day: number) =>
     insertParticipant({
@@ -83,7 +81,7 @@ async function setup() {
 describe('getWaitlist', () => {
   test('lists only waitlisted participants, in the order waves invite them', async () => {
     const { eventId } = await setup();
-    const waitlist = await getWaitlist(eventId);
+    const waitlist = await Rsvp.getWaitlist(eventId);
     expect(waitlist.map((e) => [e.name, e.position])).toEqual([
       ['A', 1],
       ['B', 2],
@@ -91,8 +89,8 @@ describe('getWaitlist', () => {
       ['D', 4],
     ]);
 
-    const eligibility = await getEligibleRsvpApplicants(eventId);
-    const waveOrder = selectRsvpWaveInvitees(eligibility!.applicants, null);
+    const eligibility = await Rsvp.getEligibleRsvpApplicants(eventId);
+    const waveOrder = Rsvp.selectRsvpWaveInvitees(eligibility!.applicants, null);
     expect(waveOrder.map((a) => a.participantId)).toEqual(waitlist.map((e) => e.participantId));
   });
 });

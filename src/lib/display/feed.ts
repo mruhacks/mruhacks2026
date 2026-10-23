@@ -1,12 +1,12 @@
 import { cacheLife, cacheTag } from 'next/cache';
 import { eq } from 'drizzle-orm';
 
-import { displaySettings, events } from '@/db/schema';
+import * as schema from '@/db/schema';
 import { db } from '@/utils/db';
 import { serializeInstant } from '@/lib/datetime';
 import { EVENTS_CACHE_TAG } from '@/lib/events';
 import { isScheduleVisible, listSubevents } from '@/lib/subevents';
-import type { DisplayFeed, DisplaySettings } from '@/lib/display/schedule';
+import type { Feed, Settings } from './schedule';
 
 /*
  * Every screen polls the feed every 15 seconds, so it's served from cache and
@@ -16,22 +16,22 @@ import type { DisplayFeed, DisplaySettings } from '@/lib/display/schedule';
  * reset scripts).
  */
 
-export const DISPLAY_SETTINGS_CACHE_TAG = 'display-settings';
+export const SETTINGS_CACHE_TAG = 'display-settings';
 
-const DEFAULT_SETTINGS: DisplaySettings = { showClock: false, theme: 'light' };
+const DEFAULT_SETTINGS: Settings = { showClock: false, theme: 'light' };
 
-export async function getDisplaySettings(): Promise<DisplaySettings> {
+export async function getDisplaySettings(): Promise<Settings> {
   'use cache';
-  cacheTag(DISPLAY_SETTINGS_CACHE_TAG);
+  cacheTag(SETTINGS_CACHE_TAG);
   cacheLife('days');
 
   const [row] = await db
     .select({
-      showClock: displaySettings.showClock,
-      theme: displaySettings.theme,
+      showClock: schema.displaySettings.showClock,
+      theme: schema.displaySettings.theme,
     })
-    .from(displaySettings)
-    .where(eq(displaySettings.id, 1))
+    .from(schema.displaySettings)
+    .where(eq(schema.displaySettings.id, 1))
     .limit(1);
   return row ?? DEFAULT_SETTINGS;
 }
@@ -43,13 +43,13 @@ export async function getDisplaySettings(): Promise<DisplaySettings> {
  * tags the nested `listSubevents`/`getDisplaySettings` reads carry; the
  * explicit `cacheLife` here overrides their shorter lifetimes.
  */
-export async function loadDisplayFeed(): Promise<DisplayFeed> {
+export async function loadDisplayFeed(): Promise<Feed> {
   'use cache';
   cacheTag(EVENTS_CACHE_TAG);
   cacheLife('days');
 
   const [[event], settings] = await Promise.all([
-    db.select({ id: events.id }).from(events).where(eq(events.isFeatured, true)).limit(1),
+    db.select({ id: schema.events.id }).from(schema.events).where(eq(schema.events.isFeatured, true)).limit(1),
     getDisplaySettings(),
   ]);
   const subevents = event ? await listSubevents(event.id) : [];

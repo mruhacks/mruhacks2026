@@ -10,7 +10,7 @@ import {
   primaryKey,
   index,
 } from 'drizzle-orm/pg-core';
-import { user } from './auth-schema';
+import { user } from '@/db/auth-schema';
 
 export const authz = pgSchema('authz');
 

@@ -12,15 +12,9 @@ import { and, asc, count, eq, inArray, sql } from 'drizzle-orm';
 import { refresh } from 'next/cache';
 import { z } from 'zod';
 
-import { campaignDeliveries, campaigns, events } from '@/db/schema';
-import { countAudience } from '@/lib/campaigns/audience';
-import { publishCampaignDispatch } from '@/lib/campaigns/campaign-queue';
-import { campaignContentErrors } from '@/lib/campaigns/content-checks';
-import type { CampaignDeliveryStatus } from '@/lib/campaigns/constants';
-import { SKIP_REASONS } from '@/lib/campaigns/process-delivery';
-import { publishQueuedDeliveries } from '@/lib/campaigns/process-dispatch';
-import { currentCampaignRules } from '@/lib/campaigns/saved-audiences';
-import { hasPermission, requirePermission } from '@/lib/rbac/authorization';
+import * as schema from '@/db/schema';
+import * as Campaigns from '@/lib/campaigns/server';
+import * as Rbac from '@/lib/rbac/server';
 import { fail, ok, type ActionResult } from '@/utils/action-result';
 import { writeAuditLog } from '@/utils/audit-log';
 import { getUser } from '@/utils/auth';
@@ -33,10 +27,10 @@ const TYPE_TO_CONFIRM_ABOVE = 100;
 async function loadCampaign(campaignId: string) {
   if (!z.uuid().safeParse(campaignId).success) return null;
   const [row] = await db
-    .select({ campaign: campaigns, eventName: events.name })
-    .from(campaigns)
-    .leftJoin(events, eq(campaigns.eventId, events.id))
-    .where(eq(campaigns.id, campaignId))
+    .select({ campaign: schema.campaigns, eventName: schema.events.name })
+    .from(schema.campaigns)
+    .leftJoin(schema.events, eq(schema.campaigns.eventId, schema.events.id))
+    .where(eq(schema.campaigns.id, campaignId))
     .limit(1);
   return row ?? null;
 }
@@ -45,9 +39,9 @@ async function loadCampaign(campaignId: string) {
 async function requireSender(type: 'marketing' | 'operational' | null) {
   const user = await getUser();
   if (!user) return null;
-  await requirePermission(user.id, 'campaign:send:all');
+  await Rbac.requirePermission(user.id, 'campaign:send:all');
   if (type === 'operational') {
-    await requirePermission(user.id, 'campaign:operational:all');
+    await Rbac.requirePermission(user.id, 'campaign:operational:all');
   }
   return user;
 }
@@ -69,13 +63,13 @@ export async function getSendSummary(campaignId: string): Promise<ActionResult<S
   const { campaign } = row;
 
   try {
-    const problems = await campaignContentErrors({ ...campaign, eventName: row.eventName }, campaign.eventId, 'send');
+    const problems = await Campaigns.contentErrors({ ...campaign, eventName: row.eventName }, campaign.eventId, 'send');
     if (campaign.status !== 'draft') {
       problems.unshift('Only drafts can be sent.');
     }
-    const rules = await currentCampaignRules(campaign);
+    const rules = await Campaigns.currentCampaignRules(campaign);
     const recipients = rules
-      ? await countAudience(rules, {
+      ? await Campaigns.countAudience(rules, {
           type: campaign.type,
           eventId: campaign.eventId,
         })
@@ -112,21 +106,25 @@ export async function sendCampaignNow(campaignId: string, confirmRecipients?: nu
 
   const scheduledFor = new Date();
   const [scheduled] = await db
-    .update(campaigns)
+    .update(schema.campaigns)
     .set({ status: 'scheduled', scheduledFor, updatedBy: user.id })
-    .where(and(eq(campaigns.id, campaignId), eq(campaigns.status, 'draft')))
-    .returning({ id: campaigns.id });
+    .where(and(eq(schema.campaigns.id, campaignId), eq(schema.campaigns.status, 'draft')))
+    .returning({ id: schema.campaigns.id });
   if (!scheduled) return fail('Only drafts can be sent.');
 
   try {
-    await publishCampaignDispatch(campaignId, scheduledFor);
+    await Campaigns.publishCampaignDispatch(campaignId, scheduledFor);
   } catch (error) {
     // Nothing was queued; put it back so it can be sent again.
     await db
-      .update(campaigns)
+      .update(schema.campaigns)
       .set({ status: 'draft', scheduledFor: null })
       .where(
-        and(eq(campaigns.id, campaignId), eq(campaigns.status, 'scheduled'), eq(campaigns.scheduledFor, scheduledFor)),
+        and(
+          eq(schema.campaigns.id, campaignId),
+          eq(schema.campaigns.status, 'scheduled'),
+          eq(schema.campaigns.scheduledFor, scheduledFor),
+        ),
       );
     return serverActionError('queue the campaign', error);
   }
@@ -166,7 +164,7 @@ export async function scheduleCampaign(campaignId: string, scheduledForIso: stri
     return fail('Choose an hour in the future.');
   }
 
-  const problems = await campaignContentErrors(
+  const problems = await Campaigns.contentErrors(
     { ...row.campaign, eventName: row.eventName },
     row.campaign.eventId,
     'send',
@@ -174,10 +172,10 @@ export async function scheduleCampaign(campaignId: string, scheduledForIso: stri
   if (problems.length > 0) return fail(problems[0]);
 
   const [scheduled] = await db
-    .update(campaigns)
+    .update(schema.campaigns)
     .set({ status: 'scheduled', scheduledFor, updatedBy: user.id })
-    .where(and(eq(campaigns.id, campaignId), eq(campaigns.status, 'draft')))
-    .returning({ id: campaigns.id });
+    .where(and(eq(schema.campaigns.id, campaignId), eq(schema.campaigns.status, 'draft')))
+    .returning({ id: schema.campaigns.id });
   if (!scheduled) return fail('Only drafts can be scheduled.');
 
   await writeAuditLog({
@@ -199,10 +197,10 @@ export async function unscheduleCampaign(campaignId: string): Promise<ActionResu
   if (!row) return fail('Campaign not found');
 
   const [draft] = await db
-    .update(campaigns)
+    .update(schema.campaigns)
     .set({ status: 'draft', scheduledFor: null, updatedBy: user.id })
-    .where(and(eq(campaigns.id, campaignId), eq(campaigns.status, 'scheduled')))
-    .returning({ id: campaigns.id });
+    .where(and(eq(schema.campaigns.id, campaignId), eq(schema.campaigns.status, 'scheduled')))
+    .returning({ id: schema.campaigns.id });
   if (!draft) {
     return fail('It has already started sending. Use Stop instead.');
   }
@@ -230,19 +228,21 @@ export async function stopCampaign(campaignId: string): Promise<ActionResult> {
   try {
     const stopped = await db.transaction(async (tx) => {
       const [updated] = await tx
-        .update(campaigns)
+        .update(schema.campaigns)
         .set({ status: 'cancelled', updatedBy: user.id })
-        .where(and(eq(campaigns.id, campaignId), inArray(campaigns.status, ['scheduled', 'sending'])))
-        .returning({ id: campaigns.id });
+        .where(and(eq(schema.campaigns.id, campaignId), inArray(schema.campaigns.status, ['scheduled', 'sending'])))
+        .returning({ id: schema.campaigns.id });
       if (!updated) return null;
       const skipped = await tx
-        .update(campaignDeliveries)
+        .update(schema.campaignDeliveries)
         .set({
           status: 'skipped',
-          skipReason: SKIP_REASONS.stopped,
+          skipReason: Campaigns.SKIP_REASONS.stopped,
         })
-        .where(and(eq(campaignDeliveries.campaignId, campaignId), eq(campaignDeliveries.status, 'queued')))
-        .returning({ id: campaignDeliveries.id });
+        .where(
+          and(eq(schema.campaignDeliveries.campaignId, campaignId), eq(schema.campaignDeliveries.status, 'queued')),
+        )
+        .returning({ id: schema.campaignDeliveries.id });
       return skipped.length;
     });
     if (stopped === null) return fail('Only a scheduled or sending campaign can be stopped.');
@@ -273,21 +273,27 @@ export async function retryFailedDeliveries(campaignId: string): Promise<ActionR
 
   try {
     const requeued = await db.transaction(async (tx) => {
-      const [current] = await tx.select().from(campaigns).where(eq(campaigns.id, campaignId)).for('update');
+      const [current] = await tx
+        .select()
+        .from(schema.campaigns)
+        .where(eq(schema.campaigns.id, campaignId))
+        .for('update');
       if (!current || !['sending', 'sent'].includes(current.status)) {
         throw new Error('Only a sent campaign can retry its failed deliveries.');
       }
       const rows = await tx
-        .update(campaignDeliveries)
+        .update(schema.campaignDeliveries)
         .set({ status: 'queued', lastError: null, queuedAt: new Date() })
-        .where(and(eq(campaignDeliveries.campaignId, campaignId), eq(campaignDeliveries.status, 'failed')))
-        .returning({ id: campaignDeliveries.id });
+        .where(
+          and(eq(schema.campaignDeliveries.campaignId, campaignId), eq(schema.campaignDeliveries.status, 'failed')),
+        )
+        .returning({ id: schema.campaignDeliveries.id });
       if (rows.length > 0) {
-        await tx.update(campaigns).set({ status: 'sending' }).where(eq(campaigns.id, campaignId));
+        await tx.update(schema.campaigns).set({ status: 'sending' }).where(eq(schema.campaigns.id, campaignId));
       }
       return rows.length;
     });
-    await publishQueuedDeliveries(campaignId);
+    await Campaigns.publishQueuedDeliveries(campaignId);
 
     await writeAuditLog({
       actorId: user.id,
@@ -305,12 +311,12 @@ export async function retryFailedDeliveries(campaignId: string): Promise<ActionR
 
 export type CampaignResults = {
   status: string;
-  counts: Record<CampaignDeliveryStatus, number>;
+  counts: Record<Campaigns.DeliveryStatus, number>;
   /** Null without `participant:read:all`. */
   recipients:
     | {
         email: string;
-        status: CampaignDeliveryStatus;
+        status: Campaigns.DeliveryStatus;
         note: string | null;
         sentAt: string | null;
       }[]
@@ -321,34 +327,34 @@ export type CampaignResults = {
 export async function getCampaignResults(campaignId: string): Promise<ActionResult<CampaignResults>> {
   const user = await getUser();
   if (!user) return fail('Not authenticated');
-  await requirePermission(user.id, 'campaign:read:all');
+  await Rbac.requirePermission(user.id, 'campaign:read:all');
   const row = await loadCampaign(campaignId);
   if (!row) return fail('Campaign not found');
 
   const grouped = await db
-    .select({ status: campaignDeliveries.status, c: count() })
-    .from(campaignDeliveries)
-    .where(eq(campaignDeliveries.campaignId, campaignId))
-    .groupBy(campaignDeliveries.status);
+    .select({ status: schema.campaignDeliveries.status, c: count() })
+    .from(schema.campaignDeliveries)
+    .where(eq(schema.campaignDeliveries.campaignId, campaignId))
+    .groupBy(schema.campaignDeliveries.status);
   const counts = { queued: 0, sent: 0, failed: 0, skipped: 0 };
   for (const g of grouped) counts[g.status] = Number(g.c);
 
   let recipients: CampaignResults['recipients'] = null;
-  if (await hasPermission(user.id, 'participant:read:all')) {
+  if (await Rbac.hasPermission(user.id, 'participant:read:all')) {
     const rows = await db
       .select({
-        email: campaignDeliveries.email,
-        status: campaignDeliveries.status,
-        skipReason: campaignDeliveries.skipReason,
-        lastError: campaignDeliveries.lastError,
-        sentAt: campaignDeliveries.sentAt,
+        email: schema.campaignDeliveries.email,
+        status: schema.campaignDeliveries.status,
+        skipReason: schema.campaignDeliveries.skipReason,
+        lastError: schema.campaignDeliveries.lastError,
+        sentAt: schema.campaignDeliveries.sentAt,
       })
-      .from(campaignDeliveries)
-      .where(eq(campaignDeliveries.campaignId, campaignId))
+      .from(schema.campaignDeliveries)
+      .where(eq(schema.campaignDeliveries.campaignId, campaignId))
       .orderBy(
         // Problems first.
-        sql`CASE ${campaignDeliveries.status} WHEN 'failed' THEN 0 WHEN 'skipped' THEN 1 WHEN 'queued' THEN 2 ELSE 3 END`,
-        asc(campaignDeliveries.email),
+        sql`CASE ${schema.campaignDeliveries.status} WHEN 'failed' THEN 0 WHEN 'skipped' THEN 1 WHEN 'queued' THEN 2 ELSE 3 END`,
+        asc(schema.campaignDeliveries.email),
       )
       .limit(1000);
     recipients = rows.map((r) => ({

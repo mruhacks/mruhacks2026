@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
-import type { EventWithUserStatus } from '@/app/dashboard/events/actions';
-import { getEventDisplayStatus, type EventDisplayPill } from '@/app/dashboard/events/event-display-status';
+import type { EventWithUserStatus } from './actions';
+import { getEventDisplayStatus, type EventDisplayPill } from './event-display-status';
 import { LocalDateRange } from '@/components/local-date-time';
 import { eventPath } from '@/lib/event-slug';
 

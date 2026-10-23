@@ -2,7 +2,7 @@ import { describe, test, expect, afterAll, vi } from 'vitest';
 import { inArray } from 'drizzle-orm';
 
 import { db } from '@/utils/db';
-import { events, eventRsvpWaves, user } from '@/db/schema';
+import * as schema from '@/db/schema';
 
 vi.mock('next/cache', () => ({
   cacheLife: vi.fn(),
@@ -10,7 +10,7 @@ vi.mock('next/cache', () => ({
 }));
 
 import { getEventSummaryCounts } from '@/lib/admin-event';
-import { getAdminRsvpSummary } from '@/lib/rsvp/get-admin-rsvp-summary';
+import * as Rsvp from '@/lib/rsvp/server';
 import type { ParticipationStatus } from '@/types/lookups';
 import { insertInvitation, insertParticipant } from '@/tests/participation-fixtures';
 
@@ -19,15 +19,18 @@ const createdUserIds: string[] = [];
 
 afterAll(async () => {
   if (createdEventIds.length) {
-    await db.delete(events).where(inArray(events.id, createdEventIds));
+    await db.delete(schema.events).where(inArray(schema.events.id, createdEventIds));
   }
   if (createdUserIds.length) {
-    await db.delete(user).where(inArray(user.id, createdUserIds));
+    await db.delete(schema.user).where(inArray(schema.user.id, createdUserIds));
   }
 });
 
 async function createEvent(name: string, capacity: number | null = null) {
-  const [row] = await db.insert(events).values({ name, hasApplication: true, capacity }).returning({ id: events.id });
+  const [row] = await db
+    .insert(schema.events)
+    .values({ name, hasApplication: true, capacity })
+    .returning({ id: schema.events.id });
   createdEventIds.push(row.id);
   return row.id;
 }
@@ -35,22 +38,22 @@ async function createEvent(name: string, capacity: number | null = null) {
 let userCounter = 0;
 async function createUser(name: string): Promise<string> {
   const [row] = await db
-    .insert(user)
+    .insert(schema.user)
     .values({
       name,
       email: `rsvp-summary-${Date.now()}-${userCounter++}@example.com`,
       emailVerified: true,
     })
-    .returning({ id: user.id });
+    .returning({ id: schema.user.id });
   createdUserIds.push(row.id);
   return row.id;
 }
 
 async function createWave(eventId: string, wave: number, createdAt: Date, respondBy: Date) {
   const [row] = await db
-    .insert(eventRsvpWaves)
+    .insert(schema.eventRsvpWaves)
     .values({ eventId, wave, createdAt, respondBy })
-    .returning({ id: eventRsvpWaves.id });
+    .returning({ id: schema.eventRsvpWaves.id });
   return row.id;
 }
 
@@ -101,7 +104,7 @@ describe('getEventSummaryCounts', () => {
 describe('getAdminRsvpSummary', () => {
   test('returns a sensible empty state when no waves have been sent', async () => {
     const eventId = await createEvent('RSVP Summary Empty', 200);
-    const summary = await getAdminRsvpSummary(eventId);
+    const summary = await Rsvp.getAdminRsvpSummary(eventId);
     expect(summary).toMatchObject({
       lifecycle: 'no_waves',
       latestWave: null,
@@ -125,7 +128,7 @@ describe('getAdminRsvpSummary', () => {
     await invite(eventId, wave, 'accepted', new Date('2026-09-16T15:00:00.000Z'));
     await invite(eventId, wave, 'declined', new Date('2026-09-16T15:30:00.000Z'));
 
-    const summary = await getAdminRsvpSummary(eventId, now);
+    const summary = await Rsvp.getAdminRsvpSummary(eventId, now);
     expect(summary?.lifecycle).toBe('active_wave');
     expect(summary?.attendeeCount).toBe(1);
     expect(summary?.availableSpots).toBe(9);
@@ -157,7 +160,7 @@ describe('getAdminRsvpSummary', () => {
     await invite(eventId, wave, 'invited');
     await invite(eventId, wave, 'timed_out');
 
-    const summary = await getAdminRsvpSummary(eventId, now);
+    const summary = await Rsvp.getAdminRsvpSummary(eventId, now);
     expect(summary?.latestWave?.waitingCount).toBe(0);
     expect(summary?.latestWave?.timedOutCount).toBe(2);
     expect(summary?.latestWave?.participants.every((p) => p.statusLabel === 'timed_out')).toBe(true);
@@ -181,7 +184,7 @@ describe('getAdminRsvpSummary', () => {
     await invite(eventId, wave1, 'declined', new Date('2026-09-11T12:00:00.000Z'));
     await invite(eventId, wave2, 'invited');
 
-    const summary = await getAdminRsvpSummary(eventId, now);
+    const summary = await Rsvp.getAdminRsvpSummary(eventId, now);
     expect(summary?.latestWave?.wave).toBe(2);
     expect(summary?.previousWaves).toHaveLength(1);
     expect(summary?.previousWaves[0]).toMatchObject({
@@ -202,7 +205,7 @@ describe('getAdminRsvpSummary', () => {
     });
     await createWave(eventId, 1, new Date('2026-09-16T14:00:00.000Z'), new Date('2026-09-16T16:00:00.000Z'));
 
-    const summary = await getAdminRsvpSummary(eventId, now);
+    const summary = await Rsvp.getAdminRsvpSummary(eventId, now);
     expect(summary).toMatchObject({
       attendeeCount: 1,
       capacity: 1,

@@ -1,9 +1,9 @@
 import * as React from 'react';
 import { notFound, redirect } from 'next/navigation';
 
-import { parseMissedThreshold } from '@/lib/dietary/report';
+import * as Dietary from '@/lib/dietary';
 import { resolveEventId } from '@/lib/events';
-import { requirePermission } from '@/lib/rbac/authorization';
+import * as Rbac from '@/lib/rbac/server';
 import { getUser } from '@/utils/auth';
 
 import { DietaryPage } from './dietary-page';
@@ -37,9 +37,9 @@ async function DietaryContent({
   if (!eventId) notFound();
   const user = await getUser();
   if (!user) redirect('/signin');
-  await requirePermission(user.id, 'dietary:read:all');
+  await Rbac.requirePermission(user.id, 'dietary:read:all');
 
   const { missed } = await searchParamsPromise;
 
-  return <DietaryPage eventId={eventId} threshold={parseMissedThreshold(missed)} />;
+  return <DietaryPage eventId={eventId} threshold={Dietary.parseMissedThreshold(missed)} />;
 }

@@ -20,7 +20,7 @@
 import { describe, test, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { db } from '@/utils/db';
-import { user, userProfiles, genders, permission, userPermission, events, eventParticipants } from '@/db/schema';
+import * as schema from '@/db/schema';
 import { insertAttendees, insertParticipant, setStatus } from '@/tests/participation-fixtures';
 
 vi.mock('@/utils/auth', () => ({ getUser: vi.fn() }));
@@ -132,37 +132,41 @@ describe('/api/profile/resume GET', () => {
 
   beforeAll(async () => {
     const [g] = await db
-      .insert(genders)
+      .insert(schema.genders)
       .values({ label: 'resume-route-test-gender' })
       .onConflictDoNothing()
-      .returning({ id: genders.id });
+      .returning({ id: schema.genders.id });
     genderId =
       g?.id ??
       (
-        await db.select({ id: genders.id }).from(genders).where(eq(genders.label, 'resume-route-test-gender')).limit(1)
+        await db
+          .select({ id: schema.genders.id })
+          .from(schema.genders)
+          .where(eq(schema.genders.label, 'resume-route-test-gender'))
+          .limit(1)
       )[0].id;
 
     const [owner] = await db
-      .insert(user)
+      .insert(schema.user)
       .values({
         name: 'Resume Owner',
         email: 'resume-route-owner@example.com',
         emailVerified: true,
       })
-      .returning({ id: user.id });
+      .returning({ id: schema.user.id });
     const [other] = await db
-      .insert(user)
+      .insert(schema.user)
       .values({
         name: 'Resume Other',
         email: 'resume-route-other@example.com',
         emailVerified: true,
       })
-      .returning({ id: user.id });
+      .returning({ id: schema.user.id });
     ownerId = owner.id;
     otherId = other.id;
 
     // `other` deliberately gets no userProfiles row at all.
-    await db.insert(userProfiles).values({
+    await db.insert(schema.userProfiles).values({
       userId: ownerId,
       fullName: 'Resume Owner',
       genderId,
@@ -172,9 +176,9 @@ describe('/api/profile/resume GET', () => {
   });
 
   afterAll(async () => {
-    await db.delete(userProfiles).where(eq(userProfiles.userId, ownerId));
-    await db.delete(user).where(eq(user.id, ownerId));
-    await db.delete(user).where(eq(user.id, otherId));
+    await db.delete(schema.userProfiles).where(eq(schema.userProfiles.userId, ownerId));
+    await db.delete(schema.user).where(eq(schema.user.id, ownerId));
+    await db.delete(schema.user).where(eq(schema.user.id, otherId));
   });
 
   beforeEach(() => {
@@ -225,41 +229,45 @@ describe('/api/health GET', () => {
     process.env.HEALTH_CHECK_ACCESS_KEY = 'health-route-test-key';
 
     const [noPerm] = await db
-      .insert(user)
+      .insert(schema.user)
       .values({
         name: 'Health No Perm',
         email: 'health-route-noperm@example.com',
         emailVerified: true,
       })
-      .returning({ id: user.id });
+      .returning({ id: schema.user.id });
     const [withPerm] = await db
-      .insert(user)
+      .insert(schema.user)
       .values({
         name: 'Health Perm',
         email: 'health-route-perm@example.com',
         emailVerified: true,
       })
-      .returning({ id: user.id });
+      .returning({ id: schema.user.id });
     noPermUserId = noPerm.id;
     permUserId = withPerm.id;
 
     const [perm] = await db
-      .insert(permission)
+      .insert(schema.permission)
       .values({ slug: 'system:read:all' })
       .onConflictDoNothing()
-      .returning({ id: permission.id });
+      .returning({ id: schema.permission.id });
     const permId =
       perm?.id ??
       (
-        await db.select({ id: permission.id }).from(permission).where(eq(permission.slug, 'system:read:all')).limit(1)
+        await db
+          .select({ id: schema.permission.id })
+          .from(schema.permission)
+          .where(eq(schema.permission.slug, 'system:read:all'))
+          .limit(1)
       )[0].id;
-    await db.insert(userPermission).values({ userId: permUserId, permissionId: permId }).onConflictDoNothing();
+    await db.insert(schema.userPermission).values({ userId: permUserId, permissionId: permId }).onConflictDoNothing();
   });
 
   afterAll(async () => {
-    await db.delete(userPermission).where(eq(userPermission.userId, permUserId));
-    await db.delete(user).where(eq(user.id, noPermUserId));
-    await db.delete(user).where(eq(user.id, permUserId));
+    await db.delete(schema.userPermission).where(eq(schema.userPermission.userId, permUserId));
+    await db.delete(schema.user).where(eq(schema.user.id, noPermUserId));
+    await db.delete(schema.user).where(eq(schema.user.id, permUserId));
 
     if (originalTurnstileSecret === undefined) delete process.env.TURNSTILE_SECRET_KEY;
     else process.env.TURNSTILE_SECRET_KEY = originalTurnstileSecret;
@@ -336,33 +344,33 @@ describe('/api/wallet/pass/[eventId] GET', () => {
 
   beforeAll(async () => {
     const [open] = await db
-      .insert(events)
+      .insert(schema.events)
       .values({ name: 'Wallet Open Event', hasApplication: false })
-      .returning({ id: events.id });
+      .returning({ id: schema.events.id });
     openEventId = open.id;
 
     const [child] = await db
-      .insert(events)
+      .insert(schema.events)
       .values({
         name: 'Wallet Open Event Sub-event',
         hasApplication: false,
         parentEventId: openEventId,
       })
-      .returning({ id: events.id });
+      .returning({ id: schema.events.id });
     childEventId = child.id;
 
     const [app] = await db
-      .insert(events)
+      .insert(schema.events)
       .values({
         name: 'Wallet Application Event',
         hasApplication: true,
         applicationQuestions: [],
       })
-      .returning({ id: events.id });
+      .returning({ id: schema.events.id });
     appEventId = app.id;
 
     const [registered, unregistered, approved, pending] = await db
-      .insert(user)
+      .insert(schema.user)
       .values([
         {
           name: 'Wallet Registered',
@@ -385,7 +393,7 @@ describe('/api/wallet/pass/[eventId] GET', () => {
           emailVerified: true,
         },
       ])
-      .returning({ id: user.id });
+      .returning({ id: schema.user.id });
     registeredUserId = registered.id;
     unregisteredUserId = unregistered.id;
     approvedUserId = approved.id;
@@ -406,13 +414,13 @@ describe('/api/wallet/pass/[eventId] GET', () => {
   });
 
   afterAll(async () => {
-    await db.delete(eventParticipants).where(eq(eventParticipants.eventId, openEventId));
-    await db.delete(eventParticipants).where(eq(eventParticipants.eventId, appEventId));
-    await db.delete(events).where(eq(events.id, childEventId));
-    await db.delete(events).where(eq(events.id, openEventId));
-    await db.delete(events).where(eq(events.id, appEventId));
+    await db.delete(schema.eventParticipants).where(eq(schema.eventParticipants.eventId, openEventId));
+    await db.delete(schema.eventParticipants).where(eq(schema.eventParticipants.eventId, appEventId));
+    await db.delete(schema.events).where(eq(schema.events.id, childEventId));
+    await db.delete(schema.events).where(eq(schema.events.id, openEventId));
+    await db.delete(schema.events).where(eq(schema.events.id, appEventId));
     for (const id of [registeredUserId, unregisteredUserId, approvedUserId, pendingUserId]) {
-      await db.delete(user).where(eq(user.id, id));
+      await db.delete(schema.user).where(eq(schema.user.id, id));
     }
   });
 
@@ -531,13 +539,13 @@ describe('/api/wallet/qr/[eventId] GET', () => {
 
   beforeAll(async () => {
     const [open] = await db
-      .insert(events)
+      .insert(schema.events)
       .values({ name: 'Wallet QR Open Event', hasApplication: false })
-      .returning({ id: events.id });
+      .returning({ id: schema.events.id });
     openEventId = open.id;
 
     const [registered, unregistered] = await db
-      .insert(user)
+      .insert(schema.user)
       .values([
         {
           name: 'Wallet QR Registered',
@@ -550,7 +558,7 @@ describe('/api/wallet/qr/[eventId] GET', () => {
           emailVerified: true,
         },
       ])
-      .returning({ id: user.id });
+      .returning({ id: schema.user.id });
     registeredUserId = registered.id;
     unregisteredUserId = unregistered.id;
 
@@ -558,10 +566,10 @@ describe('/api/wallet/qr/[eventId] GET', () => {
   });
 
   afterAll(async () => {
-    await db.delete(eventParticipants).where(eq(eventParticipants.eventId, openEventId));
-    await db.delete(events).where(eq(events.id, openEventId));
-    await db.delete(user).where(eq(user.id, registeredUserId));
-    await db.delete(user).where(eq(user.id, unregisteredUserId));
+    await db.delete(schema.eventParticipants).where(eq(schema.eventParticipants.eventId, openEventId));
+    await db.delete(schema.events).where(eq(schema.events.id, openEventId));
+    await db.delete(schema.user).where(eq(schema.user.id, registeredUserId));
+    await db.delete(schema.user).where(eq(schema.user.id, unregisteredUserId));
   });
 
   beforeEach(() => {
@@ -617,13 +625,13 @@ describe('/api/wallet/google/[eventId] GET', () => {
 
   beforeAll(async () => {
     const [open] = await db
-      .insert(events)
+      .insert(schema.events)
       .values({ name: 'Wallet Google Open Event', hasApplication: false })
-      .returning({ id: events.id });
+      .returning({ id: schema.events.id });
     openEventId = open.id;
 
     const [registered, unregistered] = await db
-      .insert(user)
+      .insert(schema.user)
       .values([
         {
           name: 'Wallet Google Registered',
@@ -636,7 +644,7 @@ describe('/api/wallet/google/[eventId] GET', () => {
           emailVerified: true,
         },
       ])
-      .returning({ id: user.id });
+      .returning({ id: schema.user.id });
     registeredUserId = registered.id;
     unregisteredUserId = unregistered.id;
 
@@ -644,10 +652,10 @@ describe('/api/wallet/google/[eventId] GET', () => {
   });
 
   afterAll(async () => {
-    await db.delete(eventParticipants).where(eq(eventParticipants.eventId, openEventId));
-    await db.delete(events).where(eq(events.id, openEventId));
-    await db.delete(user).where(eq(user.id, registeredUserId));
-    await db.delete(user).where(eq(user.id, unregisteredUserId));
+    await db.delete(schema.eventParticipants).where(eq(schema.eventParticipants.eventId, openEventId));
+    await db.delete(schema.events).where(eq(schema.events.id, openEventId));
+    await db.delete(schema.user).where(eq(schema.user.id, registeredUserId));
+    await db.delete(schema.user).where(eq(schema.user.id, unregisteredUserId));
   });
 
   beforeEach(() => {

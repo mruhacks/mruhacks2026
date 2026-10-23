@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 
-import { rsvpStatusFilterFn } from '@/lib/rsvp/rsvp-status-filter';
+import * as Rsvp from '@/lib/rsvp';
 
 function row(statusLabel: string) {
   return {
@@ -8,16 +8,16 @@ function row(statusLabel: string) {
   };
 }
 
-describe('rsvpStatusFilterFn', () => {
+describe('statusFilterFn', () => {
   test('shows all rows when no statuses are selected', () => {
-    expect(rsvpStatusFilterFn(row('pending'), 'status', undefined)).toBe(true);
-    expect(rsvpStatusFilterFn(row('accepted'), 'status', [])).toBe(true);
+    expect(Rsvp.statusFilterFn(row('pending'), 'status', undefined)).toBe(true);
+    expect(Rsvp.statusFilterFn(row('accepted'), 'status', [])).toBe(true);
   });
 
   test('keeps only the selected RSVP statuses', () => {
-    expect(rsvpStatusFilterFn(row('accepted'), 'status', ['accepted'])).toBe(true);
-    expect(rsvpStatusFilterFn(row('pending'), 'status', ['accepted'])).toBe(false);
-    expect(rsvpStatusFilterFn(row('timed_out'), 'status', ['pending', 'timed_out'])).toBe(true);
-    expect(rsvpStatusFilterFn(row('declined'), 'status', ['pending'])).toBe(false);
+    expect(Rsvp.statusFilterFn(row('accepted'), 'status', ['accepted'])).toBe(true);
+    expect(Rsvp.statusFilterFn(row('pending'), 'status', ['accepted'])).toBe(false);
+    expect(Rsvp.statusFilterFn(row('timed_out'), 'status', ['pending', 'timed_out'])).toBe(true);
+    expect(Rsvp.statusFilterFn(row('declined'), 'status', ['pending'])).toBe(false);
   });
 });

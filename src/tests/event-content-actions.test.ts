@@ -11,7 +11,7 @@
 import { describe, test, expect, beforeAll, afterAll, vi } from 'vitest';
 import { and, eq } from 'drizzle-orm';
 import { db } from '@/utils/db';
-import { events, eventTerms, eventArticles, permission, user, userPermission } from '@/db/schema';
+import * as schema from '@/db/schema';
 
 vi.mock('@/utils/auth', () => ({ getUser: vi.fn() }));
 vi.mock('next/cache', () => ({
@@ -46,7 +46,7 @@ import {
   uploadEventDescriptionAttachment,
 } from '@/app/dashboard/admin/events/content-actions';
 import { isEventAttachmentKey } from '@/utils/object-storage';
-import { unwrap } from './unwrap';
+import { unwrap } from '@/tests/unwrap';
 
 type MockUser = { id: string; email: string; name: string };
 
@@ -57,18 +57,27 @@ const forbidden = (slug: string) => `REDIRECT:/forbidden?reason=missing_permissi
 /** Grants a permission slug to a user, creating the permission if needed. */
 async function grant(userId: string, slug: string) {
   const [inserted] = await db
-    .insert(permission)
+    .insert(schema.permission)
     .values({ slug })
     .onConflictDoNothing()
-    .returning({ id: permission.id });
+    .returning({ id: schema.permission.id });
   const permissionId =
     inserted?.id ??
-    (await db.select({ id: permission.id }).from(permission).where(eq(permission.slug, slug)).limit(1))[0].id;
-  await db.insert(userPermission).values({ userId, permissionId }).onConflictDoNothing();
+    (
+      await db
+        .select({ id: schema.permission.id })
+        .from(schema.permission)
+        .where(eq(schema.permission.slug, slug))
+        .limit(1)
+    )[0].id;
+  await db.insert(schema.userPermission).values({ userId, permissionId }).onConflictDoNothing();
 }
 
 async function makeUser(email: string): Promise<MockUser> {
-  const [row] = await db.insert(user).values({ name: email, email, emailVerified: true }).returning({ id: user.id });
+  const [row] = await db
+    .insert(schema.user)
+    .values({ name: email, email, emailVerified: true })
+    .returning({ id: schema.user.id });
   return { id: row.id, email, name: email };
 }
 
@@ -92,19 +101,19 @@ beforeAll(async () => {
   await grant(reader.id, 'article:read:all');
 
   const [row] = await db
-    .insert(events)
+    .insert(schema.events)
     .values({ name: 'Wiki Test Event', applicationQuestions: [] })
-    .returning({ id: events.id });
+    .returning({ id: schema.events.id });
   eventId = row.id;
 
   actAs(editor);
 });
 
 afterAll(async () => {
-  await db.delete(eventArticles).where(eq(eventArticles.eventId, eventId));
-  await db.delete(events).where(eq(events.id, eventId));
+  await db.delete(schema.eventArticles).where(eq(schema.eventArticles.eventId, eventId));
+  await db.delete(schema.events).where(eq(schema.events.id, eventId));
   for (const u of [editor, reader, outsider]) {
-    await db.delete(user).where(eq(user.id, u.id));
+    await db.delete(schema.user).where(eq(schema.user.id, u.id));
   }
 });
 
@@ -172,7 +181,7 @@ describe('authorization', () => {
     await expect(createEventArticle(eventId, { title: 'X' })).rejects.toThrow(forbidden('article:write:all'));
 
     actAs(editor);
-    await db.delete(user).where(eq(user.id, eventOnly.id));
+    await db.delete(schema.user).where(eq(schema.user.id, eventOnly.id));
   });
 });
 
@@ -184,9 +193,9 @@ describe('updateEventDescription', () => {
     expect(result.success).toBe(true);
 
     const [row] = await db
-      .select({ descriptionMarkdown: events.descriptionMarkdown })
-      .from(events)
-      .where(eq(events.id, eventId));
+      .select({ descriptionMarkdown: schema.events.descriptionMarkdown })
+      .from(schema.events)
+      .where(eq(schema.events.id, eventId));
     expect(row.descriptionMarkdown).toBe('# Hello\n\nWorld');
 
     await expect(updateEventDescription(NIL_UUID, 'x')).resolves.toMatchObject({
@@ -197,9 +206,9 @@ describe('updateEventDescription', () => {
   test('clears to NULL rather than storing whitespace', async () => {
     await updateEventDescription(eventId, '   \n  ');
     const [row] = await db
-      .select({ descriptionMarkdown: events.descriptionMarkdown })
-      .from(events)
-      .where(eq(events.id, eventId));
+      .select({ descriptionMarkdown: schema.events.descriptionMarkdown })
+      .from(schema.events)
+      .where(eq(schema.events.id, eventId));
     expect(row.descriptionMarkdown).toBe(null);
   });
 
@@ -281,9 +290,9 @@ describe('wiki articles', () => {
 
   test('scopes lookups to the event, so a foreign id is "not found"', async () => {
     const [other] = await db
-      .insert(events)
+      .insert(schema.events)
       .values({ name: 'Other Event', applicationQuestions: [] })
-      .returning({ id: events.id });
+      .returning({ id: schema.events.id });
     const created = await createEventArticle(other.id, { title: 'Elsewhere' });
 
     await expect(getEventArticle(eventId, unwrap(created).id)).resolves.toMatchObject({ success: false });
@@ -292,8 +301,8 @@ describe('wiki articles', () => {
     });
     await expect(deleteEventArticle(eventId, unwrap(created).id)).resolves.toMatchObject({ success: false });
 
-    await db.delete(eventArticles).where(eq(eventArticles.eventId, other.id));
-    await db.delete(events).where(eq(events.id, other.id));
+    await db.delete(schema.eventArticles).where(eq(schema.eventArticles.eventId, other.id));
+    await db.delete(schema.events).where(eq(schema.events.id, other.id));
   });
 
   test('lists drafts alongside published articles', async () => {
@@ -342,7 +351,7 @@ describe('wiki articles', () => {
       '33333333-0000-0000-0000-000000000002',
       '33333333-0000-0000-0000-000000000003',
     ];
-    await db.insert(eventArticles).values(
+    await db.insert(schema.eventArticles).values(
       seededIds.map((id, index) => ({
         id,
         eventId,
@@ -363,7 +372,7 @@ describe('wiki articles', () => {
   test('rejects duplicate, incomplete, foreign and malformed orders without changing articles', async () => {
     const before = unwrap(await listEventArticles(eventId));
     const ids = before.map((article) => article.id);
-    const [other] = await db.insert(events).values({ name: 'Foreign wiki' }).returning({ id: events.id });
+    const [other] = await db.insert(schema.events).values({ name: 'Foreign wiki' }).returning({ id: schema.events.id });
     try {
       const foreign = unwrap(await createEventArticle(other.id, { title: 'Foreign article' }));
       for (const invalid of [
@@ -380,7 +389,7 @@ describe('wiki articles', () => {
       }
       expect(unwrap(await getEventArticle(other.id, foreign.id)).sortOrder).toBe(0);
     } finally {
-      await db.delete(events).where(eq(events.id, other.id));
+      await db.delete(schema.events).where(eq(schema.events.id, other.id));
     }
   });
 
@@ -392,9 +401,9 @@ describe('wiki articles', () => {
       success: true,
     });
     const [row] = await db
-      .select({ id: eventArticles.id })
-      .from(eventArticles)
-      .where(and(eq(eventArticles.id, id), eq(eventArticles.eventId, eventId)));
+      .select({ id: schema.eventArticles.id })
+      .from(schema.eventArticles)
+      .where(and(eq(schema.eventArticles.id, id), eq(schema.eventArticles.eventId, eventId)));
     expect(row).toBeUndefined();
   });
 });
@@ -482,20 +491,20 @@ describe('Event Terms copy-on-write', () => {
   test('inserts versions on edits, reuses unchanged content, and preserves history on removal', async () => {
     actAs(editor);
     expect((await updateEventTerms(eventId, '  ## Original rules  ')).success).toBe(true);
-    const [original] = await db.select().from(events).where(eq(events.id, eventId));
+    const [original] = await db.select().from(schema.events).where(eq(schema.events.id, eventId));
     expect(original.termsId).toBeTruthy();
     expect((await updateEventTerms(eventId, '## Original rules')).success).toBe(true);
-    const [unchanged] = await db.select().from(events).where(eq(events.id, eventId));
+    const [unchanged] = await db.select().from(schema.events).where(eq(schema.events.id, eventId));
     expect(unchanged.termsId).toBe(original.termsId);
     expect((await updateEventTerms(eventId, '## New rules')).success).toBe(true);
-    const [updated] = await db.select().from(events).where(eq(events.id, eventId));
+    const [updated] = await db.select().from(schema.events).where(eq(schema.events.id, eventId));
     expect(updated.termsId).not.toBe(original.termsId);
-    const versions = await db.select().from(eventTerms).where(eq(eventTerms.eventId, eventId));
+    const versions = await db.select().from(schema.eventTerms).where(eq(schema.eventTerms.eventId, eventId));
     expect(versions.map((v) => v.markdown).sort()).toEqual(['## New rules', '## Original rules']);
     expect((await updateEventTerms(eventId, '   ')).success).toBe(true);
-    const [cleared] = await db.select().from(events).where(eq(events.id, eventId));
+    const [cleared] = await db.select().from(schema.events).where(eq(schema.events.id, eventId));
     expect(cleared.termsId).toBeNull();
-    expect(await db.select().from(eventTerms).where(eq(eventTerms.eventId, eventId))).toHaveLength(2);
+    expect(await db.select().from(schema.eventTerms).where(eq(schema.eventTerms.eventId, eventId))).toHaveLength(2);
     expect(updateTag).toHaveBeenCalledWith(`admin-event:${eventId}`);
     expect((await updateEventTerms(eventId, 'x'.repeat(20_001))).success).toBe(false);
   });

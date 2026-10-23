@@ -2,8 +2,7 @@ import { Suspense } from 'react';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { getUser } from '@/utils/auth';
-import { hasPermission, requireAnyPermission } from '@/lib/rbac/authorization';
-import { EVENT_DASHBOARD_PERMISSIONS } from '@/lib/rbac/event-access';
+import * as Rbac from '@/lib/rbac/server';
 import { getAllEvents, getEventParticipationCounts } from '@/lib/events';
 import { adminEventPath } from '@/lib/event-slug';
 import { Card, CardContent } from '@/components/ui/card';
@@ -40,7 +39,7 @@ async function EventList() {
   const user = await getUser();
   if (!user) redirect('/signin');
   // The same check as the event dashboard each card links to.
-  await requireAnyPermission(user.id, [...EVENT_DASHBOARD_PERMISSIONS]);
+  await Rbac.requireAnyPermission(user.id, [...Rbac.EVENT_DASHBOARD_PERMISSIONS]);
 
   // TODO: implement event-level scoping (e.g., event:manage:{eventId}) for
   // organizers who manage specific events only.
@@ -49,8 +48,8 @@ async function EventList() {
     getAllEvents(),
     getEventParticipationCounts(),
     // Cohort numbers, gated like the dashboard's stats cells.
-    hasPermission(user.id, 'application:stats:all'),
-    ...EVENT_TOOLS.map((tool) => hasPermission(user.id, tool.permission)),
+    Rbac.hasPermission(user.id, 'application:stats:all'),
+    ...EVENT_TOOLS.map((tool) => Rbac.hasPermission(user.id, tool.permission)),
   ]);
 
   const visibleTools = EVENT_TOOLS.filter((_, i) => toolAccess[i]);
@@ -154,7 +153,7 @@ async function EventList() {
 // Creating an event runs `createEvent`, which requires event:manage.
 async function CreateEventButton() {
   const user = await getUser();
-  if (!user || !(await hasPermission(user.id, 'event:manage:all'))) return null;
+  if (!user || !(await Rbac.hasPermission(user.id, 'event:manage:all'))) return null;
   return <CreateEventDialog />;
 }
 

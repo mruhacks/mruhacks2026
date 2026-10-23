@@ -8,15 +8,9 @@
 import { betterAuth, APIError } from 'better-auth';
 import { admin, captcha, magicLink } from 'better-auth/plugins';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
-import { claimMagicLinkCooldown } from '@/lib/auth/magic-link-cooldown';
-import { resolveMagicLinkMailOptions } from '@/lib/auth/resolve-magic-link-email';
-import { AUTH_BASE_PATH, toEmailLinkConfirmUrl } from '@/lib/auth/email-link-confirm-url';
-import { remainingMagicLinkExpiresInSeconds } from '@/lib/rsvp/rsvp-magic-link-expires-in';
-import { getRsvpMagicLinkMailContext } from '@/lib/rsvp/rsvp-magic-link-context';
-import { getJudgeInviteMailContext, getJudgeSignInLinkCapture } from '@/lib/judging/judge-invite-mail';
-import { JUDGE_SIGNIN_LINK_EXPIRES_IN_SECONDS } from '@/lib/judging/signin-qr';
-import { linkJudgeRosterRows } from '@/lib/judging/server';
-import { applyPendingInvite } from '@/lib/auth/apply-pending-invite';
+import * as Auth from '@/lib/auth/server';
+import * as Rsvp from '@/lib/rsvp/server';
+import * as Judging from '@/lib/judging/server';
 import { ADMIN_COUNTS_CACHE_TAG } from '@/lib/admin-counts';
 import { db } from '@/utils/db';
 import * as schema from '@/db/schema';
@@ -41,12 +35,12 @@ const EMAIL_VERIFICATION_EXPIRES_IN = 86400;
 export const MAGIC_LINK_EXPIRES_IN_SECONDS = 86400;
 
 function resolveMagicLinkExpiresInSeconds(): number {
-  if (getJudgeSignInLinkCapture()) return JUDGE_SIGNIN_LINK_EXPIRES_IN_SECONDS;
-  const rsvp = getRsvpMagicLinkMailContext();
+  if (Judging.getJudgeSignInLinkCapture()) return Judging.JUDGE_SIGNIN_LINK_EXPIRES_IN_SECONDS;
+  const rsvp = Rsvp.getRsvpMagicLinkMailContext();
   if (!rsvp) {
     return MAGIC_LINK_EXPIRES_IN_SECONDS;
   }
-  return remainingMagicLinkExpiresInSeconds(rsvp.respondBy);
+  return Rsvp.remainingMagicLinkExpiresInSeconds(rsvp.respondBy);
 }
 
 /**
@@ -91,7 +85,7 @@ function getTurnstileSecretKey(): string {
  */
 async function linkRosterOnSignIn(userId: string): Promise<void> {
   try {
-    await linkJudgeRosterRows(userId);
+    await Judging.linkJudgeRosterRows(userId);
   } catch (error) {
     console.error('[auth] linking judge roster rows failed', error);
   }
@@ -99,7 +93,7 @@ async function linkRosterOnSignIn(userId: string): Promise<void> {
 
 async function applyInviteOnSignIn(userId: string): Promise<void> {
   try {
-    if (await applyPendingInvite(userId)) {
+    if (await Auth.applyPendingInvite(userId)) {
       // Not a Server Action, so updateTag isn't available here.
       revalidateTag(ADMIN_COUNTS_CACHE_TAG, 'max');
     }
@@ -118,7 +112,7 @@ async function applyInviteOnSignIn(userId: string): Promise<void> {
  */
 export const auth = betterAuth({
   baseURL: getAuthBaseUrl(),
-  basePath: AUTH_BASE_PATH,
+  basePath: Auth.BASE_PATH,
   secret: getAuthSecret(),
   database: drizzleAdapter(db, {
     provider: 'pg',
@@ -187,7 +181,7 @@ export const auth = betterAuth({
     autoSignInAfterVerification: true,
     expiresIn: EMAIL_VERIFICATION_EXPIRES_IN,
     sendVerificationEmail: async ({ user, url: authUrl }) => {
-      const url = toEmailLinkConfirmUrl('verify-email', authUrl);
+      const url = Auth.toEmailLinkConfirmUrl('verify-email', authUrl);
       await sendMail({
         to: user.email,
         subject: 'Verify your email — MRUHacks',
@@ -301,15 +295,15 @@ export const auth = betterAuth({
       sendMagicLink: async ({ email, url }) => {
         // A judge sign-in QR code: hand the link back to the organizer who
         // asked for it instead of emailing it.
-        const capture = getJudgeSignInLinkCapture();
+        const capture = Judging.getJudgeSignInLinkCapture();
         if (capture) {
-          capture.url = toEmailLinkConfirmUrl('magic-link', url);
+          capture.url = Auth.toEmailLinkConfirmUrl('magic-link', url);
           return;
         }
 
-        const mail = await resolveMagicLinkMailOptions({
+        const mail = await Auth.resolveMagicLinkMailOptions({
           email,
-          magicLinkUrl: toEmailLinkConfirmUrl('magic-link', url),
+          magicLinkUrl: Auth.toEmailLinkConfirmUrl('magic-link', url),
           baseUrl: getAuthBaseUrl(),
           expiresInSeconds: resolveMagicLinkExpiresInSeconds(),
         });
@@ -320,7 +314,7 @@ export const auth = betterAuth({
         // public form, must not reject it. A user who signed in moments before
         // a wave goes out would otherwise silently never get invited. A judge
         // invite is the same: sent by an organizer, never by the public form.
-        if (getRsvpMagicLinkMailContext() || getJudgeInviteMailContext()) {
+        if (Rsvp.getRsvpMagicLinkMailContext() || Judging.getJudgeInviteMailContext()) {
           await sendMail(mail);
           return;
         }
@@ -329,7 +323,7 @@ export const auth = betterAuth({
         // last 60s (double submit, multiple tabs, retries). Better Auth has
         // already minted the verification token by this point, so the
         // caller still sees a normal success response either way.
-        if (!(await claimMagicLinkCooldown(email))) {
+        if (!(await Auth.claimMagicLinkCooldown(email))) {
           throw new APIError('TOO_MANY_REQUESTS', {
             message: 'A sign-in link was already sent to this address. Check your inbox, or try again in a minute.',
           });

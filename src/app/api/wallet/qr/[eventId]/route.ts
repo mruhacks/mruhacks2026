@@ -1,8 +1,6 @@
 import QRCode from 'qrcode';
 
-import { buildCheckInPayload } from '@/lib/wallet/check-in-token';
-import { getEventParticipation } from '@/lib/wallet/participation';
-import { checkWalletRateLimit } from '@/lib/wallet/rate-limit';
+import * as Wallet from '@/lib/wallet/server';
 import { getUser } from '@/utils/auth';
 
 /**
@@ -17,18 +15,18 @@ import { getUser } from '@/utils/auth';
 export async function GET(_request: Request, { params }: { params: Promise<{ eventId: string }> }) {
   const user = await getUser();
   if (!user) return new Response('Unauthorized', { status: 401 });
-  if (!(await checkWalletRateLimit(user.id))) {
+  if (!(await Wallet.checkWalletRateLimit(user.id))) {
     return new Response('Too Many Requests', { status: 429 });
   }
 
   const { eventId } = await params;
-  const participation = await getEventParticipation(eventId, user.id);
+  const participation = await Wallet.getEventParticipation(eventId, user.id);
   if (!participation || !participation.isParticipant || !participation.checkInEnabled) {
     return new Response('Not found', { status: 404 });
   }
 
   try {
-    const payload = buildCheckInPayload(eventId, user.id);
+    const payload = Wallet.buildCheckInPayload(eventId, user.id);
     const svg = await QRCode.toString(payload, {
       type: 'svg',
       errorCorrectionLevel: 'medium',

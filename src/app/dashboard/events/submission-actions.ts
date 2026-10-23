@@ -19,13 +19,13 @@ import { randomUUID } from 'crypto';
 import { and, asc, desc, eq, gt, inArray, ne, sql } from 'drizzle-orm';
 import { revalidatePath, updateTag } from 'next/cache';
 
-import { submissionEditors, submissions, teamMembers, user as authUser } from '@/db/schema';
+import * as schema from '@/db/schema';
 import { eventApplicationsCacheTag } from '@/lib/admin-event';
 import { eventUrlSegments } from '@/lib/events';
-import { assignTableSlot, getTableLabels } from '@/lib/judging/server';
+import * as Judging from '@/lib/judging/server';
 import { collectAttachmentKeys } from '@/lib/markdown-attachments';
 import { readImageUpload } from '@/lib/image-attachments';
-import { requirePermission, hasPermission } from '@/lib/rbac/authorization';
+import * as Rbac from '@/lib/rbac/server';
 import { loadSubmissionAccess, type SubmissionAccess, type SubmissionRow } from '@/lib/submission-access';
 import {
   NEW_SUBMISSION_TITLE,
@@ -84,7 +84,7 @@ export type MySubmissionState = {
 
 async function toView(row: SubmissionRow): Promise<SubmissionView> {
   const [editor] = row.lastEditedBy
-    ? await db.select({ name: authUser.name }).from(authUser).where(eq(authUser.id, row.lastEditedBy)).limit(1)
+    ? await db.select({ name: schema.user.name }).from(schema.user).where(eq(schema.user.id, row.lastEditedBy)).limit(1)
     : [];
   return {
     id: row.id,
@@ -174,7 +174,7 @@ export async function getMySubmission(eventId: string): Promise<ActionResult<MyS
   const { submission } = access;
   const tableLabel =
     submissionWindow === 'closed' && submission?.published
-      ? ((await getTableLabels(eventId)).get(submission.id)?.label ?? null)
+      ? ((await Judging.getTableLabels(eventId)).get(submission.id)?.label ?? null)
       : null;
 
   return ok({
@@ -207,7 +207,7 @@ export async function createSubmission(eventId: string): Promise<ActionResult<{ 
       const { teamId } = await getOrCreatePersonalTeam(currentUser.id, eventId, tx);
       const now = new Date();
       const [row] = await tx
-        .insert(submissions)
+        .insert(schema.submissions)
         .values({
           eventId,
           teamId,
@@ -216,14 +216,14 @@ export async function createSubmission(eventId: string): Promise<ActionResult<{ 
           createdAt: now,
           updatedAt: now,
         })
-        .onConflictDoNothing({ target: submissions.teamId })
-        .returning({ id: submissions.id });
+        .onConflictDoNothing({ target: schema.submissions.teamId })
+        .returning({ id: schema.submissions.id });
       if (row) return row;
       // A teammate started it a moment ago: open theirs.
       const [existing] = await tx
-        .select({ id: submissions.id })
-        .from(submissions)
-        .where(eq(submissions.teamId, teamId))
+        .select({ id: schema.submissions.id })
+        .from(schema.submissions)
+        .where(eq(schema.submissions.teamId, teamId))
         .limit(1);
       return existing!;
     });
@@ -273,15 +273,19 @@ export async function saveSubmission(
       // staleness check and the write.
       const [row] = await tx
         .select()
-        .from(submissions)
-        .where(eq(submissions.id, access.submission.id))
+        .from(schema.submissions)
+        .where(eq(schema.submissions.id, access.submission.id))
         .limit(1)
         .for('update');
       if (!row) return fail('Your project no longer exists.');
 
       if (!data.force && row.updatedAt.getTime() > new Date(data.expectedUpdatedAt).getTime()) {
         const [editor] = row.lastEditedBy
-          ? await tx.select({ name: authUser.name }).from(authUser).where(eq(authUser.id, row.lastEditedBy)).limit(1)
+          ? await tx
+              .select({ name: schema.user.name })
+              .from(schema.user)
+              .where(eq(schema.user.id, row.lastEditedBy))
+              .limit(1)
           : [];
         return ok<SaveSubmissionResult>({
           status: 'conflict',
@@ -304,7 +308,7 @@ export async function saveSubmission(
 
       const updatedAt = new Date();
       await tx
-        .update(submissions)
+        .update(schema.submissions)
         .set({
           title: data.title,
           markdown: data.markdown,
@@ -315,7 +319,7 @@ export async function saveSubmission(
           lastEditedBy: currentUser.id,
           updatedAt,
         })
-        .where(eq(submissions.id, row.id));
+        .where(eq(schema.submissions.id, row.id));
 
       return ok<SaveSubmissionResult>({ status: 'saved', updatedAt });
     });
@@ -351,8 +355,8 @@ export async function setSubmissionPublished(eventId: string, published: boolean
       // this check and the write, leaving a public project without one.
       const [row] = await tx
         .select()
-        .from(submissions)
-        .where(eq(submissions.id, access.submission.id))
+        .from(schema.submissions)
+        .where(eq(schema.submissions.id, access.submission.id))
         .limit(1)
         .for('update');
       if (!row) return fail('Your project no longer exists.');
@@ -364,7 +368,7 @@ export async function setSubmissionPublished(eventId: string, published: boolean
       }
 
       await tx
-        .update(submissions)
+        .update(schema.submissions)
         .set({
           published,
           publishedAt: published ? new Date() : null,
@@ -374,11 +378,11 @@ export async function setSubmissionPublished(eventId: string, published: boolean
           // `updatedAt` tracks content saves for the stale-save check;
           // flipping the flag isn't one, so a teammate mid-edit isn't told
           // to reload.
-          updatedAt: sql`${submissions.updatedAt}`,
+          updatedAt: sql`${schema.submissions.updatedAt}`,
         })
-        .where(eq(submissions.id, row.id));
+        .where(eq(schema.submissions.id, row.id));
       // First time public: the project takes its expo table for good.
-      if (published) await assignTableSlot(tx, eventId, row.id);
+      if (published) await Judging.assignTableSlot(tx, eventId, row.id);
       return ok(published ? 'Project is now public.' : 'Project is now private.');
     });
     if (result.success) await revalidateSubmissionPaths(eventId);
@@ -401,7 +405,10 @@ export async function deleteSubmission(eventId: string): Promise<ActionResult> {
   if (!access.submission) return fail('Your team has no project to delete.');
 
   try {
-    const [deleted] = await db.delete(submissions).where(eq(submissions.id, access.submission.id)).returning();
+    const [deleted] = await db
+      .delete(schema.submissions)
+      .where(eq(schema.submissions.id, access.submission.id))
+      .returning();
     if (deleted) await deleteSubmissionImages(deleted);
     await revalidateSubmissionPaths(eventId);
     return ok('Project deleted.');
@@ -464,25 +471,25 @@ export async function heartbeatSubmissionEditor(eventId: string): Promise<Action
   try {
     const now = new Date();
     await db
-      .insert(submissionEditors)
+      .insert(schema.submissionEditors)
       .values({ submissionId, userId: currentUser.id, lastSeenAt: now })
       .onConflictDoUpdate({
-        target: [submissionEditors.submissionId, submissionEditors.userId],
+        target: [schema.submissionEditors.submissionId, schema.submissionEditors.userId],
         set: { lastSeenAt: now },
       });
 
     const others = await db
-      .select({ userId: submissionEditors.userId, name: authUser.name })
-      .from(submissionEditors)
-      .innerJoin(authUser, eq(authUser.id, submissionEditors.userId))
+      .select({ userId: schema.submissionEditors.userId, name: schema.user.name })
+      .from(schema.submissionEditors)
+      .innerJoin(schema.user, eq(schema.user.id, schema.submissionEditors.userId))
       .where(
         and(
-          eq(submissionEditors.submissionId, submissionId),
-          ne(submissionEditors.userId, currentUser.id),
-          gt(submissionEditors.lastSeenAt, new Date(now.getTime() - SUBMISSION_PRESENCE_WINDOW_MS)),
+          eq(schema.submissionEditors.submissionId, submissionId),
+          ne(schema.submissionEditors.userId, currentUser.id),
+          gt(schema.submissionEditors.lastSeenAt, new Date(now.getTime() - SUBMISSION_PRESENCE_WINDOW_MS)),
         ),
       )
-      .orderBy(asc(authUser.name));
+      .orderBy(asc(schema.user.name));
     return ok(others);
   } catch (error) {
     console.error('[team/submission] heartbeatSubmissionEditor error:', error);
@@ -499,8 +506,13 @@ export async function leaveSubmissionEditor(eventId: string): Promise<ActionResu
   if (!access?.submission) return ok();
 
   await db
-    .delete(submissionEditors)
-    .where(and(eq(submissionEditors.submissionId, access.submission.id), eq(submissionEditors.userId, currentUser.id)));
+    .delete(schema.submissionEditors)
+    .where(
+      and(
+        eq(schema.submissionEditors.submissionId, access.submission.id),
+        eq(schema.submissionEditors.userId, currentUser.id),
+      ),
+    );
   return ok();
 }
 
@@ -520,11 +532,11 @@ async function teamMemberNames(teamIds: string[]): Promise<Map<string, string[]>
   const byTeam = new Map<string, string[]>();
   if (teamIds.length === 0) return byTeam;
   const rows = await db
-    .select({ teamId: teamMembers.teamId, name: authUser.name })
-    .from(teamMembers)
-    .innerJoin(authUser, eq(authUser.id, teamMembers.userId))
-    .where(inArray(teamMembers.teamId, teamIds))
-    .orderBy(asc(teamMembers.joinedAt));
+    .select({ teamId: schema.teamMembers.teamId, name: schema.user.name })
+    .from(schema.teamMembers)
+    .innerJoin(schema.user, eq(schema.user.id, schema.teamMembers.userId))
+    .where(inArray(schema.teamMembers.teamId, teamIds))
+    .orderBy(asc(schema.teamMembers.joinedAt));
   for (const row of rows) {
     byTeam.set(row.teamId, [...(byTeam.get(row.teamId) ?? []), row.name]);
   }
@@ -538,20 +550,20 @@ async function teamMemberNames(teamIds: string[]): Promise<Map<string, string[]>
 export async function listEventSubmissions(eventId: string): Promise<ActionResult<AdminSubmissionRow[]>> {
   const currentUser = await getUser();
   if (!currentUser) return fail('Not authenticated');
-  await requirePermission(currentUser.id, 'submission:read:all');
+  await Rbac.requirePermission(currentUser.id, 'submission:read:all');
 
   const rows = await db
     .select({
-      id: submissions.id,
-      teamId: submissions.teamId,
-      title: submissions.title,
-      published: submissions.published,
-      publishedAt: submissions.publishedAt,
-      updatedAt: submissions.updatedAt,
+      id: schema.submissions.id,
+      teamId: schema.submissions.teamId,
+      title: schema.submissions.title,
+      published: schema.submissions.published,
+      publishedAt: schema.submissions.publishedAt,
+      updatedAt: schema.submissions.updatedAt,
     })
-    .from(submissions)
-    .where(eq(submissions.eventId, eventId))
-    .orderBy(desc(submissions.published), asc(submissions.title));
+    .from(schema.submissions)
+    .where(eq(schema.submissions.eventId, eventId))
+    .orderBy(desc(schema.submissions.published), asc(schema.submissions.title));
 
   const names = await teamMemberNames(rows.map((row) => row.teamId));
   return ok(
@@ -572,12 +584,12 @@ export async function getEventSubmission(
 ): Promise<ActionResult<SubmissionView & { members: string[] }>> {
   const currentUser = await getUser();
   if (!currentUser) return fail('Not authenticated');
-  await requirePermission(currentUser.id, 'submission:read:all');
+  await Rbac.requirePermission(currentUser.id, 'submission:read:all');
 
   const [row] = await db
     .select()
-    .from(submissions)
-    .where(and(eq(submissions.id, submissionId), eq(submissions.eventId, eventId)))
+    .from(schema.submissions)
+    .where(and(eq(schema.submissions.id, submissionId), eq(schema.submissions.eventId, eventId)))
     .limit(1);
   if (!row) return fail('Submission not found.');
 
@@ -593,7 +605,7 @@ export async function getEventSubmission(
 export async function canDeleteAnySubmission(): Promise<boolean> {
   const currentUser = await getUser();
   if (!currentUser) return false;
-  return hasPermission(currentUser.id, 'submission:delete:all');
+  return Rbac.hasPermission(currentUser.id, 'submission:delete:all');
 }
 
 /**
@@ -604,14 +616,14 @@ export async function canDeleteAnySubmission(): Promise<boolean> {
 export async function adminDeleteSubmission(eventId: string, submissionId: string): Promise<ActionResult> {
   const currentUser = await getUser();
   if (!currentUser) return fail('Not authenticated');
-  if (!(await hasPermission(currentUser.id, 'submission:delete:all'))) {
+  if (!(await Rbac.hasPermission(currentUser.id, 'submission:delete:all'))) {
     return fail('Not authorized to delete submissions.');
   }
 
   try {
     const [deleted] = await db
-      .delete(submissions)
-      .where(and(eq(submissions.id, submissionId), eq(submissions.eventId, eventId)))
+      .delete(schema.submissions)
+      .where(and(eq(schema.submissions.id, submissionId), eq(schema.submissions.eventId, eventId)))
       .returning();
     if (!deleted) return fail('Submission not found.');
 

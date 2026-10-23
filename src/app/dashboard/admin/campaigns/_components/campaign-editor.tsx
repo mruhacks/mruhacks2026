@@ -5,16 +5,9 @@ import Link from 'next/link';
 import { BookmarkPlus, Unlink } from 'lucide-react';
 import { toast } from 'sonner';
 
-import { updateCampaignAudience } from '@/app/dashboard/admin/campaigns/actions';
-import {
-  detachCampaignAudience,
-  linkCampaignAudience,
-  saveCampaignAudienceAs,
-} from '@/app/dashboard/admin/campaigns/audience-actions';
-import type { AudienceOptions } from '@/lib/campaigns/audience-options';
-import { emptyAudience, type AudienceRuleGroup } from '@/lib/campaigns/audience-rules';
-import type { DraftEditorHandle } from '@/lib/campaigns/draft-saver';
-import type { CampaignDetail } from '@/lib/campaigns/queries';
+import { updateCampaignAudience } from '../actions';
+import { detachCampaignAudience, linkCampaignAudience, saveCampaignAudienceAs } from '../audience-actions';
+import * as Campaigns from '@/lib/campaigns';
 import { LocalDateTime } from '@/components/local-date-time';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -46,14 +39,14 @@ type CampaignEditorPermissions = {
 type SavedAudienceOption = {
   id: string;
   name: string;
-  rules: AudienceRuleGroup;
+  rules: Campaigns.AudienceRuleGroup;
 };
 
 const INLINE = '__inline__';
 
 type Props = {
-  campaign: CampaignDetail;
-  options: AudienceOptions;
+  campaign: Campaigns.Detail;
+  options: Campaigns.AudienceOptions;
   savedAudiences: SavedAudienceOption[];
   permissions: CampaignEditorPermissions;
 };
@@ -61,8 +54,8 @@ type Props = {
 export function CampaignEditor({ campaign, options, savedAudiences, permissions }: Props) {
   const editable = permissions.canWrite && campaign.status === 'draft';
   const [contentSaved, setContentSaved] = React.useState(true);
-  const composer = React.useRef<DraftEditorHandle>(null);
-  const audience = React.useRef<DraftEditorHandle>(null);
+  const composer = React.useRef<Campaigns.DraftEditorHandle>(null);
+  const audience = React.useRef<Campaigns.DraftEditorHandle>(null);
   const [preparing, setPreparing] = React.useState(false);
   const preparingRef = React.useRef(false);
   const [prepareError, setPrepareError] = React.useState<string | null>(null);
@@ -150,24 +143,24 @@ function AudienceCard({
   canPreview,
   editorRef,
 }: {
-  campaign: CampaignDetail;
-  options: AudienceOptions;
+  campaign: Campaigns.Detail;
+  options: Campaigns.AudienceOptions;
   savedAudiences: SavedAudienceOption[];
   editable: boolean;
   canPreview: boolean;
-  editorRef: React.Ref<DraftEditorHandle>;
+  editorRef: React.Ref<Campaigns.DraftEditorHandle>;
 }) {
   const linked = savedAudiences.find((a) => a.id === campaign.savedAudienceId);
   // A sent campaign shows the rules it was actually sent with, not whatever
   // its audience says now.
-  const initial = campaign.audienceSnapshot ?? linked?.rules ?? campaign.audienceRules ?? emptyAudience();
-  const [rules, setRules] = React.useState<AudienceRuleGroup>(initial);
+  const initial = campaign.audienceSnapshot ?? linked?.rules ?? campaign.audienceRules ?? Campaigns.emptyAudience();
+  const [rules, setRules] = React.useState<Campaigns.AudienceRuleGroup>(initial);
   const [dirty, setDirty] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [isBusy, setIsBusy] = React.useState(false);
   const [saveAsName, setSaveAsName] = React.useState<string | null>(null);
 
-  const handleChange = React.useCallback((next: AudienceRuleGroup) => {
+  const handleChange = React.useCallback((next: Campaigns.AudienceRuleGroup) => {
     setRules(next);
     setDirty(true);
     setError(null);

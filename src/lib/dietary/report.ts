@@ -14,7 +14,7 @@ type Meal = {
   startsAt: string;
 };
 
-export type DietaryReportRow = {
+export type ReportRow = {
   userId: string;
   name: string;
   restrictions: DietaryRestriction[];
@@ -26,8 +26,8 @@ export type DietaryReportRow = {
   notAtCurrentMeal: boolean;
 };
 
-export type DietaryReport = {
-  rows: DietaryReportRow[];
+export type Report = {
+  rows: ReportRow[];
   countedMealCount: number;
   currentMeal: Meal | null;
   hasMeals: boolean;
@@ -47,7 +47,7 @@ export function parseMissedThreshold(value: string | string[] | undefined): numb
   return MISSED_MEAL_THRESHOLDS.some((option) => option === parsed) ? parsed : DEFAULT_MISSED_MEAL_THRESHOLD;
 }
 
-export type DietaryReportSource = {
+export type ReportSource = {
   mainEventId: string;
   eventEndsAt: Date | null;
   participants: {
@@ -76,7 +76,7 @@ export function buildDietaryReport({
   meals,
   checkIns,
   now,
-}: DietaryReportSource): DietaryReport {
+}: ReportSource): Report {
   const nowMs = now.getTime();
 
   const attendees = new Map<string, Set<string>>();
@@ -139,8 +139,8 @@ export function buildDietaryReport({
   };
 }
 
-export function summarizeDietaryReport(rows: DietaryReportRow[], threshold: number): DietarySummaryRow[] {
-  const tally = (label: string, subset: DietaryReportRow[]) => ({
+export function summarizeDietaryReport(rows: ReportRow[], threshold: number): DietarySummaryRow[] {
+  const tally = (label: string, subset: ReportRow[]) => ({
     label,
     expected: subset.length,
     atDoor: subset.filter((row) => row.atDoor).length,

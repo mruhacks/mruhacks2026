@@ -1,10 +1,10 @@
 import { describe, expect, test, vi } from 'vitest';
-import { DraftSaver, type DraftSaveState } from '@/lib/campaigns/draft-saver';
+import * as Campaigns from '@/lib/campaigns';
 
 describe('saving before campaign confirmation', () => {
   test('flush saves pending edits without waiting for autosave', async () => {
     const persist = vi.fn().mockResolvedValue({ success: true });
-    const saver = new DraftSaver<string>('saved body', persist, vi.fn());
+    const saver = new Campaigns.DraftSaver<string>('saved body', persist, vi.fn());
     saver.update('previewed body');
     expect(await saver.flush()).toBe(true);
     expect(persist).toHaveBeenCalledExactlyOnceWith('previewed body');
@@ -23,7 +23,7 @@ describe('saving before campaign confirmation', () => {
           }),
       )
       .mockResolvedValue({ success: true });
-    const saver = new DraftSaver<string>('initial', persist, vi.fn());
+    const saver = new Campaigns.DraftSaver<string>('initial', persist, vi.fn());
     saver.update('first edit');
     const autosave = saver.flush();
     saver.update('latest edit');
@@ -44,8 +44,8 @@ describe('saving before campaign confirmation', () => {
       });
     else persist.mockRejectedValueOnce(new Error('Offline'));
     persist.mockResolvedValue({ success: true });
-    const states: DraftSaveState[] = [];
-    const saver = new DraftSaver<string>('initial', persist, (state) => states.push(state));
+    const states: Campaigns.DraftSaveState[] = [];
+    const saver = new Campaigns.DraftSaver<string>('initial', persist, (state) => states.push(state));
     saver.update('edited');
     expect(await saver.flush()).toBe(false);
     expect(states.at(-1)).toMatchObject({ kind: 'error' });
