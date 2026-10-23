@@ -2,15 +2,7 @@ import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest';
 import { eq, inArray } from 'drizzle-orm';
 
 import { db } from '@/utils/db';
-import {
-  campaigns,
-  events,
-  marketingConsents,
-  permission,
-  savedAudiences,
-  user,
-  userPermission,
-} from '@/db/schema';
+import { campaigns, events, marketingConsents, permission, savedAudiences, user, userPermission } from '@/db/schema';
 import { countAudience } from '@/lib/campaigns/audience';
 import type { AudienceRuleGroup } from '@/lib/campaigns/audience-rules';
 import { currentCampaignRules } from '@/lib/campaigns/saved-audiences';
@@ -47,10 +39,7 @@ const inEvent = (eventId: string): AudienceRuleGroup => ({
 });
 
 async function campaignCount(campaignId: string): Promise<number> {
-  const [row] = await db
-    .select()
-    .from(campaigns)
-    .where(eq(campaigns.id, campaignId));
+  const [row] = await db.select().from(campaigns).where(eq(campaigns.id, campaignId));
   const rules = await currentCampaignRules(row);
   return countAudience(rules!, { type: row.type, eventId: row.eventId });
 }
@@ -84,21 +73,13 @@ beforeAll(async () => {
       set: { slug: 'campaign:write:all' },
     })
     .returning({ id: permission.id });
-  await db
-    .insert(userPermission)
-    .values({ userId: writerId, permissionId: perm.id });
+  await db.insert(userPermission).values({ userId: writerId, permissionId: perm.id });
   vi.mocked(getUser).mockResolvedValue({
     id: writerId,
   } as Awaited<ReturnType<typeof getUser>>);
 
-  const [a] = await db
-    .insert(events)
-    .values({ name: 'Saved audience A' })
-    .returning({ id: events.id });
-  const [b] = await db
-    .insert(events)
-    .values({ name: 'Saved audience B' })
-    .returning({ id: events.id });
+  const [a] = await db.insert(events).values({ name: 'Saved audience A' }).returning({ id: events.id });
+  const [b] = await db.insert(events).values({ name: 'Saved audience B' }).returning({ id: events.id });
   eventA = a.id;
   eventB = b.id;
 
@@ -125,9 +106,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await db.delete(campaigns).where(inArray(campaigns.id, campaignIds));
   if (audienceIds.length) {
-    await db
-      .delete(savedAudiences)
-      .where(inArray(savedAudiences.id, audienceIds));
+    await db.delete(savedAudiences).where(inArray(savedAudiences.id, audienceIds));
   }
   await db.delete(events).where(inArray(events.id, [eventA, eventB]));
   await db.delete(user).where(inArray(user.id, [writerId, ...memberIds]));
@@ -146,23 +125,15 @@ describe('linked saved audiences', () => {
     const linked = await newCampaign('Linked');
     const detached = await newCampaign('Detached');
     expect((await linkCampaignAudience(linked, audienceId)).success).toBe(true);
-    expect((await linkCampaignAudience(detached, audienceId)).success).toBe(
-      true,
-    );
-    const [linkedRow] = await db
-      .select()
-      .from(campaigns)
-      .where(eq(campaigns.id, linked));
+    expect((await linkCampaignAudience(detached, audienceId)).success).toBe(true);
+    const [linkedRow] = await db.select().from(campaigns).where(eq(campaigns.id, linked));
     expect(linkedRow.audienceRules).toBeNull();
     expect(linkedRow.savedAudienceId).toBe(audienceId);
 
     expect(await detachCampaignAudience(detached)).toMatchObject({
       success: true,
     });
-    const [detachedRow] = await db
-      .select()
-      .from(campaigns)
-      .where(eq(campaigns.id, detached));
+    const [detachedRow] = await db.select().from(campaigns).where(eq(campaigns.id, detached));
     expect(detachedRow.savedAudienceId).toBeNull();
     expect(detachedRow.audienceRules).toEqual(inEvent(eventA));
 
@@ -196,12 +167,7 @@ describe('linked saved audiences', () => {
 
     await detachCampaignAudience(campaignId);
     expect((await deleteSavedAudience(audienceId)).success).toBe(true);
-    expect(
-      await db
-        .select()
-        .from(savedAudiences)
-        .where(eq(savedAudiences.id, audienceId)),
-    ).toHaveLength(0);
+    expect(await db.select().from(savedAudiences).where(eq(savedAudiences.id, audienceId))).toHaveLength(0);
   });
 
   test('"Save as audience" copies the inline rules into a new audience and links it', async () => {
@@ -216,15 +182,9 @@ describe('linked saved audiences', () => {
     const audienceId = result.success ? result.data!.id : '';
     audienceIds.push(audienceId);
 
-    const [audience] = await db
-      .select()
-      .from(savedAudiences)
-      .where(eq(savedAudiences.id, audienceId));
+    const [audience] = await db.select().from(savedAudiences).where(eq(savedAudiences.id, audienceId));
     expect(audience.rules).toEqual(inEvent(eventB));
-    const [row] = await db
-      .select()
-      .from(campaigns)
-      .where(eq(campaigns.id, campaignId));
+    const [row] = await db.select().from(campaigns).where(eq(campaigns.id, campaignId));
     expect(row).toMatchObject({
       savedAudienceId: audienceId,
       audienceRules: null,
@@ -236,13 +196,8 @@ describe('linked saved audiences', () => {
     const audienceId = created.success ? created.data!.id : '';
     audienceIds.push(audienceId);
     const campaignId = await newCampaign('Already scheduled');
-    await db
-      .update(campaigns)
-      .set({ status: 'scheduled' })
-      .where(eq(campaigns.id, campaignId));
-    expect((await linkCampaignAudience(campaignId, audienceId)).success).toBe(
-      false,
-    );
+    await db.update(campaigns).set({ status: 'scheduled' }).where(eq(campaigns.id, campaignId));
+    expect((await linkCampaignAudience(campaignId, audienceId)).success).toBe(false);
   });
 
   test('rejects invalid names and rules', async () => {

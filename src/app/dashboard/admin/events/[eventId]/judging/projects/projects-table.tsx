@@ -5,27 +5,14 @@ import Link from 'next/link';
 import type { ColumnDef } from '@tanstack/react-table';
 import { toast } from 'sonner';
 
-import {
-  setSubmissionDeactivated,
-  type JudgingProjectRow,
-} from '@/app/dashboard/admin/events/judging-actions';
+import { setSubmissionDeactivated, type JudgingProjectRow } from '@/app/dashboard/admin/events/judging-actions';
 import { DataTable } from '@/components/data-table/data-table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 const statusLabel = (project: JudgingProjectRow) =>
-  project.deactivated
-    ? 'Deactivated'
-    : project.published
-      ? 'In judging'
-      : 'Draft';
+  project.deactivated ? 'Deactivated' : project.published ? 'In judging' : 'Draft';
 
 /**
  * Every submission with its table. Only published, active projects
@@ -51,11 +38,7 @@ export function JudgingProjectsTable({
     async (project: JudgingProjectRow) => {
       setBusyId(project.id);
       try {
-        const result = await setSubmissionDeactivated(
-          eventId,
-          project.id,
-          !project.deactivated,
-        );
+        const result = await setSubmissionDeactivated(eventId, project.id, !project.deactivated);
         // A button-only action: nothing to anchor an inline error to.
         if (!result.success) toast.error(result.error);
       } catch {
@@ -137,8 +120,8 @@ export function JudgingProjectsTable({
       <CardHeader>
         <CardTitle>Projects</CardTitle>
         <CardDescription>
-          A project takes the next table the first time it&apos;s published and
-          keeps it, so tables never move once handed out.
+          A project takes the next table the first time it&apos;s published and keeps it, so tables never move once
+          handed out.
         </CardDescription>
       </CardHeader>
       <CardContent>

@@ -1,23 +1,12 @@
 import type * as React from 'react';
-import {
-  AlertTriangle,
-  Code2,
-  Eye,
-  EyeOff,
-  Globe,
-  PlayCircle,
-} from 'lucide-react';
+import { AlertTriangle, Code2, Eye, EyeOff, Globe, PlayCircle } from 'lucide-react';
 
 import { LocalDateTime } from '@/components/local-date-time';
 import { MarkdownContent } from '@/components/markdown/markdown-content';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import {
-  PROJECT_STAGE_COPY,
-  PROJECT_VISIBILITY_COPY,
-  type ProjectStage,
-} from '@/lib/submission-copy';
+import { PROJECT_STAGE_COPY, PROJECT_VISIBILITY_COPY, type ProjectStage } from '@/lib/submission-copy';
 import { cn } from '@/lib/utils';
 
 /** Shown wherever a submission's last editor has since deleted their account. */
@@ -96,30 +85,19 @@ export function ProjectStageDescription({
   tableLabel?: string | null;
 }) {
   const { description, date } = PROJECT_STAGE_COPY[stage];
-  const value =
-    date === 'opensAt' ? opensAt : date === 'closesAt' ? closesAt : null;
+  const value = date === 'opensAt' ? opensAt : date === 'closesAt' ? closesAt : null;
   if (tableLabel) {
     return (
       <>
         {description} Your assigned table is{' '}
-        <span className='text-foreground font-semibold tabular-nums'>
-          {tableLabel}
-        </span>
-        .
+        <span className='text-foreground font-semibold tabular-nums'>{tableLabel}</span>.
       </>
     );
   }
   if (!value) return <>{description}</>;
   return (
     <>
-      {description}{' '}
-      <LocalDateTime
-        value={value}
-        dateStyle='medium'
-        timeStyle='short'
-        timeZoneName='short'
-      />
-      .
+      {description} <LocalDateTime value={value} dateStyle='medium' timeStyle='short' timeZoneName='short' />.
     </>
   );
 }
@@ -165,11 +143,7 @@ export function SubmissionBanner({
           {/* Served from `/api/assets`, which needs the session cookie — see
               MarkdownContent for why the Next image optimizer can't be used. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={coverImageUrl}
-            alt=''
-            className='absolute inset-0 -z-10 size-full object-cover'
-          />
+          <img src={coverImageUrl} alt='' className='absolute inset-0 -z-10 size-full object-cover' />
           <div
             aria-hidden
             className='from-background via-background/80 to-background/20 absolute inset-0 -z-10 bg-linear-to-t'
@@ -185,9 +159,7 @@ export function SubmissionBanner({
       )}
       {action && <div className='absolute top-3 right-3'>{action}</div>}
       <div className={cn('flex min-w-0 flex-col gap-2', action && 'pr-12')}>
-        <h1 className='text-3xl font-semibold tracking-tight wrap-break-word'>
-          {title || "Your team's project"}
-        </h1>
+        <h1 className='text-3xl font-semibold tracking-tight wrap-break-word'>{title || "Your team's project"}</h1>
         {children}
       </div>
     </header>
@@ -221,58 +193,31 @@ export function SubmissionView({
 
   return (
     <article className='flex flex-col gap-6'>
-      <SubmissionBanner
-        title={submission.title}
-        coverImageUrl={submission.coverImageUrl}
-        action={action}
-      >
+      <SubmissionBanner title={submission.title} coverImageUrl={submission.coverImageUrl} action={action}>
         <div className='flex flex-wrap items-center gap-2'>
           <SubmissionStatusBadge published={submission.published} />
           {links.map(({ href, label, icon: Icon }) => (
-            <Button
-              key={label}
-              asChild
-              variant='outline'
-              size='icon-sm'
-              className='bg-background/80 backdrop-blur-sm'
-            >
-              <a
-                href={href}
-                target='_blank'
-                rel='noreferrer'
-                aria-label={label}
-                title={label}
-              >
+            <Button key={label} asChild variant='outline' size='icon-sm' className='bg-background/80 backdrop-blur-sm'>
+              <a href={href} target='_blank' rel='noreferrer' aria-label={label} title={label}>
                 <Icon />
               </a>
             </Button>
           ))}
         </div>
-        {members && members.length > 0 && (
-          <p className='text-muted-foreground text-sm'>
-            By {members.join(', ')}
-          </p>
-        )}
+        {members && members.length > 0 && <p className='text-muted-foreground text-sm'>By {members.join(', ')}</p>}
         {notice && <p className='text-muted-foreground text-sm'>{notice}</p>}
       </SubmissionBanner>
 
       <Card className='gap-6 p-6'>
         {submission.markdown.trim() ? (
-          <MarkdownContent
-            markdown={submission.markdown}
-            allowRawHtml={false}
-          />
+          <MarkdownContent markdown={submission.markdown} allowRawHtml={false} />
         ) : (
           <p className='text-muted-foreground text-sm'>No write-up yet.</p>
         )}
 
         <p className='text-muted-foreground text-xs'>
           Last edited by {submission.lastEditedByName ?? DELETED_USER_LABEL} on{' '}
-          <LocalDateTime
-            value={submission.updatedAt}
-            dateStyle='medium'
-            timeStyle='short'
-          />
+          <LocalDateTime value={submission.updatedAt} dateStyle='medium' timeStyle='short' />
         </p>
       </Card>
     </article>

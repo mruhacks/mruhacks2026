@@ -47,8 +47,7 @@ let noPermUser: MockUser;
 let readOnlyRoleUser: MockUser;
 let readOnlyPermUser: MockUser;
 
-const FORBIDDEN = (perm: string) =>
-  `REDIRECT:/forbidden?reason=missing_permission&permission=${perm}`;
+const FORBIDDEN = (perm: string) => `REDIRECT:/forbidden?reason=missing_permission&permission=${perm}`;
 
 beforeAll(async () => {
   const [noPerm] = await db
@@ -150,9 +149,7 @@ describe('listPermissions', () => {
 
   test('redirects to /forbidden for caller without permission:read:all', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(noPermUser as never);
-    await expect(listPermissions()).rejects.toThrow(
-      FORBIDDEN('permission:read:all'),
-    );
+    await expect(listPermissions()).rejects.toThrow(FORBIDDEN('permission:read:all'));
   });
 });
 
@@ -168,16 +165,12 @@ describe('createRole', () => {
 
   test('redirects to /forbidden for caller without role:write:all', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(noPermUser as never);
-    await expect(createRole('test-slug')).rejects.toThrow(
-      FORBIDDEN('role:write:all'),
-    );
+    await expect(createRole('test-slug')).rejects.toThrow(FORBIDDEN('role:write:all'));
   });
 
   test('role:read:all alone is insufficient — redirects to /forbidden', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(readOnlyRoleUser as never);
-    await expect(createRole('test-slug')).rejects.toThrow(
-      FORBIDDEN('role:write:all'),
-    );
+    await expect(createRole('test-slug')).rejects.toThrow(FORBIDDEN('role:write:all'));
   });
 });
 
@@ -212,9 +205,7 @@ describe('updateRole', () => {
 
   test('redirects to /forbidden for caller without role:write:all', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(noPermUser as never);
-    await expect(updateRole(999, { slug: 'x' })).rejects.toThrow(
-      FORBIDDEN('role:write:all'),
-    );
+    await expect(updateRole(999, { slug: 'x' })).rejects.toThrow(FORBIDDEN('role:write:all'));
   });
 });
 
@@ -230,9 +221,7 @@ describe('assignRoleToUser', () => {
 
   test('redirects to /forbidden for caller without role:write:all', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(noPermUser as never);
-    await expect(assignRoleToUser('uid', 1)).rejects.toThrow(
-      FORBIDDEN('role:write:all'),
-    );
+    await expect(assignRoleToUser('uid', 1)).rejects.toThrow(FORBIDDEN('role:write:all'));
   });
 });
 
@@ -246,9 +235,7 @@ describe('revokeRoleFromUser', () => {
 
   test('redirects to /forbidden for caller without role:write:all', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(noPermUser as never);
-    await expect(revokeRoleFromUser('uid', 1)).rejects.toThrow(
-      FORBIDDEN('role:write:all'),
-    );
+    await expect(revokeRoleFromUser('uid', 1)).rejects.toThrow(FORBIDDEN('role:write:all'));
   });
 });
 
@@ -264,16 +251,12 @@ describe('addPermission', () => {
 
   test('redirects to /forbidden for caller without permission:write:all', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(noPermUser as never);
-    await expect(addPermission('test:perm', 'desc')).rejects.toThrow(
-      FORBIDDEN('permission:write:all'),
-    );
+    await expect(addPermission('test:perm', 'desc')).rejects.toThrow(FORBIDDEN('permission:write:all'));
   });
 
   test('permission:read:all alone is insufficient — redirects to /forbidden', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(readOnlyPermUser as never);
-    await expect(addPermission('test:perm', 'desc')).rejects.toThrow(
-      FORBIDDEN('permission:write:all'),
-    );
+    await expect(addPermission('test:perm', 'desc')).rejects.toThrow(FORBIDDEN('permission:write:all'));
   });
 });
 
@@ -287,9 +270,7 @@ describe('deletePermission', () => {
 
   test('redirects to /forbidden for caller without permission:write:all', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(noPermUser as never);
-    await expect(deletePermission(999)).rejects.toThrow(
-      FORBIDDEN('permission:write:all'),
-    );
+    await expect(deletePermission(999)).rejects.toThrow(FORBIDDEN('permission:write:all'));
   });
 });
 
@@ -303,9 +284,7 @@ describe('updatePermission', () => {
 
   test('redirects to /forbidden for caller without permission:write:all', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(noPermUser as never);
-    await expect(updatePermission(999, { slug: 'x' })).rejects.toThrow(
-      FORBIDDEN('permission:write:all'),
-    );
+    await expect(updatePermission(999, { slug: 'x' })).rejects.toThrow(FORBIDDEN('permission:write:all'));
   });
 });
 
@@ -321,9 +300,7 @@ describe('grantPermissionToRole', () => {
 
   test('redirects to /forbidden for caller without role:write:all', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(noPermUser as never);
-    await expect(grantPermissionToRole(1, 1)).rejects.toThrow(
-      FORBIDDEN('role:write:all'),
-    );
+    await expect(grantPermissionToRole(1, 1)).rejects.toThrow(FORBIDDEN('role:write:all'));
   });
 });
 
@@ -337,9 +314,7 @@ describe('revokePermissionFromRole', () => {
 
   test('redirects to /forbidden for caller without role:write:all', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(noPermUser as never);
-    await expect(revokePermissionFromRole(1, 1)).rejects.toThrow(
-      FORBIDDEN('role:write:all'),
-    );
+    await expect(revokePermissionFromRole(1, 1)).rejects.toThrow(FORBIDDEN('role:write:all'));
   });
 });
 
@@ -355,9 +330,7 @@ describe('grantPermissionToUser', () => {
 
   test('redirects to /forbidden for caller without permission:write:all', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(noPermUser as never);
-    await expect(grantPermissionToUser('uid', 1)).rejects.toThrow(
-      FORBIDDEN('permission:write:all'),
-    );
+    await expect(grantPermissionToUser('uid', 1)).rejects.toThrow(FORBIDDEN('permission:write:all'));
   });
 });
 
@@ -371,9 +344,7 @@ describe('revokePermissionFromUser', () => {
 
   test('redirects to /forbidden for caller without permission:write:all', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(noPermUser as never);
-    await expect(revokePermissionFromUser('uid', 1)).rejects.toThrow(
-      FORBIDDEN('permission:write:all'),
-    );
+    await expect(revokePermissionFromUser('uid', 1)).rejects.toThrow(FORBIDDEN('permission:write:all'));
   });
 });
 
@@ -389,16 +360,12 @@ describe('setUserRoles', () => {
 
   test('redirects to /forbidden for caller without role:write:all', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(noPermUser as never);
-    await expect(setUserRoles('uid', [])).rejects.toThrow(
-      FORBIDDEN('role:write:all'),
-    );
+    await expect(setUserRoles('uid', [])).rejects.toThrow(FORBIDDEN('role:write:all'));
   });
 
   test('role:read:all alone is insufficient — redirects to /forbidden', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(readOnlyRoleUser as never);
-    await expect(setUserRoles('uid', [])).rejects.toThrow(
-      FORBIDDEN('role:write:all'),
-    );
+    await expect(setUserRoles('uid', [])).rejects.toThrow(FORBIDDEN('role:write:all'));
   });
 });
 
@@ -414,16 +381,12 @@ describe('setUserDirectPermissions', () => {
 
   test('redirects to /forbidden for caller without permission:write:all', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(noPermUser as never);
-    await expect(setUserDirectPermissions('uid', [])).rejects.toThrow(
-      FORBIDDEN('permission:write:all'),
-    );
+    await expect(setUserDirectPermissions('uid', [])).rejects.toThrow(FORBIDDEN('permission:write:all'));
   });
 
   test('permission:read:all alone is insufficient — redirects to /forbidden', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(readOnlyPermUser as never);
-    await expect(setUserDirectPermissions('uid', [])).rejects.toThrow(
-      FORBIDDEN('permission:write:all'),
-    );
+    await expect(setUserDirectPermissions('uid', [])).rejects.toThrow(FORBIDDEN('permission:write:all'));
   });
 });
 
@@ -439,15 +402,11 @@ describe('setRolePermissions', () => {
 
   test('redirects to /forbidden for caller without role:write:all', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(noPermUser as never);
-    await expect(setRolePermissions(1, [])).rejects.toThrow(
-      FORBIDDEN('role:write:all'),
-    );
+    await expect(setRolePermissions(1, [])).rejects.toThrow(FORBIDDEN('role:write:all'));
   });
 
   test('role:read:all alone is insufficient — redirects to /forbidden', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(readOnlyRoleUser as never);
-    await expect(setRolePermissions(1, [])).rejects.toThrow(
-      FORBIDDEN('role:write:all'),
-    );
+    await expect(setRolePermissions(1, [])).rejects.toThrow(FORBIDDEN('role:write:all'));
   });
 });

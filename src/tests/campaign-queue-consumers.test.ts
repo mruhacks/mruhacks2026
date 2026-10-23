@@ -4,13 +4,12 @@ type Metadata = { deliveryCount: number; messageId: string };
 type Handler = (message: unknown, metadata: Metadata) => Promise<void>;
 type Retry = (error: unknown, metadata: Metadata) => { afterSeconds: number };
 
-const { handlers, retries, processCampaignDispatch, processCampaignDelivery } =
-  vi.hoisted(() => ({
-    handlers: [] as Handler[],
-    retries: [] as (Retry | undefined)[],
-    processCampaignDispatch: vi.fn(),
-    processCampaignDelivery: vi.fn(),
-  }));
+const { handlers, retries, processCampaignDispatch, processCampaignDelivery } = vi.hoisted(() => ({
+  handlers: [] as Handler[],
+  retries: [] as (Retry | undefined)[],
+  processCampaignDispatch: vi.fn(),
+  processCampaignDelivery: vi.fn(),
+}));
 
 vi.mock('@vercel/queue', () => ({
   handleCallback: (handler: Handler, options?: { retry?: Retry }) => {
@@ -23,9 +22,7 @@ vi.mock('@/lib/campaigns/process-dispatch', () => ({
   processCampaignDispatch,
 }));
 vi.mock('@/lib/campaigns/process-delivery', async (importOriginal) => ({
-  ...(await importOriginal<
-    typeof import('@/lib/campaigns/process-delivery')
-  >()),
+  ...(await importOriginal<typeof import('@/lib/campaigns/process-delivery')>()),
   processCampaignDelivery,
 }));
 
@@ -40,14 +37,8 @@ describe('campaign queue consumers', () => {
   test('dispatch hands the campaign id to processCampaignDispatch', async () => {
     processCampaignDispatch.mockResolvedValue({ kind: 'dispatched' });
     vi.spyOn(console, 'info').mockImplementation(() => {});
-    await handlers[0](
-      { campaignId: 'c1', scheduledFor: '2026-10-21T12:00:00Z' },
-      meta(1),
-    );
-    expect(processCampaignDispatch).toHaveBeenCalledWith(
-      'c1',
-      '2026-10-21T12:00:00Z',
-    );
+    await handlers[0]({ campaignId: 'c1', scheduledFor: '2026-10-21T12:00:00Z' }, meta(1));
+    expect(processCampaignDispatch).toHaveBeenCalledWith('c1', '2026-10-21T12:00:00Z');
   });
 
   test('deliveries hand the delivery id over, and a thrown error propagates for retry', async () => {
@@ -56,9 +47,7 @@ describe('campaign queue consumers', () => {
     expect(processCampaignDelivery).toHaveBeenCalledWith('d1');
 
     processCampaignDelivery.mockRejectedValueOnce(new Error('throttled'));
-    await expect(handlers[1]({ deliveryId: 'd1' }, meta(2))).rejects.toThrow(
-      'throttled',
-    );
+    await expect(handlers[1]({ deliveryId: 'd1' }, meta(2))).rejects.toThrow('throttled');
   });
 
   test('delivery retries back off with jitter, capped at 5 minutes', () => {

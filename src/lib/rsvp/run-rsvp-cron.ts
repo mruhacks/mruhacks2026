@@ -4,10 +4,7 @@ import {
   requeuePendingRsvpInvitations,
   type RequeuePendingRsvpInvitationsResult,
 } from '@/lib/rsvp/requeue-pending-rsvp-invitations';
-import {
-  runScheduledRsvpWaves,
-  type RunScheduledRsvpWavesResult,
-} from '@/lib/rsvp/run-scheduled-rsvp-waves';
+import { runScheduledRsvpWaves, type RunScheduledRsvpWavesResult } from '@/lib/rsvp/run-scheduled-rsvp-waves';
 
 export type RunRsvpCronResult = {
   waves: RunScheduledRsvpWavesResult;
@@ -21,16 +18,11 @@ export type RunRsvpCronResult = {
  * so the cron run is reported as failed.
  */
 export async function runRsvpCron(): Promise<RunRsvpCronResult> {
-  const [waves, sweep] = [
-    await settle(runScheduledRsvpWaves()),
-    await settle(requeuePendingRsvpInvitations()),
-  ];
+  const [waves, sweep] = [await settle(runScheduledRsvpWaves()), await settle(requeuePendingRsvpInvitations())];
 
   if (waves.status === 'rejected' || sweep.status === 'rejected') {
     throw new AggregateError(
-      [waves, sweep]
-        .filter((step) => step.status === 'rejected')
-        .map((step) => step.reason),
+      [waves, sweep].filter((step) => step.status === 'rejected').map((step) => step.reason),
       'Scheduled RSVP run failed.',
     );
   }

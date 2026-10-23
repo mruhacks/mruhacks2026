@@ -11,14 +11,7 @@ import { LocalDateTime } from '@/components/local-date-time';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import type { CampaignStatus } from '@/db/schema';
 
 const STATUS_BADGE: Record<
@@ -36,12 +29,7 @@ const STATUS_BADGE: Record<
 };
 
 function CampaignListSkeleton() {
-  return (
-    <div
-      className='bg-muted animate-pulse rounded-xl'
-      style={{ height: 220 }}
-    />
-  );
+  return <div className='bg-muted animate-pulse rounded-xl' style={{ height: 220 }} />;
 }
 
 // Reads the session and the campaign list, so it streams in behind Suspense
@@ -77,16 +65,11 @@ async function CampaignList() {
             return (
               <TableRow key={row.id}>
                 <TableCell className='max-w-56 truncate font-medium'>
-                  <Link
-                    href={`/dashboard/admin/campaigns/${row.id}`}
-                    className='hover:underline'
-                  >
+                  <Link href={`/dashboard/admin/campaigns/${row.id}`} className='hover:underline'>
                     {row.name}
                   </Link>
                   {row.eventName && (
-                    <span className='text-muted-foreground block truncate text-xs font-normal'>
-                      {row.eventName}
-                    </span>
+                    <span className='text-muted-foreground block truncate text-xs font-normal'>{row.eventName}</span>
                   )}
                 </TableCell>
                 <TableCell className='capitalize'>{row.type}</TableCell>
@@ -94,20 +77,12 @@ async function CampaignList() {
                   <Badge variant={status.variant}>{status.label}</Badge>
                   {row.status === 'scheduled' && row.scheduledFor && (
                     <span className='text-muted-foreground mt-1 block text-xs'>
-                      <LocalDateTime
-                        value={row.scheduledFor}
-                        dateStyle='medium'
-                        timeStyle='short'
-                      />
+                      <LocalDateTime value={row.scheduledFor} dateStyle='medium' timeStyle='short' />
                     </span>
                   )}
                 </TableCell>
                 <TableCell className='text-muted-foreground hidden text-xs sm:table-cell'>
-                  <LocalDateTime
-                    value={row.updatedAt}
-                    dateStyle='medium'
-                    timeStyle='short'
-                  />
+                  <LocalDateTime value={row.updatedAt} dateStyle='medium' timeStyle='short' />
                   {row.updatedByName && <> by {row.updatedByName}</>}
                 </TableCell>
               </TableRow>
@@ -143,9 +118,7 @@ export default function AdminCampaignsPage() {
       <div className='flex flex-wrap items-center justify-between gap-4'>
         <div>
           <h1 className='text-2xl font-semibold'>Campaigns</h1>
-          <p className='text-muted-foreground mt-1 text-sm'>
-            Write emails and send them to rule-based audiences.
-          </p>
+          <p className='text-muted-foreground mt-1 text-sm'>Write emails and send them to rule-based audiences.</p>
         </div>
         <div className='flex flex-wrap gap-2'>
           <Button asChild variant='outline'>

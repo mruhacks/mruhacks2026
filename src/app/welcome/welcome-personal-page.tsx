@@ -5,22 +5,12 @@ import { useRouter } from 'next/navigation';
 import { Controller, useForm, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 
-import {
-  personalSchema,
-  type ProfileFormOptions,
-  type ProfileFormValues,
-} from '@/components/profile-form/schema';
+import { personalSchema, type ProfileFormOptions, type ProfileFormValues } from '@/components/profile-form/schema';
 import type { PersonalProfileValues } from '@/app/dashboard/profile/actions';
 import { savePersonalProfile } from '@/app/dashboard/profile/actions';
 import { isOtherOption } from '@/lib/other-option';
 import { Button } from '@/components/ui/button';
-import {
-  Field,
-  FieldError,
-  FieldGroup,
-  FieldLabel,
-  RequiredAsterisk,
-} from '@/components/ui/field';
+import { Field, FieldError, FieldGroup, FieldLabel, RequiredAsterisk } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { Spinner } from '@/components/ui/spinner';
@@ -73,9 +63,7 @@ export function WelcomePersonalPage({
   return (
     <form onSubmit={form.handleSubmit(submit)} className='flex flex-col gap-6'>
       <div>
-        <h2 className='text-lg font-semibold'>
-          Complete your personal information
-        </h2>
+        <h2 className='text-lg font-semibold'>Complete your personal information</h2>
         <p className='text-muted-foreground mt-1 text-sm'>
           Start with the basics so we can personalize your event experience.
         </p>
@@ -92,17 +80,13 @@ export function WelcomePersonalPage({
             aria-invalid={Boolean(form.formState.errors.fullName)}
             {...form.register('fullName')}
           />
-          {form.formState.errors.fullName && (
-            <FieldError errors={[form.formState.errors.fullName]} />
-          )}
+          {form.formState.errors.fullName && <FieldError errors={[form.formState.errors.fullName]} />}
         </Field>
         <Controller
           name='genderId'
           control={form.control}
           render={({ field, fieldState }) => {
-            const selected = options.genders.find(
-              (option) => option.value === field.value,
-            );
+            const selected = options.genders.find((option) => option.value === field.value);
             return (
               <Field data-invalid={fieldState.invalid}>
                 <FieldLabel>
@@ -116,10 +100,7 @@ export function WelcomePersonalPage({
                   aria-invalid={fieldState.invalid}
                   value={selected ?? null}
                   onChange={(option) =>
-                    field.onChange(
-                      (option as SingleValue<{ value: number; label: string }>)
-                        ?.value ?? '',
-                    )
+                    field.onChange((option as SingleValue<{ value: number; label: string }>)?.value ?? '')
                   }
                 />
                 {fieldState.error && <FieldError errors={[fieldState.error]} />}
@@ -142,9 +123,7 @@ export function WelcomePersonalPage({
             const dietaryOptions = [NONE_OPTION, ...options.dietary];
             const selected = dietaryNoneSelected
               ? [NONE_OPTION]
-              : options.dietary.filter((option) =>
-                  field.value.includes(option.value),
-                );
+              : options.dietary.filter((option) => field.value.includes(option.value));
             return (
               <Field data-invalid={fieldState.invalid}>
                 <FieldLabel>Dietary Restrictions</FieldLabel>
@@ -156,9 +135,7 @@ export function WelcomePersonalPage({
                   aria-invalid={fieldState.invalid}
                   value={selected}
                   onChange={(values) => {
-                    const vals = (
-                      values as MultiValue<{ value: number; label: string }>
-                    ).map((o) => o.value);
+                    const vals = (values as MultiValue<{ value: number; label: string }>).map((o) => o.value);
                     const hasNone = vals.includes(0);
                     if (hasNone && !dietaryNoneSelected) {
                       setDietaryNoneSelected(true);
@@ -193,9 +170,7 @@ export function WelcomePersonalPage({
             aria-invalid={Boolean(form.formState.errors.linkedinUrl)}
             {...form.register('linkedinUrl')}
           />
-          {form.formState.errors.linkedinUrl && (
-            <FieldError errors={[form.formState.errors.linkedinUrl]} />
-          )}
+          {form.formState.errors.linkedinUrl && <FieldError errors={[form.formState.errors.linkedinUrl]} />}
         </Field>
       </FieldGroup>
       <Separator />

@@ -73,9 +73,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await db
-    .delete(eventParticipants)
-    .where(eq(eventParticipants.userId, testUserId));
+  await db.delete(eventParticipants).where(eq(eventParticipants.userId, testUserId));
   await db.delete(userProfiles).where(eq(userProfiles.userId, testUserId));
   await db.delete(events).where(eq(events.id, testEventId));
   await db.delete(user).where(eq(user.id, testUserId));
@@ -182,9 +180,7 @@ describe('getUserParticipation — with application', () => {
   });
 
   afterAll(async () => {
-    await db
-      .delete(eventParticipants)
-      .where(eq(eventParticipants.eventId, appEventId));
+    await db.delete(eventParticipants).where(eq(eventParticipants.eventId, appEventId));
     await db.delete(events).where(eq(events.id, appEventId));
   });
 
@@ -228,9 +224,7 @@ describe('getEventsWithUserStatus — applied user', () => {
   });
 
   afterAll(async () => {
-    await db
-      .delete(eventParticipants)
-      .where(eq(eventParticipants.eventId, appliedEventId));
+    await db.delete(eventParticipants).where(eq(eventParticipants.eventId, appliedEventId));
     await db.delete(events).where(eq(events.id, appliedEventId));
   });
 
@@ -252,15 +246,9 @@ describe('submitEventApplication — edit restrictions', () => {
 
   beforeAll(async () => {
     const [gender] = await db.select({ id: genders.id }).from(genders).limit(1);
-    const [university] = await db
-      .select({ id: universities.id })
-      .from(universities)
-      .limit(1);
+    const [university] = await db.select({ id: universities.id }).from(universities).limit(1);
     const [major] = await db.select({ id: majors.id }).from(majors).limit(1);
-    const [year] = await db
-      .select({ id: yearsOfStudy.id })
-      .from(yearsOfStudy)
-      .limit(1);
+    const [year] = await db.select({ id: yearsOfStudy.id }).from(yearsOfStudy).limit(1);
     if (!gender || !university || !major || !year) {
       throw new Error('Expected lookup tables to be seeded.');
     }
@@ -319,17 +307,11 @@ describe('submitEventApplication — edit restrictions', () => {
   });
 
   afterAll(async () => {
-    await db
-      .delete(eventParticipants)
-      .where(eq(eventParticipants.eventId, openEventId));
-    await db
-      .delete(eventParticipants)
-      .where(eq(eventParticipants.eventId, elapsedEventId));
+    await db.delete(eventParticipants).where(eq(eventParticipants.eventId, openEventId));
+    await db.delete(eventParticipants).where(eq(eventParticipants.eventId, elapsedEventId));
     await db.delete(events).where(eq(events.id, openEventId));
     await db.delete(events).where(eq(events.id, elapsedEventId));
-    await db
-      .delete(userProfileAbout)
-      .where(eq(userProfileAbout.userId, testUserId));
+    await db.delete(userProfileAbout).where(eq(userProfileAbout.userId, testUserId));
   });
 
   test('allows editing while the application is still pending review', async () => {
@@ -346,10 +328,7 @@ describe('submitEventApplication — edit restrictions', () => {
         set: { statusId: pendingStatusId },
       });
 
-    const result = await submitEventApplication(
-      { applicationResponses: {} },
-      openEventId,
-    );
+    const result = await submitEventApplication({ applicationResponses: {} }, openEventId);
     expect(result.success).toBe(true);
   });
 
@@ -359,21 +338,13 @@ describe('submitEventApplication — edit restrictions', () => {
       .set({ statusId: waitlistedStatusId })
       .where(eq(eventParticipants.eventId, openEventId));
 
-    const result = await submitEventApplication(
-      { applicationResponses: {} },
-      openEventId,
-    );
+    const result = await submitEventApplication({ applicationResponses: {} }, openEventId);
     expect(result.success).toBe(false);
-    expect((result as { error: string }).error).toMatch(
-      /already been reviewed/i,
-    );
+    expect((result as { error: string }).error).toMatch(/already been reviewed/i);
   });
 
   test('rejects editing once the event has ended', async () => {
-    const result = await submitEventApplication(
-      { applicationResponses: {} },
-      elapsedEventId,
-    );
+    const result = await submitEventApplication({ applicationResponses: {} }, elapsedEventId);
     expect(result.success).toBe(false);
     expect((result as { error: string }).error).toMatch(/ended/i);
   });

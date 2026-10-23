@@ -26,11 +26,7 @@ export default function SubeventsRoute({ params }: Props) {
   );
 }
 
-async function SubeventsContent({
-  paramsPromise,
-}: {
-  paramsPromise: Props['params'];
-}) {
+async function SubeventsContent({ paramsPromise }: { paramsPromise: Props['params'] }) {
   const { eventId: segment } = await paramsPromise;
   const eventId = await resolveEventId(segment);
   if (!eventId) notFound();
@@ -49,9 +45,7 @@ async function SubeventsContent({
   ]);
   if (!event) notFound();
 
-  const checkInCounts = await getSubeventCheckInCounts(
-    subevents.map((subevent) => subevent.id),
-  );
+  const checkInCounts = await getSubeventCheckInCounts(subevents.map((subevent) => subevent.id));
 
   return (
     <SubeventList

@@ -17,31 +17,11 @@
  *    registered attendee of that specific (top-level) event — all three
  *    share the same authorization lookup (src/lib/wallet/participation.ts).
  */
-import {
-  describe,
-  test,
-  expect,
-  beforeAll,
-  afterAll,
-  beforeEach,
-  vi,
-} from 'vitest';
+import { describe, test, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { db } from '@/utils/db';
-import {
-  user,
-  userProfiles,
-  genders,
-  permission,
-  userPermission,
-  events,
-  eventParticipants,
-} from '@/db/schema';
-import {
-  insertAttendees,
-  insertParticipant,
-  setStatus,
-} from '@/tests/participation-fixtures';
+import { user, userProfiles, genders, permission, userPermission, events, eventParticipants } from '@/db/schema';
+import { insertAttendees, insertParticipant, setStatus } from '@/tests/participation-fixtures';
 
 vi.mock('@/utils/auth', () => ({ getUser: vi.fn() }));
 vi.mock('@/utils/mail', () => ({
@@ -57,8 +37,7 @@ vi.mock('@/utils/object-storage', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/utils/object-storage')>()),
   eventAttachmentRedirect: (key: string) => eventAttachmentRedirect(key),
   profilePictureRedirect: (key: string) => profilePictureRedirect(key),
-  resumeRedirect: (key: string, fileName: string) =>
-    resumeRedirect(key, fileName),
+  resumeRedirect: (key: string, fileName: string) => resumeRedirect(key, fileName),
   checkObjectStorageConnection: () => checkObjectStorageConnection(),
 }));
 
@@ -67,8 +46,7 @@ vi.mock('@/utils/object-storage', async (importOriginal) => ({
 // the route decides to call this at all.
 const generateParticipantPass = vi.fn();
 vi.mock('@/lib/wallet/generate-pass', () => ({
-  generateParticipantPass: (...args: unknown[]) =>
-    generateParticipantPass(...args),
+  generateParticipantPass: (...args: unknown[]) => generateParticipantPass(...args),
 }));
 
 // Check-in signing needs a real secret (not present in CI); same reasoning
@@ -82,8 +60,7 @@ vi.mock('@/lib/wallet/check-in-token', () => ({
 // Needs real Google Wallet Issuer credentials (not present in CI).
 const buildGoogleWalletSaveUrl = vi.fn();
 vi.mock('@/lib/wallet/google/event-ticket', () => ({
-  buildGoogleWalletSaveUrl: (...args: unknown[]) =>
-    buildGoogleWalletSaveUrl(...args),
+  buildGoogleWalletSaveUrl: (...args: unknown[]) => buildGoogleWalletSaveUrl(...args),
 }));
 
 import { getUser } from '@/utils/auth';
@@ -107,16 +84,12 @@ describe('/api/assets/[...key] GET', () => {
   });
 
   test('serves profile pictures without a session', async () => {
-    profilePictureRedirect.mockResolvedValue(
-      new Response(null, { status: 302 }),
-    );
+    profilePictureRedirect.mockResolvedValue(new Response(null, { status: 302 }));
     const res = await getAsset(new Request('http://x'), {
       params: Promise.resolve({ key: ['profile-pictures', 'abc.png'] }),
     });
     expect(res.status).toBe(302);
-    expect(profilePictureRedirect).toHaveBeenCalledWith(
-      'profile-pictures/abc.png',
-    );
+    expect(profilePictureRedirect).toHaveBeenCalledWith('profile-pictures/abc.png');
     expect(getUser).not.toHaveBeenCalled();
   });
 
@@ -131,9 +104,7 @@ describe('/api/assets/[...key] GET', () => {
 
   test('serves an event attachment key when authenticated', async () => {
     vi.mocked(getUser).mockResolvedValue({ id: 'u1' } as never);
-    eventAttachmentRedirect.mockResolvedValue(
-      new Response(null, { status: 302 }),
-    );
+    eventAttachmentRedirect.mockResolvedValue(new Response(null, { status: 302 }));
     const res = await getAsset(new Request('http://x'), {
       params: Promise.resolve({ key: ATTACHMENT_KEY.split('/') }),
     });
@@ -168,11 +139,7 @@ describe('/api/profile/resume GET', () => {
     genderId =
       g?.id ??
       (
-        await db
-          .select({ id: genders.id })
-          .from(genders)
-          .where(eq(genders.label, 'resume-route-test-gender'))
-          .limit(1)
+        await db.select({ id: genders.id }).from(genders).where(eq(genders.label, 'resume-route-test-gender')).limit(1)
       )[0].id;
 
     const [owner] = await db
@@ -237,10 +204,7 @@ describe('/api/profile/resume GET', () => {
     resumeRedirect.mockResolvedValue(new Response(null, { status: 302 }));
     const res = await getResume();
     expect(res.status).toBe(302);
-    expect(resumeRedirect).toHaveBeenCalledWith(
-      'resumes/resume-route-test.pdf',
-      'my-resume.pdf',
-    );
+    expect(resumeRedirect).toHaveBeenCalledWith('resumes/resume-route-test.pdf', 'my-resume.pdf');
   });
 });
 
@@ -287,30 +251,19 @@ describe('/api/health GET', () => {
     const permId =
       perm?.id ??
       (
-        await db
-          .select({ id: permission.id })
-          .from(permission)
-          .where(eq(permission.slug, 'system:read:all'))
-          .limit(1)
+        await db.select({ id: permission.id }).from(permission).where(eq(permission.slug, 'system:read:all')).limit(1)
       )[0].id;
-    await db
-      .insert(userPermission)
-      .values({ userId: permUserId, permissionId: permId })
-      .onConflictDoNothing();
+    await db.insert(userPermission).values({ userId: permUserId, permissionId: permId }).onConflictDoNothing();
   });
 
   afterAll(async () => {
-    await db
-      .delete(userPermission)
-      .where(eq(userPermission.userId, permUserId));
+    await db.delete(userPermission).where(eq(userPermission.userId, permUserId));
     await db.delete(user).where(eq(user.id, noPermUserId));
     await db.delete(user).where(eq(user.id, permUserId));
 
-    if (originalTurnstileSecret === undefined)
-      delete process.env.TURNSTILE_SECRET_KEY;
+    if (originalTurnstileSecret === undefined) delete process.env.TURNSTILE_SECRET_KEY;
     else process.env.TURNSTILE_SECRET_KEY = originalTurnstileSecret;
-    if (originalAccessKey === undefined)
-      delete process.env.HEALTH_CHECK_ACCESS_KEY;
+    if (originalAccessKey === undefined) delete process.env.HEALTH_CHECK_ACCESS_KEY;
     else process.env.HEALTH_CHECK_ACCESS_KEY = originalAccessKey;
   });
 
@@ -453,21 +406,12 @@ describe('/api/wallet/pass/[eventId] GET', () => {
   });
 
   afterAll(async () => {
-    await db
-      .delete(eventParticipants)
-      .where(eq(eventParticipants.eventId, openEventId));
-    await db
-      .delete(eventParticipants)
-      .where(eq(eventParticipants.eventId, appEventId));
+    await db.delete(eventParticipants).where(eq(eventParticipants.eventId, openEventId));
+    await db.delete(eventParticipants).where(eq(eventParticipants.eventId, appEventId));
     await db.delete(events).where(eq(events.id, childEventId));
     await db.delete(events).where(eq(events.id, openEventId));
     await db.delete(events).where(eq(events.id, appEventId));
-    for (const id of [
-      registeredUserId,
-      unregisteredUserId,
-      approvedUserId,
-      pendingUserId,
-    ]) {
+    for (const id of [registeredUserId, unregisteredUserId, approvedUserId, pendingUserId]) {
       await db.delete(user).where(eq(user.id, id));
     }
   });
@@ -534,9 +478,7 @@ describe('/api/wallet/pass/[eventId] GET', () => {
     } as never);
     const res = await callRoute(openEventId);
     expect(res.status).toBe(200);
-    expect(res.headers.get('content-type')).toBe(
-      'application/vnd.apple.pkpass',
-    );
+    expect(res.headers.get('content-type')).toBe('application/vnd.apple.pkpass');
     expect(generateParticipantPass).toHaveBeenCalledTimes(1);
     expect(generateParticipantPass).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -616,9 +558,7 @@ describe('/api/wallet/qr/[eventId] GET', () => {
   });
 
   afterAll(async () => {
-    await db
-      .delete(eventParticipants)
-      .where(eq(eventParticipants.eventId, openEventId));
+    await db.delete(eventParticipants).where(eq(eventParticipants.eventId, openEventId));
     await db.delete(events).where(eq(events.id, openEventId));
     await db.delete(user).where(eq(user.id, registeredUserId));
     await db.delete(user).where(eq(user.id, unregisteredUserId));
@@ -656,10 +596,7 @@ describe('/api/wallet/qr/[eventId] GET', () => {
     const res = await callRoute(openEventId);
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toBe('image/svg+xml');
-    expect(buildCheckInPayload).toHaveBeenCalledWith(
-      openEventId,
-      registeredUserId,
-    );
+    expect(buildCheckInPayload).toHaveBeenCalledWith(openEventId, registeredUserId);
     const body = await res.text();
     expect(body).toContain('<svg');
   });
@@ -707,9 +644,7 @@ describe('/api/wallet/google/[eventId] GET', () => {
   });
 
   afterAll(async () => {
-    await db
-      .delete(eventParticipants)
-      .where(eq(eventParticipants.eventId, openEventId));
+    await db.delete(eventParticipants).where(eq(eventParticipants.eventId, openEventId));
     await db.delete(events).where(eq(events.id, openEventId));
     await db.delete(user).where(eq(user.id, registeredUserId));
     await db.delete(user).where(eq(user.id, unregisteredUserId));
@@ -718,9 +653,7 @@ describe('/api/wallet/google/[eventId] GET', () => {
   beforeEach(() => {
     vi.mocked(getUser).mockReset();
     buildGoogleWalletSaveUrl.mockReset();
-    buildGoogleWalletSaveUrl.mockResolvedValue(
-      'https://pay.google.com/gp/v/save/fake-jwt',
-    );
+    buildGoogleWalletSaveUrl.mockResolvedValue('https://pay.google.com/gp/v/save/fake-jwt');
   });
 
   test('rejects an unauthenticated request', async () => {
@@ -748,9 +681,7 @@ describe('/api/wallet/google/[eventId] GET', () => {
     vi.mocked(getUser).mockResolvedValue({ id: registeredUserId } as never);
     const res = await callRoute(openEventId);
     expect(res.status).toBe(302);
-    expect(res.headers.get('location')).toBe(
-      'https://pay.google.com/gp/v/save/fake-jwt',
-    );
+    expect(res.headers.get('location')).toBe('https://pay.google.com/gp/v/save/fake-jwt');
     expect(buildGoogleWalletSaveUrl).toHaveBeenCalledWith(
       expect.objectContaining({
         eventId: openEventId,

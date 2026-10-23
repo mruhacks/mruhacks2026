@@ -2,20 +2,12 @@ import 'server-only';
 
 import { and, asc, count, eq, ne, notExists, sql } from 'drizzle-orm';
 
-import {
-  applicationVotes,
-  eventParticipants,
-  events,
-  participationStatuses,
-} from '@/db/schema';
+import { applicationVotes, eventParticipants, events, participationStatuses } from '@/db/schema';
 import { hasAnyStatus } from '@/lib/participation/server';
 import { resolveStoredStatus } from '@/lib/participation/status';
 import { syncWaitlist, type WaitlistSyncResult } from '@/lib/rsvp/waitlist';
 import { otherTextKey } from '@/lib/other-option';
-import {
-  resolveShowInApplicationReview,
-  type ApplicationQuestion,
-} from '@/types/application';
+import { resolveShowInApplicationReview, type ApplicationQuestion } from '@/types/application';
 import type { ParticipationStatus } from '@/types/lookups';
 import { db } from '@/utils/db';
 
@@ -32,10 +24,7 @@ import { db } from '@/utils/db';
  */
 
 /** Statuses the swipe review deals with; everything else is already decided. */
-const VOTABLE_STATUSES = [
-  'pending_review',
-  'waitlisted',
-] as const satisfies readonly ParticipationStatus[];
+const VOTABLE_STATUSES = ['pending_review', 'waitlisted'] as const satisfies readonly ParticipationStatus[];
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -55,16 +44,9 @@ export type ReviewCard = {
 };
 
 /** The questions a reviewer is allowed to see, in form order. */
-export function reviewQuestions(
-  questions: readonly ApplicationQuestion[],
-): ApplicationQuestion[] {
+export function reviewQuestions(questions: readonly ApplicationQuestion[]): ApplicationQuestion[] {
   return questions
-    .filter(
-      (q) =>
-        q.active &&
-        q.type !== 'section_divider' &&
-        resolveShowInApplicationReview(q),
-    )
+    .filter((q) => q.active && q.type !== 'section_divider' && resolveShowInApplicationReview(q))
     .sort((a, b) => a.order - b.order);
 }
 
@@ -103,10 +85,7 @@ export async function getReviewQueue(input: {
       .select({ id: applicationVotes.id })
       .from(applicationVotes)
       .where(
-        and(
-          eq(applicationVotes.participantId, eventParticipants.id),
-          eq(applicationVotes.voterId, input.voterId),
-        ),
+        and(eq(applicationVotes.participantId, eventParticipants.id), eq(applicationVotes.voterId, input.voterId)),
       ),
   );
   const pool = and(
@@ -127,25 +106,13 @@ export async function getReviewQueue(input: {
       })
       .from(eventParticipants)
       .where(and(pool, notVotedByMe))
-      .orderBy(
-        sql`(${voteCount}) ASC`,
-        asc(eventParticipants.createdAt),
-        asc(eventParticipants.id),
-      )
+      .orderBy(sql`(${voteCount}) ASC`, asc(eventParticipants.createdAt), asc(eventParticipants.id))
       .limit(input.limit),
-    db
-      .select({ remaining: count() })
-      .from(eventParticipants)
-      .where(and(pool, notVotedByMe)),
+    db.select({ remaining: count() }).from(eventParticipants).where(and(pool, notVotedByMe)),
     db
       .select({ reviewed: count() })
       .from(applicationVotes)
-      .where(
-        and(
-          eq(applicationVotes.eventId, input.eventId),
-          eq(applicationVotes.voterId, input.voterId),
-        ),
-      ),
+      .where(and(eq(applicationVotes.eventId, input.eventId), eq(applicationVotes.voterId, input.voterId))),
   ]);
 
   const shown = reviewQuestions(input.questions);
@@ -159,9 +126,7 @@ export async function getReviewQueue(input: {
   };
 }
 
-export type VoteResult =
-  | { success: true; status: ParticipationStatus }
-  | { success: false; error: string };
+export type VoteResult = { success: true; status: ParticipationStatus } | { success: false; error: string };
 
 /**
  * Lock the event (same lock order as `sendRsvpWave`: event, then
@@ -174,12 +139,7 @@ async function lockVotable(
   participantId: string,
   voterId: string,
 ): Promise<{ status: ParticipationStatus } | { error: string }> {
-  const [event] = await tx
-    .select({ id: events.id })
-    .from(events)
-    .where(eq(events.id, eventId))
-    .for('update')
-    .limit(1);
+  const [event] = await tx.select({ id: events.id }).from(events).where(eq(events.id, eventId)).for('update').limit(1);
   if (!event) return { error: 'Event not found.' };
 
   const [row] = await tx
@@ -188,16 +148,8 @@ async function lockVotable(
       statusLabel: participationStatuses.label,
     })
     .from(eventParticipants)
-    .innerJoin(
-      participationStatuses,
-      eq(eventParticipants.statusId, participationStatuses.id),
-    )
-    .where(
-      and(
-        eq(eventParticipants.id, participantId),
-        eq(eventParticipants.eventId, eventId),
-      ),
-    )
+    .innerJoin(participationStatuses, eq(eventParticipants.statusId, participationStatuses.id))
+    .where(and(eq(eventParticipants.id, participantId), eq(eventParticipants.eventId, eventId)))
     .for('update', { of: eventParticipants })
     .limit(1);
   if (!row) return { error: 'Application not found.' };
@@ -234,23 +186,13 @@ export async function castApplicationVote(input: {
   approve: boolean;
 }): Promise<VoteResult> {
   return db.transaction(async (tx) => {
-    const locked = await lockVotable(
-      tx,
-      input.eventId,
-      input.participantId,
-      input.voterId,
-    );
+    const locked = await lockVotable(tx, input.eventId, input.participantId, input.voterId);
     if ('error' in locked) return { success: false, error: locked.error };
 
     const [previous] = await tx
       .select({ approve: applicationVotes.approve })
       .from(applicationVotes)
-      .where(
-        and(
-          eq(applicationVotes.participantId, input.participantId),
-          eq(applicationVotes.voterId, input.voterId),
-        ),
-      )
+      .where(and(eq(applicationVotes.participantId, input.participantId), eq(applicationVotes.voterId, input.voterId)))
       .limit(1);
 
     await tx
@@ -290,22 +232,12 @@ export async function retractApplicationVote(input: {
   voterId: string;
 }): Promise<VoteResult> {
   return db.transaction(async (tx) => {
-    const locked = await lockVotable(
-      tx,
-      input.eventId,
-      input.participantId,
-      input.voterId,
-    );
+    const locked = await lockVotable(tx, input.eventId, input.participantId, input.voterId);
     if ('error' in locked) return { success: false, error: locked.error };
 
     const [removed] = await tx
       .delete(applicationVotes)
-      .where(
-        and(
-          eq(applicationVotes.participantId, input.participantId),
-          eq(applicationVotes.voterId, input.voterId),
-        ),
-      )
+      .where(and(eq(applicationVotes.participantId, input.participantId), eq(applicationVotes.voterId, input.voterId)))
       .returning({ approve: applicationVotes.approve });
     if (!removed) {
       return { success: false, error: 'There is no vote to undo.' };

@@ -13,11 +13,7 @@ import {
   userPermission,
 } from '@/db/schema';
 import type { ParticipationStatus } from '@/types/lookups';
-import {
-  getStatus,
-  insertInvitation,
-  insertParticipant,
-} from '@/tests/participation-fixtures';
+import { getStatus, insertInvitation, insertParticipant } from '@/tests/participation-fixtures';
 import { getWaitlist } from '@/lib/rsvp/waitlist';
 
 vi.mock('@/utils/auth', () => ({ getUser: vi.fn() }));
@@ -58,24 +54,11 @@ async function createUser(name: string): Promise<string> {
 }
 
 async function grant(userId: string, slug: string) {
-  const [created] = await db
-    .insert(permission)
-    .values({ slug })
-    .onConflictDoNothing()
-    .returning({ id: permission.id });
+  const [created] = await db.insert(permission).values({ slug }).onConflictDoNothing().returning({ id: permission.id });
   const permissionId =
     created?.id ??
-    (
-      await db
-        .select({ id: permission.id })
-        .from(permission)
-        .where(eq(permission.slug, slug))
-        .limit(1)
-    )[0].id;
-  await db
-    .insert(userPermission)
-    .values({ userId, permissionId })
-    .onConflictDoNothing();
+    (await db.select({ id: permission.id }).from(permission).where(eq(permission.slug, slug)).limit(1))[0].id;
+  await db.insert(userPermission).values({ userId, permissionId }).onConflictDoNothing();
 }
 
 function actAs(actor: keyof typeof actors) {
@@ -137,17 +120,14 @@ afterAll(async () => {
   if (createdEventIds.length) {
     await db.delete(events).where(inArray(events.id, createdEventIds));
   }
-  await db
-    .delete(userPermission)
-    .where(inArray(userPermission.userId, createdUserIds));
+  await db.delete(userPermission).where(inArray(userPermission.userId, createdUserIds));
   await db.delete(user).where(inArray(user.id, createdUserIds));
 });
 
 describe('updateParticipantStatus — review decisions', () => {
   test('a reviewer accepts a pending application onto the waitlist and the review is recorded', async () => {
     actAs('reviewer');
-    const { eventId, userId, participantId } =
-      await applicant('pending_review');
+    const { eventId, userId, participantId } = await applicant('pending_review');
 
     const result = await updateParticipantStatus({
       eventId,
@@ -190,8 +170,7 @@ describe('updateParticipantStatus — review decisions', () => {
         status: 'waitlisted',
       });
     }
-    const queue = async () =>
-      (await getWaitlist(eventId)).map((e) => e.participantId);
+    const queue = async () => (await getWaitlist(eventId)).map((e) => e.participantId);
     expect(await queue()).toEqual(ids);
 
     await updateParticipantStatus({
@@ -204,8 +183,7 @@ describe('updateParticipantStatus — review decisions', () => {
 
   test('an RSVP-only organizer cannot make review decisions', async () => {
     actAs('rsvpManager');
-    const { eventId, userId, participantId } =
-      await applicant('pending_review');
+    const { eventId, userId, participantId } = await applicant('pending_review');
 
     const result = await updateParticipantStatus({
       eventId,
@@ -297,9 +275,9 @@ describe('updateParticipantStatus — review decisions', () => {
   test('without either permission the action is refused outright', async () => {
     actAs('none');
     const { eventId, participantId } = await applicant('pending_review');
-    await expect(
-      updateParticipantStatus({ eventId, participantId, status: 'waitlisted' }),
-    ).rejects.toThrow(/REDIRECT:\/forbidden/);
+    await expect(updateParticipantStatus({ eventId, participantId, status: 'waitlisted' })).rejects.toThrow(
+      /REDIRECT:\/forbidden/,
+    );
   });
 });
 
@@ -336,8 +314,7 @@ describe('updateParticipantStatus — RSVP overrides', () => {
 
   test('accepting on someone’s behalf records responded_at but no terms consent', async () => {
     actAs('rsvpManager');
-    const { eventId, userId, participantId, invitationId } =
-      await invited('invited');
+    const { eventId, userId, participantId, invitationId } = await invited('invited');
 
     const result = await updateParticipantStatus({
       eventId,
@@ -347,10 +324,7 @@ describe('updateParticipantStatus — RSVP overrides', () => {
     expect(result.success).toBe(true);
     expect(await getStatus(eventId, userId)).toBe('accepted');
 
-    const [invitation] = await db
-      .select()
-      .from(eventInvitations)
-      .where(eq(eventInvitations.id, invitationId));
+    const [invitation] = await db.select().from(eventInvitations).where(eq(eventInvitations.id, invitationId));
     expect(invitation.respondedAt).toBeInstanceOf(Date);
     expect(invitation.acceptedTermsId).toBeNull();
     expect(invitation.termsAcceptedAt).toBeNull();
@@ -358,10 +332,7 @@ describe('updateParticipantStatus — RSVP overrides', () => {
 
   test('an expired invitation cannot be reopened without an open wave', async () => {
     actAs('rsvpManager');
-    const { eventId, userId, participantId } = await invited(
-      'timed_out',
-      new Date('2020-01-01T00:00:00.000Z'),
-    );
+    const { eventId, userId, participantId } = await invited('timed_out', new Date('2020-01-01T00:00:00.000Z'));
     const result = await updateParticipantStatus({
       eventId,
       participantId,

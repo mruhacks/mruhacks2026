@@ -14,24 +14,14 @@ export type { WikiSidebarArticle };
  * pathname — the server layout above it doesn't re-render on navigation and
  * has no way to know which article segment is currently selected.
  */
-export function WikiSidebar({
-  eventHref,
-  articles,
-}: {
-  eventHref: string;
-  articles: WikiSidebarArticle[];
-}) {
+export function WikiSidebar({ eventHref, articles }: { eventHref: string; articles: WikiSidebarArticle[] }) {
   const pathname = usePathname();
   const activeSlug = pathname.startsWith(`${eventHref}/wiki/`)
     ? pathname.slice(`${eventHref}/wiki/`.length).split('/')[0]
     : null;
 
   if (articles.length === 0) {
-    return (
-      <p className='text-muted-foreground text-sm'>
-        Nothing has been published yet.
-      </p>
-    );
+    return <p className='text-muted-foreground text-sm'>Nothing has been published yet.</p>;
   }
 
   return (

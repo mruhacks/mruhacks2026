@@ -92,15 +92,10 @@ function separator(row: TableAlphabet, column: TableAlphabet): string {
 /** The label for a 0-based table slot under `layout`. */
 export function formatTableLabel(slot: number, layout: TableLayout): string {
   if (!Number.isInteger(slot) || slot < 0) {
-    throw new RangeError(
-      `Table slot must be a non-negative integer, got ${slot}`,
-    );
+    throw new RangeError(`Table slot must be a non-negative integer, got ${slot}`);
   }
   const rows = Math.max(1, Math.floor(layout.rows));
-  const column = formatOrdinal(
-    Math.floor(slot / rows) + 1,
-    layout.columnAlphabet,
-  );
+  const column = formatOrdinal(Math.floor(slot / rows) + 1, layout.columnAlphabet);
   if (rows === 1) return column;
   const row = formatOrdinal((slot % rows) + 1, layout.rowAlphabet);
   return row + separator(layout.rowAlphabet, layout.columnAlphabet) + column;

@@ -35,11 +35,7 @@ function CampaignSkeleton() {
   return <div className='bg-muted h-96 animate-pulse rounded-xl' />;
 }
 
-async function CampaignContent({
-  paramsPromise,
-}: {
-  paramsPromise: Promise<{ campaignId: string }>;
-}) {
+async function CampaignContent({ paramsPromise }: { paramsPromise: Promise<{ campaignId: string }> }) {
   const { campaignId } = await paramsPromise;
   const user = await requireAuthWithPermission('campaign:read:all');
   if (!z.uuid().safeParse(campaignId).success) notFound();
@@ -66,14 +62,10 @@ async function CampaignContent({
         }))}
         permissions={{
           canWrite: anyPermissionMatches(permissions, 'campaign:write:all'),
-          canPreviewRecipients: anyPermissionMatches(
-            permissions,
-            'participant:read:all',
-          ),
+          canPreviewRecipients: anyPermissionMatches(permissions, 'participant:read:all'),
           canSend:
             anyPermissionMatches(permissions, 'campaign:send:all') &&
-            (campaign.type !== 'operational' ||
-              anyPermissionMatches(permissions, 'campaign:operational:all')),
+            (campaign.type !== 'operational' || anyPermissionMatches(permissions, 'campaign:operational:all')),
         }}
       />
     </>

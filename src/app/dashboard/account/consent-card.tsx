@@ -3,13 +3,7 @@
 import * as React from 'react';
 import { toast } from 'sonner';
 
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { setMarketingConsent, type ConsentData } from './actions';
@@ -32,11 +26,7 @@ export function ConsentCard({ initial }: { initial: ConsentData }) {
       return;
     }
     setConsent(res.data);
-    toast.success(
-      next
-        ? 'Subscribed to non-essential email.'
-        : 'Unsubscribed from non-essential email.',
-    );
+    toast.success(next ? 'Subscribed to non-essential email.' : 'Unsubscribed from non-essential email.');
   }
 
   return (
@@ -44,9 +34,8 @@ export function ConsentCard({ initial }: { initial: ConsentData }) {
       <CardHeader>
         <CardTitle>Communication preferences</CardTitle>
         <CardDescription>
-          Control the non-essential email you receive. Essential messages about
-          your applications, events you&apos;ve registered for, and account
-          security are always sent.
+          Control the non-essential email you receive. Essential messages about your applications, events you&apos;ve
+          registered for, and account security are always sent.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -56,16 +45,11 @@ export function ConsentCard({ initial }: { initial: ConsentData }) {
               Marketing &amp; announcements
             </Label>
             <p className='text-muted-foreground text-sm'>
-              Newsletters, sponsor offers, and updates about future MRUHacks
-              events.
+              Newsletters, sponsor offers, and updates about future MRUHacks events.
             </p>
             {consent.marketingEmails && consent.marketingConsentAt && (
               <p className='text-muted-foreground text-xs'>
-                Consent recorded{' '}
-                <LocalDateTime
-                  value={consent.marketingConsentAt}
-                  timeStyle='short'
-                />
+                Consent recorded <LocalDateTime value={consent.marketingConsentAt} timeStyle='short' />
               </p>
             )}
           </div>

@@ -30,12 +30,7 @@ export function RegisterEventButton({ eventId, className, full }: Props) {
   }
 
   return (
-    <Button
-      className={className}
-      onClick={handleClick}
-      disabled={isPending}
-      size='sm'
-    >
+    <Button className={className} onClick={handleClick} disabled={isPending} size='sm'>
       {isPending ? 'Registering…' : 'Register'}
     </Button>
   );

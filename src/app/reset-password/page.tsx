@@ -7,14 +7,7 @@ import { toast } from 'sonner';
 
 import { authClient } from '@/utils/auth-client';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Loader2 } from 'lucide-react';
@@ -62,32 +55,21 @@ export default function ResetPasswordPage() {
       <Card className='w-full max-w-md'>
         <CardHeader>
           <CardTitle>Reset password</CardTitle>
-          <CardDescription>
-            Choose a new password for your account.
-          </CardDescription>
+          <CardDescription>Choose a new password for your account.</CardDescription>
         </CardHeader>
 
         <CardContent>
           {error === 'invalid_token' || !token ? (
             <div className='space-y-3 text-sm'>
-              <p className='text-destructive'>
-                This reset link is invalid or has expired.
-              </p>
+              <p className='text-destructive'>This reset link is invalid or has expired.</p>
               <p>
-                <Link
-                  href='/forgot-password'
-                  className='font-medium hover:underline'
-                >
+                <Link href='/forgot-password' className='font-medium hover:underline'>
                   Request a new link
                 </Link>
               </p>
             </div>
           ) : (
-            <form
-              id='form-reset-password'
-              onSubmit={handleSubmit}
-              className='space-y-4'
-            >
+            <form id='form-reset-password' onSubmit={handleSubmit} className='space-y-4'>
               <div className='space-y-2'>
                 <Label htmlFor='new-password'>New password</Label>
                 <Input
@@ -117,11 +99,7 @@ export default function ResetPasswordPage() {
 
         {!error && token && (
           <CardFooter className='flex-col items-stretch gap-2'>
-            <Button
-              type='submit'
-              form='form-reset-password'
-              disabled={submitting}
-            >
+            <Button type='submit' form='form-reset-password' disabled={submitting}>
               {submitting ? (
                 <>
                   <Loader2 className='mr-2 size-4 animate-spin' />
@@ -131,10 +109,7 @@ export default function ResetPasswordPage() {
                 'Update password'
               )}
             </Button>
-            <Link
-              href='/signin'
-              className='text-muted-foreground text-center text-xs hover:underline'
-            >
+            <Link href='/signin' className='text-muted-foreground text-center text-xs hover:underline'>
               Back to sign in
             </Link>
           </CardFooter>

@@ -2,10 +2,7 @@
 
 import * as React from 'react';
 
-import {
-  getJudgingResults,
-  type JudgingResults,
-} from '@/app/dashboard/admin/events/judging-actions';
+import { getJudgingResults, type JudgingResults } from '@/app/dashboard/admin/events/judging-actions';
 import { TooltipProvider } from '@/components/ui/tooltip';
 
 /** How often the open page re-pulls results while judging is under way. */
@@ -50,10 +47,7 @@ export function ResultsProvider({
     return () => window.clearInterval(id);
   }, [refresh]);
 
-  const value = React.useMemo(
-    () => ({ eventId, results, refresh }),
-    [eventId, results, refresh],
-  );
+  const value = React.useMemo(() => ({ eventId, results, refresh }), [eventId, results, refresh]);
 
   return (
     <ResultsContext.Provider value={value}>

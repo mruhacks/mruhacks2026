@@ -25,21 +25,13 @@ const INITIAL_BATCH = 10;
  */
 export default function ReviewPage({ params }: Props) {
   return (
-    <React.Suspense
-      fallback={
-        <div className='bg-muted mx-auto h-112 max-w-xl animate-pulse rounded-xl' />
-      }
-    >
+    <React.Suspense fallback={<div className='bg-muted mx-auto h-112 max-w-xl animate-pulse rounded-xl' />}>
       <ReviewContent paramsPromise={params} />
     </React.Suspense>
   );
 }
 
-async function ReviewContent({
-  paramsPromise,
-}: {
-  paramsPromise: Promise<{ eventId: string }>;
-}) {
+async function ReviewContent({ paramsPromise }: { paramsPromise: Promise<{ eventId: string }> }) {
   const { eventId: segment } = await paramsPromise;
   const eventId = await resolveEventId(segment);
   if (!eventId) notFound();
@@ -59,17 +51,14 @@ async function ReviewContent({
 
   if (!event.hasApplication) {
     return (
-      <EmptyState title='No applications to review'>
-        This event takes registrations without an application.
-      </EmptyState>
+      <EmptyState title='No applications to review'>This event takes registrations without an application.</EmptyState>
     );
   }
 
   if (reviewQuestions(questions).length === 0) {
     return (
       <EmptyState title='No questions tagged for review'>
-        Reviewers only see questions with “Show in Application Review” turned
-        on, and none are yet.
+        Reviewers only see questions with “Show in Application Review” turned on, and none are yet.
         {canEditQuestions && (
           <div className='mt-4'>
             <Button asChild variant='outline' size='sm'>
@@ -93,9 +82,8 @@ async function ReviewContent({
       <div>
         <h2 className='text-lg font-semibold'>Review applications</h2>
         <p className='text-muted-foreground mt-1 text-sm'>
-          Names are hidden. One yes puts an applicant — and their team, unless
-          denied — on the waitlist, which is ranked by each team&apos;s
-          best-reviewed member.
+          Names are hidden. One yes puts an applicant — and their team, unless denied — on the waitlist, which is ranked
+          by each team&apos;s best-reviewed member.
         </p>
       </div>
       <ReviewDeck eventId={eventId} initial={initial} />
@@ -103,13 +91,7 @@ async function ReviewContent({
   );
 }
 
-function EmptyState({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
+function EmptyState({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className='mx-auto max-w-xl rounded-xl border border-dashed p-8 text-center'>
       <h2 className='text-lg font-semibold'>{title}</h2>

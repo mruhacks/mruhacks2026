@@ -17,17 +17,8 @@ import { z } from 'zod';
 
 import { campaigns, events } from '@/db/schema';
 import { ADMIN_COUNTS_CACHE_TAG } from '@/lib/admin-counts';
-import {
-  countAudience,
-  sampleAudience,
-  type AudienceContext,
-  type AudienceMember,
-} from '@/lib/campaigns/audience';
-import {
-  audienceRulesSchema,
-  emptyAudience,
-  type AudienceRuleGroup,
-} from '@/lib/campaigns/audience-rules';
+import { countAudience, sampleAudience, type AudienceContext, type AudienceMember } from '@/lib/campaigns/audience';
+import { audienceRulesSchema, emptyAudience, type AudienceRuleGroup } from '@/lib/campaigns/audience-rules';
 import {
   CAMPAIGN_IMAGE_INPUT_TYPES,
   MAX_CAMPAIGN_IMAGE_BYTES,
@@ -36,20 +27,10 @@ import {
 import { firstNameOf } from '@/lib/campaigns/merge-fields';
 import { campaignContentErrors } from '@/lib/campaigns/content-checks';
 import { hasWalletBlock } from '@/lib/campaigns/email-markdown';
-import {
-  getAppBaseUrl,
-  renderCampaignEmail,
-} from '@/lib/campaigns/render-campaign-email';
-import {
-  walletBlockRenderers,
-  walletLinksFor,
-} from '@/lib/campaigns/wallet-block';
+import { getAppBaseUrl, renderCampaignEmail } from '@/lib/campaigns/render-campaign-email';
+import { walletBlockRenderers, walletLinksFor } from '@/lib/campaigns/wallet-block';
 import { buildCampaignMessage } from '@/lib/campaigns/unsubscribe';
-import {
-  hasPermission,
-  requirePermission,
-  requireAnyPermission,
-} from '@/lib/rbac/authorization';
+import { hasPermission, requirePermission, requireAnyPermission } from '@/lib/rbac/authorization';
 import { fail, ok, type ActionResult } from '@/utils/action-result';
 import { writeAuditLog } from '@/utils/audit-log';
 import { getUser } from '@/utils/auth';
@@ -83,9 +64,7 @@ async function checkCampaignEvent(eventId: string): Promise<string | null> {
 
 // ── Campaign drafts ────────────────────────────────────────────────────────
 
-export async function createCampaign(
-  input: CreateCampaignInput,
-): Promise<ActionResult<{ id: string }>> {
+export async function createCampaign(input: CreateCampaignInput): Promise<ActionResult<{ id: string }>> {
   const user = await getUser();
   if (!user) return fail('Not authenticated');
   await requirePermission(user.id, 'campaign:write:all');
@@ -135,18 +114,11 @@ export async function createCampaign(
  */
 async function loadEditableCampaign(
   campaignId: string,
-): Promise<
-  | { ok: true; campaign: typeof campaigns.$inferSelect }
-  | { ok: false; error: string }
-> {
+): Promise<{ ok: true; campaign: typeof campaigns.$inferSelect } | { ok: false; error: string }> {
   if (!z.uuid().safeParse(campaignId).success) {
     return { ok: false, error: 'Campaign not found' };
   }
-  const [row] = await db
-    .select()
-    .from(campaigns)
-    .where(eq(campaigns.id, campaignId))
-    .limit(1);
+  const [row] = await db.select().from(campaigns).where(eq(campaigns.id, campaignId)).limit(1);
   if (!row) return { ok: false, error: 'Campaign not found' };
   if (row.status !== 'draft') {
     return {
@@ -158,10 +130,7 @@ async function loadEditableCampaign(
 }
 
 /** Replaces a draft's inline audience rules. */
-export async function updateCampaignAudience(
-  campaignId: string,
-  rules: AudienceRuleGroup,
-): Promise<ActionResult> {
+export async function updateCampaignAudience(campaignId: string, rules: AudienceRuleGroup): Promise<ActionResult> {
   const user = await getUser();
   if (!user) return fail('Not authenticated');
   await requirePermission(user.id, 'campaign:write:all');
@@ -190,9 +159,7 @@ export async function updateCampaignAudience(
 
 async function parseAudienceQuery(
   input: AudienceQueryInput,
-): Promise<
-  { rules: AudienceRuleGroup; context: AudienceContext } | { error: string }
-> {
+): Promise<{ rules: AudienceRuleGroup; context: AudienceContext } | { error: string }> {
   const parsed = audienceQuerySchema.safeParse(input);
   if (!parsed.success) return { error: firstIssue(parsed.error) };
   const { context, rules } = parsed.data;
@@ -204,15 +171,10 @@ async function parseAudienceQuery(
 }
 
 /** Live recipient count for the builder. Available to campaign readers and writers. */
-export async function countAudienceForBuilder(
-  input: AudienceQueryInput,
-): Promise<ActionResult<number>> {
+export async function countAudienceForBuilder(input: AudienceQueryInput): Promise<ActionResult<number>> {
   const user = await getUser();
   if (!user) return fail('Not authenticated');
-  await requireAnyPermission(user.id, [
-    'campaign:read:all',
-    'campaign:write:all',
-  ]);
+  await requireAnyPermission(user.id, ['campaign:read:all', 'campaign:write:all']);
 
   const query = await parseAudienceQuery(input);
   if ('error' in query) return fail(query.error);
@@ -228,15 +190,10 @@ export async function countAudienceForBuilder(
  * data, so this needs `participant:read:all` as well as campaign read or write access,
  * and refuses (rather than redirecting) without it.
  */
-export async function previewAudienceForBuilder(
-  input: AudienceQueryInput,
-): Promise<ActionResult<AudienceMember[]>> {
+export async function previewAudienceForBuilder(input: AudienceQueryInput): Promise<ActionResult<AudienceMember[]>> {
   const user = await getUser();
   if (!user) return fail('Not authenticated');
-  await requireAnyPermission(user.id, [
-    'campaign:read:all',
-    'campaign:write:all',
-  ]);
+  await requireAnyPermission(user.id, ['campaign:read:all', 'campaign:write:all']);
   if (!(await hasPermission(user.id, 'participant:read:all'))) {
     return fail("You don't have permission to see recipients.");
   }
@@ -255,9 +212,7 @@ export async function previewAudienceForBuilder(
 const contentSchema = z.object({
   name: z.string().trim().min(1, 'Give the campaign a name.').max(200),
   subject: z.string().max(300, 'Keep the subject under 300 characters.'),
-  previewText: z
-    .string()
-    .max(300, 'Keep the preview text under 300 characters.'),
+  previewText: z.string().max(300, 'Keep the preview text under 300 characters.'),
   bodyMarkdown: z.string().max(100_000, 'The email body is too long.'),
 });
 export type CampaignContentInput = z.input<typeof contentSchema>;
@@ -280,11 +235,7 @@ export async function updateCampaignContent(
   const loaded = await loadEditableCampaign(campaignId);
   if (!loaded.ok) return fail(loaded.error);
 
-  const [contentError] = await campaignContentErrors(
-    parsed.data,
-    loaded.campaign.eventId,
-    'draft',
-  );
+  const [contentError] = await campaignContentErrors(parsed.data, loaded.campaign.eventId, 'draft');
   if (contentError) return fail(contentError);
 
   try {
@@ -346,9 +297,7 @@ export async function previewCampaignEmail(
  * available with `campaign:write:all` and in any status, and it ignores
  * marketing consent: it's the author checking their own work.
  */
-export async function sendCampaignTest(
-  campaignId: string,
-): Promise<ActionResult<{ to: string }>> {
+export async function sendCampaignTest(campaignId: string): Promise<ActionResult<{ to: string }>> {
   const user = await getUser();
   if (!user) return fail('Not authenticated');
   await requirePermission(user.id, 'campaign:write:all');
@@ -362,11 +311,7 @@ export async function sendCampaignTest(
     bodyMarkdown: row.campaign.bodyMarkdown,
     eventName: row.eventName,
   };
-  const [problem] = await campaignContentErrors(
-    content,
-    row.campaign.eventId,
-    'send',
-  );
+  const [problem] = await campaignContentErrors(content, row.campaign.eventId, 'send');
   if (problem) return fail(problem);
 
   try {
@@ -407,35 +352,25 @@ export async function sendCampaignTest(
  * body embeds. Campaign images are never deleted while their campaign
  * exists: nothing in the app deletes under this prefix.
  */
-export async function uploadCampaignImage(
-  formData: FormData,
-): Promise<ActionResult<{ url: string }>> {
+export async function uploadCampaignImage(formData: FormData): Promise<ActionResult<{ url: string }>> {
   const user = await getUser();
   if (!user) return fail('Not authenticated');
   await requirePermission(user.id, 'campaign:write:all');
 
   const value = formData.get('file');
-  if (
-    !value ||
-    typeof value === 'string' ||
-    typeof value.arrayBuffer !== 'function'
-  ) {
+  if (!value || typeof value === 'string' || typeof value.arrayBuffer !== 'function') {
     return fail('Choose an image to upload.');
   }
   if (!CAMPAIGN_IMAGE_INPUT_TYPES.has(value.type)) {
     return fail('Images must be JPEG, PNG, WebP, GIF, AVIF or HEIC.');
   }
   if (value.size === 0 || value.size > MAX_CAMPAIGN_IMAGE_BYTES) {
-    return fail(
-      `Images must be smaller than ${MAX_CAMPAIGN_IMAGE_BYTES / 1024 / 1024} MB.`,
-    );
+    return fail(`Images must be smaller than ${MAX_CAMPAIGN_IMAGE_BYTES / 1024 / 1024} MB.`);
   }
 
   let image: Awaited<ReturnType<typeof optimizeCampaignImage>>;
   try {
-    image = await optimizeCampaignImage(
-      new Uint8Array(await value.arrayBuffer()),
-    );
+    image = await optimizeCampaignImage(new Uint8Array(await value.arrayBuffer()));
   } catch (error) {
     console.error('[campaigns] image processing failed', error);
     return fail('That file could not be read as an image.');

@@ -1,12 +1,7 @@
 import { z } from 'zod';
 import { QUESTION_MAX_LENGTH_LIMIT } from '@/types/application';
 import { participationStatusesList } from '@/types/lookups';
-import {
-  SLUG_MAX_LENGTH,
-  isValidSlug,
-  isValidArticleSlug,
-  RESERVED_ARTICLE_SLUGS,
-} from '@/lib/slug';
+import { SLUG_MAX_LENGTH, isValidSlug, isValidArticleSlug, RESERVED_ARTICLE_SLUGS } from '@/lib/slug';
 import { RESERVED_EVENT_SLUGS, isValidEventSlug } from '@/lib/event-slug';
 
 const questionTypeSchema = z.enum([
@@ -27,10 +22,7 @@ const maxLengthSchema = z
   .number()
   .int()
   .min(1, 'Max length must be at least 1')
-  .max(
-    QUESTION_MAX_LENGTH_LIMIT,
-    `Max length cannot exceed ${QUESTION_MAX_LENGTH_LIMIT}`,
-  )
+  .max(QUESTION_MAX_LENGTH_LIMIT, `Max length cannot exceed ${QUESTION_MAX_LENGTH_LIMIT}`)
   .nullish();
 
 export const addQuestionSchema = z.object({
@@ -41,11 +33,7 @@ export const addQuestionSchema = z.object({
   maxLength: maxLengthSchema,
   showInApplicationReview: z.boolean().default(false),
   showInReports: z.boolean().default(false),
-  options: z
-    .array(
-      z.object({ label: z.string().trim().min(1, 'Option label is required') }),
-    )
-    .optional(),
+  options: z.array(z.object({ label: z.string().trim().min(1, 'Option label is required') })).optional(),
 });
 
 export type AddQuestionInput = z.input<typeof addQuestionSchema>;
@@ -92,8 +80,7 @@ function refineGeofence<
 }
 
 const GEOFENCE_ISSUE = {
-  message:
-    'Latitude, longitude, and radius must all be set together for the pass geofence',
+  message: 'Latitude, longitude, and radius must all be set together for the pass geofence',
   path: ['latitude'],
 };
 
@@ -122,10 +109,7 @@ export function submissionsCloseAtError(event: {
   if (!startsAt || !endsAt) {
     return 'Set the event start and end before a submission deadline.';
   }
-  if (
-    submissionsCloseAt.getTime() <= startsAt.getTime() ||
-    submissionsCloseAt.getTime() >= endsAt.getTime()
-  ) {
+  if (submissionsCloseAt.getTime() <= startsAt.getTime() || submissionsCloseAt.getTime() >= endsAt.getTime()) {
     return 'The submission deadline must be after the event starts and before it ends.';
   }
   return null;
@@ -141,8 +125,7 @@ const eventSlugSchema = z
   .trim()
   .max(SLUG_MAX_LENGTH)
   .refine((value) => value === '' || isValidSlug(value), {
-    message:
-      'Use lowercase letters, numbers and single hyphens (e.g. "mruhacks-2026")',
+    message: 'Use lowercase letters, numbers and single hyphens (e.g. "mruhacks-2026")',
   })
   .refine((value) => value === '' || isValidEventSlug(value), {
     message: `That slug is reserved. Pick something that isn't a uuid or one of: ${RESERVED_EVENT_SLUGS.join(', ')}.`,
@@ -184,9 +167,7 @@ export const createEventSchema = z
 
 export type CreateEventInput = z.infer<typeof createEventSchema>;
 
-const eventDescriptionSchema = z
-  .string()
-  .max(20_000, 'Description cannot exceed 20,000 characters');
+const eventDescriptionSchema = z.string().max(20_000, 'Description cannot exceed 20,000 characters');
 
 export const updateEventSettingsSchema = z
   .object({
@@ -230,9 +211,7 @@ export const updateEventSettingsSchema = z
     const message = submissionsCloseAtError({
       startsAt: data.startsAt ? new Date(data.startsAt) : null,
       endsAt: data.endsAt ? new Date(data.endsAt) : null,
-      submissionsCloseAt: data.submissionsCloseAt
-        ? new Date(data.submissionsCloseAt)
-        : null,
+      submissionsCloseAt: data.submissionsCloseAt ? new Date(data.submissionsCloseAt) : null,
     });
     if (message) {
       ctx.addIssue({ code: 'custom', message, path: ['submissionsCloseAt'] });
@@ -243,16 +222,11 @@ export const updateEventSettingsSchema = z
 // doesn't know today's lat/long. `updateEventSettings` re-checks the
 // invariant against the merged (existing + incoming) row before writing.
 
-export type UpdateEventSettingsInput = z.infer<
-  typeof updateEventSettingsSchema
->;
+export type UpdateEventSettingsInput = z.infer<typeof updateEventSettingsSchema>;
 
 // The edit form sends every geofence field, so it can validate the group
 // inline. The server schema stays partial for actions that edit one field.
-export const eventSettingsFormSchema = updateEventSettingsSchema.refine(
-  refineGeofence,
-  GEOFENCE_ISSUE,
-);
+export const eventSettingsFormSchema = updateEventSettingsSchema.refine(refineGeofence, GEOFENCE_ISSUE);
 
 // ── Sub-event schemas ────────────────────────────────────────────────────
 
@@ -267,13 +241,10 @@ export const createSubeventSchema = z
     location: z.string().trim().max(255).nullish(),
     eventTypeId: eventTypeIdSchema,
   })
-  .refine(
-    (data) => !data.endsAt || new Date(data.startsAt) < new Date(data.endsAt),
-    {
-      message: 'Start time must be before end time',
-      path: ['endsAt'],
-    },
-  );
+  .refine((data) => !data.endsAt || new Date(data.startsAt) < new Date(data.endsAt), {
+    message: 'Start time must be before end time',
+    path: ['endsAt'],
+  });
 
 export type CreateSubeventInput = z.infer<typeof createSubeventSchema>;
 
@@ -289,14 +260,10 @@ const ARTICLE_BODY_MAX_LENGTH = 200_000;
 const ARTICLE_TITLE_MAX_LENGTH = 200;
 
 const markdownBodySchema = (max: number, label: string) =>
-  z
-    .string()
-    .max(max, `${label} cannot exceed ${max.toLocaleString()} characters`);
+  z.string().max(max, `${label} cannot exceed ${max.toLocaleString()} characters`);
 
 export const updateEventTermsSchema = z.object({
-  termsMarkdown: z
-    .string()
-    .max(20_000, 'Event Terms cannot exceed 20,000 characters'),
+  termsMarkdown: z.string().max(20_000, 'Event Terms cannot exceed 20,000 characters'),
 });
 
 export const updateEventDescriptionSchema = z.object({
@@ -308,8 +275,7 @@ const articleSlugSchema = z
   .trim()
   .max(SLUG_MAX_LENGTH)
   .refine(isValidSlug, {
-    message:
-      'Use lowercase letters, numbers and single hyphens (e.g. "getting-started")',
+    message: 'Use lowercase letters, numbers and single hyphens (e.g. "getting-started")',
   })
   .refine(isValidArticleSlug, {
     message: `That slug is reserved. Pick something that isn't: ${RESERVED_ARTICLE_SLUGS.join(', ')}.`,
@@ -320,10 +286,7 @@ export const createArticleSchema = z.object({
     .string()
     .trim()
     .min(1, 'Title is required')
-    .max(
-      ARTICLE_TITLE_MAX_LENGTH,
-      `Title cannot exceed ${ARTICLE_TITLE_MAX_LENGTH} characters`,
-    ),
+    .max(ARTICLE_TITLE_MAX_LENGTH, `Title cannot exceed ${ARTICLE_TITLE_MAX_LENGTH} characters`),
   // Omitted means "derive it from the title".
   slug: articleSlugSchema.optional(),
 });
@@ -335,16 +298,10 @@ export const updateArticleSchema = z.object({
     .string()
     .trim()
     .min(1, 'Title is required')
-    .max(
-      ARTICLE_TITLE_MAX_LENGTH,
-      `Title cannot exceed ${ARTICLE_TITLE_MAX_LENGTH} characters`,
-    )
+    .max(ARTICLE_TITLE_MAX_LENGTH, `Title cannot exceed ${ARTICLE_TITLE_MAX_LENGTH} characters`)
     .optional(),
   slug: articleSlugSchema.optional(),
-  bodyMarkdown: markdownBodySchema(
-    ARTICLE_BODY_MAX_LENGTH,
-    'Article',
-  ).optional(),
+  bodyMarkdown: markdownBodySchema(ARTICLE_BODY_MAX_LENGTH, 'Article').optional(),
   published: z.boolean().optional(),
   sortOrder: z.number().int().min(0).max(9999).optional(),
 });
@@ -361,6 +318,4 @@ export const updateParticipantStatusSchema = z.object({
   status: z.enum(participationStatusesList),
 });
 
-export type UpdateParticipantStatusInput = z.infer<
-  typeof updateParticipantStatusSchema
->;
+export type UpdateParticipantStatusInput = z.infer<typeof updateParticipantStatusSchema>;

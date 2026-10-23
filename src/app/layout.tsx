@@ -35,16 +35,9 @@ export const metadata: Metadata = {
   openGraph: { siteName: 'MRUHacks', locale: 'en_CA', type: 'website' },
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html
-      lang='en'
-      className={`${dmSans.variable} ${inter.variable} ${dmMono.variable} ${geistMono.variable}`}
-    >
+    <html lang='en' className={`${dmSans.variable} ${inter.variable} ${dmMono.variable} ${geistMono.variable}`}>
       <body className='overflow-x-hidden antialiased'>
         <QueryProvider>
           {children}

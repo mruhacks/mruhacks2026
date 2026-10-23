@@ -8,19 +8,11 @@ import { createPrivateKey, createPublicKey, type KeyObject } from 'node:crypto';
  * check-in only, so the old `CHECK_IN_SIGNING_*` names are still read as a
  * fallback until every environment has the `APP_SIGNING_*` ones set.
  */
-export const APP_SIGNING_PRIVATE_KEY_ENV = [
-  'APP_SIGNING_PRIVATE_KEY',
-  'CHECK_IN_SIGNING_PRIVATE_KEY',
-] as const;
-const APP_SIGNING_PUBLIC_KEY_ENV = [
-  'APP_SIGNING_PUBLIC_KEY',
-  'CHECK_IN_SIGNING_PUBLIC_KEY',
-] as const;
+export const APP_SIGNING_PRIVATE_KEY_ENV = ['APP_SIGNING_PRIVATE_KEY', 'CHECK_IN_SIGNING_PRIVATE_KEY'] as const;
+const APP_SIGNING_PUBLIC_KEY_ENV = ['APP_SIGNING_PUBLIC_KEY', 'CHECK_IN_SIGNING_PUBLIC_KEY'] as const;
 
 /** First non-empty value among `names`, in order. */
-export function readEnvWithFallback(
-  names: readonly string[],
-): string | undefined {
+export function readEnvWithFallback(names: readonly string[]): string | undefined {
   for (const name of names) {
     const value = process.env[name]?.trim();
     if (value) return value;
@@ -30,9 +22,7 @@ export function readEnvWithFallback(
 
 /** Same PEM-or-base64-of-PEM handling `generate-pass.ts` uses for the Apple certs. */
 function decodeKeyEnvVar(raw: string): Buffer {
-  return raw.startsWith('-----BEGIN')
-    ? Buffer.from(raw, 'utf8')
-    : Buffer.from(raw, 'base64');
+  return raw.startsWith('-----BEGIN') ? Buffer.from(raw, 'utf8') : Buffer.from(raw, 'base64');
 }
 
 // Not cached: reading process.env fresh on every call is cheap relative to

@@ -29,12 +29,5 @@ async function TermsContent({ params }: Props) {
   const event = await getAdminEventHeader(eventId);
   if (!event) notFound();
 
-  return (
-    <EventContentForm
-      key={eventId}
-      eventId={eventId}
-      kind='terms'
-      initialMarkdown={event.termsMarkdown ?? ''}
-    />
-  );
+  return <EventContentForm key={eventId} eventId={eventId} kind='terms' initialMarkdown={event.termsMarkdown ?? ''} />;
 }

@@ -25,24 +25,14 @@ import {
 import { getUser } from '@/utils/auth';
 import { ActionResult, fail, ok } from '@/utils/action-result';
 import { db } from '@/utils/db';
-import {
-  profileFormSchema,
-  type ProfileFormValues,
-} from '@/components/profile-form/schema';
-import {
-  eventOnlySchema,
-  type EventOnlyFormValues,
-} from '@/components/application-form/schema';
+import { profileFormSchema, type ProfileFormValues } from '@/components/profile-form/schema';
+import { eventOnlySchema, type EventOnlyFormValues } from '@/components/application-form/schema';
 import type { ApplicationQuestion } from '@/types/application';
 import { cacheLife, revalidatePath, updateTag } from 'next/cache';
 import { eventApplicationsCacheTag } from '@/lib/admin-event';
 import { and, eq } from 'drizzle-orm';
 import { getUserProfile } from '@/app/dashboard/profile/actions';
-import {
-  EVENT_AT_CAPACITY_MESSAGE,
-  isRsvpUserDecision,
-  type RsvpUserDecision,
-} from '@/lib/rsvp/constants';
+import { EVENT_AT_CAPACITY_MESSAGE, isRsvpUserDecision, type RsvpUserDecision } from '@/lib/rsvp/constants';
 import { getAllEvents, hasEventElapsed } from '@/lib/events';
 import {
   canEditApplication,
@@ -51,17 +41,9 @@ import {
   type StatusDisplay,
 } from '@/lib/participation/status';
 import { canParticipantTransition } from '@/lib/participation/transitions';
-import {
-  countAttending,
-  getStatusDisplayMap,
-  statusIdOf,
-} from '@/lib/participation/server';
+import { countAttending, getStatusDisplayMap, statusIdOf } from '@/lib/participation/server';
 import type { ParticipationStatus } from '@/types/lookups';
-import {
-  isJudgingEvent,
-  JUDGE_SIGNUP_BLOCKED_MESSAGE,
-  listJudgeEventsForUser,
-} from '@/lib/judging/server';
+import { isJudgingEvent, JUDGE_SIGNUP_BLOCKED_MESSAGE, listJudgeEventsForUser } from '@/lib/judging/server';
 import { buildApplicationResponses } from './application-responses';
 
 /**
@@ -109,8 +91,7 @@ async function registerParticipant(
   if (await isJudgingEvent(eventId, user)) {
     return fail(JUDGE_SIGNUP_BLOCKED_MESSAGE);
   }
-  const applicationQuestions =
-    eventRow.applicationQuestions as ApplicationQuestion[];
+  const applicationQuestions = eventRow.applicationQuestions as ApplicationQuestion[];
 
   // Once an application has been decided (or is waitlisted), the applicant
   // can no longer change their answers — only a still-pending review may be
@@ -118,30 +99,14 @@ async function registerParticipant(
   const [existingApplication] = await db
     .select({ statusLabel: participationStatuses.label })
     .from(eventParticipants)
-    .innerJoin(
-      participationStatuses,
-      eq(eventParticipants.statusId, participationStatuses.id),
-    )
-    .where(
-      and(
-        eq(eventParticipants.eventId, eventId),
-        eq(eventParticipants.userId, user.id),
-      ),
-    )
+    .innerJoin(participationStatuses, eq(eventParticipants.statusId, participationStatuses.id))
+    .where(and(eq(eventParticipants.eventId, eventId), eq(eventParticipants.userId, user.id)))
     .limit(1);
-  if (
-    existingApplication &&
-    !canEditApplication(resolveStoredStatus(existingApplication.statusLabel))
-  ) {
-    return fail(
-      'Your application has already been reviewed and can no longer be edited.',
-    );
+  if (existingApplication && !canEditApplication(resolveStoredStatus(existingApplication.statusLabel))) {
+    return fail('Your application has already been reviewed and can no longer be edited.');
   }
 
-  const built = buildApplicationResponses(
-    applicationQuestions,
-    event.applicationResponses,
-  );
+  const built = buildApplicationResponses(applicationQuestions, event.applicationResponses);
   if (!built.ok) return fail(built.error);
   const responses = built.responses;
 
@@ -193,11 +158,8 @@ async function registerParticipant(
           },
         });
 
-      await tx
-        .delete(userDietaryRestrictions)
-        .where(eq(userDietaryRestrictions.userId, user.id));
-      const realRestrictions =
-        profile.dietaryRestrictions?.filter((id) => id > 0) ?? [];
+      await tx.delete(userDietaryRestrictions).where(eq(userDietaryRestrictions.userId, user.id));
+      const realRestrictions = profile.dietaryRestrictions?.filter((id) => id > 0) ?? [];
       if (realRestrictions.length) {
         await tx.insert(userDietaryRestrictions).values(
           realRestrictions.map((restrictionId) => ({
@@ -280,12 +242,7 @@ export async function getPreviousFormSubmission(eventId: string) {
   const data = await db
     .select()
     .from(applicationFormView)
-    .where(
-      and(
-        eq(applicationFormView.eventId, eventId),
-        eq(applicationFormView.userId, user.id),
-      ),
-    )
+    .where(and(eq(applicationFormView.eventId, eventId), eq(applicationFormView.userId, user.id)))
     .limit(1);
 
   if (data.length === 0) return fail('No existing record found');
@@ -315,23 +272,14 @@ export async function getPreviousFormSubmission(eventId: string) {
  * Submits event application using current profile (fetched server-side) and event-only form data.
  * Use when the page composes ProfileForm and event section separately.
  */
-export async function submitEventApplication(
-  eventData: EventOnlyFormValues,
-  eventId: string,
-): Promise<ActionResult> {
+export async function submitEventApplication(eventData: EventOnlyFormValues, eventId: string): Promise<ActionResult> {
   const user = await getUser();
   if (!user) return fail('User not authenticated');
 
   const profileResult = await getUserProfile();
-  if (!profileResult.success)
-    return fail(profileResult.error ?? 'Could not load profile');
+  if (!profileResult.success) return fail(profileResult.error ?? 'Could not load profile');
   const profile = profileResult.data;
-  if (
-    profile == null ||
-    profile.universityId == null ||
-    profile.majorId == null ||
-    profile.yearOfStudyId == null
-  ) {
+  if (profile == null || profile.universityId == null || profile.majorId == null || profile.yearOfStudyId == null) {
     return fail('Complete your profile first before applying to events.');
   }
 
@@ -371,9 +319,7 @@ export type ParticipationForUser = {
  * the application, the RSVP and attendance. Null when they have neither
  * applied nor registered.
  */
-export async function getUserParticipation(
-  eventId: string,
-): Promise<ParticipationForUser | null> {
+export async function getUserParticipation(eventId: string): Promise<ParticipationForUser | null> {
   const user = await getUser();
   if (!user) return null;
 
@@ -388,24 +334,10 @@ export async function getUserParticipation(
       termsAcceptedAt: eventInvitations.termsAcceptedAt,
     })
     .from(eventParticipants)
-    .innerJoin(
-      participationStatuses,
-      eq(eventParticipants.statusId, participationStatuses.id),
-    )
-    .leftJoin(
-      eventInvitations,
-      eq(eventInvitations.participantId, eventParticipants.id),
-    )
-    .leftJoin(
-      eventRsvpWaves,
-      eq(eventInvitations.rsvpWaveId, eventRsvpWaves.id),
-    )
-    .where(
-      and(
-        eq(eventParticipants.userId, user.id),
-        eq(eventParticipants.eventId, eventId),
-      ),
-    )
+    .innerJoin(participationStatuses, eq(eventParticipants.statusId, participationStatuses.id))
+    .leftJoin(eventInvitations, eq(eventInvitations.participantId, eventParticipants.id))
+    .leftJoin(eventRsvpWaves, eq(eventInvitations.rsvpWaveId, eventRsvpWaves.id))
+    .where(and(eq(eventParticipants.userId, user.id), eq(eventParticipants.eventId, eventId)))
     .limit(1);
   if (!row) return null;
 
@@ -486,24 +418,10 @@ export async function submitRsvpResponse(
           respondBy: eventRsvpWaves.respondBy,
         })
         .from(eventParticipants)
-        .innerJoin(
-          participationStatuses,
-          eq(eventParticipants.statusId, participationStatuses.id),
-        )
-        .innerJoin(
-          eventInvitations,
-          eq(eventInvitations.participantId, eventParticipants.id),
-        )
-        .innerJoin(
-          eventRsvpWaves,
-          eq(eventInvitations.rsvpWaveId, eventRsvpWaves.id),
-        )
-        .where(
-          and(
-            eq(eventParticipants.eventId, eventId),
-            eq(eventParticipants.userId, user.id),
-          ),
-        )
+        .innerJoin(participationStatuses, eq(eventParticipants.statusId, participationStatuses.id))
+        .innerJoin(eventInvitations, eq(eventInvitations.participantId, eventParticipants.id))
+        .innerJoin(eventRsvpWaves, eq(eventInvitations.rsvpWaveId, eventRsvpWaves.id))
+        .where(and(eq(eventParticipants.eventId, eventId), eq(eventParticipants.userId, user.id)))
         .for('update', { of: eventParticipants })
         .limit(1);
       if (!row) throw new ParticipationError('No RSVP invitation found.');
@@ -520,9 +438,7 @@ export async function submitRsvpResponse(
       if (decision === 'accepted') {
         if (eventRow.termsId) {
           if (consent?.accepted !== true) {
-            throw new ParticipationError(
-              'You must agree to the Event Terms before accepting your spot.',
-            );
+            throw new ParticipationError('You must agree to the Event Terms before accepting your spot.');
           }
           if (consent.termsId !== eventRow.termsId) {
             throw new ParticipationError(
@@ -532,10 +448,7 @@ export async function submitRsvpResponse(
           acceptedTermsId = eventRow.termsId;
         }
 
-        if (
-          eventRow.capacity !== null &&
-          (await countAttending(eventId, tx)) >= eventRow.capacity
-        ) {
+        if (eventRow.capacity !== null && (await countAttending(eventId, tx)) >= eventRow.capacity) {
           throw new ParticipationError(EVENT_AT_CAPACITY_MESSAGE);
         }
       }
@@ -548,12 +461,7 @@ export async function submitRsvpResponse(
       const updated = await tx
         .update(eventParticipants)
         .set({ statusId: statusIdOf(decision) })
-        .where(
-          and(
-            eq(eventParticipants.id, row.participantId),
-            eq(eventParticipants.statusId, statusIdOf('invited')),
-          ),
-        )
+        .where(and(eq(eventParticipants.id, row.participantId), eq(eventParticipants.statusId, statusIdOf('invited'))))
         .returning({ id: eventParticipants.id });
       if (updated.length === 0) {
         throw new ParticipationError('Already responded to RSVP.');
@@ -588,9 +496,7 @@ export async function submitRsvpResponse(
  * Events without an application use `unregisterFromEvent` instead: their
  * signup has nothing to remember once it's withdrawn.
  */
-export async function withdrawParticipation(
-  eventId: string,
-): Promise<ActionResult> {
+export async function withdrawParticipation(eventId: string): Promise<ActionResult> {
   const user = await getUser();
   if (!user) return fail('User not authenticated');
 
@@ -609,31 +515,14 @@ export async function withdrawParticipation(
         })
         .from(eventParticipants)
         .innerJoin(events, eq(events.id, eventParticipants.eventId))
-        .innerJoin(
-          participationStatuses,
-          eq(eventParticipants.statusId, participationStatuses.id),
-        )
-        .leftJoin(
-          eventInvitations,
-          eq(eventInvitations.participantId, eventParticipants.id),
-        )
-        .leftJoin(
-          eventRsvpWaves,
-          eq(eventInvitations.rsvpWaveId, eventRsvpWaves.id),
-        )
+        .innerJoin(participationStatuses, eq(eventParticipants.statusId, participationStatuses.id))
+        .leftJoin(eventInvitations, eq(eventInvitations.participantId, eventParticipants.id))
+        .leftJoin(eventRsvpWaves, eq(eventInvitations.rsvpWaveId, eventRsvpWaves.id))
         .leftJoin(
           checkIns,
-          and(
-            eq(checkIns.eventId, eventParticipants.eventId),
-            eq(checkIns.userId, eventParticipants.userId),
-          ),
+          and(eq(checkIns.eventId, eventParticipants.eventId), eq(checkIns.userId, eventParticipants.userId)),
         )
-        .where(
-          and(
-            eq(eventParticipants.eventId, eventId),
-            eq(eventParticipants.userId, user.id),
-          ),
-        )
+        .where(and(eq(eventParticipants.eventId, eventId), eq(eventParticipants.userId, user.id)))
         .for('update', { of: eventParticipants })
         .limit(1);
 
@@ -643,30 +532,20 @@ export async function withdrawParticipation(
       const current = resolveEffectiveStatus(row.statusLabel, row.respondBy);
       // Answering an open invitation goes through `submitRsvpResponse`, which
       // owns the deadline and consent rules.
-      if (
-        current === 'invited' ||
-        !canParticipantTransition(current, 'declined')
-      ) {
+      if (current === 'invited' || !canParticipantTransition(current, 'declined')) {
         throw new ParticipationError('There is nothing to withdraw from.');
       }
       if (hasEventElapsed(row.endsAt)) {
         throw new ParticipationError('This event has already ended.');
       }
       if (row.checkedIn) {
-        throw new ParticipationError(
-          "You've already checked in, so your spot can no longer be given up.",
-        );
+        throw new ParticipationError("You've already checked in, so your spot can no longer be given up.");
       }
 
       await tx
         .update(eventParticipants)
         .set({ statusId: statusIdOf('declined') })
-        .where(
-          and(
-            eq(eventParticipants.id, row.participantId),
-            eq(eventParticipants.statusId, row.statusId),
-          ),
-        );
+        .where(and(eq(eventParticipants.id, row.participantId), eq(eventParticipants.statusId, row.statusId)));
       if (row.invitationId) {
         await tx
           .update(eventInvitations)
@@ -677,9 +556,7 @@ export async function withdrawParticipation(
     });
 
     revalidateParticipation(eventId);
-    return ok(
-      wasAttending ? 'You gave up your spot.' : 'You left the waitlist.',
-    );
+    return ok(wasAttending ? 'You gave up your spot.' : 'You left the waitlist.');
   } catch (error) {
     if (error instanceof ParticipationError) {
       return fail(error.message);
@@ -718,9 +595,7 @@ export type EventWithUserStatus = {
  * fresh query, since a status changes without the user acting (a review, an
  * RSVP wave going out, a deadline passing).
  */
-export async function getEventsWithUserStatus(): Promise<
-  EventWithUserStatus[]
-> {
+export async function getEventsWithUserStatus(): Promise<EventWithUserStatus[]> {
   const user = await getUser();
   if (!user) return [];
 
@@ -733,18 +608,9 @@ export async function getEventsWithUserStatus(): Promise<
         respondBy: eventRsvpWaves.respondBy,
       })
       .from(eventParticipants)
-      .innerJoin(
-        participationStatuses,
-        eq(eventParticipants.statusId, participationStatuses.id),
-      )
-      .leftJoin(
-        eventInvitations,
-        eq(eventInvitations.participantId, eventParticipants.id),
-      )
-      .leftJoin(
-        eventRsvpWaves,
-        eq(eventInvitations.rsvpWaveId, eventRsvpWaves.id),
-      )
+      .innerJoin(participationStatuses, eq(eventParticipants.statusId, participationStatuses.id))
+      .leftJoin(eventInvitations, eq(eventInvitations.participantId, eventParticipants.id))
+      .leftJoin(eventRsvpWaves, eq(eventInvitations.rsvpWaveId, eventRsvpWaves.id))
       .where(eq(eventParticipants.userId, user.id)),
     getStatusDisplayMap(),
     listJudgeEventsForUser(user),
@@ -753,10 +619,7 @@ export async function getEventsWithUserStatus(): Promise<
   const judgedEventIds = new Set(judging.map((j) => j.eventId));
   const now = new Date();
   const statusByEventId = new Map(
-    rows.map((row) => [
-      row.eventId,
-      resolveEffectiveStatus(row.statusLabel, row.respondBy, now),
-    ]),
+    rows.map((row) => [row.eventId, resolveEffectiveStatus(row.statusLabel, row.respondBy, now)]),
   );
 
   return allEvents.map((e) => {

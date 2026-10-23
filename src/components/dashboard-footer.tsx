@@ -11,10 +11,7 @@ export function DashboardFooter() {
         padding: '20px 28px',
       }}
     >
-      <div
-        className='mx-auto flex w-full flex-wrap items-center gap-4'
-        style={{ maxWidth: 'var(--content-max)' }}
-      >
+      <div className='mx-auto flex w-full flex-wrap items-center gap-4' style={{ maxWidth: 'var(--content-max)' }}>
         <span
           style={{
             fontFamily: 'var(--font-ds-mono)',

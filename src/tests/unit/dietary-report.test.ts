@@ -18,11 +18,7 @@ function at(time: string) {
   return new Date(`${DAY}T${time}:00.000Z`);
 }
 
-function person(
-  userId: string,
-  restrictions: DietaryRestriction[] = [],
-  otherText: string | null = null,
-) {
+function person(userId: string, restrictions: DietaryRestriction[] = [], otherText: string | null = null) {
   return { userId, name: `User ${userId}`, restrictions, otherText };
 }
 
@@ -87,11 +83,7 @@ describe('buildDietaryReport', () => {
     const report = source({
       meals: [LUNCH],
       participants: [person('a'), person('b')],
-      checkIns: [
-        doorScan('a'),
-        mealScan('lunch', 'a', '12:30'),
-        mealScan('workshop', 'a', '15:00'),
-      ],
+      checkIns: [doorScan('a'), mealScan('lunch', 'a', '12:30'), mealScan('workshop', 'a', '15:00')],
     });
 
     expect(report.rows[0].lastSeenAt).toBe(at('15:00').toISOString());
@@ -127,10 +119,7 @@ describe('buildDietaryReport', () => {
     expect(report.countedMealCount).toBe(2);
     const b = report.rows[1];
     expect(b.missedStreak).toBe(2);
-    expect(b.missedMeals.map((meal) => meal.name)).toEqual([
-      'Lunch',
-      'Breakfast',
-    ]);
+    expect(b.missedMeals.map((meal) => meal.name)).toEqual(['Lunch', 'Breakfast']);
     expect(b.notAtCurrentMeal).toBe(true);
   });
 
@@ -150,11 +139,7 @@ describe('buildDietaryReport', () => {
     const report = source({
       meals: [DINNER],
       participants: [person('a'), person('b')],
-      checkIns: [
-        doorScan('a'),
-        doorScan('b'),
-        mealScan('dinner', 'a', '18:10'),
-      ],
+      checkIns: [doorScan('a'), doorScan('b'), mealScan('dinner', 'a', '18:10')],
       now: at('23:30'),
     });
 
@@ -246,12 +231,7 @@ describe('buildDietaryReport', () => {
 describe('summarizeDietaryReport', () => {
   const report = source({
     meals: [BREAKFAST, LUNCH, DINNER],
-    participants: [
-      person('a', ['Vegan', 'Gluten-free']),
-      person('b', ['Vegan']),
-      person('c'),
-      person('d', ['Halal']),
-    ],
+    participants: [person('a', ['Vegan', 'Gluten-free']), person('b', ['Vegan']), person('c'), person('d', ['Halal'])],
     checkIns: [
       doorScan('a'),
       doorScan('b'),
@@ -264,9 +244,7 @@ describe('summarizeDietaryReport', () => {
   });
 
   const rowFor = (label: string, threshold = 2) =>
-    summarizeDietaryReport(report.rows, threshold).find(
-      (row) => row.label === label,
-    )!;
+    summarizeDietaryReport(report.rows, threshold).find((row) => row.label === label)!;
 
   test('counts someone in each restriction they have', () => {
     expect(rowFor('Vegan').expected).toBe(2);

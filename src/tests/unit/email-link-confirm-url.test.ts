@@ -13,9 +13,7 @@ describe('toEmailLinkConfirmUrl', () => {
     const verify = new URL(
       'https://mruhacks.ca/api/auth/magic-link/verify?token=abc&callbackURL=%2Fdashboard%2Fevents%2Fx%3Frsvp%3D1',
     );
-    const confirm = new URL(
-      toEmailLinkConfirmUrl('magic-link', verify.toString()),
-    );
+    const confirm = new URL(toEmailLinkConfirmUrl('magic-link', verify.toString()));
 
     expect(confirm.origin).toBe(verify.origin);
     expect(confirm.pathname).toBe(EMAIL_LINK_CONFIRM_PATH);
@@ -26,16 +24,11 @@ describe('toEmailLinkConfirmUrl', () => {
 
   test('wraps verify-email links too', () => {
     const confirm = new URL(
-      toEmailLinkConfirmUrl(
-        'verify-email',
-        'https://mruhacks.ca/api/auth/verify-email?token=jwt&callbackURL=%2F',
-      ),
+      toEmailLinkConfirmUrl('verify-email', 'https://mruhacks.ca/api/auth/verify-email?token=jwt&callbackURL=%2F'),
     );
 
     expect(confirm.pathname).toBe(EMAIL_LINK_CONFIRM_PATH);
-    expect(confirm.searchParams.get(EMAIL_LINK_KIND_PARAM)).toBe(
-      'verify-email',
-    );
+    expect(confirm.searchParams.get(EMAIL_LINK_KIND_PARAM)).toBe('verify-email');
     expect(confirm.searchParams.get('token')).toBe('jwt');
   });
 
@@ -61,19 +54,13 @@ describe('MAGIC_LINK_ERROR_CALLBACK_URL', () => {
 
 describe('toSameOriginPath', () => {
   test('keeps same-origin paths', () => {
-    expect(toSameOriginPath('/dashboard/events/x?source=rsvp')).toBe(
-      '/dashboard/events/x?source=rsvp',
-    );
+    expect(toSameOriginPath('/dashboard/events/x?source=rsvp')).toBe('/dashboard/events/x?source=rsvp');
   });
 
-  test.each([
-    'https://evil.example/',
-    '//evil.example/',
-    '/\\evil.example/',
-    'dashboard',
-    undefined,
-    ['/dashboard'],
-  ])('rejects %j', (value) => {
-    expect(toSameOriginPath(value)).toBeNull();
-  });
+  test.each(['https://evil.example/', '//evil.example/', '/\\evil.example/', 'dashboard', undefined, ['/dashboard']])(
+    'rejects %j',
+    (value) => {
+      expect(toSameOriginPath(value)).toBeNull();
+    },
+  );
 });

@@ -25,24 +25,9 @@ import {
   useReactTable,
   Table as TanstackTable,
 } from '@tanstack/react-table';
-import {
-  ArrowDown,
-  ArrowUp,
-  ChevronLeft,
-  ChevronRight,
-  ChevronsUpDown,
-  Settings2,
-  X,
-} from 'lucide-react';
+import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, ChevronsUpDown, Settings2, X } from 'lucide-react';
 
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -54,10 +39,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 
-import {
-  DataTableColumnFilter,
-  columnFilterFn,
-} from './data-table-column-filter';
+import { DataTableColumnFilter, columnFilterFn } from './data-table-column-filter';
 
 export interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -135,10 +117,8 @@ export function DataTable<TData, TValue>({
   getRowId,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = React.useState<SortingState>(initialSorting);
-  const [columnFilters, setColumnFilters] =
-    React.useState<ColumnFiltersState>(initialColumnFilters);
-  const [columnVisibility, setColumnVisibility] =
-    React.useState<VisibilityState>(initialColumnVisibility ?? {});
+  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(initialColumnFilters);
+  const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>(initialColumnVisibility ?? {});
   const [rowSelection, setRowSelection] = React.useState({});
   const [globalFilter, setGlobalFilter] = React.useState('');
   const didNotifySorting = React.useRef(false);
@@ -203,9 +183,7 @@ export function DataTable<TData, TValue>({
         }
       : {}),
     getSortedRowModel: getSortedRowModel(),
-    getPaginationRowModel: manualPagination
-      ? undefined
-      : getPaginationRowModel(),
+    getPaginationRowModel: manualPagination ? undefined : getPaginationRowModel(),
     initialState: {
       pagination: {
         pageIndex: 0,
@@ -216,15 +194,9 @@ export function DataTable<TData, TValue>({
 
   const showSearch = searchPlaceholder !== null;
 
-  const resolvedPageIndex = manualPagination
-    ? (pageIndex ?? 0)
-    : table.getState().pagination.pageIndex;
-  const resolvedPageSize = manualPagination
-    ? (pageSize ?? 25)
-    : table.getState().pagination.pageSize;
-  const resolvedPageCount = manualPagination
-    ? (pageCount ?? 0)
-    : table.getPageCount();
+  const resolvedPageIndex = manualPagination ? (pageIndex ?? 0) : table.getState().pagination.pageIndex;
+  const resolvedPageSize = manualPagination ? (pageSize ?? 25) : table.getState().pagination.pageSize;
+  const resolvedPageCount = manualPagination ? (pageCount ?? 0) : table.getPageCount();
 
   return (
     <div className='space-y-3'>
@@ -241,12 +213,7 @@ export function DataTable<TData, TValue>({
             )}
             {toolbar}
             {enableColumnFilters && columnFilters.length > 0 && (
-              <Button
-                variant='ghost'
-                size='sm'
-                className='h-9'
-                onClick={() => setColumnFilters([])}
-              >
+              <Button variant='ghost' size='sm' className='h-9' onClick={() => setColumnFilters([])}>
                 Clear filters ({columnFilters.length})
                 <X className='size-4' />
               </Button>
@@ -274,9 +241,7 @@ export function DataTable<TData, TValue>({
                           checked={c.getIsVisible()}
                           onCheckedChange={(v) => c.toggleVisibility(!!v)}
                         >
-                          {typeof c.columnDef.header === 'string'
-                            ? c.columnDef.header
-                            : c.id}
+                          {typeof c.columnDef.header === 'string' ? c.columnDef.header : c.id}
                         </DropdownMenuCheckboxItem>
                       ))}
                   </DropdownMenuGroup>
@@ -324,10 +289,7 @@ export function DataTable<TData, TValue>({
                             onClick={header.column.getToggleSortingHandler()}
                             className='hover:text-foreground inline-flex cursor-pointer items-center gap-1 transition-colors'
                           >
-                            {flexRender(
-                              header.column.columnDef.header,
-                              header.getContext(),
-                            )}
+                            {flexRender(header.column.columnDef.header, header.getContext())}
                             {sorted === 'asc' ? (
                               <ArrowUp className='size-3' />
                             ) : sorted === 'desc' ? (
@@ -337,14 +299,9 @@ export function DataTable<TData, TValue>({
                             )}
                           </button>
                         ) : (
-                          flexRender(
-                            header.column.columnDef.header,
-                            header.getContext(),
-                          )
+                          flexRender(header.column.columnDef.header, header.getContext())
                         )}
-                        {showFilter && (
-                          <DataTableColumnFilter column={header.column} />
-                        )}
+                        {showFilter && <DataTableColumnFilter column={header.column} />}
                       </div>
                     </TableHead>
                   );
@@ -355,22 +312,10 @@ export function DataTable<TData, TValue>({
           <TableBody>
             {table.getRowModel().rows.length ? (
               table.getRowModel().rows.map((row) => (
-                <TableRow
-                  key={row.id}
-                  data-state={row.getIsSelected() && 'selected'}
-                >
+                <TableRow key={row.id} data-state={row.getIsSelected() && 'selected'}>
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell
-                      key={cell.id}
-                      className={cn(
-                        cell.column.columnDef.meta?.className,
-                        compact && 'py-2',
-                      )}
-                    >
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext(),
-                      )}
+                    <TableCell key={cell.id} className={cn(cell.column.columnDef.meta?.className, compact && 'py-2')}>
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </TableCell>
                   ))}
                 </TableRow>
@@ -393,13 +338,11 @@ export function DataTable<TData, TValue>({
         <div className='text-muted-foreground'>
           {manualPagination && typeof totalRows === 'number' ? (
             <>
-              Page {resolvedPageIndex + 1} of {Math.max(1, resolvedPageCount)} ·{' '}
-              {totalRows.toLocaleString()} total
+              Page {resolvedPageIndex + 1} of {Math.max(1, resolvedPageCount)} · {totalRows.toLocaleString()} total
             </>
           ) : (
             <>
-              Showing {table.getRowModel().rows.length} of{' '}
-              {table.getPrePaginationRowModel().rows.length}
+              Showing {table.getRowModel().rows.length} of {table.getPrePaginationRowModel().rows.length}
             </>
           )}
         </div>
@@ -428,11 +371,7 @@ export function DataTable<TData, TValue>({
                 table.previousPage();
               }
             }}
-            disabled={
-              manualPagination
-                ? resolvedPageIndex === 0
-                : !table.getCanPreviousPage()
-            }
+            disabled={manualPagination ? resolvedPageIndex === 0 : !table.getCanPreviousPage()}
           >
             <ChevronLeft className='size-4' />
             Prev
@@ -447,11 +386,7 @@ export function DataTable<TData, TValue>({
                 table.nextPage();
               }
             }}
-            disabled={
-              manualPagination
-                ? resolvedPageIndex + 1 >= resolvedPageCount
-                : !table.getCanNextPage()
-            }
+            disabled={manualPagination ? resolvedPageIndex + 1 >= resolvedPageCount : !table.getCanNextPage()}
           >
             Next
             <ChevronRight className='size-4' />

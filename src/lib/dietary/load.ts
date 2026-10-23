@@ -21,9 +21,7 @@ import { resolveParticipantName } from '@/lib/wallet/participation';
 import { dietaryRestrictionsList, MEAL_EVENT_TYPE } from '@/types/lookups';
 import { db } from '@/utils/db';
 
-export async function loadDietaryReport(
-  eventId: string,
-): Promise<DietaryReport | null> {
+export async function loadDietaryReport(eventId: string): Promise<DietaryReport | null> {
   const root = await resolveEventRoot(eventId);
   if (!root) return null;
 
@@ -47,11 +45,7 @@ export async function loadDietaryReport(
       .from(user)
       .innerJoin(
         eventParticipants,
-        and(
-          eq(eventParticipants.eventId, root.id),
-          eq(eventParticipants.userId, user.id),
-          hasStatus('accepted'),
-        ),
+        and(eq(eventParticipants.eventId, root.id), eq(eventParticipants.userId, user.id), hasStatus('accepted')),
       )
       .leftJoin(userProfiles, eq(userProfiles.userId, user.id)),
     db
@@ -63,9 +57,7 @@ export async function loadDietaryReport(
       })
       .from(events)
       .innerJoin(eventTypes, eq(eventTypes.id, events.eventTypeId))
-      .where(
-        and(inArray(events.id, treeIds), eq(eventTypes.label, MEAL_EVENT_TYPE)),
-      ),
+      .where(and(inArray(events.id, treeIds), eq(eventTypes.label, MEAL_EVENT_TYPE))),
     db
       .select({
         eventId: checkIns.eventId,
@@ -81,9 +73,7 @@ export async function loadDietaryReport(
     return {
       userId: row.userId,
       name: resolveParticipantName(row.fullName, row.accountName),
-      restrictions: dietaryRestrictionsList.filter((label) =>
-        labels.has(label),
-      ),
+      restrictions: dietaryRestrictionsList.filter((label) => labels.has(label)),
       otherText: labels.has('Other') ? row.otherText?.trim() || null : null,
     };
   });
@@ -109,9 +99,7 @@ export async function loadDietaryReport(
   });
 }
 
-export async function getDietaryExpectedCount(
-  eventId: string,
-): Promise<number> {
+export async function getDietaryExpectedCount(eventId: string): Promise<number> {
   'use cache';
   cacheTag(eventApplicationsCacheTag(eventId));
   cacheLife('minutes');

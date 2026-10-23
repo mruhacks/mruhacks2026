@@ -1,9 +1,6 @@
 'use client';
 
-import {
-  FeaturedEventStep,
-  type FeaturedOnboardingEvent,
-} from './featured-event-step';
+import { FeaturedEventStep, type FeaturedOnboardingEvent } from './featured-event-step';
 
 export function WelcomeEventPage({
   event,
@@ -16,12 +13,5 @@ export function WelcomeEventPage({
   nextHref: string;
   isFinalStep: boolean;
 }) {
-  return (
-    <FeaturedEventStep
-      event={event}
-      backHref={backHref}
-      nextHref={nextHref}
-      isFinalStep={isFinalStep}
-    />
-  );
+  return <FeaturedEventStep event={event} backHref={backHref} nextHref={nextHref} isFinalStep={isFinalStep} />;
 }

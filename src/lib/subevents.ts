@@ -41,9 +41,7 @@ export function subeventsCacheTag(parentEventId: string): string {
  * participant schedule share one cache entry. It's the participant surface that
  * applies `isScheduleVisible`, not this getter.
  */
-export async function listSubevents(
-  parentEventId: string,
-): Promise<SubeventRow[]> {
+export async function listSubevents(parentEventId: string): Promise<SubeventRow[]> {
   'use cache';
   cacheTag(subeventsCacheTag(parentEventId));
   // Settings and copy edits invalidate this parent-scoped cache too.
@@ -75,9 +73,7 @@ export function isScheduleVisible(row: Pick<SubeventRow, 'startsAt'>): boolean {
  * Check-ins per sub-event, keyed by sub-event id. Sub-events with none are
  * absent from the map rather than zero, so callers should default.
  */
-export async function getSubeventCheckInCounts(
-  subeventIds: string[],
-): Promise<Record<string, number>> {
+export async function getSubeventCheckInCounts(subeventIds: string[]): Promise<Record<string, number>> {
   if (subeventIds.length === 0) return {};
 
   const rows = await db
@@ -123,10 +119,7 @@ export async function resolveCheckInTarget(
   mainEventId: string,
   targetEventId: string | null | undefined,
 ): Promise<CheckInTarget | null> {
-  if (
-    !targetEventId ||
-    targetEventId.toLowerCase() === mainEventId.toLowerCase()
-  ) {
+  if (!targetEventId || targetEventId.toLowerCase() === mainEventId.toLowerCase()) {
     return {
       targetId: mainEventId,
       isSubevent: false,
@@ -144,9 +137,7 @@ export async function resolveCheckInTarget(
       endsAt: events.endsAt,
     })
     .from(events)
-    .where(
-      and(eq(events.id, targetEventId), eq(events.parentEventId, mainEventId)),
-    )
+    .where(and(eq(events.id, targetEventId), eq(events.parentEventId, mainEventId)))
     .limit(1);
 
   if (!row) return null;
@@ -167,9 +158,7 @@ export async function resolveCheckInTarget(
  * sub-event's own check-in page, its participant event page — up to the event
  * they belong to, rather than 404ing or rendering something incoherent.
  */
-export async function getParentEventId(
-  eventId: string,
-): Promise<string | null> {
+export async function getParentEventId(eventId: string): Promise<string | null> {
   const [row] = await db
     .select({ parentEventId: events.parentEventId })
     .from(events)
@@ -179,9 +168,7 @@ export async function getParentEventId(
   return row?.parentEventId ?? null;
 }
 
-export async function resolveEventRoot(
-  eventId: string,
-): Promise<{ id: string; endsAt: Date | null } | null> {
+export async function resolveEventRoot(eventId: string): Promise<{ id: string; endsAt: Date | null } | null> {
   const [walk] = await db.execute<{ id: string }>(sql`
     WITH RECURSIVE walk AS (
       SELECT id, parent_event_id

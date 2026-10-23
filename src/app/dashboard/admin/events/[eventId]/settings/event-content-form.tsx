@@ -12,13 +12,7 @@ import {
 } from '@/app/dashboard/admin/events/content-actions';
 import { MarkdownEditor } from '@/components/markdown/markdown-editor';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Field, FieldError, FieldGroup } from '@/components/ui/field';
 
 import { useEventBasePath } from '../_components/use-event-base-path';
@@ -49,9 +43,7 @@ export function EventContentForm({
     setError(null);
     setIsSaving(true);
     try {
-      const result = await (
-        isTerms ? updateEventTerms : updateEventDescription
-      )(eventId, draft);
+      const result = await (isTerms ? updateEventTerms : updateEventDescription)(eventId, draft);
       if (!result.success) {
         setError(result.error);
         return;

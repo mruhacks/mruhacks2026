@@ -65,11 +65,7 @@ async function getEventIdBySlug(slug: string): Promise<string | null> {
   // move a slug; 'minutes' is the same safety net the listing above uses.
   cacheLife('minutes');
 
-  const [row] = await db
-    .select({ id: events.id })
-    .from(events)
-    .where(eq(events.slug, slug))
-    .limit(1);
+  const [row] = await db.select({ id: events.id }).from(events).where(eq(events.slug, slug)).limit(1);
 
   return row?.id ?? null;
 }
@@ -81,11 +77,7 @@ async function getEventIdBySlug(slug: string): Promise<string | null> {
  * entry from the same page under the uuid.
  */
 export async function eventUrlSegments(eventId: string): Promise<string[]> {
-  const [row] = await db
-    .select({ slug: events.slug })
-    .from(events)
-    .where(eq(events.id, eventId))
-    .limit(1);
+  const [row] = await db.select({ slug: events.slug }).from(events).where(eq(events.id, eventId)).limit(1);
 
   return row?.slug ? [eventId, row.slug] : [eventId];
 }
@@ -112,9 +104,7 @@ export type EventParticipationCount = {
  * numbers rather than per-viewer ones, so one cache entry serves every admin
  * looking at the event list.
  */
-export async function getEventParticipationCounts(): Promise<
-  Record<string, EventParticipationCount>
-> {
+export async function getEventParticipationCounts(): Promise<Record<string, EventParticipationCount>> {
   'use cache';
   cacheTag(EVENTS_CACHE_TAG);
   // These move whenever a participant applies or registers, which no admin
@@ -126,18 +116,14 @@ export async function getEventParticipationCounts(): Promise<
     .select({
       eventId: eventParticipants.eventId,
       applications: sql<number>`COUNT(*)`.mapWith(Number),
-      attendees:
-        sql<number>`COUNT(*) FILTER (WHERE ${eventParticipants.statusId} = ${statusIdOf('accepted')})`.mapWith(
-          Number,
-        ),
+      attendees: sql<number>`COUNT(*) FILTER (WHERE ${eventParticipants.statusId} = ${statusIdOf('accepted')})`.mapWith(
+        Number,
+      ),
     })
     .from(eventParticipants)
     .groupBy(eventParticipants.eventId);
 
   return Object.fromEntries(
-    rows.map((row) => [
-      row.eventId,
-      { applications: row.applications, attendees: row.attendees },
-    ]),
+    rows.map((row) => [row.eventId, { applications: row.applications, attendees: row.attendees }]),
   );
 }

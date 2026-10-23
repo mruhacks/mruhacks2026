@@ -50,9 +50,7 @@ export const judgingCriteria = pgTable(
     position: integer('position').notNull(),
     /** Only re-sorts the Overall results table; never touches votes. */
     weight: doublePrecision('weight').notNull().default(1),
-    createdAt: timestamp('created_at', { withTimezone: true })
-      .defaultNow()
-      .notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
     index('idx_judging_criteria_event_id').on(table.eventId),
@@ -77,9 +75,7 @@ export const eventJudges = pgTable(
     inviteSentAt: timestamp('invite_sent_at', { withTimezone: true }),
     /** A disabled judge isn't dispatched; their votes still count. */
     disabledAt: timestamp('disabled_at', { withTimezone: true }),
-    createdAt: timestamp('created_at', { withTimezone: true })
-      .defaultNow()
-      .notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
     uniqueIndex('event_judges_event_id_email_unique')
@@ -114,19 +110,12 @@ export const judgingVotes = pgTable(
      * `created_at` (the transaction's start), so a vote that waited on those
      * locks sorts after the one it waited for.
      */
-    seq: bigint('seq', { mode: 'number' })
-      .generatedByDefaultAsIdentity()
-      .notNull(),
-    createdAt: timestamp('created_at', { withTimezone: true })
-      .defaultNow()
-      .notNull(),
+    seq: bigint('seq', { mode: 'number' }).generatedByDefaultAsIdentity().notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
     index('idx_judging_votes_judge_id').on(table.judgeId),
-    index('idx_judging_votes_criterion_id_created_at').on(
-      table.criterionId,
-      table.createdAt,
-    ),
+    index('idx_judging_votes_criterion_id_created_at').on(table.criterionId, table.createdAt),
     index('idx_judging_votes_winner').on(table.winnerSubmissionId),
     index('idx_judging_votes_loser').on(table.loserSubmissionId),
   ],
@@ -169,15 +158,9 @@ export const judgeState = pgTable(
       .primaryKey()
       .references(() => eventJudges.id, { onDelete: 'cascade' }),
     /** Where the judge has been sent. Null while there's nowhere to go. */
-    currentSubmissionId: uuid('current_submission_id').references(
-      () => submissions.id,
-      { onDelete: 'set null' },
-    ),
+    currentSubmissionId: uuid('current_submission_id').references(() => submissions.id, { onDelete: 'set null' }),
     /** What they're comparing against. Null until they press Begin. */
-    previousSubmissionId: uuid('previous_submission_id').references(
-      () => submissions.id,
-      { onDelete: 'set null' },
-    ),
+    previousSubmissionId: uuid('previous_submission_id').references(() => submissions.id, { onDelete: 'set null' }),
     /** When `current` was assigned — drives the busy window. */
     assignedAt: timestamp('assigned_at', { withTimezone: true }),
   },
@@ -198,16 +181,11 @@ export const judgeSkips = pgTable(
       .references(() => submissions.id, { onDelete: 'cascade' }),
     /** `not_here` may come back later; `conflict` never does. */
     reason: text('reason').$type<JudgeSkipReason>().notNull(),
-    createdAt: timestamp('created_at', { withTimezone: true })
-      .defaultNow()
-      .notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
     index('idx_judge_skips_judge_id').on(table.judgeId),
-    check(
-      'judge_skips_reason_valid',
-      sql`${table.reason} IN ('not_here', 'conflict')`,
-    ),
+    check('judge_skips_reason_valid', sql`${table.reason} IN ('not_here', 'conflict')`),
   ],
 );
 
@@ -227,9 +205,7 @@ export const judgeVisits = pgTable(
     submissionId: uuid('submission_id')
       .notNull()
       .references(() => submissions.id, { onDelete: 'cascade' }),
-    createdAt: timestamp('created_at', { withTimezone: true })
-      .defaultNow()
-      .notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
     primaryKey({ columns: [table.judgeId, table.submissionId] }),

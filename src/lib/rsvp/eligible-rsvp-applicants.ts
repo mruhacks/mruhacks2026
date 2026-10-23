@@ -2,12 +2,7 @@ import 'server-only';
 
 import { and, eq, inArray } from 'drizzle-orm';
 
-import {
-  eventParticipants,
-  events,
-  participationStatuses,
-  user,
-} from '@/db/schema';
+import { eventParticipants, events, participationStatuses, user } from '@/db/schema';
 import { countAttending } from '@/lib/participation/server';
 import { WAVE_ELIGIBLE_STATUSES } from '@/lib/participation/status';
 import { getWaitlistOrder } from '@/lib/rsvp/waitlist';
@@ -41,9 +36,7 @@ export type RsvpEligibilityResult = {
  * Callers must not assume the returned set is the wave: use
  * `selectRsvpWaveInvitees` to order and cap by remaining capacity.
  */
-export async function getEligibleRsvpApplicants(
-  eventId: string,
-): Promise<RsvpEligibilityResult | null> {
+export async function getEligibleRsvpApplicants(eventId: string): Promise<RsvpEligibilityResult | null> {
   const [eventRow] = await db
     .select({ id: events.id, capacity: events.capacity })
     .from(events)
@@ -54,8 +47,7 @@ export async function getEligibleRsvpApplicants(
 
   const attendeeCount = await countAttending(eventId);
   const capacity = eventRow.capacity ?? null;
-  const availableSpots =
-    capacity === null ? null : Math.max(0, capacity - attendeeCount);
+  const availableSpots = capacity === null ? null : Math.max(0, capacity - attendeeCount);
 
   const [order, rows] = await Promise.all([
     getWaitlistOrder(eventId),
@@ -67,16 +59,10 @@ export async function getEligibleRsvpApplicants(
         applicationCreatedAt: eventParticipants.createdAt,
       })
       .from(eventParticipants)
-      .innerJoin(
-        participationStatuses,
-        eq(eventParticipants.statusId, participationStatuses.id),
-      )
+      .innerJoin(participationStatuses, eq(eventParticipants.statusId, participationStatuses.id))
       .innerJoin(user, eq(eventParticipants.userId, user.id))
       .where(
-        and(
-          eq(eventParticipants.eventId, eventId),
-          inArray(participationStatuses.label, [...WAVE_ELIGIBLE_STATUSES]),
-        ),
+        and(eq(eventParticipants.eventId, eventId), inArray(participationStatuses.label, [...WAVE_ELIGIBLE_STATUSES])),
       ),
   ]);
 

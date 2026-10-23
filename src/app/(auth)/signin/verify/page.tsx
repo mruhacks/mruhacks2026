@@ -4,13 +4,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   EMAIL_LINK_FAILED_PARAM,
   EMAIL_LINK_KIND_PARAM,
@@ -28,10 +22,7 @@ export const metadata: Metadata = {
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
-const COPY: Record<
-  EmailLinkKind,
-  { title: string; description: string; label: string }
-> = {
+const COPY: Record<EmailLinkKind, { title: string; description: string; label: string }> = {
   'magic-link': {
     title: 'Sign in to MRUHacks',
     description: 'Press continue to finish signing in.',
@@ -64,20 +55,11 @@ function failureMessage(error: SearchParams[string]): string {
  * `failed=1`. Signed-in users never reach this page (see `src/proxy.ts`), so a
  * resubmitted, already-spent link lands them on the dashboard.
  */
-export default async function EmailLinkConfirmPage({
-  searchParams,
-}: {
-  searchParams: Promise<SearchParams>;
-}) {
+export default async function EmailLinkConfirmPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const params = await searchParams;
 
   if (params[EMAIL_LINK_FAILED_PARAM] === '1') {
-    return (
-      <LinkProblem
-        title='Sign in to MRUHacks'
-        message={failureMessage(params.error)}
-      />
-    );
+    return <LinkProblem title='Sign in to MRUHacks' message={failureMessage(params.error)} />;
   }
 
   const kind = params[EMAIL_LINK_KIND_PARAM];
@@ -92,12 +74,10 @@ export default async function EmailLinkConfirmPage({
   }
 
   const { endpoint, params: forwarded } = EMAIL_LINKS[kind];
-  const fields = forwarded.flatMap(
-    (name): { name: string; value: string }[] => {
-      const value = params[name];
-      return typeof value === 'string' && value ? [{ name, value }] : [];
-    },
-  );
+  const fields = forwarded.flatMap((name): { name: string; value: string }[] => {
+    const value = params[name];
+    return typeof value === 'string' && value ? [{ name, value }] : [];
+  });
   if (kind === 'magic-link') {
     fields.push({
       name: 'errorCallbackURL',

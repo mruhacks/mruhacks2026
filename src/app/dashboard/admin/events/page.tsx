@@ -15,11 +15,7 @@ function EventListSkeleton() {
   return (
     <div className='grid gap-4'>
       {[1, 2, 3].map((i) => (
-        <div
-          key={i}
-          className='bg-muted animate-pulse rounded-xl'
-          style={{ height: 150 }}
-        />
+        <div key={i} className='bg-muted animate-pulse rounded-xl' style={{ height: 150 }} />
       ))}
     </div>
   );
@@ -67,9 +63,7 @@ async function EventList() {
           attendees: 0,
         };
         // Applications for an event with a form, signups for one without.
-        const value = event.hasApplication
-          ? eventCounts.applications
-          : eventCounts.attendees;
+        const value = event.hasApplication ? eventCounts.applications : eventCounts.attendees;
         const unit = event.hasApplication ? 'Application' : 'Registration';
 
         return (
@@ -128,25 +122,15 @@ async function EventList() {
                     </>
                   )}
                 </div>
-                <ExternalLink
-                  aria-hidden
-                  className='text-muted-foreground size-5 shrink-0'
-                />
+                <ExternalLink aria-hidden className='text-muted-foreground size-5 shrink-0' />
               </div>
 
               {visibleTools.length > 0 && (
                 // Above the stretched link so these stay clickable.
                 <div className='relative flex flex-wrap gap-2'>
                   {visibleTools.map((tool) => (
-                    <Button
-                      key={tool.label}
-                      asChild
-                      variant='outline'
-                      size='sm'
-                    >
-                      <Link href={`${adminEventPath(event)}/${tool.path}`}>
-                        {tool.label}
-                      </Link>
+                    <Button key={tool.label} asChild variant='outline' size='sm'>
+                      <Link href={`${adminEventPath(event)}/${tool.path}`}>{tool.label}</Link>
                     </Button>
                   ))}
                 </div>
@@ -180,9 +164,7 @@ export default function AdminEventsMealsPage() {
       <div className='flex items-center justify-between'>
         <div>
           <h1 className='text-2xl font-semibold'>Events &amp; Meals</h1>
-          <p className='text-muted-foreground mt-1 text-sm'>
-            Manage events, applications, and questions.
-          </p>
+          <p className='text-muted-foreground mt-1 text-sm'>Manage events, applications, and questions.</p>
         </div>
         <Suspense fallback={null}>
           <CreateEventButton />

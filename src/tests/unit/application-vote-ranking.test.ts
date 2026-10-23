@@ -37,15 +37,11 @@ function plan(
 describe('wilsonLowerBound', () => {
   test('is 0 with no votes and rises with evidence at the same ratio', () => {
     expect(wilsonLowerBound({ yes: 0, no: 0 })).toBe(0);
-    expect(wilsonLowerBound({ yes: 10, no: 0 })).toBeGreaterThan(
-      wilsonLowerBound({ yes: 1, no: 0 }),
-    );
+    expect(wilsonLowerBound({ yes: 10, no: 0 })).toBeGreaterThan(wilsonLowerBound({ yes: 1, no: 0 }));
   });
 
   test('ranks 9 of 10 above a lone 1 of 1', () => {
-    expect(wilsonLowerBound({ yes: 9, no: 1 })).toBeGreaterThan(
-      wilsonLowerBound({ yes: 1, no: 0 }),
-    );
+    expect(wilsonLowerBound({ yes: 9, no: 1 })).toBeGreaterThan(wilsonLowerBound({ yes: 1, no: 0 }));
   });
 });
 
@@ -61,13 +57,10 @@ describe('planWaitlist', () => {
   });
 
   test('promotes pending applicants with a yes, not those with only noes', () => {
-    const result = plan(
-      [p('yes', 'pending_review'), p('no', 'pending_review')],
-      {
-        yes: { yes: 1, no: 2 },
-        no: { yes: 0, no: 1 },
-      },
-    );
+    const result = plan([p('yes', 'pending_review'), p('no', 'pending_review')], {
+      yes: { yes: 1, no: 2 },
+      no: { yes: 0, no: 1 },
+    });
     expect(result.promote).toEqual(['yes']);
     expect(result.queue).toEqual(['yes']);
   });
@@ -119,20 +112,19 @@ describe('planWaitlist', () => {
 
   test('a team that lost its last yes is demoted when asked', () => {
     const participants = [p('a', 'waitlisted', 't'), p('b', 'waitlisted', 't')];
-    expect(
-      plan(participants, { a: { yes: 0, no: 1 } }, { demoteGroupOf: 'a' }),
-    ).toEqual({ promote: [], demote: ['a', 'b'], queue: [] });
+    expect(plan(participants, { a: { yes: 0, no: 1 } }, { demoteGroupOf: 'a' })).toEqual({
+      promote: [],
+      demote: ['a', 'b'],
+      queue: [],
+    });
     // Without the hint, hand-waitlisted entries are left alone.
     expect(plan(participants, { a: { yes: 0, no: 1 } }).demote).toEqual([]);
   });
 
   test('no demotion while the group still has a yes', () => {
     expect(
-      plan(
-        [p('a', 'waitlisted', 't'), p('b', 'waitlisted', 't')],
-        { b: { yes: 1, no: 0 } },
-        { demoteGroupOf: 'a' },
-      ).demote,
+      plan([p('a', 'waitlisted', 't'), p('b', 'waitlisted', 't')], { b: { yes: 1, no: 0 } }, { demoteGroupOf: 'a' })
+        .demote,
     ).toEqual([]);
   });
 });

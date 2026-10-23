@@ -42,9 +42,7 @@ export type OptimizedCampaignImage = {
  * `.withMetadata()`), shrinks to at most 1200px wide, and writes JPEG q80, or
  * PNG when the image actually uses transparency.
  */
-export async function optimizeCampaignImage(
-  bytes: Uint8Array,
-): Promise<OptimizedCampaignImage> {
+export async function optimizeCampaignImage(bytes: Uint8Array): Promise<OptimizedCampaignImage> {
   const work = async () => {
     const base = sharp(bytes, {
       failOn: 'none',
@@ -75,8 +73,6 @@ export async function optimizeCampaignImage(
 
   return Promise.race([
     work(),
-    new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('timeout')), PROCESSING_TIMEOUT_MS),
-    ),
+    new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), PROCESSING_TIMEOUT_MS)),
   ]);
 }

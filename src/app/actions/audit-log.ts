@@ -47,23 +47,13 @@ export interface ListAuditLogResult {
 }
 
 /** Paginated, filterable audit log, newest first by default. */
-export async function listAuditLog(
-  params: ListAuditLogParams = {},
-): Promise<ActionResult<ListAuditLogResult>> {
+export async function listAuditLog(params: ListAuditLogParams = {}): Promise<ActionResult<ListAuditLogResult>> {
   try {
     const caller = await getUser();
     if (!caller) return fail('Not authenticated');
     await requirePermission(caller.id, AUDIT_READ_PERMISSION);
 
-    const {
-      search = '',
-      actions,
-      targetTypes,
-      actorId,
-      page = 1,
-      pageSize = 50,
-      sortDirection = 'desc',
-    } = params;
+    const { search = '', actions, targetTypes, actorId, page = 1, pageSize = 50, sortDirection = 'desc' } = params;
 
     const clampedPageSize = Math.min(Math.max(pageSize, 1), 200);
     const clampedPage = Math.max(page, 1);
@@ -148,23 +138,15 @@ export async function listAuditLog(
 }
 
 /** Distinct actions and target types ever logged, for the filter pickers. */
-export async function listAuditLogFacets(): Promise<
-  ActionResult<{ actions: string[]; targetTypes: string[] }>
-> {
+export async function listAuditLogFacets(): Promise<ActionResult<{ actions: string[]; targetTypes: string[] }>> {
   try {
     const caller = await getUser();
     if (!caller) return fail('Not authenticated');
     await requirePermission(caller.id, AUDIT_READ_PERMISSION);
 
     const [actionRows, targetTypeRows] = await Promise.all([
-      db
-        .selectDistinct({ value: auditLog.action })
-        .from(auditLog)
-        .orderBy(asc(auditLog.action)),
-      db
-        .selectDistinct({ value: auditLog.targetType })
-        .from(auditLog)
-        .orderBy(asc(auditLog.targetType)),
+      db.selectDistinct({ value: auditLog.action }).from(auditLog).orderBy(asc(auditLog.action)),
+      db.selectDistinct({ value: auditLog.targetType }).from(auditLog).orderBy(asc(auditLog.targetType)),
     ]);
 
     return ok({

@@ -49,13 +49,7 @@ export function SubeventList({
   return (
     <ScheduleCard
       fitContainer={fitContainer}
-      action={
-        <CreateSubeventDialog
-          eventId={eventId}
-          defaultStartsAt={eventStartsAt}
-          eventTypes={eventTypes}
-        />
-      }
+      action={<CreateSubeventDialog eventId={eventId} defaultStartsAt={eventStartsAt} eventTypes={eventTypes} />}
     >
       {subevents.length === 0 ? (
         <p className='text-muted-foreground px-4 py-5 text-sm'>
@@ -82,9 +76,7 @@ export function SubeventList({
                   backHref={backHref ?? base}
                   eventId={eventId}
                   subevent={subevent}
-                  canCheckIn={
-                    canCheckIn && checkInEnabled && subevent.checkInEnabled
-                  }
+                  canCheckIn={canCheckIn && checkInEnabled && subevent.checkInEnabled}
                   checkInCount={checkInCounts[subevent.id] ?? 0}
                 />
               ),
@@ -124,11 +116,7 @@ function SubeventRowItem({
           <SubeventTypeBadge label={parseEventType(subevent.eventTypeLabel)} />
         </div>
         <p className='text-muted-foreground mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm'>
-          <LocalDateRange
-            start={subevent.startsAt}
-            end={subevent.endsAt}
-            timeOnly
-          />
+          <LocalDateRange start={subevent.startsAt} end={subevent.endsAt} timeOnly />
           {subevent.location && (
             <span className='inline-flex items-center gap-1.5'>
               <MapPin aria-hidden className='size-3.5 shrink-0' />
@@ -146,9 +134,7 @@ function SubeventRowItem({
             form, and an organizer would otherwise have no way to tell that
             participants can't see the row. */}
         {!visible && (
-          <p className='text-muted-foreground mt-1 text-xs'>
-            Hidden from participants — needs a start time.
-          </p>
+          <p className='text-muted-foreground mt-1 text-xs'>Hidden from participants — needs a start time.</p>
         )}
       </div>
 
@@ -164,12 +150,7 @@ function SubeventRowItem({
         {/* A sub-event is an event, so it's edited with the ordinary event
             settings form. Children never have a slug, so the uuid is the
             segment. */}
-        <Button
-          asChild
-          variant='ghost'
-          size='icon-sm'
-          className={cn('shrink-0')}
-        >
+        <Button asChild variant='ghost' size='icon-sm' className={cn('shrink-0')}>
           <Link
             href={{
               pathname: `/dashboard/admin/events/${subevent.id}/settings`,

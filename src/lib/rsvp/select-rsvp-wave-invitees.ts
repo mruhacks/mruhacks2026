@@ -21,13 +21,9 @@ export function selectRsvpWaveInvitees(
   return ordered.slice(0, Math.max(0, availableSpots));
 }
 
-function compareEligibleRsvpApplicants(
-  a: EligibleRsvpApplicant,
-  b: EligibleRsvpApplicant,
-): number {
+function compareEligibleRsvpApplicants(a: EligibleRsvpApplicant, b: EligibleRsvpApplicant): number {
   if (a.rank !== b.rank) return a.rank < b.rank ? -1 : 1;
-  const byAppliedAt =
-    a.applicationCreatedAt.getTime() - b.applicationCreatedAt.getTime();
+  const byAppliedAt = a.applicationCreatedAt.getTime() - b.applicationCreatedAt.getTime();
   if (byAppliedAt !== 0) {
     return byAppliedAt;
   }

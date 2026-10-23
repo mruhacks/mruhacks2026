@@ -19,9 +19,7 @@ export function SponsorCTA() {
   return (
     <div className='mx-auto flex w-full max-w-2xl flex-col items-center text-center'>
       {/* pre-title */}
-      <p className='text-pre-title-purple mb-2 text-sm font-semibold sm:text-base'>
-        For Sponsors
-      </p>
+      <p className='text-pre-title-purple mb-2 text-sm font-semibold sm:text-base'>For Sponsors</p>
 
       {/* main title */}
       <h2 className='mb-4 text-2xl font-semibold tracking-tight sm:mb-6 sm:text-3xl'>
@@ -29,9 +27,7 @@ export function SponsorCTA() {
       </h2>
 
       {/* description text */}
-      <p className='text-description mb-6 text-base sm:mb-10 sm:text-lg'>
-        {SPONSOR_CTA}
-      </p>
+      <p className='text-description mb-6 text-base sm:mb-10 sm:text-lg'>{SPONSOR_CTA}</p>
 
       {/* sponsor logos */}
       <div className='mb-6 flex flex-col items-center gap-4 sm:mb-10'>

@@ -7,9 +7,7 @@ export async function createResumeSeeder() {
   const fixtures = await Promise.all(
     Array.from({ length: 20 }, async (_, index) => {
       const fileName = `resume-${String(index + 1).padStart(2, '0')}.pdf`;
-      const body = await readFile(
-        new URL(`./fixtures/resumes/${fileName}`, import.meta.url),
-      );
+      const body = await readFile(new URL(`./fixtures/resumes/${fileName}`, import.meta.url));
       return { fileName, body };
     }),
   );

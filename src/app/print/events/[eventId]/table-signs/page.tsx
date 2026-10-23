@@ -22,9 +22,7 @@ type Props = {
 function parseCount(raw: string | string[] | undefined): number | null {
   if (typeof raw !== 'string') return null;
   const count = Number(raw);
-  return Number.isInteger(count) && count >= 1 && count <= MAX_TABLE_SIGNS
-    ? count
-    : null;
+  return Number.isInteger(count) && count >= 1 && count <= MAX_TABLE_SIGNS ? count : null;
 }
 
 export const metadata: Metadata = { title: 'Table signs' };
@@ -50,10 +48,7 @@ async function TableSigns({
   paramsPromise: Props['params'];
   searchParamsPromise: Props['searchParams'];
 }) {
-  const [{ eventId: segment }, { count: rawCount }] = await Promise.all([
-    paramsPromise,
-    searchParamsPromise,
-  ]);
+  const [{ eventId: segment }, { count: rawCount }] = await Promise.all([paramsPromise, searchParamsPromise]);
   const eventId = await resolveEventId(segment);
   if (!eventId) notFound();
   const user = await getUser();
@@ -63,20 +58,14 @@ async function TableSigns({
 
   const result = await getJudgingTableSigns(eventId);
   if (!result.success || !result.data) {
-    return (
-      <p className='text-destructive p-6'>
-        {!result.success ? result.error : 'Failed to load tables.'}
-      </p>
-    );
+    return <p className='text-destructive p-6'>{!result.success ? result.error : 'Failed to load tables.'}</p>;
   }
   const { layout, handedOut } = result.data;
   // Printing ahead of time: an organizer can ask for more (or fewer) signs
   // than tables handed out. Labels follow the saved layout either way.
   const requested = parseCount(rawCount);
   const count = requested ?? handedOut;
-  const labels = Array.from({ length: count }, (_, slot) =>
-    formatTableLabel(slot, layout),
-  );
+  const labels = Array.from({ length: count }, (_, slot) => formatTableLabel(slot, layout));
 
   return (
     <>

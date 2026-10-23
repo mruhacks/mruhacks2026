@@ -25,18 +25,12 @@ async function requireAuth(redirectTo = '/signin'): Promise<User> {
  * Require a session AND at least one of the provided permissions.
  * Redirects to /signin if unauthenticated, /forbidden if unauthorized.
  */
-export async function requireAuthWithPermission(
-  permissions: string | string[],
-): Promise<User> {
+export async function requireAuthWithPermission(permissions: string | string[]): Promise<User> {
   const user = await requireAuth();
   const perms = Array.isArray(permissions) ? permissions : [permissions];
   const ok = await hasAnyPermission(user.id, perms);
   if (!ok) {
-    redirect(
-      `/forbidden?reason=missing_permission&permission=${encodeURIComponent(
-        perms.join(','),
-      )}`,
-    );
+    redirect(`/forbidden?reason=missing_permission&permission=${encodeURIComponent(perms.join(','))}`);
   }
   return user;
 }

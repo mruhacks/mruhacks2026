@@ -34,10 +34,7 @@ export function safeHref(url: string | null | undefined): string | null {
  * Image sources must load from a mail client with no session: absolute
  * http(s) URLs, or our own `/api/assets/…` paths made absolute.
  */
-export function safeImageSrc(
-  url: string | null | undefined,
-  baseUrl: string,
-): string | null {
+export function safeImageSrc(url: string | null | undefined, baseUrl: string): string | null {
   if (!url) return null;
   const trimmed = url.trim();
   if (/^https?:/i.test(trimmed)) return trimmed;
@@ -71,11 +68,7 @@ export function hasWalletBlock(markdown: string): boolean {
 export function emailBlockErrors(markdown: string): string[] {
   const errors: string[] = [];
   for (const node of parseEmailMarkdown(markdown).children) {
-    if (
-      node.type === 'leafDirective' &&
-      node.name === CTA_DIRECTIVE &&
-      !ctaFromNode(node)
-    ) {
+    if (node.type === 'leafDirective' && node.name === CTA_DIRECTIVE && !ctaFromNode(node)) {
       errors.push('Every button needs a label and an http(s) or mailto: link.');
     }
   }
@@ -114,10 +107,7 @@ function phrasingText(nodes: PhrasingContent[]): string {
     .join('');
 }
 
-function blockText(
-  node: RootContent,
-  render: (node: RootContent) => string | null,
-): string | null {
+function blockText(node: RootContent, render: (node: RootContent) => string | null): string | null {
   const custom = render(node);
   if (custom !== null) return custom;
   switch (node.type) {

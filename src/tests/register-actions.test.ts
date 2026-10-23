@@ -3,11 +3,7 @@ import { db } from '@/utils/db';
 import { eq, and } from 'drizzle-orm';
 import { user, events, eventParticipants } from '@/db/schema';
 import { insertAttendees } from '@/tests/participation-fixtures';
-import {
-  registerForEvent,
-  registerForEventFormAction,
-  unregisterFromEvent,
-} from '@/app/register/actions';
+import { registerForEvent, registerForEventFormAction, unregisterFromEvent } from '@/app/register/actions';
 
 vi.mock('@/utils/auth', () => ({ getUser: vi.fn() }));
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn(), updateTag: vi.fn() }));
@@ -54,9 +50,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await db
-    .delete(eventParticipants)
-    .where(eq(eventParticipants.userId, testUserId));
+  await db.delete(eventParticipants).where(eq(eventParticipants.userId, testUserId));
   await db.delete(events).where(eq(events.id, testEventId));
   await db.delete(events).where(eq(events.id, elapsedEventId));
   await db.delete(user).where(eq(user.id, testUserId));
@@ -77,12 +71,7 @@ describe('registerForEvent', () => {
     const rows = await db
       .select()
       .from(eventParticipants)
-      .where(
-        and(
-          eq(eventParticipants.userId, testUserId),
-          eq(eventParticipants.eventId, testEventId),
-        ),
-      );
+      .where(and(eq(eventParticipants.userId, testUserId), eq(eventParticipants.eventId, testEventId)));
     expect(rows).toHaveLength(1);
   });
 
@@ -93,12 +82,7 @@ describe('registerForEvent', () => {
     const rows = await db
       .select()
       .from(eventParticipants)
-      .where(
-        and(
-          eq(eventParticipants.userId, testUserId),
-          eq(eventParticipants.eventId, testEventId),
-        ),
-      );
+      .where(and(eq(eventParticipants.userId, testUserId), eq(eventParticipants.eventId, testEventId)));
     expect(rows).toHaveLength(1);
   });
 
@@ -136,9 +120,7 @@ describe('registerForEvent capacity', () => {
   });
 
   afterAll(async () => {
-    await db
-      .delete(eventParticipants)
-      .where(eq(eventParticipants.eventId, cappedEventId));
+    await db.delete(eventParticipants).where(eq(eventParticipants.eventId, cappedEventId));
     await db.delete(events).where(eq(events.id, cappedEventId));
     await db.delete(user).where(eq(user.id, otherUserId));
   });
@@ -163,10 +145,7 @@ describe('registerForEvent capacity', () => {
     expect(second.success).toBe(false);
     expect((second as { error: string }).error).toContain('full');
 
-    const rows = await db
-      .select()
-      .from(eventParticipants)
-      .where(eq(eventParticipants.eventId, cappedEventId));
+    const rows = await db.select().from(eventParticipants).where(eq(eventParticipants.eventId, cappedEventId));
     expect(rows).toHaveLength(1);
   });
 
@@ -193,12 +172,7 @@ describe('registerForEventFormAction', () => {
   test('registers when valid eventId is in FormData', async () => {
     await db
       .delete(eventParticipants)
-      .where(
-        and(
-          eq(eventParticipants.userId, testUserId),
-          eq(eventParticipants.eventId, testEventId),
-        ),
-      );
+      .where(and(eq(eventParticipants.userId, testUserId), eq(eventParticipants.eventId, testEventId)));
     const formData = new FormData();
     formData.set('eventId', testEventId);
     const result = await registerForEventFormAction(formData);
@@ -222,12 +196,7 @@ describe('unregisterFromEvent', () => {
     const rows = await db
       .select()
       .from(eventParticipants)
-      .where(
-        and(
-          eq(eventParticipants.userId, testUserId),
-          eq(eventParticipants.eventId, testEventId),
-        ),
-      );
+      .where(and(eq(eventParticipants.userId, testUserId), eq(eventParticipants.eventId, testEventId)));
     expect(rows).toHaveLength(0);
   });
 

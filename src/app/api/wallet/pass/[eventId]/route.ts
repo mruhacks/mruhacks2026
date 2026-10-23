@@ -1,14 +1,8 @@
 import { checkWalletRateLimit } from '@/lib/wallet/rate-limit';
-import {
-  applePassResponse,
-  walletParticipation,
-} from '@/lib/wallet/wallet-responses';
+import { applePassResponse, walletParticipation } from '@/lib/wallet/wallet-responses';
 import { getUser } from '@/utils/auth';
 
-export async function GET(
-  _request: Request,
-  { params }: { params: Promise<{ eventId: string }> },
-) {
+export async function GET(_request: Request, { params }: { params: Promise<{ eventId: string }> }) {
   const user = await getUser();
   if (!user) return new Response('Unauthorized', { status: 401 });
   if (!(await checkWalletRateLimit(user.id))) {

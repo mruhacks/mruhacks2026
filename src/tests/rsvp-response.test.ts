@@ -1,14 +1,7 @@
 import { describe, test, expect, beforeAll, afterAll, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { db } from '@/utils/db';
-import {
-  user,
-  events,
-  eventTerms,
-  eventRsvpWaves,
-  eventInvitations,
-  checkIns,
-} from '@/db/schema';
+import { user, events, eventTerms, eventRsvpWaves, eventInvitations, checkIns } from '@/db/schema';
 
 vi.mock('@/utils/auth', () => ({ getUser: vi.fn() }));
 vi.mock('next/cache', () => ({
@@ -30,12 +23,7 @@ import {
 import { EVENT_AT_CAPACITY_MESSAGE } from '@/lib/rsvp/constants';
 import { timeoutExpiredInvitations } from '@/lib/rsvp/timeout-expired-invitations';
 import type { ParticipationStatus } from '@/types/lookups';
-import {
-  countAccepted,
-  getStatus,
-  insertInvitation,
-  insertParticipant,
-} from '@/tests/participation-fixtures';
+import { countAccepted, getStatus, insertInvitation, insertParticipant } from '@/tests/participation-fixtures';
 
 let testUserId: string;
 const createdEventIds: string[] = [];
@@ -65,10 +53,7 @@ async function setupInvited(
     name?: string;
     capacity?: number | null;
     respondBy?: Date;
-    status?: Extract<
-      ParticipationStatus,
-      'invited' | 'accepted' | 'declined' | 'timed_out'
-    >;
+    status?: Extract<ParticipationStatus, 'invited' | 'accepted' | 'declined' | 'timed_out'>;
     userId?: string;
     hasApplication?: boolean;
     endsAt?: Date | null;
@@ -102,10 +87,7 @@ async function setupInvited(
 }
 
 async function getInvitation(invitationId: string) {
-  const [row] = await db
-    .select()
-    .from(eventInvitations)
-    .where(eq(eventInvitations.id, invitationId));
+  const [row] = await db.select().from(eventInvitations).where(eq(eventInvitations.id, invitationId));
   return row;
 }
 
@@ -143,11 +125,7 @@ describe('getUserParticipation', () => {
 
   test('returns null when the user has not applied or registered', async () => {
     const { eventId } = await setupInvited();
-    mockSession(
-      '00000000-0000-0000-0000-000000000099',
-      'Nobody',
-      'nobody@example.com',
-    );
+    mockSession('00000000-0000-0000-0000-000000000099', 'Nobody', 'nobody@example.com');
     expect(await getUserParticipation(eventId)).toBeNull();
     restoreDefaultSession();
   });
@@ -178,14 +156,11 @@ describe('getUserParticipation', () => {
     expect(await getStatus(eventId, testUserId)).toBe('invited');
   });
 
-  test.each(['accepted', 'declined'] as const)(
-    '%s with an expired deadline stays %s',
-    async (status) => {
-      restoreDefaultSession();
-      const { eventId } = await setupInvited({ respondBy: PAST, status });
-      expect((await getUserParticipation(eventId))?.status).toBe(status);
-    },
-  );
+  test.each(['accepted', 'declined'] as const)('%s with an expired deadline stays %s', async (status) => {
+    restoreDefaultSession();
+    const { eventId } = await setupInvited({ respondBy: PAST, status });
+    expect((await getUserParticipation(eventId))?.status).toBe(status);
+  });
 });
 
 describe('submitRsvpResponse', () => {
@@ -199,9 +174,7 @@ describe('submitRsvpResponse', () => {
     expect(result.success).toBe(true);
 
     expect(await getStatus(eventId, testUserId)).toBe('accepted');
-    expect((await getInvitation(invitationId)).respondedAt).toBeInstanceOf(
-      Date,
-    );
+    expect((await getInvitation(invitationId)).respondedAt).toBeInstanceOf(Date);
     expect(await countAccepted(eventId)).toBe(1);
     expect(revalidatePath).toHaveBeenCalledWith(`/dashboard/events/${eventId}`);
     expect(revalidatePath).toHaveBeenCalledWith('/dashboard');
@@ -268,9 +241,7 @@ describe('submitRsvpResponse', () => {
     const participation = await getUserParticipation(eventId);
     expect(participation?.status).toBe('declined');
     expect(participation?.invitation?.respondedAt).toBeInstanceOf(Date);
-    expect((await getInvitation(invitationId)).respondedAt).toBeInstanceOf(
-      Date,
-    );
+    expect((await getInvitation(invitationId)).respondedAt).toBeInstanceOf(Date);
     expect(await countAccepted(eventId)).toBe(0);
   });
 
@@ -279,21 +250,19 @@ describe('submitRsvpResponse', () => {
     const { eventId, invitationId } = await setupInvited();
 
     const originalTransaction = db.transaction.bind(db);
-    const transactionSpy = vi
-      .spyOn(db, 'transaction')
-      .mockImplementationOnce(async (callback) => {
-        return originalTransaction(async (tx) => {
-          const originalUpdate = tx.update.bind(tx);
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (tx as any).update = (table: unknown) => {
-            if (table === eventInvitations) {
-              throw new Error('forced invitation update failure');
-            }
-            return originalUpdate(table as typeof eventInvitations);
-          };
-          return callback(tx);
-        });
+    const transactionSpy = vi.spyOn(db, 'transaction').mockImplementationOnce(async (callback) => {
+      return originalTransaction(async (tx) => {
+        const originalUpdate = tx.update.bind(tx);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (tx as any).update = (table: unknown) => {
+          if (table === eventInvitations) {
+            throw new Error('forced invitation update failure');
+          }
+          return originalUpdate(table as typeof eventInvitations);
+        };
+        return callback(tx);
       });
+    });
 
     try {
       const result = await submitRsvpResponse(eventId, 'accepted');
@@ -343,9 +312,7 @@ describe('submitRsvpResponse', () => {
       expect(await countAccepted(eventId)).toBe(1);
 
       // Declining still works on a full event.
-      expect((await submitRsvpResponse(eventId, 'declined')).success).toBe(
-        true,
-      );
+      expect((await submitRsvpResponse(eventId, 'declined')).success).toBe(true);
     } finally {
       await db.delete(user).where(eq(user.id, other.id));
     }
@@ -405,10 +372,7 @@ describe('submitRsvpResponse', () => {
         expect(failures[0].error).toBe(EVENT_AT_CAPACITY_MESSAGE);
       }
       expect(await countAccepted(eventId)).toBe(1);
-      const statuses = [
-        await getStatus(eventId, userA.id),
-        await getStatus(eventId, userB.id),
-      ].sort();
+      const statuses = [await getStatus(eventId, userA.id), await getStatus(eventId, userB.id)].sort();
       expect(statuses).toEqual(['accepted', 'invited']);
     } finally {
       vi.mocked(getUser).mockReset();
@@ -433,9 +397,7 @@ describe('withdrawParticipation', () => {
     expect(result).toMatchObject({ success: true });
     expect(await getStatus(eventId, testUserId)).toBe('declined');
     expect(await countAccepted(eventId)).toBe(0);
-    expect((await getInvitation(invitationId)).respondedAt).toBeInstanceOf(
-      Date,
-    );
+    expect((await getInvitation(invitationId)).respondedAt).toBeInstanceOf(Date);
   });
 
   test('leaves the waitlist', async () => {
@@ -546,12 +508,8 @@ describe('timeoutExpiredInvitations', () => {
   test('is idempotent', async () => {
     restoreDefaultSession();
     const { eventId } = await setupInvited({ respondBy: PAST });
-    expect((await timeoutExpiredInvitations({ eventId })).timedOutCount).toBe(
-      1,
-    );
-    expect((await timeoutExpiredInvitations({ eventId })).timedOutCount).toBe(
-      0,
-    );
+    expect((await timeoutExpiredInvitations({ eventId })).timedOutCount).toBe(1);
+    expect((await timeoutExpiredInvitations({ eventId })).timedOutCount).toBe(0);
   });
 });
 
@@ -585,10 +543,7 @@ describe('RSVP Event Terms consent', () => {
         markdown: '## Rules\nBe respectful.',
       })
       .returning();
-    await db
-      .update(events)
-      .set({ termsId: terms.id })
-      .where(eq(events.id, invited.eventId));
+    await db.update(events).set({ termsId: terms.id }).where(eq(events.id, invited.eventId));
     return { ...invited, terms };
   }
 
@@ -632,29 +587,21 @@ describe('RSVP Event Terms consent', () => {
         })
       ).success,
     ).toBe(false);
-    expect((await getInvitation(invitationId)).termsAcceptedAt).toEqual(
-      stored.termsAcceptedAt,
-    );
+    expect((await getInvitation(invitationId)).termsAcceptedAt).toEqual(stored.termsAcceptedAt);
 
     // The recorded version survives a later edit.
     const [newVersion] = await db
       .insert(eventTerms)
       .values({ eventId, markdown: 'New rules after acceptance' })
       .returning();
-    await db
-      .update(events)
-      .set({ termsId: newVersion.id })
-      .where(eq(events.id, eventId));
+    await db.update(events).set({ termsId: newVersion.id }).where(eq(events.id, eventId));
     const [consentRecord] = await db
       .select({
         termsId: eventInvitations.acceptedTermsId,
         markdown: eventTerms.markdown,
       })
       .from(eventInvitations)
-      .innerJoin(
-        eventTerms,
-        eq(eventInvitations.acceptedTermsId, eventTerms.id),
-      )
+      .innerJoin(eventTerms, eq(eventInvitations.acceptedTermsId, eventTerms.id))
       .where(eq(eventInvitations.id, invitationId));
     expect(consentRecord).toEqual({
       termsId: terms.id,
@@ -664,14 +611,8 @@ describe('RSVP Event Terms consent', () => {
 
   test('rejects a previously displayed terms version after an edit', async () => {
     const { eventId, terms } = await inviteWithTerms();
-    const [next] = await db
-      .insert(eventTerms)
-      .values({ eventId, markdown: 'Updated rules' })
-      .returning();
-    await db
-      .update(events)
-      .set({ termsId: next.id })
-      .where(eq(events.id, eventId));
+    const [next] = await db.insert(eventTerms).values({ eventId, markdown: 'Updated rules' }).returning();
+    await db.update(events).set({ termsId: next.id }).where(eq(events.id, eventId));
 
     const result = await submitRsvpResponse(eventId, 'accepted', {
       accepted: true,

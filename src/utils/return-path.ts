@@ -7,10 +7,7 @@
  * Returns the path unchanged when it is a safe same-origin absolute path,
  * otherwise falls back to `/dashboard`.
  */
-export function sanitizeReturnPath(
-  raw: string | null | undefined,
-  fallback = '/dashboard',
-): string {
+export function sanitizeReturnPath(raw: string | null | undefined, fallback = '/dashboard'): string {
   if (!raw) return fallback;
   // Must be an absolute path on this origin. Reject protocol-relative
   // (`//host`), backslash tricks (`/\host`), and anything not starting with a

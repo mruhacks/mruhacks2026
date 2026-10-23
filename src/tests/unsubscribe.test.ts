@@ -9,11 +9,7 @@ import { eq } from 'drizzle-orm';
 
 import { db } from '@/utils/db';
 import { marketingConsents, signingPublicKeys, user } from '@/db/schema';
-import {
-  buildCampaignMessage,
-  unsubscribeByToken,
-  unsubscribeUrls,
-} from '@/lib/campaigns/unsubscribe';
+import { buildCampaignMessage, unsubscribeByToken, unsubscribeUrls } from '@/lib/campaigns/unsubscribe';
 import type { CampaignContent } from '@/lib/campaigns/render-campaign-email';
 import { sendMail } from '@/utils/mail';
 import { decodeMimeWords, waitForEmail } from '@/utils/mailhog';
@@ -55,8 +51,7 @@ function rawHeaders(raw: string): Map<string, string> {
   const headers = new Map<string, string>();
   for (const line of head.split(/\r?\n/)) {
     const i = line.indexOf(':');
-    if (i > 0)
-      headers.set(line.slice(0, i).toLowerCase(), line.slice(i + 1).trim());
+    if (i > 0) headers.set(line.slice(0, i).toLowerCase(), line.slice(i + 1).trim());
   }
   return headers;
 }
@@ -102,17 +97,11 @@ describe('campaign email unsubscribe headers (MailHog)', () => {
       }),
     );
     const msg = await waitForEmail(
-      (m) =>
-        decodeMimeWords(m.Content.Headers.Subject?.[0] ?? '') ===
-        `Unsub marketing ${ts}`,
+      (m) => decodeMimeWords(m.Content.Headers.Subject?.[0] ?? '') === `Unsub marketing ${ts}`,
     );
     const headers = rawHeaders(msg.Raw.Data);
-    expect(headers.get('list-unsubscribe')).toMatch(
-      /^<http:\/\/localhost:3000\/api\/unsubscribe\?t=[A-Za-z0-9_-]+>$/,
-    );
-    expect(headers.get('list-unsubscribe-post')).toBe(
-      'List-Unsubscribe=One-Click',
-    );
+    expect(headers.get('list-unsubscribe')).toMatch(/^<http:\/\/localhost:3000\/api\/unsubscribe\?t=[A-Za-z0-9_-]+>$/);
+    expect(headers.get('list-unsubscribe-post')).toBe('List-Unsubscribe=One-Click');
     const raw = msg.Raw.Data.replace(/=\r?\n/g, '');
     expect(raw).toContain('localhost:3000/unsubscribe?t=');
   });
@@ -125,9 +114,7 @@ describe('campaign email unsubscribe headers (MailHog)', () => {
       }),
     );
     const msg = await waitForEmail(
-      (m) =>
-        decodeMimeWords(m.Content.Headers.Subject?.[0] ?? '') ===
-        `Unsub operational ${ts}`,
+      (m) => decodeMimeWords(m.Content.Headers.Subject?.[0] ?? '') === `Unsub operational ${ts}`,
     );
     const headers = rawHeaders(msg.Raw.Data);
     expect(headers.has('list-unsubscribe')).toBe(false);
@@ -138,10 +125,7 @@ describe('campaign email unsubscribe headers (MailHog)', () => {
 
 describe('unsubscribing', () => {
   test('opening the link (GET) changes nothing; the one-click POST unsubscribes', async () => {
-    await db
-      .update(marketingConsents)
-      .set({ optedIn: true })
-      .where(eq(marketingConsents.userId, userId));
+    await db.update(marketingConsents).set({ optedIn: true }).where(eq(marketingConsents.userId, userId));
     const { oneClick } = await unsubscribeUrls(EMAIL);
 
     const get = GET(new Request(oneClick));
@@ -160,17 +144,12 @@ describe('unsubscribing', () => {
     expect(await optedIn()).toBe(false);
 
     // Idempotent.
-    expect((await POST(new Request(oneClick, { method: 'POST' }))).status).toBe(
-      200,
-    );
+    expect((await POST(new Request(oneClick, { method: 'POST' }))).status).toBe(200);
     expect(await optedIn()).toBe(false);
   });
 
   test('the page button unsubscribes; a tampered token does not', async () => {
-    await db
-      .update(marketingConsents)
-      .set({ optedIn: true })
-      .where(eq(marketingConsents.userId, userId));
+    await db.update(marketingConsents).set({ optedIn: true }).where(eq(marketingConsents.userId, userId));
     const { page } = await unsubscribeUrls(EMAIL);
     const token = tokenOf(page);
 
@@ -187,9 +166,7 @@ describe('unsubscribing', () => {
   });
 
   test('a user with no consent row ends up opted out', async () => {
-    await db
-      .delete(marketingConsents)
-      .where(eq(marketingConsents.userId, userId));
+    await db.delete(marketingConsents).where(eq(marketingConsents.userId, userId));
     const { page } = await unsubscribeUrls(EMAIL.toUpperCase());
     expect(await unsubscribeByToken(tokenOf(page))).toBe('unsubscribed');
     expect(await optedIn()).toBe(false);

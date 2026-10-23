@@ -1,12 +1,4 @@
-import {
-  describe,
-  test,
-  expect,
-  beforeAll,
-  afterAll,
-  beforeEach,
-  vi,
-} from 'vitest';
+import { describe, test, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 
 import { db } from '@/utils/db';
@@ -59,11 +51,7 @@ async function createResponse(options: {
 }
 
 async function getResponse(responseId: string) {
-  const [row] = await db
-    .select()
-    .from(eventInvitations)
-    .where(eq(eventInvitations.id, responseId))
-    .limit(1);
+  const [row] = await db.select().from(eventInvitations).where(eq(eventInvitations.id, responseId)).limit(1);
   return row;
 }
 
@@ -98,9 +86,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await db
-    .delete(eventRsvpWaves)
-    .where(eq(eventRsvpWaves.eventId, testEventId));
+  await db.delete(eventRsvpWaves).where(eq(eventRsvpWaves.eventId, testEventId));
   await db.delete(events).where(eq(events.id, testEventId));
   await db.delete(user).where(eq(user.id, testUserId));
 });
@@ -192,28 +178,25 @@ describe('requeuePendingRsvpInvitations', () => {
     }
   });
 
-  test.each(['legacy', 'queued', 'sent', 'failed'])(
-    'ignores rows already in %s status',
-    async (status) => {
-      const { responseId, waveId } = await createResponse({
-        respondBy: FUTURE_RESPOND_BY,
-        invitationEmailStatus: status,
-        createdAt: STALE_CREATED_AT,
-      });
+  test.each(['legacy', 'queued', 'sent', 'failed'])('ignores rows already in %s status', async (status) => {
+    const { responseId, waveId } = await createResponse({
+      respondBy: FUTURE_RESPOND_BY,
+      invitationEmailStatus: status,
+      createdAt: STALE_CREATED_AT,
+    });
 
-      try {
-        const result = await requeuePendingRsvpInvitations();
+    try {
+      const result = await requeuePendingRsvpInvitations();
 
-        expect(result.inspected).toBe(0);
-        expect(publishRsvpInvitation).not.toHaveBeenCalled();
+      expect(result.inspected).toBe(0);
+      expect(publishRsvpInvitation).not.toHaveBeenCalled();
 
-        const row = await getResponse(responseId);
-        expect(row.invitationEmailStatus).toBe(status);
-      } finally {
-        await deleteResponse(waveId);
-      }
-    },
-  );
+      const row = await getResponse(responseId);
+      expect(row.invitationEmailStatus).toBe(status);
+    } finally {
+      await deleteResponse(waveId);
+    }
+  });
 
   test('skips a stale unsent row whose RSVP is no longer effectively pending', async () => {
     const { responseId, waveId } = await createResponse({

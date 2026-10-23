@@ -16,11 +16,7 @@ import { refresh } from 'next/cache';
 import { z } from 'zod';
 
 import { campaigns, savedAudiences } from '@/db/schema';
-import {
-  audienceRulesSchema,
-  emptyAudience,
-  type AudienceRuleGroup,
-} from '@/lib/campaigns/audience-rules';
+import { audienceRulesSchema, emptyAudience, type AudienceRuleGroup } from '@/lib/campaigns/audience-rules';
 import { requirePermission } from '@/lib/rbac/authorization';
 import { fail, ok, type ActionResult } from '@/utils/action-result';
 import { writeAuditLog } from '@/utils/audit-log';
@@ -94,8 +90,7 @@ export async function updateSavedAudience(
 ): Promise<ActionResult> {
   const user = await requireWriter();
   if (!user) return fail('Not authenticated');
-  if (!idSchema.safeParse(audienceId).success)
-    return fail('Audience not found');
+  if (!idSchema.safeParse(audienceId).success) return fail('Audience not found');
 
   const name = nameSchema.safeParse(input.name);
   if (!name.success) return fail(firstIssue(name.error));
@@ -123,18 +118,12 @@ export async function updateSavedAudience(
 }
 
 /** Refused while any campaign still links to it — detach those first. */
-export async function deleteSavedAudience(
-  audienceId: string,
-): Promise<ActionResult> {
+export async function deleteSavedAudience(audienceId: string): Promise<ActionResult> {
   const user = await requireWriter();
   if (!user) return fail('Not authenticated');
-  if (!idSchema.safeParse(audienceId).success)
-    return fail('Audience not found');
+  if (!idSchema.safeParse(audienceId).success) return fail('Audience not found');
 
-  const [usage] = await db
-    .select({ c: count() })
-    .from(campaigns)
-    .where(eq(campaigns.savedAudienceId, audienceId));
+  const [usage] = await db.select({ c: count() }).from(campaigns).where(eq(campaigns.savedAudienceId, audienceId));
   const usedBy = Number(usage?.c ?? 0);
   if (usedBy > 0) {
     return fail(
@@ -167,28 +156,20 @@ export async function deleteSavedAudience(
 
 async function loadDraft(campaignId: string) {
   if (!idSchema.safeParse(campaignId).success) return null;
-  const [row] = await db
-    .select()
-    .from(campaigns)
-    .where(eq(campaigns.id, campaignId))
-    .limit(1);
+  const [row] = await db.select().from(campaigns).where(eq(campaigns.id, campaignId)).limit(1);
   return row ?? null;
 }
 
 const NOT_DRAFT = 'Only drafts can be edited. Unschedule it first.';
 
 /** Points a draft at a saved audience, dropping its inline rules. */
-export async function linkCampaignAudience(
-  campaignId: string,
-  audienceId: string,
-): Promise<ActionResult> {
+export async function linkCampaignAudience(campaignId: string, audienceId: string): Promise<ActionResult> {
   const user = await requireWriter();
   if (!user) return fail('Not authenticated');
   const campaign = await loadDraft(campaignId);
   if (!campaign) return fail('Campaign not found');
   if (campaign.status !== 'draft') return fail(NOT_DRAFT);
-  if (!idSchema.safeParse(audienceId).success)
-    return fail('Audience not found');
+  if (!idSchema.safeParse(audienceId).success) return fail('Audience not found');
 
   try {
     const [audience] = await db
@@ -213,9 +194,7 @@ export async function linkCampaignAudience(
 }
 
 /** Copies the linked audience's current rules into the campaign and unlinks it. */
-export async function detachCampaignAudience(
-  campaignId: string,
-): Promise<ActionResult> {
+export async function detachCampaignAudience(campaignId: string): Promise<ActionResult> {
   const user = await requireWriter();
   if (!user) return fail('Not authenticated');
   const campaign = await loadDraft(campaignId);
@@ -245,10 +224,7 @@ export async function detachCampaignAudience(
 }
 
 /** Saves a draft's inline rules as a new saved audience and links the campaign to it. */
-export async function saveCampaignAudienceAs(
-  campaignId: string,
-  name: string,
-): Promise<ActionResult<{ id: string }>> {
+export async function saveCampaignAudienceAs(campaignId: string, name: string): Promise<ActionResult<{ id: string }>> {
   const user = await requireWriter();
   if (!user) return fail('Not authenticated');
   const parsedName = nameSchema.safeParse(name);

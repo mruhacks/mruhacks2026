@@ -3,10 +3,7 @@ import { render } from 'react-email';
 import { MagicLinkEmail } from '@/emails/MagicLinkEmail';
 import { getRsvpMagicLinkMailContext } from '@/lib/rsvp/rsvp-magic-link-context';
 import { buildRsvpInvitationEmail } from '@/lib/rsvp/rsvp-invitation-email';
-import {
-  buildJudgeInviteEmail,
-  getJudgeInviteMailContext,
-} from '@/lib/judging/judge-invite-mail';
+import { buildJudgeInviteEmail, getJudgeInviteMailContext } from '@/lib/judging/judge-invite-mail';
 import type { SendMailOptions } from '@/utils/mail';
 
 /**
@@ -14,8 +11,7 @@ import type { SendMailOptions } from '@/utils/mail';
  * email never promises more time than the link actually has.
  */
 function formatLinkLifetime(seconds: number): string {
-  const plural = (n: number, unit: string) =>
-    `${n} ${unit}${n === 1 ? '' : 's'}`;
+  const plural = (n: number, unit: string) => `${n} ${unit}${n === 1 ? '' : 's'}`;
   if (seconds < 3600) {
     return plural(Math.max(1, Math.floor(seconds / 60)), 'minute');
   }

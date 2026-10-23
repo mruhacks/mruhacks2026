@@ -49,11 +49,7 @@ export async function loadDisplayFeed(): Promise<DisplayFeed> {
   cacheLife('days');
 
   const [[event], settings] = await Promise.all([
-    db
-      .select({ id: events.id })
-      .from(events)
-      .where(eq(events.isFeatured, true))
-      .limit(1),
+    db.select({ id: events.id }).from(events).where(eq(events.isFeatured, true)).limit(1),
     getDisplaySettings(),
   ]);
   const subevents = event ? await listSubevents(event.id) : [];

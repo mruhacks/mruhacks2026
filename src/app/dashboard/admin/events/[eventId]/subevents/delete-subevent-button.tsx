@@ -74,19 +74,10 @@ export function DeleteSubeventButton({
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button
-              type='button'
-              variant='outline'
-              onClick={() => setOpen(false)}
-            >
+            <Button type='button' variant='outline' onClick={() => setOpen(false)}>
               Cancel
             </Button>
-            <Button
-              type='button'
-              variant='destructive'
-              disabled={isDeleting}
-              onClick={handleDelete}
-            >
+            <Button type='button' variant='destructive' disabled={isDeleting} onClick={handleDelete}>
               {isDeleting ? 'Deleting...' : 'Delete schedule entry'}
             </Button>
           </DialogFooter>

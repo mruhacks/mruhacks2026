@@ -1,6 +1,4 @@
-export type DraftSaveState =
-  | { kind: 'saved' | 'dirty' | 'saving' }
-  | { kind: 'error'; message: string };
+export type DraftSaveState = { kind: 'saved' | 'dirty' | 'saving' } | { kind: 'error'; message: string };
 
 export type DraftEditorHandle = { flush: () => Promise<boolean> };
 
@@ -12,9 +10,7 @@ export class DraftSaver<T> implements DraftEditorHandle {
 
   constructor(
     initial: T,
-    private persist: (
-      value: T,
-    ) => Promise<{ success: boolean; error?: string }>,
+    private persist: (value: T) => Promise<{ success: boolean; error?: string }>,
     private report: (state: DraftSaveState) => void,
   ) {
     this.current = this.saved = initial;
@@ -39,16 +35,12 @@ export class DraftSaver<T> implements DraftEditorHandle {
       this.report({ kind: 'saving' });
       try {
         const result = await this.persist(snapshot);
-        if (!result.success)
-          throw new Error(result.error ?? 'Could not save the draft.');
+        if (!result.success) throw new Error(result.error ?? 'Could not save the draft.');
         this.saved = snapshot;
       } catch (error) {
         this.report({
           kind: 'error',
-          message:
-            error instanceof Error
-              ? error.message
-              : 'Could not save the draft.',
+          message: error instanceof Error ? error.message : 'Could not save the draft.',
         });
         return false;
       }

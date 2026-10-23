@@ -4,13 +4,7 @@
  * for profile/application lookups (genders, universities, majors, etc.).
  */
 
-export const gendersList = [
-  'Male',
-  'Female',
-  'Non-binary',
-  'Other',
-  'Prefer not to say',
-] as const;
+export const gendersList = ['Male', 'Female', 'Non-binary', 'Other', 'Prefer not to say'] as const;
 export type Gender = (typeof gendersList)[number];
 
 export const universitiesList = [
@@ -90,14 +84,7 @@ export const participationStatusesList = [
 ] as const;
 export type ParticipationStatus = (typeof participationStatusesList)[number];
 
-export type StatusBadgeVariant =
-  | 'default'
-  | 'secondary'
-  | 'success'
-  | 'warning'
-  | 'destructive'
-  | 'outline'
-  | 'purple';
+export type StatusBadgeVariant = 'default' | 'secondary' | 'success' | 'warning' | 'destructive' | 'outline' | 'purple';
 
 /**
  * Display config for each participation status, seeded into the
@@ -107,15 +94,13 @@ export const participationStatusDisplayList = [
   {
     label: 'pending_review',
     title: 'Under review',
-    description:
-      "We're reviewing your application and will email you when a decision has been made.",
+    description: "We're reviewing your application and will email you when a decision has been made.",
     variant: 'warning',
   },
   {
     label: 'waitlisted',
     title: 'Waitlisted',
-    description:
-      "You're on the waitlist. We'll email you an invitation when a spot opens up.",
+    description: "You're on the waitlist. We'll email you an invitation when a spot opens up.",
     variant: 'secondary',
   },
   {
@@ -128,8 +113,7 @@ export const participationStatusDisplayList = [
   {
     label: 'invited',
     title: 'RSVP required',
-    description:
-      "You've been offered a spot! Please confirm whether you will attend before the deadline.",
+    description: "You've been offered a spot! Please confirm whether you will attend before the deadline.",
     variant: 'purple',
   },
   {
@@ -162,7 +146,5 @@ export type EventType = (typeof eventTypesList)[number];
 export const MEAL_EVENT_TYPE = 'meal' as const satisfies EventType;
 
 export function parseEventType(label: string | null): EventType | null {
-  return eventTypesList.includes(label as EventType)
-    ? (label as EventType)
-    : null;
+  return eventTypesList.includes(label as EventType) ? (label as EventType) : null;
 }

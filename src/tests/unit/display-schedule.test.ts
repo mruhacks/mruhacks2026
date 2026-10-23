@@ -1,17 +1,10 @@
 import { describe, test, expect } from 'vitest';
 
-import {
-  getVisibleEntries,
-  type DisplayScheduleEntry,
-} from '@/lib/display/schedule';
+import { getVisibleEntries, type DisplayScheduleEntry } from '@/lib/display/schedule';
 
 const at = (iso: string) => Date.parse(iso);
 
-function entry(
-  name: string,
-  startsAt: string,
-  endsAt: string | null,
-): DisplayScheduleEntry {
+function entry(name: string, startsAt: string, endsAt: string | null): DisplayScheduleEntry {
   return { id: name, name, location: null, startsAt, endsAt };
 }
 
@@ -78,9 +71,7 @@ describe('getVisibleEntries', () => {
       entry('Opening Ceremony', '2026-10-25T01:00:00Z', '2026-10-25T01:30:00Z'),
     ];
     // A deadline in between doesn't end it early…
-    expect(
-      getVisibleEntries(openEnded, at('2026-10-25T00:30:00Z')).current?.name,
-    ).toBe('Check-in opens');
+    expect(getVisibleEntries(openEnded, at('2026-10-25T00:30:00Z')).current?.name).toBe('Check-in opens');
     // …but the real one does, and for good.
     const later = getVisibleEntries(openEnded, at('2026-10-25T02:00:00Z'));
     expect(later.current).toBeNull();

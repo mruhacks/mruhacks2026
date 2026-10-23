@@ -3,19 +3,11 @@ import 'server-only';
 import { sql } from 'drizzle-orm';
 
 import { marketingConsents, user } from '@/db/schema';
-import {
-  buildUnsubscribeToken,
-  verifyUnsubscribeToken,
-} from '@/lib/signing/email-tokens';
+import { buildUnsubscribeToken, verifyUnsubscribeToken } from '@/lib/signing/email-tokens';
 import { writeAuditLog } from '@/utils/audit-log';
 import { db } from '@/utils/db';
 import type { SendMailOptions } from '@/utils/mail';
-import {
-  getAppBaseUrl,
-  renderCampaignEmail,
-  type BlockRenderers,
-  type CampaignContent,
-} from './render-campaign-email';
+import { getAppBaseUrl, renderCampaignEmail, type BlockRenderers, type CampaignContent } from './render-campaign-email';
 
 /**
  * Signed unsubscribe links for marketing email. The token carries only the
@@ -45,9 +37,7 @@ export type UnsubscribeOutcome = 'unsubscribed' | 'no_account' | 'invalid';
  * Opts the token's address out of marketing email. Idempotent: an address
  * that's already opted out just stays that way (its `changed_at` moves).
  */
-export async function unsubscribeByToken(
-  token: string,
-): Promise<UnsubscribeOutcome> {
+export async function unsubscribeByToken(token: string): Promise<UnsubscribeOutcome> {
   const claims = await verifyUnsubscribeToken(token);
   if (!claims) return 'invalid';
 
@@ -87,10 +77,7 @@ export async function buildCampaignMessage(
   options: { blocks?: BlockRenderers; subjectPrefix?: string } = {},
 ): Promise<SendMailOptions> {
   const baseUrl = getAppBaseUrl();
-  const links =
-    content.type === 'marketing'
-      ? await unsubscribeUrls(recipient.email, baseUrl)
-      : null;
+  const links = content.type === 'marketing' ? await unsubscribeUrls(recipient.email, baseUrl) : null;
   const email = await renderCampaignEmail(
     content,
     { firstName: recipient.firstName, unsubscribeUrl: links?.page ?? null },

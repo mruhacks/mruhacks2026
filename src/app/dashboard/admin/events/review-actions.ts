@@ -3,16 +3,8 @@
 import { updateTag } from 'next/cache';
 import { z } from 'zod';
 
-import {
-  eventApplicationsCacheTag,
-  getEventQuestions,
-} from '@/lib/admin-event';
-import {
-  castApplicationVote,
-  getReviewQueue,
-  retractApplicationVote,
-  type ReviewCard,
-} from '@/lib/application-votes';
+import { eventApplicationsCacheTag, getEventQuestions } from '@/lib/admin-event';
+import { castApplicationVote, getReviewQueue, retractApplicationVote, type ReviewCard } from '@/lib/application-votes';
 import { hasPermission } from '@/lib/rbac/authorization';
 import type { ParticipationStatus } from '@/types/lookups';
 import { ok, fail, type ActionResult } from '@/utils/action-result';
@@ -66,9 +58,7 @@ export async function getApplicationReviewQueue(input: {
   });
   return ok({
     ...queue,
-    cards: queue.cards
-      .filter((card) => !skip.has(card.participantId))
-      .slice(0, QUEUE_BATCH),
+    cards: queue.cards.filter((card) => !skip.has(card.participantId)).slice(0, QUEUE_BATCH),
   });
 }
 

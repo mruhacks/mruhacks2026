@@ -94,9 +94,7 @@ export type AdminEventHeader = {
  * Returns instants, never formatted strings: all zone conversion happens in
  * `LocalDateTime`/`LocalDateRange` on the frontend. See AGENTS.md.
  */
-export async function getAdminEventHeader(
-  eventId: string,
-): Promise<AdminEventHeader | null> {
+export async function getAdminEventHeader(eventId: string): Promise<AdminEventHeader | null> {
   'use cache';
   cacheTag(adminEventCacheTag(eventId));
   // updateTag() covers the settings/description mutation paths; 'minutes' is
@@ -142,9 +140,7 @@ export async function getAdminEventHeader(
  * doesn't — keeping them apart means the header entry stays small and a
  * question edit doesn't invalidate the page title.
  */
-export async function getEventQuestions(
-  eventId: string,
-): Promise<ApplicationQuestion[]> {
+export async function getEventQuestions(eventId: string): Promise<ApplicationQuestion[]> {
   'use cache';
   cacheTag(adminEventCacheTag(eventId));
   cacheLife('minutes');
@@ -174,9 +170,7 @@ export type AdminEventSettings = AdminEventHeader & {
  * under this event — doesn't carry geofence and RSVP-window fields that
  * only one form needs.
  */
-export async function getAdminEventSettings(
-  eventId: string,
-): Promise<AdminEventSettings | null> {
+export async function getAdminEventSettings(eventId: string): Promise<AdminEventSettings | null> {
   'use cache';
   cacheTag(adminEventCacheTag(eventId));
   cacheLife('minutes');
@@ -236,9 +230,7 @@ export type EventSummaryCounts = {
  * permission at the call site, but they're queried together because the
  * whole row is one cache entry shared by every admin viewing this event.
  */
-export async function getEventSummaryCounts(
-  eventId: string,
-): Promise<EventSummaryCounts> {
+export async function getEventSummaryCounts(eventId: string): Promise<EventSummaryCounts> {
   'use cache';
   cacheTag(eventApplicationsCacheTag(eventId));
   // These move with ordinary participant activity, which no admin mutation
@@ -250,28 +242,13 @@ export async function getEventSummaryCounts(
 
   const countOf = sql<number>`COUNT(*)`.mapWith(Number);
 
-  const [
-    applicationRows,
-    attendeeRows,
-    checkInRows,
-    teamRows,
-    rsvpRows,
-    submissionRows,
-  ] = await Promise.all([
+  const [applicationRows, attendeeRows, checkInRows, teamRows, rsvpRows, submissionRows] = await Promise.all([
+    db.select({ c: countOf }).from(eventParticipants).where(eq(eventParticipants.eventId, eventId)),
     db
       .select({ c: countOf })
       .from(eventParticipants)
-      .where(eq(eventParticipants.eventId, eventId)),
-    db
-      .select({ c: countOf })
-      .from(eventParticipants)
-      .where(
-        and(eq(eventParticipants.eventId, eventId), hasStatus('accepted')),
-      ),
-    db
-      .select({ c: countOf })
-      .from(checkIns)
-      .where(eq(checkIns.eventId, eventId)),
+      .where(and(eq(eventParticipants.eventId, eventId), hasStatus('accepted'))),
+    db.select({ c: countOf }).from(checkIns).where(eq(checkIns.eventId, eventId)),
     // Solo teams-of-one are excluded here for the same reason
     // `listFormedTeams` excludes them — an unjoined code isn't a team.
     db
@@ -295,27 +272,15 @@ export async function getEventSummaryCounts(
         c: countOf,
       })
       .from(eventInvitations)
-      .innerJoin(
-        eventRsvpWaves,
-        eq(eventRsvpWaves.id, eventInvitations.rsvpWaveId),
-      )
-      .innerJoin(
-        eventParticipants,
-        eq(eventParticipants.id, eventInvitations.participantId),
-      )
-      .innerJoin(
-        participationStatuses,
-        eq(participationStatuses.id, eventParticipants.statusId),
-      )
+      .innerJoin(eventRsvpWaves, eq(eventRsvpWaves.id, eventInvitations.rsvpWaveId))
+      .innerJoin(eventParticipants, eq(eventParticipants.id, eventInvitations.participantId))
+      .innerJoin(participationStatuses, eq(participationStatuses.id, eventParticipants.statusId))
       .where(eq(eventRsvpWaves.eventId, eventId))
       .groupBy(participationStatuses.label, eventRsvpWaves.respondBy),
     db
       .select({
         total: countOf,
-        published:
-          sql<number>`COUNT(*) FILTER (WHERE ${submissions.published})`.mapWith(
-            Number,
-          ),
+        published: sql<number>`COUNT(*) FILTER (WHERE ${submissions.published})`.mapWith(Number),
       })
       .from(submissions)
       .where(eq(submissions.eventId, eventId)),
@@ -367,9 +332,7 @@ export type EventApplicationStats = {
  * `application:stats` a weaker permission than `application:read:all` — the
  * former only ever yields cohort numbers, the latter yields individuals.
  */
-export async function getEventApplicationStats(
-  eventId: string,
-): Promise<EventApplicationStats | null> {
+export async function getEventApplicationStats(eventId: string): Promise<EventApplicationStats | null> {
   'use cache';
   cacheTag(adminEventCacheTag(eventId));
   cacheTag(eventApplicationsCacheTag(eventId));
@@ -386,8 +349,7 @@ export async function getEventApplicationStats(
 
   if (!eventRow) return null;
 
-  const questions =
-    (eventRow.applicationQuestions as ApplicationQuestion[] | null) ?? [];
+  const questions = (eventRow.applicationQuestions as ApplicationQuestion[] | null) ?? [];
 
   const rows = await db
     .select({
@@ -414,18 +376,12 @@ export async function getEventApplicationStats(
     })
     .from(eventParticipants)
     .leftJoin(userProfiles, eq(eventParticipants.userId, userProfiles.userId))
-    .leftJoin(
-      userProfileAbout,
-      eq(eventParticipants.userId, userProfileAbout.userId),
-    )
+    .leftJoin(userProfileAbout, eq(eventParticipants.userId, userProfileAbout.userId))
     .leftJoin(genders, eq(userProfiles.genderId, genders.id))
     .leftJoin(universities, eq(userProfileAbout.universityId, universities.id))
     .leftJoin(majors, eq(userProfileAbout.majorId, majors.id))
     .leftJoin(yearsOfStudy, eq(userProfileAbout.yearOfStudyId, yearsOfStudy.id))
-    .innerJoin(
-      participationStatuses,
-      eq(eventParticipants.statusId, participationStatuses.id),
-    )
+    .innerJoin(participationStatuses, eq(eventParticipants.statusId, participationStatuses.id))
     .where(eq(eventParticipants.eventId, eventId));
 
   const statsRows: ApplicationStatsRow[] = rows.map((row) => ({
@@ -467,9 +423,7 @@ export type ApplicationsOverTimePoint = {
  * instant the frontend localizes. Bucketing in the server's own zone (what
  * a bare `date_trunc` does) would move boundaries with the deploy target.
  */
-export async function getApplicationsOverTime(
-  eventId: string,
-): Promise<ApplicationsOverTimePoint[]> {
+export async function getApplicationsOverTime(eventId: string): Promise<ApplicationsOverTimePoint[]> {
   'use cache';
   cacheTag(eventApplicationsCacheTag(eventId));
   cacheLife('minutes');
@@ -530,9 +484,7 @@ export type AdminApplicationRow = {
  * (an RSVP wave from cron, a deadline passing), so callers read it fresh
  * through `getParticipantStatuses`.
  */
-export async function getApplicationRoster(
-  eventId: string,
-): Promise<AdminApplicationRow[]> {
+export async function getApplicationRoster(eventId: string): Promise<AdminApplicationRow[]> {
   'use cache';
   cacheTag(eventApplicationsCacheTag(eventId));
   cacheLife('minutes');
@@ -554,10 +506,7 @@ export async function getApplicationRoster(
     .from(eventParticipants)
     .innerJoin(user, eq(eventParticipants.userId, user.id))
     .leftJoin(userProfiles, eq(eventParticipants.userId, userProfiles.userId))
-    .leftJoin(
-      userProfileAbout,
-      eq(eventParticipants.userId, userProfileAbout.userId),
-    )
+    .leftJoin(userProfileAbout, eq(eventParticipants.userId, userProfileAbout.userId))
     .leftJoin(universities, eq(userProfileAbout.universityId, universities.id))
     .leftJoin(majors, eq(userProfileAbout.majorId, majors.id))
     .leftJoin(yearsOfStudy, eq(userProfileAbout.yearOfStudyId, yearsOfStudy.id))
@@ -596,9 +545,7 @@ export type AdminAttendeeRow = {
  * signup path. The dashboard's roster cell shows these instead of
  * applications when `hasApplication` is false.
  */
-export async function getEventAttendeeRoster(
-  eventId: string,
-): Promise<AdminAttendeeRow[]> {
+export async function getEventAttendeeRoster(eventId: string): Promise<AdminAttendeeRow[]> {
   'use cache';
   cacheTag(eventApplicationsCacheTag(eventId));
   cacheLife('minutes');
@@ -637,9 +584,7 @@ export type ParticipantStatusRow = {
  * to the cached `getApplicationRoster` details. Resolve with
  * `resolveEffectiveStatus` / `deriveAttendance`.
  */
-export async function getParticipantStatuses(
-  eventId: string,
-): Promise<ParticipantStatusRow[]> {
+export async function getParticipantStatuses(eventId: string): Promise<ParticipantStatusRow[]> {
   return db
     .select({
       participantId: eventParticipants.id,
@@ -648,24 +593,12 @@ export async function getParticipantStatuses(
       checkedIn: sql<boolean>`${checkIns.userId} IS NOT NULL`,
     })
     .from(eventParticipants)
-    .innerJoin(
-      participationStatuses,
-      eq(eventParticipants.statusId, participationStatuses.id),
-    )
-    .leftJoin(
-      eventInvitations,
-      eq(eventInvitations.participantId, eventParticipants.id),
-    )
-    .leftJoin(
-      eventRsvpWaves,
-      eq(eventInvitations.rsvpWaveId, eventRsvpWaves.id),
-    )
+    .innerJoin(participationStatuses, eq(eventParticipants.statusId, participationStatuses.id))
+    .leftJoin(eventInvitations, eq(eventInvitations.participantId, eventParticipants.id))
+    .leftJoin(eventRsvpWaves, eq(eventInvitations.rsvpWaveId, eventRsvpWaves.id))
     .leftJoin(
       checkIns,
-      and(
-        eq(checkIns.eventId, eventParticipants.eventId),
-        eq(checkIns.userId, eventParticipants.userId),
-      ),
+      and(eq(checkIns.eventId, eventParticipants.eventId), eq(checkIns.userId, eventParticipants.userId)),
     )
     .where(eq(eventParticipants.eventId, eventId));
 }

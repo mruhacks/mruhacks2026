@@ -17,10 +17,7 @@ import { isObjectStorageKey, resumeRedirect } from '@/utils/object-storage';
  * event, so an event's reviewer can't page through resumes belonging to a
  * different event's applicants.
  */
-export async function GET(
-  _request: Request,
-  { params }: { params: Promise<{ eventId: string; userId: string }> },
-) {
+export async function GET(_request: Request, { params }: { params: Promise<{ eventId: string; userId: string }> }) {
   const { eventId, userId } = await params;
 
   const admin = await getUser();
@@ -36,12 +33,7 @@ export async function GET(
     })
     .from(eventParticipants)
     .innerJoin(userProfiles, eq(userProfiles.userId, eventParticipants.userId))
-    .where(
-      and(
-        eq(eventParticipants.eventId, eventId),
-        eq(eventParticipants.userId, userId),
-      ),
-    )
+    .where(and(eq(eventParticipants.eventId, eventId), eq(eventParticipants.userId, userId)))
     .limit(1);
 
   if (!row?.key || !isObjectStorageKey(row.key)) {

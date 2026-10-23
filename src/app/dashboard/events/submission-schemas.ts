@@ -26,10 +26,7 @@ const contentShape = {
     .string()
     .trim()
     .min(1, 'Title is required')
-    .max(
-      SUBMISSION_TITLE_MAX_LENGTH,
-      `Title cannot exceed ${SUBMISSION_TITLE_MAX_LENGTH} characters`,
-    ),
+    .max(SUBMISSION_TITLE_MAX_LENGTH, `Title cannot exceed ${SUBMISSION_TITLE_MAX_LENGTH} characters`),
   markdown: z
     .string()
     .max(
@@ -77,10 +74,4 @@ export const publishSubmissionSchema = z.object({
 
 export type SaveSubmissionInput = z.input<typeof saveSubmissionSchema>;
 /** Field names a save error can point at, so the editor shows it inline. */
-export type SubmissionField =
-  | 'title'
-  | 'markdown'
-  | 'coverImageUrl'
-  | 'repoUrl'
-  | 'demoUrl'
-  | 'videoUrl';
+export type SubmissionField = 'title' | 'markdown' | 'coverImageUrl' | 'repoUrl' | 'demoUrl' | 'videoUrl';

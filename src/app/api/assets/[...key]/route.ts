@@ -27,17 +27,13 @@ import {
  *   loaded by mail clients, and the email can only ever hold this stable
  *   URL, never a presigned one that would expire.
  */
-export async function GET(
-  _request: Request,
-  { params }: { params: Promise<{ key: string[] }> },
-) {
+export async function GET(_request: Request, { params }: { params: Promise<{ key: string[] }> }) {
   const { key } = await params;
   const objectKey = key.join('/');
 
   if (isCampaignImageKey(objectKey)) return campaignImageRedirect(objectKey);
 
-  const isAttachment: boolean =
-    isEventAttachmentKey(objectKey) || isSubmissionAttachmentKey(objectKey);
+  const isAttachment: boolean = isEventAttachmentKey(objectKey) || isSubmissionAttachmentKey(objectKey);
 
   if (isAttachment) {
     const user = await getUser();
@@ -46,7 +42,5 @@ export async function GET(
     return new Response('Not found', { status: 404 });
   }
 
-  return isAttachment
-    ? eventAttachmentRedirect(objectKey)
-    : profilePictureRedirect(objectKey);
+  return isAttachment ? eventAttachmentRedirect(objectKey) : profilePictureRedirect(objectKey);
 }

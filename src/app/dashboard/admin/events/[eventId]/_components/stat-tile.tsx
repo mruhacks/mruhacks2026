@@ -68,9 +68,7 @@ export function StatTile({
       >
         {value}
       </p>
-      {footnote && (
-        <p className='text-muted-foreground m-0 mt-1 text-xs'>{footnote}</p>
-      )}
+      {footnote && <p className='text-muted-foreground m-0 mt-1 text-xs'>{footnote}</p>}
     </Card>
   );
 }

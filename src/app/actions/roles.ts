@@ -2,13 +2,7 @@
 
 import { db } from '@/utils/db';
 import { eq, and, asc, sql } from 'drizzle-orm';
-import {
-  role,
-  permission,
-  rolePermissions,
-  userRole,
-  userPermission,
-} from '@/db/schema';
+import { role, permission, rolePermissions, userRole, userPermission } from '@/db/schema';
 import { ok, fail, type ActionResult } from '@/utils/action-result';
 import { getUser } from '@/utils/auth';
 import {
@@ -18,11 +12,7 @@ import {
   loadUserRoles,
   requirePermission,
 } from '@/lib/rbac/authorization';
-import {
-  replaceRolePermissions,
-  replaceUserDirectPermissions,
-  replaceUserRoles,
-} from '@/lib/rbac/role-mutations';
+import { replaceRolePermissions, replaceUserDirectPermissions, replaceUserRoles } from '@/lib/rbac/role-mutations';
 import { writeAuditLog } from '@/utils/audit-log';
 import { serverActionError } from '@/utils/server-action-error';
 import { updateTag } from 'next/cache';
@@ -36,9 +26,7 @@ async function authorize(permission: string) {
 }
 
 /** See `grantDeniedReason`: refuses handing out permissions the caller lacks. */
-async function grantDenied(
-  grant: Parameters<typeof grantDeniedReason>[1],
-): Promise<string | null> {
+async function grantDenied(grant: Parameters<typeof grantDeniedReason>[1]): Promise<string | null> {
   const caller = await getUser();
   if (!caller) return 'Not authenticated';
   return grantDeniedReason(caller.id, grant);
@@ -116,11 +104,8 @@ export async function listRoles(): Promise<ActionResult<RoleWithCounts[]>> {
 /**
  * Returns every registered permission.
  */
-export async function listPermissions(): Promise<
-  ActionResult<PermissionRow[]>
-> {
-  if (!(await authorize('permission:read:all')))
-    return fail('Not authenticated');
+export async function listPermissions(): Promise<ActionResult<PermissionRow[]>> {
+  if (!(await authorize('permission:read:all'))) return fail('Not authenticated');
   try {
     const perms = await db
       .select({
@@ -147,10 +132,7 @@ export async function listPermissions(): Promise<
  * @param description - Optional role description
  * @returns The new role ID, or undefined if it already existed
  */
-export async function createRole(
-  slug: string,
-  description?: string,
-): Promise<ActionResult<RoleId>> {
+export async function createRole(slug: string, description?: string): Promise<ActionResult<RoleId>> {
   if (!(await authorize('role:write:all'))) return fail('Not authenticated');
   try {
     const [result] = await db
@@ -210,10 +192,7 @@ export async function updateRole(
  * @param userId - ID of the user
  * @param roleId - ID of the role to assign
  */
-export async function assignRoleToUser(
-  userId: string,
-  roleId: RoleId,
-): Promise<ActionResult> {
+export async function assignRoleToUser(userId: string, roleId: RoleId): Promise<ActionResult> {
   if (!(await authorize('role:write:all'))) return fail('Not authenticated');
   try {
     const denied = await grantDenied({ roleIds: [roleId] });
@@ -230,15 +209,10 @@ export async function assignRoleToUser(
 /**
  * Removes a previously assigned role from a user.
  */
-export async function revokeRoleFromUser(
-  userId: string,
-  roleId: RoleId,
-): Promise<ActionResult> {
+export async function revokeRoleFromUser(userId: string, roleId: RoleId): Promise<ActionResult> {
   if (!(await authorize('role:write:all'))) return fail('Not authenticated');
   try {
-    await db
-      .delete(userRole)
-      .where(and(eq(userRole.userId, userId), eq(userRole.roleId, roleId)));
+    await db.delete(userRole).where(and(eq(userRole.userId, userId), eq(userRole.roleId, roleId)));
     await audit('role.revoked', 'user', userId, { roleId });
     updateTag(ADMIN_COUNTS_CACHE_TAG);
     return ok();
@@ -256,12 +230,8 @@ export async function revokeRoleFromUser(
  *
  * Example: `"submission:edit:self"`
  */
-export async function addPermission(
-  key: string,
-  description?: string,
-): Promise<ActionResult<PermissionId>> {
-  if (!(await authorize('permission:write:all')))
-    return fail('Not authenticated');
+export async function addPermission(key: string, description?: string): Promise<ActionResult<PermissionId>> {
+  if (!(await authorize('permission:write:all'))) return fail('Not authenticated');
   try {
     const [perm] = await db
       .insert(permission)
@@ -279,11 +249,8 @@ export async function addPermission(
 /**
  * Deletes an existing permission by its ID.
  */
-export async function deletePermission(
-  permissionId: PermissionId,
-): Promise<ActionResult> {
-  if (!(await authorize('permission:write:all')))
-    return fail('Not authenticated');
+export async function deletePermission(permissionId: PermissionId): Promise<ActionResult> {
+  if (!(await authorize('permission:write:all'))) return fail('Not authenticated');
   try {
     await db.delete(permission).where(eq(permission.id, permissionId));
     await audit('permission.deleted', 'permission', permissionId);
@@ -301,8 +268,7 @@ export async function updatePermission(
   permissionId: PermissionId,
   patch: { slug?: string; description?: string | null },
 ): Promise<ActionResult> {
-  if (!(await authorize('permission:write:all')))
-    return fail('Not authenticated');
+  if (!(await authorize('permission:write:all'))) return fail('Not authenticated');
   try {
     const changes: Record<string, unknown> = {};
     if (typeof patch.slug === 'string') changes.slug = patch.slug.toLowerCase();
@@ -314,10 +280,7 @@ export async function updatePermission(
       const denied = await grantDenied({ permissionSlugs: [changes.slug] });
       if (denied) return fail(denied);
     }
-    await db
-      .update(permission)
-      .set(changes)
-      .where(eq(permission.id, permissionId));
+    await db.update(permission).set(changes).where(eq(permission.id, permissionId));
     await audit('permission.updated', 'permission', permissionId, {
       fields: Object.keys(changes),
     });
@@ -330,18 +293,12 @@ export async function updatePermission(
 /**
  * Grants a permission to a role.
  */
-export async function grantPermissionToRole(
-  roleId: RoleId,
-  permissionId: PermissionId,
-): Promise<ActionResult> {
+export async function grantPermissionToRole(roleId: RoleId, permissionId: PermissionId): Promise<ActionResult> {
   if (!(await authorize('role:write:all'))) return fail('Not authenticated');
   try {
     const denied = await grantDenied({ permissionIds: [permissionId] });
     if (denied) return fail(denied);
-    await db
-      .insert(rolePermissions)
-      .values({ roleId, permissionId })
-      .onConflictDoNothing();
+    await db.insert(rolePermissions).values({ roleId, permissionId }).onConflictDoNothing();
     await audit('role.permission.granted', 'role', roleId, { permissionId });
     return ok();
   } catch (e) {
@@ -352,20 +309,12 @@ export async function grantPermissionToRole(
 /**
  * Revokes a permission previously granted to a role.
  */
-export async function revokePermissionFromRole(
-  roleId: RoleId,
-  permissionId: PermissionId,
-): Promise<ActionResult> {
+export async function revokePermissionFromRole(roleId: RoleId, permissionId: PermissionId): Promise<ActionResult> {
   if (!(await authorize('role:write:all'))) return fail('Not authenticated');
   try {
     await db
       .delete(rolePermissions)
-      .where(
-        and(
-          eq(rolePermissions.roleId, roleId),
-          eq(rolePermissions.permissionId, permissionId),
-        ),
-      );
+      .where(and(eq(rolePermissions.roleId, roleId), eq(rolePermissions.permissionId, permissionId)));
     await audit('role.permission.revoked', 'role', roleId, { permissionId });
     return ok();
   } catch (e) {
@@ -377,19 +326,12 @@ export async function revokePermissionFromRole(
  * Grants a specific permission directly to a user.
  * (Bypasses role membership.)
  */
-export async function grantPermissionToUser(
-  userId: string,
-  permissionId: PermissionId,
-): Promise<ActionResult> {
-  if (!(await authorize('permission:write:all')))
-    return fail('Not authenticated');
+export async function grantPermissionToUser(userId: string, permissionId: PermissionId): Promise<ActionResult> {
+  if (!(await authorize('permission:write:all'))) return fail('Not authenticated');
   try {
     const denied = await grantDenied({ permissionIds: [permissionId] });
     if (denied) return fail(denied);
-    await db
-      .insert(userPermission)
-      .values({ userId, permissionId })
-      .onConflictDoNothing();
+    await db.insert(userPermission).values({ userId, permissionId }).onConflictDoNothing();
     await audit('user.permission.granted', 'user', userId, { permissionId });
     return ok();
   } catch (e) {
@@ -400,21 +342,12 @@ export async function grantPermissionToUser(
 /**
  * Revokes a direct user permission.
  */
-export async function revokePermissionFromUser(
-  userId: string,
-  permissionId: PermissionId,
-): Promise<ActionResult> {
-  if (!(await authorize('permission:write:all')))
-    return fail('Not authenticated');
+export async function revokePermissionFromUser(userId: string, permissionId: PermissionId): Promise<ActionResult> {
+  if (!(await authorize('permission:write:all'))) return fail('Not authenticated');
   try {
     await db
       .delete(userPermission)
-      .where(
-        and(
-          eq(userPermission.userId, userId),
-          eq(userPermission.permissionId, permissionId),
-        ),
-      );
+      .where(and(eq(userPermission.userId, userId), eq(userPermission.permissionId, permissionId)));
     await audit('user.permission.revoked', 'user', userId, { permissionId });
     return ok();
   } catch (e) {
@@ -429,10 +362,7 @@ export async function revokePermissionFromUser(
 /**
  * Replaces the full set of role assignments for a user with the given IDs.
  */
-export async function setUserRoles(
-  userId: string,
-  roleIds: RoleId[],
-): Promise<ActionResult> {
+export async function setUserRoles(userId: string, roleIds: RoleId[]): Promise<ActionResult> {
   if (!(await authorize('role:write:all'))) return fail('Not authenticated');
   try {
     const current = new Set((await loadUserRoles(userId)).map((r) => r.id));
@@ -452,16 +382,10 @@ export async function setUserRoles(
 /**
  * Replaces the full set of direct user permissions with the given IDs.
  */
-export async function setUserDirectPermissions(
-  userId: string,
-  permissionIds: PermissionId[],
-): Promise<ActionResult> {
-  if (!(await authorize('permission:write:all')))
-    return fail('Not authenticated');
+export async function setUserDirectPermissions(userId: string, permissionIds: PermissionId[]): Promise<ActionResult> {
+  if (!(await authorize('permission:write:all'))) return fail('Not authenticated');
   try {
-    const current = new Set(
-      (await loadDirectUserPermissions(userId)).map((p) => p.id),
-    );
+    const current = new Set((await loadDirectUserPermissions(userId)).map((p) => p.id));
     const denied = await grantDenied({
       permissionIds: permissionIds.filter((id) => !current.has(id)),
     });
@@ -477,15 +401,10 @@ export async function setUserDirectPermissions(
 /**
  * Replaces the set of permissions attached to a role.
  */
-export async function setRolePermissions(
-  roleId: RoleId,
-  permissionIds: PermissionId[],
-): Promise<ActionResult> {
+export async function setRolePermissions(roleId: RoleId, permissionIds: PermissionId[]): Promise<ActionResult> {
   if (!(await authorize('role:write:all'))) return fail('Not authenticated');
   try {
-    const current = new Set(
-      (await loadRolePermissions(roleId)).map((p) => p.id),
-    );
+    const current = new Set((await loadRolePermissions(roleId)).map((p) => p.id));
     const denied = await grantDenied({
       permissionIds: permissionIds.filter((id) => !current.has(id)),
     });

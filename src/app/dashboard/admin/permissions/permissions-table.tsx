@@ -23,22 +23,14 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { DataTable } from '@/components/data-table/data-table';
-import {
-  updatePermission,
-  deletePermission,
-  listPermissions,
-  type PermissionRow,
-} from '@/app/actions/roles';
+import { updatePermission, deletePermission, listPermissions, type PermissionRow } from '@/app/actions/roles';
 
 interface PermissionsTableProps {
   initialPermissions: PermissionRow[];
   canWrite: boolean;
 }
 
-export function PermissionsTable({
-  initialPermissions,
-  canWrite,
-}: PermissionsTableProps) {
+export function PermissionsTable({ initialPermissions, canWrite }: PermissionsTableProps) {
   const [rows, setRows] = React.useState(initialPermissions);
   const [editing, setEditing] = React.useState<PermissionRow | null>(null);
 
@@ -48,9 +40,7 @@ export function PermissionsTable({
   };
 
   const handleDelete = async (p: PermissionRow) => {
-    const ok = window.confirm(
-      `Delete permission "${p.slug}"? This will revoke it from every role and user.`,
-    );
+    const ok = window.confirm(`Delete permission "${p.slug}"? This will revoke it from every role and user.`);
     if (!ok) return;
     const res = await deletePermission(p.id);
     if (res.success) {
@@ -64,18 +54,12 @@ export function PermissionsTable({
       {
         accessorKey: 'slug',
         header: 'Slug',
-        cell: ({ row }) => (
-          <span className='font-mono font-medium'>{row.original.slug}</span>
-        ),
+        cell: ({ row }) => <span className='font-mono font-medium'>{row.original.slug}</span>,
       },
       {
         accessorKey: 'description',
         header: 'Description',
-        cell: ({ row }) => (
-          <span className='text-muted-foreground'>
-            {row.original.description ?? '—'}
-          </span>
-        ),
+        cell: ({ row }) => <span className='text-muted-foreground'>{row.original.description ?? '—'}</span>,
       },
       {
         id: 'actions',
@@ -94,10 +78,7 @@ export function PermissionsTable({
                 <DropdownMenuItem onSelect={() => setEditing(row.original)}>
                   <Pencil className='size-4' /> Edit
                 </DropdownMenuItem>
-                <DropdownMenuItem
-                  variant='destructive'
-                  onSelect={() => handleDelete(row.original)}
-                >
+                <DropdownMenuItem variant='destructive' onSelect={() => handleDelete(row.original)}>
                   <Trash2 className='size-4' /> Delete
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -139,15 +120,9 @@ interface PermissionEditorDialogProps {
   onSaved: () => void;
 }
 
-function PermissionEditorDialog({
-  permission,
-  onClose,
-  onSaved,
-}: PermissionEditorDialogProps) {
+function PermissionEditorDialog({ permission, onClose, onSaved }: PermissionEditorDialogProps) {
   const [slug, setSlug] = React.useState(permission.slug);
-  const [description, setDescription] = React.useState(
-    permission.description ?? '',
-  );
+  const [description, setDescription] = React.useState(permission.description ?? '');
   const [saving, setSaving] = React.useState(false);
 
   const handleSave = async () => {
@@ -170,12 +145,10 @@ function PermissionEditorDialog({
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>
-            Edit permission &ldquo;{permission.slug}&rdquo;
-          </DialogTitle>
+          <DialogTitle>Edit permission &ldquo;{permission.slug}&rdquo;</DialogTitle>
           <DialogDescription>
-            Permissions follow the <code>entity:action:scope</code> pattern. Use{' '}
-            <code>all</code> in any segment as a wildcard.
+            Permissions follow the <code>entity:action:scope</code> pattern. Use <code>all</code> in any segment as a
+            wildcard.
           </DialogDescription>
         </DialogHeader>
         <div className='space-y-4'>
@@ -191,11 +164,7 @@ function PermissionEditorDialog({
           </div>
           <div className='space-y-2'>
             <Label htmlFor='perm-description'>Description</Label>
-            <Input
-              id='perm-description'
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-            />
+            <Input id='perm-description' value={description} onChange={(e) => setDescription(e.target.value)} />
           </div>
         </div>
         <DialogFooter>

@@ -19,10 +19,7 @@ import { getUser } from '@/utils/auth';
 import { ActionResult, fail, ok } from '@/utils/action-result';
 import { hasPermission } from '@/lib/rbac/authorization';
 import { hasEventElapsed } from '@/lib/events';
-import {
-  canFormTeam,
-  resolveEffectiveStatus,
-} from '@/lib/participation/status';
+import { canFormTeam, resolveEffectiveStatus } from '@/lib/participation/status';
 import { writeAuditLog } from '@/utils/audit-log';
 import { generateTeamCode } from '@/lib/team-code';
 import { isPastSubmissionDeadline } from '@/lib/submissions';
@@ -68,39 +65,19 @@ async function getEventTeamSettings(eventId: string): Promise<{
  * applicant should still be able to plan a team, while anyone denied, who
  * declined, or whose invitation expired can't.
  */
-async function isEventParticipant(
-  userId: string,
-  eventId: string,
-): Promise<boolean> {
+async function isEventParticipant(userId: string, eventId: string): Promise<boolean> {
   const [row] = await db
     .select({
       statusLabel: participationStatuses.label,
       respondBy: eventRsvpWaves.respondBy,
     })
     .from(eventParticipants)
-    .innerJoin(
-      participationStatuses,
-      eq(eventParticipants.statusId, participationStatuses.id),
-    )
-    .leftJoin(
-      eventInvitations,
-      eq(eventInvitations.participantId, eventParticipants.id),
-    )
-    .leftJoin(
-      eventRsvpWaves,
-      eq(eventInvitations.rsvpWaveId, eventRsvpWaves.id),
-    )
-    .where(
-      and(
-        eq(eventParticipants.eventId, eventId),
-        eq(eventParticipants.userId, userId),
-      ),
-    )
+    .innerJoin(participationStatuses, eq(eventParticipants.statusId, participationStatuses.id))
+    .leftJoin(eventInvitations, eq(eventInvitations.participantId, eventParticipants.id))
+    .leftJoin(eventRsvpWaves, eq(eventInvitations.rsvpWaveId, eventRsvpWaves.id))
+    .where(and(eq(eventParticipants.eventId, eventId), eq(eventParticipants.userId, userId)))
     .limit(1);
-  return (
-    row != null &&
-    canFormTeam(resolveEffectiveStatus(row.statusLabel, row.respondBy))
-  );
+  return row != null && canFormTeam(resolveEffectiveStatus(row.statusLabel, row.respondBy));
 }
 
 /**
@@ -112,21 +89,14 @@ async function isEventParticipant(
  * (user_id, event_id) unique index, so it rolls back and re-reads the row
  * the winner just created instead of surfacing a 23505.
  */
-async function ensurePersonalTeam(
-  userId: string,
-  eventId: string,
-): Promise<{ teamId: string } | null> {
+async function ensurePersonalTeam(userId: string, eventId: string): Promise<{ teamId: string } | null> {
   try {
-    return await db.transaction((tx) =>
-      getOrCreatePersonalTeam(userId, eventId, tx),
-    );
+    return await db.transaction((tx) => getOrCreatePersonalTeam(userId, eventId, tx));
   } catch (error) {
     const [existing] = await db
       .select({ teamId: teamMembers.teamId })
       .from(teamMembers)
-      .where(
-        and(eq(teamMembers.userId, userId), eq(teamMembers.eventId, eventId)),
-      )
+      .where(and(eq(teamMembers.userId, userId), eq(teamMembers.eventId, eventId)))
       .limit(1);
     if (existing) return { teamId: existing.teamId };
 
@@ -145,11 +115,7 @@ async function ensurePersonalTeam(
  * reassign to (the sole remaining member already keeps their code/status
  * since `organizerId` is untouched in that case).
  */
-async function cleanUpOldTeam(
-  dbHandle: Queryable,
-  oldTeamId: string,
-  departingUserId: string,
-): Promise<void> {
+async function cleanUpOldTeam(dbHandle: Queryable, oldTeamId: string, departingUserId: string): Promise<void> {
   const remaining = await dbHandle
     .select({ userId: teamMembers.userId })
     .from(teamMembers)
@@ -168,10 +134,7 @@ async function cleanUpOldTeam(
     .limit(1);
 
   if (oldTeamRow?.organizerId === departingUserId) {
-    await dbHandle
-      .update(teams)
-      .set({ organizerId: remaining[0]!.userId })
-      .where(eq(teams.id, oldTeamId));
+    await dbHandle.update(teams).set({ organizerId: remaining[0]!.userId }).where(eq(teams.id, oldTeamId));
   }
 }
 
@@ -185,10 +148,7 @@ async function resyncWaitlist(eventId: string): Promise<void> {
   try {
     await syncWaitlistForEvent(eventId);
   } catch (error) {
-    console.error(
-      '[events/teams] Waitlist sync after team change failed:',
-      error,
-    );
+    console.error('[events/teams] Waitlist sync after team change failed:', error);
   }
 }
 
@@ -216,20 +176,16 @@ export type TeamView = {
   members: TeamMemberView[];
 };
 
-const ROSTER_LOCKED_MESSAGE =
-  'The project submission deadline has passed, so teams are locked.';
+const ROSTER_LOCKED_MESSAGE = 'The project submission deadline has passed, so teams are locked.';
 
 /** Story 5: view the caller's team roster for an event. */
-export async function getMyTeam(
-  eventId: string,
-): Promise<ActionResult<TeamView>> {
+export async function getMyTeam(eventId: string): Promise<ActionResult<TeamView>> {
   const currentUser = await getUser();
   if (!currentUser) return fail('Not authenticated');
 
   const settings = await getEventTeamSettings(eventId);
   if (!settings) return fail('Event not found.');
-  if (!settings.teamsEnabled)
-    return fail('Teams are not enabled for this event.');
+  if (!settings.teamsEnabled) return fail('Teams are not enabled for this event.');
 
   if (!(await isEventParticipant(currentUser.id, eventId))) {
     return fail('You must be registered for this event to manage a team.');
@@ -278,10 +234,7 @@ export async function getMyTeam(
 }
 
 /** Story 3: leave the current team (if any) and join another by its code. */
-export async function joinTeamByCode(
-  eventId: string,
-  code: string,
-): Promise<ActionResult> {
+export async function joinTeamByCode(eventId: string, code: string): Promise<ActionResult> {
   const currentUser = await getUser();
   if (!currentUser) return fail('Not authenticated');
 
@@ -292,8 +245,7 @@ export async function joinTeamByCode(
 
   const settings = await getEventTeamSettings(eventId);
   if (!settings) return fail('Event not found.');
-  if (!settings.teamsEnabled)
-    return fail('Teams are not enabled for this event.');
+  if (!settings.teamsEnabled) return fail('Teams are not enabled for this event.');
   if (hasEventElapsed(settings.endsAt)) {
     return fail('This event has already ended.');
   }
@@ -313,18 +265,12 @@ export async function joinTeamByCode(
       const [targetTeam] = await tx
         .select({ id: teams.id })
         .from(teams)
-        .where(
-          and(eq(teams.eventId, eventId), eq(teams.code, parsed.data.code)),
-        )
+        .where(and(eq(teams.eventId, eventId), eq(teams.code, parsed.data.code)))
         .limit(1)
         .for('update');
       if (!targetTeam) return fail('Invalid team code.');
 
-      const { teamId: currentTeamId } = await getOrCreatePersonalTeam(
-        currentUser.id,
-        eventId,
-        tx,
-      );
+      const { teamId: currentTeamId } = await getOrCreatePersonalTeam(currentUser.id, eventId, tx);
 
       // Re-entering your own team's code is a no-op, not an error.
       if (currentTeamId === targetTeam.id) {
@@ -346,9 +292,7 @@ export async function joinTeamByCode(
           .where(eq(submissions.teamId, currentTeamId))
           .limit(1);
         if (ownSubmission) {
-          return fail(
-            'Your team has a project. Delete it before joining another team.',
-          );
+          return fail('Your team has a project. Delete it before joining another team.');
         }
       }
 
@@ -361,17 +305,8 @@ export async function joinTeamByCode(
         return fail('This team is full.');
       }
 
-      await tx
-        .delete(teamMembers)
-        .where(
-          and(
-            eq(teamMembers.userId, currentUser.id),
-            eq(teamMembers.eventId, eventId),
-          ),
-        );
-      await tx
-        .insert(teamMembers)
-        .values({ teamId: targetTeam.id, userId: currentUser.id, eventId });
+      await tx.delete(teamMembers).where(and(eq(teamMembers.userId, currentUser.id), eq(teamMembers.eventId, eventId)));
+      await tx.insert(teamMembers).values({ teamId: targetTeam.id, userId: currentUser.id, eventId });
 
       await cleanUpOldTeam(tx, currentTeamId, currentUser.id);
 
@@ -397,8 +332,7 @@ export async function leaveTeam(eventId: string): Promise<ActionResult> {
 
   const settings = await getEventTeamSettings(eventId);
   if (!settings) return fail('Event not found.');
-  if (!settings.teamsEnabled)
-    return fail('Teams are not enabled for this event.');
+  if (!settings.teamsEnabled) return fail('Teams are not enabled for this event.');
   if (hasEventElapsed(settings.endsAt)) {
     return fail('This event has already ended.');
   }
@@ -412,11 +346,7 @@ export async function leaveTeam(eventId: string): Promise<ActionResult> {
 
   try {
     const result = await db.transaction(async (tx) => {
-      const { teamId: currentTeamId } = await getOrCreatePersonalTeam(
-        currentUser.id,
-        eventId,
-        tx,
-      );
+      const { teamId: currentTeamId } = await getOrCreatePersonalTeam(currentUser.id, eventId, tx);
 
       const [{ total: memberCount }] = await tx
         .select({ total: count() })
@@ -427,23 +357,14 @@ export async function leaveTeam(eventId: string): Promise<ActionResult> {
         return ok('You are already on your own team.');
       }
 
-      await tx
-        .delete(teamMembers)
-        .where(
-          and(
-            eq(teamMembers.userId, currentUser.id),
-            eq(teamMembers.eventId, eventId),
-          ),
-        );
+      await tx.delete(teamMembers).where(and(eq(teamMembers.userId, currentUser.id), eq(teamMembers.eventId, eventId)));
 
       const newCode = await generateTeamCode(eventId, tx);
       const [newTeam] = await tx
         .insert(teams)
         .values({ eventId, organizerId: currentUser.id, code: newCode })
         .returning({ id: teams.id });
-      await tx
-        .insert(teamMembers)
-        .values({ teamId: newTeam!.id, userId: currentUser.id, eventId });
+      await tx.insert(teamMembers).values({ teamId: newTeam!.id, userId: currentUser.id, eventId });
 
       await cleanUpOldTeam(tx, currentTeamId, currentUser.id);
 
@@ -467,10 +388,7 @@ export async function leaveTeam(eventId: string): Promise<ActionResult> {
  * Organizer (self-service), or for anyone holding `team:manage:all`
  * (platform moderation override, audit-logged).
  */
-export async function removeMember(
-  eventId: string,
-  targetUserId: string,
-): Promise<ActionResult> {
+export async function removeMember(eventId: string, targetUserId: string): Promise<ActionResult> {
   const currentUser = await getUser();
   if (!currentUser) return fail('Not authenticated');
 
@@ -480,8 +398,7 @@ export async function removeMember(
 
   const settings = await getEventTeamSettings(eventId);
   if (!settings) return fail('Event not found.');
-  if (!settings.teamsEnabled)
-    return fail('Teams are not enabled for this event.');
+  if (!settings.teamsEnabled) return fail('Teams are not enabled for this event.');
   if (hasEventElapsed(settings.endsAt)) {
     return fail('This event has already ended.');
   }
@@ -489,12 +406,7 @@ export async function removeMember(
   const [targetMembership] = await db
     .select({ teamId: teamMembers.teamId })
     .from(teamMembers)
-    .where(
-      and(
-        eq(teamMembers.userId, targetUserId),
-        eq(teamMembers.eventId, eventId),
-      ),
-    )
+    .where(and(eq(teamMembers.userId, targetUserId), eq(teamMembers.eventId, eventId)))
     .limit(1);
   if (!targetMembership) {
     return fail('That user is not part of a team for this event.');
@@ -525,9 +437,7 @@ export async function removeMember(
     isAdminOverride = await hasPermission(currentUser.id, 'team:manage:all');
     if (!isAdminOverride) {
       return fail(
-        rosterLocked && isSelfServiceOrganizer
-          ? ROSTER_LOCKED_MESSAGE
-          : 'Not authorized to remove this member.',
+        rosterLocked && isSelfServiceOrganizer ? ROSTER_LOCKED_MESSAGE : 'Not authorized to remove this member.',
       );
     }
   }
@@ -547,29 +457,18 @@ export async function removeMember(
           .where(eq(submissions.teamId, targetMembership.teamId))
           .limit(1);
         if (teamSubmission) {
-          return fail(
-            'That user is on their own team, which has a project. Delete the project instead.',
-          );
+          return fail('That user is on their own team, which has a project. Delete the project instead.');
         }
       }
 
-      await tx
-        .delete(teamMembers)
-        .where(
-          and(
-            eq(teamMembers.userId, targetUserId),
-            eq(teamMembers.eventId, eventId),
-          ),
-        );
+      await tx.delete(teamMembers).where(and(eq(teamMembers.userId, targetUserId), eq(teamMembers.eventId, eventId)));
 
       const newCode = await generateTeamCode(eventId, tx);
       const [newTeam] = await tx
         .insert(teams)
         .values({ eventId, organizerId: targetUserId, code: newCode })
         .returning({ id: teams.id });
-      await tx
-        .insert(teamMembers)
-        .values({ teamId: newTeam!.id, userId: targetUserId, eventId });
+      await tx.insert(teamMembers).values({ teamId: newTeam!.id, userId: targetUserId, eventId });
 
       await cleanUpOldTeam(tx, targetMembership.teamId, targetUserId);
 

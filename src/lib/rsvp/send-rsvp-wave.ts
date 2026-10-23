@@ -2,30 +2,12 @@ import 'server-only';
 
 import { and, desc, eq, inArray } from 'drizzle-orm';
 
-import {
-  events,
-  eventRsvpWaves,
-  eventInvitations,
-  eventParticipants,
-} from '@/db/schema';
-import {
-  hasAnyStatus,
-  hasStatus,
-  statusIdOf,
-} from '@/lib/participation/server';
+import { events, eventRsvpWaves, eventInvitations, eventParticipants } from '@/db/schema';
+import { hasAnyStatus, hasStatus, statusIdOf } from '@/lib/participation/server';
 import { WAVE_ELIGIBLE_STATUSES } from '@/lib/participation/status';
-import {
-  RSVP_WAVE_ALREADY_ACTIVE_MESSAGE,
-  RSVP_WAVE_EVENT_STARTED_MESSAGE,
-} from '@/lib/rsvp/constants';
-import {
-  computeRsvpRespondBy,
-  isRsvpWaveActive,
-} from '@/lib/rsvp/compute-rsvp-respond-by';
-import {
-  getEligibleRsvpApplicants,
-  type EligibleRsvpApplicant,
-} from '@/lib/rsvp/eligible-rsvp-applicants';
+import { RSVP_WAVE_ALREADY_ACTIVE_MESSAGE, RSVP_WAVE_EVENT_STARTED_MESSAGE } from '@/lib/rsvp/constants';
+import { computeRsvpRespondBy, isRsvpWaveActive } from '@/lib/rsvp/compute-rsvp-respond-by';
+import { getEligibleRsvpApplicants, type EligibleRsvpApplicant } from '@/lib/rsvp/eligible-rsvp-applicants';
 import { publishRsvpInvitation } from '@/lib/rsvp/rsvp-invitation-queue';
 import { selectRsvpWaveInvitees } from '@/lib/rsvp/select-rsvp-wave-invitees';
 import { timeoutExpiredInvitations } from '@/lib/rsvp/timeout-expired-invitations';
@@ -93,10 +75,7 @@ class SendRsvpWaveError extends Error {
  * waitlist order (see `@/lib/rsvp/waitlist`), capped by
  * `selectRsvpWaveInvitees`.
  */
-export async function sendRsvpWave(
-  eventId: string,
-  options: SendRsvpWaveOptions = {},
-): Promise<SendRsvpWaveResult> {
+export async function sendRsvpWave(eventId: string, options: SendRsvpWaveOptions = {}): Promise<SendRsvpWaveResult> {
   const now = options.now ?? new Date();
 
   const [eventRow] = await db
@@ -117,10 +96,7 @@ export async function sendRsvpWave(
     return { success: false, error: RSVP_WAVE_EVENT_STARTED_MESSAGE };
   }
 
-  if (
-    !Number.isInteger(eventRow.rsvpResponseWindowHours) ||
-    eventRow.rsvpResponseWindowHours < 1
-  ) {
+  if (!Number.isInteger(eventRow.rsvpResponseWindowHours) || eventRow.rsvpResponseWindowHours < 1) {
     return {
       success: false,
       error: 'RSVP response window hours are not configured.',
@@ -139,11 +115,7 @@ export async function sendRsvpWave(
     .orderBy(desc(eventRsvpWaves.wave))
     .limit(1);
 
-  if (
-    latestWave &&
-    isRsvpWaveActive(latestWave.respondBy, now) &&
-    !options.closeActiveWave
-  ) {
+  if (latestWave && isRsvpWaveActive(latestWave.respondBy, now) && !options.closeActiveWave) {
     return { success: false, error: RSVP_WAVE_ALREADY_ACTIVE_MESSAGE };
   }
 
@@ -166,10 +138,7 @@ export async function sendRsvpWave(
     };
   }
 
-  const invitees = selectRsvpWaveInvitees(
-    eligibility.applicants,
-    eligibility.availableSpots,
-  );
+  const invitees = selectRsvpWaveInvitees(eligibility.applicants, eligibility.availableSpots);
   if (invitees.length === 0) {
     return {
       success: false,
@@ -200,10 +169,7 @@ export async function sendRsvpWave(
         throw new SendRsvpWaveError('Event not found.');
       }
 
-      if (
-        lockedEvent.startsAt &&
-        now.getTime() >= lockedEvent.startsAt.getTime()
-      ) {
+      if (lockedEvent.startsAt && now.getTime() >= lockedEvent.startsAt.getTime()) {
         throw new SendRsvpWaveError(RSVP_WAVE_EVENT_STARTED_MESSAGE);
       }
 
@@ -219,20 +185,14 @@ export async function sendRsvpWave(
         .limit(1);
 
       let closed: SendRsvpWaveSuccess['closedWave'] = null;
-      if (
-        lockedLatestWave &&
-        isRsvpWaveActive(lockedLatestWave.respondBy, now)
-      ) {
+      if (lockedLatestWave && isRsvpWaveActive(lockedLatestWave.respondBy, now)) {
         if (!options.closeActiveWave) {
           throw new SendRsvpWaveError(RSVP_WAVE_ALREADY_ACTIVE_MESSAGE);
         }
         // Close the open wave now. The event lock serializes this with
         // `submitRsvpResponse`, which re-reads `respond_by` under the same
         // lock, so nobody can accept into the closed wave afterwards.
-        await tx
-          .update(eventRsvpWaves)
-          .set({ respondBy: now })
-          .where(eq(eventRsvpWaves.id, lockedLatestWave.id));
+        await tx.update(eventRsvpWaves).set({ respondBy: now }).where(eq(eventRsvpWaves.id, lockedLatestWave.id));
         const timedOut = await tx
           .update(eventParticipants)
           .set({ statusId: statusIdOf('timed_out') })
@@ -291,18 +251,12 @@ export async function sendRsvpWave(
         )
         .returning({ id: eventParticipants.id });
       const movedIds = new Set(moved.map((row) => row.id));
-      const invitedApplicants = invitees.filter((applicant) =>
-        movedIds.has(applicant.participantId),
-      );
+      const invitedApplicants = invitees.filter((applicant) => movedIds.has(applicant.participantId));
       if (invitedApplicants.length === 0) {
-        throw new SendRsvpWaveError(
-          'No eligible applicants for the next RSVP wave.',
-        );
+        throw new SendRsvpWaveError('No eligible applicants for the next RSVP wave.');
       }
 
-      const userIdByParticipantId = new Map(
-        invitedApplicants.map((a) => [a.participantId, a.userId]),
-      );
+      const userIdByParticipantId = new Map(invitedApplicants.map((a) => [a.participantId, a.userId]));
       const inserted = await tx
         .insert(eventInvitations)
         .values(
@@ -348,9 +302,7 @@ export async function sendRsvpWave(
     };
   }
 
-  const emailByUserId = new Map(
-    invitedApplicants.map((applicant) => [applicant.userId, applicant.email]),
-  );
+  const emailByUserId = new Map(invitedApplicants.map((applicant) => [applicant.userId, applicant.email]));
   const queueFailures: RsvpWaveQueueFailure[] = [];
   let invitationsQueued = 0;
 
@@ -368,12 +320,7 @@ export async function sendRsvpWave(
           invitationEmailStatus: 'queued',
           invitationEmailQueuedAt: new Date(),
         })
-        .where(
-          and(
-            eq(eventInvitations.id, response.id),
-            eq(eventInvitations.invitationEmailStatus, 'unsent'),
-          ),
-        );
+        .where(and(eq(eventInvitations.id, response.id), eq(eventInvitations.invitationEmailStatus, 'unsent')));
     }),
   );
 
@@ -384,10 +331,7 @@ export async function sendRsvpWave(
     }
 
     const response = insertedResponses[index];
-    const message =
-      result.reason instanceof Error
-        ? result.reason.message
-        : 'Unknown queue publish error';
+    const message = result.reason instanceof Error ? result.reason.message : 'Unknown queue publish error';
     console.error('[rsvp/send-rsvp-wave] failed to queue invitation', {
       userId: response.userId,
       error: result.reason,

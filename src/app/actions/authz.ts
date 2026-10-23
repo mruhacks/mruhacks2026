@@ -13,11 +13,7 @@ import {
 
 async function mayInspectUser(targetUserId: string): Promise<boolean> {
   const caller = await getUser();
-  return Boolean(
-    caller &&
-    (caller.id === targetUserId ||
-      (await hasPermission(caller.id, 'user:read:all'))),
-  );
+  return Boolean(caller && (caller.id === targetUserId || (await hasPermission(caller.id, 'user:read:all'))));
 }
 
 async function mayReadAdministration(permission: string): Promise<boolean> {
@@ -26,9 +22,7 @@ async function mayReadAdministration(permission: string): Promise<boolean> {
 }
 
 /** Guarded client-facing lookup for a user's effective permissions. */
-export async function getUserPermissions(
-  userId: string,
-): Promise<ActionResult<Set<string>>> {
+export async function getUserPermissions(userId: string): Promise<ActionResult<Set<string>>> {
   if (!(await mayInspectUser(userId))) return fail('Forbidden');
   try {
     return ok(await loadUserPermissions(userId));
@@ -41,11 +35,7 @@ export async function getUserPermissions(
 /** Guarded client-facing lookup for a user's roles. */
 export async function getUserRoles(
   userId: string,
-): Promise<
-  ActionResult<
-    { id: number; slug: string | null; description: string | null }[]
-  >
-> {
+): Promise<ActionResult<{ id: number; slug: string | null; description: string | null }[]>> {
   if (!(await mayInspectUser(userId))) return fail('Forbidden');
   try {
     return ok(await loadUserRoles(userId));
@@ -58,9 +48,7 @@ export async function getUserRoles(
 /** Guarded client-facing lookup for direct permissions. */
 export async function getDirectUserPermissions(
   userId: string,
-): Promise<
-  ActionResult<{ id: number; slug: string; description: string | null }[]>
-> {
+): Promise<ActionResult<{ id: number; slug: string; description: string | null }[]>> {
   if (!(await mayInspectUser(userId))) return fail('Forbidden');
   try {
     return ok(await loadDirectUserPermissions(userId));
@@ -73,9 +61,7 @@ export async function getDirectUserPermissions(
 /** Role-to-permission mappings are administrative data. */
 export async function getRolePermissions(
   roleId: number,
-): Promise<
-  ActionResult<{ id: number; slug: string; description: string | null }[]>
-> {
+): Promise<ActionResult<{ id: number; slug: string; description: string | null }[]>> {
   if (!(await mayReadAdministration('role:read:all'))) return fail('Forbidden');
   try {
     return ok(await loadRolePermissions(roleId));
@@ -88,9 +74,7 @@ export async function getRolePermissions(
 /** Batch role lookup reserved for user administrators. */
 export async function getRolesForUsers(
   userIds: string[],
-): Promise<
-  ActionResult<Record<string, { id: number; slug: string | null }[]>>
-> {
+): Promise<ActionResult<Record<string, { id: number; slug: string | null }[]>>> {
   if (!(await mayReadAdministration('user:read:all'))) return fail('Forbidden');
   try {
     return ok(await loadRolesForUsers(userIds));

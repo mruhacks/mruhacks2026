@@ -7,20 +7,8 @@ import { toast } from 'sonner';
 import * as z from 'zod';
 
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import {
-  Field,
-  FieldError,
-  FieldGroup,
-  FieldLabel,
-} from '@/components/ui/field';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Loader2, MailCheck } from 'lucide-react';
 import { authClient } from '@/utils/auth-client';
@@ -70,16 +58,10 @@ function GoogleIcon() {
 export default function SignInForm() {
   const [loading, setLoading] = React.useState(false);
   const [magicLinkLoading, setMagicLinkLoading] = React.useState(false);
-  const [magicLinkSentEmail, setMagicLinkSentEmail] = React.useState<
-    string | null
-  >(null);
+  const [magicLinkSentEmail, setMagicLinkSentEmail] = React.useState<string | null>(null);
   const [showPassword, setShowPassword] = React.useState(false);
-  const [unverifiedEmail, setUnverifiedEmail] = React.useState<string | null>(
-    null,
-  );
-  const [turnstileToken, setTurnstileToken] = React.useState<string | null>(
-    null,
-  );
+  const [unverifiedEmail, setUnverifiedEmail] = React.useState<string | null>(null);
+  const [turnstileToken, setTurnstileToken] = React.useState<string | null>(null);
   const submitInProgress = React.useRef(false);
   const turnstileRef = React.useRef<TurnstileHandle>(null);
   const router = useRouter();
@@ -125,8 +107,7 @@ export default function SignInForm() {
           }
           form.setError('root', {
             type: 'manual',
-            message:
-              ctx?.error?.message ?? 'Invalid credentials or network issue.',
+            message: ctx?.error?.message ?? 'Invalid credentials or network issue.',
           });
         },
       })
@@ -216,11 +197,8 @@ export default function SignInForm() {
           </div>
           <CardTitle>Check your email</CardTitle>
           <CardDescription>
-            We sent a sign-in link to{' '}
-            <span className='text-foreground font-medium'>
-              {magicLinkSentEmail}
-            </span>
-            . Click the link in that email to continue.
+            We sent a sign-in link to <span className='text-foreground font-medium'>{magicLinkSentEmail}</span>. Click
+            the link in that email to continue.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -249,12 +227,9 @@ export default function SignInForm() {
           </div>
           <CardTitle>Verify your email to continue</CardTitle>
           <CardDescription>
-            Your account hasn&apos;t been verified yet. We sent a verification
-            link to{' '}
-            <span className='text-foreground font-medium'>
-              {unverifiedEmail}
-            </span>
-            . Click the link in that email to activate your account and sign in.
+            Your account hasn&apos;t been verified yet. We sent a verification link to{' '}
+            <span className='text-foreground font-medium'>{unverifiedEmail}</span>. Click the link in that email to
+            activate your account and sign in.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -294,18 +269,12 @@ export default function SignInForm() {
           </div>
         </CardTitle>
         <CardDescription>
-          {showPassword
-            ? 'Enter your email and password to continue.'
-            : 'Enter your email and we’ll send you a link.'}
+          {showPassword ? 'Enter your email and password to continue.' : 'Enter your email and we’ll send you a link.'}
         </CardDescription>
       </CardHeader>
 
       <CardContent>
-        <form
-          id='form-signin'
-          onSubmit={handleFormSubmit}
-          onKeyDown={handleFormKeyDown}
-        >
+        <form id='form-signin' onSubmit={handleFormSubmit} onKeyDown={handleFormKeyDown}>
           <FieldGroup>
             {/* Email */}
             <Controller
@@ -323,9 +292,7 @@ export default function SignInForm() {
                     aria-invalid={fieldState.invalid}
                     disabled={loading || magicLinkLoading}
                   />
-                  {fieldState.invalid && (
-                    <FieldError errors={[fieldState.error]} />
-                  )}
+                  {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
                 </Field>
               )}
             />
@@ -338,13 +305,8 @@ export default function SignInForm() {
                 render={({ field }) => (
                   <Field>
                     <div className='flex items-center justify-between'>
-                      <FieldLabel htmlFor='form-signin-password'>
-                        Password
-                      </FieldLabel>
-                      <Link
-                        href='/forgot-password'
-                        className='text-xs font-medium hover:underline'
-                      >
+                      <FieldLabel htmlFor='form-signin-password'>Password</FieldLabel>
+                      <Link href='/forgot-password' className='text-xs font-medium hover:underline'>
                         Forgot password?
                       </Link>
                     </div>
@@ -362,28 +324,17 @@ export default function SignInForm() {
             )}
           </FieldGroup>
         </form>
-        {form.formState.errors.root && (
-          <FieldError errors={[form.formState.errors.root]} />
-        )}
+        {form.formState.errors.root && <FieldError errors={[form.formState.errors.root]} />}
       </CardContent>
 
       <CardFooter className='flex-col items-stretch gap-4'>
         {showPassword ? (
           <>
             <Field orientation='horizontal'>
-              <Button
-                type='button'
-                variant='outline'
-                onClick={() => form.reset()}
-                disabled={loading}
-              >
+              <Button type='button' variant='outline' onClick={() => form.reset()} disabled={loading}>
                 Reset
               </Button>
-              <Button
-                type='submit'
-                form='form-signin'
-                disabled={loading || !turnstileToken}
-              >
+              <Button type='submit' form='form-signin' disabled={loading || !turnstileToken}>
                 {loading ? (
                   <>
                     <Loader2 className='mr-2 size-4 animate-spin' />
@@ -415,11 +366,7 @@ export default function SignInForm() {
         ) : (
           <>
             {/* Magic link primary action */}
-            <Button
-              type='button'
-              onClick={handleMagicLink}
-              disabled={loading || magicLinkLoading || !turnstileToken}
-            >
+            <Button type='button' onClick={handleMagicLink} disabled={loading || magicLinkLoading || !turnstileToken}>
               {magicLinkLoading ? (
                 <>
                   <Loader2 className='mr-2 size-4 animate-spin' />

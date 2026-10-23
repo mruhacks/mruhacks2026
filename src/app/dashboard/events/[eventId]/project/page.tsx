@@ -3,17 +3,8 @@ import { notFound, redirect } from 'next/navigation';
 
 import { getMySubmission } from '@/app/dashboard/events/submission-actions';
 import { BreadcrumbSegment } from '@/components/breadcrumb-context';
-import {
-  ProjectStageDescription,
-  SubmissionView,
-} from '@/components/submissions/submission-view';
-import {
-  Card,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { ProjectStageDescription, SubmissionView } from '@/components/submissions/submission-view';
+import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { serializeInstant } from '@/lib/datetime';
 import { resolveEventId } from '@/lib/events';
 import { getProjectStage, PROJECT_STAGE_COPY } from '@/lib/submission-copy';
@@ -29,19 +20,13 @@ export const instant = false;
 
 export default function ProjectPage({ params }: Props) {
   return (
-    <Suspense
-      fallback={<div className='bg-muted h-96 animate-pulse rounded-xl' />}
-    >
+    <Suspense fallback={<div className='bg-muted h-96 animate-pulse rounded-xl' />}>
       <ProjectContent paramsPromise={params} />
     </Suspense>
   );
 }
 
-async function ProjectContent({
-  paramsPromise,
-}: {
-  paramsPromise: Props['params'];
-}) {
+async function ProjectContent({ paramsPromise }: { paramsPromise: Props['params'] }) {
   const { eventId: segment } = await paramsPromise;
   const eventId = await resolveEventId(segment);
   if (!eventId) notFound();
@@ -52,8 +37,7 @@ async function ProjectContent({
   // rather than "forbidden", the same as a draft wiki article.
   const result = await getMySubmission(eventId);
   if (!result.success || !result.data) notFound();
-  const { submissionWindow, opensAt, closesAt, submission, tableLabel } =
-    result.data;
+  const { submissionWindow, opensAt, closesAt, submission, tableLabel } = result.data;
 
   const stage = getProjectStage(submissionWindow, submission);
   const copy = PROJECT_STAGE_COPY[stage];
@@ -69,18 +53,12 @@ async function ProjectContent({
       <div className='flex flex-col gap-6'>
         {!isEditing && !isFinal && (
           <>
-            <h1 className='text-3xl font-semibold tracking-tight wrap-break-word'>
-              Your team&apos;s project
-            </h1>
+            <h1 className='text-3xl font-semibold tracking-tight wrap-break-word'>Your team&apos;s project</h1>
             <Card>
               <CardHeader>
                 <CardTitle>{copy.title}</CardTitle>
                 <CardDescription>
-                  <ProjectStageDescription
-                    stage={stage}
-                    opensAt={opensAt}
-                    closesAt={closesAt}
-                  />
+                  <ProjectStageDescription stage={stage} opensAt={opensAt} closesAt={closesAt} />
                 </CardDescription>
               </CardHeader>
               {stage === 'not_started' && (
@@ -118,12 +96,7 @@ async function ProjectContent({
             submission={submission}
             notice={
               <>
-                <ProjectStageDescription
-                  stage={stage}
-                  opensAt={opensAt}
-                  closesAt={closesAt}
-                  tableLabel={tableLabel}
-                />{' '}
+                <ProjectStageDescription stage={stage} opensAt={opensAt} closesAt={closesAt} tableLabel={tableLabel} />{' '}
                 {copy.warning}
               </>
             }

@@ -12,13 +12,7 @@ import { PROJECT_VISIBILITY_COPY } from '@/lib/submission-copy';
  * open. The action revalidates the event page, so the rest of the panel
  * (e.g. the "won't be judged" warning) follows on its own.
  */
-export function ProjectStatusToggle({
-  eventId,
-  published,
-}: {
-  eventId: string;
-  published: boolean;
-}) {
+export function ProjectStatusToggle({ eventId, published }: { eventId: string; published: boolean }) {
   const [optimistic, setOptimistic] = React.useOptimistic(published);
   const [isPending, startTransition] = React.useTransition();
 
@@ -32,17 +26,9 @@ export function ProjectStatusToggle({
         toast.error(result.error);
         return;
       }
-      toast.success(
-        PROJECT_VISIBILITY_COPY[next ? 'public' : 'private'].madeToast,
-      );
+      toast.success(PROJECT_VISIBILITY_COPY[next ? 'public' : 'private'].madeToast);
     });
   }
 
-  return (
-    <SubmissionStatusBadge
-      published={optimistic}
-      onToggle={toggle}
-      disabled={isPending}
-    />
-  );
+  return <SubmissionStatusBadge published={optimistic} onToggle={toggle} disabled={isPending} />;
 }

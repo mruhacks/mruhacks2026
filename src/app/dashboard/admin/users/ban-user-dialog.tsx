@@ -14,13 +14,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { adminBanUser, type AdminUserRow } from '@/app/actions/users';
 
 const DURATION_PRESETS: { label: string; seconds: number | null }[] = [
@@ -38,22 +32,14 @@ interface BanUserDialogProps {
   onBanned: () => void;
 }
 
-export function BanUserDialog({
-  user,
-  open,
-  onOpenChange,
-  onBanned,
-}: BanUserDialogProps) {
+export function BanUserDialog({ user, open, onOpenChange, onBanned }: BanUserDialogProps) {
   const [reason, setReason] = React.useState('');
   const [durationKey, setDurationKey] = React.useState('permanent');
   const [submitting, setSubmitting] = React.useState(false);
 
   const handleBan = async () => {
     const preset =
-      durationKey === 'permanent'
-        ? null
-        : (DURATION_PRESETS.find((p) => p.label === durationKey)?.seconds ??
-          null);
+      durationKey === 'permanent' ? null : (DURATION_PRESETS.find((p) => p.label === durationKey)?.seconds ?? null);
     setSubmitting(true);
     const res = await adminBanUser(user.id, reason, preset ?? undefined);
     setSubmitting(false);
@@ -71,8 +57,8 @@ export function BanUserDialog({
         <DialogHeader>
           <DialogTitle>Ban user</DialogTitle>
           <DialogDescription>
-            Prevent <span className='font-medium'>{user.email}</span> from
-            signing in. Existing sessions are revoked immediately.
+            Prevent <span className='font-medium'>{user.email}</span> from signing in. Existing sessions are revoked
+            immediately.
           </DialogDescription>
         </DialogHeader>
 
@@ -94,10 +80,7 @@ export function BanUserDialog({
               </SelectTrigger>
               <SelectContent>
                 {DURATION_PRESETS.map((p) => (
-                  <SelectItem
-                    key={p.label}
-                    value={p.seconds === null ? 'permanent' : p.label}
-                  >
+                  <SelectItem key={p.label} value={p.seconds === null ? 'permanent' : p.label}>
                     {p.label}
                   </SelectItem>
                 ))}
@@ -110,11 +93,7 @@ export function BanUserDialog({
           <Button variant='outline' onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button
-            variant='destructive'
-            onClick={handleBan}
-            disabled={submitting}
-          >
+          <Button variant='destructive' onClick={handleBan} disabled={submitting}>
             {submitting ? 'Banning…' : 'Ban user'}
           </Button>
         </DialogFooter>

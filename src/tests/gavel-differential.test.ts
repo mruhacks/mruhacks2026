@@ -59,17 +59,8 @@ vi.mock('next/cache', () => ({
 }));
 
 import { getUser } from '@/utils/auth';
-import {
-  beginJudging,
-  skipJudgeProject,
-  submitJudgeVote,
-} from '@/app/dashboard/events/judge-actions';
-import {
-  betaln,
-  expectedInformationGain,
-  psi,
-  update,
-} from '@/lib/judging/crowd-bt';
+import { beginJudging, skipJudgeProject, submitJudgeVote } from '@/app/dashboard/events/judge-actions';
+import { betaln, expectedInformationGain, psi, update } from '@/lib/judging/crowd-bt';
 import { getJudgeView } from '@/lib/judging/judge-session';
 import { replayVotes } from '@/lib/judging/results';
 import { unwrap } from './unwrap';
@@ -87,15 +78,7 @@ if (!RUN) {
 function buildOracleImage() {
   const build = spawnSync(
     'docker',
-    [
-      'build',
-      '--quiet',
-      '--tag',
-      ORACLE_IMAGE,
-      '--file',
-      path.join(VENDOR_DIR, 'gavel-oracle/Dockerfile'),
-      VENDOR_DIR,
-    ],
+    ['build', '--quiet', '--tag', ORACLE_IMAGE, '--file', path.join(VENDOR_DIR, 'gavel-oracle/Dockerfile'), VENDOR_DIR],
     { encoding: 'utf8' },
   );
   if (build.status !== 0) {
@@ -105,9 +88,7 @@ function buildOracleImage() {
 
 const FIXED_SEED = process.env.GAVEL_FUZZ_SEED;
 const RUNS = Number(process.env.GAVEL_FUZZ_RUNS ?? 25);
-const SEEDS = FIXED_SEED
-  ? [Number(FIXED_SEED)]
-  : Array.from({ length: RUNS }, (_, i) => 1000 + i);
+const SEEDS = FIXED_SEED ? [Number(FIXED_SEED)] : Array.from({ length: RUNS }, (_, i) => 1000 + i);
 
 // ── Oracle process ─────────────────────────────────────────────────────────
 
@@ -123,17 +104,12 @@ class Oracle {
       stdio: ['pipe', 'pipe', 'pipe'],
     });
     this.child.stderr!.on('data', (chunk) => (this.stderr += chunk));
-    createInterface({ input: this.child.stdout! }).on('line', (line) =>
-      this.pending.shift()?.(line),
-    );
+    createInterface({ input: this.child.stdout! }).on('line', (line) => this.pending.shift()?.(line));
   }
 
-  async call<T>(
-    message: Record<string, unknown>,
-  ): Promise<OracleReply & { result: T }> {
+  async call<T>(message: Record<string, unknown>): Promise<OracleReply & { result: T }> {
     const line = await new Promise<string>((resolve, reject) => {
-      const exited = (code: number | null) =>
-        new Error(`oracle exited (${code}): ${this.stderr}`);
+      const exited = (code: number | null) => new Error(`oracle exited (${code}): ${this.stderr}`);
       // An already-dead process never emits 'exit' again, so waiting on it
       // would hang forever.
       if (this.child.exitCode !== null || this.child.signalCode !== null) {
@@ -148,9 +124,7 @@ class Oracle {
       });
       this.child.stdin!.write(JSON.stringify(message) + '\n');
     });
-    const reply = JSON.parse(line) as
-      | OracleReply
-      | { ok: false; error: string };
+    const reply = JSON.parse(line) as OracleReply | { ok: false; error: string };
     if (!reply.ok) throw new Error(`oracle: ${reply.error}`);
     return reply as OracleReply & { result: T };
   }
@@ -196,16 +170,11 @@ function normal(rand: () => number): number {
  */
 function close(actual: number, expected: number, rel = 1e-9): boolean {
   if (Number.isNaN(expected)) return Number.isNaN(actual);
-  return (
-    Math.abs(actual - expected) <=
-    rel * Math.max(1, Math.abs(actual), Math.abs(expected))
-  );
+  return Math.abs(actual - expected) <= rel * Math.max(1, Math.abs(actual), Math.abs(expected));
 }
 
 function expectClose(actual: number[], expected: number[], context: unknown) {
-  const ok =
-    actual.length === expected.length &&
-    actual.every((value, i) => close(value, expected[i]));
+  const ok = actual.length === expected.length && actual.every((value, i) => close(value, expected[i]));
   if (!ok) {
     throw new Error(
       `mismatch for ${JSON.stringify(context)}\n  ours:  ${JSON.stringify(actual)}\n  gavel: ${JSON.stringify(expected)}`,
@@ -219,8 +188,7 @@ function expectClose(actual: number[], expected: number[], context: unknown) {
 type CrowdBtArgs = [number, number, number, number, number, number];
 
 function randomCrowdBtArgs(rand: () => number): CrowdBtArgs {
-  const reliability = (): number =>
-    rand() < 0.3 ? 1 + rand() * 20 : logUniform(rand, 0.05, 500);
+  const reliability = (): number => (rand() < 0.3 ? 1 + rand() * 20 : logUniform(rand, 0.05, 500));
   const mu = (): number => (rand() < 0.2 ? 0 : normal(rand) * 3);
   const sigmaSq = (): number => (rand() < 0.2 ? 1 : logUniform(rand, 1e-4, 3));
   return [reliability(), reliability(), mu(), sigmaSq(), mu(), sigmaSq()];
@@ -247,22 +215,14 @@ async function compareCrowdBt(seed: number, n: number) {
     const loser = { mu: muL, sigmaSq: sigmaSqL };
     const ours = update({ alpha, beta }, winner, loser);
     expectClose(
-      [
-        ours.judge.alpha,
-        ours.judge.beta,
-        ours.winner.mu,
-        ours.winner.sigmaSq,
-        ours.loser.mu,
-        ours.loser.sigmaSq,
-      ],
+      [ours.judge.alpha, ours.judge.beta, ours.winner.mu, ours.winner.sigmaSq, ours.loser.mu, ours.loser.sigmaSq],
       updates.result[i],
       { fn: 'update', args },
     );
-    expectClose(
-      [expectedInformationGain({ alpha, beta }, winner, loser)],
-      [gains.result[i]],
-      { fn: 'expected_information_gain', args },
-    );
+    expectClose([expectedInformationGain({ alpha, beta }, winner, loser)], [gains.result[i]], {
+      fn: 'expected_information_gain',
+      args,
+    });
   });
 }
 
@@ -397,10 +357,7 @@ async function runScenario(seed: number) {
   const streamRand = prng(seed ^ 0x5eed);
   const stream = Array.from({ length: 50_000 }, () => streamRand());
 
-  const { eventId, criterionId, projectIds, judges } = await makeScenarioEvent(
-    n,
-    m,
-  );
+  const { eventId, criterionId, projectIds, judges } = await makeScenarioEvent(n, m);
   const indexOf = new Map(projectIds.map((id, i) => [id, i]));
   await oracle.call({ op: 'reset', projects: n, judges: m, stream });
 
@@ -419,8 +376,7 @@ async function runScenario(seed: number) {
 
   const log: string[] = [];
   const context = () =>
-    `seed ${seed} (n=${n}, m=${m}); replay with GAVEL_FUZZ_SEED=${seed}\n` +
-    log.slice(-12).join('\n');
+    `seed ${seed} (n=${n}, m=${m}); replay with GAVEL_FUZZ_SEED=${seed}\n` + log.slice(-12).join('\n');
 
   async function ourScreen(j: number): Promise<Screen> {
     vi.mocked(getUser).mockResolvedValue(judges[j].user as never);
@@ -446,12 +402,7 @@ async function runScenario(seed: number) {
     if (screen.kind === 'waiting') throw new Error('nothing to act on');
     const currentId = projectIds[screen.current];
     if (action === 'skip') {
-      unwrap(
-        await skipJudgeProject(
-          eventId,
-          formData({ currentId, reason: 'conflict' }),
-        ),
-      );
+      unwrap(await skipJudgeProject(eventId, formData({ currentId, reason: 'conflict' })));
     } else if (action === 'begin') {
       unwrap(await beginJudging(eventId, formData({ currentId })));
     } else if (screen.kind === 'compare') {
@@ -475,9 +426,7 @@ async function runScenario(seed: number) {
       `${label} judge ${j}: ours ${JSON.stringify(ours)} @${consumed}, gavel ${JSON.stringify(gavel.result)} @${gavel.consumed}`,
     );
     expect(ours, context()).toEqual(gavel.result);
-    expect(consumed, `random draws diverged — ${context()}`).toBe(
-      gavel.consumed,
-    );
+    expect(consumed, `random draws diverged — ${context()}`).toBe(gavel.consumed);
     return ours;
   }
 
@@ -501,10 +450,7 @@ async function runScenario(seed: number) {
       } else if (screen.kind === 'begin') {
         action = 'begin';
       } else {
-        const diff =
-          quality[screen.current] -
-          quality[screen.previous] +
-          noise[j] * normal(rand);
+        const diff = quality[screen.current] - quality[screen.previous] + noise[j] * normal(rand);
         action = diff > 0 ? 'current' : 'previous';
       }
       log.push(`step ${step} judge ${j}: ${action}`);
@@ -541,12 +487,10 @@ async function runScenario(seed: number) {
   ).toEqual(gavel.votes);
 
   const scores = new Map(
-    (
-      await db
-        .select()
-        .from(submissionScores)
-        .where(inArray(submissionScores.submissionId, projectIds))
-    ).map((row) => [row.submissionId, row]),
+    (await db.select().from(submissionScores).where(inArray(submissionScores.submissionId, projectIds))).map((row) => [
+      row.submissionId,
+      row,
+    ]),
   );
   const replay = replayVotes(votes, new Set(projectIds), [criterionId]);
   projectIds.forEach((id, i) => {
@@ -580,11 +524,11 @@ async function runScenario(seed: number) {
   );
   judges.forEach(({ judgeId }, i) => {
     const online = reliability.get(judgeId) ?? { alpha: 10, beta: 1 };
-    expectClose(
-      [online.alpha, online.beta],
-      [gavel.judges[i].alpha, gavel.judges[i].beta],
-      { seed, judge: i, source: 'judge_reliability' },
-    );
+    expectClose([online.alpha, online.beta], [gavel.judges[i].alpha, gavel.judges[i].beta], {
+      seed,
+      judge: i,
+      source: 'judge_reliability',
+    });
   });
 
   return votes.length;
@@ -616,13 +560,8 @@ describe.runIf(RUN)('Gavel differential', () => {
 
   test('betaln and psi match scipy across their range', async () => {
     const rand = prng(7);
-    const pairs = Array.from({ length: 2000 }, () => [
-      logUniform(rand, 1e-3, 1e4),
-      logUniform(rand, 1e-3, 1e4),
-    ]);
-    const xs = Array.from({ length: 2000 }, () => [
-      logUniform(rand, 1e-3, 1e5),
-    ]);
+    const pairs = Array.from({ length: 2000 }, () => [logUniform(rand, 1e-3, 1e4), logUniform(rand, 1e-3, 1e4)]);
+    const xs = Array.from({ length: 2000 }, () => [logUniform(rand, 1e-3, 1e5)]);
     const gavelBetaln = await oracle.call<number[]>({
       op: 'crowd_bt',
       fn: 'betaln',
@@ -640,9 +579,7 @@ describe.runIf(RUN)('Gavel differential', () => {
         b,
       }),
     );
-    xs.forEach(([x], i) =>
-      expectClose([psi(x)], [gavelPsi.result[i]], { fn: 'psi', x }),
-    );
+    xs.forEach(([x], i) => expectClose([psi(x)], [gavelPsi.result[i]], { fn: 'psi', x }));
   });
 
   describe('judge flow, step for step', () => {

@@ -6,10 +6,7 @@ import { useForm, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 
 import { professionalSchema } from '@/components/profile-form/schema';
-import {
-  saveProfessionalProfile,
-  type ProfessionalProfileValues,
-} from '@/app/dashboard/profile/actions';
+import { saveProfessionalProfile, type ProfessionalProfileValues } from '@/app/dashboard/profile/actions';
 import { completeWelcomeOnboarding } from '@/app/dashboard/account/actions';
 import { Button } from '@/components/ui/button';
 import { FieldError } from '@/components/ui/field';
@@ -33,9 +30,7 @@ export function WelcomeProfessionalPage({
   const router = useRouter();
   const [saveError, setSaveError] = React.useState<string>();
   const form = useForm<ProfessionalProfileValues>({
-    resolver: zodResolver(
-      professionalSchema,
-    ) as unknown as Resolver<ProfessionalProfileValues>,
+    resolver: zodResolver(professionalSchema) as unknown as Resolver<ProfessionalProfileValues>,
     defaultValues: {
       company: initial?.company ?? '',
       jobTitle: initial?.jobTitle ?? '',
@@ -71,11 +66,7 @@ export function WelcomeProfessionalPage({
   const busy = form.formState.isSubmitting;
 
   return (
-    <form
-      onSubmit={form.handleSubmit(submit)}
-      onChange={() => setSaveError(undefined)}
-      className='flex flex-col gap-6'
-    >
+    <form onSubmit={form.handleSubmit(submit)} onChange={() => setSaveError(undefined)} className='flex flex-col gap-6'>
       <div>
         <h2 className='text-lg font-semibold'>Your work</h2>
         <p className='text-muted-foreground mt-1 text-sm'>
@@ -88,12 +79,7 @@ export function WelcomeProfessionalPage({
       <Separator />
       <div className='flex flex-col gap-2'>
         <div className='flex items-center justify-between gap-3'>
-          <Button
-            type='button'
-            variant='outline'
-            onClick={() => router.push(backHref)}
-            disabled={busy}
-          >
+          <Button type='button' variant='outline' onClick={() => router.push(backHref)} disabled={busy}>
             Back
           </Button>
           <Button type='submit' disabled={busy}>

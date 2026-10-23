@@ -25,21 +25,9 @@ type Props = {
 /**
  * Accept / Decline controls for a pending RSVP invitation.
  */
-export function RsvpResponseButtons({
-  eventId,
-  termsMarkdown,
-  termsId,
-}: Props) {
-  const {
-    isPending,
-    activeDecision,
-    error,
-    submit,
-    termsAccepted,
-    setTermsAccepted,
-    canAccept,
-    clearError,
-  } = useRsvpDecision(eventId, termsId);
+export function RsvpResponseButtons({ eventId, termsMarkdown, termsId }: Props) {
+  const { isPending, activeDecision, error, submit, termsAccepted, setTermsAccepted, canAccept, clearError } =
+    useRsvpDecision(eventId, termsId);
   const [confirmDecline, setConfirmDecline] = useState(false);
 
   return (
@@ -52,12 +40,7 @@ export function RsvpResponseButtons({
       />
       {error && <FieldError errors={[{ message: error }]} />}
       <div className='flex flex-wrap gap-3'>
-        <Button
-          onClick={() => submit('accepted')}
-          disabled={isPending || !canAccept}
-          variant='purple'
-          size='lg'
-        >
+        <Button onClick={() => submit('accepted')} disabled={isPending || !canAccept} variant='purple' size='lg'>
           {activeDecision === 'accepted' && isPending ? (
             <>
               <Spinner data-icon='inline-start' />
@@ -91,27 +74,14 @@ export function RsvpResponseButtons({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Decline your spot?</DialogTitle>
-            <DialogDescription>
-              You will give up your spot and cannot accept this invitation
-              later.
-            </DialogDescription>
+            <DialogDescription>You will give up your spot and cannot accept this invitation later.</DialogDescription>
           </DialogHeader>
           {error && <FieldError errors={[{ message: error }]} />}
           <DialogFooter>
-            <Button
-              type='button'
-              variant='outline'
-              onClick={() => setConfirmDecline(false)}
-              disabled={isPending}
-            >
+            <Button type='button' variant='outline' onClick={() => setConfirmDecline(false)} disabled={isPending}>
               Cancel
             </Button>
-            <Button
-              type='button'
-              variant='destructive'
-              onClick={() => submit('declined')}
-              disabled={isPending}
-            >
+            <Button type='button' variant='destructive' onClick={() => submit('declined')} disabled={isPending}>
               {activeDecision === 'declined' && isPending ? (
                 <>
                   <Spinner data-icon='inline-start' />

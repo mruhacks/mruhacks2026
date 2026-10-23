@@ -17,19 +17,10 @@ import {
 } from '@/app/dashboard/admin/campaigns/send-actions';
 import { campaignScheduleSlots } from '@/lib/campaigns/schedule-slots';
 import type { CampaignStatus } from '@/lib/campaigns/constants';
-import {
-  LocalDateTime,
-  useDisplayTimeZone,
-} from '@/components/local-date-time';
+import { LocalDateTime, useDisplayTimeZone } from '@/components/local-date-time';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -40,23 +31,9 @@ import {
 } from '@/components/ui/dialog';
 import { Field, FieldError, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 type Props = {
   campaignId: string;
@@ -93,17 +70,9 @@ export function SendPanel({
     ) : null;
   }
   if (status === 'scheduled') {
-    return (
-      <ScheduledCard
-        campaignId={campaignId}
-        scheduledFor={scheduledFor}
-        canSend={canSend}
-      />
-    );
+    return <ScheduledCard campaignId={campaignId} scheduledFor={scheduledFor} canSend={canSend} />;
   }
-  return (
-    <ResultsCard campaignId={campaignId} status={status} canSend={canSend} />
-  );
+  return <ResultsCard campaignId={campaignId} status={status} canSend={canSend} />;
 }
 
 function SendNowCard({
@@ -112,10 +81,7 @@ function SendNowCard({
   finishPreparing,
   preparing,
   draftSaved,
-}: Pick<
-  Props,
-  'campaignId' | 'prepareSend' | 'finishPreparing' | 'preparing' | 'draftSaved'
->) {
+}: Pick<Props, 'campaignId' | 'prepareSend' | 'finishPreparing' | 'preparing' | 'draftSaved'>) {
   const [open, setOpen] = React.useState(false);
   const [scheduling, setScheduling] = React.useState(false);
   return (
@@ -124,8 +90,7 @@ function SendNowCard({
         <div>
           <CardTitle>Send</CardTitle>
           <CardDescription>
-            The audience is worked out the moment it&apos;s sent. Emails go out
-            at about 10 a second.
+            The audience is worked out the moment it&apos;s sent. Emails go out at about 10 a second.
           </CardDescription>
         </div>
         <div className='flex flex-wrap gap-2'>
@@ -196,25 +161,15 @@ function SendNowDialog({
   const [isSending, setIsSending] = React.useState(false);
 
   const data = summary.data;
-  const typedOk =
-    !data?.requiresTypedConfirmation ||
-    Number(typed.replace(/[,\s]/g, '')) === data.recipients;
-  const canConfirm =
-    draftSaved &&
-    !summary.isFetching &&
-    data &&
-    data.problems.length === 0 &&
-    typedOk;
+  const typedOk = !data?.requiresTypedConfirmation || Number(typed.replace(/[,\s]/g, '')) === data.recipients;
+  const canConfirm = draftSaved && !summary.isFetching && data && data.problems.length === 0 && typedOk;
 
   async function confirm() {
     if (!data || !canConfirm || isSending) return;
     setIsSending(true);
     setError(null);
     try {
-      const result = await sendCampaignNow(
-        campaignId,
-        data.requiresTypedConfirmation ? data.recipients : undefined,
-      );
+      const result = await sendCampaignNow(campaignId, data.requiresTypedConfirmation ? data.recipients : undefined);
       if (!result.success) {
         setError(result.error);
         return;
@@ -243,8 +198,7 @@ function SendNowDialog({
             )}
           </DialogTitle>
           <DialogDescription>
-            This can be stopped while it&apos;s sending, but emails already sent
-            can&apos;t be taken back.
+            This can be stopped while it&apos;s sending, but emails already sent can&apos;t be taken back.
           </DialogDescription>
         </DialogHeader>
 
@@ -260,9 +214,7 @@ function SendNowDialog({
           </ul>
         ) : data!.requiresTypedConfirmation ? (
           <Field>
-            <FieldLabel htmlFor='send-confirm'>
-              Type {data!.recipients.toLocaleString()} to confirm
-            </FieldLabel>
+            <FieldLabel htmlFor='send-confirm'>Type {data!.recipients.toLocaleString()} to confirm</FieldLabel>
             <Input
               id='send-confirm'
               inputMode='numeric'
@@ -276,11 +228,7 @@ function SendNowDialog({
           </Field>
         ) : null}
 
-        {!draftSaved && (
-          <FieldError>
-            Waiting for edits to save. Fix any save errors before confirming.
-          </FieldError>
-        )}
+        {!draftSaved && <FieldError>Waiting for edits to save. Fix any save errors before confirming.</FieldError>}
         {error && <FieldError>{error}</FieldError>}
 
         <DialogFooter>
@@ -311,10 +259,7 @@ function ScheduleDialog({
   const [error, setError] = React.useState<string | null>(null);
   const [isSaving, setIsSaving] = React.useState(false);
   const zone = useDisplayTimeZone();
-  const slots = React.useMemo(
-    () => campaignScheduleSlots(date, zone),
-    [date, zone],
-  );
+  const slots = React.useMemo(() => campaignScheduleSlots(date, zone), [date, zone]);
   const slot = slots.includes(selectedSlot) ? selectedSlot : '';
 
   async function save(event: React.FormEvent) {
@@ -348,9 +293,8 @@ function ScheduleDialog({
           <DialogHeader>
             <DialogTitle>Schedule</DialogTitle>
             <DialogDescription>
-              Choose an available hourly slot in your time zone. The audience is
-              worked out then, and the campaign can&apos;t be edited until
-              it&apos;s unscheduled.
+              Choose an available hourly slot in your time zone. The audience is worked out then, and the campaign
+              can&apos;t be edited until it&apos;s unscheduled.
             </DialogDescription>
           </DialogHeader>
           <div className='grid grid-cols-2 gap-3'>
@@ -383,11 +327,7 @@ function ScheduleDialog({
                   <SelectGroup>
                     {slots.map((instant) => (
                       <SelectItem key={instant} value={instant}>
-                        <LocalDateTime
-                          value={instant}
-                          timeOnly
-                          timeZoneName='short'
-                        />
+                        <LocalDateTime value={instant} timeOnly timeZoneName='short' />
                       </SelectItem>
                     ))}
                   </SelectGroup>
@@ -395,19 +335,10 @@ function ScheduleDialog({
               </Select>
             </Field>
           </div>
-          {!draftSaved && (
-            <FieldError>
-              Waiting for edits to save. Fix any save errors before confirming.
-            </FieldError>
-          )}
+          {!draftSaved && <FieldError>Waiting for edits to save. Fix any save errors before confirming.</FieldError>}
           {error && <FieldError>{error}</FieldError>}
           <DialogFooter>
-            <Button
-              type='button'
-              variant='outline'
-              disabled={isSaving}
-              onClick={onClose}
-            >
+            <Button type='button' variant='outline' disabled={isSaving} onClick={onClose}>
               Cancel
             </Button>
             <Button type='submit' disabled={isSaving || !slot || !draftSaved}>
@@ -448,18 +379,8 @@ function ScheduledCard({
       router.refresh();
     }
   }, [currentStatus, router]);
-  if (
-    currentStatus &&
-    currentStatus !== 'scheduled' &&
-    currentStatus !== 'draft'
-  ) {
-    return (
-      <ResultsCard
-        campaignId={campaignId}
-        status={currentStatus as CampaignStatus}
-        canSend={canSend}
-      />
-    );
+  if (currentStatus && currentStatus !== 'scheduled' && currentStatus !== 'draft') {
+    return <ResultsCard campaignId={campaignId} status={currentStatus as CampaignStatus} canSend={canSend} />;
   }
   return (
     <Card>
@@ -467,14 +388,8 @@ function ScheduledCard({
         <div>
           <CardTitle>Scheduled</CardTitle>
           <CardDescription>
-            Sends{' '}
-            <LocalDateTime
-              value={scheduledFor}
-              dateStyle='full'
-              timeStyle='short'
-              timeZoneName='short'
-            />
-            . Unschedule it to make changes.
+            Sends <LocalDateTime value={scheduledFor} dateStyle='full' timeStyle='short' timeZoneName='short' />.
+            Unschedule it to make changes.
           </CardDescription>
         </div>
         {canSend && (
@@ -525,21 +440,13 @@ function ResultsCard({
     },
     // Poll while it's going out; stop once it's done.
     refetchInterval: (query) =>
-      query.state.data &&
-      !['scheduled', 'sending'].includes(query.state.data.status)
-        ? false
-        : live
-          ? 5000
-          : false,
+      query.state.data && !['scheduled', 'sending'].includes(query.state.data.status) ? false : live ? 5000 : false,
   });
   const [busy, setBusy] = React.useState(false);
 
   // Button-only actions with nothing to attach an inline error to, so
   // failures toast (AGENTS.md).
-  async function run(
-    action: () => Promise<{ success: boolean; error?: string }>,
-    message: string,
-  ) {
+  async function run(action: () => Promise<{ success: boolean; error?: string }>, message: string) {
     setBusy(true);
     const result = await action();
     setBusy(false);
@@ -572,9 +479,7 @@ function ResultsCard({
               <Button
                 variant='outline'
                 disabled={busy}
-                onClick={() =>
-                  void run(() => stopCampaign(campaignId), 'Campaign stopped')
-                }
+                onClick={() => void run(() => stopCampaign(campaignId), 'Campaign stopped')}
               >
                 <Square /> Stop
               </Button>
@@ -584,15 +489,9 @@ function ResultsCard({
                 <Button
                   variant='outline'
                   disabled={busy}
-                  onClick={() =>
-                    void run(
-                      () => retryFailedDeliveries(campaignId),
-                      'Pending deliveries queued',
-                    )
-                  }
+                  onClick={() => void run(() => retryFailedDeliveries(campaignId), 'Pending deliveries queued')}
                 >
-                  <RotateCcw />{' '}
-                  {(counts?.failed ?? 0) > 0 ? 'Retry failed' : 'Resume queued'}
+                  <RotateCcw /> {(counts?.failed ?? 0) > 0 ? 'Retry failed' : 'Resume queued'}
                 </Button>
               )}
           </div>
@@ -608,12 +507,8 @@ function ResultsCard({
             <div className='grid grid-cols-2 gap-3 sm:grid-cols-4'>
               {(['queued', 'sent', 'failed', 'skipped'] as const).map((key) => (
                 <div key={key} className='rounded-md border p-3'>
-                  <p className='text-muted-foreground text-xs capitalize'>
-                    {key}
-                  </p>
-                  <p className='text-2xl font-semibold'>
-                    {counts![key].toLocaleString()}
-                  </p>
+                  <p className='text-muted-foreground text-xs capitalize'>{key}</p>
+                  <p className='text-2xl font-semibold'>{counts![key].toLocaleString()}</p>
                 </div>
               ))}
             </div>
@@ -624,9 +519,7 @@ function ResultsCard({
                     <TableRow>
                       <TableHead>Recipient</TableHead>
                       <TableHead>Status</TableHead>
-                      <TableHead className='hidden sm:table-cell'>
-                        Note
-                      </TableHead>
+                      <TableHead className='hidden sm:table-cell'>Note</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -636,19 +529,12 @@ function ResultsCard({
                           {r.email}
                           {r.sentAt && (
                             <span className='text-muted-foreground block text-xs'>
-                              <LocalDateTime
-                                value={r.sentAt}
-                                dateStyle='medium'
-                                timeStyle='short'
-                              />
+                              <LocalDateTime value={r.sentAt} dateStyle='medium' timeStyle='short' />
                             </span>
                           )}
                         </TableCell>
                         <TableCell>
-                          <Badge
-                            variant={DELIVERY_BADGE[r.status]}
-                            className='capitalize'
-                          >
+                          <Badge variant={DELIVERY_BADGE[r.status]} className='capitalize'>
                             {r.status}
                           </Badge>
                         </TableCell>

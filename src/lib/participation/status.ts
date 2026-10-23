@@ -14,11 +14,7 @@ import {
  */
 
 /** Review outcomes: what an organizer decides before any invitation. */
-const REVIEW_STATUSES = [
-  'pending_review',
-  'waitlisted',
-  'denied',
-] as const satisfies readonly ParticipationStatus[];
+const REVIEW_STATUSES = ['pending_review', 'waitlisted', 'denied'] as const satisfies readonly ParticipationStatus[];
 
 /** Outcomes of an RSVP invitation. Only reachable once one has been sent. */
 const INVITATION_STATUSES = [
@@ -33,28 +29,19 @@ export type InvitationStatus = (typeof INVITATION_STATUSES)[number];
  * Statuses an RSVP wave draws from. Accepting an application puts it on the
  * waitlist; waves invite from there in vote-ranked order (`@/lib/rsvp/waitlist`).
  */
-export const WAVE_ELIGIBLE_STATUSES = [
-  'waitlisted',
-] as const satisfies readonly ParticipationStatus[];
+export const WAVE_ELIGIBLE_STATUSES = ['waitlisted'] as const satisfies readonly ParticipationStatus[];
 
 export function isReviewStatus(status: ParticipationStatus): boolean {
   return (REVIEW_STATUSES as readonly string[]).includes(status);
 }
 
-export function isInvitationStatus(
-  status: ParticipationStatus,
-): status is InvitationStatus {
+export function isInvitationStatus(status: ParticipationStatus): status is InvitationStatus {
   return (INVITATION_STATUSES as readonly string[]).includes(status);
 }
 
 /** Normalize a stored `participation_statuses.label`. Unknown / null → pending_review. */
-export function resolveStoredStatus(
-  label: string | null | undefined,
-): ParticipationStatus {
-  if (
-    label &&
-    (participationStatusesList as readonly string[]).includes(label)
-  ) {
+export function resolveStoredStatus(label: string | null | undefined): ParticipationStatus {
+  if (label && (participationStatusesList as readonly string[]).includes(label)) {
     return label as ParticipationStatus;
   }
   return 'pending_review';
@@ -73,11 +60,7 @@ export function resolveEffectiveStatus(
   now: Date = new Date(),
 ): ParticipationStatus {
   const stored = resolveStoredStatus(label);
-  if (
-    stored === 'invited' &&
-    respondBy &&
-    respondBy.getTime() < now.getTime()
-  ) {
+  if (stored === 'invited' && respondBy && respondBy.getTime() < now.getTime()) {
     return 'timed_out';
   }
   return stored;
@@ -151,8 +134,5 @@ export type StatusDisplay = {
  * `getStatusDisplayMap`.
  */
 export const STATIC_STATUS_DISPLAY = Object.fromEntries(
-  participationStatusDisplayList.map(({ label, ...display }) => [
-    label,
-    display,
-  ]),
+  participationStatusDisplayList.map(({ label, ...display }) => [label, display]),
 ) as Record<ParticipationStatus, StatusDisplay>;

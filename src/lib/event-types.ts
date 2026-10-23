@@ -25,10 +25,6 @@ export async function listEventTypes(): Promise<EventTypeOption[]> {
 }
 
 export async function eventTypeExists(id: number): Promise<boolean> {
-  const [row] = await db
-    .select({ id: eventTypes.id })
-    .from(eventTypes)
-    .where(eq(eventTypes.id, id))
-    .limit(1);
+  const [row] = await db.select({ id: eventTypes.id }).from(eventTypes).where(eq(eventTypes.id, id)).limit(1);
   return row != null;
 }

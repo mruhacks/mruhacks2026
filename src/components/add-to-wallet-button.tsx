@@ -7,13 +7,7 @@ import { cn } from '@/lib/utils';
  * <img> from /public rather than next/image's static-import pipeline, which
  * mishandles this SVG under Turbopack.
  */
-export function AddToWalletButton({
-  eventId,
-  className,
-}: {
-  eventId: string;
-  className?: string;
-}) {
+export function AddToWalletButton({ eventId, className }: { eventId: string; className?: string }) {
   return (
     <a
       href={`/api/wallet/pass/${eventId}`}
@@ -23,11 +17,7 @@ export function AddToWalletButton({
       )}
     >
       {/* eslint-disable-next-line @next/next/no-img-element -- fixed-size official brand asset, not a content image */}
-      <img
-        src='/wallet/add-to-apple-wallet.svg'
-        alt='Add to Apple Wallet'
-        className='h-10 w-auto'
-      />
+      <img src='/wallet/add-to-apple-wallet.svg' alt='Add to Apple Wallet' className='h-10 w-auto' />
     </a>
   );
 }

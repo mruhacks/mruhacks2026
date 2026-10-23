@@ -27,22 +27,14 @@ export function EventTicketCard({
       <div className='flex items-center gap-3 text-left'>
         <Image src={chevronLogo} alt='' className='size-10 shrink-0' />
         <div className='flex flex-col gap-1'>
-          <p className='text-muted-foreground text-xs font-semibold tracking-wide uppercase'>
-            Event Ticket
-          </p>
+          <p className='text-muted-foreground text-xs font-semibold tracking-wide uppercase'>Event Ticket</p>
           <h2 className='text-xl font-semibold'>{eventName}</h2>
-          {subtitle && (
-            <p className='text-muted-foreground text-sm'>{subtitle}</p>
-          )}
+          {subtitle && <p className='text-muted-foreground text-sm'>{subtitle}</p>}
         </div>
       </div>
 
       {/* eslint-disable-next-line @next/next/no-img-element -- dynamically generated, uncacheable SVG; not eligible for next/image optimization */}
-      <img
-        src={`/api/wallet/qr/${eventId}`}
-        alt='Check-in QR code'
-        className='size-64'
-      />
+      <img src={`/api/wallet/qr/${eventId}`} alt='Check-in QR code' className='size-64' />
 
       <p className='text-sm font-medium'>{participantName}</p>
     </div>

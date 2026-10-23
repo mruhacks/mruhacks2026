@@ -2,18 +2,9 @@ import { describe, test, expect, beforeAll, afterAll, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 
 import { db } from '@/utils/db';
-import {
-  events,
-  eventInvitations,
-  eventRsvpWaves,
-  user,
-  verification,
-} from '@/db/schema';
+import { events, eventInvitations, eventRsvpWaves, user, verification } from '@/db/schema';
 import { insertInvitation } from '@/tests/participation-fixtures';
-import {
-  MAX_INVITATION_DELIVERY_ATTEMPTS,
-  processRsvpInvitation,
-} from '@/lib/rsvp/process-rsvp-invitation';
+import { MAX_INVITATION_DELIVERY_ATTEMPTS, processRsvpInvitation } from '@/lib/rsvp/process-rsvp-invitation';
 
 vi.mock('@/utils/mail', () => ({
   sendMail: vi.fn().mockResolvedValue(undefined),
@@ -55,11 +46,7 @@ async function createResponse(options: {
 }
 
 async function getResponse(responseId: string) {
-  const [row] = await db
-    .select()
-    .from(eventInvitations)
-    .where(eq(eventInvitations.id, responseId))
-    .limit(1);
+  const [row] = await db.select().from(eventInvitations).where(eq(eventInvitations.id, responseId)).limit(1);
   return row;
 }
 
@@ -121,9 +108,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await db
-    .delete(eventRsvpWaves)
-    .where(eq(eventRsvpWaves.eventId, testEventId));
+  await db.delete(eventRsvpWaves).where(eq(eventRsvpWaves.eventId, testEventId));
   await db.delete(events).where(eq(events.id, testEventId));
   await db.delete(user).where(eq(user.id, testUserId));
 });
@@ -152,9 +137,7 @@ describe('processRsvpInvitation', () => {
 
       token = magicLinkTokenFromLastMail();
       const expiresAt = await getVerificationExpiresAt(token);
-      expect(Math.abs(expiresAt.getTime() - respondBy.getTime())).toBeLessThan(
-        5000,
-      );
+      expect(Math.abs(expiresAt.getTime() - respondBy.getTime())).toBeLessThan(5000);
     } finally {
       signInSpy.mockRestore();
       if (token) await deleteVerification(token);
@@ -175,12 +158,8 @@ describe('processRsvpInvitation', () => {
 
       token = magicLinkTokenFromLastMail();
       const expiresAt = await getVerificationExpiresAt(token);
-      expect(Math.abs(expiresAt.getTime() - respondBy.getTime())).toBeLessThan(
-        5000,
-      );
-      expect(expiresAt.getTime()).toBeLessThan(
-        Date.now() + 48 * 60 * 60 * 1000,
-      );
+      expect(Math.abs(expiresAt.getTime() - respondBy.getTime())).toBeLessThan(5000);
+      expect(expiresAt.getTime()).toBeLessThan(Date.now() + 48 * 60 * 60 * 1000);
     } finally {
       if (token) await deleteVerification(token);
       await deleteResponse(waveId);
@@ -230,10 +209,7 @@ describe('processRsvpInvitation', () => {
   });
 
   test('acks a message whose response row no longer exists', async () => {
-    const outcome = await processRsvpInvitation(
-      '00000000-0000-0000-0000-000000000000',
-      1,
-    );
+    const outcome = await processRsvpInvitation('00000000-0000-0000-0000-000000000000', 1);
     expect(outcome).toBe('not_found');
   });
 
@@ -273,20 +249,18 @@ describe('processRsvpInvitation', () => {
 
   test('records the error and rethrows when a delivery attempt fails and retries remain', async () => {
     vi.mocked(sendMail).mockClear();
-    const signInSpy = vi
-      .spyOn(auth.api, 'signInMagicLink')
-      .mockImplementationOnce(async () => {
-        throw new Error('magic link unavailable');
-      });
+    const signInSpy = vi.spyOn(auth.api, 'signInMagicLink').mockImplementationOnce(async () => {
+      throw new Error('magic link unavailable');
+    });
 
     const { responseId, waveId } = await createResponse({
       respondBy: new Date('2099-08-01T23:59:59.000Z'),
     });
 
     try {
-      await expect(
-        processRsvpInvitation(responseId, MAX_INVITATION_DELIVERY_ATTEMPTS - 1),
-      ).rejects.toThrow('magic link unavailable');
+      await expect(processRsvpInvitation(responseId, MAX_INVITATION_DELIVERY_ATTEMPTS - 1)).rejects.toThrow(
+        'magic link unavailable',
+      );
 
       const row = await getResponse(responseId);
       expect(row.invitationEmailAttempts).toBe(1);
@@ -300,21 +274,16 @@ describe('processRsvpInvitation', () => {
 
   test('gives up and marks the response failed after the max delivery attempts', async () => {
     vi.mocked(sendMail).mockClear();
-    const signInSpy = vi
-      .spyOn(auth.api, 'signInMagicLink')
-      .mockImplementationOnce(async () => {
-        throw new Error('magic link unavailable');
-      });
+    const signInSpy = vi.spyOn(auth.api, 'signInMagicLink').mockImplementationOnce(async () => {
+      throw new Error('magic link unavailable');
+    });
 
     const { responseId, waveId } = await createResponse({
       respondBy: new Date('2099-08-01T23:59:59.000Z'),
     });
 
     try {
-      const outcome = await processRsvpInvitation(
-        responseId,
-        MAX_INVITATION_DELIVERY_ATTEMPTS,
-      );
+      const outcome = await processRsvpInvitation(responseId, MAX_INVITATION_DELIVERY_ATTEMPTS);
       expect(outcome).toBe('given_up');
 
       const row = await getResponse(responseId);

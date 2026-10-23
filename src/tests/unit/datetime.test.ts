@@ -1,11 +1,6 @@
 import { describe, expect, test } from 'vitest';
 
-import {
-  EVENT_TIME_ZONE,
-  formatEventDateTime,
-  parseInstant,
-  toZonedOffsetString,
-} from '@/lib/datetime';
+import { EVENT_TIME_ZONE, formatEventDateTime, parseInstant, toZonedOffsetString } from '@/lib/datetime';
 
 describe('parseInstant', () => {
   test('treats a naive ISO datetime as UTC', () => {
@@ -31,24 +26,16 @@ describe('parseInstant', () => {
   test('keeps the hour-only offset postgres emits as that instant', () => {
     // `+00` is what a `timestamptz` column serializes to. It is not a legal
     // ISO offset, so it has to be padded before the strict parser sees it.
-    expect(parseInstant('2026-09-14 22:31:00+00')?.toISOString()).toBe(
-      '2026-09-14T22:31:00.000Z',
-    );
-    expect(parseInstant('2026-09-14 16:31:00-06')?.toISOString()).toBe(
-      '2026-09-14T22:31:00.000Z',
-    );
+    expect(parseInstant('2026-09-14 22:31:00+00')?.toISOString()).toBe('2026-09-14T22:31:00.000Z');
+    expect(parseInstant('2026-09-14 16:31:00-06')?.toISOString()).toBe('2026-09-14T22:31:00.000Z');
   });
 
   test('keeps a colon-less offset as that instant', () => {
-    expect(parseInstant('2026-09-14T16:31:00.000-0600')?.toISOString()).toBe(
-      '2026-09-14T22:31:00.000Z',
-    );
+    expect(parseInstant('2026-09-14T16:31:00.000-0600')?.toISOString()).toBe('2026-09-14T22:31:00.000Z');
   });
 
   test('keeps sub-second precision beyond milliseconds', () => {
-    expect(parseInstant('2026-09-14 22:31:00.123456+00')?.toISOString()).toBe(
-      '2026-09-14T22:31:00.123Z',
-    );
+    expect(parseInstant('2026-09-14 22:31:00.123456+00')?.toISOString()).toBe('2026-09-14T22:31:00.123Z');
   });
 
   test('passes through a valid Date', () => {
@@ -74,41 +61,29 @@ describe('formatEventDateTime', () => {
 describe('toZonedOffsetString', () => {
   test('prints the venue wall clock, not UTC', () => {
     const date = parseInstant('2026-09-14T22:31:00.000Z')!;
-    expect(toZonedOffsetString(date, EVENT_TIME_ZONE)).toBe(
-      '2026-09-14T16:31:00-06:00',
-    );
+    expect(toZonedOffsetString(date, EVENT_TIME_ZONE)).toBe('2026-09-14T16:31:00-06:00');
   });
 
   test('uses the offset in effect at that instant, not a fixed one', () => {
     // Opposite sides of a DST boundary. Not EVENT_TIME_ZONE: tzdata 2026c
     // moved Alberta to year-round UTC-6, so its winter offset depends on the
     // runtime's tz database version.
-    expect(
-      toZonedOffsetString(
-        parseInstant('2026-07-14T22:31:00Z')!,
-        'America/Toronto',
-      ),
-    ).toBe('2026-07-14T18:31:00-04:00');
-    expect(
-      toZonedOffsetString(
-        parseInstant('2026-12-14T22:31:00Z')!,
-        'America/Toronto',
-      ),
-    ).toBe('2026-12-14T17:31:00-05:00');
+    expect(toZonedOffsetString(parseInstant('2026-07-14T22:31:00Z')!, 'America/Toronto')).toBe(
+      '2026-07-14T18:31:00-04:00',
+    );
+    expect(toZonedOffsetString(parseInstant('2026-12-14T22:31:00Z')!, 'America/Toronto')).toBe(
+      '2026-12-14T17:31:00-05:00',
+    );
   });
 
   test('rolls the date back when the venue day differs from the UTC day', () => {
     const date = parseInstant('2026-09-15T02:00:00.000Z')!;
-    expect(toZonedOffsetString(date, EVENT_TIME_ZONE)).toBe(
-      '2026-09-14T20:00:00-06:00',
-    );
+    expect(toZonedOffsetString(date, EVENT_TIME_ZONE)).toBe('2026-09-14T20:00:00-06:00');
   });
 
   test('renders venue midnight as hour 00, never 24', () => {
     const date = parseInstant('2026-09-14T06:00:00.000Z')!;
-    expect(toZonedOffsetString(date, EVENT_TIME_ZONE)).toBe(
-      '2026-09-14T00:00:00-06:00',
-    );
+    expect(toZonedOffsetString(date, EVENT_TIME_ZONE)).toBe('2026-09-14T00:00:00-06:00');
   });
 
   test('spells UTC as a +00:00 offset rather than an empty one', () => {

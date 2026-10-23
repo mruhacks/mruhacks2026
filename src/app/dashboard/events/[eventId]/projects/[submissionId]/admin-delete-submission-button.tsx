@@ -67,26 +67,15 @@ export function AdminDeleteSubmissionButton({
           <DialogHeader>
             <DialogTitle>Delete &ldquo;{title}&rdquo;?</DialogTitle>
             <DialogDescription>
-              This removes the team&apos;s write-up, links and images for
-              everyone, and can&apos;t be undone. The team can start a new
-              project only while submissions are still open.
+              This removes the team&apos;s write-up, links and images for everyone, and can&apos;t be undone. The team
+              can start a new project only while submissions are still open.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button
-              type='button'
-              variant='outline'
-              onClick={() => setOpen(false)}
-              disabled={isDeleting}
-            >
+            <Button type='button' variant='outline' onClick={() => setOpen(false)} disabled={isDeleting}>
               Cancel
             </Button>
-            <Button
-              type='button'
-              variant='destructive'
-              onClick={handleDelete}
-              disabled={isDeleting}
-            >
+            <Button type='button' variant='destructive' onClick={handleDelete} disabled={isDeleting}>
               {isDeleting ? 'Deleting…' : 'Delete submission'}
             </Button>
           </DialogFooter>

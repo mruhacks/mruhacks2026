@@ -12,17 +12,7 @@
 
 'use server';
 
-import {
-  and,
-  asc,
-  count,
-  eq,
-  inArray,
-  max,
-  isNotNull,
-  isNull,
-  sql,
-} from 'drizzle-orm';
+import { and, asc, count, eq, inArray, max, isNotNull, isNull, sql } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
@@ -36,16 +26,10 @@ import {
   submissions,
   user as authUser,
 } from '@/db/schema';
-import {
-  claimMagicLinkCooldown,
-  releaseMagicLinkCooldown,
-} from '@/lib/auth/magic-link-cooldown';
+import { claimMagicLinkCooldown, releaseMagicLinkCooldown } from '@/lib/auth/magic-link-cooldown';
 import { eventUrlSegments } from '@/lib/events';
 import { JUDGE_PRIOR } from '@/lib/judging/crowd-bt';
-import {
-  checkJudgeInviteRateLimit,
-  JUDGE_INVITE_RATE_LIMITED,
-} from '@/lib/judging/invite-rate-limit';
+import { checkJudgeInviteRateLimit, JUDGE_INVITE_RATE_LIMITED } from '@/lib/judging/invite-rate-limit';
 import { sendJudgeInvite } from '@/lib/judging/judge-invite';
 import {
   CRITERION_DESCRIPTION_MAX_LENGTH,
@@ -55,16 +39,8 @@ import {
   MAX_CRITERIA,
   MAX_PLACEMENT,
 } from '@/lib/judging/limits';
-import {
-  normalizeWeights,
-  overallScore,
-  reliabilityMean,
-} from '@/lib/judging/results';
-import {
-  MAX_TABLE_ROWS,
-  TABLE_ALPHABETS,
-  type TableLayout,
-} from '@/lib/judging/table-label';
+import { normalizeWeights, overallScore, reliabilityMean } from '@/lib/judging/results';
+import { MAX_TABLE_ROWS, TABLE_ALPHABETS, type TableLayout } from '@/lib/judging/table-label';
 import {
   byTableSlot,
   eventHasVotes,
@@ -86,15 +62,10 @@ import { getUser } from '@/utils/auth';
 import { writeAuditLog } from '@/utils/audit-log';
 import { db } from '@/utils/db';
 
-type JudgingPermission =
-  | 'judging:manage:all'
-  | 'judging:results:all'
-  | 'judging:award:all';
+type JudgingPermission = 'judging:manage:all' | 'judging:results:all' | 'judging:award:all';
 
 /** The caller's id if they hold `permission`, else a failure to return. */
-async function authorize(
-  permission: JudgingPermission,
-): Promise<{ userId: string } | { error: ActionResult<never> }> {
+async function authorize(permission: JudgingPermission): Promise<{ userId: string } | { error: ActionResult<never> }> {
   const user = await getUser();
   if (!user) return { error: fail('Not authenticated') };
   if (!(await hasPermission(user.id, permission))) {
@@ -115,11 +86,7 @@ const STRUCTURE_LOCKED =
   'Judging has started. Criteria can no longer be added, removed or reordered — only renamed and reweighted.';
 
 /** "Deleted judge #1a2b3c4d" — what's left once a judge deletes their account. */
-function judgeLabel(row: {
-  id: string;
-  name: string | null;
-  email: string | null;
-}): string {
+function judgeLabel(row: { id: string; name: string | null; email: string | null }): string {
   return row.name || row.email || `Deleted judge #${row.id.slice(0, 8)}`;
 }
 
@@ -162,10 +129,7 @@ async function loadRoster(eventId: string) {
  * Every comparison casts one vote per criterion, and the criteria are frozen
  * from the first vote on, so this division is exact.
  */
-function comparisonsFromVotes(
-  votes: number | undefined,
-  criterionCount: number,
-): number {
+function comparisonsFromVotes(votes: number | undefined, criterionCount: number): number {
   return Math.round((votes ?? 0) / Math.max(criterionCount, 1));
 }
 
@@ -220,20 +184,11 @@ export type JudgingAdminData = {
 };
 
 /** Everything the Judging page shows. Requires judging:manage:all. */
-export async function getJudgingAdmin(
-  eventId: string,
-): Promise<ActionResult<JudgingAdminData>> {
+export async function getJudgingAdmin(eventId: string): Promise<ActionResult<JudgingAdminData>> {
   const auth = await authorize('judging:manage:all');
   if ('error' in auth) return auth.error;
 
-  const [
-    criteria,
-    structureLocked,
-    layoutLocked,
-    judges,
-    voteCounts,
-    tableLayout,
-  ] = await Promise.all([
+  const [criteria, structureLocked, layoutLocked, judges, voteCounts, tableLayout] = await Promise.all([
     loadCriteria(eventId),
     eventHasVotes(eventId),
     judgesSentToTables(eventId),
@@ -247,9 +202,7 @@ export async function getJudgingAdmin(
     loadTableLayout(eventId),
   ]);
 
-  const votesByJudge = new Map(
-    voteCounts.map((row) => [row.judgeId, row.votes]),
-  );
+  const votesByJudge = new Map(voteCounts.map((row) => [row.judgeId, row.votes]));
 
   const weights = normalizeWeights(criteria.map((c) => c.weight));
   return ok({
@@ -271,10 +224,7 @@ export async function getJudgingAdmin(
       startedJudging: row.startedJudging,
       deleted: row.userId == null && row.email == null,
       disabled: row.disabledAt != null,
-      comparisons: comparisonsFromVotes(
-        votesByJudge.get(row.id),
-        criteria.length,
-      ),
+      comparisons: comparisonsFromVotes(votesByJudge.get(row.id), criteria.length),
     })),
   });
 }
@@ -283,9 +233,7 @@ export async function getJudgingAdmin(
  * Every submission with its expo table, for deciding which are judged.
  * Its own read, apart from `getJudgingAdmin`, since it backs its own page.
  */
-export async function getJudgingProjects(
-  eventId: string,
-): Promise<ActionResult<JudgingProjectRow[]>> {
+export async function getJudgingProjects(eventId: string): Promise<ActionResult<JudgingProjectRow[]>> {
   const auth = await authorize('judging:manage:all');
   if ('error' in auth) return auth.error;
 
@@ -350,10 +298,7 @@ const criterionSchema = z.object({
     .string()
     .trim()
     .min(1, 'Give every criterion a name.')
-    .max(
-      CRITERION_NAME_MAX_LENGTH,
-      `Keep names under ${CRITERION_NAME_MAX_LENGTH} characters.`,
-    ),
+    .max(CRITERION_NAME_MAX_LENGTH, `Keep names under ${CRITERION_NAME_MAX_LENGTH} characters.`),
   description: z
     .string()
     .trim()
@@ -423,10 +368,7 @@ function isUniqueViolation(error: unknown): boolean {
  * (FOR UPDATE here, FOR KEY SHARE in the vote path) keeps a first vote from
  * landing in between the "no votes yet" check and the change.
  */
-export async function saveJudgingCriteria(
-  eventId: string,
-  input: CriteriaInput,
-): Promise<ActionResult> {
+export async function saveJudgingCriteria(eventId: string, input: CriteriaInput): Promise<ActionResult> {
   const auth = await authorize('judging:manage:all');
   if ('error' in auth) return auth.error;
   const parsed = criteriaSchema.safeParse(input);
@@ -437,36 +379,24 @@ export async function saveJudgingCriteria(
   let result: ActionResult<{ added: number; removed: string[] }>;
   try {
     result = await db.transaction(async (tx) => {
-      const [event] = await tx
-        .select({ id: events.id })
-        .from(events)
-        .where(eq(events.id, eventId))
-        .for('update');
+      const [event] = await tx.select({ id: events.id }).from(events).where(eq(events.id, eventId)).for('update');
       if (!event) return fail('Event not found.');
 
       const existing = await loadCriteria(eventId, tx);
       const existingIds = new Set(existing.map((c) => c.id));
       if (rows.some((row) => row.id && !existingIds.has(row.id))) {
-        return fail(
-          'These criteria were changed elsewhere. Reload the page and try again.',
-        );
+        return fail('These criteria were changed elsewhere. Reload the page and try again.');
       }
       const keptIds = new Set(rows.flatMap((row) => (row.id ? [row.id] : [])));
-      const removed = existing
-        .filter((c) => !keptIds.has(c.id))
-        .map((c) => c.id);
+      const removed = existing.filter((c) => !keptIds.has(c.id)).map((c) => c.id);
 
       if (await eventHasVotes(eventId, tx)) {
-        const sameList =
-          rows.length === existing.length &&
-          rows.every((row, index) => row.id === existing[index].id);
+        const sameList = rows.length === existing.length && rows.every((row, index) => row.id === existing[index].id);
         if (!sameList) return fail(STRUCTURE_LOCKED);
       }
 
       if (removed.length > 0) {
-        await tx
-          .delete(judgingCriteria)
-          .where(inArray(judgingCriteria.id, removed));
+        await tx.delete(judgingCriteria).where(inArray(judgingCriteria.id, removed));
       }
       let added = 0;
       for (const [position, row] of rows.entries()) {
@@ -477,10 +407,7 @@ export async function saveJudgingCriteria(
           position,
         };
         if (row.id) {
-          await tx
-            .update(judgingCriteria)
-            .set(values)
-            .where(eq(judgingCriteria.id, row.id));
+          await tx.update(judgingCriteria).set(values).where(eq(judgingCriteria.id, row.id));
         } else {
           await tx.insert(judgingCriteria).values({ eventId, ...values });
           added += 1;
@@ -529,8 +456,7 @@ const emailSchema = z
  */
 export type JudgeInviteOutcome = 'sent' | 'failed' | 'cooling_down';
 
-const INVITE_COOLING_DOWN =
-  'A sign-in link went to this address in the last minute. Try again shortly.';
+const INVITE_COOLING_DOWN = 'A sign-in link went to this address in the last minute. Try again shortly.';
 
 /**
  * Emails one judge their invite and records when it went out. `claimedAt`:
@@ -547,12 +473,7 @@ async function deliverJudgeInvite(
     await db
       .update(eventJudges)
       .set({ inviteSentAt: null })
-      .where(
-        and(
-          eq(eventJudges.id, judge.id),
-          eq(eventJudges.inviteSentAt, claimedAt),
-        ),
-      );
+      .where(and(eq(eventJudges.id, judge.id), eq(eventJudges.inviteSentAt, claimedAt)));
   };
 
   if (!(await claimMagicLinkCooldown(judge.email))) {
@@ -568,10 +489,7 @@ async function deliverJudgeInvite(
     return 'failed';
   }
   if (!claimedAt) {
-    await db
-      .update(eventJudges)
-      .set({ inviteSentAt: new Date() })
-      .where(eq(eventJudges.id, judge.id));
+    await db.update(eventJudges).set({ inviteSentAt: new Date() }).where(eq(eventJudges.id, judge.id));
   }
   return 'sent';
 }
@@ -599,20 +517,14 @@ export async function addEventJudge(
   eventId: string,
   email: string,
   { sendInvite = true }: { sendInvite?: boolean } = {},
-): Promise<
-  ActionResult<{ invite: JudgeInviteOutcome | 'not_sent' | 'rate_limited' }>
-> {
+): Promise<ActionResult<{ invite: JudgeInviteOutcome | 'not_sent' | 'rate_limited' }>> {
   const auth = await authorize('judging:manage:all');
   if ('error' in auth) return auth.error;
   const normalized = normalizeJudgeEmail(email);
   const parsedEmail = emailSchema.safeParse(normalized);
   if (!parsedEmail.success) return fail(firstIssue(parsedEmail.error));
 
-  const [event] = await db
-    .select({ name: events.name })
-    .from(events)
-    .where(eq(events.id, eventId))
-    .limit(1);
+  const [event] = await db.select({ name: events.name }).from(events).where(eq(events.id, eventId)).limit(1);
   if (!event) return fail('Event not found.');
 
   const [existingUser] = await db
@@ -620,10 +532,7 @@ export async function addEventJudge(
     .from(authUser)
     .where(sql`lower(${authUser.email}) = ${normalized}`)
     .limit(1);
-  if (
-    existingUser &&
-    (await isParticipatingInEvent(eventId, existingUser.id))
-  ) {
+  if (existingUser && (await isParticipatingInEvent(eventId, existingUser.id))) {
     return fail(JUDGE_IS_PARTICIPANT_MESSAGE);
   }
 
@@ -632,8 +541,7 @@ export async function addEventJudge(
     .values({ eventId, email: normalized })
     .onConflictDoNothing()
     .returning({ id: eventJudges.id });
-  if (inserted.length === 0)
-    return fail('That email is already on the roster.');
+  if (inserted.length === 0) return fail('That email is already on the roster.');
   const judgeId = inserted[0].id;
 
   if (existingUser) {
@@ -672,10 +580,7 @@ export async function addEventJudge(
  * cooldown and the organizer's invite rate limit. Not for a disabled judge,
  * whom the bulk send leaves out too.
  */
-export async function resendJudgeInvite(
-  eventId: string,
-  judgeId: string,
-): Promise<ActionResult> {
+export async function resendJudgeInvite(eventId: string, judgeId: string): Promise<ActionResult> {
   const auth = await authorize('judging:manage:all');
   if ('error' in auth) return auth.error;
   if (!(await checkJudgeInviteRateLimit(auth.userId))) {
@@ -698,10 +603,7 @@ export async function resendJudgeInvite(
     return fail('This judge is disabled. Enable them to send their invite.');
   }
 
-  const outcome = await deliverJudgeInvite(
-    { id: judgeId, email: row.email },
-    row.eventName,
-  );
+  const outcome = await deliverJudgeInvite({ id: judgeId, email: row.email }, row.eventName);
   if (outcome === 'cooling_down') return fail(INVITE_COOLING_DOWN);
   if (outcome !== 'sent') return fail('Failed to send the invite.');
 
@@ -735,11 +637,7 @@ export async function sendOutstandingJudgeInvites(
     return fail(JUDGE_INVITE_RATE_LIMITED);
   }
 
-  const [event] = await db
-    .select({ name: events.name })
-    .from(events)
-    .where(eq(events.id, eventId))
-    .limit(1);
+  const [event] = await db.select({ name: events.name }).from(events).where(eq(events.id, eventId)).limit(1);
   if (!event) return fail('Event not found.');
 
   const outstanding = await db
@@ -765,11 +663,7 @@ export async function sendOutstandingJudgeInvites(
         const claimedAt = await claimOutstandingInvite(judge.id);
         // Another organizer's send got to them first.
         if (!claimedAt) return 'skipped' as const;
-        return deliverJudgeInvite(
-          { id: judge.id, email: judge.email! },
-          event.name,
-          claimedAt,
-        );
+        return deliverJudgeInvite({ id: judge.id, email: judge.email! }, event.name, claimedAt);
       }),
     );
     outcomes.forEach((outcome, index) => {
@@ -823,10 +717,7 @@ export async function setEventJudgeDisabled(
 }
 
 /** Removes a judge from the roster — only while they have cast no votes. */
-export async function removeEventJudge(
-  eventId: string,
-  judgeId: string,
-): Promise<ActionResult> {
+export async function removeEventJudge(eventId: string, judgeId: string): Promise<ActionResult> {
   const auth = await authorize('judging:manage:all');
   if ('error' in auth) return auth.error;
 
@@ -882,26 +773,17 @@ const tableLayoutSchema = z.object({
  * judge transaction) keeps a first dispatch from landing between the check
  * and the change. Requires judging:manage:all.
  */
-export async function updateJudgingTableLayout(
-  eventId: string,
-  input: TableLayout,
-): Promise<ActionResult> {
+export async function updateJudgingTableLayout(eventId: string, input: TableLayout): Promise<ActionResult> {
   const auth = await authorize('judging:manage:all');
   if ('error' in auth) return auth.error;
   const parsed = tableLayoutSchema.safeParse(input);
   if (!parsed.success) return fail(firstIssue(parsed.error));
 
   const result = await db.transaction(async (tx) => {
-    const [event] = await tx
-      .select({ id: events.id })
-      .from(events)
-      .where(eq(events.id, eventId))
-      .for('update');
+    const [event] = await tx.select({ id: events.id }).from(events).where(eq(events.id, eventId)).for('update');
     if (!event) return fail('Event not found.');
     if (await judgesSentToTables(eventId, tx)) {
-      return fail(
-        'Judging has started, so the table layout can no longer change.',
-      );
+      return fail('Judging has started, so the table layout can no longer change.');
     }
     await tx
       .update(events)
@@ -943,22 +825,14 @@ export async function setSubmissionDeactivated(
 
   const [updated] = await db
     .update(submissions)
-    .set(
-      deactivated
-        ? { deactivatedAt: new Date(), placement: null }
-        : { deactivatedAt: null },
-    )
-    .where(
-      and(eq(submissions.id, submissionId), eq(submissions.eventId, eventId)),
-    )
+    .set(deactivated ? { deactivatedAt: new Date(), placement: null } : { deactivatedAt: null })
+    .where(and(eq(submissions.id, submissionId), eq(submissions.eventId, eventId)))
     .returning({ id: submissions.id });
   if (!updated) return fail('Project not found.');
 
   await writeAuditLog({
     actorId: auth.userId,
-    action: deactivated
-      ? 'judging.submission.deactivated'
-      : 'judging.submission.reactivated',
+    action: deactivated ? 'judging.submission.deactivated' : 'judging.submission.reactivated',
     targetType: 'submission',
     targetId: submissionId,
     metadata: { eventId },
@@ -1022,9 +896,7 @@ export type JudgingResults = {
  * Requires judging:results:all or judging:award:all; an award-only caller
  * gets the project list without any ranking, to record placements from.
  */
-export async function getJudgingResults(
-  eventId: string,
-): Promise<ActionResult<JudgingResults>> {
+export async function getJudgingResults(eventId: string): Promise<ActionResult<JudgingResults>> {
   const user = await getUser();
   if (!user) return fail('Not authenticated');
   const [canViewRankings, canAward] = await Promise.all([
@@ -1036,11 +908,7 @@ export async function getJudgingResults(
   }
 
   const [[event], criteria, pool, tables] = await Promise.all([
-    db
-      .select({ submissionsCloseAt: events.submissionsCloseAt })
-      .from(events)
-      .where(eq(events.id, eventId))
-      .limit(1),
+    db.select({ submissionsCloseAt: events.submissionsCloseAt }).from(events).where(eq(events.id, eventId)).limit(1),
     loadCriteria(eventId),
     loadResultsPool(eventId),
     getTableLabels(eventId),
@@ -1068,11 +936,7 @@ export async function getJudgingResults(
   }
 
   const criterionIds = criteria.map((c) => c.id);
-  const replay = await replayEventVotes(
-    eventId,
-    new Set(pool.map((p) => p.id)),
-    criterionIds,
-  );
+  const replay = await replayEventVotes(eventId, new Set(pool.map((p) => p.id)), criterionIds);
 
   const overall = base
     .map((project) => ({
@@ -1108,15 +972,9 @@ export async function getJudgingResults(
       id: row.id,
       label: row.label,
       disabled: row.disabledAt != null,
-      comparisons: comparisonsFromVotes(
-        replay.votesByJudge.get(row.id),
-        criteria.length,
-      ),
+      comparisons: comparisonsFromVotes(replay.votesByJudge.get(row.id), criteria.length),
       reliability: Object.fromEntries(
-        criterionIds.map((id) => [
-          id,
-          reliabilityMean(reliability?.get(id) ?? JUDGE_PRIOR),
-        ]),
+        criterionIds.map((id) => [id, reliabilityMean(reliability?.get(id) ?? JUDGE_PRIOR)]),
       ),
     };
   });
@@ -1137,13 +995,7 @@ async function findAwardableProject(eventId: string, submissionId: string) {
   const [row] = await db
     .select({ id: submissions.id })
     .from(submissions)
-    .where(
-      and(
-        eq(submissions.id, submissionId),
-        eq(submissions.eventId, eventId),
-        inPoolCondition(),
-      ),
-    )
+    .where(and(eq(submissions.id, submissionId), eq(submissions.eventId, eventId), inPoolCondition()))
     .limit(1);
   return row ?? null;
 }
@@ -1170,10 +1022,7 @@ export async function setSubmissionPlacement(
   if ('error' in auth) return auth.error;
   const parsed = placementSchema.safeParse(placement);
   if (!parsed.success) return fail(firstIssue(parsed.error));
-  if (
-    parsed.data !== null &&
-    !(await findAwardableProject(eventId, submissionId))
-  ) {
+  if (parsed.data !== null && !(await findAwardableProject(eventId, submissionId))) {
     return fail('That project isn’t in the judging results.');
   }
 
@@ -1210,21 +1059,14 @@ export async function setSubmissionPlacement(
       )
       .returning({ id: submissions.id });
     if (!updated) {
-      return fail(
-        parsed.data !== null
-          ? 'That project isn’t in the judging results.'
-          : 'Project not found.',
-      );
+      return fail(parsed.data !== null ? 'That project isn’t in the judging results.' : 'Project not found.');
     }
   } catch (error) {
     // Lost a race for the same place: the partial unique index caught it.
     if (isUniqueViolation(error)) {
       return fail(`Another project already holds place ${parsed.data}.`);
     }
-    console.error(
-      '[admin/events/judging] failed to set submission placement',
-      error,
-    );
+    console.error('[admin/events/judging] failed to set submission placement', error);
     return fail('Failed to save the placement.');
   }
   await writeAuditLog({

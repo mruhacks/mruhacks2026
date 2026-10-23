@@ -26,10 +26,7 @@ async function EventCopy({ params }: Props) {
   const event = await getAdminEventHeader(eventId);
   if (!event) return null;
   return (
-    <BentoCard
-      title='Event copy'
-      description='Description and terms shown to participants.'
-    >
+    <BentoCard title='Event copy' description='Description and terms shown to participants.'>
       <div className='flex flex-col gap-4'>
         {[
           {
@@ -44,18 +41,11 @@ async function EventCopy({ params }: Props) {
             desc: 'The rules and terms of the event that participants must agree to during rsvp.',
           },
         ].map((item) => (
-          <div
-            key={item.path}
-            className='flex items-center justify-between gap-3'
-          >
+          <div key={item.path} className='flex items-center justify-between gap-3'>
             <div>
               <p className='font-medium'>{item.label}</p>
-              {item.desc && (
-                <p className='text-muted-foreground text-xs'>{item.desc}</p>
-              )}
-              <p className='text-muted-foreground text-sm'>
-                {item.exists ? 'Added' : 'Not added yet'}
-              </p>
+              {item.desc && <p className='text-muted-foreground text-xs'>{item.desc}</p>}
+              <p className='text-muted-foreground text-sm'>{item.exists ? 'Added' : 'Not added yet'}</p>
             </div>
             <Button asChild variant='outline' size='sm'>
               <Link

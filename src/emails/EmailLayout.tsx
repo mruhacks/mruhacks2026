@@ -1,16 +1,4 @@
-import {
-  Body,
-  Container,
-  Head,
-  Html,
-  Img,
-  Preview,
-  Row,
-  Column,
-  Section,
-  Link,
-  Text,
-} from 'react-email';
+import { Body, Container, Head, Html, Img, Preview, Row, Column, Section, Link, Text } from 'react-email';
 import React from 'react';
 
 /** Shared text styles for the templates' content. */
@@ -34,8 +22,7 @@ export const mutedStyle: React.CSSProperties = {
   color: '#888888',
 };
 
-const GRADIENT =
-  'linear-gradient(90deg,#FADF4B,#F07B31,#EC624D,#D841A1,#6943EC,#4D75EE,#93FFFF)';
+const GRADIENT = 'linear-gradient(90deg,#FADF4B,#F07B31,#EC624D,#D841A1,#6943EC,#4D75EE,#93FFFF)';
 
 type Props = {
   preview: string;
@@ -242,12 +229,7 @@ function Pill({
 export function CtaButton({ label, url }: { label: string; url: string }) {
   return (
     <Section style={{ margin: '24px 0 0' }}>
-      <Pill
-        label={label}
-        url={url}
-        color='#6943EC'
-        gradient='linear-gradient(135deg,#6943EC,#4D75EE)'
-      />
+      <Pill label={label} url={url} color='#6943EC' gradient='linear-gradient(135deg,#6943EC,#4D75EE)' />
     </Section>
   );
 }
@@ -267,11 +249,7 @@ export function FallbackLink({ url }: { url: string }) {
       Button not working? Paste this link into your browser:{' '}
       {/* Plain <a>: react-email's Link adds `text-decoration-line:none`,
           which contradicts the underline. */}
-      <a
-        href={url}
-        target='_blank'
-        style={{ color: '#4d75ee', textDecoration: 'underline' }}
-      >
+      <a href={url} target='_blank' style={{ color: '#4d75ee', textDecoration: 'underline' }}>
         {url}
       </a>
     </Text>

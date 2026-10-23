@@ -130,10 +130,7 @@ export async function loadJudgeContext(eventId: string): Promise<JudgeContext> {
  * (and a removal then sees any vote this transaction cast); one that already
  * committed is seen here.
  */
-export async function lockActiveJudge(
-  tx: Tx,
-  judgeId: string,
-): Promise<boolean> {
+export async function lockActiveJudge(tx: Tx, judgeId: string): Promise<boolean> {
   const [row] = await tx
     .select({ disabledAt: eventJudges.disabledAt })
     .from(eventJudges)
@@ -145,31 +142,17 @@ export async function lockActiveJudge(
 /** Creates the judge's state row on first use, then locks it. */
 export async function lockState(tx: Tx, judgeId: string) {
   await tx.insert(judgeState).values({ judgeId }).onConflictDoNothing();
-  const [state] = await tx
-    .select()
-    .from(judgeState)
-    .where(eq(judgeState.judgeId, judgeId))
-    .for('update');
+  const [state] = await tx.select().from(judgeState).where(eq(judgeState.judgeId, judgeId)).for('update');
   return state!;
 }
 
-export async function poolMembers(
-  tx: Tx,
-  eventId: string,
-  ids: (string | null)[],
-): Promise<Set<string>> {
+export async function poolMembers(tx: Tx, eventId: string, ids: (string | null)[]): Promise<Set<string>> {
   const wanted = ids.filter((id): id is string => id != null);
   if (wanted.length === 0) return new Set();
   const rows = await tx
     .select({ id: submissions.id })
     .from(submissions)
-    .where(
-      and(
-        eq(submissions.eventId, eventId),
-        inArray(submissions.id, wanted),
-        inPoolCondition(),
-      ),
-    );
+    .where(and(eq(submissions.eventId, eventId), inArray(submissions.id, wanted), inPoolCondition()));
   return new Set(rows.map((row) => row.id));
 }
 
@@ -187,25 +170,13 @@ export async function settleAssignment(
   await lockEventForJudging(tx, ctx.eventId);
   if (!(await lockActiveJudge(tx, ctx.judge.id))) return null;
   const state = await lockState(tx, ctx.judge.id);
-  const active = await poolMembers(tx, ctx.eventId, [
-    state.previousSubmissionId,
-    state.currentSubmissionId,
-  ]);
+  const active = await poolMembers(tx, ctx.eventId, [state.previousSubmissionId, state.currentSubmissionId]);
   const previousId =
-    state.previousSubmissionId && active.has(state.previousSubmissionId)
-      ? state.previousSubmissionId
-      : null;
-  let currentId =
-    state.currentSubmissionId && active.has(state.currentSubmissionId)
-      ? state.currentSubmissionId
-      : null;
+    state.previousSubmissionId && active.has(state.previousSubmissionId) ? state.previousSubmissionId : null;
+  let currentId = state.currentSubmissionId && active.has(state.currentSubmissionId) ? state.currentSubmissionId : null;
   if (currentId === previousId) currentId = null;
 
-  if (
-    previousId !== state.previousSubmissionId ||
-    currentId !== state.currentSubmissionId ||
-    currentId === null
-  ) {
+  if (previousId !== state.previousSubmissionId || currentId !== state.currentSubmissionId || currentId === null) {
     if (currentId === null) {
       currentId = await dispatchNext(tx, {
         eventId: ctx.eventId,
@@ -218,10 +189,7 @@ export async function settleAssignment(
       .set({
         previousSubmissionId: previousId,
         currentSubmissionId: currentId,
-        assignedAt:
-          currentId !== state.currentSubmissionId
-            ? new Date()
-            : state.assignedAt,
+        assignedAt: currentId !== state.currentSubmissionId ? new Date() : state.assignedAt,
       })
       .where(eq(judgeState.judgeId, ctx.judge.id));
   }
@@ -263,10 +231,7 @@ async function buildView(
 
   const ids = previousId ? [previousId, currentId] : [currentId];
   const [rows, tables, criteria] = await Promise.all([
-    db
-      .select({ id: submissions.id, title: submissions.title })
-      .from(submissions)
-      .where(inArray(submissions.id, ids)),
+    db.select({ id: submissions.id, title: submissions.title }).from(submissions).where(inArray(submissions.id, ids)),
     getTableLabels(ctx.eventId),
     loadCriteria(ctx.eventId),
   ]);
@@ -308,9 +273,7 @@ export async function getJudgeView(eventId: string): Promise<JudgeView> {
   if (!assignment) {
     // Disabled or removed in the meantime: show that rather than a stale screen.
     const latest = await loadJudgeContext(eventId);
-    return latest.ok
-      ? { kind: 'waiting', eventName: latest.eventName }
-      : latest.view;
+    return latest.ok ? { kind: 'waiting', eventName: latest.eventName } : latest.view;
   }
   return buildView(ctx, assignment);
 }

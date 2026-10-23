@@ -11,14 +11,7 @@
 import { describe, test, expect, beforeAll, afterAll, vi } from 'vitest';
 import { and, eq } from 'drizzle-orm';
 import { db } from '@/utils/db';
-import {
-  events,
-  eventTerms,
-  eventArticles,
-  permission,
-  user,
-  userPermission,
-} from '@/db/schema';
+import { events, eventTerms, eventArticles, permission, user, userPermission } from '@/db/schema';
 
 vi.mock('@/utils/auth', () => ({ getUser: vi.fn() }));
 vi.mock('next/cache', () => ({
@@ -28,8 +21,7 @@ vi.mock('next/cache', () => ({
   cacheLife: vi.fn(),
 }));
 
-const putObject =
-  vi.fn<(args: { key: string; contentType: string }) => Promise<void>>();
+const putObject = vi.fn<(args: { key: string; contentType: string }) => Promise<void>>();
 const deleteObject = vi.fn<(key: string) => Promise<void>>();
 vi.mock('@/utils/object-storage', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/utils/object-storage')>()),
@@ -60,8 +52,7 @@ type MockUser = { id: string; email: string; name: string };
 
 const NIL_UUID = '00000000-0000-0000-0000-000000000000';
 
-const forbidden = (slug: string) =>
-  `REDIRECT:/forbidden?reason=missing_permission&permission=${slug}`;
+const forbidden = (slug: string) => `REDIRECT:/forbidden?reason=missing_permission&permission=${slug}`;
 
 /** Grants a permission slug to a user, creating the permission if needed. */
 async function grant(userId: string, slug: string) {
@@ -72,24 +63,12 @@ async function grant(userId: string, slug: string) {
     .returning({ id: permission.id });
   const permissionId =
     inserted?.id ??
-    (
-      await db
-        .select({ id: permission.id })
-        .from(permission)
-        .where(eq(permission.slug, slug))
-        .limit(1)
-    )[0].id;
-  await db
-    .insert(userPermission)
-    .values({ userId, permissionId })
-    .onConflictDoNothing();
+    (await db.select({ id: permission.id }).from(permission).where(eq(permission.slug, slug)).limit(1))[0].id;
+  await db.insert(userPermission).values({ userId, permissionId }).onConflictDoNothing();
 }
 
 async function makeUser(email: string): Promise<MockUser> {
-  const [row] = await db
-    .insert(user)
-    .values({ name: email, email, emailVerified: true })
-    .returning({ id: user.id });
+  const [row] = await db.insert(user).values({ name: email, email, emailVerified: true }).returning({ id: user.id });
   return { id: row.id, email, name: email };
 }
 
@@ -137,31 +116,21 @@ describe('authorization', () => {
     await expect(updateEventDescription(eventId, 'hi')).resolves.toMatchObject({
       success: false,
     });
-    await expect(
-      uploadEventDescriptionAttachment(eventId, new FormData()),
-    ).resolves.toMatchObject({ success: false });
+    await expect(uploadEventDescriptionAttachment(eventId, new FormData())).resolves.toMatchObject({ success: false });
     await expect(listEventArticles(eventId)).resolves.toMatchObject({
       success: false,
     });
     await expect(getEventArticle(eventId, NIL_UUID)).resolves.toMatchObject({
       success: false,
     });
-    await expect(
-      createEventArticle(eventId, { title: 'X' }),
-    ).resolves.toMatchObject({ success: false });
-    await expect(
-      updateEventArticle(eventId, NIL_UUID, { published: true }),
-    ).resolves.toMatchObject({ success: false });
+    await expect(createEventArticle(eventId, { title: 'X' })).resolves.toMatchObject({ success: false });
+    await expect(updateEventArticle(eventId, NIL_UUID, { published: true })).resolves.toMatchObject({ success: false });
     await expect(deleteEventArticle(eventId, NIL_UUID)).resolves.toMatchObject({
       success: false,
     });
-    await expect(
-      uploadArticleAttachment(eventId, new FormData()),
-    ).resolves.toMatchObject({ success: false });
+    await expect(uploadArticleAttachment(eventId, new FormData())).resolves.toMatchObject({ success: false });
     await expect(canWriteArticles()).resolves.toBe(false);
-    await expect(
-      reorderEventArticles(eventId, [NIL_UUID]),
-    ).resolves.toMatchObject({
+    await expect(reorderEventArticles(eventId, [NIL_UUID])).resolves.toMatchObject({
       success: false,
     });
     actAs(editor);
@@ -169,44 +138,28 @@ describe('authorization', () => {
 
   test('description actions require event:manage', async () => {
     actAs(outsider);
-    await expect(updateEventDescription(eventId, 'hi')).rejects.toThrow(
-      forbidden('event:manage'),
-    );
-    await expect(
-      uploadEventDescriptionAttachment(eventId, new FormData()),
-    ).rejects.toThrow(forbidden('event:manage'));
+    await expect(updateEventDescription(eventId, 'hi')).rejects.toThrow(forbidden('event:manage'));
+    await expect(uploadEventDescriptionAttachment(eventId, new FormData())).rejects.toThrow(forbidden('event:manage'));
     actAs(editor);
   });
 
   test('reading the wiki requires article:read:all', async () => {
     actAs(outsider);
-    await expect(listEventArticles(eventId)).rejects.toThrow(
-      forbidden('article:read:all'),
-    );
-    await expect(getEventArticle(eventId, NIL_UUID)).rejects.toThrow(
-      forbidden('article:read:all'),
-    );
+    await expect(listEventArticles(eventId)).rejects.toThrow(forbidden('article:read:all'));
+    await expect(getEventArticle(eventId, NIL_UUID)).rejects.toThrow(forbidden('article:read:all'));
     actAs(editor);
   });
 
   test('article:read:all alone cannot write', async () => {
     actAs(reader);
-    await expect(reorderEventArticles(eventId, [NIL_UUID])).rejects.toThrow(
-      forbidden('article:write:all'),
-    );
+    await expect(reorderEventArticles(eventId, [NIL_UUID])).rejects.toThrow(forbidden('article:write:all'));
     await expect(canWriteArticles()).resolves.toBe(false);
-    await expect(createEventArticle(eventId, { title: 'X' })).rejects.toThrow(
+    await expect(createEventArticle(eventId, { title: 'X' })).rejects.toThrow(forbidden('article:write:all'));
+    await expect(updateEventArticle(eventId, NIL_UUID, { published: true })).rejects.toThrow(
       forbidden('article:write:all'),
     );
-    await expect(
-      updateEventArticle(eventId, NIL_UUID, { published: true }),
-    ).rejects.toThrow(forbidden('article:write:all'));
-    await expect(deleteEventArticle(eventId, NIL_UUID)).rejects.toThrow(
-      forbidden('article:write:all'),
-    );
-    await expect(
-      uploadArticleAttachment(eventId, new FormData()),
-    ).rejects.toThrow(forbidden('article:write:all'));
+    await expect(deleteEventArticle(eventId, NIL_UUID)).rejects.toThrow(forbidden('article:write:all'));
+    await expect(uploadArticleAttachment(eventId, new FormData())).rejects.toThrow(forbidden('article:write:all'));
     actAs(editor);
   });
 
@@ -216,9 +169,7 @@ describe('authorization', () => {
     actAs(eventOnly);
 
     await expect(canWriteArticles()).resolves.toBe(false);
-    await expect(createEventArticle(eventId, { title: 'X' })).rejects.toThrow(
-      forbidden('article:write:all'),
-    );
+    await expect(createEventArticle(eventId, { title: 'X' })).rejects.toThrow(forbidden('article:write:all'));
 
     actAs(editor);
     await db.delete(user).where(eq(user.id, eventOnly.id));
@@ -253,9 +204,7 @@ describe('updateEventDescription', () => {
   });
 
   test('rejects markdown past the length cap', async () => {
-    await expect(
-      updateEventDescription(eventId, 'a'.repeat(20_001)),
-    ).resolves.toMatchObject({ success: false });
+    await expect(updateEventDescription(eventId, 'a'.repeat(20_001))).resolves.toMatchObject({ success: false });
   });
 });
 
@@ -297,27 +246,21 @@ describe('wiki articles', () => {
   });
 
   test('rejects a slug that is not URL-safe', async () => {
-    await expect(
-      createEventArticle(eventId, { title: 'Bad', slug: 'Not A Slug' }),
-    ).resolves.toMatchObject({ success: false });
+    await expect(createEventArticle(eventId, { title: 'Bad', slug: 'Not A Slug' })).resolves.toMatchObject({
+      success: false,
+    });
   });
 
   test('asks for a slug when the title has nothing sluggable', async () => {
-    await expect(
-      createEventArticle(eventId, { title: '！？…' }),
-    ).resolves.toMatchObject({ success: false });
+    await expect(createEventArticle(eventId, { title: '！？…' })).resolves.toMatchObject({ success: false });
   });
 
   test('saves the body and publishes without restating other fields', async () => {
     const created = await createEventArticle(eventId, { title: 'Schedule' });
     const id = unwrap(created).id;
 
-    expect(
-      await updateEventArticle(eventId, id, { bodyMarkdown: '## Day 1' }),
-    ).toMatchObject({ success: true });
-    expect(
-      await updateEventArticle(eventId, id, { published: true }),
-    ).toMatchObject({ success: true });
+    expect(await updateEventArticle(eventId, id, { bodyMarkdown: '## Day 1' })).toMatchObject({ success: true });
+    expect(await updateEventArticle(eventId, id, { published: true })).toMatchObject({ success: true });
 
     const detail = await getEventArticle(eventId, id);
     expect(unwrap(detail)).toMatchObject({
@@ -343,15 +286,11 @@ describe('wiki articles', () => {
       .returning({ id: events.id });
     const created = await createEventArticle(other.id, { title: 'Elsewhere' });
 
-    await expect(
-      getEventArticle(eventId, unwrap(created).id),
-    ).resolves.toMatchObject({ success: false });
-    await expect(
-      updateEventArticle(eventId, unwrap(created).id, { title: 'Hijack' }),
-    ).resolves.toMatchObject({ success: false });
-    await expect(
-      deleteEventArticle(eventId, unwrap(created).id),
-    ).resolves.toMatchObject({ success: false });
+    await expect(getEventArticle(eventId, unwrap(created).id)).resolves.toMatchObject({ success: false });
+    await expect(updateEventArticle(eventId, unwrap(created).id, { title: 'Hijack' })).resolves.toMatchObject({
+      success: false,
+    });
+    await expect(deleteEventArticle(eventId, unwrap(created).id)).resolves.toMatchObject({ success: false });
 
     await db.delete(eventArticles).where(eq(eventArticles.eventId, other.id));
     await db.delete(events).where(eq(events.id, other.id));
@@ -377,38 +316,22 @@ describe('wiki articles', () => {
     });
     const after = unwrap(await listEventArticles(eventId));
     expect(after.map((article) => article.id)).toEqual(orderedIds);
-    expect(after.map((article) => article.sortOrder)).toEqual(
-      orderedIds.map((_, index) => index),
-    );
-    expect(
-      after.filter((article) => article.published).map((article) => article.id),
-    ).toEqual(
+    expect(after.map((article) => article.sortOrder)).toEqual(orderedIds.map((_, index) => index));
+    expect(after.filter((article) => article.published).map((article) => article.id)).toEqual(
       [...before]
         .reverse()
         .filter((article) => article.published)
         .map((article) => article.id),
     );
     expect(updateTag).toHaveBeenCalledWith(`event-wiki:${eventId}`);
-    expect(
-      (await getPublishedArticleList(eventId)).map((article) => article.slug),
-    ).toEqual(
-      after
-        .filter((article) => article.published)
-        .map((article) => article.slug),
+    expect((await getPublishedArticleList(eventId)).map((article) => article.slug)).toEqual(
+      after.filter((article) => article.published).map((article) => article.slug),
     );
-    expect(revalidatePath).toHaveBeenCalledWith(
-      `/dashboard/admin/events/${eventId}`,
-    );
-    expect(revalidatePath).toHaveBeenCalledWith(
-      `/dashboard/events/${eventId}/wiki`,
-    );
+    expect(revalidatePath).toHaveBeenCalledWith(`/dashboard/admin/events/${eventId}`);
+    expect(revalidatePath).toHaveBeenCalledWith(`/dashboard/events/${eventId}/wiki`);
 
-    const created = unwrap(
-      await createEventArticle(eventId, { title: 'A new last article' }),
-    );
-    expect(
-      unwrap(await listEventArticles(eventId)).map((article) => article.id),
-    ).toEqual([...orderedIds, created.id]);
+    const created = unwrap(await createEventArticle(eventId, { title: 'A new last article' }));
+    expect(unwrap(await listEventArticles(eventId)).map((article) => article.id)).toEqual([...orderedIds, created.id]);
   });
 
   test('reorders seeded article IDs alongside generated UUIDs', async () => {
@@ -434,22 +357,15 @@ describe('wiki articles', () => {
     expect(await reorderEventArticles(eventId, ids)).toMatchObject({
       success: true,
     });
-    expect(
-      unwrap(await listEventArticles(eventId)).map((article) => article.id),
-    ).toEqual(ids);
+    expect(unwrap(await listEventArticles(eventId)).map((article) => article.id)).toEqual(ids);
   });
 
   test('rejects duplicate, incomplete, foreign and malformed orders without changing articles', async () => {
     const before = unwrap(await listEventArticles(eventId));
     const ids = before.map((article) => article.id);
-    const [other] = await db
-      .insert(events)
-      .values({ name: 'Foreign wiki' })
-      .returning({ id: events.id });
+    const [other] = await db.insert(events).values({ name: 'Foreign wiki' }).returning({ id: events.id });
     try {
-      const foreign = unwrap(
-        await createEventArticle(other.id, { title: 'Foreign article' }),
-      );
+      const foreign = unwrap(await createEventArticle(other.id, { title: 'Foreign article' }));
       for (const invalid of [
         [],
         ids.slice(1),
@@ -462,9 +378,7 @@ describe('wiki articles', () => {
         });
         expect(unwrap(await listEventArticles(eventId))).toEqual(before);
       }
-      expect(
-        unwrap(await getEventArticle(other.id, foreign.id)).sortOrder,
-      ).toBe(0);
+      expect(unwrap(await getEventArticle(other.id, foreign.id)).sortOrder).toBe(0);
     } finally {
       await db.delete(events).where(eq(events.id, other.id));
     }
@@ -490,19 +404,13 @@ describe('wiki articles', () => {
 describe('attachments', () => {
   function imageFormData(type: string, bytes = 32) {
     const formData = new FormData();
-    formData.append(
-      'file',
-      new File([new Uint8Array(bytes)], 'shot.png', { type }),
-    );
+    formData.append('file', new File([new Uint8Array(bytes)], 'shot.png', { type }));
     return formData;
   }
 
   test('stores an allowed image under a key the asset route will serve', async () => {
     putObject.mockClear();
-    const result = await uploadArticleAttachment(
-      eventId,
-      imageFormData('image/png'),
-    );
+    const result = await uploadArticleAttachment(eventId, imageFormData('image/png'));
     expect(result.success).toBe(true);
 
     const key = (putObject.mock.calls[0][0] as { key: string }).key;
@@ -513,41 +421,32 @@ describe('attachments', () => {
 
   test('rejects file types the asset route would hand back unexecuted', async () => {
     putObject.mockClear();
-    await expect(
-      uploadArticleAttachment(eventId, imageFormData('image/svg+xml')),
-    ).resolves.toMatchObject({ success: false });
-    await expect(
-      uploadArticleAttachment(eventId, imageFormData('text/html')),
-    ).resolves.toMatchObject({ success: false });
+    await expect(uploadArticleAttachment(eventId, imageFormData('image/svg+xml'))).resolves.toMatchObject({
+      success: false,
+    });
+    await expect(uploadArticleAttachment(eventId, imageFormData('text/html'))).resolves.toMatchObject({
+      success: false,
+    });
     expect(putObject).not.toHaveBeenCalled();
   });
 
   test('rejects an oversized image', async () => {
     putObject.mockClear();
     await expect(
-      uploadArticleAttachment(
-        eventId,
-        imageFormData('image/png', 5 * 1024 * 1024 + 1),
-      ),
+      uploadArticleAttachment(eventId, imageFormData('image/png', 5 * 1024 * 1024 + 1)),
     ).resolves.toMatchObject({ success: false });
     expect(putObject).not.toHaveBeenCalled();
   });
 
   test('rejects an upload for an event that does not exist', async () => {
-    await expect(
-      uploadArticleAttachment(NIL_UUID, imageFormData('image/png')),
-    ).resolves.toMatchObject({ success: false });
+    await expect(uploadArticleAttachment(NIL_UUID, imageFormData('image/png'))).resolves.toMatchObject({
+      success: false,
+    });
   });
 
   test('deletes only the attachments nothing else still references', async () => {
-    const shared = await uploadArticleAttachment(
-      eventId,
-      imageFormData('image/png'),
-    );
-    const lonely = await uploadArticleAttachment(
-      eventId,
-      imageFormData('image/png'),
-    );
+    const shared = await uploadArticleAttachment(eventId, imageFormData('image/png'));
+    const lonely = await uploadArticleAttachment(eventId, imageFormData('image/png'));
     const sharedUrl = unwrap(shared).url;
     const lonelyUrl = unwrap(lonely).url;
 
@@ -574,62 +473,30 @@ describe('Event Terms copy-on-write', () => {
     actAs(null);
     expect((await updateEventTerms(eventId, 'Rules')).success).toBe(false);
     actAs(outsider);
-    await expect(updateEventTerms(eventId, '')).rejects.toThrow(
-      forbidden('event:manage'),
-    );
+    await expect(updateEventTerms(eventId, '')).rejects.toThrow(forbidden('event:manage'));
     actAs(reader);
-    await expect(updateEventTerms(eventId, 'Rules')).rejects.toThrow(
-      forbidden('event:manage'),
-    );
+    await expect(updateEventTerms(eventId, 'Rules')).rejects.toThrow(forbidden('event:manage'));
     actAs(editor);
   });
 
   test('inserts versions on edits, reuses unchanged content, and preserves history on removal', async () => {
     actAs(editor);
-    expect(
-      (await updateEventTerms(eventId, '  ## Original rules  ')).success,
-    ).toBe(true);
-    const [original] = await db
-      .select()
-      .from(events)
-      .where(eq(events.id, eventId));
+    expect((await updateEventTerms(eventId, '  ## Original rules  ')).success).toBe(true);
+    const [original] = await db.select().from(events).where(eq(events.id, eventId));
     expect(original.termsId).toBeTruthy();
-    expect((await updateEventTerms(eventId, '## Original rules')).success).toBe(
-      true,
-    );
-    const [unchanged] = await db
-      .select()
-      .from(events)
-      .where(eq(events.id, eventId));
+    expect((await updateEventTerms(eventId, '## Original rules')).success).toBe(true);
+    const [unchanged] = await db.select().from(events).where(eq(events.id, eventId));
     expect(unchanged.termsId).toBe(original.termsId);
-    expect((await updateEventTerms(eventId, '## New rules')).success).toBe(
-      true,
-    );
-    const [updated] = await db
-      .select()
-      .from(events)
-      .where(eq(events.id, eventId));
+    expect((await updateEventTerms(eventId, '## New rules')).success).toBe(true);
+    const [updated] = await db.select().from(events).where(eq(events.id, eventId));
     expect(updated.termsId).not.toBe(original.termsId);
-    const versions = await db
-      .select()
-      .from(eventTerms)
-      .where(eq(eventTerms.eventId, eventId));
-    expect(versions.map((v) => v.markdown).sort()).toEqual([
-      '## New rules',
-      '## Original rules',
-    ]);
+    const versions = await db.select().from(eventTerms).where(eq(eventTerms.eventId, eventId));
+    expect(versions.map((v) => v.markdown).sort()).toEqual(['## New rules', '## Original rules']);
     expect((await updateEventTerms(eventId, '   ')).success).toBe(true);
-    const [cleared] = await db
-      .select()
-      .from(events)
-      .where(eq(events.id, eventId));
+    const [cleared] = await db.select().from(events).where(eq(events.id, eventId));
     expect(cleared.termsId).toBeNull();
-    expect(
-      await db.select().from(eventTerms).where(eq(eventTerms.eventId, eventId)),
-    ).toHaveLength(2);
+    expect(await db.select().from(eventTerms).where(eq(eventTerms.eventId, eventId))).toHaveLength(2);
     expect(updateTag).toHaveBeenCalledWith(`admin-event:${eventId}`);
-    expect((await updateEventTerms(eventId, 'x'.repeat(20_001))).success).toBe(
-      false,
-    );
+    expect((await updateEventTerms(eventId, 'x'.repeat(20_001))).success).toBe(false);
   });
 });

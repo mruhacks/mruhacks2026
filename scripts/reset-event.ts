@@ -2,12 +2,7 @@ import 'dotenv/config';
 
 import { eq, inArray, or } from 'drizzle-orm';
 import { client, db } from '@/utils/db';
-import {
-  checkIns,
-  eventParticipants,
-  events,
-  eventRsvpWaves,
-} from '@/db/schema';
+import { checkIns, eventParticipants, events, eventRsvpWaves } from '@/db/schema';
 import { statusIdOf } from '@/lib/participation/server';
 import { isEventUuid } from '@/lib/event-slug';
 
@@ -44,19 +39,11 @@ function assertNotProduction(): void {
 
 async function resolveEventId(segment: string): Promise<string | null> {
   if (isEventUuid(segment)) {
-    const [row] = await db
-      .select({ id: events.id })
-      .from(events)
-      .where(eq(events.id, segment))
-      .limit(1);
+    const [row] = await db.select({ id: events.id }).from(events).where(eq(events.id, segment)).limit(1);
     return row?.id ?? null;
   }
 
-  const [row] = await db
-    .select({ id: events.id })
-    .from(events)
-    .where(eq(events.slug, segment))
-    .limit(1);
+  const [row] = await db.select({ id: events.id }).from(events).where(eq(events.slug, segment)).limit(1);
   return row?.id ?? null;
 }
 
@@ -83,18 +70,13 @@ async function main(): Promise<void> {
       .from(events)
       .where(eq(events.id, eventId));
     if (!event.hasApplication) {
-      console.error(
-        `Event ${eventId} doesn't require an application, so it has no review to reset.`,
-      );
+      console.error(`Event ${eventId} doesn't require an application, so it has no review to reset.`);
       process.exitCode = 1;
       return;
     }
     eventIds = [eventId];
   } else {
-    const rows = await db
-      .select({ id: events.id })
-      .from(events)
-      .where(eq(events.hasApplication, true));
+    const rows = await db.select({ id: events.id }).from(events).where(eq(events.hasApplication, true));
     eventIds = rows.map((row) => row.id);
   }
 
@@ -103,45 +85,35 @@ async function main(): Promise<void> {
     return;
   }
 
-  const { deletedWaves, deletedCheckIns, resetCount } = await db.transaction(
-    async (tx) => {
-      const deleted = await tx
-        .delete(eventRsvpWaves)
-        .where(inArray(eventRsvpWaves.eventId, eventIds))
-        .returning({ id: eventRsvpWaves.id });
+  const { deletedWaves, deletedCheckIns, resetCount } = await db.transaction(async (tx) => {
+    const deleted = await tx
+      .delete(eventRsvpWaves)
+      .where(inArray(eventRsvpWaves.eventId, eventIds))
+      .returning({ id: eventRsvpWaves.id });
 
-      // The event's own door check-ins plus its sub-events' (meals, workshops).
-      const subEvents = tx
-        .select({ id: events.id })
-        .from(events)
-        .where(inArray(events.parentEventId, eventIds));
-      const checkInsDeleted = await tx
-        .delete(checkIns)
-        .where(
-          or(
-            inArray(checkIns.eventId, eventIds),
-            inArray(checkIns.eventId, subEvents),
-          ),
-        )
-        .returning({ userId: checkIns.userId });
+    // The event's own door check-ins plus its sub-events' (meals, workshops).
+    const subEvents = tx.select({ id: events.id }).from(events).where(inArray(events.parentEventId, eventIds));
+    const checkInsDeleted = await tx
+      .delete(checkIns)
+      .where(or(inArray(checkIns.eventId, eventIds), inArray(checkIns.eventId, subEvents)))
+      .returning({ userId: checkIns.userId });
 
-      const reset = await tx
-        .update(eventParticipants)
-        .set({
-          statusId: statusIdOf('pending_review'),
-          reviewedAt: null,
-          reviewedBy: null,
-        })
-        .where(inArray(eventParticipants.eventId, eventIds))
-        .returning({ id: eventParticipants.id });
+    const reset = await tx
+      .update(eventParticipants)
+      .set({
+        statusId: statusIdOf('pending_review'),
+        reviewedAt: null,
+        reviewedBy: null,
+      })
+      .where(inArray(eventParticipants.eventId, eventIds))
+      .returning({ id: eventParticipants.id });
 
-      return {
-        deletedWaves: deleted.length,
-        deletedCheckIns: checkInsDeleted.length,
-        resetCount: reset.length,
-      };
-    },
-  );
+    return {
+      deletedWaves: deleted.length,
+      deletedCheckIns: checkInsDeleted.length,
+      resetCount: reset.length,
+    };
+  });
 
   console.log(
     arg

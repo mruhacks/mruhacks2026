@@ -18,10 +18,7 @@ const MAX_FONT_CQW = 58;
  * fancier (event branding, a QR code, the project's name).
  */
 export function TableSign({ label }: { label: string }) {
-  const fontSize = `${Math.min(
-    MAX_FONT_CQW,
-    MAX_WIDTH_CQW / (label.length * CHAR_WIDTH_EM),
-  )}cqw`;
+  const fontSize = `${Math.min(MAX_FONT_CQW, MAX_WIDTH_CQW / (label.length * CHAR_WIDTH_EM))}cqw`;
 
   return (
     <section

@@ -19,9 +19,7 @@ import { readObjectStorageConfig } from '@/lib/object-storage-endpoint';
 function getStorage() {
   const config = readObjectStorageConfig();
   if (!config) {
-    throw new Error(
-      '[storage] S3_BUCKET and S3_REGION must be set (and S3_ENDPOINT, if set, must be a URL).',
-    );
+    throw new Error('[storage] S3_BUCKET and S3_REGION must be set (and S3_ENDPOINT, if set, must be a URL).');
   }
   const accessKeyId = process.env.S3_ACCESS_KEY_ID?.trim();
   const secretAccessKey = process.env.S3_SECRET_ACCESS_KEY?.trim();
@@ -31,9 +29,7 @@ function getStorage() {
     region: config.region,
     // Without explicit keys the SDK's own credential chain applies (e.g. an
     // instance role).
-    ...(accessKeyId && secretAccessKey
-      ? { credentials: { accessKeyId, secretAccessKey } }
-      : {}),
+    ...(accessKeyId && secretAccessKey ? { credentials: { accessKeyId, secretAccessKey } } : {}),
   });
   return { client, bucket: config.bucket };
 }
@@ -52,10 +48,7 @@ async function ensureBucket() {
         } catch (error) {
           // A concurrent request or the MinIO initializer may have created it.
           await client.send(new HeadBucketCommand({ Bucket: bucket }));
-          console.debug(
-            '[storage] bucket creation raced with another process',
-            error,
-          );
+          console.debug('[storage] bucket creation raced with another process', error);
         }
       }
     })();
@@ -81,9 +74,7 @@ const SUBMISSION_CONTENT_PREFIX = 'submission-content/';
 /** Prefix for images in campaign emails. Public: mail clients load them with no session. */
 const CAMPAIGN_CONTENT_PREFIX = 'campaign-content/';
 
-export function isObjectStorageKey(
-  value: string | null | undefined,
-): value is string {
+export function isObjectStorageKey(value: string | null | undefined): value is string {
   return Boolean(
     value &&
     (value.startsWith('profile-pictures/') ||
@@ -111,9 +102,7 @@ export function profilePictureUrl(key: string) {
  * Inverse of `profilePictureUrl`: extracts the storage key from a stored
  * image URL, or null if it isn't one of ours (e.g. an OAuth avatar URL).
  */
-export function parseProfilePictureKey(
-  image: string | null | undefined,
-): string | null {
+export function parseProfilePictureKey(image: string | null | undefined): string | null {
   if (!image) return null;
   const prefix = '/api/assets/';
   if (!image.startsWith(prefix)) return null;
@@ -132,10 +121,7 @@ export function parseProfilePictureKey(
  * someone else's object (another avatar, an event attachment) and have the
  * server delete it.
  */
-export function parseOwnedProfilePictureKey(
-  image: string | null | undefined,
-  userId: string,
-): string | null {
+export function parseOwnedProfilePictureKey(image: string | null | undefined, userId: string): string | null {
   const key = parseProfilePictureKey(image);
   if (!key) return null;
   const [prefix, owner, file, ...rest] = key.split('/');
@@ -156,12 +142,9 @@ export function parseOwnedProfilePictureKey(
  * upload action and the serving route check against this so a hand-typed
  * `/api/assets/event-content/...` can only ever name an object this app wrote.
  */
-const EVENT_ATTACHMENT_KEY_PATTERN =
-  /^event-content\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.[a-z0-9]{1,10}$/;
+const EVENT_ATTACHMENT_KEY_PATTERN = /^event-content\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.[a-z0-9]{1,10}$/;
 
-export function isEventAttachmentKey(
-  value: string | null | undefined,
-): value is string {
+export function isEventAttachmentKey(value: string | null | undefined): value is string {
   return Boolean(value && EVENT_ATTACHMENT_KEY_PATTERN.test(value));
 }
 
@@ -170,12 +153,9 @@ export function isEventAttachmentKey(
  * — the same shape as event attachments, keyed by the submission so deleting
  * a project can tell exactly which objects were its own.
  */
-const SUBMISSION_ATTACHMENT_KEY_PATTERN =
-  /^submission-content\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.[a-z0-9]{1,10}$/;
+const SUBMISSION_ATTACHMENT_KEY_PATTERN = /^submission-content\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.[a-z0-9]{1,10}$/;
 
-export function isSubmissionAttachmentKey(
-  value: string | null | undefined,
-): value is string {
+export function isSubmissionAttachmentKey(value: string | null | undefined): value is string {
   return Boolean(value && SUBMISSION_ATTACHMENT_KEY_PATTERN.test(value));
 }
 
@@ -190,9 +170,7 @@ export function eventAttachmentUrl(key: string) {
 }
 
 /** Inverse of `eventAttachmentUrl`; null when the URL isn't one of ours. */
-export function parseEventAttachmentKey(
-  url: string | null | undefined,
-): string | null {
+export function parseEventAttachmentKey(url: string | null | undefined): string | null {
   if (!url) return null;
   const prefix = '/api/assets/';
   if (!url.startsWith(prefix)) return null;
@@ -206,9 +184,7 @@ export function parseEventAttachmentKey(
 }
 
 /** Like `parseEventAttachmentKey`, for a submission image URL. */
-export function parseSubmissionAttachmentKey(
-  url: string | null | undefined,
-): string | null {
+export function parseSubmissionAttachmentKey(url: string | null | undefined): string | null {
   const key = parseProfilePictureKey(url);
   return isSubmissionAttachmentKey(key) ? key : null;
 }
@@ -219,14 +195,9 @@ export function parseSubmissionAttachmentKey(
  * `<img>` a width without a lookup. Both the upload action and the public
  * serving route check against this shape.
  */
-const CAMPAIGN_IMAGE_KEY_PATTERN =
-  /^campaign-content\/[0-9a-f-]{36}-w(\d{1,4})\.(jpg|png)$/;
+const CAMPAIGN_IMAGE_KEY_PATTERN = /^campaign-content\/[0-9a-f-]{36}-w(\d{1,4})\.(jpg|png)$/;
 
-export function campaignImageKey(
-  id: string,
-  width: number,
-  contentType: 'image/jpeg' | 'image/png',
-): string {
+export function campaignImageKey(id: string, width: number, contentType: 'image/jpeg' | 'image/png'): string {
   return `${CAMPAIGN_CONTENT_PREFIX}${id}-w${width}.${contentType === 'image/png' ? 'png' : 'jpg'}`;
 }
 
@@ -239,9 +210,7 @@ export function campaignImageWidth(url: string): number | null {
   const prefix = '/api/assets/';
   const index = url.indexOf(prefix);
   if (index === -1) return null;
-  const match = CAMPAIGN_IMAGE_KEY_PATTERN.exec(
-    url.slice(index + prefix.length),
-  );
+  const match = CAMPAIGN_IMAGE_KEY_PATTERN.exec(url.slice(index + prefix.length));
   return match ? Number(match[1]) : null;
 }
 
@@ -250,15 +219,7 @@ export function campaignImageUrl(key: string) {
   return `/api/assets/${key}`;
 }
 
-export async function putObject({
-  key,
-  body,
-  contentType,
-}: {
-  key: string;
-  body: Uint8Array;
-  contentType: string;
-}) {
+export async function putObject({ key, body, contentType }: { key: string; body: Uint8Array; contentType: string }) {
   await ensureBucket();
   const { client, bucket } = getStorage();
   await client.send(
@@ -303,9 +264,7 @@ async function presignGetUrl(
     new GetObjectCommand({
       Bucket: bucket,
       Key: key,
-      ...(opts.responseContentDisposition
-        ? { ResponseContentDisposition: opts.responseContentDisposition }
-        : {}),
+      ...(opts.responseContentDisposition ? { ResponseContentDisposition: opts.responseContentDisposition } : {}),
     }),
     { expiresIn: opts.expiresIn },
   );
@@ -404,10 +363,7 @@ export function eventAttachmentRedirect(key: string): Promise<Response> {
  * Short-lived and never cached — this is only ever hit right before a
  * download starts, from the session-gated `/api/profile/resume` route.
  */
-export function resumeRedirect(
-  key: string,
-  fileName: string,
-): Promise<Response> {
+export function resumeRedirect(key: string, fileName: string): Promise<Response> {
   const safeName = fileName.replace(/["\\]/g, '_');
   return redirectToObject(key, {
     expiresIn: RESUME_URL_TTL_SECONDS,

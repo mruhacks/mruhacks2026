@@ -1,12 +1,6 @@
 'use client';
 
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type ReactNode,
-} from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { currentScheduleEntryId, type ScheduleInstant } from '@/lib/schedule';
 import { useNow } from '@/lib/use-now';
 import { cn } from '@/lib/utils';
@@ -27,13 +21,8 @@ export function ScheduleViewport({
     const container = viewport.current;
     if (!container) return;
     const above = container.scrollTop > 1;
-    const below =
-      container.scrollTop + container.clientHeight < container.scrollHeight - 1;
-    setEdges((previous) =>
-      previous.above === above && previous.below === below
-        ? previous
-        : { above, below },
-    );
+    const below = container.scrollTop + container.clientHeight < container.scrollHeight - 1;
+    setEdges((previous) => (previous.above === above && previous.below === below ? previous : { above, below }));
   }, []);
   const now = useNow(60_000);
   const currentId = now === null ? null : currentScheduleEntryId(entries, now);
@@ -51,9 +40,9 @@ export function ScheduleViewport({
   useEffect(() => {
     const container = viewport.current;
     if (!container || !currentId) return;
-    const entry = Array.from(
-      container.querySelectorAll<HTMLElement>('[data-schedule-entry]'),
-    ).find((element) => element.dataset.scheduleEntry === currentId);
+    const entry = Array.from(container.querySelectorAll<HTMLElement>('[data-schedule-entry]')).find(
+      (element) => element.dataset.scheduleEntry === currentId,
+    );
     if (entry) {
       // Scroll this panel only; never move the page away from its header.
       const dayHeading = entry.closest('section')?.querySelector('h3');
@@ -65,12 +54,7 @@ export function ScheduleViewport({
   }, [currentId]);
 
   return (
-    <div
-      className={cn(
-        'flex max-h-96 min-w-0 flex-col',
-        fitContainer && 'lg:max-h-none lg:min-h-0 lg:flex-1',
-      )}
-    >
+    <div className={cn('flex max-h-96 min-w-0 flex-col', fitContainer && 'lg:max-h-none lg:min-h-0 lg:flex-1')}>
       <div className='relative flex min-h-0 flex-1 flex-col'>
         <div
           ref={viewport}

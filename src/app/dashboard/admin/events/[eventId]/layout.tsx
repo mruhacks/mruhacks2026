@@ -51,11 +51,7 @@ function EventHeaderSkeleton() {
   );
 }
 
-async function EventHeader({
-  paramsPromise,
-}: {
-  paramsPromise: Promise<{ eventId: string }>;
-}) {
+async function EventHeader({ paramsPromise }: { paramsPromise: Promise<{ eventId: string }> }) {
   // The segment is the event's uuid or its custom slug; the header and every
   // page below it read by the resolved uuid, while links keep the segment.
   const { eventId: segment } = await paramsPromise;

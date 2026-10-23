@@ -9,9 +9,7 @@ import type { RsvpUserDecision } from '@/lib/rsvp/constants';
 
 export function useRsvpDecision(eventId: string, termsId: string | null) {
   const [isPending, startTransition] = useTransition();
-  const [activeDecision, setActiveDecision] = useState<RsvpUserDecision | null>(
-    null,
-  );
+  const [activeDecision, setActiveDecision] = useState<RsvpUserDecision | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const [acceptedTermsId, setAcceptedTermsId] = useState<string | null>(null);

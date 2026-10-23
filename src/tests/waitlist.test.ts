@@ -93,8 +93,6 @@ describe('getWaitlist', () => {
 
     const eligibility = await getEligibleRsvpApplicants(eventId);
     const waveOrder = selectRsvpWaveInvitees(eligibility!.applicants, null);
-    expect(waveOrder.map((a) => a.participantId)).toEqual(
-      waitlist.map((e) => e.participantId),
-    );
+    expect(waveOrder.map((a) => a.participantId)).toEqual(waitlist.map((e) => e.participantId));
   });
 });

@@ -14,10 +14,7 @@ import {
   adminTransitionPermissions,
   canParticipantTransition,
 } from '@/lib/participation/transitions';
-import {
-  participationStatusesList,
-  type ParticipationStatus,
-} from '@/types/lookups';
+import { participationStatusesList, type ParticipationStatus } from '@/types/lookups';
 
 describe('getEventDisplayStatus', () => {
   test('shows the status title and variant for an application event', () => {
@@ -41,9 +38,7 @@ describe('getEventDisplayStatus', () => {
   });
 
   test('a signup for an event without an application reads as Registered', () => {
-    expect(
-      getEventDisplayStatus({ hasApplication: false, status: 'accepted' }),
-    ).toEqual({
+    expect(getEventDisplayStatus({ hasApplication: false, status: 'accepted' })).toEqual({
       label: 'Registered',
       pill: 'registered',
       badgeVariant: 'success',
@@ -60,12 +55,8 @@ describe('getEventDisplayStatus', () => {
   });
 
   test('open states when the user is not involved', () => {
-    expect(
-      getEventDisplayStatus({ hasApplication: true, status: null }).pill,
-    ).toBe('open_to_apply');
-    expect(
-      getEventDisplayStatus({ hasApplication: false, status: null }).pill,
-    ).toBe('registration_open');
+    expect(getEventDisplayStatus({ hasApplication: true, status: null }).pill).toBe('open_to_apply');
+    expect(getEventDisplayStatus({ hasApplication: false, status: null }).pill).toBe('registration_open');
   });
 
   test('a past event reads as ended unless the user took part', () => {
@@ -121,17 +112,11 @@ describe('participation status rules', () => {
   });
 
   test('anyone still in the running may form a team', () => {
-    expect(participationStatusesList.filter((s) => !canFormTeam(s))).toEqual([
-      'denied',
-      'declined',
-      'timed_out',
-    ]);
+    expect(participationStatusesList.filter((s) => !canFormTeam(s))).toEqual(['denied', 'declined', 'timed_out']);
   });
 
   test('only a pending review can be edited', () => {
-    expect(participationStatusesList.filter(canEditApplication)).toEqual([
-      'pending_review',
-    ]);
+    expect(participationStatusesList.filter(canEditApplication)).toEqual(['pending_review']);
   });
 
   test('checked in and no-show are derived from accepted only', () => {
@@ -168,24 +153,13 @@ describe('participation status rules', () => {
 });
 
 describe('participation transitions', () => {
-  const review: ParticipationStatus[] = [
-    'pending_review',
-    'waitlisted',
-    'denied',
-  ];
-  const invitation: ParticipationStatus[] = [
-    'invited',
-    'accepted',
-    'declined',
-    'timed_out',
-  ];
+  const review: ParticipationStatus[] = ['pending_review', 'waitlisted', 'denied'];
+  const invitation: ParticipationStatus[] = ['invited', 'accepted', 'declined', 'timed_out'];
 
   test('review decisions need application:review:all', () => {
     for (const from of review) {
       for (const to of review) {
-        expect(adminTransitionPermissions(from, to)).toEqual(
-          from === to ? null : ['application:review:all'],
-        );
+        expect(adminTransitionPermissions(from, to)).toEqual(from === to ? null : ['application:review:all']);
       }
     }
   });
@@ -193,9 +167,7 @@ describe('participation transitions', () => {
   test('RSVP outcomes need rsvp:write:all', () => {
     for (const from of invitation) {
       for (const to of invitation) {
-        expect(adminTransitionPermissions(from, to)).toEqual(
-          from === to ? null : ['rsvp:write:all'],
-        );
+        expect(adminTransitionPermissions(from, to)).toEqual(from === to ? null : ['rsvp:write:all']);
       }
     }
   });
@@ -217,36 +189,24 @@ describe('participation transitions', () => {
 
   test('admin options are filtered by the permissions held', () => {
     const reviewOnly = new Set(['application:review:all'] as const);
-    expect(
-      adminStatusOptions(
-        'pending_review',
-        reviewOnly,
-        participationStatusesList,
-      ),
-    ).toEqual(['waitlisted', 'denied']);
-    expect(
-      adminStatusOptions('invited', reviewOnly, participationStatusesList),
-    ).toEqual([]);
+    expect(adminStatusOptions('pending_review', reviewOnly, participationStatusesList)).toEqual([
+      'waitlisted',
+      'denied',
+    ]);
+    expect(adminStatusOptions('invited', reviewOnly, participationStatusesList)).toEqual([]);
 
     const both = new Set(['application:review:all', 'rsvp:write:all'] as const);
-    expect(
-      adminStatusOptions('accepted', both, participationStatusesList),
-    ).toEqual(participationStatusesList.filter((s) => s !== 'accepted'));
+    expect(adminStatusOptions('accepted', both, participationStatusesList)).toEqual(
+      participationStatusesList.filter((s) => s !== 'accepted'),
+    );
   });
 
   test('participants may answer, give up a spot, or leave the waitlist — nothing else', () => {
     const allowed = participationStatusesList.flatMap((from) =>
-      participationStatusesList
-        .filter((to) => canParticipantTransition(from, to))
-        .map((to) => `${from}->${to}`),
+      participationStatusesList.filter((to) => canParticipantTransition(from, to)).map((to) => `${from}->${to}`),
     );
     expect(allowed.sort()).toEqual(
-      [
-        'accepted->declined',
-        'invited->accepted',
-        'invited->declined',
-        'waitlisted->declined',
-      ].sort(),
+      ['accepted->declined', 'invited->accepted', 'invited->declined', 'waitlisted->declined'].sort(),
     );
   });
 });

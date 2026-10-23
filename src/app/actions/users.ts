@@ -9,28 +9,9 @@
  */
 
 import { db } from '@/utils/db';
-import {
-  and,
-  asc,
-  desc,
-  eq,
-  exists,
-  ilike,
-  notExists,
-  or,
-  sql,
-  inArray,
-} from 'drizzle-orm';
+import { and, asc, desc, eq, exists, ilike, notExists, or, sql, inArray } from 'drizzle-orm';
 import { unionAll } from 'drizzle-orm/pg-core';
-import {
-  user,
-  userRole,
-  role,
-  userPermission,
-  permission,
-  invite,
-  account,
-} from '@/db/schema';
+import { user, userRole, role, userPermission, permission, invite, account } from '@/db/schema';
 import { ok, fail, type ActionResult } from '@/utils/action-result';
 import { auth, getUser } from '@/utils/auth';
 import { headers } from 'next/headers';
@@ -43,10 +24,7 @@ import {
   loadRolesForUsers,
 } from '@/lib/rbac/authorization';
 import { type RoleId, type PermissionId } from '@/app/actions/roles';
-import {
-  replaceUserDirectPermissions,
-  replaceUserRoles,
-} from '@/lib/rbac/role-mutations';
+import { replaceUserDirectPermissions, replaceUserRoles } from '@/lib/rbac/role-mutations';
 import { revalidatePath, updateTag } from 'next/cache';
 import { serverActionError } from '@/utils/server-action-error';
 import { writeAuditLog } from '@/utils/audit-log';
@@ -112,22 +90,13 @@ export interface ListUsersResult {
  * Paginated list of users with search, role-filter and sorting. Used by the
  * admin user management table.
  */
-export async function listUsers(
-  params: ListUsersParams = {},
-): Promise<ActionResult<ListUsersResult>> {
+export async function listUsers(params: ListUsersParams = {}): Promise<ActionResult<ListUsersResult>> {
   try {
     const caller = await getUser();
     if (!caller) return fail('Not authenticated');
     await requirePermission(caller.id, 'user:read:all');
 
-    const {
-      search = '',
-      roleSlugs,
-      page = 1,
-      pageSize = 25,
-      sortField = 'createdAt',
-      sortDirection = 'desc',
-    } = params;
+    const { search = '', roleSlugs, page = 1, pageSize = 25, sortField = 'createdAt', sortDirection = 'desc' } = params;
 
     const clampedPageSize = Math.min(Math.max(pageSize, 1), 200);
     const clampedPage = Math.max(page, 1);
@@ -149,9 +118,7 @@ export async function listUsers(
       ),
     ];
     if (needle) {
-      userPredicates.push(
-        or(ilike(user.name, needle), ilike(user.email, needle)),
-      );
+      userPredicates.push(or(ilike(user.name, needle), ilike(user.email, needle)));
       invitePredicates.push(ilike(invite.email, needle));
     }
     if (filterRoles) {
@@ -164,12 +131,7 @@ export async function listUsers(
             .select({ one: sql`1` })
             .from(userRole)
             .innerJoin(role, eq(userRole.roleId, role.id))
-            .where(
-              and(
-                eq(userRole.userId, user.id),
-                inArray(role.slug, filterRoles),
-              ),
-            ),
+            .where(and(eq(userRole.userId, user.id), inArray(role.slug, filterRoles))),
         ),
       );
       invitePredicates.push(
@@ -177,12 +139,7 @@ export async function listUsers(
           db
             .select({ one: sql`1` })
             .from(role)
-            .where(
-              and(
-                sql`${role.id} = any(${invite.roleIds})`,
-                inArray(role.slug, filterRoles),
-              ),
-            ),
+            .where(and(sql`${role.id} = any(${invite.roleIds})`, inArray(role.slug, filterRoles))),
         ),
       );
     }
@@ -223,18 +180,12 @@ export async function listUsers(
     ).as('rows');
 
     const sortColumn =
-      sortField === 'name'
-        ? combined.name
-        : sortField === 'email'
-          ? combined.email
-          : combined.createdAt;
+      sortField === 'name' ? combined.name : sortField === 'email' ? combined.email : combined.createdAt;
     const orderFn = sortDirection === 'asc' ? asc : desc;
 
     // Count + page fetch are independent — issue them in parallel.
     const [countRow, rows] = await Promise.all([
-      db
-        .select({ total: sql<number>`COUNT(*)`.mapWith(Number) })
-        .from(combined),
+      db.select({ total: sql<number>`COUNT(*)`.mapWith(Number) }).from(combined),
       db
         .select()
         .from(combined)
@@ -246,9 +197,7 @@ export async function listUsers(
 
     const userIds = rows.filter((r) => r.kind === 'user').map((r) => r.id);
     const inviteIds = rows.filter((r) => r.kind === 'invite').map((r) => r.id);
-    const userEmails = rows
-      .filter((r) => r.kind === 'user')
-      .map((r) => r.email.toLowerCase());
+    const userEmails = rows.filter((r) => r.kind === 'user').map((r) => r.email.toLowerCase());
 
     const [rolesMap, inviteRows] = await Promise.all([
       loadRolesForUsers(userIds),
@@ -263,12 +212,8 @@ export async function listUsers(
             .from(invite)
             .where(
               or(
-                inviteIds.length > 0
-                  ? inArray(invite.id, inviteIds)
-                  : undefined,
-                userEmails.length > 0
-                  ? inArray(invite.email, userEmails)
-                  : undefined,
+                inviteIds.length > 0 ? inArray(invite.id, inviteIds) : undefined,
+                userEmails.length > 0 ? inArray(invite.email, userEmails) : undefined,
               ) ?? sql`false`,
             )
         : [],
@@ -277,10 +222,7 @@ export async function listUsers(
     const inviteRoleIds = [...new Set(inviteRows.flatMap((i) => i.roleIds))];
     const inviteRoles =
       inviteRoleIds.length > 0
-        ? await db
-            .select({ id: role.id, slug: role.slug })
-            .from(role)
-            .where(inArray(role.id, inviteRoleIds))
+        ? await db.select({ id: role.id, slug: role.slug }).from(role).where(inArray(role.id, inviteRoleIds))
         : [];
     const toInvite = (i: (typeof inviteRows)[number]): AdminInvite => ({
       id: i.id,
@@ -289,9 +231,7 @@ export async function listUsers(
       roles: inviteRoles.filter((r) => i.roleIds.includes(r.id)),
     });
     const inviteById = new Map(inviteRows.map((i) => [i.id, toInvite(i)]));
-    const inviteByEmail = new Map(
-      inviteRows.map((i) => [i.email, inviteById.get(i.id)!]),
-    );
+    const inviteByEmail = new Map(inviteRows.map((i) => [i.email, inviteById.get(i.id)!]));
 
     const users: AdminUserRow[] = rows.map((r) => ({
       kind: r.kind,
@@ -305,10 +245,7 @@ export async function listUsers(
       banReason: r.banReason,
       banExpires: r.banExpires,
       roles: r.kind === 'user' ? (rolesMap[r.id] ?? []) : [],
-      invite:
-        (r.kind === 'invite'
-          ? inviteById.get(r.id)
-          : inviteByEmail.get(r.email.toLowerCase())) ?? null,
+      invite: (r.kind === 'invite' ? inviteById.get(r.id) : inviteByEmail.get(r.email.toLowerCase())) ?? null,
     }));
 
     const totalPages = Math.max(1, Math.ceil(total / clampedPageSize));
@@ -406,10 +343,7 @@ export async function getUserDetails(userId: string): Promise<
 /**
  * Replaces all role assignments for a user.
  */
-export async function updateUserRoles(
-  userId: string,
-  roleIds: RoleId[],
-): Promise<ActionResult> {
+export async function updateUserRoles(userId: string, roleIds: RoleId[]): Promise<ActionResult> {
   try {
     const caller = await getUser();
     if (!caller) return fail('Not authenticated');
@@ -449,9 +383,7 @@ export async function updateUserDirectPermissions(
     if (!caller) return fail('Not authenticated');
     await requirePermission(caller.id, 'user:write:all');
 
-    const current = new Set(
-      (await loadDirectUserPermissions(userId)).map((p) => p.id),
-    );
+    const current = new Set((await loadDirectUserPermissions(userId)).map((p) => p.id));
     const denied = await grantDeniedReason(caller.id, {
       permissionIds: permissionIds.filter((id) => !current.has(id)),
     });
@@ -530,11 +462,7 @@ export async function purgeUser(userId: string): Promise<ActionResult> {
       return fail('Not authorized to purge users.');
     }
 
-    const [target] = await db
-      .select({ id: user.id })
-      .from(user)
-      .where(eq(user.id, userId))
-      .limit(1);
+    const [target] = await db.select({ id: user.id }).from(user).where(eq(user.id, userId)).limit(1);
     if (!target) return fail('User not found');
 
     // Same guard as deleteUser: `user:purge:all` is meant to be grantable on
@@ -566,10 +494,7 @@ export async function purgeUser(userId: string): Promise<ActionResult> {
  * Requires the caller to have user:write:all and to be an admin in Better Auth
  * (user.role = 'admin').
  */
-export async function adminSetUserPassword(
-  userId: string,
-  newPassword: string,
-): Promise<ActionResult> {
+export async function adminSetUserPassword(userId: string, newPassword: string): Promise<ActionResult> {
   try {
     const caller = await getUser();
     if (!caller) return fail('Not authenticated');
@@ -596,9 +521,7 @@ export async function adminSetUserPassword(
  * Admin: send a password reset email to a user.
  * Requires sendResetPassword to be configured in auth.ts.
  */
-export async function adminSendPasswordReset(
-  email: string,
-): Promise<ActionResult> {
+export async function adminSendPasswordReset(email: string): Promise<ActionResult> {
   try {
     const caller = await getUser();
     if (!caller) return fail('Not authenticated');
@@ -619,10 +542,7 @@ export async function adminSendPasswordReset(
  * so Better Auth emails them a link. Signing in applies the roles and deletes
  * the invite (`applyPendingInvite`, run from the session-create hook).
  */
-export async function inviteUser(
-  email: string,
-  roleIds: number[],
-): Promise<ActionResult> {
+export async function inviteUser(email: string, roleIds: number[]): Promise<ActionResult> {
   try {
     const caller = await getUser();
     if (!caller) return fail('Not authenticated');
@@ -642,9 +562,7 @@ export async function inviteUser(
       .where(sql`lower(${user.email}) = ${normalized}`)
       .limit(1);
     if (existing) {
-      return fail(
-        'An account with this email already exists. Edit its roles instead.',
-      );
+      return fail('An account with this email already exists. Edit its roles instead.');
     }
 
     const denied = await grantDeniedReason(caller.id, { roleIds });
@@ -698,10 +616,7 @@ export async function revokeInvite(inviteId: string): Promise<ActionResult> {
     if (!caller) return fail('Not authenticated');
     await requirePermission(caller.id, 'user:write:all');
 
-    const [deleted] = await db
-      .delete(invite)
-      .where(eq(invite.id, inviteId))
-      .returning({ email: invite.email });
+    const [deleted] = await db.delete(invite).where(eq(invite.id, inviteId)).returning({ email: invite.email });
     if (!deleted) return fail('Invite not found');
 
     await writeAuditLog({
@@ -722,19 +637,12 @@ export async function revokeInvite(inviteId: string): Promise<ActionResult> {
  * credential account. Used on /welcome to decide whether to prompt for a
  * password after a magic-link sign-in.
  */
-export async function currentUserHasPassword(): Promise<
-  ActionResult<{ hasPassword: boolean }>
-> {
+export async function currentUserHasPassword(): Promise<ActionResult<{ hasPassword: boolean }>> {
   try {
     const caller = await getUser();
     if (!caller) return fail('Not authenticated');
-    const rows = await db
-      .select({ password: account.password })
-      .from(account)
-      .where(eq(account.userId, caller.id));
-    const hasPassword = rows.some(
-      (r) => typeof r.password === 'string' && r.password.length > 0,
-    );
+    const rows = await db.select({ password: account.password }).from(account).where(eq(account.userId, caller.id));
+    const hasPassword = rows.some((r) => typeof r.password === 'string' && r.password.length > 0);
     return ok({ hasPassword });
   } catch (e) {
     return serverActionError('check password state', e);
@@ -764,9 +672,7 @@ export async function setOwnName(name: string): Promise<ActionResult> {
  * a credential account (e.g. just signed in via magic link). Refuses to run
  * if they already have one — they should use change-password instead.
  */
-export async function setInitialPassword(
-  newPassword: string,
-): Promise<ActionResult> {
+export async function setInitialPassword(newPassword: string): Promise<ActionResult> {
   try {
     const caller = await getUser();
     if (!caller) return fail('Not authenticated');
@@ -777,12 +683,7 @@ export async function setInitialPassword(
     const existing = await db
       .select({ id: account.id })
       .from(account)
-      .where(
-        and(
-          eq(account.userId, caller.id),
-          eq(account.providerId, 'credential'),
-        ),
-      )
+      .where(and(eq(account.userId, caller.id), eq(account.providerId, 'credential')))
       .limit(1);
     if (existing.length > 0) {
       return fail('A password is already set on this account');
@@ -805,11 +706,7 @@ export async function setInitialPassword(
 /**
  * Admin: ban a user. `banExpiresIn` is in seconds (omit for a permanent ban).
  */
-export async function adminBanUser(
-  userId: string,
-  banReason?: string,
-  banExpiresIn?: number,
-): Promise<ActionResult> {
+export async function adminBanUser(userId: string, banReason?: string, banExpiresIn?: number): Promise<ActionResult> {
   try {
     const caller = await getUser();
     if (!caller) return fail('Not authenticated');
@@ -873,9 +770,7 @@ export async function adminUnbanUser(userId: string): Promise<ActionResult> {
 /**
  * Admin: revoke every active session for a user, forcing them to sign in again.
  */
-export async function adminRevokeUserSessions(
-  userId: string,
-): Promise<ActionResult> {
+export async function adminRevokeUserSessions(userId: string): Promise<ActionResult> {
   try {
     const caller = await getUser();
     if (!caller) return fail('Not authenticated');

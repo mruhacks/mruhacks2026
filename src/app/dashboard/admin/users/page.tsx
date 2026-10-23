@@ -6,10 +6,7 @@ import { UsersTable } from './users-table';
 import { InviteUserDialog } from './invite-user-dialog';
 
 export default async function AdminUsersPage() {
-  const caller = await requireAuthWithPermission([
-    'user:read:all',
-    'user:all:all',
-  ]);
+  const caller = await requireAuthWithPermission(['user:read:all', 'user:all:all']);
 
   // The role filter and the invite dialog's role picker need the role list,
   // which is its own permission; without it they go without.
@@ -27,10 +24,7 @@ export default async function AdminUsersPage() {
     );
   }
 
-  const roles =
-    rolesRes?.success && rolesRes.data
-      ? rolesRes.data.map((r) => ({ id: r.id, slug: r.slug }))
-      : [];
+  const roles = rolesRes?.success && rolesRes.data ? rolesRes.data.map((r) => ({ id: r.id, slug: r.slug })) : [];
 
   const [canWrite, canPurge] = await Promise.all([
     hasAnyPermission(caller.id, ['user:write:all', 'user:all:all']),
@@ -42,12 +36,8 @@ export default async function AdminUsersPage() {
     <div className='space-y-4'>
       <div className='flex items-start justify-between gap-4'>
         <div>
-          <h1 className='text-2xl font-semibold tracking-tight'>
-            User management
-          </h1>
-          <p className='text-muted-foreground text-sm'>
-            Search, filter, and manage every user in the system.
-          </p>
+          <h1 className='text-2xl font-semibold tracking-tight'>User management</h1>
+          <p className='text-muted-foreground text-sm'>Search, filter, and manage every user in the system.</p>
         </div>
         {canWrite && <InviteUserDialog roles={roles} />}
       </div>

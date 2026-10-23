@@ -12,10 +12,7 @@ vi.mock('next/cache', () => ({
 import { getEventSummaryCounts } from '@/lib/admin-event';
 import { getAdminRsvpSummary } from '@/lib/rsvp/get-admin-rsvp-summary';
 import type { ParticipationStatus } from '@/types/lookups';
-import {
-  insertInvitation,
-  insertParticipant,
-} from '@/tests/participation-fixtures';
+import { insertInvitation, insertParticipant } from '@/tests/participation-fixtures';
 
 const createdEventIds: string[] = [];
 const createdUserIds: string[] = [];
@@ -30,10 +27,7 @@ afterAll(async () => {
 });
 
 async function createEvent(name: string, capacity: number | null = null) {
-  const [row] = await db
-    .insert(events)
-    .values({ name, hasApplication: true, capacity })
-    .returning({ id: events.id });
+  const [row] = await db.insert(events).values({ name, hasApplication: true, capacity }).returning({ id: events.id });
   createdEventIds.push(row.id);
   return row.id;
 }
@@ -52,12 +46,7 @@ async function createUser(name: string): Promise<string> {
   return row.id;
 }
 
-async function createWave(
-  eventId: string,
-  wave: number,
-  createdAt: Date,
-  respondBy: Date,
-) {
+async function createWave(eventId: string, wave: number, createdAt: Date, respondBy: Date) {
   const [row] = await db
     .insert(eventRsvpWaves)
     .values({ eventId, wave, createdAt, respondBy })
@@ -68,10 +57,7 @@ async function createWave(
 async function invite(
   eventId: string,
   waveId: string,
-  status: Extract<
-    ParticipationStatus,
-    'invited' | 'accepted' | 'declined' | 'timed_out'
-  >,
+  status: Extract<ParticipationStatus, 'invited' | 'accepted' | 'declined' | 'timed_out'>,
   respondedAt: Date | null = null,
   name = `${status} applicant`,
 ) {
@@ -90,26 +76,11 @@ describe('getEventSummaryCounts', () => {
   test('RSVP totals resolve expired invitations and sum across waves', async () => {
     const eventId = await createEvent('Dashboard RSVP Totals');
     const now = Date.now();
-    const expiredWave = await createWave(
-      eventId,
-      1,
-      new Date(now - 2 * 86_400_000),
-      new Date(now - 86_400_000),
-    );
-    const activeWave = await createWave(
-      eventId,
-      2,
-      new Date(now),
-      new Date(now + 86_400_000),
-    );
+    const expiredWave = await createWave(eventId, 1, new Date(now - 2 * 86_400_000), new Date(now - 86_400_000));
+    const activeWave = await createWave(eventId, 2, new Date(now), new Date(now + 86_400_000));
 
     for (const wave of [expiredWave, activeWave]) {
-      for (const status of [
-        'invited',
-        'accepted',
-        'declined',
-        'timed_out',
-      ] as const) {
+      for (const status of ['invited', 'accepted', 'declined', 'timed_out'] as const) {
         await invite(eventId, wave, status);
       }
     }
@@ -151,18 +122,8 @@ describe('getAdminRsvpSummary', () => {
       new Date('2026-09-18T14:00:00.000Z'),
     );
     await invite(eventId, wave, 'invited');
-    await invite(
-      eventId,
-      wave,
-      'accepted',
-      new Date('2026-09-16T15:00:00.000Z'),
-    );
-    await invite(
-      eventId,
-      wave,
-      'declined',
-      new Date('2026-09-16T15:30:00.000Z'),
-    );
+    await invite(eventId, wave, 'accepted', new Date('2026-09-16T15:00:00.000Z'));
+    await invite(eventId, wave, 'declined', new Date('2026-09-16T15:30:00.000Z'));
 
     const summary = await getAdminRsvpSummary(eventId, now);
     expect(summary?.lifecycle).toBe('active_wave');
@@ -177,9 +138,11 @@ describe('getAdminRsvpSummary', () => {
       waitingCount: 1,
       timedOutCount: 0,
     });
-    expect(
-      summary?.latestWave?.participants.map((p) => p.statusLabel).sort(),
-    ).toEqual(['accepted', 'declined', 'invited']);
+    expect(summary?.latestWave?.participants.map((p) => p.statusLabel).sort()).toEqual([
+      'accepted',
+      'declined',
+      'invited',
+    ]);
   });
 
   test('treats expired open invitations as timed_out', async () => {
@@ -197,11 +160,7 @@ describe('getAdminRsvpSummary', () => {
     const summary = await getAdminRsvpSummary(eventId, now);
     expect(summary?.latestWave?.waitingCount).toBe(0);
     expect(summary?.latestWave?.timedOutCount).toBe(2);
-    expect(
-      summary?.latestWave?.participants.every(
-        (p) => p.statusLabel === 'timed_out',
-      ),
-    ).toBe(true);
+    expect(summary?.latestWave?.participants.every((p) => p.statusLabel === 'timed_out')).toBe(true);
   });
 
   test('includes previous-wave history with derived counts', async () => {
@@ -219,12 +178,7 @@ describe('getAdminRsvpSummary', () => {
       new Date('2026-09-16T14:00:00.000Z'),
       new Date('2026-09-22T14:00:00.000Z'),
     );
-    await invite(
-      eventId,
-      wave1,
-      'declined',
-      new Date('2026-09-11T12:00:00.000Z'),
-    );
+    await invite(eventId, wave1, 'declined', new Date('2026-09-11T12:00:00.000Z'));
     await invite(eventId, wave2, 'invited');
 
     const summary = await getAdminRsvpSummary(eventId, now);
@@ -246,12 +200,7 @@ describe('getAdminRsvpSummary', () => {
       userId: await createUser('Full Attendee'),
       status: 'accepted',
     });
-    await createWave(
-      eventId,
-      1,
-      new Date('2026-09-16T14:00:00.000Z'),
-      new Date('2026-09-16T16:00:00.000Z'),
-    );
+    await createWave(eventId, 1, new Date('2026-09-16T14:00:00.000Z'), new Date('2026-09-16T16:00:00.000Z'));
 
     const summary = await getAdminRsvpSummary(eventId, now);
     expect(summary).toMatchObject({

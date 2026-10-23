@@ -10,16 +10,10 @@ import { admin, captcha, magicLink } from 'better-auth/plugins';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { claimMagicLinkCooldown } from '@/lib/auth/magic-link-cooldown';
 import { resolveMagicLinkMailOptions } from '@/lib/auth/resolve-magic-link-email';
-import {
-  AUTH_BASE_PATH,
-  toEmailLinkConfirmUrl,
-} from '@/lib/auth/email-link-confirm-url';
+import { AUTH_BASE_PATH, toEmailLinkConfirmUrl } from '@/lib/auth/email-link-confirm-url';
 import { remainingMagicLinkExpiresInSeconds } from '@/lib/rsvp/rsvp-magic-link-expires-in';
 import { getRsvpMagicLinkMailContext } from '@/lib/rsvp/rsvp-magic-link-context';
-import {
-  getJudgeInviteMailContext,
-  getJudgeSignInLinkCapture,
-} from '@/lib/judging/judge-invite-mail';
+import { getJudgeInviteMailContext, getJudgeSignInLinkCapture } from '@/lib/judging/judge-invite-mail';
 import { JUDGE_SIGNIN_LINK_EXPIRES_IN_SECONDS } from '@/lib/judging/signin-qr';
 import { linkJudgeRosterRows } from '@/lib/judging/server';
 import { applyPendingInvite } from '@/lib/auth/apply-pending-invite';
@@ -77,9 +71,7 @@ function getAuthBaseUrl(): string {
 function getAuthSecret(): string {
   const v = (process.env.BETTER_AUTH_SECRET ?? process.env.AUTH_SECRET)?.trim();
   if (!v) {
-    throw new Error(
-      'BETTER_AUTH_SECRET or AUTH_SECRET is required for Better Auth',
-    );
+    throw new Error('BETTER_AUTH_SECRET or AUTH_SECRET is required for Better Auth');
   }
   return v;
 }
@@ -339,8 +331,7 @@ export const auth = betterAuth({
         // caller still sees a normal success response either way.
         if (!(await claimMagicLinkCooldown(email))) {
           throw new APIError('TOO_MANY_REQUESTS', {
-            message:
-              'A sign-in link was already sent to this address. Check your inbox, or try again in a minute.',
+            message: 'A sign-in link was already sent to this address. Check your inbox, or try again in a minute.',
           });
         }
 
@@ -355,12 +346,7 @@ export const auth = betterAuth({
     captcha({
       provider: 'cloudflare-turnstile',
       secretKey: getTurnstileSecretKey(),
-      endpoints: [
-        '/sign-up/email',
-        '/sign-in/email',
-        '/sign-in/magic-link',
-        '/request-password-reset',
-      ],
+      endpoints: ['/sign-up/email', '/sign-in/email', '/sign-in/magic-link', '/request-password-reset'],
     }),
   ],
   advanced: {

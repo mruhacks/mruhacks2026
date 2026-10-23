@@ -3,30 +3,13 @@
 import * as React from 'react';
 import { ArrowDown, ArrowUp, Lock, Plus, Trash2 } from 'lucide-react';
 
-import {
-  saveJudgingCriteria,
-  type JudgingCriterionRow,
-} from '@/app/dashboard/admin/events/judging-actions';
+import { saveJudgingCriteria, type JudgingCriterionRow } from '@/app/dashboard/admin/events/judging-actions';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { FieldError } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableFooter,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
   CRITERION_DESCRIPTION_MAX_LENGTH,
   CRITERION_NAME_MAX_LENGTH,
@@ -101,14 +84,10 @@ export function CriteriaCard({
   const weights = rows.map((row) => parseWeight(row.weight));
   const sum = weights.reduce<number>((total, w) => total + (w ?? 0), 0);
   const sumOk =
-    rows.length === 0 ||
-    (weights.every((w) => w !== null) &&
-      criterionWeightsSumToOne(weights as number[]));
+    rows.length === 0 || (weights.every((w) => w !== null) && criterionWeightsSumToOne(weights as number[]));
 
   function edit(index: number, patch: Partial<DraftRow>) {
-    setRows((prev) =>
-      prev.map((row, i) => (i === index ? { ...row, ...patch } : row)),
-    );
+    setRows((prev) => prev.map((row, i) => (i === index ? { ...row, ...patch } : row)));
     setError(undefined);
   }
 
@@ -142,9 +121,7 @@ export function CriteriaCard({
 
   function normalize() {
     const next = roundedWeights(weights.map((w) => w ?? 0));
-    setRows((prev) =>
-      prev.map((row, i) => ({ ...row, weight: formatWeight(next[i]) })),
-    );
+    setRows((prev) => prev.map((row, i) => ({ ...row, weight: formatWeight(next[i]) })));
     setError(undefined);
   }
 
@@ -204,8 +181,7 @@ export function CriteriaCard({
           {structureLocked ? (
             <span className='inline-flex items-center gap-1.5'>
               <Lock aria-hidden className='size-3.5' />
-              Judging has started: criteria can be renamed and reweighted, but
-              not added, removed or reordered.
+              Judging has started: criteria can be renamed and reweighted, but not added, removed or reordered.
             </span>
           ) : (
             'Judges pick the better of two projects on each criterion. Weights are each criterion’s share of the Overall score and add up to 1. Judges can’t be sent out until there is at least one criterion.'
@@ -243,9 +219,7 @@ export function CriteriaCard({
                           value={row.name}
                           maxLength={CRITERION_NAME_MAX_LENGTH}
                           placeholder='Technical execution'
-                          onChange={(e) =>
-                            edit(index, { name: e.target.value })
-                          }
+                          onChange={(e) => edit(index, { name: e.target.value })}
                         />
                       </TableCell>
                       <TableCell className='align-top'>
@@ -255,9 +229,7 @@ export function CriteriaCard({
                           value={row.description}
                           maxLength={CRITERION_DESCRIPTION_MAX_LENGTH}
                           placeholder='Does it work? Was it hard to build?'
-                          onChange={(e) =>
-                            edit(index, { description: e.target.value })
-                          }
+                          onChange={(e) => edit(index, { description: e.target.value })}
                         />
                       </TableCell>
                       <TableCell className='align-top'>
@@ -271,9 +243,7 @@ export function CriteriaCard({
                           step='any'
                           aria-invalid={!sumOk || weights[index] === null}
                           value={row.weight}
-                          onChange={(e) =>
-                            edit(index, { weight: e.target.value })
-                          }
+                          onChange={(e) => edit(index, { weight: e.target.value })}
                         />
                       </TableCell>
                       {!structureLocked && (
@@ -322,10 +292,7 @@ export function CriteriaCard({
                   <TableCell colSpan={2} className='text-right'>
                     Total
                   </TableCell>
-                  <TableCell
-                    className={sumOk ? undefined : 'text-destructive'}
-                    aria-live='polite'
-                  >
+                  <TableCell className={sumOk ? undefined : 'text-destructive'} aria-live='polite'>
                     {formatWeight(sum)}
                   </TableCell>
                   {!structureLocked && <TableCell />}
@@ -338,34 +305,19 @@ export function CriteriaCard({
 
           <div className='flex flex-wrap items-center gap-2'>
             {!structureLocked && (
-              <Button
-                type='button'
-                variant='outline'
-                onClick={add}
-                disabled={saving || rows.length >= MAX_CRITERIA}
-              >
+              <Button type='button' variant='outline' onClick={add} disabled={saving || rows.length >= MAX_CRITERIA}>
                 <Plus data-icon='inline-start' />
                 Add criterion
               </Button>
             )}
             {rows.length > 0 && (
-              <Button
-                type='button'
-                variant='ghost'
-                onClick={normalize}
-                disabled={saving || sumOk}
-              >
+              <Button type='button' variant='ghost' onClick={normalize} disabled={saving || sumOk}>
                 Make weights add up to 1
               </Button>
             )}
             <div className='ml-auto flex gap-2'>
               {dirty && (
-                <Button
-                  type='button'
-                  variant='ghost'
-                  onClick={discard}
-                  disabled={saving}
-                >
+                <Button type='button' variant='ghost' onClick={discard} disabled={saving}>
                   Discard changes
                 </Button>
               )}

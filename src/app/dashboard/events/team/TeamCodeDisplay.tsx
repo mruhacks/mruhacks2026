@@ -19,18 +19,10 @@ export function TeamCodeDisplay({ code }: Props) {
   return (
     <div className='flex items-center justify-between gap-3 rounded-md border p-4'>
       <div>
-        <p className='text-muted-foreground text-xs font-semibold uppercase'>
-          Team code
-        </p>
+        <p className='text-muted-foreground text-xs font-semibold uppercase'>Team code</p>
         <p className='font-mono text-3xl font-bold tracking-widest'>{code}</p>
       </div>
-      <Button
-        type='button'
-        variant='outline'
-        size='icon'
-        onClick={copyCode}
-        aria-label='Copy team code'
-      >
+      <Button type='button' variant='outline' size='icon' onClick={copyCode} aria-label='Copy team code'>
         <Copy className='size-4' />
       </Button>
     </div>

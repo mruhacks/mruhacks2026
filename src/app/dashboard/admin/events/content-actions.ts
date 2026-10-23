@@ -25,11 +25,7 @@ import { hasPermission, requirePermission } from '@/lib/rbac/authorization';
 import { eventWikiCacheTag } from '@/lib/event-wiki';
 import { eventUrlSegments } from '@/lib/events';
 import { writeAuditLog } from '@/utils/audit-log';
-import {
-  deleteObject,
-  eventAttachmentUrl,
-  putObject,
-} from '@/utils/object-storage';
+import { deleteObject, eventAttachmentUrl, putObject } from '@/utils/object-storage';
 import { collectAttachmentKeys } from '@/lib/markdown-attachments';
 import { readImageUpload } from '@/lib/image-attachments';
 import { slugify, uniqueSlug, RESERVED_ARTICLE_SLUGS } from '@/lib/slug';
@@ -45,15 +41,8 @@ import {
 
 // ── Attachment uploads ────────────────────────────────────────────────────
 
-async function storeAttachment(
-  eventId: string,
-  formData: FormData,
-): Promise<ActionResult<{ url: string }>> {
-  const [eventRow] = await db
-    .select({ id: events.id })
-    .from(events)
-    .where(eq(events.id, eventId))
-    .limit(1);
+async function storeAttachment(eventId: string, formData: FormData): Promise<ActionResult<{ url: string }>> {
+  const [eventRow] = await db.select({ id: events.id }).from(events).where(eq(events.id, eventId)).limit(1);
   if (!eventRow) return fail('Event not found');
 
   const read = await readImageUpload(formData);
@@ -108,18 +97,12 @@ export async function uploadArticleAttachment(
  * Replaces the markdown description shown on the participant event page.
  * Requires event:manage permission.
  */
-export async function updateEventDescription(
-  eventId: string,
-  descriptionMarkdown: string,
-): Promise<ActionResult> {
+export async function updateEventDescription(eventId: string, descriptionMarkdown: string): Promise<ActionResult> {
   return updateEventMarkdown(eventId, 'description', descriptionMarkdown);
 }
 
 /** Replaces Event Terms; existing RSVP consent version references are preserved. */
-export async function updateEventTerms(
-  eventId: string,
-  termsMarkdown: string,
-): Promise<ActionResult> {
+export async function updateEventTerms(eventId: string, termsMarkdown: string): Promise<ActionResult> {
   return updateEventMarkdown(eventId, 'terms', termsMarkdown);
 }
 
@@ -135,11 +118,8 @@ async function updateEventMarkdown(
   const parsed =
     kind === 'terms'
       ? updateEventTermsSchema.shape.termsMarkdown.safeParse(markdown)
-      : updateEventDescriptionSchema.shape.descriptionMarkdown.safeParse(
-          markdown,
-        );
-  if (!parsed.success)
-    return fail(parsed.error.issues[0]?.message ?? 'Invalid input');
+      : updateEventDescriptionSchema.shape.descriptionMarkdown.safeParse(markdown);
+  if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? 'Invalid input');
 
   const trimmed = parsed.data.trim();
   const found = await db.transaction(async (tx) => {
@@ -160,10 +140,7 @@ async function updateEventMarkdown(
     }
 
     const [current] = event.termsId
-      ? await tx
-          .select({ markdown: eventTerms.markdown })
-          .from(eventTerms)
-          .where(eq(eventTerms.id, event.termsId))
+      ? await tx.select({ markdown: eventTerms.markdown }).from(eventTerms).where(eq(eventTerms.id, event.termsId))
       : [];
     if ((current?.markdown ?? '') === trimmed) return true;
 
@@ -175,10 +152,7 @@ async function updateEventMarkdown(
         .returning({ id: eventTerms.id });
       termsId = version.id;
     }
-    await tx
-      .update(events)
-      .set({ termsId, updatedAt: new Date() })
-      .where(eq(events.id, eventId));
+    await tx.update(events).set({ termsId, updatedAt: new Date() }).where(eq(events.id, eventId));
     return true;
   });
   if (!found) return fail('Event not found');
@@ -224,9 +198,7 @@ export type ArticleDetail = ArticleSummary & {
  * Lists every article for an event, drafts included.
  * Requires article:read:all permission.
  */
-export async function listEventArticles(
-  eventId: string,
-): Promise<ActionResult<ArticleSummary[]>> {
+export async function listEventArticles(eventId: string): Promise<ActionResult<ArticleSummary[]>> {
   const user = await getUser();
   if (!user) return fail('Not authenticated');
   await requirePermission(user.id, 'article:read:all');
@@ -251,10 +223,7 @@ export async function listEventArticles(
  * Loads one article for editing, draft or not.
  * Requires article:read:all permission.
  */
-export async function getEventArticle(
-  eventId: string,
-  articleId: string,
-): Promise<ActionResult<ArticleDetail>> {
+export async function getEventArticle(eventId: string, articleId: string): Promise<ActionResult<ArticleDetail>> {
   const user = await getUser();
   if (!user) return fail('Not authenticated');
   await requirePermission(user.id, 'article:read:all');
@@ -262,9 +231,7 @@ export async function getEventArticle(
   const [row] = await db
     .select()
     .from(eventArticles)
-    .where(
-      and(eq(eventArticles.id, articleId), eq(eventArticles.eventId, eventId)),
-    )
+    .where(and(eq(eventArticles.id, articleId), eq(eventArticles.eventId, eventId)))
     .limit(1);
   if (!row) return fail('Article not found');
 
@@ -298,10 +265,7 @@ async function takenSlugs(eventId: string, exceptArticleId?: string) {
     .from(eventArticles)
     .where(
       exceptArticleId
-        ? and(
-            eq(eventArticles.eventId, eventId),
-            ne(eventArticles.id, exceptArticleId),
-          )
+        ? and(eq(eventArticles.eventId, eventId), ne(eventArticles.id, exceptArticleId))
         : eq(eventArticles.eventId, eventId),
     );
   return rows.map((row) => row.slug);
@@ -321,14 +285,9 @@ export async function createEventArticle(
   await requirePermission(user.id, 'article:write:all');
 
   const parsed = createArticleSchema.safeParse(data);
-  if (!parsed.success)
-    return fail(parsed.error.issues[0]?.message ?? 'Invalid input');
+  if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? 'Invalid input');
 
-  const [eventRow] = await db
-    .select({ id: events.id })
-    .from(events)
-    .where(eq(events.id, eventId))
-    .limit(1);
+  const [eventRow] = await db.select({ id: events.id }).from(events).where(eq(events.id, eventId)).limit(1);
   if (!eventRow) return fail('Event not found');
 
   const requested = parsed.data.slug ?? slugify(parsed.data.title);
@@ -375,10 +334,7 @@ export async function createEventArticle(
 }
 
 /** Saves the complete article order, including drafts, in one transaction. */
-export async function reorderEventArticles(
-  eventId: string,
-  orderedIds: string[],
-): Promise<ActionResult> {
+export async function reorderEventArticles(eventId: string, orderedIds: string[]): Promise<ActionResult> {
   const user = await getUser();
   if (!user) return fail('Not authenticated');
   await requirePermission(user.id, 'article:write:all');
@@ -407,9 +363,7 @@ export async function reorderEventArticles(
       await tx
         .update(eventArticles)
         .set({ sortOrder, updatedBy: user.id, updatedAt: new Date() })
-        .where(
-          and(eq(eventArticles.id, id), eq(eventArticles.eventId, eventId)),
-        );
+        .where(and(eq(eventArticles.id, id), eq(eventArticles.eventId, eventId)));
     }
     return ok('Articles reordered.');
   });
@@ -446,25 +400,20 @@ export async function updateEventArticle(
   await requirePermission(user.id, 'article:write:all');
 
   const parsed = updateArticleSchema.safeParse(data);
-  if (!parsed.success)
-    return fail(parsed.error.issues[0]?.message ?? 'Invalid input');
+  if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? 'Invalid input');
 
   const input = parsed.data;
   const [existing] = await db
     .select({ id: eventArticles.id, slug: eventArticles.slug })
     .from(eventArticles)
-    .where(
-      and(eq(eventArticles.id, articleId), eq(eventArticles.eventId, eventId)),
-    )
+    .where(and(eq(eventArticles.id, articleId), eq(eventArticles.eventId, eventId)))
     .limit(1);
   if (!existing) return fail('Article not found');
 
   if (input.slug && input.slug !== existing.slug) {
     const taken = await takenSlugs(eventId, articleId);
     if (taken.includes(input.slug)) {
-      return fail(
-        'That slug is already used by another article in this event.',
-      );
+      return fail('That slug is already used by another article in this event.');
     }
   }
 
@@ -473,9 +422,7 @@ export async function updateEventArticle(
     .set({
       ...(input.title !== undefined ? { title: input.title } : {}),
       ...(input.slug !== undefined ? { slug: input.slug } : {}),
-      ...(input.bodyMarkdown !== undefined
-        ? { bodyMarkdown: input.bodyMarkdown }
-        : {}),
+      ...(input.bodyMarkdown !== undefined ? { bodyMarkdown: input.bodyMarkdown } : {}),
       ...(input.published !== undefined ? { published: input.published } : {}),
       ...(input.sortOrder !== undefined ? { sortOrder: input.sortOrder } : {}),
       updatedBy: user.id,
@@ -486,9 +433,7 @@ export async function updateEventArticle(
   for (const segment of await eventUrlSegments(eventId)) {
     revalidatePath(`/dashboard/admin/events/${segment}`);
     revalidatePath(`/dashboard/events/${segment}/wiki`);
-    revalidatePath(
-      `/dashboard/events/${segment}/wiki/${input.slug ?? existing.slug}`,
-    );
+    revalidatePath(`/dashboard/events/${segment}/wiki/${input.slug ?? existing.slug}`);
     // A rename leaves the old URL live in caches until it is dropped too.
     if (input.slug && input.slug !== existing.slug) {
       revalidatePath(`/dashboard/events/${segment}/wiki/${existing.slug}`);
@@ -510,10 +455,7 @@ export async function updateEventArticle(
  * Deletes an article and any attachments it was the last user of.
  * Requires article:write:all permission.
  */
-export async function deleteEventArticle(
-  eventId: string,
-  articleId: string,
-): Promise<ActionResult> {
+export async function deleteEventArticle(eventId: string, articleId: string): Promise<ActionResult> {
   const user = await getUser();
   if (!user) return fail('Not authenticated');
   await requirePermission(user.id, 'article:write:all');
@@ -525,9 +467,7 @@ export async function deleteEventArticle(
       bodyMarkdown: eventArticles.bodyMarkdown,
     })
     .from(eventArticles)
-    .where(
-      and(eq(eventArticles.id, articleId), eq(eventArticles.eventId, eventId)),
-    )
+    .where(and(eq(eventArticles.id, articleId), eq(eventArticles.eventId, eventId)))
     .limit(1);
   if (!existing) return fail('Article not found');
 
@@ -557,10 +497,7 @@ export async function deleteEventArticle(
  * event still does. Best-effort: a storage failure here must not turn an
  * already-committed delete into an error the organizer sees as "it failed".
  */
-async function deleteOrphanedAttachments(
-  eventId: string,
-  removedMarkdown: string,
-) {
+async function deleteOrphanedAttachments(eventId: string, removedMarkdown: string) {
   // Only this event's own attachments are candidates: a submission image
   // pasted into an article belongs to that project, not to the wiki.
   const candidates = [...collectAttachmentKeys(removedMarkdown)].filter((key) =>
@@ -579,16 +516,12 @@ async function deleteOrphanedAttachments(
         .from(events)
         .where(eq(events.id, eventId))
         .limit(1),
-      db
-        .select({ markdown: eventTerms.markdown })
-        .from(eventTerms)
-        .where(eq(eventTerms.eventId, eventId)),
+      db.select({ markdown: eventTerms.markdown }).from(eventTerms).where(eq(eventTerms.eventId, eventId)),
     ]);
 
     const stillReferenced = new Set<string>();
     for (const markdown of termsVersions.map((row) => row.markdown)) {
-      for (const key of collectAttachmentKeys(markdown))
-        stillReferenced.add(key);
+      for (const key of collectAttachmentKeys(markdown)) stillReferenced.add(key);
     }
     for (const row of remainingArticles) {
       for (const key of collectAttachmentKeys(row.bodyMarkdown)) {
@@ -599,11 +532,7 @@ async function deleteOrphanedAttachments(
       stillReferenced.add(key);
     }
 
-    await Promise.all(
-      candidates
-        .filter((key) => !stillReferenced.has(key))
-        .map((key) => deleteObject(key)),
-    );
+    await Promise.all(candidates.filter((key) => !stillReferenced.has(key)).map((key) => deleteObject(key)));
   } catch (error) {
     console.error('[admin/events/content] failed to clean up attachments', {
       eventId,

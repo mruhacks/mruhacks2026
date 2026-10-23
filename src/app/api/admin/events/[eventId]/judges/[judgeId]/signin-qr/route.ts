@@ -35,10 +35,7 @@ function isPrefetch(request: Request): boolean {
  * the organizer's invite rate limit. Each request mints a new link, and the
  * response is never cached.
  */
-export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ eventId: string; judgeId: string }> },
-) {
+export async function GET(request: Request, { params }: { params: Promise<{ eventId: string; judgeId: string }> }) {
   // Each request mints a live link, so a speculative fetch must never get
   // one. Refused before the rate limit, so it doesn't use up a slot either.
   if (isPrefetch(request)) {
@@ -77,9 +74,7 @@ export async function GET(
     console.error('[admin/judging/signin-qr] judge sign-in QR failed', error);
     return new Response('Could not generate QR code', { status: 500 });
   }
-  const expiresAt = new Date(
-    Date.now() + JUDGE_SIGNIN_LINK_EXPIRES_IN_SECONDS * 1000,
-  );
+  const expiresAt = new Date(Date.now() + JUDGE_SIGNIN_LINK_EXPIRES_IN_SECONDS * 1000);
 
   await writeAuditLog({
     actorId: admin.id,

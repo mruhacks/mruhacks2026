@@ -25,9 +25,7 @@ export function LegalPage({ title, updated, children }: LegalPageProps) {
         </Link>
 
         <h1 className='text-3xl font-semibold tracking-tight'>{title}</h1>
-        <p className='text-muted-foreground mt-2 text-sm'>
-          Last updated: {updated}
-        </p>
+        <p className='text-muted-foreground mt-2 text-sm'>Last updated: {updated}</p>
 
         <div className='[&_a]:text-primary [&_p]:text-foreground/90 mt-8 space-y-6 text-sm/relaxed [&_a]:underline [&_h2]:mt-8 [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:tracking-tight [&_li]:ml-1 [&_ul]:list-disc [&_ul]:space-y-1 [&_ul]:pl-6'>
           {children}

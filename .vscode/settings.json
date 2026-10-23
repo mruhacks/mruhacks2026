@@ -18,12 +18,7 @@
   "prettier.useEditorConfig": true,
 
   // ESLint configuration
-  "eslint.validate": [
-    "javascript",
-    "javascriptreact",
-    "typescript",
-    "typescriptreact"
-  ],
+  "eslint.validate": ["javascript", "javascriptreact", "typescript", "typescriptreact"],
 
   // TypeScript Code Lens settings
   "typescript.implementationsCodeLens.enabled": true,

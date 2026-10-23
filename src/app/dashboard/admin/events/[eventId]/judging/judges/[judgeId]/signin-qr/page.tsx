@@ -20,31 +20,20 @@ type Props = { params: Promise<{ eventId: string; judgeId: string }> };
  */
 export default function SignInQrRoute({ params }: Props) {
   return (
-    <React.Suspense
-      fallback={<div className='bg-muted h-96 animate-pulse rounded-xl' />}
-    >
+    <React.Suspense fallback={<div className='bg-muted h-96 animate-pulse rounded-xl' />}>
       <SignInQrContent paramsPromise={params} />
     </React.Suspense>
   );
 }
 
-async function SignInQrContent({
-  paramsPromise,
-}: {
-  paramsPromise: Props['params'];
-}) {
+async function SignInQrContent({ paramsPromise }: { paramsPromise: Props['params'] }) {
   const { eventId: segment, judgeId } = await paramsPromise;
   const judge = await loadSignInQrJudge(segment, judgeId);
 
   return (
     <Card className='mx-auto w-full max-w-md'>
       <CardContent>
-        <SignInQr
-          judge={judge}
-          heading={
-            <h2 className='text-lg font-semibold'>Sign in {judge.label}</h2>
-          }
-        />
+        <SignInQr judge={judge} heading={<h2 className='text-lg font-semibold'>Sign in {judge.label}</h2>} />
       </CardContent>
     </Card>
   );

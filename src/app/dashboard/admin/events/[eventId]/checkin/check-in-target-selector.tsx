@@ -5,13 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 
 import { LocalDateRange } from '@/components/local-date-time';
 import { Badge } from '@/components/ui/badge';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useNow } from '@/lib/use-now';
 import { cn } from '@/lib/utils';
 import { parseEventType } from '@/types/lookups';
@@ -54,12 +48,7 @@ type Props = {
  * entries, and a pill row of them overflowed off-screen on a phone, hiding
  * most of the options behind a horizontal scroll.
  */
-export function CheckInTargetSelector({
-  eventId,
-  eventName,
-  subevents,
-  targetId,
-}: Props) {
+export function CheckInTargetSelector({ eventId, eventName, subevents, targetId }: Props) {
   const router = useRouter();
   const pathname = usePathname();
 
@@ -69,8 +58,7 @@ export function CheckInTargetSelector({
   // `EventLiveBadge`). Before it resolves, no target reads as ended — which is
   // the neutral state, since "ended" here is only ever advisory.
   const now = useNow(TICK_MS);
-  const hasEnded = (endsAt: string | null) =>
-    now !== null && endsAt != null && new Date(endsAt).getTime() < now;
+  const hasEnded = (endsAt: string | null) => now !== null && endsAt != null && new Date(endsAt).getTime() < now;
   const armedEnded = hasEnded(armed?.endsAt ?? null);
 
   function arm(id: string) {
@@ -85,32 +73,20 @@ export function CheckInTargetSelector({
     <div
       className={cn(
         'space-y-3 rounded-xl border p-4',
-        armed
-          ? 'border-amber-500/50 bg-amber-500/10'
-          : 'bg-muted/30 border-border',
+        armed ? 'border-amber-500/50 bg-amber-500/10' : 'bg-muted/30 border-border',
       )}
     >
       <div className='flex flex-wrap items-start justify-between gap-3'>
         <div className='min-w-0'>
-          <p className='text-muted-foreground text-xs font-medium tracking-wide uppercase'>
-            Checking in to
-          </p>
+          <p className='text-muted-foreground text-xs font-medium tracking-wide uppercase'>Checking in to</p>
           <div className='mt-0.5 flex min-w-0 items-center gap-2'>
-            <p className='truncate text-xl font-semibold sm:text-lg'>
-              {armed ? armed.name : eventName}
-            </p>
-            {armed && (
-              <SubeventTypeBadge label={parseEventType(armed.eventTypeLabel)} />
-            )}
+            <p className='truncate text-xl font-semibold sm:text-lg'>{armed ? armed.name : eventName}</p>
+            {armed && <SubeventTypeBadge label={parseEventType(armed.eventTypeLabel)} />}
           </div>
           <p className='text-muted-foreground mt-0.5 text-sm'>
             {armed ? (
               <>
-                <LocalDateRange
-                  start={armed.startsAt}
-                  end={armed.endsAt}
-                  weekday='long'
-                />
+                <LocalDateRange start={armed.startsAt} end={armed.endsAt} weekday='long' />
                 {armed.location ? ` · ${armed.location}` : ''}
               </>
             ) : (
@@ -129,16 +105,12 @@ export function CheckInTargetSelector({
           a meal that ran over is still recordable — and so are corrections. */}
       {armedEnded && (
         <p className='text-sm text-amber-800 dark:text-amber-200'>
-          This schedule entry has already ended. You can still record check-ins
-          for it.
+          This schedule entry has already ended. You can still record check-ins for it.
         </p>
       )}
 
       <Select value={targetId} onValueChange={arm}>
-        <SelectTrigger
-          aria-label='Check-in target'
-          className='bg-background h-11 w-full sm:h-9'
-        >
+        <SelectTrigger aria-label='Check-in target' className='bg-background h-11 w-full sm:h-9'>
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -155,9 +127,7 @@ export function CheckInTargetSelector({
               >
                 {subevent.name}
                 {ended ? ' (ended)' : ''}
-                <SubeventTypeBadge
-                  label={parseEventType(subevent.eventTypeLabel)}
-                />
+                <SubeventTypeBadge label={parseEventType(subevent.eventTypeLabel)} />
               </SelectItem>
             );
           })}

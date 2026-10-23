@@ -8,10 +8,7 @@
  */
 import { describe, test, expect, vi, afterEach } from 'vitest';
 
-import type {
-  CheckInOutcome,
-  CheckInRosterRow,
-} from '@/app/dashboard/admin/events/check-in-actions';
+import type { CheckInOutcome, CheckInRosterRow } from '@/app/dashboard/admin/events/check-in-actions';
 import {
   applyCheckIn,
   clearCheckIn,
@@ -21,11 +18,7 @@ import {
   type PollingHost,
 } from '@/app/dashboard/admin/events/[eventId]/checkin/roster-sync';
 
-function row(
-  userId: string,
-  checkedInAt: string | null = null,
-  atMainEvent = checkedInAt !== null,
-): CheckInRosterRow {
+function row(userId: string, checkedInAt: string | null = null, atMainEvent = checkedInAt !== null): CheckInRosterRow {
   return {
     userId,
     name: `User ${userId}`,

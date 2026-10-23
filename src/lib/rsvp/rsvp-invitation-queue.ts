@@ -29,9 +29,7 @@ function wait(ms: number): Promise<void> {
  * after a publish that actually succeeded server-side (but whose response
  * this call didn't receive) does not create a duplicate message.
  */
-export async function publishRsvpInvitation(
-  responseId: string,
-): Promise<{ messageId: string | null }> {
+export async function publishRsvpInvitation(responseId: string): Promise<{ messageId: string | null }> {
   let lastError: unknown;
 
   for (let attempt = 1; attempt <= MAX_PUBLISH_ATTEMPTS; attempt += 1) {

@@ -1,13 +1,5 @@
 import { generateKeyPairSync } from 'node:crypto';
-import {
-  afterAll,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  test,
-  vi,
-} from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
 import { and, eq, inArray } from 'drizzle-orm';
 
 import { db } from '@/utils/db';
@@ -63,9 +55,7 @@ const everyoneInEvent = (): AudienceRuleGroup => ({
   rules: [{ field: 'participatedIn', operator: '=', value: { eventId } }],
 });
 
-async function newCampaign(
-  overrides: Partial<typeof campaigns.$inferInsert> = {},
-): Promise<string> {
+async function newCampaign(overrides: Partial<typeof campaigns.$inferInsert> = {}): Promise<string> {
   const [row] = await db
     .insert(campaigns)
     .values({
@@ -90,17 +80,11 @@ async function processCampaignDispatch(id: string) {
 }
 
 async function deliveriesOf(campaignId: string) {
-  return db
-    .select()
-    .from(campaignDeliveries)
-    .where(eq(campaignDeliveries.campaignId, campaignId));
+  return db.select().from(campaignDeliveries).where(eq(campaignDeliveries.campaignId, campaignId));
 }
 
 async function campaignRow(campaignId: string) {
-  const [row] = await db
-    .select()
-    .from(campaigns)
-    .where(eq(campaigns.id, campaignId));
+  const [row] = await db.select().from(campaigns).where(eq(campaigns.id, campaignId));
   return row;
 }
 
@@ -110,10 +94,7 @@ beforeAll(async () => {
     publicKeyEncoding: { type: 'spki', format: 'pem' },
   }).privateKey as unknown as string;
 
-  const [event] = await db
-    .insert(events)
-    .values({ name: 'Pipeline event' })
-    .returning({ id: events.id });
+  const [event] = await db.insert(events).values({ name: 'Pipeline event' }).returning({ id: events.id });
   eventId = event.id;
 
   // 12 opted-in members, so pacing crosses a 10-per-second boundary.
@@ -128,9 +109,7 @@ beforeAll(async () => {
     )
     .returning({ id: user.id });
   memberIds.push(...rows.map((r) => r.id));
-  await db
-    .insert(marketingConsents)
-    .values(memberIds.map((userId) => ({ userId, optedIn: true })));
+  await db.insert(marketingConsents).values(memberIds.map((userId) => ({ userId, optedIn: true })));
   await insertAttendees(memberIds.map((userId) => ({ eventId, userId })));
 
   const [sender] = await db
@@ -142,19 +121,13 @@ beforeAll(async () => {
     })
     .returning({ id: user.id });
   senderId = sender.id;
-  for (const slug of [
-    'campaign:send:all',
-    'campaign:read:all',
-    'participant:read:all',
-  ]) {
+  for (const slug of ['campaign:send:all', 'campaign:read:all', 'participant:read:all']) {
     const [p] = await db
       .insert(permission)
       .values({ slug })
       .onConflictDoUpdate({ target: permission.slug, set: { slug } })
       .returning({ id: permission.id });
-    await db
-      .insert(userPermission)
-      .values({ userId: senderId, permissionId: p.id });
+    await db.insert(userPermission).values({ userId: senderId, permissionId: p.id });
   }
 });
 
@@ -203,12 +176,7 @@ describe('dispatch', () => {
     const [audit] = await db
       .select()
       .from(auditLog)
-      .where(
-        and(
-          eq(auditLog.action, 'campaign.dispatch'),
-          eq(auditLog.targetId, id),
-        ),
-      );
+      .where(and(eq(auditLog.action, 'campaign.dispatch'), eq(auditLog.targetId, id)));
     expect(audit.metadata).toMatchObject({
       recipients: 12,
       audienceRules: everyoneInEvent(),
@@ -224,9 +192,7 @@ describe('dispatch', () => {
     const again = await processCampaignDispatch(id);
     expect(again).toEqual({ kind: 'resumed', published: 12 });
     expect(await deliveriesOf(id)).toHaveLength(12);
-    expect(new Set(send.mock.calls.map((c) => c[2].idempotencyKey)).size).toBe(
-      12,
-    );
+    expect(new Set(send.mock.calls.map((c) => c[2].idempotencyKey)).size).toBe(12);
   });
 
   test('a draft or cancelled campaign is not dispatched', async () => {
@@ -253,9 +219,7 @@ describe('dispatch', () => {
   });
 
   test('pacing helper', () => {
-    expect([0, 9, 10, 25, 99, 100].map(deliveryDelaySeconds)).toEqual([
-      0, 0, 1, 2, 9, 10,
-    ]);
+    expect([0, 9, 10, 25, 99, 100].map(deliveryDelaySeconds)).toEqual([0, 0, 1, 2, 9, 10]);
   });
 });
 
@@ -278,10 +242,7 @@ describe('delivery', () => {
     const mail = vi.mocked(sendMail).mock.calls[0][0];
     expect(mail.subject).toMatch(/^Hi Pipeline$/);
     expect(mail.listUnsubscribeUrl).toMatch(/\/api\/unsubscribe\?t=/);
-    const [sent] = await db
-      .select()
-      .from(campaignDeliveries)
-      .where(eq(campaignDeliveries.id, a.id));
+    const [sent] = await db.select().from(campaignDeliveries).where(eq(campaignDeliveries.id, a.id));
     expect(sent).toMatchObject({ status: 'sent', attempts: 1 });
     expect(sent.sentAt).toBeInstanceOf(Date);
   });
@@ -298,11 +259,7 @@ describe('delivery', () => {
     }
     const deliveries = (await Promise.all(ids.map(deliveriesOf))).flat();
     expect(deliveries).toHaveLength(36);
-    expect(
-      await Promise.all(
-        deliveries.map((row) => processCampaignDelivery(row.id)),
-      ),
-    ).toEqual(Array(36).fill('sent'));
+    expect(await Promise.all(deliveries.map((row) => processCampaignDelivery(row.id)))).toEqual(Array(36).fill('sent'));
     expect(sendMail).toHaveBeenCalledTimes(36);
     for (const [mail] of vi.mocked(sendMail).mock.calls) {
       expect(mail.html).toContain('/api/wallet/email/');
@@ -313,27 +270,16 @@ describe('delivery', () => {
   test('a recipient who opted out after dispatch is skipped', async () => {
     const id = await newCampaign();
     await processCampaignDispatch(id);
-    const target = (await deliveriesOf(id)).find(
-      (d) => d.userId === memberIds[3],
-    )!;
-    await db
-      .update(marketingConsents)
-      .set({ optedIn: false })
-      .where(eq(marketingConsents.userId, memberIds[3]));
+    const target = (await deliveriesOf(id)).find((d) => d.userId === memberIds[3])!;
+    await db.update(marketingConsents).set({ optedIn: false }).where(eq(marketingConsents.userId, memberIds[3]));
 
     expect(await processCampaignDelivery(target.id)).toBe('skipped');
     expect(sendMail).not.toHaveBeenCalled();
-    const [row] = await db
-      .select()
-      .from(campaignDeliveries)
-      .where(eq(campaignDeliveries.id, target.id));
+    const [row] = await db.select().from(campaignDeliveries).where(eq(campaignDeliveries.id, target.id));
     expect(row.status).toBe('skipped');
     expect(row.skipReason).toMatch(/Opted out/);
 
-    await db
-      .update(marketingConsents)
-      .set({ optedIn: true })
-      .where(eq(marketingConsents.userId, memberIds[3]));
+    await db.update(marketingConsents).set({ optedIn: true }).where(eq(marketingConsents.userId, memberIds[3]));
   });
 
   test('stopping halts sending: remaining deliveries are skipped', async () => {
@@ -355,10 +301,7 @@ describe('delivery', () => {
   test('a delivery queued when the campaign is cancelled is skipped', async () => {
     const id = await newCampaign();
     await processCampaignDispatch(id);
-    await db
-      .update(campaigns)
-      .set({ status: 'cancelled' })
-      .where(eq(campaigns.id, id));
+    await db.update(campaigns).set({ status: 'cancelled' }).where(eq(campaigns.id, id));
     const [d] = await deliveriesOf(id);
     expect(await processCampaignDelivery(d.id)).toBe('skipped');
     expect(sendMail).not.toHaveBeenCalled();
@@ -370,10 +313,7 @@ describe('delivery', () => {
     const [d] = await deliveriesOf(id);
 
     // Two copies of the same message racing, then a late redelivery.
-    const results = await Promise.all([
-      processCampaignDelivery(d.id),
-      processCampaignDelivery(d.id),
-    ]);
+    const results = await Promise.all([processCampaignDelivery(d.id), processCampaignDelivery(d.id)]);
     expect(results.sort()).toEqual(['already_done', 'sent']);
     expect(await processCampaignDelivery(d.id)).toBe('already_done');
     expect(sendMail).toHaveBeenCalledTimes(1);
@@ -404,9 +344,10 @@ describe('delivery', () => {
       release();
       expect(await first).toBe('sent');
     }
-    expect(
-      (await deliveriesOf(id)).find((row) => row.id === delivery.id),
-    ).toMatchObject({ attempts: 1, status: 'sent' });
+    expect((await deliveriesOf(id)).find((row) => row.id === delivery.id)).toMatchObject({
+      attempts: 1,
+      status: 'sent',
+    });
   });
 
   test('Stop can finish while an in-progress delivery commits, without a deadlock', async () => {
@@ -442,20 +383,12 @@ describe('delivery', () => {
     const [throttled, suppressed] = await deliveriesOf(id);
 
     vi.mocked(sendMail).mockRejectedValueOnce(
-      Object.assign(
-        new Error('Throttling failure: Maximum sending rate exceeded.'),
-        {
-          responseCode: 454,
-        },
-      ),
+      Object.assign(new Error('Throttling failure: Maximum sending rate exceeded.'), {
+        responseCode: 454,
+      }),
     );
-    await expect(processCampaignDelivery(throttled.id)).rejects.toThrow(
-      /Throttling/,
-    );
-    let [row] = await db
-      .select()
-      .from(campaignDeliveries)
-      .where(eq(campaignDeliveries.id, throttled.id));
+    await expect(processCampaignDelivery(throttled.id)).rejects.toThrow(/Throttling/);
+    let [row] = await db.select().from(campaignDeliveries).where(eq(campaignDeliveries.id, throttled.id));
     expect(row).toMatchObject({ status: 'queued', attempts: 1 });
     expect(row.lastError).toMatch(/Throttling/);
     // The redelivery goes through.
@@ -468,10 +401,7 @@ describe('delivery', () => {
       }),
     );
     expect(await processCampaignDelivery(suppressed.id)).toBe('failed');
-    [row] = await db
-      .select()
-      .from(campaignDeliveries)
-      .where(eq(campaignDeliveries.id, suppressed.id));
+    [row] = await db.select().from(campaignDeliveries).where(eq(campaignDeliveries.id, suppressed.id));
     expect(row.status).toBe('failed');
     expect(row.lastError).toMatch(/suppression list/);
   });
@@ -489,18 +419,12 @@ describe('delivery', () => {
   });
 
   test('error classification and retry delay', () => {
-    expect(
-      classifySendError({ responseCode: 454, response: 'Throttling' }),
-    ).toBe('throttled');
-    expect(
-      classifySendError({ responseCode: 550, response: 'mailbox unavailable' }),
-    ).toBe('permanent');
+    expect(classifySendError({ responseCode: 454, response: 'Throttling' })).toBe('throttled');
+    expect(classifySendError({ responseCode: 550, response: 'mailbox unavailable' })).toBe('permanent');
     expect(classifySendError(new Error('ECONNRESET'))).toBe('transient');
     for (const n of [1, 3, 10]) {
       const ceiling = Math.min(300, 2 ** n * 5);
-      expect(campaignDeliveryRetryDelay(n, () => 0)).toBe(
-        Math.max(1, Math.round(ceiling / 2)),
-      );
+      expect(campaignDeliveryRetryDelay(n, () => 0)).toBe(Math.max(1, Math.round(ceiling / 2)));
       expect(campaignDeliveryRetryDelay(n, () => 1)).toBe(ceiling);
     }
   });
@@ -558,9 +482,7 @@ describe('send actions', () => {
     await processCampaignDispatch(id);
     const deliveries = await deliveriesOf(id);
     for (const d of deliveries.slice(1)) await processCampaignDelivery(d.id);
-    vi.mocked(sendMail).mockRejectedValueOnce(
-      Object.assign(new Error('rejected'), { responseCode: 550 }),
-    );
+    vi.mocked(sendMail).mockRejectedValueOnce(Object.assign(new Error('rejected'), { responseCode: 550 }));
     expect(await processCampaignDelivery(deliveries[0].id)).toBe('failed');
     expect((await campaignRow(id)).status).toBe('sent');
 
@@ -603,9 +525,7 @@ describe('send actions', () => {
       data: { requeued: 0 },
     });
     expect(send).toHaveBeenCalledTimes(1);
-    expect(await processCampaignDelivery((await deliveriesOf(id))[0].id)).toBe(
-      'sent',
-    );
+    expect(await processCampaignDelivery((await deliveriesOf(id))[0].id)).toBe('sent');
     expect((await campaignRow(id)).status).toBe('sent');
   });
 
@@ -622,9 +542,7 @@ describe('send actions', () => {
       .returning({ id: user.id });
     const extraIds = extra.map((r) => r.id);
     try {
-      await db
-        .insert(marketingConsents)
-        .values(extraIds.map((userId) => ({ userId, optedIn: true })));
+      await db.insert(marketingConsents).values(extraIds.map((userId) => ({ userId, optedIn: true })));
       await insertAttendees(extraIds.map((userId) => ({ eventId, userId })));
 
       const id = await newCampaign({ status: 'draft', scheduledFor: null });

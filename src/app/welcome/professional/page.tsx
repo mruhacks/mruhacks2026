@@ -3,13 +3,7 @@ import { redirect } from 'next/navigation';
 
 import { sanitizeReturnPath } from '@/utils/return-path';
 import { getProfessionalProfile } from '@/app/dashboard/profile/actions';
-import {
-  canReviewStep,
-  getOnboardingProgress,
-  getNextStep,
-  reviewStepUrl,
-  stepUrl,
-} from '../onboarding-progress';
+import { canReviewStep, getOnboardingProgress, getNextStep, reviewStepUrl, stepUrl } from '../onboarding-progress';
 import { WelcomeProfessionalPage } from '../welcome-professional-page';
 import { WelcomePersonalSkeleton } from '../welcome-step-loading';
 

@@ -5,11 +5,7 @@ import type { ColumnDef } from '@tanstack/react-table';
 
 import type { JudgingResults } from '@/app/dashboard/admin/events/judging-actions';
 import { DataTable } from '@/components/data-table/data-table';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 import { formatNumber } from './format';
 import { useResults } from './results-context';
@@ -23,23 +19,13 @@ type Row = JudgingResults['byCriterion'][number]['rows'][number] & {
  * sort button, so the tooltip trigger is a plain span rather than a second
  * button nested in the first.
  */
-function StatHeader({
-  symbol,
-  description,
-}: {
-  symbol: string;
-  description: string;
-}) {
+function StatHeader({ symbol, description }: { symbol: string; description: string }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <span className='cursor-help underline decoration-dotted underline-offset-4'>
-          {symbol}
-        </span>
+        <span className='cursor-help underline decoration-dotted underline-offset-4'>{symbol}</span>
       </TooltipTrigger>
-      <TooltipContent className='max-w-64 text-left normal-case'>
-        {description}
-      </TooltipContent>
+      <TooltipContent className='max-w-64 text-left normal-case'>{description}</TooltipContent>
     </Tooltip>
   );
 }
@@ -115,11 +101,7 @@ export function CriterionTable({ criterionId }: { criterionId: string }) {
   );
 
   if (!criterion) {
-    return (
-      <p className='text-muted-foreground text-sm'>
-        This criterion no longer exists.
-      </p>
-    );
+    return <p className='text-muted-foreground text-sm'>This criterion no longer exists.</p>;
   }
 
   return (

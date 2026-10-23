@@ -3,10 +3,7 @@
 import * as React from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
 
-import {
-  setSubmissionPlacement,
-  type ResultsProjectRow,
-} from '@/app/dashboard/admin/events/judging-actions';
+import { setSubmissionPlacement, type ResultsProjectRow } from '@/app/dashboard/admin/events/judging-actions';
 import { DataTable } from '@/components/data-table/data-table';
 import { Button } from '@/components/ui/button';
 import { FieldError } from '@/components/ui/field';
@@ -99,13 +96,7 @@ export function OverallTable() {
   );
 }
 
-function PlacementInput({
-  row,
-  award,
-}: {
-  row: ResultsProjectRow;
-  award: AwardControls;
-}) {
+function PlacementInput({ row, award }: { row: ResultsProjectRow; award: AwardControls }) {
   const saved = row.placement == null ? '' : String(row.placement);
   const [value, setValue] = React.useState(saved);
   const [error, setError] = React.useState<string>();
@@ -132,11 +123,7 @@ function PlacementInput({
     }
     setSaving(true);
     try {
-      const result = await setSubmissionPlacement(
-        award.eventId,
-        row.id,
-        placement,
-      );
+      const result = await setSubmissionPlacement(award.eventId, row.id, placement);
       if (!result.success) {
         setError(result.error);
       } else {

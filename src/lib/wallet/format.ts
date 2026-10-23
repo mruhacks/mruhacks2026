@@ -6,10 +6,7 @@ const PASS_TIME_ZONE = 'America/Edmonton';
 const TIME_LOCALE = 'en-US';
 
 /** Shared by the Apple pass, the Google Wallet class, and the in-app ticket page. */
-export function formatDateRange(
-  startsAt: Date | null,
-  endsAt: Date | null,
-): string | null {
+export function formatDateRange(startsAt: Date | null, endsAt: Date | null): string | null {
   if (!startsAt && !endsAt) return null;
 
   const dayFormat = new Intl.DateTimeFormat('en-CA', {
@@ -55,9 +52,7 @@ export function formatDateRange(
     // starting Dec 31 18:00 MST reads as the following year and the omitted
     // year contradicts the Edmonton date printed beside it.
     const sameYear = yearFormat.format(startsAt) === yearFormat.format(endsAt);
-    const start = sameYear
-      ? dayFormat.format(startsAt)
-      : dayYearFormat.format(startsAt);
+    const start = sameYear ? dayFormat.format(startsAt) : dayYearFormat.format(startsAt);
     return `${start}–${dayYearFormat.format(endsAt)}`;
   }
 

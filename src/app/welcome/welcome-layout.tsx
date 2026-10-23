@@ -70,33 +70,19 @@ export function WelcomeStepNav({ steps }: { steps: WelcomeStep[] }) {
                   <span
                     className={cn(
                       'flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-medium',
-                      complete || active
-                        ? 'bg-primary text-primary-foreground'
-                        : 'bg-muted text-muted-foreground',
+                      complete || active ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
                     )}
                   >
-                    {complete && !active ? (
-                      <Check className='size-4' />
-                    ) : (
-                      index + 1
-                    )}
+                    {complete && !active ? <Check className='size-4' /> : index + 1}
                   </span>
-                  <span
-                    className={cn(
-                      active ? 'font-medium' : 'text-muted-foreground',
-                    )}
-                  >
-                    {step.label}
-                  </span>
+                  <span className={cn(active ? 'font-medium' : 'text-muted-foreground')}>{step.label}</span>
                 </span>
               )}
               {hasConnector && (
                 <span
                   className={cn(
                     'bg-border h-px',
-                    isMobileRowEnd
-                      ? 'hidden sm:block sm:w-10 sm:shrink-0'
-                      : 'flex-1 sm:w-10 sm:flex-none sm:shrink-0',
+                    isMobileRowEnd ? 'hidden sm:block sm:w-10 sm:shrink-0' : 'flex-1 sm:w-10 sm:flex-none sm:shrink-0',
                   )}
                   aria-hidden
                 />

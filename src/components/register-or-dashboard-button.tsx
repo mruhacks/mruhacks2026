@@ -19,9 +19,7 @@ function FixedWidthLabel({ children }: { children: React.ReactNode }) {
       <span className='invisible col-start-1 row-start-1' aria-hidden='true'>
         Register Now
       </span>
-      <span className='col-start-1 row-start-1 flex w-full justify-center'>
-        {children}
-      </span>
+      <span className='col-start-1 row-start-1 flex w-full justify-center'>{children}</span>
     </span>
   );
 }
@@ -34,11 +32,7 @@ function FixedWidthLabel({ children }: { children: React.ReactNode }) {
  * loading) and switches to "Dashboard" only once a session resolves, so the
  * common anonymous case never waits on a placeholder.
  */
-export function RegisterOrDashboardButton({
-  registerUrl,
-  className,
-  ...variants
-}: RegisterOrDashboardButtonProps) {
+export function RegisterOrDashboardButton({ registerUrl, className, ...variants }: RegisterOrDashboardButtonProps) {
   const { data: session } = authClient.useSession();
   const signedIn = session != null;
 
@@ -47,9 +41,7 @@ export function RegisterOrDashboardButton({
   return (
     <Button {...variants} className={className} asChild>
       <Link href={signedIn ? '/dashboard' : registerUrl}>
-        <FixedWidthLabel>
-          {signedIn ? 'Dashboard' : 'Register Now'}
-        </FixedWidthLabel>
+        <FixedWidthLabel>{signedIn ? 'Dashboard' : 'Register Now'}</FixedWidthLabel>
       </Link>
     </Button>
   );

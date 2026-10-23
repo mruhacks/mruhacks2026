@@ -5,34 +5,20 @@ import { and, eq, gt, isNull, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { z } from 'zod';
 
-import {
-  checkIns,
-  eventParticipants,
-  events,
-  user,
-  userProfiles,
-} from '@/db/schema';
+import { checkIns, eventParticipants, events, user, userProfiles } from '@/db/schema';
 import { eventApplicationsCacheTag } from '@/lib/admin-event';
 import { parseInstant } from '@/lib/datetime';
-import {
-  isSubeventRunning,
-  resolveCheckInTarget,
-  type CheckInTarget,
-} from '@/lib/subevents';
+import { isSubeventRunning, resolveCheckInTarget, type CheckInTarget } from '@/lib/subevents';
 import { hasPermission, requirePermission } from '@/lib/rbac/authorization';
 import { verifyCheckInPayload } from '@/lib/wallet/check-in-token';
-import {
-  getEventParticipation,
-  resolveParticipantName,
-} from '@/lib/wallet/participation';
+import { getEventParticipation, resolveParticipantName } from '@/lib/wallet/participation';
 import { hasStatus } from '@/lib/participation/server';
 import { ok, fail, type ActionResult } from '@/utils/action-result';
 import { writeAuditLog } from '@/utils/audit-log';
 import { getUser } from '@/utils/auth';
 import { db } from '@/utils/db';
 
-const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export type CheckInOutcome = {
   userId: string;
@@ -99,10 +85,7 @@ async function getScanner() {
   return actor;
 }
 
-async function isCheckInEnabled(
-  eventId: string,
-  targetEventId?: string | null,
-) {
+async function isCheckInEnabled(eventId: string, targetEventId?: string | null) {
   if (!UUID_PATTERN.test(eventId)) return false;
   const [main] = await db
     .select({ enabled: events.checkInEnabled })
@@ -110,8 +93,7 @@ async function isCheckInEnabled(
     .where(and(eq(events.id, eventId), isNull(events.parentEventId)))
     .limit(1);
   if (main && !main.enabled) return false;
-  if (!targetEventId || targetEventId.toLowerCase() === eventId.toLowerCase())
-    return true;
+  if (!targetEventId || targetEventId.toLowerCase() === eventId.toLowerCase()) return true;
   if (!UUID_PATTERN.test(targetEventId)) return false;
   const [target] = await db
     .select({ enabled: events.checkInEnabled })
@@ -123,11 +105,7 @@ async function isCheckInEnabled(
 }
 
 async function loadAccountName(userId: string): Promise<string> {
-  const [row] = await db
-    .select({ name: user.name })
-    .from(user)
-    .where(eq(user.id, userId))
-    .limit(1);
+  const [row] = await db.select({ name: user.name }).from(user).where(eq(user.id, userId)).limit(1);
   return row?.name ?? '';
 }
 
@@ -222,10 +200,7 @@ async function checkInUser(
     return fail('This event has ended. Check-in is frozen.');
   }
 
-  const name = resolveParticipantName(
-    participation.fullName,
-    await loadAccountName(userId),
-  );
+  const name = resolveParticipantName(participation.fullName, await loadAccountName(userId));
 
   // A sub-event is for people who are actually here, so the door comes first.
   // Read-then-write rather than an atomic insert-where-exists: the atomic form
@@ -239,18 +214,11 @@ async function checkInUser(
       .where(and(eq(checkIns.eventId, eventId), eq(checkIns.userId, userId)))
       .limit(1);
     if (!atDoor) {
-      return fail(
-        `${name} has not checked in at the main event yet — check them in at the door first.`,
-      );
+      return fail(`${name} has not checked in at the main event yet — check them in at the door first.`);
     }
   }
 
-  const recorded = await recordCheckIn(
-    target.targetId,
-    eventId,
-    userId,
-    actorId,
-  );
+  const recorded = await recordCheckIn(target.targetId, eventId, userId, actorId);
   if (!recorded) {
     return fail('That check-in was just undone. Scan again to redo it.');
   }
@@ -261,9 +229,7 @@ async function checkInUser(
       action: 'checkin.create',
       targetType: 'user',
       targetId: userId,
-      metadata: target.isSubevent
-        ? { eventId, subeventId: target.targetId }
-        : { eventId },
+      metadata: target.isSubevent ? { eventId, subeventId: target.targetId } : { eventId },
     });
   }
 
@@ -273,8 +239,7 @@ async function checkInUser(
 /** The failure every action shares when a target isn't this event's sub-event. */
 const UNKNOWN_TARGET = 'That schedule entry does not belong to this event.';
 
-const TARGET_NOT_RUNNING =
-  "That schedule entry isn't running right now, so it can't take check-ins.";
+const TARGET_NOT_RUNNING = "That schedule entry isn't running right now, so it can't take check-ins.";
 
 /**
  * Whether `actorId` may write against `target` at this moment. The door is
@@ -286,10 +251,7 @@ const TARGET_NOT_RUNNING =
  * convenience, and a stale tab or hand-edited `?target=` would otherwise walk
  * straight past it.
  */
-async function canWriteToTarget(
-  actorId: string,
-  target: CheckInTarget,
-): Promise<boolean> {
+async function canWriteToTarget(actorId: string, target: CheckInTarget): Promise<boolean> {
   if (!target.isSubevent || isSubeventRunning(target)) return true;
   return hasPermission(actorId, 'checkin:override:all');
 }
@@ -391,11 +353,7 @@ export async function undoCheckIn(
   // The main event's end, deliberately, even when undoing a sub-event row —
   // undo has to stay available for exactly as long as check-in does, or a
   // mis-scan at a meal becomes permanent the moment that meal's slot passes.
-  const [eventRow] = await db
-    .select({ endsAt: events.endsAt })
-    .from(events)
-    .where(eq(events.id, eventId))
-    .limit(1);
+  const [eventRow] = await db.select({ endsAt: events.endsAt }).from(events).where(eq(events.id, eventId)).limit(1);
   if (!eventRow) return fail('Event not found.');
   if (eventRow.endsAt && eventRow.endsAt.getTime() < Date.now()) {
     return fail('This event has ended. Check-in is frozen.');
@@ -403,9 +361,7 @@ export async function undoCheckIn(
 
   const [removed] = await db
     .delete(checkIns)
-    .where(
-      and(eq(checkIns.eventId, target.targetId), eq(checkIns.userId, userId)),
-    )
+    .where(and(eq(checkIns.eventId, target.targetId), eq(checkIns.userId, userId)))
     .returning({ checkedInAt: checkIns.checkedInAt });
 
   if (!removed) return fail('They were not checked in.');
@@ -479,25 +435,15 @@ export async function getCheckInRoster(
     // attending.
     .innerJoin(
       eventParticipants,
-      and(
-        eq(eventParticipants.eventId, eventId),
-        eq(eventParticipants.userId, user.id),
-        hasStatus('accepted'),
-      ),
+      and(eq(eventParticipants.eventId, eventId), eq(eventParticipants.userId, user.id), hasStatus('accepted')),
     )
     .leftJoin(userProfiles, eq(userProfiles.userId, user.id))
-    .leftJoin(
-      checkIns,
-      and(eq(checkIns.eventId, target.targetId), eq(checkIns.userId, user.id)),
-    )
+    .leftJoin(checkIns, and(eq(checkIns.eventId, target.targetId), eq(checkIns.userId, user.id)))
     // Joined unconditionally rather than only for a sub-event: on a main target
     // it resolves to the very same row as the join above (the unique index
     // guarantees at most one), so it cannot fan out, and one code path beats a
     // dynamic query whose result type changes with the target.
-    .leftJoin(
-      doorCheckIns,
-      and(eq(doorCheckIns.eventId, eventId), eq(doorCheckIns.userId, user.id)),
-    )
+    .leftJoin(doorCheckIns, and(eq(doorCheckIns.eventId, eventId), eq(doorCheckIns.userId, user.id)))
     .leftJoin(scanner, eq(scanner.id, checkIns.checkedInBy));
 
   return ok(
@@ -565,10 +511,7 @@ export async function getCheckInUpdates(
       .leftJoin(scanner, eq(scanner.id, checkIns.checkedInBy))
       .where(
         watermark
-          ? and(
-              eq(checkIns.eventId, target.targetId),
-              gt(checkIns.checkedInAt, watermark),
-            )
+          ? and(eq(checkIns.eventId, target.targetId), gt(checkIns.checkedInAt, watermark))
           : eq(checkIns.eventId, target.targetId),
       ),
     db

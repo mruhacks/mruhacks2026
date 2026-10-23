@@ -40,21 +40,15 @@ export default {
 
     // Fire every deployment in parallel so one slow or failing origin doesn't
     // delay or skip the others.
-    const results = await Promise.allSettled(
-      origins.map((origin) => triggerHourlyCron(origin, env.CRON_SECRET)),
-    );
-    const failures = results.flatMap((result) =>
-      result.status === 'rejected' ? [result.reason] : [],
-    );
+    const results = await Promise.allSettled(origins.map((origin) => triggerHourlyCron(origin, env.CRON_SECRET)));
+    const failures = results.flatMap((result) => (result.status === 'rejected' ? [result.reason] : []));
 
     if (failures.length > 0) {
       // Throwing marks this Cron Event as failed in the Cloudflare dashboard.
       throw new AggregateError(
         failures,
         `${failures.length}/${origins.length} deployments failed: ${failures
-          .map((error) =>
-            error instanceof Error ? error.message : String(error),
-          )
+          .map((error) => (error instanceof Error ? error.message : String(error)))
           .join('; ')}`,
       );
     }

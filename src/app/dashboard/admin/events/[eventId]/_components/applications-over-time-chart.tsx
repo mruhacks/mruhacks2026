@@ -2,12 +2,7 @@
 
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from 'recharts';
 
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-  type ChartConfig,
-} from '@/components/ui/chart';
+import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@/components/ui/chart';
 import { DEFAULT_LOCALE, EVENT_TIME_ZONE, formatInstant } from '@/lib/datetime';
 
 export type OverTimePoint = {
@@ -40,20 +35,12 @@ function formatDay(iso: string) {
 
 export function ApplicationsOverTimeChart({ data }: { data: OverTimePoint[] }) {
   if (data.length === 0) {
-    return (
-      <p className='text-muted-foreground py-8 text-center text-sm'>
-        No applications yet.
-      </p>
-    );
+    return <p className='text-muted-foreground py-8 text-center text-sm'>No applications yet.</p>;
   }
 
   return (
     <ChartContainer config={chartConfig} className='h-[220px] w-full'>
-      <LineChart
-        accessibilityLayer
-        data={data}
-        margin={{ left: 4, right: 12, top: 8, bottom: 4 }}
-      >
+      <LineChart accessibilityLayer data={data} margin={{ left: 4, right: 12, top: 8, bottom: 4 }}>
         {/* Recessive: horizontal rules only, so the line stays the figure. */}
         <CartesianGrid vertical={false} strokeDasharray='3 3' />
         <XAxis
@@ -64,12 +51,7 @@ export function ApplicationsOverTimeChart({ data }: { data: OverTimePoint[] }) {
           tickMargin={8}
           minTickGap={24}
         />
-        <YAxis
-          allowDecimals={false}
-          tickLine={false}
-          axisLine={false}
-          width={36}
-        />
+        <YAxis allowDecimals={false} tickLine={false} axisLine={false} width={36} />
         <ChartTooltip
           content={
             <ChartTooltipContent

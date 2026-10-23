@@ -32,33 +32,25 @@ describe('saving before campaign confirmation', () => {
     expect(persist).toHaveBeenCalledTimes(1);
     finish({ success: true });
     expect(await confirm).toBe(true);
-    expect(persist.mock.calls.map(([value]) => value)).toEqual([
-      'first edit',
-      'latest edit',
-    ]);
+    expect(persist.mock.calls.map(([value]) => value)).toEqual(['first edit', 'latest edit']);
   });
 
-  test.each(['validation', 'network'])(
-    '%s failure blocks confirmation and remains retryable',
-    async (kind) => {
-      const persist = vi.fn();
-      if (kind === 'validation')
-        persist.mockResolvedValueOnce({
-          success: false,
-          error: 'Invalid content',
-        });
-      else persist.mockRejectedValueOnce(new Error('Offline'));
-      persist.mockResolvedValue({ success: true });
-      const states: DraftSaveState[] = [];
-      const saver = new DraftSaver<string>('initial', persist, (state) =>
-        states.push(state),
-      );
-      saver.update('edited');
-      expect(await saver.flush()).toBe(false);
-      expect(states.at(-1)).toMatchObject({ kind: 'error' });
-      expect(await saver.flush()).toBe(true);
-      expect(persist).toHaveBeenLastCalledWith('edited');
-      expect(states.at(-1)).toEqual({ kind: 'saved' });
-    },
-  );
+  test.each(['validation', 'network'])('%s failure blocks confirmation and remains retryable', async (kind) => {
+    const persist = vi.fn();
+    if (kind === 'validation')
+      persist.mockResolvedValueOnce({
+        success: false,
+        error: 'Invalid content',
+      });
+    else persist.mockRejectedValueOnce(new Error('Offline'));
+    persist.mockResolvedValue({ success: true });
+    const states: DraftSaveState[] = [];
+    const saver = new DraftSaver<string>('initial', persist, (state) => states.push(state));
+    saver.update('edited');
+    expect(await saver.flush()).toBe(false);
+    expect(states.at(-1)).toMatchObject({ kind: 'error' });
+    expect(await saver.flush()).toBe(true);
+    expect(persist).toHaveBeenLastCalledWith('edited');
+    expect(states.at(-1)).toEqual({ kind: 'saved' });
+  });
 });

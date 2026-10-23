@@ -1,10 +1,6 @@
 import { describe, expect, test } from 'vitest';
 
-import {
-  criterionWeightsSumToOne,
-  formatWeight,
-  roundedWeights,
-} from '@/lib/judging/limits';
+import { criterionWeightsSumToOne, formatWeight, roundedWeights } from '@/lib/judging/limits';
 import { normalizeWeights } from '@/lib/judging/results';
 
 const sum = (values: number[]) => values.reduce((total, v) => total + v, 0);

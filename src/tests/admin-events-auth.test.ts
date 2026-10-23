@@ -38,10 +38,8 @@ type MockUser = {
   emailVerified: boolean;
 };
 
-const FORBIDDEN =
-  'REDIRECT:/forbidden?reason=missing_permission&permission=event:manage';
-const RSVP_READ_FORBIDDEN =
-  'REDIRECT:/forbidden?reason=missing_permission&permission=rsvp:read:all';
+const FORBIDDEN = 'REDIRECT:/forbidden?reason=missing_permission&permission=event:manage';
+const RSVP_READ_FORBIDDEN = 'REDIRECT:/forbidden?reason=missing_permission&permission=rsvp:read:all';
 
 let noPermUserId: string;
 let noPermUser: MockUser;
@@ -87,15 +85,11 @@ afterAll(async () => {
 describe('createEvent', () => {
   test('fails when unauthenticated', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(null as never);
-    await expect(
-      createEvent({ name: 'X', hasApplication: false }),
-    ).resolves.toMatchObject({ success: false });
+    await expect(createEvent({ name: 'X', hasApplication: false })).resolves.toMatchObject({ success: false });
   });
 
   test('redirects to /forbidden without event:manage', async () => {
-    await expect(
-      createEvent({ name: 'X', hasApplication: false }),
-    ).rejects.toThrow(FORBIDDEN);
+    await expect(createEvent({ name: 'X', hasApplication: false })).rejects.toThrow(FORBIDDEN);
   });
 });
 
@@ -140,9 +134,7 @@ describe('getEventRsvpSummary', () => {
   });
 
   test('redirects to /forbidden without rsvp:read:all', async () => {
-    await expect(getEventRsvpSummary(testEventId)).rejects.toThrow(
-      RSVP_READ_FORBIDDEN,
-    );
+    await expect(getEventRsvpSummary(testEventId)).rejects.toThrow(RSVP_READ_FORBIDDEN);
   });
 });
 
@@ -157,9 +149,7 @@ describe('getEventWaitlist', () => {
   });
 
   test('redirects to /forbidden without rsvp:read:all', async () => {
-    await expect(getEventWaitlist(testEventId)).rejects.toThrow(
-      RSVP_READ_FORBIDDEN,
-    );
+    await expect(getEventWaitlist(testEventId)).rejects.toThrow(RSVP_READ_FORBIDDEN);
   });
 });
 
@@ -174,9 +164,7 @@ describe('getApplicationResponses', () => {
   });
 
   test('redirects to /forbidden without event:manage', async () => {
-    await expect(getApplicationResponses(testEventId)).rejects.toThrow(
-      FORBIDDEN,
-    );
+    await expect(getApplicationResponses(testEventId)).rejects.toThrow(FORBIDDEN);
   });
 });
 
@@ -231,15 +219,13 @@ describe('editQuestion', () => {
 describe('removeQuestion', () => {
   test('fails when unauthenticated', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(null as never);
-    await expect(
-      removeQuestion(testEventId, '00000000-0000-0000-0000-000000000000'),
-    ).resolves.toMatchObject({ success: false });
+    await expect(removeQuestion(testEventId, '00000000-0000-0000-0000-000000000000')).resolves.toMatchObject({
+      success: false,
+    });
   });
 
   test('redirects to /forbidden without event:manage', async () => {
-    await expect(
-      removeQuestion(testEventId, '00000000-0000-0000-0000-000000000000'),
-    ).rejects.toThrow(FORBIDDEN);
+    await expect(removeQuestion(testEventId, '00000000-0000-0000-0000-000000000000')).rejects.toThrow(FORBIDDEN);
   });
 });
 
@@ -263,15 +249,13 @@ describe('reorderQuestions', () => {
 describe('reactivateQuestion', () => {
   test('fails when unauthenticated', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(null as never);
-    await expect(
-      reactivateQuestion(testEventId, '00000000-0000-0000-0000-000000000000'),
-    ).resolves.toMatchObject({ success: false });
+    await expect(reactivateQuestion(testEventId, '00000000-0000-0000-0000-000000000000')).resolves.toMatchObject({
+      success: false,
+    });
   });
 
   test('redirects to /forbidden without event:manage', async () => {
-    await expect(
-      reactivateQuestion(testEventId, '00000000-0000-0000-0000-000000000000'),
-    ).rejects.toThrow(FORBIDDEN);
+    await expect(reactivateQuestion(testEventId, '00000000-0000-0000-0000-000000000000')).rejects.toThrow(FORBIDDEN);
   });
 });
 
@@ -280,14 +264,10 @@ describe('reactivateQuestion', () => {
 describe('updateEventSettings', () => {
   test('fails when unauthenticated', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(null as never);
-    await expect(
-      updateEventSettings(testEventId, { name: 'X' }),
-    ).resolves.toMatchObject({ success: false });
+    await expect(updateEventSettings(testEventId, { name: 'X' })).resolves.toMatchObject({ success: false });
   });
 
   test('redirects to /forbidden without event:manage', async () => {
-    await expect(
-      updateEventSettings(testEventId, { name: 'X' }),
-    ).rejects.toThrow(FORBIDDEN);
+    await expect(updateEventSettings(testEventId, { name: 'X' })).rejects.toThrow(FORBIDDEN);
   });
 });

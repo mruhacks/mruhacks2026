@@ -27,15 +27,8 @@ type QuestionCardProps = {
   isDragging?: boolean;
 };
 
-export function QuestionCard({
-  question: q,
-  onEdit,
-  onDelete,
-  onReactivate,
-  isDragging,
-}: QuestionCardProps) {
-  const { attributes, listeners, setNodeRef, transform, transition } =
-    useSortable({ id: q.id });
+export function QuestionCard({ question: q, onEdit, onDelete, onReactivate, isDragging }: QuestionCardProps) {
+  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: q.id });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -44,11 +37,7 @@ export function QuestionCard({
   };
 
   return (
-    <Card
-      ref={setNodeRef}
-      style={style}
-      className={q.active ? '' : 'opacity-50'}
-    >
+    <Card ref={setNodeRef} style={style} className={q.active ? '' : 'opacity-50'}>
       <CardContent className='flex items-start gap-4 py-4'>
         {/* Drag handle */}
         <button
@@ -64,32 +53,21 @@ export function QuestionCard({
         <div className='min-w-0 flex-1'>
           <div className='flex flex-wrap items-center gap-2'>
             <span className='text-sm font-medium'>{q.label}</span>
-            {q.required && (
-              <span className='text-destructive text-xs'>Required</span>
-            )}
+            {q.required && <span className='text-destructive text-xs'>Required</span>}
             {!q.active && (
-              <span className='text-muted-foreground bg-muted rounded-sm px-1.5 py-0.5 text-xs'>
-                Hidden
-              </span>
+              <span className='text-muted-foreground bg-muted rounded-sm px-1.5 py-0.5 text-xs'>Hidden</span>
             )}
             <span className='bg-muted text-muted-foreground rounded-sm px-1.5 py-0.5 text-xs'>
               {TYPE_LABELS[q.type] ?? q.type}
             </span>
           </div>
 
-          {q.description && (
-            <p className='text-muted-foreground mt-0.5 text-xs'>
-              {q.description}
-            </p>
-          )}
+          {q.description && <p className='text-muted-foreground mt-0.5 text-xs'>{q.description}</p>}
 
           {q.options && q.options.length > 0 && (
             <ul className='mt-1.5 space-y-0.5'>
               {q.options.map((opt) => (
-                <li
-                  key={opt.value}
-                  className={`text-xs ${opt.active ? '' : 'text-muted-foreground line-through'}`}
-                >
+                <li key={opt.value} className={`text-xs ${opt.active ? '' : 'text-muted-foreground line-through'}`}>
                   • {opt.label}
                 </li>
               ))}
@@ -112,13 +90,7 @@ export function QuestionCard({
           )}
           {q.active && (
             <>
-              <Button
-                variant='ghost'
-                size='icon'
-                className='size-8'
-                onClick={onEdit}
-                aria-label='Edit'
-              >
+              <Button variant='ghost' size='icon' className='size-8' onClick={onEdit} aria-label='Edit'>
                 <Pencil className='size-4' />
               </Button>
               <Button

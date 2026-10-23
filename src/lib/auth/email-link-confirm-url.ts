@@ -44,16 +44,11 @@ export function isEmailLinkKind(value: unknown): value is EmailLinkKind {
  * changed), the confirm page would submit to a 404, so the raw link is sent
  * instead and the mismatch logged.
  */
-export function toEmailLinkConfirmUrl(
-  kind: EmailLinkKind,
-  authUrl: string,
-): string {
+export function toEmailLinkConfirmUrl(kind: EmailLinkKind, authUrl: string): string {
   const url = new URL(authUrl);
   const { endpoint } = EMAIL_LINKS[kind];
   if (url.pathname !== endpoint) {
-    console.error(
-      `[auth] ${kind} link points at ${url.pathname}, expected ${endpoint}; sending it unwrapped`,
-    );
+    console.error(`[auth] ${kind} link points at ${url.pathname}, expected ${endpoint}; sending it unwrapped`);
     return authUrl;
   }
   url.pathname = EMAIL_LINK_CONFIRM_PATH;

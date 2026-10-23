@@ -12,15 +12,12 @@ import { otherTextKey } from '@/lib/other-option';
 import { participationStatusesList } from '@/types/lookups';
 
 function q(
-  overrides: Partial<ApplicationQuestion> &
-    Pick<ApplicationQuestion, 'id' | 'type' | 'label'>,
+  overrides: Partial<ApplicationQuestion> & Pick<ApplicationQuestion, 'id' | 'type' | 'label'>,
 ): ApplicationQuestion {
   return { required: false, order: 0, active: true, ...overrides };
 }
 
-function row(
-  overrides: Partial<ApplicationStatsRow> = {},
-): ApplicationStatsRow {
+function row(overrides: Partial<ApplicationStatsRow> = {}): ApplicationStatsRow {
   return {
     responses: {},
     status: null,
@@ -49,16 +46,12 @@ describe('buildQuestionStats', () => {
     });
 
     test('question with showInReports unset defaults to excluded', () => {
-      const questions = [
-        q({ id: 'q1', type: 'single_select', label: 'Q1', options: [] }),
-      ];
+      const questions = [q({ id: 'q1', type: 'single_select', label: 'Q1', options: [] })];
       expect(buildQuestionStats(questions, [row()])).toEqual([]);
     });
 
     test('free-text question excluded even when showInReports is true', () => {
-      const questions = [
-        q({ id: 'q1', type: 'short_text', label: 'Bio', showInReports: true }),
-      ];
+      const questions = [q({ id: 'q1', type: 'short_text', label: 'Bio', showInReports: true })];
       const rows = [row({ responses: { q1: 'hello' } })];
       expect(buildQuestionStats(questions, rows)).toEqual([]);
     });
@@ -282,16 +275,11 @@ describe('buildQuestionStats', () => {
       const rows = [row({ responses: { q4: 7 } })];
       const [stats] = buildQuestionStats([question], rows);
       expect(stats.numeric).toEqual({ min: 7, max: 7, mean: 7, median: 7 });
-      expect(stats.buckets).toEqual([
-        { key: '7', label: '7', count: 1, percent: 100 },
-      ]);
+      expect(stats.buckets).toEqual([{ key: '7', label: '7', count: 1, percent: 100 }]);
     });
 
     test('zero answered values yields all-zero numeric stats, not NaN, and no histogram buckets', () => {
-      const rows = [
-        row({ responses: {} }),
-        row({ responses: { q4: 'not-a-number' } }),
-      ];
+      const rows = [row({ responses: {} }), row({ responses: { q4: 'not-a-number' } })];
       const [stats] = buildQuestionStats([question], rows);
       expect(stats.numeric).toEqual({ min: 0, max: 0, mean: 0, median: 0 });
       expect(stats.answered).toBe(0);
@@ -306,17 +294,11 @@ describe('buildQuestionStats', () => {
 
 describe('buildStatusBreakdown', () => {
   test('seeds every known participation status at zero and counts observed statuses', () => {
-    const rows = [
-      row({ status: 'waitlisted' }),
-      row({ status: 'waitlisted' }),
-      row({ status: 'pending_review' }),
-    ];
+    const rows = [row({ status: 'waitlisted' }), row({ status: 'waitlisted' }), row({ status: 'pending_review' })];
     const buckets = buildStatusBreakdown(rows);
     const byKey = Object.fromEntries(buckets.map((b) => [b.key, b]));
 
-    expect(Object.keys(byKey).sort()).toEqual(
-      [...participationStatusesList].sort(),
-    );
+    expect(Object.keys(byKey).sort()).toEqual([...participationStatusesList].sort());
     expect(byKey['waitlisted'].count).toBe(2);
     expect(byKey['pending_review'].count).toBe(1);
     expect(byKey['denied'].count).toBe(0);
@@ -367,14 +349,9 @@ describe('buildDemographicStats', () => {
     ];
     const stats = buildDemographicStats(rows);
 
-    const uniByKey = Object.fromEntries(
-      stats.university.map((b) => [b.key, b]),
-    );
+    const uniByKey = Object.fromEntries(stats.university.map((b) => [b.key, b]));
     expect(uniByKey['Mount Royal University'].count).toBe(2);
-    expect(uniByKey['Mount Royal University'].percent).toBeCloseTo(
-      (2 / 3) * 100,
-      5,
-    );
+    expect(uniByKey['Mount Royal University'].percent).toBeCloseTo((2 / 3) * 100, 5);
     expect(uniByKey['unknown']).toMatchObject({ label: 'Unknown', count: 1 });
 
     const majorByKey = Object.fromEntries(stats.major.map((b) => [b.key, b]));
@@ -421,13 +398,8 @@ describe('buildQuestionStatsByStatus', () => {
   });
 
   test('number questions use the cohort histogram bins for every status', () => {
-    const questions = [
-      q({ id: 'n', type: 'number', label: 'N', showInReports: true }),
-    ];
-    const rows = [
-      row({ status: 'accepted', responses: { n: 0 } }),
-      row({ status: 'denied', responses: { n: 10 } }),
-    ];
+    const questions = [q({ id: 'n', type: 'number', label: 'N', showInReports: true })];
+    const rows = [row({ status: 'accepted', responses: { n: 0 } }), row({ status: 'denied', responses: { n: 10 } })];
     const [stat] = buildQuestionStatsByStatus(questions, rows);
     expect(stat.buckets).toHaveLength(5);
     expect(stat.buckets[0].counts).toEqual({ accepted: 1 });
@@ -442,9 +414,7 @@ describe('buildProfileStatsByStatus', () => {
       row({ status: 'denied', gender: 'Female' }),
       row({ status: 'denied', gender: null }),
     ];
-    const gender = buildProfileStatsByStatus(rows).find(
-      (s) => s.id === 'profile:gender',
-    )!;
+    const gender = buildProfileStatsByStatus(rows).find((s) => s.id === 'profile:gender')!;
     expect(gender.answered).toEqual({ accepted: 1, denied: 1 });
     expect(gender.buckets.map((b) => b.label)).toContain('Male');
     expect(gender.buckets.find((b) => b.key === 'Female')!.counts).toEqual({
@@ -459,9 +429,7 @@ describe('buildProfileStatsByStatus', () => {
       row({ status: 'accepted', dietaryRestrictions: ['Vegan', 'Halal'] }),
       row({ status: 'accepted', dietaryRestrictions: null }),
     ];
-    const dietary = buildProfileStatsByStatus(rows).find(
-      (s) => s.id === 'profile:dietaryRestrictions',
-    )!;
+    const dietary = buildProfileStatsByStatus(rows).find((s) => s.id === 'profile:dietaryRestrictions')!;
     expect(dietary.answered).toEqual({ accepted: 2 });
     expect(dietary.buckets.find((b) => b.label === 'None')!.counts).toEqual({
       accepted: 1,
@@ -476,9 +444,7 @@ describe('buildProfileStatsByStatus', () => {
       row({ status: 'invited', attendedHackathonBefore: true }),
       row({ status: 'invited', attendedHackathonBefore: false }),
     ];
-    const stat = buildProfileStatsByStatus(rows).find(
-      (s) => s.id === 'profile:attendedHackathonBefore',
-    )!;
+    const stat = buildProfileStatsByStatus(rows).find((s) => s.id === 'profile:attendedHackathonBefore')!;
     expect(stat.buckets).toEqual([
       { key: 'Yes', label: 'Yes', counts: { invited: 1 } },
       { key: 'No', label: 'No', counts: { invited: 1 } },

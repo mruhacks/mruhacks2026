@@ -24,16 +24,9 @@ export function useStoredIdSet(key: string): {
 } {
   const store = React.useMemo(() => getStore(key), [key]);
 
-  const ids = React.useSyncExternalStore(
-    store.subscribe,
-    store.getSnapshot,
-    getServerSnapshot,
-  );
+  const ids = React.useSyncExternalStore(store.subscribe, store.getSnapshot, getServerSnapshot);
 
-  return React.useMemo(
-    () => ({ ids, toggle: store.toggle, clear: store.clear }),
-    [ids, store],
-  );
+  return React.useMemo(() => ({ ids, toggle: store.toggle, clear: store.clear }), [ids, store]);
 }
 
 const getServerSnapshot = (): ReadonlySet<string> | null => null;

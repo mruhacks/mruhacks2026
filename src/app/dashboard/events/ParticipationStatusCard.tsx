@@ -32,12 +32,7 @@ function DateRow({
 }) {
   return (
     <>
-      {label}{' '}
-      <LocalDateTime
-        value={value}
-        dateStyle={compact ? 'short' : 'medium'}
-        timeStyle='short'
-      />
+      {label} <LocalDateTime value={value} dateStyle={compact ? 'short' : 'medium'} timeStyle='short' />
     </>
   );
 }
@@ -84,13 +79,7 @@ export function ParticipationStatusCard({
       </Button>
     );
   } else if (status === 'invited') {
-    footer = (
-      <RsvpResponseButtons
-        eventId={eventId}
-        termsMarkdown={termsMarkdown}
-        termsId={termsId}
-      />
-    );
+    footer = <RsvpResponseButtons eventId={eventId} termsMarkdown={termsMarkdown} termsId={termsId} />;
   } else if (status === 'waitlisted') {
     footer = <WithdrawParticipationButton eventId={eventId} kind='waitlist' />;
   } else if (status === 'accepted') {

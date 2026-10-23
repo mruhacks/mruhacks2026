@@ -8,13 +8,7 @@ import { Button } from '@/components/ui/button';
  * navigated to from the event page, or a real full page on direct visit or
  * refresh (see the `@modal` parallel route next to this page).
  */
-export function EventTicketButton({
-  eventId,
-  className,
-}: {
-  eventId: string;
-  className?: string;
-}) {
+export function EventTicketButton({ eventId, className }: { eventId: string; className?: string }) {
   return (
     <Button asChild variant='outline' className={className}>
       <Link href={`/dashboard/events/${eventId}/ticket`}>

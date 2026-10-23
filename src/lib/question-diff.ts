@@ -12,9 +12,7 @@ import {
 } from '@/types/application';
 import type { EditQuestionInput } from '@/app/dashboard/admin/events/schemas';
 
-export type QuestionEditResult =
-  | { ok: true; question: ApplicationQuestion }
-  | { ok: false; error: string };
+export type QuestionEditResult = { ok: true; question: ApplicationQuestion } | { ok: false; error: string };
 
 /**
  * Returns true if any response in the set references the given question ID
@@ -36,13 +34,8 @@ export function hasResponsesForOption(
 /**
  * Returns true if any response references the given question at all.
  */
-export function hasResponsesForQuestion(
-  allResponses: Record<string, unknown>[],
-  questionId: string,
-): boolean {
-  return allResponses.some(
-    (r) => r[questionId] !== undefined && r[questionId] !== null,
-  );
+export function hasResponsesForQuestion(allResponses: Record<string, unknown>[], questionId: string): boolean {
+  return allResponses.some((r) => r[questionId] !== undefined && r[questionId] !== null);
 }
 
 /**
@@ -84,10 +77,7 @@ export function validateQuestionEdit(
             return { ok: false, error: `Unknown option value: ${p.value}` };
           }
           // If this option has responses, it cannot be deactivated
-          if (
-            !p.active &&
-            hasResponsesForOption(allResponses, existing.id, p.value)
-          ) {
+          if (!p.active && hasResponsesForOption(allResponses, existing.id, p.value)) {
             return {
               ok: false,
               error: `Option "${orig.label}" has existing responses and cannot be removed.`,
@@ -107,9 +97,7 @@ export function validateQuestionEdit(
       // Any existing option not in the patch that has responses must be kept (active)
       for (const existing_opt of existing.options ?? []) {
         if (!seenValues.has(existing_opt.value)) {
-          if (
-            hasResponsesForOption(allResponses, existing.id, existing_opt.value)
-          ) {
+          if (hasResponsesForOption(allResponses, existing.id, existing_opt.value)) {
             return {
               ok: false,
               error: `Option "${existing_opt.label}" has existing responses and cannot be removed. Mark it inactive instead.`,
@@ -133,10 +121,7 @@ export function validateQuestionEdit(
   const merged: ApplicationQuestion = {
     ...existing,
     label: patch.label ?? existing.label,
-    description:
-      patch.description !== undefined
-        ? patch.description
-        : existing.description,
+    description: patch.description !== undefined ? patch.description : existing.description,
     required: patch.required !== undefined ? patch.required : existing.required,
     // `null` clears the cap back to the type default; `undefined` leaves it alone.
     // Non-string questions never carry a cap, whatever the patch says.
@@ -146,9 +131,7 @@ export function validateQuestionEdit(
         ? existing.maxLength
         : (patch.maxLength ?? undefined),
     showInApplicationReview:
-      patch.showInApplicationReview !== undefined
-        ? patch.showInApplicationReview
-        : existing.showInApplicationReview,
+      patch.showInApplicationReview !== undefined ? patch.showInApplicationReview : existing.showInApplicationReview,
     // Non-summarizable questions (free text, section dividers) never carry
     // this flag, whatever the patch says.
     showInReports: !isSummarizableQuestion(existing.type)

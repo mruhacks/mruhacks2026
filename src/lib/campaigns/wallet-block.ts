@@ -29,11 +29,8 @@ export type WalletLinks = { apple: string; google: string };
  * Why a campaign can't carry a wallet block, or null when it can: it needs
  * an event context that's a top-level event with check-in on.
  */
-export async function walletBlockError(
-  eventId: string | null,
-): Promise<string | null> {
-  const message =
-    'The wallet block needs the campaign to be about an event with check-in turned on.';
+export async function walletBlockError(eventId: string | null): Promise<string | null> {
+  const message = 'The wallet block needs the campaign to be about an event with check-in turned on.';
   if (!eventId) return message;
   const [row] = await db
     .select({ checkInEnabled: events.checkInEnabled })
@@ -63,18 +60,13 @@ export async function walletLinksFor(
   return { apple: `${url}?platform=apple`, google: `${url}?platform=google` };
 }
 
-function badge(
-  platform: 'apple' | 'google',
-  href: string,
-  baseUrl: string,
-): React.ReactNode {
+function badge(platform: 'apple' | 'google', href: string, baseUrl: string): React.ReactNode {
   return React.createElement(
     Link,
     { href },
     React.createElement(Img, {
       src: `${baseUrl}${WALLET_BADGE_PATHS[platform]}`,
-      alt:
-        platform === 'apple' ? 'Add to Apple Wallet' : 'Add to Google Wallet',
+      alt: platform === 'apple' ? 'Add to Apple Wallet' : 'Add to Google Wallet',
       width: BADGE_WIDTHS[platform],
       height: BADGE_HEIGHT,
       style: { display: 'block' },
@@ -87,10 +79,7 @@ function badge(
  * recipient without a held spot); `'placeholder'` shows the badges with
  * inert links, for the composer's preview.
  */
-export function walletBlockRenderers(
-  links: WalletLinks | 'placeholder' | null,
-  baseUrl: string,
-): BlockRenderers {
+export function walletBlockRenderers(links: WalletLinks | 'placeholder' | null, baseUrl: string): BlockRenderers {
   const hrefs = links === 'placeholder' ? { apple: '#', google: '#' } : links;
   return {
     html: (node) => {
@@ -107,11 +96,7 @@ export function walletBlockRenderers(
             { style: { width: BADGE_WIDTHS.apple + 12 } },
             badge('apple', hrefs.apple, baseUrl),
           ),
-          React.createElement(
-            Column,
-            null,
-            badge('google', hrefs.google, baseUrl),
-          ),
+          React.createElement(Column, null, badge('google', hrefs.google, baseUrl)),
         ),
       );
     },

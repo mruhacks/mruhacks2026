@@ -61,9 +61,7 @@ export type SendSummary = {
 };
 
 /** What the Send now dialog shows: who it reaches right now, and what's blocking it. */
-export async function getSendSummary(
-  campaignId: string,
-): Promise<ActionResult<SendSummary>> {
+export async function getSendSummary(campaignId: string): Promise<ActionResult<SendSummary>> {
   const row = await loadCampaign(campaignId);
   const user = await requireSender(row?.campaign.type ?? null);
   if (!user) return fail('Not authenticated');
@@ -71,11 +69,7 @@ export async function getSendSummary(
   const { campaign } = row;
 
   try {
-    const problems = await campaignContentErrors(
-      { ...campaign, eventName: row.eventName },
-      campaign.eventId,
-      'send',
-    );
+    const problems = await campaignContentErrors({ ...campaign, eventName: row.eventName }, campaign.eventId, 'send');
     if (campaign.status !== 'draft') {
       problems.unshift('Only drafts can be sent.');
     }
@@ -102,10 +96,7 @@ export async function getSendSummary(
  * dispatch, which claims it the same way the hourly scheduler does. Over
  * 100 recipients, `confirmRecipients` must equal the current count.
  */
-export async function sendCampaignNow(
-  campaignId: string,
-  confirmRecipients?: number,
-): Promise<ActionResult> {
+export async function sendCampaignNow(campaignId: string, confirmRecipients?: number): Promise<ActionResult> {
   const row = await loadCampaign(campaignId);
   const user = await requireSender(row?.campaign.type ?? null);
   if (!user) return fail('Not authenticated');
@@ -116,9 +107,7 @@ export async function sendCampaignNow(
   const { recipients, requiresTypedConfirmation, problems } = summary.data!;
   if (problems.length > 0) return fail(problems[0]);
   if (requiresTypedConfirmation && confirmRecipients !== recipients) {
-    return fail(
-      `Type ${recipients.toLocaleString('en-US')} to confirm sending to that many people.`,
-    );
+    return fail(`Type ${recipients.toLocaleString('en-US')} to confirm sending to that many people.`);
   }
 
   const scheduledFor = new Date();
@@ -137,11 +126,7 @@ export async function sendCampaignNow(
       .update(campaigns)
       .set({ status: 'draft', scheduledFor: null })
       .where(
-        and(
-          eq(campaigns.id, campaignId),
-          eq(campaigns.status, 'scheduled'),
-          eq(campaigns.scheduledFor, scheduledFor),
-        ),
+        and(eq(campaigns.id, campaignId), eq(campaigns.status, 'scheduled'), eq(campaigns.scheduledFor, scheduledFor)),
       );
     return serverActionError('queue the campaign', error);
   }
@@ -161,10 +146,7 @@ export async function sendCampaignNow(
  * Schedules a draft for a whole UTC hour selected from localized slots. The hourly cron dispatches it at or after that
  * hour; the audience is worked out then, not now.
  */
-export async function scheduleCampaign(
-  campaignId: string,
-  scheduledForIso: string,
-): Promise<ActionResult> {
+export async function scheduleCampaign(campaignId: string, scheduledForIso: string): Promise<ActionResult> {
   const row = await loadCampaign(campaignId);
   const user = await requireSender(row?.campaign.type ?? null);
   if (!user) return fail('Not authenticated');
@@ -210,9 +192,7 @@ export async function scheduleCampaign(
 }
 
 /** Puts a scheduled campaign back to draft, as long as its dispatch hasn't started. */
-export async function unscheduleCampaign(
-  campaignId: string,
-): Promise<ActionResult> {
+export async function unscheduleCampaign(campaignId: string): Promise<ActionResult> {
   const row = await loadCampaign(campaignId);
   const user = await requireSender(row?.campaign.type ?? null);
   if (!user) return fail('Not authenticated');
@@ -252,12 +232,7 @@ export async function stopCampaign(campaignId: string): Promise<ActionResult> {
       const [updated] = await tx
         .update(campaigns)
         .set({ status: 'cancelled', updatedBy: user.id })
-        .where(
-          and(
-            eq(campaigns.id, campaignId),
-            inArray(campaigns.status, ['scheduled', 'sending']),
-          ),
-        )
+        .where(and(eq(campaigns.id, campaignId), inArray(campaigns.status, ['scheduled', 'sending'])))
         .returning({ id: campaigns.id });
       if (!updated) return null;
       const skipped = await tx
@@ -266,17 +241,11 @@ export async function stopCampaign(campaignId: string): Promise<ActionResult> {
           status: 'skipped',
           skipReason: SKIP_REASONS.stopped,
         })
-        .where(
-          and(
-            eq(campaignDeliveries.campaignId, campaignId),
-            eq(campaignDeliveries.status, 'queued'),
-          ),
-        )
+        .where(and(eq(campaignDeliveries.campaignId, campaignId), eq(campaignDeliveries.status, 'queued')))
         .returning({ id: campaignDeliveries.id });
       return skipped.length;
     });
-    if (stopped === null)
-      return fail('Only a scheduled or sending campaign can be stopped.');
+    if (stopped === null) return fail('Only a scheduled or sending campaign can be stopped.');
 
     await writeAuditLog({
       actorId: user.id,
@@ -293,9 +262,7 @@ export async function stopCampaign(campaignId: string): Promise<ActionResult> {
 }
 
 /** Requeues a sent campaign's failed deliveries. */
-export async function retryFailedDeliveries(
-  campaignId: string,
-): Promise<ActionResult<{ requeued: number }>> {
+export async function retryFailedDeliveries(campaignId: string): Promise<ActionResult<{ requeued: number }>> {
   const row = await loadCampaign(campaignId);
   const user = await requireSender(row?.campaign.type ?? null);
   if (!user) return fail('Not authenticated');
@@ -306,31 +273,17 @@ export async function retryFailedDeliveries(
 
   try {
     const requeued = await db.transaction(async (tx) => {
-      const [current] = await tx
-        .select()
-        .from(campaigns)
-        .where(eq(campaigns.id, campaignId))
-        .for('update');
+      const [current] = await tx.select().from(campaigns).where(eq(campaigns.id, campaignId)).for('update');
       if (!current || !['sending', 'sent'].includes(current.status)) {
-        throw new Error(
-          'Only a sent campaign can retry its failed deliveries.',
-        );
+        throw new Error('Only a sent campaign can retry its failed deliveries.');
       }
       const rows = await tx
         .update(campaignDeliveries)
         .set({ status: 'queued', lastError: null, queuedAt: new Date() })
-        .where(
-          and(
-            eq(campaignDeliveries.campaignId, campaignId),
-            eq(campaignDeliveries.status, 'failed'),
-          ),
-        )
+        .where(and(eq(campaignDeliveries.campaignId, campaignId), eq(campaignDeliveries.status, 'failed')))
         .returning({ id: campaignDeliveries.id });
       if (rows.length > 0) {
-        await tx
-          .update(campaigns)
-          .set({ status: 'sending' })
-          .where(eq(campaigns.id, campaignId));
+        await tx.update(campaigns).set({ status: 'sending' }).where(eq(campaigns.id, campaignId));
       }
       return rows.length;
     });
@@ -365,9 +318,7 @@ export type CampaignResults = {
 };
 
 /** Delivery counts, and the per-recipient list for `participant:read:all`. */
-export async function getCampaignResults(
-  campaignId: string,
-): Promise<ActionResult<CampaignResults>> {
+export async function getCampaignResults(campaignId: string): Promise<ActionResult<CampaignResults>> {
   const user = await getUser();
   if (!user) return fail('Not authenticated');
   await requirePermission(user.id, 'campaign:read:all');

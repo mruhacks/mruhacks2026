@@ -59,9 +59,7 @@ export type DispatchInput = {
  * those, projects below the minimum view count. Each filter is skipped when
  * it would leave nothing.
  */
-export function preferredCandidates(
-  candidates: readonly DispatchCandidate[],
-): DispatchCandidate[] {
+export function preferredCandidates(candidates: readonly DispatchCandidate[]): DispatchCandidate[] {
   const nonBusy = candidates.filter((c) => !c.busy);
   const preferred = nonBusy.length > 0 ? nonBusy : [...candidates];
   const lessSeen = preferred.filter((c) => c.views < MIN_VIEWS);
@@ -102,12 +100,7 @@ export function chooseNext(input: DispatchInput): string | null {
   let best = items[0];
   let bestGain = -Infinity;
   for (const item of items) {
-    const gain = summedInformationGain(
-      input.criterionIds,
-      input.reliability,
-      input.previous.estimates,
-      item.estimates,
-    );
+    const gain = summedInformationGain(input.criterionIds, input.reliability, input.previous.estimates, item.estimates);
     if (gain - bestGain > GAIN_TIE_TOLERANCE * Math.abs(gain)) {
       best = item;
       bestGain = gain;

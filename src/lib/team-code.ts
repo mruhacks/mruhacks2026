@@ -57,11 +57,7 @@ export function isCodeDenylisted(code: string): boolean {
   const normalized = normalizeLeetspeak(code);
   const maxLength = Math.min(DENYLIST_MAX_LENGTH, normalized.length);
   for (let start = 0; start < normalized.length; start++) {
-    for (
-      let length = DENYLIST_MIN_LENGTH;
-      length <= maxLength && start + length <= normalized.length;
-      length++
-    ) {
+    for (let length = DENYLIST_MIN_LENGTH; length <= maxLength && start + length <= normalized.length; length++) {
       if (DENYLIST.has(normalized.slice(start, start + length))) return true;
     }
   }
@@ -83,10 +79,7 @@ export function generateRawTeamCode(): string {
  * Accepts a `db` or transaction handle so callers can generate the code
  * inside the same transaction that inserts the `teams` row.
  */
-export async function generateTeamCode(
-  eventId: string,
-  db: Queryable,
-): Promise<string> {
+export async function generateTeamCode(eventId: string, db: Queryable): Promise<string> {
   for (let attempt = 0; attempt < TEAM_CODE_MAX_ATTEMPTS; attempt++) {
     const candidate = generateRawTeamCode();
     if (isCodeDenylisted(candidate)) continue;

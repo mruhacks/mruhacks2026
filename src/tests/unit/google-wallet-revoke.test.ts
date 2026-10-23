@@ -19,17 +19,14 @@ describe('revokeGoogleWalletPasses', () => {
     await revokeGoogleWalletPasses('u1', ['e1', 'e2']);
 
     expect(walletApiRequest).toHaveBeenCalledTimes(2);
-    expect(walletApiRequest).toHaveBeenCalledWith(
-      'eventTicketObject/338.event-e1-user-u1',
-      {
-        method: 'PUT',
-        body: {
-          id: '338.event-e1-user-u1',
-          classId: '338.event-e1',
-          state: 'expired',
-        },
+    expect(walletApiRequest).toHaveBeenCalledWith('eventTicketObject/338.event-e1-user-u1', {
+      method: 'PUT',
+      body: {
+        id: '338.event-e1-user-u1',
+        classId: '338.event-e1',
+        state: 'expired',
       },
-    );
+    });
   });
 
   test('does nothing without Wallet credentials', async () => {

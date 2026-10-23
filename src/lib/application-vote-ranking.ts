@@ -35,10 +35,7 @@ export function wilsonLowerBound({ yes, no }: VoteTally): number {
   if (n === 0) return 0;
   const p = yes / n;
   const z2 = Z * Z;
-  return (
-    (p + z2 / (2 * n) - Z * Math.sqrt((p * (1 - p) + z2 / (4 * n)) / n)) /
-    (1 + z2 / n)
-  );
+  return (p + z2 / (2 * n) - Z * Math.sqrt((p * (1 - p) + z2 / (4 * n)) / n)) / (1 + z2 / n);
 }
 
 function scoreOf(tally: VoteTally | undefined): Score | null {
@@ -117,10 +114,7 @@ export function planReviewTransitions(
   const demoteFrom = options.demoteGroupOf
     ? participants.find((p) => p.participantId === options.demoteGroupOf)
     : undefined;
-  const demoteKey =
-    demoteFrom && !qualifies.get(groupOf(demoteFrom))
-      ? groupOf(demoteFrom)
-      : null;
+  const demoteKey = demoteFrom && !qualifies.get(groupOf(demoteFrom)) ? groupOf(demoteFrom) : null;
 
   const promote: string[] = [];
   const demote: string[] = [];

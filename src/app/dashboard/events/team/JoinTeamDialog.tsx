@@ -38,9 +38,7 @@ export function JoinTeamDialog({ eventId, defaultCode }: Props) {
       setError(result.error);
       return;
     }
-    toast.success(
-      typeof result.data === 'string' ? result.data : 'Joined team.',
-    );
+    toast.success(typeof result.data === 'string' ? result.data : 'Joined team.');
     setOpen(false);
     setCode('');
   };
@@ -62,9 +60,7 @@ export function JoinTeamDialog({ eventId, defaultCode }: Props) {
       <DialogContent className='sm:max-w-sm'>
         <DialogHeader>
           <DialogTitle>Join a team</DialogTitle>
-          <DialogDescription>
-            Enter the {TEAM_CODE_LENGTH}-character code your teammate shared.
-          </DialogDescription>
+          <DialogDescription>Enter the {TEAM_CODE_LENGTH}-character code your teammate shared.</DialogDescription>
         </DialogHeader>
         <form id='form-join-team' onSubmit={handleSubmit} className='space-y-2'>
           <Label htmlFor='join-code'>Team code</Label>
@@ -86,18 +82,10 @@ export function JoinTeamDialog({ eventId, defaultCode }: Props) {
           {error && <FieldError>{error}</FieldError>}
         </form>
         <DialogFooter>
-          <Button
-            variant='outline'
-            onClick={() => setOpen(false)}
-            disabled={submitting}
-          >
+          <Button variant='outline' onClick={() => setOpen(false)} disabled={submitting}>
             Cancel
           </Button>
-          <Button
-            type='submit'
-            form='form-join-team'
-            disabled={submitting || code.length !== TEAM_CODE_LENGTH}
-          >
+          <Button type='submit' form='form-join-team' disabled={submitting || code.length !== TEAM_CODE_LENGTH}>
             {submitting ? 'Joining…' : 'Join'}
           </Button>
         </DialogFooter>

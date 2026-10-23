@@ -25,17 +25,10 @@ export type SubeventFootnoteEntry = {
  * Falls back to the static hint before hydration and once nothing is upcoming,
  * so the tile never renders an empty footnote.
  */
-export function NextSubeventFootnote({
-  entries,
-}: {
-  entries: SubeventFootnoteEntry[];
-}) {
+export function NextSubeventFootnote({ entries }: { entries: SubeventFootnoteEntry[] }) {
   const now = useNow(TICK_MS);
 
-  const next =
-    now === null
-      ? undefined
-      : entries.find((entry) => new Date(entry.startsAt).getTime() >= now);
+  const next = now === null ? undefined : entries.find((entry) => new Date(entry.startsAt).getTime() >= now);
 
   if (!next) return <>meals, workshops</>;
 

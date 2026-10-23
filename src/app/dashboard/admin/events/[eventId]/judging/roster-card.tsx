@@ -1,14 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import {
-  Ban,
-  CircleCheck,
-  Mail,
-  MoreHorizontal,
-  QrCode,
-  Trash2,
-} from 'lucide-react';
+import { Ban, CircleCheck, Mail, MoreHorizontal, QrCode, Trash2 } from 'lucide-react';
 import { usePathname, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 
@@ -22,21 +15,9 @@ import {
 } from '@/app/dashboard/admin/events/judging-actions';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardAction,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
-import {
-  Field,
-  FieldDescription,
-  FieldError,
-  FieldLabel,
-} from '@/components/ui/field';
+import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/ui/field';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -46,14 +27,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 function JudgeStatus({ judge }: { judge: JudgingRosterRow }) {
   if (judge.deleted) return <Badge variant='secondary'>Account deleted</Badge>;
@@ -145,9 +119,7 @@ export function RosterCard({
       if (notSent === 0) {
         toast.success(`Sent ${sent} ${sent === 1 ? 'invite' : 'invites'}`);
       } else {
-        toast.error(
-          `Sent ${sent}; ${notSent} couldn’t be sent right now and are still outstanding.`,
-        );
+        toast.error(`Sent ${sent}; ${notSent} couldn’t be sent right now and are still outstanding.`);
       }
     } catch {
       toast.error('Failed to send invites.');
@@ -156,11 +128,7 @@ export function RosterCard({
     }
   }
 
-  async function rowAction(
-    id: string,
-    action: () => Promise<{ success: boolean; error?: string }>,
-    success?: string,
-  ) {
+  async function rowAction(id: string, action: () => Promise<{ success: boolean; error?: string }>, success?: string) {
     setBusyId(id);
     try {
       const result = await action();
@@ -181,18 +149,10 @@ export function RosterCard({
     <Card>
       <CardHeader>
         <CardTitle>Judges</CardTitle>
-        <CardDescription>
-          Add judges by email. Hold invites back to send them all at once.
-        </CardDescription>
+        <CardDescription>Add judges by email. Hold invites back to send them all at once.</CardDescription>
         {outstanding > 0 && (
           <CardAction>
-            <Button
-              type='button'
-              variant='outline'
-              size='sm'
-              disabled={sendingAll}
-              onClick={sendOutstanding}
-            >
+            <Button type='button' variant='outline' size='sm' disabled={sendingAll} onClick={sendOutstanding}>
               {sendingAll && <Spinner data-icon='inline-start' />}
               Send outstanding invites ({outstanding})
             </Button>
@@ -254,17 +214,13 @@ export function RosterCard({
                   <TableCell className='whitespace-normal'>
                     <span className='font-medium'>{judge.label}</span>
                     {judge.email && judge.email !== judge.label && (
-                      <span className='text-muted-foreground block text-xs'>
-                        {judge.email}
-                      </span>
+                      <span className='text-muted-foreground block text-xs'>{judge.email}</span>
                     )}
                   </TableCell>
                   <TableCell>
                     <JudgeStatus judge={judge} />
                   </TableCell>
-                  <TableCell className='text-right tabular-nums'>
-                    {judge.comparisons}
-                  </TableCell>
+                  <TableCell className='text-right tabular-nums'>{judge.comparisons}</TableCell>
                   <TableCell className='text-right'>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -275,58 +231,36 @@ export function RosterCard({
                           aria-label={`Actions for ${judge.label}`}
                           disabled={busyId !== null}
                         >
-                          {busyId === judge.id ? (
-                            <Spinner />
-                          ) : (
-                            <MoreHorizontal className='size-4' />
-                          )}
+                          {busyId === judge.id ? <Spinner /> : <MoreHorizontal className='size-4' />}
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align='end'>
                         {judge.email && !judge.disabled && (
                           <DropdownMenuItem
                             onSelect={() =>
-                              rowAction(
-                                judge.id,
-                                () => resendJudgeInvite(eventId, judge.id),
-                                'Invite sent',
-                              )
+                              rowAction(judge.id, () => resendJudgeInvite(eventId, judge.id), 'Invite sent')
                             }
                           >
                             <Mail className='size-4' />
                             {judge.invited ? 'Resend invite' : 'Send invite'}
                           </DropdownMenuItem>
                         )}
-                        {canCreateSignInQr &&
-                          judge.email &&
-                          !judge.disabled && (
-                            <DropdownMenuItem
-                              onSelect={() =>
-                                // Pushed, never a <Link>: nothing prefetches the QR route.
-                                router.push(
-                                  `${pathname}/judges/${judge.id}/signin-qr`,
-                                )
-                              }
-                            >
-                              <QrCode className='size-4' /> Sign-in QR
-                            </DropdownMenuItem>
-                          )}
+                        {canCreateSignInQr && judge.email && !judge.disabled && (
+                          <DropdownMenuItem
+                            onSelect={() =>
+                              // Pushed, never a <Link>: nothing prefetches the QR route.
+                              router.push(`${pathname}/judges/${judge.id}/signin-qr`)
+                            }
+                          >
+                            <QrCode className='size-4' /> Sign-in QR
+                          </DropdownMenuItem>
+                        )}
                         <DropdownMenuItem
                           onSelect={() =>
-                            rowAction(judge.id, () =>
-                              setEventJudgeDisabled(
-                                eventId,
-                                judge.id,
-                                !judge.disabled,
-                              ),
-                            )
+                            rowAction(judge.id, () => setEventJudgeDisabled(eventId, judge.id, !judge.disabled))
                           }
                         >
-                          {judge.disabled ? (
-                            <CircleCheck className='size-4' />
-                          ) : (
-                            <Ban className='size-4' />
-                          )}
+                          {judge.disabled ? <CircleCheck className='size-4' /> : <Ban className='size-4' />}
                           {judge.disabled ? 'Enable' : 'Disable'}
                         </DropdownMenuItem>
                         {judge.comparisons === 0 && (
@@ -334,11 +268,7 @@ export function RosterCard({
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
                               variant='destructive'
-                              onSelect={() =>
-                                rowAction(judge.id, () =>
-                                  removeEventJudge(eventId, judge.id),
-                                )
-                              }
+                              onSelect={() => rowAction(judge.id, () => removeEventJudge(eventId, judge.id))}
                             >
                               <Trash2 className='size-4' /> Remove
                             </DropdownMenuItem>

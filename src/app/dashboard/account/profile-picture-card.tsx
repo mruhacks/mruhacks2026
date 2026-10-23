@@ -4,20 +4,11 @@ import * as React from 'react';
 import { Loader2, Trash2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 
-import {
-  removeProfilePicture,
-  uploadProfilePicture,
-} from '@/app/dashboard/profile/actions';
+import { removeProfilePicture, uploadProfilePicture } from '@/app/dashboard/profile/actions';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { getInitials } from '@/lib/initials';
 
 type ProfilePictureCardProps = {
@@ -73,28 +64,12 @@ export function ProfilePictureCard({ image, name }: ProfilePictureCardProps) {
             accept='image/jpeg,image/png,image/webp'
             onChange={(event) => upload(event.target.files?.[0])}
           />
-          <Button
-            type='button'
-            variant='outline'
-            size='sm'
-            onClick={() => inputRef.current?.click()}
-            disabled={busy}
-          >
-            {busy ? (
-              <Loader2 className='size-4 animate-spin' />
-            ) : (
-              <Upload className='size-4' />
-            )}
+          <Button type='button' variant='outline' size='sm' onClick={() => inputRef.current?.click()} disabled={busy}>
+            {busy ? <Loader2 className='size-4 animate-spin' /> : <Upload className='size-4' />}
             <span className='sr-only'>Upload profile picture</span>
           </Button>
           {image && (
-            <Button
-              type='button'
-              variant='outline'
-              size='sm'
-              onClick={remove}
-              disabled={busy}
-            >
+            <Button type='button' variant='outline' size='sm' onClick={remove} disabled={busy}>
               <Trash2 className='size-4' />
               <span className='sr-only'>Remove profile picture</span>
             </Button>

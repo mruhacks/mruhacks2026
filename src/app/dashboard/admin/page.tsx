@@ -3,44 +3,21 @@ import Link from 'next/link';
 import { getAdminCounts } from '@/lib/admin-counts';
 import { requireAuthWithPermission } from '@/lib/rbac/guards';
 import { loadUserPermissions } from '@/lib/rbac/authorization';
-import {
-  canOpenEventDashboard,
-  EVENT_DASHBOARD_PERMISSIONS,
-} from '@/lib/rbac/event-access';
+import { canOpenEventDashboard, EVENT_DASHBOARD_PERMISSIONS } from '@/lib/rbac/event-access';
 import { anyPermissionMatches } from '@/lib/rbac/permissions';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import {
-  Users,
-  ShieldCheck,
-  KeyRound,
-  ArrowRight,
-  CalendarDays,
-  Mail,
-} from 'lucide-react';
+import { Users, ShieldCheck, KeyRound, ArrowRight, CalendarDays, Mail } from 'lucide-react';
 
 function OverviewSkeleton() {
   return (
     <>
       <div className='grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4'>
         {[...Array(4)].map((_, i) => (
-          <div
-            key={i}
-            className='bg-muted animate-pulse rounded-xl'
-            style={{ height: 92 }}
-          />
+          <div key={i} className='bg-muted animate-pulse rounded-xl' style={{ height: 92 }} />
         ))}
       </div>
-      <div
-        className='bg-muted animate-pulse rounded-xl'
-        style={{ height: 84 }}
-      />
+      <div className='bg-muted animate-pulse rounded-xl' style={{ height: 84 }} />
     </>
   );
 }
@@ -165,9 +142,7 @@ async function OverviewStats() {
                 <Icon className='text-muted-foreground size-4' />
               </CardHeader>
               <CardContent>
-                <div className='text-2xl font-semibold'>
-                  {counts[countKey].toLocaleString()}
-                </div>
+                <div className='text-2xl font-semibold'>{counts[countKey].toLocaleString()}</div>
               </CardContent>
             </Card>
           </Link>
@@ -197,12 +172,8 @@ export default function AdminOverviewPage() {
   return (
     <div className='space-y-6'>
       <div>
-        <h1 className='text-2xl font-semibold tracking-tight'>
-          Admin overview
-        </h1>
-        <p className='text-muted-foreground text-sm'>
-          Everything you have access to across the system.
-        </p>
+        <h1 className='text-2xl font-semibold tracking-tight'>Admin overview</h1>
+        <p className='text-muted-foreground text-sm'>Everything you have access to across the system.</p>
       </div>
 
       <Suspense fallback={<OverviewSkeleton />}>

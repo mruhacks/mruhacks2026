@@ -29,9 +29,7 @@ export function ResultsHeader() {
   return (
     <>
       <div>
-        <h2 className='text-xl font-semibold'>
-          {canViewRankings ? 'Results' : 'Awards'}
-        </h2>
+        <h2 className='text-xl font-semibold'>{canViewRankings ? 'Results' : 'Awards'}</h2>
         <p className='text-muted-foreground text-sm'>
           {results.provisional
             ? 'Provisional: submissions are still open, so projects can still join or leave the pool. '
@@ -57,8 +55,7 @@ export function ResultsHeader() {
                 aria-current={active ? 'page' : undefined}
                 className={cn(
                   'text-foreground dark:text-muted-foreground focus-visible:ring-ring/50 inline-flex h-[30px] items-center justify-center rounded-md border border-transparent px-2 py-1 text-sm font-medium whitespace-nowrap transition-[color,box-shadow] focus-visible:ring-[3px] focus-visible:outline-1',
-                  active &&
-                    'bg-background dark:border-input dark:bg-input/30 dark:text-foreground shadow-sm',
+                  active && 'bg-background dark:border-input dark:bg-input/30 dark:text-foreground shadow-sm',
                 )}
               >
                 {link.label}

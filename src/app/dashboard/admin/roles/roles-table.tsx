@@ -41,11 +41,7 @@ interface RolesTableProps {
   canWrite: boolean;
 }
 
-export function RolesTable({
-  initialRoles,
-  permissions,
-  canWrite,
-}: RolesTableProps) {
+export function RolesTable({ initialRoles, permissions, canWrite }: RolesTableProps) {
   const [rows, setRows] = React.useState(initialRoles);
   const [editing, setEditing] = React.useState<RoleWithCounts | null>(null);
   const [creating, setCreating] = React.useState(false);
@@ -56,9 +52,7 @@ export function RolesTable({
   };
 
   const handleDelete = async (r: RoleWithCounts) => {
-    const ok = window.confirm(
-      `Delete role "${r.slug}"? This will remove it from ${r.userCount} user(s).`,
-    );
+    const ok = window.confirm(`Delete role "${r.slug}"? This will remove it from ${r.userCount} user(s).`);
     if (!ok) return;
     const res = await deleteRole(r.id);
     if (res.success) {
@@ -72,34 +66,22 @@ export function RolesTable({
       {
         accessorKey: 'slug',
         header: 'Slug',
-        cell: ({ row }) => (
-          <span className='font-mono font-medium'>
-            {row.original.slug ?? '—'}
-          </span>
-        ),
+        cell: ({ row }) => <span className='font-mono font-medium'>{row.original.slug ?? '—'}</span>,
       },
       {
         accessorKey: 'description',
         header: 'Description',
-        cell: ({ row }) => (
-          <span className='text-muted-foreground'>
-            {row.original.description ?? '—'}
-          </span>
-        ),
+        cell: ({ row }) => <span className='text-muted-foreground'>{row.original.description ?? '—'}</span>,
       },
       {
         accessorKey: 'permissionCount',
         header: 'Permissions',
-        cell: ({ row }) => (
-          <Badge variant='secondary'>{row.original.permissionCount}</Badge>
-        ),
+        cell: ({ row }) => <Badge variant='secondary'>{row.original.permissionCount}</Badge>,
       },
       {
         accessorKey: 'userCount',
         header: 'Users',
-        cell: ({ row }) => (
-          <Badge variant='outline'>{row.original.userCount}</Badge>
-        ),
+        cell: ({ row }) => <Badge variant='outline'>{row.original.userCount}</Badge>,
       },
       {
         id: 'actions',
@@ -118,10 +100,7 @@ export function RolesTable({
                 <DropdownMenuItem onSelect={() => setEditing(row.original)}>
                   <Pencil className='size-4' /> Edit
                 </DropdownMenuItem>
-                <DropdownMenuItem
-                  variant='destructive'
-                  onSelect={() => handleDelete(row.original)}
-                >
+                <DropdownMenuItem variant='destructive' onSelect={() => handleDelete(row.original)}>
                   <Trash2 className='size-4' /> Delete
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -185,13 +164,7 @@ interface RoleEditorDialogProps {
   onSaved: () => void;
 }
 
-function RoleEditorDialog({
-  mode,
-  role,
-  permissions,
-  onClose,
-  onSaved,
-}: RoleEditorDialogProps) {
+function RoleEditorDialog({ mode, role, permissions, onClose, onSaved }: RoleEditorDialogProps) {
   const [slug, setSlug] = React.useState(role?.slug ?? '');
   const [description, setDescription] = React.useState(role?.description ?? '');
   const [selected, setSelected] = React.useState<Set<number>>(new Set());
@@ -224,10 +197,7 @@ function RoleEditorDialog({
     setSaving(true);
     let roleId = role?.id;
     if (mode === 'create') {
-      const res = await createRole(
-        slug.trim().toLowerCase(),
-        description || undefined,
-      );
+      const res = await createRole(slug.trim().toLowerCase(), description || undefined);
       if (!res.success) {
         setSaving(false);
         toast.error(res.error);
@@ -262,27 +232,15 @@ function RoleEditorDialog({
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className='sm:max-w-xl'>
         <DialogHeader>
-          <DialogTitle>
-            {mode === 'create' ? 'Create role' : `Edit role "${role?.slug}"`}
-          </DialogTitle>
-          <DialogDescription>
-            Roles bundle permissions so you can assign them to many users at
-            once.
-          </DialogDescription>
+          <DialogTitle>{mode === 'create' ? 'Create role' : `Edit role "${role?.slug}"`}</DialogTitle>
+          <DialogDescription>Roles bundle permissions so you can assign them to many users at once.</DialogDescription>
         </DialogHeader>
 
         <div className='space-y-4'>
           <div className='space-y-2'>
             <Label htmlFor='role-slug'>Slug</Label>
-            <Input
-              id='role-slug'
-              value={slug}
-              onChange={(e) => setSlug(e.target.value)}
-              placeholder='e.g. judge'
-            />
-            <p className='text-muted-foreground text-xs'>
-              Lowercase identifier. Used in code and URLs.
-            </p>
+            <Input id='role-slug' value={slug} onChange={(e) => setSlug(e.target.value)} placeholder='e.g. judge' />
+            <p className='text-muted-foreground text-xs'>Lowercase identifier. Used in code and URLs.</p>
           </div>
           <div className='space-y-2'>
             <Label htmlFor='role-description'>Description</Label>
@@ -297,10 +255,7 @@ function RoleEditorDialog({
             <Label>Permissions</Label>
             <div className='max-h-60 space-y-2 overflow-y-auto rounded-md border p-3'>
               {permissions.map((p) => (
-                <label
-                  key={p.id}
-                  className='hover:bg-muted/50 flex items-start gap-2 rounded-md p-1 text-sm'
-                >
+                <label key={p.id} className='hover:bg-muted/50 flex items-start gap-2 rounded-md p-1 text-sm'>
                   <Checkbox
                     checked={selected.has(p.id)}
                     onCheckedChange={(v) => toggle(p.id, Boolean(v))}
@@ -308,18 +263,12 @@ function RoleEditorDialog({
                   />
                   <span>
                     <span className='font-mono font-medium'>{p.slug}</span>
-                    {p.description && (
-                      <span className='text-muted-foreground block text-xs'>
-                        {p.description}
-                      </span>
-                    )}
+                    {p.description && <span className='text-muted-foreground block text-xs'>{p.description}</span>}
                   </span>
                 </label>
               ))}
               {permissions.length === 0 && (
-                <div className='text-muted-foreground text-xs'>
-                  No permissions defined yet.
-                </div>
+                <div className='text-muted-foreground text-xs'>No permissions defined yet.</div>
               )}
             </div>
           </div>

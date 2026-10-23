@@ -30,8 +30,5 @@ export async function userNeedsConsent(userId: string): Promise<boolean> {
       .limit(1),
   ]);
 
-  return (
-    terms[0]?.version !== CURRENT_TERMS_VERSION ||
-    privacy[0]?.version !== CURRENT_PRIVACY_VERSION
-  );
+  return terms[0]?.version !== CURRENT_TERMS_VERSION || privacy[0]?.version !== CURRENT_PRIVACY_VERSION;
 }

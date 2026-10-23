@@ -9,12 +9,7 @@
  */
 
 import * as React from 'react';
-import {
-  closeImageDialog$,
-  imageDialogState$,
-  imageUploadHandler$,
-  saveImage$,
-} from '@mdxeditor/editor';
+import { closeImageDialog$, imageDialogState$, imageUploadHandler$, saveImage$ } from '@mdxeditor/editor';
 import { useCellValues, usePublisher } from '@mdxeditor/gurx';
 import { ImageUp } from 'lucide-react';
 
@@ -35,10 +30,7 @@ import { cn } from '@/lib/utils';
 const ACCEPTED_TYPES = 'image/jpeg,image/png,image/webp,image/gif,image/avif';
 
 export function ImageDialog() {
-  const [state, uploadImage] = useCellValues(
-    imageDialogState$,
-    imageUploadHandler$,
-  );
+  const [state, uploadImage] = useCellValues(imageDialogState$, imageUploadHandler$);
   const saveImage = usePublisher(saveImage$);
   const closeImageDialog = usePublisher(closeImageDialog$);
 
@@ -97,11 +89,7 @@ function ImageDialogForm({
         src = await uploadImage(file);
       } catch (uploadFailure) {
         // `MarkdownEditor`'s handler rejects with a reason fit to show.
-        setError(
-          uploadFailure instanceof Error
-            ? uploadFailure.message
-            : 'Unable to upload that image.',
-        );
+        setError(uploadFailure instanceof Error ? uploadFailure.message : 'Unable to upload that image.');
         return;
       } finally {
         setIsUploading(false);
@@ -121,14 +109,8 @@ function ImageDialogForm({
       <DialogContent>
         <form onSubmit={handleSubmit} className='space-y-4'>
           <DialogHeader>
-            <DialogTitle>
-              {editing ? 'Edit image' : 'Upload an image'}
-            </DialogTitle>
-            {!editing && (
-              <DialogDescription>
-                JPEG, PNG, WebP, GIF or AVIF, up to 5 MB.
-              </DialogDescription>
-            )}
+            <DialogTitle>{editing ? 'Edit image' : 'Upload an image'}</DialogTitle>
+            {!editing && <DialogDescription>JPEG, PNG, WebP, GIF or AVIF, up to 5 MB.</DialogDescription>}
           </DialogHeader>
           {!editing && (
             <Field data-invalid={error ? true : undefined}>
@@ -177,19 +159,12 @@ function ImageDialogForm({
               >
                 <ImageUp className='text-muted-foreground size-6' />
                 {file ? (
-                  <p className='max-w-full truncate text-sm font-medium'>
-                    {file.name}
-                  </p>
+                  <p className='max-w-full truncate text-sm font-medium'>{file.name}</p>
                 ) : (
                   <div>
-                    <p className='text-sm font-medium'>
-                      Drag &amp; drop an image here
-                    </p>
+                    <p className='text-sm font-medium'>Drag &amp; drop an image here</p>
                     <p className='text-muted-foreground text-xs'>
-                      or{' '}
-                      <span className='text-primary underline underline-offset-2'>
-                        click to browse
-                      </span>
+                      or <span className='text-primary underline underline-offset-2'>click to browse</span>
                     </p>
                   </div>
                 )}
@@ -198,14 +173,8 @@ function ImageDialogForm({
             </Field>
           )}
           <Field>
-            <FieldLabel htmlFor='image-alt'>
-              Alt text (for screen readers)
-            </FieldLabel>
-            <Input
-              id='image-alt'
-              value={altText}
-              onChange={(event) => setAltText(event.target.value)}
-            />
+            <FieldLabel htmlFor='image-alt'>Alt text (for screen readers)</FieldLabel>
+            <Input id='image-alt' value={altText} onChange={(event) => setAltText(event.target.value)} />
           </Field>
           <DialogFooter>
             <Button type='submit' disabled={isUploading}>
