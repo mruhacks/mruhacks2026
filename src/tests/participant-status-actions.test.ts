@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeAll, afterAll, vi } from 'vitest';
-import { eq, inArray } from 'drizzle-orm';
+import { asc, eq, inArray } from 'drizzle-orm';
 
 import { db } from '@/utils/db';
 import {
@@ -24,6 +24,9 @@ vi.mock('@/utils/auth', () => ({ getUser: vi.fn() }));
 vi.mock('@/lib/rsvp/rsvp-invitation-queue', () => ({
   publishRsvpInvitation: vi.fn(),
 }));
+vi.mock('@/lib/rsvp/send-rsvp-magic-link', () => ({
+  sendRsvpMagicLink: vi.fn(),
+}));
 vi.mock('next/cache', () => ({
   updateTag: vi.fn(),
   revalidatePath: vi.fn(),
@@ -31,7 +34,12 @@ vi.mock('next/cache', () => ({
 
 import { getUser } from '@/utils/auth';
 import { publishRsvpInvitation } from '@/lib/rsvp/rsvp-invitation-queue';
-import { updateParticipantStatus } from '@/app/dashboard/admin/events/actions';
+import { sendRsvpMagicLink } from '@/lib/rsvp/send-rsvp-magic-link';
+import {
+  sendWalkInLink,
+  updateParticipantStatus,
+} from '@/app/dashboard/admin/events/actions';
+import { submitRsvpResponse } from '@/app/dashboard/events/actions';
 
 const createdUserIds: string[] = [];
 const createdEventIds: string[] = [];
@@ -404,5 +412,220 @@ describe('updateParticipantStatus — RSVP overrides', () => {
       success: false,
       error: 'Application not found.',
     });
+  });
+});
+
+describe('sendWalkInLink', () => {
+  async function invitationOf(participantId: string) {
+    const [row] = await db
+      .select({
+        id: eventInvitations.id,
+        rsvpWaveId: eventInvitations.rsvpWaveId,
+        respondedAt: eventInvitations.respondedAt,
+        invitationEmailStatus: eventInvitations.invitationEmailStatus,
+      })
+      .from(eventInvitations)
+      .where(eq(eventInvitations.participantId, participantId));
+    return row;
+  }
+
+  async function wavesOf(eventId: string) {
+    return db
+      .select({
+        id: eventRsvpWaves.id,
+        wave: eventRsvpWaves.wave,
+        respondBy: eventRsvpWaves.respondBy,
+      })
+      .from(eventRsvpWaves)
+      .where(eq(eventRsvpWaves.eventId, eventId))
+      .orderBy(asc(eventRsvpWaves.wave));
+  }
+
+  test('invites a pending applicant in a new wave and emails them at once, not through the queue', async () => {
+    actAs('both');
+    vi.mocked(sendRsvpMagicLink).mockClear();
+    vi.mocked(publishRsvpInvitation).mockClear();
+    const { eventId, userId, participantId } =
+      await applicant('pending_review');
+
+    const before = Date.now();
+    const result = await sendWalkInLink({ eventId, participantId });
+    expect(result).toMatchObject({ success: true });
+    expect(await getStatus(eventId, userId)).toBe('invited');
+
+    // Waves have stopped by the time walk-ins arrive, so one opens for them,
+    // with the event's usual response window.
+    const waves = await wavesOf(eventId);
+    expect(waves).toHaveLength(1);
+    expect(waves[0].wave).toBe(1);
+    const windowMs = 48 * 60 * 60 * 1000;
+    expect(waves[0].respondBy.getTime()).toBeGreaterThanOrEqual(
+      before + windowMs,
+    );
+    expect(waves[0].respondBy.getTime()).toBeLessThanOrEqual(
+      Date.now() + windowMs,
+    );
+
+    const invitation = await invitationOf(participantId);
+    expect(invitation.rsvpWaveId).toBe(waves[0].id);
+    expect(invitation.invitationEmailStatus).toBe('sent');
+    expect(sendRsvpMagicLink).toHaveBeenCalledTimes(1);
+    expect(sendRsvpMagicLink).toHaveBeenCalledWith(
+      expect.objectContaining({ eventId, respondBy: waves[0].respondBy }),
+    );
+    expect(publishRsvpInvitation).not.toHaveBeenCalled();
+  });
+
+  test('joins the open wave when there is one', async () => {
+    actAs('both');
+    const { eventId, userId, participantId } = await applicant('waitlisted');
+    const [wave] = await db
+      .insert(eventRsvpWaves)
+      .values({
+        eventId,
+        wave: 1,
+        respondBy: new Date('2099-01-01T00:00:00.000Z'),
+      })
+      .returning({ id: eventRsvpWaves.id });
+
+    const result = await sendWalkInLink({ eventId, participantId });
+    expect(result.success).toBe(true);
+    expect(await getStatus(eventId, userId)).toBe('invited');
+    expect(await wavesOf(eventId)).toHaveLength(1);
+    expect((await invitationOf(participantId)).rsvpWaveId).toBe(wave.id);
+  });
+
+  test('re-invites someone whose invitation expired, in a new wave', async () => {
+    actAs('rsvpManager');
+    const { eventId, userId, participantId, invitationId } = await invited(
+      'timed_out',
+      new Date('2020-01-01T00:00:00.000Z'),
+    );
+
+    const result = await sendWalkInLink({ eventId, participantId });
+    expect(result.success).toBe(true);
+    expect(await getStatus(eventId, userId)).toBe('invited');
+
+    const waves = await wavesOf(eventId);
+    expect(waves.map((w) => w.wave)).toEqual([1, 2]);
+    const invitation = await invitationOf(participantId);
+    // Still their one invitation, moved to the new wave.
+    expect(invitation.id).toBe(invitationId);
+    expect(invitation.rsvpWaveId).toBe(waves[1].id);
+    expect(invitation.respondedAt).toBeNull();
+  });
+
+  test('a new wave never outlasts the event', async () => {
+    actAs('both');
+    const { eventId, participantId } = await applicant('pending_review');
+    const endsAt = new Date(Date.now() + 2 * 60 * 60 * 1000);
+    await db.update(events).set({ endsAt }).where(eq(events.id, eventId));
+
+    expect((await sendWalkInLink({ eventId, participantId })).success).toBe(
+      true,
+    );
+    const [wave] = await wavesOf(eventId);
+    expect(wave.respondBy.getTime()).toBe(endsAt.getTime());
+  });
+
+  test('someone already invited just gets their link again', async () => {
+    actAs('rsvpManager');
+    vi.mocked(sendRsvpMagicLink).mockClear();
+    const { eventId, userId, participantId, invitationId } =
+      await invited('invited');
+
+    const result = await sendWalkInLink({ eventId, participantId });
+    expect(result.success).toBe(true);
+    expect(await getStatus(eventId, userId)).toBe('invited');
+    expect(await wavesOf(eventId)).toHaveLength(1);
+    expect((await invitationOf(participantId)).id).toBe(invitationId);
+    expect(sendRsvpMagicLink).toHaveBeenCalledTimes(1);
+  });
+
+  test('the walk-in then accepts through the normal RSVP flow', async () => {
+    actAs('both');
+    const { eventId, userId, participantId } =
+      await applicant('pending_review');
+    expect((await sendWalkInLink({ eventId, participantId })).success).toBe(
+      true,
+    );
+
+    vi.mocked(getUser).mockResolvedValue({
+      id: userId,
+      email: 'walk-in@example.com',
+      name: 'Walk-in',
+      emailVerified: true,
+    } as never);
+    const accepted = await submitRsvpResponse(eventId, 'accepted', {
+      accepted: true,
+      termsId: null,
+    });
+    expect(accepted.success).toBe(true);
+    expect(await getStatus(eventId, userId)).toBe('accepted');
+  });
+
+  test('moving a pending applicant to invited needs both permissions', async () => {
+    actAs('reviewer');
+    const { eventId, userId, participantId } =
+      await applicant('pending_review');
+    const result = await sendWalkInLink({ eventId, participantId });
+    expect(result).toMatchObject({
+      success: false,
+      error: expect.stringContaining('permission'),
+    });
+    expect(await getStatus(eventId, userId)).toBe('pending_review');
+    expect(await wavesOf(eventId)).toHaveLength(0);
+  });
+
+  test('refuses someone who already has a spot', async () => {
+    actAs('both');
+    const { eventId, userId, participantId } = await invited('accepted');
+    const result = await sendWalkInLink({ eventId, participantId });
+    expect(result).toMatchObject({
+      success: false,
+      error: expect.stringContaining('already have a spot'),
+    });
+    expect(await getStatus(eventId, userId)).toBe('accepted');
+  });
+
+  test('refuses once the event has ended', async () => {
+    actAs('both');
+    const { eventId, userId, participantId } =
+      await applicant('pending_review');
+    await db
+      .update(events)
+      .set({ endsAt: new Date('2020-01-01T00:00:00.000Z') })
+      .where(eq(events.id, eventId));
+    const result = await sendWalkInLink({ eventId, participantId });
+    expect(result).toMatchObject({
+      success: false,
+      error: expect.stringContaining('ended'),
+    });
+    expect(await getStatus(eventId, userId)).toBe('pending_review');
+  });
+
+  test('a failed send leaves them invited and says so, so the desk can retry', async () => {
+    actAs('both');
+    vi.mocked(sendRsvpMagicLink).mockRejectedValueOnce(new Error('SMTP down'));
+    const { eventId, userId, participantId } =
+      await applicant('pending_review');
+
+    const result = await sendWalkInLink({ eventId, participantId });
+    expect(result).toMatchObject({
+      success: false,
+      error: expect.stringContaining('SMTP down'),
+    });
+    expect(await getStatus(eventId, userId)).toBe('invited');
+    expect((await invitationOf(participantId)).invitationEmailStatus).toBe(
+      'failed',
+    );
+
+    // Pressing it again resends.
+    expect((await sendWalkInLink({ eventId, participantId })).success).toBe(
+      true,
+    );
+    expect((await invitationOf(participantId)).invitationEmailStatus).toBe(
+      'sent',
+    );
   });
 });

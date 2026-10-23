@@ -1,6 +1,6 @@
 import type { ParticipationStatus } from '@/types/lookups';
 import type { CorePermissionSlug as PermissionSlug } from '@/lib/rbac/permissions';
-import { isInvitationStatus } from '@/lib/participation/status';
+import { isAttending, isInvitationStatus } from '@/lib/participation/status';
 
 /**
  * Which status changes are allowed, and who may make them. The one table of
@@ -46,6 +46,18 @@ export function adminStatusOptions(
     const required = adminTransitionPermissions(from, to);
     return required !== null && required.every((p) => permissions.has(p));
   });
+}
+
+/**
+ * The permissions an organizer needs to send a walk-in their RSVP link from
+ * `from`: those of the move to `invited`, or `rsvp:write:all` to resend one
+ * already invited. Null when they already hold a spot.
+ */
+export function walkInPermissions(
+  from: ParticipationStatus,
+): PermissionSlug[] | null {
+  if (isAttending(from)) return null;
+  return adminTransitionPermissions(from, 'invited') ?? ['rsvp:write:all'];
 }
 
 /** Moves a participant may make on their own. */

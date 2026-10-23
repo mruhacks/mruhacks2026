@@ -364,3 +364,10 @@ export const updateParticipantStatusSchema = z.object({
 export type UpdateParticipantStatusInput = z.infer<
   typeof updateParticipantStatusSchema
 >;
+
+export const sendWalkInLinkSchema = updateParticipantStatusSchema.pick({
+  eventId: true,
+  participantId: true,
+});
+
+export type SendWalkInLinkInput = z.infer<typeof sendWalkInLinkSchema>;

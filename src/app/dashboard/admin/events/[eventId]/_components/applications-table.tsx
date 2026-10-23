@@ -2,20 +2,24 @@
 
 import * as React from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
-import { Download, FileDown } from 'lucide-react';
+import { Download, FileDown, Mail } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { LocalDateTime } from '@/components/local-date-time';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { DataTable } from '@/components/data-table/data-table';
+import { Spinner } from '@/components/ui/spinner';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
 } from '@/components/ui/select';
-import { updateParticipantStatus } from '@/app/dashboard/admin/events/actions';
+import {
+  sendWalkInLink,
+  updateParticipantStatus,
+} from '@/app/dashboard/admin/events/actions';
 import { getEventDisplayStatus } from '@/app/dashboard/events/event-display-status';
 import type { AdminApplicationRow } from '@/lib/admin-event';
 import { EMPTY_FILTER_VALUE } from '@/components/data-table/data-table-column-filter';
@@ -31,7 +35,10 @@ import {
   STATIC_STATUS_DISPLAY,
   type AttendanceState,
 } from '@/lib/participation/status';
-import { adminStatusOptions } from '@/lib/participation/transitions';
+import {
+  adminStatusOptions,
+  walkInPermissions,
+} from '@/lib/participation/transitions';
 import type { CorePermissionSlug } from '@/lib/rbac/permissions';
 
 export type ApplicationsTableRow = AdminApplicationRow & {
@@ -156,6 +163,62 @@ function StatusCell({
           ))}
       </SelectContent>
     </Select>
+  );
+}
+
+/**
+ * Admits a walk-in: puts them in the RSVP bucket and emails their RSVP link
+ * at once, so they can agree to the Event Terms on their phone at the desk.
+ * Already invited → sends the link again.
+ */
+function WalkInCell({
+  eventId,
+  row,
+  permissions,
+}: {
+  eventId: string;
+  row: ApplicationsTableRow;
+  permissions: ReadonlySet<CorePermissionSlug>;
+}) {
+  const [isPending, startTransition] = React.useTransition();
+  const required = walkInPermissions(row.status);
+  if (!required?.every((p) => permissions.has(p))) return null;
+
+  const resend = row.status === 'invited';
+  function send() {
+    startTransition(async () => {
+      try {
+        const result = await sendWalkInLink({
+          eventId,
+          participantId: row.participantId,
+        });
+        if (result.success) {
+          toast.success(`Walk-in link sent to ${row.email}.`);
+        } else {
+          toast.error(result.error);
+        }
+      } catch {
+        toast.error('Failed to send the walk-in link.');
+      }
+    });
+  }
+
+  return (
+    <Button
+      variant='outline'
+      size='sm'
+      className='h-7'
+      disabled={isPending}
+      onClick={send}
+      aria-label={`${resend ? 'Resend' : 'Send'} walk-in link to ${row.fullName}`}
+    >
+      {isPending ? (
+        <Spinner data-icon='inline-start' />
+      ) : (
+        <Mail aria-hidden data-icon='inline-start' />
+      )}
+      {resend ? 'Resend link' : 'Send link'}
+    </Button>
   );
 }
 
@@ -337,6 +400,24 @@ export function ApplicationsTable({
               />
             ),
           },
+          // Moving anyone to `invited` needs `rsvp:write:all`, so without it
+          // the column would only ever be empty.
+          ...(canManageRsvp
+            ? [
+                {
+                  id: 'walkIn',
+                  header: 'Walk-in',
+                  enableSorting: false,
+                  cell: ({ row }) => (
+                    <WalkInCell
+                      eventId={eventId}
+                      row={row.original}
+                      permissions={permissions}
+                    />
+                  ),
+                } satisfies ColumnDef<ApplicationsTableRow>,
+              ]
+            : []),
           {
             accessorKey: 'submittedAt',
             header: 'Submitted',
@@ -404,7 +485,7 @@ export function ApplicationsTable({
           ]
         : []),
     ],
-    [answerQuestions, eventId, permissions, changeStatus],
+    [answerQuestions, eventId, permissions, changeStatus, canManageRsvp],
   );
 
   /**

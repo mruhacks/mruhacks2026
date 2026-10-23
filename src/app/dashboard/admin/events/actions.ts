@@ -7,7 +7,11 @@ import { db } from '@/utils/db';
 import { FEATURED_EVENT_CACHE_TAG } from '@/lib/featured-event';
 import { eventTypeExists } from '@/lib/event-types';
 import { subeventsCacheTag } from '@/lib/subevents';
-import { EVENTS_CACHE_TAG, eventUrlSegments } from '@/lib/events';
+import {
+  EVENTS_CACHE_TAG,
+  eventUrlSegments,
+  hasEventElapsed,
+} from '@/lib/events';
 import { eventPath } from '@/lib/event-slug';
 import {
   adminEventCacheTag,
@@ -48,6 +52,7 @@ import {
 } from '@/lib/rsvp/waitlist';
 import type { AdminRsvpSummary } from '@/lib/rsvp/get-admin-rsvp-summary';
 import { DEFAULT_RSVP_RESPONSE_WINDOW_HOURS } from '@/lib/rsvp/constants';
+import { computeRsvpRespondBy } from '@/lib/rsvp/compute-rsvp-respond-by';
 import {
   isSummarizableQuestion,
   type ApplicationQuestion,
@@ -59,7 +64,10 @@ import {
   isReviewStatus,
   resolveEffectiveStatus,
 } from '@/lib/participation/status';
-import { adminTransitionPermissions } from '@/lib/participation/transitions';
+import {
+  adminTransitionPermissions,
+  walkInPermissions,
+} from '@/lib/participation/transitions';
 import { publishRsvpInvitation } from '@/lib/rsvp/rsvp-invitation-queue';
 import {
   buildQuestionStats,
@@ -75,6 +83,7 @@ import {
   createEventSchema,
   updateEventSettingsSchema,
   updateParticipantStatusSchema,
+  sendWalkInLinkSchema,
   submissionsCloseAtError,
 } from './schemas';
 import type {
@@ -83,6 +92,7 @@ import type {
   CreateEventInput,
   UpdateEventSettingsInput,
   UpdateParticipantStatusInput,
+  SendWalkInLinkInput,
 } from './schemas';
 import { validateQuestionEdit } from '@/lib/question-diff';
 import { writeAuditLog } from '@/utils/audit-log';
@@ -932,6 +942,63 @@ export async function getApplicationStats(
 
 class StatusChangeError extends Error {}
 
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/** The event's most recent RSVP wave, open or not. */
+async function getLatestWave(tx: Tx, eventId: string) {
+  const [wave] = await tx
+    .select({
+      id: eventRsvpWaves.id,
+      wave: eventRsvpWaves.wave,
+      respondBy: eventRsvpWaves.respondBy,
+    })
+    .from(eventRsvpWaves)
+    .where(eq(eventRsvpWaves.eventId, eventId))
+    .orderBy(desc(eventRsvpWaves.wave))
+    .limit(1);
+  return wave ?? null;
+}
+
+/**
+ * Puts a participant's invitation in `waveId` and returns its id. A
+ * participant has at most one invitation, so one from a closed wave is moved
+ * over with its answer, consent and delivery reset rather than duplicated.
+ */
+async function inviteIntoWave(
+  tx: Tx,
+  options: {
+    waveId: string;
+    participantId: string;
+    invitationId: string | null;
+  },
+): Promise<string> {
+  if (options.invitationId) {
+    await tx
+      .update(eventInvitations)
+      .set({
+        rsvpWaveId: options.waveId,
+        respondedAt: null,
+        acceptedTermsId: null,
+        termsAcceptedAt: null,
+        invitationEmailStatus: 'unsent',
+        invitationEmailAttempts: 0,
+        invitationEmailLastError: null,
+        invitationEmailQueuedAt: null,
+        invitationEmailSentAt: null,
+      })
+      .where(eq(eventInvitations.id, options.invitationId));
+    return options.invitationId;
+  }
+  const [invitation] = await tx
+    .insert(eventInvitations)
+    .values({
+      rsvpWaveId: options.waveId,
+      participantId: options.participantId,
+    })
+    .returning({ id: eventInvitations.id });
+  return invitation.id;
+}
+
 /**
  * Admin: set a participant to any status from the applications table.
  *
@@ -1048,44 +1115,17 @@ export async function updateParticipantStatus(
         status === 'invited' &&
         (!row.invitationId || (row.respondBy !== null && row.respondBy <= now));
       if (needsOpenWave) {
-        const [openWave] = await tx
-          .select({
-            id: eventRsvpWaves.id,
-            respondBy: eventRsvpWaves.respondBy,
-          })
-          .from(eventRsvpWaves)
-          .where(eq(eventRsvpWaves.eventId, eventId))
-          .orderBy(desc(eventRsvpWaves.wave))
-          .limit(1);
+        const openWave = await getLatestWave(tx, eventId);
         if (!openWave || openWave.respondBy <= now) {
           throw new StatusChangeError(
             "There's no open RSVP wave to invite them in. Send the next wave from the RSVP page instead.",
           );
         }
-        if (row.invitationId) {
-          // Their wave has closed: re-invite them in the open one instead.
-          await tx
-            .update(eventInvitations)
-            .set({
-              rsvpWaveId: openWave.id,
-              respondedAt: null,
-              acceptedTermsId: null,
-              termsAcceptedAt: null,
-              invitationEmailStatus: 'unsent',
-              invitationEmailAttempts: 0,
-              invitationEmailLastError: null,
-              invitationEmailQueuedAt: null,
-              invitationEmailSentAt: null,
-            })
-            .where(eq(eventInvitations.id, row.invitationId));
-          newInvitationId = row.invitationId;
-        } else {
-          const [invitation] = await tx
-            .insert(eventInvitations)
-            .values({ rsvpWaveId: openWave.id, participantId })
-            .returning({ id: eventInvitations.id });
-          newInvitationId = invitation.id;
-        }
+        newInvitationId = await inviteIntoWave(tx, {
+          waveId: openWave.id,
+          participantId,
+          invitationId: row.invitationId,
+        });
       }
 
       const toReview = isReviewStatus(status);
@@ -1167,6 +1207,174 @@ export async function updateParticipantStatus(
   });
 
   return ok({ status });
+}
+
+/**
+ * Admin: admit a walk-in from the applications table. Puts them in the RSVP
+ * bucket (`invited`) and emails their RSVP link right away, through
+ * `resendRsvpMagicLink` rather than the queue, since they're at the desk.
+ * From there it's an ordinary invitation: they agree to the Event Terms and
+ * accept on the event page, then check in as usual.
+ *
+ * An invitation's deadline lives on its wave, so they join the open wave, or
+ * a new one when none is open (the usual case once the event has started and
+ * waves have stopped). Someone already invited just gets their link again.
+ *
+ * Needs whatever the move to `invited` needs; a resend needs `rsvp:write:all`.
+ */
+export async function sendWalkInLink(
+  input: SendWalkInLinkInput,
+): Promise<ActionResult<{ email: string }>> {
+  const authUser = await getUser();
+  if (!authUser) return fail('Not authenticated');
+
+  await requireAnyPermission(authUser.id, [
+    'application:review:all',
+    'rsvp:write:all',
+  ]);
+
+  const parsed = sendWalkInLinkSchema.safeParse(input);
+  if (!parsed.success) return fail('Invalid request.');
+  const { eventId, participantId } = parsed.data;
+
+  let result: { userId: string; from: ParticipationStatus };
+  try {
+    result = await db.transaction(async (tx) => {
+      // Same lock order as `sendRsvpWave` and `submitRsvpResponse` (event,
+      // then participant), so two walk-ins can't both open a wave.
+      const [eventRow] = await tx
+        .select({
+          endsAt: events.endsAt,
+          rsvpResponseWindowHours: events.rsvpResponseWindowHours,
+        })
+        .from(events)
+        .where(eq(events.id, eventId))
+        .for('update');
+      if (!eventRow) throw new StatusChangeError('Application not found.');
+      if (hasEventElapsed(eventRow.endsAt)) {
+        throw new StatusChangeError('This event has already ended.');
+      }
+
+      const [row] = await tx
+        .select({
+          userId: eventParticipants.userId,
+          statusLabel: participationStatuses.label,
+          invitationId: eventInvitations.id,
+          respondBy: eventRsvpWaves.respondBy,
+        })
+        .from(eventParticipants)
+        .innerJoin(
+          participationStatuses,
+          eq(eventParticipants.statusId, participationStatuses.id),
+        )
+        .leftJoin(
+          eventInvitations,
+          eq(eventInvitations.participantId, eventParticipants.id),
+        )
+        .leftJoin(
+          eventRsvpWaves,
+          eq(eventInvitations.rsvpWaveId, eventRsvpWaves.id),
+        )
+        .where(
+          and(
+            eq(eventParticipants.id, participantId),
+            eq(eventParticipants.eventId, eventId),
+          ),
+        )
+        .for('update', { of: eventParticipants })
+        .limit(1);
+      if (!row) throw new StatusChangeError('Application not found.');
+
+      const now = new Date();
+      const from = resolveEffectiveStatus(row.statusLabel, row.respondBy, now);
+      const required = walkInPermissions(from);
+      if (!required) {
+        throw new StatusChangeError(
+          'They already have a spot, so they can be checked in.',
+        );
+      }
+      for (const permission of required) {
+        if (!(await hasPermission(authUser.id, permission))) {
+          throw new StatusChangeError(
+            'You do not have permission to make this change.',
+          );
+        }
+      }
+
+      if (from !== 'invited') {
+        const latest = await getLatestWave(tx, eventId);
+        let waveId = latest && latest.respondBy > now ? latest.id : null;
+        if (!waveId) {
+          const respondBy = computeRsvpRespondBy(
+            now,
+            eventRow.rsvpResponseWindowHours,
+          );
+          const [wave] = await tx
+            .insert(eventRsvpWaves)
+            .values({
+              eventId,
+              wave: (latest?.wave ?? 0) + 1,
+              respondBy:
+                eventRow.endsAt && eventRow.endsAt < respondBy
+                  ? eventRow.endsAt
+                  : respondBy,
+              createdAt: now,
+            })
+            .returning({ id: eventRsvpWaves.id });
+          waveId = wave.id;
+        }
+        await inviteIntoWave(tx, {
+          waveId,
+          participantId,
+          invitationId: row.invitationId,
+        });
+        await tx
+          .update(eventParticipants)
+          .set({ statusId: statusIdOf('invited') })
+          .where(eq(eventParticipants.id, participantId));
+      }
+
+      return { userId: row.userId, from };
+    });
+  } catch (error) {
+    if (error instanceof StatusChangeError) return fail(error.message);
+    console.error('[admin/events] failed to admit walk-in', error);
+    return fail('Failed to send the walk-in link.');
+  }
+
+  if (result.from !== 'invited') {
+    // Leaving review moves the waitlist, as in `updateParticipantStatus`.
+    try {
+      await syncWaitlistForEvent(eventId, authUser.id);
+    } catch (error) {
+      console.error(
+        '[admin/events] Waitlist sync after walk-in failed:',
+        error,
+      );
+    }
+    await writeAuditLog({
+      actorId: authUser.id,
+      action: 'event.participant_status_changed',
+      targetType: 'event_participant',
+      targetId: participantId,
+      metadata: {
+        eventId,
+        userId: result.userId,
+        from: result.from,
+        to: 'invited',
+        walkIn: true,
+      },
+    });
+  }
+
+  const sent = await resendRsvpMagicLink({ eventId, userId: result.userId });
+  updateTag(eventApplicationsCacheTag(eventId));
+  if (!sent.success) {
+    return fail(
+      `They're now invited, but the email didn't send (${sent.error}). Try again.`,
+    );
+  }
+  return ok({ email: sent.email });
 }
 
 export type SendEventRsvpWaveResult = {
