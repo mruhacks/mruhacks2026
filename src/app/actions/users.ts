@@ -27,8 +27,8 @@ import { prepareUserDeletion } from '@/lib/account-deletion';
 // TYPES
 // ─────────────────────────────────────────────
 
-export type UserSortField = 'name' | 'email' | 'createdAt';
-export type SortDirection = 'asc' | 'desc';
+type UserSortField = 'name' | 'email' | 'createdAt';
+type SortDirection = 'asc' | 'desc';
 
 export interface ListUsersParams {
   search?: string;
@@ -39,7 +39,7 @@ export interface ListUsersParams {
   sortDirection?: SortDirection;
 }
 
-export interface AdminInvite {
+interface AdminInvite {
   id: string;
   expiresAt: Date;
   roles: { id: number; slug: string | null }[];

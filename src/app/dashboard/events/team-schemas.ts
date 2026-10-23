@@ -9,5 +9,3 @@ export const joinTeamSchema = z.object({
     .length(TEAM_CODE_LENGTH, `Code must be ${TEAM_CODE_LENGTH} characters`)
     .regex(/^[A-Z0-9]+$/, 'Code must be alphanumeric'),
 });
-
-export type JoinTeamInput = z.infer<typeof joinTeamSchema>;

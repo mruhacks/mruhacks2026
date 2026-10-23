@@ -1,5 +1,4 @@
 import { Heading, Text } from 'react-email';
-import React from 'react';
 import { CtaButton, EmailLayout, FallbackLink, bodyStyle, headingStyle } from '@/emails/EmailLayout';
 
 type Props = { url: string; baseUrl: string };

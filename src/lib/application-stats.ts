@@ -419,7 +419,7 @@ export function buildDemographicStats(rows: ApplicationStatsRow[]): Record<Demog
  * One bucket of a status-split stat: its count within each participation
  * status, keyed by status label. A status with no count is simply absent.
  */
-export type StatusSplitBucket = {
+type StatusSplitBucket = {
   key: string;
   label: string;
   inactive?: boolean;

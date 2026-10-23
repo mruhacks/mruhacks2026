@@ -5,7 +5,6 @@
  */
 
 export const gendersList = ['Male', 'Female', 'Non-binary', 'Other', 'Prefer not to say'] as const;
-export type Gender = (typeof gendersList)[number];
 
 export const universitiesList = [
   'Mount Royal University',
@@ -17,7 +16,6 @@ export const universitiesList = [
   'NAIT',
   'Other / Not listed',
 ] as const;
-export type University = (typeof universitiesList)[number];
 
 export const majorsList = [
   'Bachelor of Computer Information Systems',
@@ -29,10 +27,8 @@ export const majorsList = [
   'Software Engineering',
   'Other / Custom',
 ] as const;
-export type Major = (typeof majorsList)[number];
 
 export const yearsOfStudyList = ['1st', '2nd', '3rd', '4th', '4th+'] as const;
-export type YearOfStudy = (typeof yearsOfStudyList)[number];
 
 export const interestsList = [
   'Mobile App Development',
@@ -41,7 +37,6 @@ export const interestsList = [
   'UX / UI Design',
   'Game Development',
 ] as const;
-export type Interest = (typeof interestsList)[number];
 
 export const dietaryRestrictionsList = [
   'Vegetarian',
@@ -62,7 +57,6 @@ export const heardFromSourcesList = [
   'Professor / Course Announcement',
   'Other',
 ] as const;
-export type HeardFromSource = (typeof heardFromSourcesList)[number];
 
 /**
  * The single participation lifecycle for a person and an event — see the

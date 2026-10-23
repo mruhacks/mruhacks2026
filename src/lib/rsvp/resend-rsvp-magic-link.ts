@@ -7,7 +7,7 @@ import * as Participation from '@/lib/participation/server';
 import { sendRsvpMagicLink } from './send-rsvp-magic-link';
 import { db } from '@/utils/db';
 
-export type ResendRsvpMagicLinkSuccess = {
+type ResendRsvpMagicLinkSuccess = {
   success: true;
   eventId: string;
   userId: string;
@@ -17,7 +17,7 @@ export type ResendRsvpMagicLinkSuccess = {
   waveId: string;
 };
 
-export type ResendRsvpMagicLinkFailure = {
+type ResendRsvpMagicLinkFailure = {
   success: false;
   error: string;
 };

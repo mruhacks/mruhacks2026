@@ -20,7 +20,7 @@ export function useDisplayTimeZone(): string {
  * during SSR and the hydration render, then the viewer's own browser
  * locale from the first post-hydration render onward.
  */
-export function useDisplayLocale(): string {
+function useDisplayLocale(): string {
   const isHydrated = useIsHydrated();
   return isHydrated ? navigator.language : DEFAULT_LOCALE;
 }

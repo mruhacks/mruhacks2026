@@ -10,7 +10,7 @@ import type {
  * fast enough that a second scanner's work shows up before anyone wonders
  * whether the list is broken.
  */
-export const ROSTER_POLL_INTERVAL_MS = 15_000;
+const ROSTER_POLL_INTERVAL_MS = 15_000;
 
 /**
  * The newest check-in on screen — what the next poll asks the server to

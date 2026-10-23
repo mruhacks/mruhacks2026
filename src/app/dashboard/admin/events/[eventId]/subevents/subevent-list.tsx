@@ -1,4 +1,3 @@
-import * as React from 'react';
 import Link from 'next/link';
 import { CircleCheckBig, MapPin, Pencil, ScanLine } from 'lucide-react';
 

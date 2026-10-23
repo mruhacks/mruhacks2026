@@ -22,11 +22,8 @@ import type { FeaturedOnboardingEvent } from './featured-event-step';
  * professional, skipping About and the featured-event application. Staff
  * (`onboarding:skip:event`) go legal → personal → about with no application.
  */
-export const STEPS = ['legal', 'personal', 'about', 'professional', 'event'] as const;
+const STEPS = ['legal', 'personal', 'about', 'professional', 'event'] as const;
 export type Step = (typeof STEPS)[number];
-
-export const isStep = (value: unknown): value is Step =>
-  typeof value === 'string' && (STEPS as readonly string[]).includes(value);
 
 export type OnboardingProgress = {
   user: NonNullable<Awaited<ReturnType<typeof getUser>>>;

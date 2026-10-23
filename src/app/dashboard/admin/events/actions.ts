@@ -19,14 +19,6 @@ import { isSummarizableQuestion, type ApplicationQuestion } from '@/types/applic
 import type { ParticipationStatus } from '@/types/lookups';
 import * as Participation from '@/lib/participation/server';
 import {
-  buildQuestionStats,
-  buildStatusBreakdown,
-  buildDemographicStats,
-  type ApplicationStatsRow,
-  type QuestionStats,
-  type StatsBucket,
-} from '@/lib/application-stats';
-import {
   addQuestionSchema,
   editQuestionSchema,
   createEventSchema,
@@ -686,88 +678,6 @@ export async function getApplicationResponses(eventId: string): Promise<ActionRe
   );
 }
 
-export type EventApplicationStats = {
-  hasApplication: boolean;
-  total: number;
-  questionStats: QuestionStats[];
-  statusBreakdown: StatsBucket[];
-  demographics: Record<'university' | 'major' | 'yearOfStudy' | 'gender', StatsBucket[]>;
-};
-
-/**
- * Aggregate application statistics for the Stats tab: per-question buckets
- * (for questions flagged `showInReports`), a status breakdown, and applicant
- * demographics.
- *
- * Aggregates on the server — raw per-applicant `responses` never crosses the
- * wire from here, which is the privacy boundary that justifies
- * `application:stats:all` being its own permission rather than a reuse of
- * `application:read:all` (that permission grants access to individual
- * applicants' answers; this one only ever grants cohort-level numbers).
- */
-export async function getApplicationStats(
-  eventId: string,
-  status?: ParticipationStatus | 'all',
-): Promise<ActionResult<EventApplicationStats>> {
-  const authUser = await getUser();
-  if (!authUser) return fail('Not authenticated');
-  await Rbac.requirePermission(authUser.id, 'application:stats');
-
-  const [eventRow] = await db
-    .select({
-      applicationQuestions: schema.events.applicationQuestions,
-      hasApplication: schema.events.hasApplication,
-    })
-    .from(schema.events)
-    .where(eq(schema.events.id, eventId))
-    .limit(1);
-
-  if (!eventRow) return fail('Event not found');
-
-  const questions = (eventRow.applicationQuestions as ApplicationQuestion[] | null) ?? [];
-
-  const whereClause =
-    status && status !== 'all'
-      ? and(eq(schema.eventParticipants.eventId, eventId), eq(schema.participationStatuses.label, status))
-      : eq(schema.eventParticipants.eventId, eventId);
-
-  const rows = await db
-    .select({
-      responses: schema.eventParticipants.responses,
-      status: schema.participationStatuses.label,
-      university: schema.universities.label,
-      major: schema.majors.label,
-      yearOfStudy: schema.yearsOfStudy.label,
-      gender: schema.genders.label,
-    })
-    .from(schema.eventParticipants)
-    .leftJoin(schema.userProfiles, eq(schema.eventParticipants.userId, schema.userProfiles.userId))
-    .leftJoin(schema.userProfileAbout, eq(schema.eventParticipants.userId, schema.userProfileAbout.userId))
-    .leftJoin(schema.genders, eq(schema.userProfiles.genderId, schema.genders.id))
-    .leftJoin(schema.universities, eq(schema.userProfileAbout.universityId, schema.universities.id))
-    .leftJoin(schema.majors, eq(schema.userProfileAbout.majorId, schema.majors.id))
-    .leftJoin(schema.yearsOfStudy, eq(schema.userProfileAbout.yearOfStudyId, schema.yearsOfStudy.id))
-    .innerJoin(schema.participationStatuses, eq(schema.eventParticipants.statusId, schema.participationStatuses.id))
-    .where(whereClause);
-
-  const statsRows: ApplicationStatsRow[] = rows.map((row) => ({
-    responses: (row.responses as Record<string, unknown> | null) ?? null,
-    status: row.status ?? null,
-    university: row.university ?? null,
-    major: row.major ?? null,
-    yearOfStudy: row.yearOfStudy ?? null,
-    gender: row.gender ?? null,
-  }));
-
-  return ok({
-    hasApplication: eventRow.hasApplication,
-    total: statsRows.length,
-    questionStats: buildQuestionStats(questions, statsRows),
-    statusBreakdown: buildStatusBreakdown(statsRows),
-    demographics: buildDemographicStats(statsRows),
-  });
-}
-
 class StatusChangeError extends Error {}
 
 /**
@@ -1125,7 +1035,7 @@ export async function getEventWaitlist(eventId: string): Promise<ActionResult<Rs
 
 export type { WaitlistEntry } from '@/lib/rsvp';
 
-export type FormedTeamMember = {
+type FormedTeamMember = {
   userId: string;
   name: string;
   email: string;

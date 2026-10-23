@@ -41,7 +41,7 @@ export type JudgeProjectCard = {
   tableLabel: string;
 };
 
-export type JudgeCriterion = { id: string; name: string; description: string };
+type JudgeCriterion = { id: string; name: string; description: string };
 
 export type JudgeView =
   | { kind: 'not_judge' }

@@ -129,7 +129,7 @@ export class EmbedNode extends DecoratorNode<React.ReactNode> {
   }
 }
 
-export function $createEmbedNode(attributes: EmbedAttributes): EmbedNode {
+function $createEmbedNode(attributes: EmbedAttributes): EmbedNode {
   return new EmbedNode({
     src: attributes.src,
     title: attributes.title || undefined,
@@ -138,7 +138,7 @@ export function $createEmbedNode(attributes: EmbedAttributes): EmbedNode {
   });
 }
 
-export function $isEmbedNode(node: LexicalNode | null | undefined): node is EmbedNode {
+function $isEmbedNode(node: LexicalNode | null | undefined): node is EmbedNode {
   return node instanceof EmbedNode;
 }
 

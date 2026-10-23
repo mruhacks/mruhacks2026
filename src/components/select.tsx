@@ -1,6 +1,5 @@
 'use client';
 
-import * as React from 'react';
 import type { GroupBase, StylesConfig, ThemeConfig } from 'react-select';
 import SelectInner, { Props as SelectProps } from 'react-select';
 import { useIsHydrated } from '@/lib/use-is-hydrated';

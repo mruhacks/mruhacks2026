@@ -4,7 +4,7 @@ import whiteChevron from './white_chevron.png';
 import blackChevron from './black_chevron.png';
 import gradientChevron from './color_chevron.png';
 
-export type ChevronVariant = 'white' | 'black' | 'gradient';
+type ChevronVariant = 'white' | 'black' | 'gradient';
 
 const chevronSources: Record<ChevronVariant, StaticImageData> = {
   white: whiteChevron,

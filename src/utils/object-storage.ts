@@ -102,7 +102,7 @@ export function profilePictureUrl(key: string) {
  * Inverse of `profilePictureUrl`: extracts the storage key from a stored
  * image URL, or null if it isn't one of ours (e.g. an OAuth avatar URL).
  */
-export function parseProfilePictureKey(image: string | null | undefined): string | null {
+function parseProfilePictureKey(image: string | null | undefined): string | null {
   if (!image) return null;
   const prefix = '/api/assets/';
   if (!image.startsWith(prefix)) return null;

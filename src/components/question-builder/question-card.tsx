@@ -1,6 +1,5 @@
 'use client';
 
-import * as React from 'react';
 import { Pencil, Trash2, Eye } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';

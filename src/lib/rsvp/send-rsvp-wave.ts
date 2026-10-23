@@ -12,7 +12,7 @@ import { selectRsvpWaveInvitees } from './select-rsvp-wave-invitees';
 import { timeoutExpiredInvitations } from './timeout-expired-invitations';
 import { db } from '@/utils/db';
 
-export type WaveRecord = {
+type WaveRecord = {
   id: string;
   eventId: string;
   wave: number;
@@ -20,13 +20,13 @@ export type WaveRecord = {
   createdAt: Date;
 };
 
-export type WaveQueueFailure = {
+type WaveQueueFailure = {
   userId: string;
   email: string;
   error: string;
 };
 
-export type SendRsvpWaveSuccess = {
+type SendRsvpWaveSuccess = {
   success: true;
   wave: WaveRecord;
   /** The still-open wave this send closed early, when `closeActiveWave`. */
@@ -37,7 +37,7 @@ export type SendRsvpWaveSuccess = {
   queueFailures: WaveQueueFailure[];
 };
 
-export type SendRsvpWaveFailure = {
+type SendRsvpWaveFailure = {
   success: false;
   error: string;
 };
