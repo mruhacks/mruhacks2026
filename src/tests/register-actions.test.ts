@@ -243,3 +243,61 @@ describe('unregisterFromEvent', () => {
     expect((result as { error: string }).error).toContain('ended');
   });
 });
+
+describe('registerForEvent when registration is closed', () => {
+  const closedEventIds: string[] = [];
+
+  afterAll(async () => {
+    for (const id of closedEventIds) {
+      await db
+        .delete(eventParticipants)
+        .where(eq(eventParticipants.eventId, id));
+      await db.delete(events).where(eq(events.id, id));
+    }
+  });
+
+  async function makeEvent(values: Partial<typeof events.$inferInsert>) {
+    const [e] = await db
+      .insert(events)
+      .values({
+        name: 'Test Closed Register Event',
+        hasApplication: false,
+        ...values,
+      })
+      .returning({ id: events.id });
+    closedEventIds.push(e.id);
+    return e.id;
+  }
+
+  test('rejects a new registration once closed by hand', async () => {
+    const id = await makeEvent({ applicationsClosed: true });
+    const result = await registerForEvent(id);
+    expect(result.success).toBe(false);
+    expect((result as { error: string }).error).toContain('closed');
+  });
+
+  test('rejects a new registration after the close date', async () => {
+    const id = await makeEvent({
+      applicationsCloseAt: new Date(Date.now() - 60_000),
+    });
+    const result = await registerForEvent(id);
+    expect(result.success).toBe(false);
+  });
+
+  test('accepts a registration before the close date', async () => {
+    const id = await makeEvent({
+      applicationsCloseAt: new Date(Date.now() + 60 * 60_000),
+    });
+    expect((await registerForEvent(id)).success).toBe(true);
+  });
+
+  test('re-registering after closing stays a no-op success', async () => {
+    const id = await makeEvent({});
+    expect((await registerForEvent(id)).success).toBe(true);
+    await db
+      .update(events)
+      .set({ applicationsClosed: true })
+      .where(eq(events.id, id));
+    expect((await registerForEvent(id)).success).toBe(true);
+  });
+});

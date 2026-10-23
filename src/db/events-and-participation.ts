@@ -114,6 +114,17 @@ export const events = pgTable(
     rsvpResponseWindowHours: integer('rsvp_response_window_hours')
       .notNull()
       .default(48),
+    /**
+     * When new applications (or, for an event without one, registrations)
+     * stop being accepted. Null means they stay open until the event ends.
+     * `applicationsClosed` is the organizer's manual override and closes them
+     * regardless of this instant. See `areApplicationsClosed` in
+     * `@/lib/intake`.
+     */
+    applicationsCloseAt: timestamp('applications_close_at', {
+      withTimezone: true,
+    }),
+    applicationsClosed: boolean('applications_closed').notNull().default(false),
     // Marks the single event whose registerUrl the public site links to.
     isFeatured: boolean('is_featured').notNull().default(false),
     teamsEnabled: boolean('teams_enabled').notNull().default(false),

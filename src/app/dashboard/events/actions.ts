@@ -44,6 +44,7 @@ import {
   type RsvpUserDecision,
 } from '@/lib/rsvp/constants';
 import { getAllEvents, hasEventElapsed } from '@/lib/events';
+import { areApplicationsClosed, intakeCopy } from '@/lib/intake';
 import {
   canEditApplication,
   resolveEffectiveStatus,
@@ -95,6 +96,8 @@ async function registerParticipant(
       hasApplication: events.hasApplication,
       applicationQuestions: events.applicationQuestions,
       endsAt: events.endsAt,
+      applicationsClosed: events.applicationsClosed,
+      applicationsCloseAt: events.applicationsCloseAt,
     })
     .from(events)
     .where(eq(events.id, eventId))
@@ -136,6 +139,11 @@ async function registerParticipant(
     return fail(
       'Your application has already been reviewed and can no longer be edited.',
     );
+  }
+  // Closing applications stops new ones; an applicant still awaiting review
+  // can keep editing what they already submitted.
+  if (!existingApplication && areApplicationsClosed(eventRow)) {
+    return fail(intakeCopy(true).closedMessage);
   }
 
   const built = buildApplicationResponses(
@@ -703,6 +711,8 @@ export type EventWithUserStatus = {
   endsAt: Date | null;
   /** Past its end instant — every participant action on it is frozen. */
   hasEnded: boolean;
+  /** No longer taking new applications/registrations. See `areApplicationsClosed`. */
+  applicationsClosed: boolean;
   /** The user's effective participation status, or null if not involved. */
   status: ParticipationStatus | null;
   statusDisplay: StatusDisplay | null;
@@ -769,6 +779,7 @@ export async function getEventsWithUserStatus(): Promise<
       startsAt: e.startsAt,
       endsAt: e.endsAt,
       hasEnded: hasEventElapsed(e.endsAt),
+      applicationsClosed: areApplicationsClosed(e, now),
       status,
       statusDisplay: status ? displayMap[status] : null,
       isJudge: judgedEventIds.has(e.id),

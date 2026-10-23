@@ -92,6 +92,30 @@ describe('getEventDisplayStatus', () => {
     ).toBe('accepted');
   });
 
+  test('closed applications replace the open badge for newcomers only', () => {
+    expect(
+      getEventDisplayStatus({
+        hasApplication: true,
+        status: null,
+        applicationsClosed: true,
+      }),
+    ).toMatchObject({ pill: 'closed', label: 'Applications closed' });
+    expect(
+      getEventDisplayStatus({
+        hasApplication: false,
+        status: null,
+        applicationsClosed: true,
+      }),
+    ).toMatchObject({ pill: 'closed', label: 'Registration closed' });
+    expect(
+      getEventDisplayStatus({
+        hasApplication: true,
+        status: 'pending_review',
+        applicationsClosed: true,
+      }).pill,
+    ).toBe('pending_review');
+  });
+
   test('a judge sees judging, whatever else is on record', () => {
     expect(
       getEventDisplayStatus({

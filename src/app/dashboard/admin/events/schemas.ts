@@ -132,6 +132,23 @@ export function submissionsCloseAtError(event: {
 }
 
 /**
+ * Applications (or registrations) can close any time before the event ends —
+ * including before it starts, which is the usual case. A close instant after
+ * the end would never take effect, so it's almost certainly a typo.
+ */
+export function applicationsCloseAtError(event: {
+  endsAt: Date | null;
+  applicationsCloseAt: Date | null;
+}): string | null {
+  const { endsAt, applicationsCloseAt } = event;
+  if (!applicationsCloseAt || !endsAt) return null;
+  if (applicationsCloseAt.getTime() >= endsAt.getTime()) {
+    return 'The close date must be before the event ends.';
+  }
+  return null;
+}
+
+/**
  * An event's optional custom URL slug (`/dashboard/events/mruhacks-2026`).
  * An empty string is how a form says "no slug" — it normalizes to null on the
  * way into the DB, leaving the event addressed by its uuid.
@@ -212,6 +229,8 @@ export const updateEventSettingsSchema = z
     maxTeamSize: z.number().int().positive().nullish(),
     eventTypeId: eventTypeIdSchema,
     submissionsCloseAt: eventInstantSchema.nullish(),
+    applicationsCloseAt: eventInstantSchema.nullish(),
+    applicationsClosed: z.boolean().optional(),
   })
   .refine(
     (data) => {
@@ -236,6 +255,18 @@ export const updateEventSettingsSchema = z
     });
     if (message) {
       ctx.addIssue({ code: 'custom', message, path: ['submissionsCloseAt'] });
+    }
+  })
+  .superRefine((data, ctx) => {
+    if (data.endsAt === undefined) return;
+    const message = applicationsCloseAtError({
+      endsAt: data.endsAt ? new Date(data.endsAt) : null,
+      applicationsCloseAt: data.applicationsCloseAt
+        ? new Date(data.applicationsCloseAt)
+        : null,
+    });
+    if (message) {
+      ctx.addIssue({ code: 'custom', message, path: ['applicationsCloseAt'] });
     }
   });
 // Note: this is a partial update, so latitude/longitude/radiusMeters pairing

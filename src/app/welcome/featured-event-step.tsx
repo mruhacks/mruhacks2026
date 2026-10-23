@@ -21,6 +21,8 @@ import { registerForEvent } from '@/app/register/actions';
 import { LocalDateTime } from '@/components/local-date-time';
 import { completeWelcomeOnboarding } from '@/app/dashboard/account/actions';
 import { Spinner } from '@/components/ui/spinner';
+import { intakeCopy } from '@/lib/intake';
+import type { EventOnlyFormValues } from '@/components/application-form/schema';
 
 export type FeaturedOnboardingEvent = {
   id: string;
@@ -29,6 +31,8 @@ export type FeaturedOnboardingEvent = {
   applicationQuestions: ApplicationQuestion[];
   startsAt: Date | null;
   teamsEnabled: boolean;
+  /** Shown as a deadline; the step is skipped entirely once it passes. */
+  applicationsCloseAt: Date | null;
 };
 
 export function FeaturedEventStep({
@@ -47,6 +51,12 @@ export function FeaturedEventStep({
   const [teamCode, setTeamCode] = React.useState('');
   const [teamCodeError, setTeamCodeError] = React.useState<string | null>(null);
   const [advanceError, setAdvanceError] = React.useState<string | null>(null);
+  const [registerError, setRegisterError] = React.useState<string | null>(null);
+  // The wizard drops this step once intake closes, but a page loaded just
+  // before that can still be open. When the server turns the submit away for
+  // that reason, the only thing left to do here is move on.
+  const [intakeClosed, setIntakeClosed] = React.useState(false);
+  const copy = intakeCopy(event.hasApplication);
   const activeQuestionCount = event.applicationQuestions.filter(
     (question) => question.active && question.type !== 'section_divider',
   ).length;
@@ -92,9 +102,11 @@ export function FeaturedEventStep({
   const register = async () => {
     setRegistering(true);
     try {
+      setRegisterError(null);
       const result = await registerForEvent(event.id);
       if (!result.success) {
-        toast.error(result.error);
+        if (result.error === copy.closedMessage) setIntakeClosed(true);
+        else setRegisterError(result.error);
         return;
       }
       toast.success('Registered for event.');
@@ -104,9 +116,47 @@ export function FeaturedEventStep({
     }
   };
 
+  const submitApplication = async (
+    data: EventOnlyFormValues,
+    eventId: string,
+  ) => {
+    const result = await submitEventApplication(data, eventId);
+    if (!result.success && result.error === copy.closedMessage) {
+      setIntakeClosed(true);
+    }
+    return result;
+  };
+
   const onApplicationSuccess = async () => {
     if (await joinTeamIfProvided()) await advance();
   };
+
+  if (intakeClosed) {
+    return (
+      <div className='flex flex-col gap-6'>
+        <div className='flex flex-col gap-1'>
+          <h2 className='text-lg font-semibold'>{event.name}</h2>
+          <p className='text-muted-foreground text-sm'>
+            {copy.closedMessage} You can finish setting up your account without
+            it.
+          </p>
+        </div>
+        <div className='flex items-center justify-between gap-3'>
+          <Button
+            type='button'
+            variant='outline'
+            onClick={() => router.push(backHref)}
+          >
+            Back
+          </Button>
+          <Button type='button' onClick={advance}>
+            Continue
+          </Button>
+        </div>
+        {advanceError && <FieldError>{advanceError}</FieldError>}
+      </div>
+    );
+  }
 
   return (
     <div className='flex flex-col gap-6'>
@@ -124,6 +174,17 @@ export function FeaturedEventStep({
               dateStyle='medium'
               timeStyle='short'
             />
+          </p>
+        )}
+        {event.applicationsCloseAt && (
+          <p className='text-muted-foreground text-sm'>
+            {copy.closesLabel}{' '}
+            <LocalDateTime
+              value={event.applicationsCloseAt}
+              dateStyle='medium'
+              timeStyle='short'
+            />
+            .
           </p>
         )}
         <p className='text-muted-foreground text-sm'>
@@ -163,7 +224,7 @@ export function FeaturedEventStep({
         <ApplicationForm
           eventId={event.id}
           applicationQuestions={event.applicationQuestions}
-          submitAction={submitEventApplication}
+          submitAction={submitApplication}
           submitLabel='Submit application'
           successMessage='Application submitted.'
           onSuccess={onApplicationSuccess}
@@ -189,6 +250,7 @@ export function FeaturedEventStep({
           </Button>
         </div>
       )}
+      {registerError && <FieldError>{registerError}</FieldError>}
       {event.hasApplication && (
         <Button
           type='button'

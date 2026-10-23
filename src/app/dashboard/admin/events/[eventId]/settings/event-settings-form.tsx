@@ -36,6 +36,7 @@ import type { AdminEventSettings } from '@/lib/admin-event';
 import type { EventTypeOption } from '@/lib/event-types';
 import { adminEventPath } from '@/lib/event-slug';
 import { slugify } from '@/lib/slug';
+import { intakeCopy } from '@/lib/intake';
 import { fromDateTimeLocalValue, toDateTimeLocalValue } from '@/lib/datetime';
 import { parseOptionalNumber } from '@/lib/form-values';
 import { sanitizeReturnPath } from '@/utils/return-path';
@@ -85,6 +86,10 @@ export function EventSettingsForm({
       teamsEnabled: event.teamsEnabled,
       maxTeamSize: event.maxTeamSize ?? null,
       eventTypeId: event.eventTypeId,
+      applicationsCloseAt: event.applicationsCloseAt
+        ? event.applicationsCloseAt.toISOString()
+        : null,
+      applicationsClosed: event.applicationsClosed,
     }),
     [event],
   );
@@ -108,6 +113,8 @@ export function EventSettingsForm({
     slug,
     capacityVisible,
     submissionsCloseAt,
+    hasApplication,
+    applicationsCloseAt,
   ] = useWatch({
     control,
     name: [
@@ -118,6 +125,8 @@ export function EventSettingsForm({
       'slug',
       'capacityVisible',
       'submissionsCloseAt',
+      'hasApplication',
+      'applicationsCloseAt',
     ],
   });
   // What the participant URL will look like once saved — the uuid is the
@@ -129,6 +138,18 @@ export function EventSettingsForm({
   const submissionsCloseAtAbbr = useZoneAbbreviation(
     submissionsCloseAt ?? undefined,
   );
+  const applicationsCloseAtAbbr = useZoneAbbreviation(
+    applicationsCloseAt ?? undefined,
+  );
+  // An event without an application takes registrations instead; the same
+  // two settings close those.
+  const copy = intakeCopy(hasApplication ?? event.hasApplication);
+  // The switch is only the manual override, so it can read "accepting" while
+  // a passed close date has already shut intake. Say so next to it.
+  const [loadedAt] = React.useState(() => Date.now());
+  const closeDatePassed =
+    applicationsCloseAt != null &&
+    new Date(applicationsCloseAt).getTime() <= loadedAt;
 
   async function onSubmit(data: UpdateEventSettingsInput) {
     setSubmitError(null);
@@ -348,6 +369,46 @@ export function EventSettingsForm({
                       {errors.endsAt && <FieldError errors={[errors.endsAt]} />}
                     </Field>
                   </FieldGroup>
+                  <Field
+                    className='gap-1.5'
+                    data-invalid={!!errors.applicationsCloseAt}
+                  >
+                    <FieldLabel htmlFor='applicationsCloseAt'>
+                      {copy.closesLabel} ({applicationsCloseAtAbbr}, optional)
+                    </FieldLabel>
+                    <Controller
+                      name='applicationsCloseAt'
+                      control={control}
+                      render={({ field }) => (
+                        <Input
+                          {...field}
+                          id='applicationsCloseAt'
+                          aria-invalid={!!errors.applicationsCloseAt}
+                          type='datetime-local'
+                          value={
+                            field.value
+                              ? toDateTimeLocalValue(new Date(field.value))
+                              : ''
+                          }
+                          onChange={(e) =>
+                            field.onChange(
+                              fromDateTimeLocalValue(
+                                e.target.value,
+                              )?.toISOString() ?? null,
+                            )
+                          }
+                        />
+                      )}
+                    />
+                    <FieldDescription>
+                      {closeDatePassed
+                        ? `This time has passed, so no new ${copy.noun} are being accepted.`
+                        : `No new ${copy.noun} after this time.`}
+                    </FieldDescription>
+                    {errors.applicationsCloseAt && (
+                      <FieldError errors={[errors.applicationsCloseAt]} />
+                    )}
+                  </Field>
                   <Field className='gap-1.5' data-invalid={!!errors.location}>
                     <FieldLabel htmlFor='location'>
                       Location (optional)
@@ -446,6 +507,33 @@ export function EventSettingsForm({
               </CardHeader>
               <CardContent className='px-5'>
                 <FieldGroup className='gap-4'>
+                  <Field orientation='horizontal' className='gap-4'>
+                    <FieldContent>
+                      <FieldLabel htmlFor='applicationsClosed'>
+                        Currently accepting {copy.noun}
+                      </FieldLabel>
+                      <FieldDescription>
+                        {closeDatePassed
+                          ? `The ${copy.title.toLowerCase()} close date has passed, so ${copy.noun} are closed whatever this is set to. Clear or move the date to reopen.`
+                          : `Disable to stop new ${copy.noun} before the close date.`}
+                      </FieldDescription>
+                    </FieldContent>
+                    {/* Stored as the "closed" override; shown as its positive. */}
+                    <Controller
+                      name='applicationsClosed'
+                      control={control}
+                      render={({ field }) => (
+                        <Switch
+                          id='applicationsClosed'
+                          checked={!field.value}
+                          onCheckedChange={(accepting) => {
+                            setSubmitError(null);
+                            field.onChange(!accepting);
+                          }}
+                        />
+                      )}
+                    />
+                  </Field>
                   <Field orientation='horizontal' className='gap-4'>
                     <FieldContent>
                       <FieldLabel htmlFor='hasApplication'>

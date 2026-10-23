@@ -400,6 +400,13 @@
       "when": 1792635224315,
       "tag": "0056_signing_public_keys",
       "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1792730851649,
+      "tag": "0057_applications_close",
+      "breakpoints": true
     }
   ]
 }

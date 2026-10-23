@@ -19,6 +19,8 @@ import { getConsentStatus } from '@/app/dashboard/account/actions';
 import { getUserProfile } from '@/app/dashboard/profile/actions';
 import { isOnAnyJudgeRoster } from '@/lib/judging/server';
 import { hasPermission } from '@/lib/rbac/authorization';
+import { hasEventElapsed } from '@/lib/events';
+import { areApplicationsClosed } from '@/lib/intake';
 import type { FeaturedOnboardingEvent } from './featured-event-step';
 
 /**
@@ -82,6 +84,9 @@ export async function getOnboardingProgress(): Promise<OnboardingProgress> {
         applicationQuestions: events.applicationQuestions,
         startsAt: events.startsAt,
         teamsEnabled: events.teamsEnabled,
+        endsAt: events.endsAt,
+        applicationsClosed: events.applicationsClosed,
+        applicationsCloseAt: events.applicationsCloseAt,
       })
       .from(events)
       .where(eq(events.isFeatured, true))
@@ -105,8 +110,16 @@ export async function getOnboardingProgress(): Promise<OnboardingProgress> {
     profileRes.data == null ||
     profileRes.data.universityId == null;
 
+  // Once the featured event stops taking people — closed by hand, past its
+  // close date, or over — the step would only offer a form the server
+  // refuses, so it drops out of the wizard. The event page explains why.
+  const featuredIsOpen =
+    featured != null &&
+    !areApplicationsClosed(featured) &&
+    !hasEventElapsed(featured.endsAt);
+
   let featuredEvent: FeaturedOnboardingEvent | undefined;
-  if (featured && !isJudge && !canSkipEvent) {
+  if (featured && featuredIsOpen && !isJudge && !canSkipEvent) {
     // Applied or registered — either way they already have a participant row.
     const [existingParticipation] = await db
       .select({ id: eventParticipants.id })
@@ -121,8 +134,13 @@ export async function getOnboardingProgress(): Promise<OnboardingProgress> {
 
     if (!existingParticipation) {
       featuredEvent = {
-        ...featured,
+        id: featured.id,
+        name: featured.name,
+        hasApplication: featured.hasApplication,
         applicationQuestions: featured.applicationQuestions ?? [],
+        startsAt: featured.startsAt,
+        teamsEnabled: featured.teamsEnabled,
+        applicationsCloseAt: featured.applicationsCloseAt,
       };
     }
   }

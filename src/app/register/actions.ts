@@ -14,6 +14,7 @@ import { and, eq, isNull } from 'drizzle-orm';
 import { revalidatePath, updateTag } from 'next/cache';
 import { eventApplicationsCacheTag } from '@/lib/admin-event';
 import { hasEventElapsed } from '@/lib/events';
+import { areApplicationsClosed, intakeCopy } from '@/lib/intake';
 import {
   isJudgingEvent,
   JUDGE_SIGNUP_BLOCKED_MESSAGE,
@@ -73,7 +74,11 @@ export async function registerForEvent(eventId: string): Promise<ActionResult> {
       // could both read the pre-registration count and both pass, overflowing
       // capacity (same race handled for teams in joinTeamByCode).
       const [eventRow] = await tx
-        .select({ capacity: events.capacity })
+        .select({
+          capacity: events.capacity,
+          applicationsClosed: events.applicationsClosed,
+          applicationsCloseAt: events.applicationsCloseAt,
+        })
         .from(events)
         .where(eq(events.id, eventId))
         .for('update')
@@ -90,6 +95,11 @@ export async function registerForEvent(eventId: string): Promise<ActionResult> {
           ),
         )
         .limit(1);
+
+      // Closed registration, like capacity, only turns away newcomers.
+      if (!existing && areApplicationsClosed(eventRow)) {
+        return fail(intakeCopy(false).closedMessage);
+      }
 
       // Only a new registration counts against capacity; re-registering
       // (already a participant) stays a no-op regardless of fill level.

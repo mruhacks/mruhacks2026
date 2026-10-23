@@ -75,6 +75,7 @@ import {
   createEventSchema,
   updateEventSettingsSchema,
   updateParticipantStatusSchema,
+  applicationsCloseAtError,
   submissionsCloseAtError,
 } from './schemas';
 import type {
@@ -640,6 +641,18 @@ export async function updateEventSettings(
   });
   if (deadlineError) return fail(deadlineError);
 
+  const finalApplicationsCloseAt =
+    input.applicationsCloseAt !== undefined
+      ? input.applicationsCloseAt
+        ? new Date(input.applicationsCloseAt)
+        : null
+      : eventRow.applicationsCloseAt;
+  const closeAtError = applicationsCloseAtError({
+    endsAt: finalEndsAt,
+    applicationsCloseAt: finalApplicationsCloseAt,
+  });
+  if (closeAtError) return fail(closeAtError);
+
   // Teams own submissions, check-in decides who may work on them, and the
   // deadline is what freezes them. Once any team has started a project,
   // switching one of those off would strand it, so refuse instead.
@@ -749,6 +762,9 @@ export async function updateEventSettings(
         startsAt: finalStartsAt,
         endsAt: finalEndsAt,
         submissionsCloseAt: finalSubmissionsCloseAt,
+        applicationsCloseAt: finalApplicationsCloseAt,
+        applicationsClosed:
+          input.applicationsClosed ?? eventRow.applicationsClosed,
         location:
           input.location !== undefined
             ? input.location || null

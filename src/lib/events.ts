@@ -35,6 +35,8 @@ export async function getAllEvents() {
       hasApplication: events.hasApplication,
       startsAt: events.startsAt,
       endsAt: events.endsAt,
+      applicationsClosed: events.applicationsClosed,
+      applicationsCloseAt: events.applicationsCloseAt,
     })
     .from(events)
     .where(isNull(events.parentEventId))

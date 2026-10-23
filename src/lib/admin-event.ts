@@ -166,6 +166,8 @@ export type AdminEventSettings = AdminEventHeader & {
   rsvpResponseWindowHours: number;
   capacityVisible: boolean;
   eventTypeId: number | null;
+  applicationsCloseAt: Date | null;
+  applicationsClosed: boolean;
 };
 
 /**
@@ -205,6 +207,8 @@ export async function getAdminEventSettings(
       rsvpResponseWindowHours: events.rsvpResponseWindowHours,
       capacityVisible: events.capacityVisible,
       eventTypeId: events.eventTypeId,
+      applicationsCloseAt: events.applicationsCloseAt,
+      applicationsClosed: events.applicationsClosed,
     })
     .from(events)
     .leftJoin(eventTerms, eq(events.termsId, eventTerms.id))

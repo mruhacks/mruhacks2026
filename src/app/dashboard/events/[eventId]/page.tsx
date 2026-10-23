@@ -9,6 +9,7 @@ import { BreadcrumbSegment } from '@/components/breadcrumb-context';
 import { MarkdownContent } from '@/components/markdown/markdown-content';
 import { events, eventTypes, eventArticles, eventTerms } from '@/db/schema';
 import { hasEventElapsed, resolveEventId } from '@/lib/events';
+import { areApplicationsClosed, intakeCopy } from '@/lib/intake';
 import { countAttending } from '@/lib/participation/server';
 import { findJudgeForUser } from '@/lib/judging/server';
 import { eventPath } from '@/lib/event-slug';
@@ -24,7 +25,7 @@ import {
 } from '@/app/dashboard/events/actions';
 import { ParticipationStatusCard } from '@/app/dashboard/events/ParticipationStatusCard';
 import { RsvpPendingPrompt } from '@/app/dashboard/events/RsvpPendingPrompt';
-import { LocalDateRange } from '@/components/local-date-time';
+import { LocalDateRange, LocalDateTime } from '@/components/local-date-time';
 import {
   canEditApplication,
   canFormTeam,
@@ -137,6 +138,8 @@ async function EventEntryContent({ params, searchParams }: Props) {
       capacity: events.capacity,
       capacityVisible: events.capacityVisible,
       teamsEnabled: events.teamsEnabled,
+      applicationsClosed: events.applicationsClosed,
+      applicationsCloseAt: events.applicationsCloseAt,
       eventTypeLabel: eventTypes.label,
     })
     .from(events)
@@ -199,6 +202,8 @@ async function EventEntryContent({ params, searchParams }: Props) {
   // Every participant action is refused server-side once the event is over,
   // so the page drops the controls instead of offering ones that will fail.
   const hasEnded = hasEventElapsed(row.endsAt);
+  // Only stops newcomers: existing participants keep every control they have.
+  const intakeClosed = areApplicationsClosed(row);
 
   // Judges can't sign up for the event they judge, so they get the way into
   // judging where everyone else gets an application or registration.
@@ -244,6 +249,7 @@ async function EventEntryContent({ params, searchParams }: Props) {
           // Once the application is decided, the only thing left to act on
           // (an RSVP, giving up a spot) lives in the panel — no sticky bar.
           hasEnded ||
+          (!participation && intakeClosed) ||
           (participation && !canEditApplication(participation.status))
             ? null
             : {
@@ -262,6 +268,8 @@ async function EventEntryContent({ params, searchParams }: Props) {
             participation={participation}
             walletPlatform={walletPlatform}
             hasEnded={hasEnded}
+            closed={intakeClosed}
+            closesAt={row.applicationsCloseAt}
           />
         }
         project={
@@ -296,7 +304,7 @@ async function EventEntryContent({ params, searchParams }: Props) {
       schedule={schedule}
       hasEnded={hasEnded}
       mobileAction={
-        isRegistered || hasEnded
+        isRegistered || hasEnded || intakeClosed
           ? null
           : {
               label: isFull ? 'Event full' : 'Register',
@@ -322,6 +330,8 @@ async function EventEntryContent({ params, searchParams }: Props) {
           }
           walletPlatform={walletPlatform}
           hasEnded={hasEnded}
+          closed={intakeClosed}
+          closesAt={row.applicationsCloseAt}
         />
       }
       team={
@@ -443,6 +453,8 @@ function ApplicationParticipationPanel({
   walletPlatform,
   checkInEnabled,
   hasEnded,
+  closed,
+  closesAt,
 }: {
   eventId: string;
   eventHref: string;
@@ -453,6 +465,8 @@ function ApplicationParticipationPanel({
   walletPlatform: WalletPlatform;
   checkInEnabled: boolean;
   hasEnded: boolean;
+  closed: boolean;
+  closesAt: Date | null;
 }) {
   if (participation) {
     return (
@@ -504,6 +518,17 @@ function ApplicationParticipationPanel({
     );
   }
 
+  if (closed) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Application</CardTitle>
+          <CardDescription>{intakeCopy(true).closedMessage}</CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -511,6 +536,7 @@ function ApplicationParticipationPanel({
         <CardDescription>
           This event uses an application process. Tell us a little about
           yourself — spots are limited and reviewed by our team.
+          <ClosesAtNote closesAt={closesAt} hasApplication />
         </CardDescription>
       </CardHeader>
       <CardFooter className='flex-col gap-2'>
@@ -570,6 +596,8 @@ function RegistrationParticipationPanel({
   walletPlatform,
   checkInEnabled,
   hasEnded,
+  closed,
+  closesAt,
 }: {
   eventId: string;
   isRegistered: boolean;
@@ -578,6 +606,8 @@ function RegistrationParticipationPanel({
   walletPlatform: WalletPlatform;
   checkInEnabled: boolean;
   hasEnded: boolean;
+  closed: boolean;
+  closesAt: Date | null;
 }) {
   if (isRegistered && hasEnded) {
     return (
@@ -635,8 +665,23 @@ function RegistrationParticipationPanel({
               </p>
             </>
           )}
-          <UnregisterEventButton eventId={eventId} className='w-full' />
+          <UnregisterEventButton
+            eventId={eventId}
+            registrationClosed={closed}
+            className='w-full'
+          />
         </CardFooter>
+      </Card>
+    );
+  }
+
+  if (closed) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Registration</CardTitle>
+          <CardDescription>{intakeCopy(false).closedMessage}</CardDescription>
+        </CardHeader>
       </Card>
     );
   }
@@ -651,6 +696,9 @@ function RegistrationParticipationPanel({
             : spotsRemaining != null
               ? `No application required — ${spotsRemaining} spot${spotsRemaining === 1 ? '' : 's'} left.`
               : 'No application required — register now to save your spot.'}
+          {!isFull && (
+            <ClosesAtNote closesAt={closesAt} hasApplication={false} />
+          )}
         </CardDescription>
       </CardHeader>
       <CardFooter>
@@ -661,6 +709,23 @@ function RegistrationParticipationPanel({
         />
       </CardFooter>
     </Card>
+  );
+}
+
+/** The upcoming close instant, appended to an open panel's description. */
+function ClosesAtNote({
+  closesAt,
+  hasApplication,
+}: {
+  closesAt: Date | null;
+  hasApplication: boolean;
+}) {
+  if (!closesAt) return null;
+  return (
+    <span className='mt-1 block'>
+      {intakeCopy(hasApplication).closesLabel}{' '}
+      <LocalDateTime value={closesAt} dateStyle='medium' timeStyle='short' />.
+    </span>
   );
 }
 

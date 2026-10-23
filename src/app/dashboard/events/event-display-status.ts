@@ -15,6 +15,7 @@ export type EventDisplayPill =
   | 'registered'
   | 'open_to_apply'
   | 'registration_open'
+  | 'closed'
   | 'ended'
   | 'judging';
 
@@ -33,6 +34,11 @@ export type EventDisplayStatusInput = {
    * refuses; a real status is still worth showing as a record.
    */
   hasEnded?: boolean;
+  /**
+   * No longer taking new applications/registrations. Like `hasEnded`, only
+   * changes the badge for a user who never took part.
+   */
+  applicationsClosed?: boolean;
   /**
    * On the event's judging roster. Wins over any participation status: a
    * judge can't sign up for the event, so judging is all there is to show.
@@ -69,6 +75,16 @@ export function getEventDisplayStatus(
 
   if (input.hasEnded) {
     return { label: 'Ended', pill: 'ended', badgeVariant: 'secondary' };
+  }
+
+  if (input.applicationsClosed) {
+    return {
+      label: input.hasApplication
+        ? 'Applications closed'
+        : 'Registration closed',
+      pill: 'closed',
+      badgeVariant: 'secondary',
+    };
   }
 
   if (input.hasApplication) {

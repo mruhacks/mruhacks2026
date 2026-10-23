@@ -89,6 +89,7 @@ const STATUS_COLORS: Record<EventDisplayPill, { bg?: string; fg: string }> = {
   registered: { bg: 'var(--blue)', fg: 'var(--white)' },
   open_to_apply: { bg: 'var(--green)', fg: 'var(--white)' },
   registration_open: { bg: 'var(--green)', fg: 'var(--white)' },
+  closed: { bg: 'var(--ink-200)', fg: 'var(--ink-700)' },
   ended: { bg: 'var(--ink-200)', fg: 'var(--ink-700)' },
   // Painted by the shared gradient-button class instead of a flat colour.
   judging: { fg: 'var(--white)' },

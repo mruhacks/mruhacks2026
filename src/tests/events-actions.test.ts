@@ -247,6 +247,7 @@ describe('getEventsWithUserStatus — applied user', () => {
 describe('submitEventApplication — edit restrictions', () => {
   let openEventId: string;
   let elapsedEventId: string;
+  let closedEventId: string;
   let pendingStatusId: number;
   let waitlistedStatusId: number;
 
@@ -316,6 +317,17 @@ describe('submitEventApplication — edit restrictions', () => {
       })
       .returning({ id: events.id });
     elapsedEventId = elapsed.id;
+
+    const [closed] = await db
+      .insert(events)
+      .values({
+        name: 'Edit Restriction Closed Event',
+        hasApplication: true,
+        applicationQuestions: [],
+        applicationsClosed: true,
+      })
+      .returning({ id: events.id });
+    closedEventId = closed.id;
   });
 
   afterAll(async () => {
@@ -326,7 +338,11 @@ describe('submitEventApplication — edit restrictions', () => {
       .delete(eventParticipants)
       .where(eq(eventParticipants.eventId, elapsedEventId));
     await db.delete(events).where(eq(events.id, openEventId));
+    await db
+      .delete(eventParticipants)
+      .where(eq(eventParticipants.eventId, closedEventId));
     await db.delete(events).where(eq(events.id, elapsedEventId));
+    await db.delete(events).where(eq(events.id, closedEventId));
     await db
       .delete(userProfileAbout)
       .where(eq(userProfileAbout.userId, testUserId));
@@ -376,5 +392,34 @@ describe('submitEventApplication — edit restrictions', () => {
     );
     expect(result.success).toBe(false);
     expect((result as { error: string }).error).toMatch(/ended/i);
+  });
+
+  test('rejects a new application once applications are closed', async () => {
+    const result = await submitEventApplication(
+      { applicationResponses: {} },
+      closedEventId,
+    );
+    expect(result.success).toBe(false);
+    expect((result as { error: string }).error).toMatch(/closed/i);
+    const rows = await db
+      .select({ id: eventParticipants.id })
+      .from(eventParticipants)
+      .where(eq(eventParticipants.eventId, closedEventId));
+    expect(rows).toHaveLength(0);
+  });
+
+  test('still lets a pending applicant edit once applications are closed', async () => {
+    await db.insert(eventParticipants).values({
+      eventId: closedEventId,
+      userId: testUserId,
+      statusId: pendingStatusId,
+      responses: {},
+    });
+
+    const result = await submitEventApplication(
+      { applicationResponses: {} },
+      closedEventId,
+    );
+    expect(result.success).toBe(true);
   });
 });

@@ -16,6 +16,7 @@ import {
 import { db } from '@/utils/db';
 import { events } from '@/db/schema';
 import { hasEventElapsed, resolveEventId } from '@/lib/events';
+import { areApplicationsClosed } from '@/lib/intake';
 import { eventPath } from '@/lib/event-slug';
 import {
   isJudgingEvent,
@@ -144,13 +145,47 @@ export default async function ApplyEventPage({ params }: Props) {
     );
   }
 
-  const [previousApplication, options, profileResult, applicationStatus] =
-    await Promise.all([
-      getPreviousFormSubmission(eventId),
-      getOptions(),
-      getUserProfile(),
-      getUserParticipation(eventId),
-    ]);
+  const applicationStatus = await getUserParticipation(eventId);
+
+  // Submitting is refused server-side once the event is over, so a past
+  // event never shows the form — just whatever status the user already has.
+  // Closed applications only turn away newcomers: anyone who already applied
+  // falls through and can still edit while their review is pending. Both are
+  // checked before the profile redirect, so nobody fills one out only to be
+  // told there is nothing to apply to.
+  const hasEnded = hasEventElapsed(event.endsAt);
+  if (hasEnded || (!applicationStatus && areApplicationsClosed(event))) {
+    return (
+      <div className='space-y-4'>
+        <BreadcrumbSegment id={segment} label={event.name} />
+        {applicationStatus ? (
+          <ApplicationStatusBanner application={applicationStatus} standalone />
+        ) : (
+          <Card className='w-full sm:max-w-2xl'>
+            <CardHeader>
+              <CardTitle>Applications closed</CardTitle>
+              <CardDescription>
+                {hasEnded
+                  ? `${event.name} has ended and is no longer accepting applications.`
+                  : `${event.name} is no longer accepting applications.`}
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        )}
+        <div className='sm:max-w-2xl'>
+          <Button asChild variant='outline' size='sm'>
+            <Link href='/dashboard'>← Back to events</Link>
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  const [previousApplication, options, profileResult] = await Promise.all([
+    getPreviousFormSubmission(eventId),
+    getOptions(),
+    getUserProfile(),
+  ]);
 
   const hasProfile = profileResult.success && profileResult.data != null;
   const profileData = hasProfile ? profileResult.data : null;
@@ -169,39 +204,11 @@ export default async function ApplyEventPage({ params }: Props) {
     redirect(`/dashboard/profile?next=/dashboard/events/${segment}/apply`);
   }
 
-  const hasEnded = hasEventElapsed(event.endsAt);
   const decisionIsFinal =
     applicationStatus != null && !canEditApplication(applicationStatus.status);
   const hasCustomQuestions = event.applicationQuestions.some(
     (question) => question.active && question.type !== 'section_divider',
   );
-
-  // Submitting is refused server-side once the event is over, so a past
-  // event never shows the form — just whatever status the user already has.
-  if (hasEnded) {
-    return (
-      <div className='space-y-4'>
-        <BreadcrumbSegment id={segment} label={event.name} />
-        {applicationStatus ? (
-          <ApplicationStatusBanner application={applicationStatus} standalone />
-        ) : (
-          <Card className='w-full sm:max-w-2xl'>
-            <CardHeader>
-              <CardTitle>Applications closed</CardTitle>
-              <CardDescription>
-                {event.name} has ended and is no longer accepting applications.
-              </CardDescription>
-            </CardHeader>
-          </Card>
-        )}
-        <div className='sm:max-w-2xl'>
-          <Button asChild variant='outline' size='sm'>
-            <Link href='/dashboard'>← Back to events</Link>
-          </Button>
-        </div>
-      </div>
-    );
-  }
 
   if (decisionIsFinal && applicationStatus) {
     return (
