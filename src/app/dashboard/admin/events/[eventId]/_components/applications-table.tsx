@@ -2,14 +2,19 @@
 
 import * as React from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
-import { Download, FileDown, Mail } from 'lucide-react';
+import { Download, FileDown, Mail, MoreHorizontal } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { LocalDateTime } from '@/components/local-date-time';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { DataTable } from '@/components/data-table/data-table';
-import { Spinner } from '@/components/ui/spinner';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import {
   Select,
   SelectContent,
@@ -167,11 +172,12 @@ function StatusCell({
 }
 
 /**
- * Admits a walk-in: puts them in the RSVP bucket and emails their RSVP link
- * at once, so they can agree to the Event Terms on their phone at the desk.
- * Already invited → sends the link again.
+ * The row's "…" menu. Its one action admits a walk-in: puts them in the RSVP
+ * bucket and emails their RSVP link at once, so they can agree to the Event
+ * Terms on their phone at the desk. Already invited → sends the link again.
+ * No menu when the viewer can't do anything to this row.
  */
-function WalkInCell({
+function RowActionsCell({
   eventId,
   row,
   permissions,
@@ -204,21 +210,23 @@ function WalkInCell({
   }
 
   return (
-    <Button
-      variant='outline'
-      size='sm'
-      className='h-7'
-      disabled={isPending}
-      onClick={send}
-      aria-label={`${resend ? 'Resend' : 'Send'} walk-in link to ${row.fullName}`}
-    >
-      {isPending ? (
-        <Spinner data-icon='inline-start' />
-      ) : (
-        <Mail aria-hidden data-icon='inline-start' />
-      )}
-      {resend ? 'Resend link' : 'Send link'}
-    </Button>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant='ghost'
+          size='icon-sm'
+          aria-label={`Actions for ${row.fullName}`}
+        >
+          <MoreHorizontal className='size-4' />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align='end'>
+        <DropdownMenuItem disabled={isPending} onSelect={send}>
+          <Mail className='size-4' />
+          {resend ? 'Resend walk-in link' : 'Send walk-in link'}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -400,24 +408,6 @@ export function ApplicationsTable({
               />
             ),
           },
-          // Moving anyone to `invited` needs `rsvp:write:all`, so without it
-          // the column would only ever be empty.
-          ...(canManageRsvp
-            ? [
-                {
-                  id: 'walkIn',
-                  header: 'Walk-in',
-                  enableSorting: false,
-                  cell: ({ row }) => (
-                    <WalkInCell
-                      eventId={eventId}
-                      row={row.original}
-                      permissions={permissions}
-                    />
-                  ),
-                } satisfies ColumnDef<ApplicationsTableRow>,
-              ]
-            : []),
           {
             accessorKey: 'submittedAt',
             header: 'Submitted',
@@ -480,6 +470,25 @@ export function ApplicationsTable({
                       ),
                   };
                 },
+              ),
+            } satisfies ColumnDef<ApplicationsTableRow>,
+          ]
+        : []),
+      // Its only action (the walk-in link) moves the row to `invited`, which
+      // needs `rsvp:write:all`, so without it the column would only be empty.
+      ...(canManageRsvp
+        ? [
+            {
+              id: 'actions',
+              header: () => <span className='sr-only'>Actions</span>,
+              enableSorting: false,
+              enableHiding: false,
+              cell: ({ row }) => (
+                <RowActionsCell
+                  eventId={eventId}
+                  row={row.original}
+                  permissions={permissions}
+                />
               ),
             } satisfies ColumnDef<ApplicationsTableRow>,
           ]
