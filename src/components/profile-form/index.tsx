@@ -28,7 +28,7 @@ const tabLabels: Record<string, string> = {
 };
 
 /** A tab beside Personal / About you that saves on its own (its own form). */
-export type ProfileFormExtraTab = {
+type ProfileFormExtraTab = {
   value: string;
   label: string;
   content: React.ReactNode;

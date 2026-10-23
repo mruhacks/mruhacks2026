@@ -16,10 +16,10 @@ export const SUBMISSION_HEARTBEAT_INTERVAL_MS = 30_000;
 export const SUBMISSION_PRESENCE_WINDOW_MS = 90_000;
 
 /** Where source code may live. Required before a project can be published. */
-export const REPO_HOSTS = ['github.com', 'gitlab.com', 'codeberg.org', 'bitbucket.org', 'huggingface.co'] as const;
+const REPO_HOSTS = ['github.com', 'gitlab.com', 'codeberg.org', 'bitbucket.org', 'huggingface.co'] as const;
 
 /** Where a demo video may live. */
-export const VIDEO_HOSTS = ['youtube.com', 'youtu.be', 'vimeo.com', 'loom.com'] as const;
+const VIDEO_HOSTS = ['youtube.com', 'youtu.be', 'vimeo.com', 'loom.com'] as const;
 
 export type SubmissionLinkKind = 'repo' | 'video' | 'demo';
 

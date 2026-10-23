@@ -16,8 +16,6 @@ export const eventOnlySchema = z.object({
 
 export type EventOnlyFormValues = z.infer<typeof eventOnlySchema>;
 
-export type ApplicationSelectOption = { value: string; label: string };
-
 /** Builds the client/server validation rule for one active event question. */
 export function createApplicationQuestionSchema(question: ApplicationQuestion): z.ZodTypeAny {
   let fieldSchema: z.ZodTypeAny;

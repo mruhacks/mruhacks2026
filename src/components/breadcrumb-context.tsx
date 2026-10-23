@@ -44,7 +44,7 @@ export function useBreadcrumbContext() {
 }
 
 /** Hook for client components to register a dynamic-segment label. */
-export function useBreadcrumbSegment(id: string | null | undefined, label: string | null | undefined) {
+function useBreadcrumbSegment(id: string | null | undefined, label: string | null | undefined) {
   const { setSegment } = useBreadcrumbContext();
   React.useEffect(() => {
     if (id && label) setSegment(id, label);

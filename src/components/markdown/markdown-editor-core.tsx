@@ -6,7 +6,6 @@
  * for `window` on mount and cannot be prerendered.
  */
 
-import * as React from 'react';
 import {
   BlockTypeSelect,
   BoldItalicUnderlineToggles,

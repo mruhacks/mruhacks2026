@@ -10,7 +10,7 @@ export const MAX_PLACEMENT = 999;
  * much (so 0.333 × 3 passes; 0.33 × 3 doesn't). Saving stores
  * them rescaled to sum to exactly 1.
  */
-export const CRITERION_WEIGHT_SUM_TOLERANCE = 0.001;
+const CRITERION_WEIGHT_SUM_TOLERANCE = 0.001;
 
 export function criterionWeightsSumToOne(weights: readonly number[]): boolean {
   const sum = weights.reduce((total, w) => total + w, 0);

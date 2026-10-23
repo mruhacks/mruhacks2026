@@ -31,7 +31,7 @@ type EmbedProvider = {
   paths?: readonly string[];
 };
 
-export const EMBED_PROVIDERS: readonly EmbedProvider[] = [
+const EMBED_PROVIDERS: readonly EmbedProvider[] = [
   {
     name: 'YouTube',
     origin: 'https://www.youtube-nocookie.com',

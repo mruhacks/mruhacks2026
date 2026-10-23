@@ -1,6 +1,5 @@
 'use client';
 
-import * as React from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 
 import { LocalDateRange } from '@/components/local-date-time';

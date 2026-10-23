@@ -26,7 +26,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { fromDateTimeLocalValue } from '@/lib/datetime';
 import { cn } from '@/lib/utils';
 
-export type ColumnFilterOption = { label: string; value: string };
+type ColumnFilterOption = { label: string; value: string };
 
 declare module '@tanstack/react-table' {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars

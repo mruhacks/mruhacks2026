@@ -12,7 +12,7 @@ import { db } from '@/utils/db';
 const NO_SPOTS_MESSAGE = 'No available spots remaining for this event.';
 const NO_ELIGIBLE_MESSAGE = 'No eligible applicants for the next RSVP wave.';
 
-export type ScheduledEventWaveResult = {
+type ScheduledEventWaveResult = {
   eventId: string;
   eventName: string;
   action:

@@ -1,5 +1,13 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "tags": ["-lintignore"],
-  "ignore": ["vendor/**"]
+  "ignoreBinaries": ["printf"],
+  "workspaces": {
+    ".": {},
+    "workers/rsvp-cron": {
+      "ignoreBinaries": ["wrangler"],
+      "ignoreDependencies": ["wrangler"]
+    }
+  },
+  "ignore": ["src/components/ui/**"]
 }

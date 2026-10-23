@@ -1,5 +1,5 @@
 /**
- * Permission string types and matching helpers.
+ * Permission string matching helpers.
  *
  * Permissions follow the hierarchical format `entity:action:scope`, e.g.
  *   - `user:read:all`
@@ -10,53 +10,6 @@
  * value in that segment. This lets us grant broad powers (e.g. `user:all:all`)
  * without enumerating every concrete permission.
  */
-
-export type PermissionEntity =
-  | 'user'
-  | 'role'
-  | 'permission'
-  | 'registration'
-  | 'team'
-  | 'event'
-  | 'participant'
-  | 'checkin'
-  | 'dietary'
-  | 'application'
-  | 'article'
-  | 'submission'
-  | 'judging'
-  | 'display'
-  | 'onboarding'
-  | 'audit'
-  | 'campaign'
-  | 'system';
-
-export type PermissionAction =
-  | 'read'
-  | 'create'
-  | 'update'
-  | 'delete'
-  | 'manage'
-  | 'approve'
-  | 'reject'
-  | 'submit'
-  | 'review'
-  | 'join'
-  | 'write'
-  | 'vote'
-  | 'override'
-  | 'purge'
-  | 'results'
-  | 'award'
-  | 'skip'
-  | 'signin'
-  | 'send'
-  | 'operational'
-  | 'all';
-
-export type PermissionScope = 'all' | 'any' | 'self' | (string & {});
-
-export type PermissionString = `${PermissionEntity}:${PermissionAction}:${PermissionScope}`;
 
 /**
  * Split a permission string into its entity/action/scope parts.
@@ -103,10 +56,11 @@ export function anyPermissionMatches(granted: Iterable<string>, required: string
 }
 
 /**
- * Canonical list of permission slugs the app expects to exist. Used for
- * seeding, admin UIs, and validation.
+ * Canonical list of permission slugs the app expects to exist. Only read as a
+ * type (`CorePermissionSlug`); `scripts/seed-static.ts` holds the seeded copy.
  */
-export const CORE_PERMISSIONS = [
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- source of CorePermissionSlug
+const CORE_PERMISSIONS = [
   { slug: 'user:read:all', description: 'View any user information' },
   { slug: 'user:write:all', description: 'Modify any user information' },
   {
@@ -228,18 +182,4 @@ export const CORE_PERMISSIONS = [
   },
 ] as const;
 
-/**
- * Canonical roles the app seeds by default.
- */
-export const CORE_ROLES = [
-  { slug: 'admin', description: 'Full system administrator' },
-  { slug: 'organizer', description: 'Manages event logistics and users' },
-  { slug: 'volunteer', description: 'Supports event operations' },
-  {
-    slug: 'marketing',
-    description: 'Writes and sends marketing email campaigns',
-  },
-] as const;
-
-export type CoreRoleSlug = (typeof CORE_ROLES)[number]['slug'];
 export type CorePermissionSlug = (typeof CORE_PERMISSIONS)[number]['slug'];

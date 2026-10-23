@@ -7,7 +7,7 @@ export const WAVE_ALREADY_ACTIVE_MESSAGE = 'An RSVP wave is already active for t
 
 export const WAVE_EVENT_STARTED_MESSAGE = 'Cannot send an RSVP wave after the event has started.';
 
-export const USER_DECISIONS = ['accepted', 'declined'] as const;
+const USER_DECISIONS = ['accepted', 'declined'] as const;
 export type UserDecision = (typeof USER_DECISIONS)[number];
 
 export function isRsvpUserDecision(value: string): value is UserDecision {

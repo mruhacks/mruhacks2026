@@ -6,7 +6,7 @@ import * as schema from '@/db/schema';
 import * as Participation from '@/lib/participation';
 import { db } from '@/utils/db';
 
-export const EVENT_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const EVENT_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export type EventParticipation = {
   eventName: string;

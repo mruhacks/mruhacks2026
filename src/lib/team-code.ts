@@ -18,7 +18,7 @@ import { TEAM_CODE_CHARSET, TEAM_CODE_LENGTH } from '@/lib/team-code-constants';
 
 export { TEAM_CODE_LENGTH, TEAM_CODE_CHARSET } from '@/lib/team-code-constants';
 
-export const TEAM_CODE_MAX_ATTEMPTS = 25;
+const TEAM_CODE_MAX_ATTEMPTS = 25;
 
 const DENYLIST = new Set([...EN_BAD_WORDS, ...FR_BAD_WORDS]);
 

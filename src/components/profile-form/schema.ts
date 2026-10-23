@@ -44,8 +44,8 @@ function socialUrlSchema(host: string, label: string) {
     });
 }
 
-export const linkedinUrlSchema = socialUrlSchema('linkedin.com', 'LinkedIn');
-export const githubUrlSchema = socialUrlSchema('github.com', 'GitHub');
+const linkedinUrlSchema = socialUrlSchema('linkedin.com', 'LinkedIn');
+const githubUrlSchema = socialUrlSchema('github.com', 'GitHub');
 
 /** Free-text "please specify" companion for a select's "Other" option. */
 const otherTextSchema = z.string().trim().max(255, 'Keep it under 255 characters.').optional().or(z.literal(''));
@@ -65,7 +65,7 @@ export const personalSchema = z.object({
 });
 
 /** Mirrors the welcome wizard's About step: academic info + GitHub (no attendedBefore; that's wizard-only, not part of this shared schema). */
-export const aboutSchema = z.object({
+const aboutSchema = z.object({
   universityId: requiredOption('Required'),
   universityOtherText: otherTextSchema,
   majorId: requiredOption('Required'),
@@ -133,7 +133,7 @@ export const profileFormOptionalAboutSchema = z
 export type ProfileFormInput = z.infer<typeof profileFormOptionalAboutSchema>;
 
 /** Whether any student (About) field has been filled in. */
-export function hasStudentDetails(
+function hasStudentDetails(
   data: Pick<
     ProfileFormInput,
     (typeof ACADEMIC_FIELDS)[number] | 'universityOtherText' | 'majorOtherText' | 'githubUrl'
@@ -145,7 +145,7 @@ export function hasStudentDetails(
   );
 }
 
-export type ProfileSelectOption = { value: number; label: string };
+type ProfileSelectOption = { value: number; label: string };
 
 export type ProfileFormOptions = {
   genders: ProfileSelectOption[];
