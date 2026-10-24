@@ -20,6 +20,12 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Card } from '@/components/ui/card';
 
 /**
+ * `checkedIn` is null when it isn't known: a project-only row carries just
+ * its members' names.
+ */
+type RosterName = { name: string; checkedIn: boolean | null };
+
+/**
  * One row per team: a formed team (with its roster, when the viewer can read
  * teams) and its project, if it has one. A team-of-one never shows up as a
  * formed team, so its project gets a row of its own.
@@ -27,9 +33,11 @@ import { Card } from '@/components/ui/card';
 type TeamProjectRow = {
   key: string;
   team: FormedTeamRow | null;
-  members: string[];
+  members: RosterName[];
   project: AdminSubmissionRow | null;
 };
+
+const NOT_CHECKED_IN_CLASS = 'decoration-destructive underline';
 
 function buildRows(teams: FormedTeamRow[], projects: AdminSubmissionRow[]): TeamProjectRow[] {
   const projectByTeamId = new Map(projects.map((p) => [p.teamId, p]));
@@ -39,7 +47,10 @@ function buildRows(teams: FormedTeamRow[], projects: AdminSubmissionRow[]): Team
     return {
       key: team.teamId,
       team,
-      members: team.members.map((m) => m.name),
+      members: team.members.map((m) => ({
+        name: m.name,
+        checkedIn: m.checkedIn,
+      })),
       project,
     };
   });
@@ -47,7 +58,7 @@ function buildRows(teams: FormedTeamRow[], projects: AdminSubmissionRow[]): Team
     rows.push({
       key: project.teamId,
       team: null,
-      members: project.members,
+      members: project.members.map((name) => ({ name, checkedIn: null })),
       project,
     });
   }
@@ -183,12 +194,27 @@ export function TeamsPage({
       {
         id: 'team',
         header: 'Team',
-        accessorFn: (row) => row.members.join(', '),
+        accessorFn: (row) => row.members.map((m) => m.name).join(', '),
         cell: ({ row }) => {
           const { team, members } = row.original;
           return (
             <div className='whitespace-normal'>
-              <p className='text-sm'>{members.length > 0 ? members.join(', ') : 'No remaining members'}</p>
+              <p className='text-sm'>
+                {members.length > 0
+                  ? members.map((member, i) => (
+                      <React.Fragment key={i}>
+                        {i > 0 && ', '}
+                        {member.checkedIn === false ? (
+                          <span className={NOT_CHECKED_IN_CLASS} title='Not checked in'>
+                            {member.name}
+                          </span>
+                        ) : (
+                          member.name
+                        )}
+                      </React.Fragment>
+                    ))
+                  : 'No remaining members'}
+              </p>
               {team && (
                 <p className='text-muted-foreground text-xs'>
                   Led by {team.organizerName}
@@ -322,6 +348,8 @@ export function TeamsPage({
           <p className='text-muted-foreground mt-1 text-sm'>
             {teamRows.length} formed team{teamRows.length !== 1 ? 's' : ''}
             {maxTeamSize != null ? ` · max size ${maxTeamSize}` : ''}
+            {' · '}
+            <span className={NOT_CHECKED_IN_CLASS}>Underlined</span> members haven&apos;t checked in
           </p>
         )}
         {showProjects && (
@@ -360,7 +388,14 @@ export function TeamsPage({
               {selectedTeam.members.map((member) => (
                 <li key={member.userId} className='flex items-center justify-between gap-2 rounded-md border p-2'>
                   <div className='min-w-0'>
-                    <p className='truncate text-sm font-medium'>{member.name}</p>
+                    <p className='truncate text-sm font-medium'>
+                      <span
+                        className={member.checkedIn ? undefined : NOT_CHECKED_IN_CLASS}
+                        title={member.checkedIn ? undefined : 'Not checked in'}
+                      >
+                        {member.name}
+                      </span>
+                    </p>
                     <p className='text-muted-foreground truncate text-xs'>{member.email}</p>
                   </div>
                   <div className='flex shrink-0 items-center gap-2'>
