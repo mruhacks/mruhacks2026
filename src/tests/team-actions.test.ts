@@ -9,6 +9,7 @@ import {
   permission,
   userPermission,
   auditLog,
+  checkIns,
 } from '@/db/schema';
 import { insertAttendees } from '@/tests/participation-fixtures';
 import {
@@ -465,6 +466,24 @@ describe('getFormedTeamsForEvent payload', () => {
     for (const row of result.data) {
       expect(Object.keys(row)).not.toContain('code');
     }
+  });
+
+  test('flags which members have checked in', async () => {
+    await db
+      .insert(checkIns)
+      .values({ eventId, userId: userA.id })
+      .onConflictDoNothing();
+
+    loginAs(adminUser);
+    const result = await getFormedTeamsForEvent(eventId);
+    if (!result.success || !result.data) throw new Error('expected data');
+    const members = result.data.flatMap((row) => row.members);
+    expect(members.find((m) => m.userId === userA.id)?.checkedIn).toBe(true);
+    expect(members.find((m) => m.userId === userB.id)?.checkedIn).toBe(false);
+
+    await db
+      .delete(checkIns)
+      .where(and(eq(checkIns.eventId, eventId), eq(checkIns.userId, userA.id)));
   });
 });
 

@@ -1326,6 +1326,7 @@ export type FormedTeamMember = {
   name: string;
   email: string;
   isOrganizer: boolean;
+  checkedIn: boolean;
 };
 
 export type FormedTeamRow = {
@@ -1385,7 +1386,7 @@ async function listFormedTeams(
     formedTeams.map((t) => [t.teamId, t.memberCount]),
   );
 
-  const [teamRows, memberRows] = await Promise.all([
+  const [teamRows, memberRows, checkInRows] = await Promise.all([
     db
       .select({ id: teams.id, organizerId: teams.organizerId })
       .from(teams)
@@ -1400,8 +1401,19 @@ async function listFormedTeams(
       .from(teamMembers)
       .innerJoin(user, eq(teamMembers.userId, user.id))
       .where(inArray(teamMembers.teamId, teamIds)),
+    db
+      .select({ userId: checkIns.userId })
+      .from(checkIns)
+      .innerJoin(teamMembers, eq(teamMembers.userId, checkIns.userId))
+      .where(
+        and(
+          eq(checkIns.eventId, eventId),
+          inArray(teamMembers.teamId, teamIds),
+        ),
+      ),
   ]);
 
+  const checkedInUserIds = new Set(checkInRows.map((r) => r.userId));
   const membersByTeamId = new Map<string, FormedTeamMember[]>();
   for (const row of memberRows) {
     const list = membersByTeamId.get(row.teamId) ?? [];
@@ -1410,6 +1422,7 @@ async function listFormedTeams(
       name: row.name,
       email: row.email,
       isOrganizer: false,
+      checkedIn: checkedInUserIds.has(row.userId),
     });
     membersByTeamId.set(row.teamId, list);
   }

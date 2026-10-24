@@ -4,7 +4,6 @@ import {
   CalendarCheck,
   CircleCheckBig,
   Gavel,
-  LayoutGrid,
   ThumbsUp,
   Trophy,
   Users,
@@ -151,8 +150,6 @@ async function SummaryTiles({
   const base = `/dashboard/admin/events/${segment}`;
   const showRsvp = canReadRsvp && event.hasApplication;
   const showCheckIn = canCheckIn && event.checkInEnabled;
-  // Teams and their projects share one screen and one tile; either
-  // permission shows it, and each half of it follows its own.
   const showTeams = canReadTeams && event.teamsEnabled;
   const showSubmissions = canReadSubmissions && isSubmissionsEnabled(event);
   const { showJudging, showResults } = judgingTileVisibility(event, {
@@ -160,6 +157,10 @@ async function SummaryTiles({
     canViewResults,
     canAward,
   });
+  // Teams, their projects and the projects' expo tables share one screen and
+  // one tile; any of those permissions shows it, and each part of the screen
+  // follows its own.
+  const showProjects = showSubmissions || showJudging;
 
   // Nothing visible to this viewer: render no grid at all rather than an
   // empty shell.
@@ -210,7 +211,7 @@ async function SummaryTiles({
         />
       )}
 
-      {(showTeams || showSubmissions) && (
+      {(showTeams || showProjects) && (
         <StatTile
           icon={<Users className='size-4' />}
           label={showTeams ? 'Teams' : 'Projects'}
@@ -219,7 +220,7 @@ async function SummaryTiles({
             : counts.submissions.published
           ).toLocaleString()}
           footnote={
-            showSubmissions ? (
+            showProjects ? (
               <>
                 {showTeams && (
                   <>
@@ -265,18 +266,6 @@ async function SummaryTiles({
           label='Judges'
           value={judging.judges.toLocaleString()}
           href={`${base}/judging`}
-        />
-      )}
-
-      {/* Deactivating a project is a judging-setup action, so this follows
-          the same permission as the Judges tile. */}
-      {showJudging && judging && (
-        <StatTile
-          icon={<LayoutGrid className='size-4' />}
-          label='Expo projects'
-          value={judging.judgedProjects.toLocaleString()}
-          footnote='in judging'
-          href={`${base}/judging/projects`}
         />
       )}
 

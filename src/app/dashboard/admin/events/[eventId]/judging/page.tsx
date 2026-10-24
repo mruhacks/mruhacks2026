@@ -18,7 +18,8 @@ type Props = { params: Promise<{ eventId: string }> };
 
 /**
  * Expo judging setup: criteria, the judge roster and the table layout. Which
- * projects are in play has its own page, `judging/projects`. Sync shell, with
+ * projects are in play is managed on the Teams page, next to each team's
+ * project and expo table. Sync shell, with
  * the session and reads behind Suspense like every page here.
  */
 export default function JudgingRoute({ params }: Props) {
