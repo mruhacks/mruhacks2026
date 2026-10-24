@@ -123,6 +123,7 @@ describe('applyCheckIn / clearCheckIn', () => {
     checkedInAtLabel: 'Sep 16, 2026, 10:00 AM MT',
     checkedInByName: null,
     targetName: null,
+    dietary: null,
   };
 
   test('applyCheckIn marks the scanned row without touching the rest', () => {

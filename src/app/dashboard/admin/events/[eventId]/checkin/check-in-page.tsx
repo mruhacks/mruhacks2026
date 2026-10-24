@@ -11,7 +11,8 @@ import {
   scanCheckIn,
   undoCheckIn,
 } from '@/app/dashboard/admin/events/check-in-actions';
-import type { CheckInOutcome, CheckInRosterRow } from '@/app/dashboard/admin/events/check-in-actions';
+import type { CheckInDietary, CheckInOutcome, CheckInRosterRow } from '@/app/dashboard/admin/events/check-in-actions';
+import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { CheckInRoster } from './check-in-roster';
 import { CheckInScanner } from './check-in-scanner';
@@ -49,6 +50,22 @@ const FEEDBACK_STYLES = {
   },
 };
 
+function DietaryBadges({ dietary }: { dietary: CheckInDietary }) {
+  if (dietary.restrictions.length === 0) {
+    return <p className='text-muted-foreground mt-2 text-sm'>No dietary restrictions.</p>;
+  }
+
+  return (
+    <div className='mt-2 flex flex-wrap gap-1.5'>
+      {dietary.restrictions.map((label) => (
+        <Badge key={label} variant='warning' className='text-left text-sm whitespace-normal'>
+          {label === 'Other' && dietary.otherText ? `Other: ${dietary.otherText}` : label}
+        </Badge>
+      ))}
+    </div>
+  );
+}
+
 function ScanFeedbackPanel({ feedback }: { feedback: ScanFeedback }) {
   const { icon: Icon, box, iconColor } = FEEDBACK_STYLES[feedback.kind];
 
@@ -85,6 +102,7 @@ function ScanFeedbackPanel({ feedback }: { feedback: ScanFeedback }) {
           {duplicate && outcome.checkedInByName ? ` by ${outcome.checkedInByName}` : ''}
           {duplicate ? '. This pass has already been used.' : '.'}
         </p>
+        {outcome.dietary && <DietaryBadges dietary={outcome.dietary} />}
       </div>
     </div>
   );
