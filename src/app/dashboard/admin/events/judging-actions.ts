@@ -105,8 +105,9 @@ async function authorize(
 
 async function revalidateJudging(eventId: string): Promise<void> {
   for (const segment of await eventUrlSegments(eventId)) {
-    // 'layout' reaches every page under judging — projects and each
-    // results table — not just the setup page itself.
+    // 'layout' reaches every page under judging — each results table — not
+    // just the setup page itself. The Teams page fetches on the client and
+    // refetches after its own changes.
     revalidatePath(`/dashboard/admin/events/${segment}/judging`, 'layout');
   }
 }
@@ -197,6 +198,7 @@ export type JudgingRosterRow = {
 
 export type JudgingProjectRow = {
   id: string;
+  teamId: string;
   title: string;
   /** Sort key; null for a project that has never been published. */
   tableSlot: number | null;
@@ -293,6 +295,7 @@ export async function getJudgingProjects(
     db
       .select({
         id: submissions.id,
+        teamId: submissions.teamId,
         title: submissions.title,
         published: submissions.published,
         deactivatedAt: submissions.deactivatedAt,
@@ -306,6 +309,7 @@ export async function getJudgingProjects(
     projects
       .map((row) => ({
         id: row.id,
+        teamId: row.teamId,
         title: row.title,
         tableSlot: tables.get(row.id)?.slot ?? null,
         tableLabel: tables.get(row.id)?.label ?? null,

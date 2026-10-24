@@ -12,7 +12,7 @@ import { TeamsPage } from './teams-page';
 type Props = { params: Promise<{ eventId: string }> };
 
 /**
- * Teams and their projects on one screen. Sync shell, with the segment
+ * Teams, their projects and each project's expo table on one screen. Sync shell, with the segment
  * resolution behind the boundary — the same shape as every other page under
  * this event. It turns a custom slug in the URL into the event's uuid before
  * the client page queries teams and projects with it.
@@ -41,27 +41,33 @@ async function TeamsContent({
   if (!eventId) notFound();
   const user = await getUser();
   if (!user) redirect('/signin');
-  // Either half of the screen is enough to land here — the same permissions
-  // `getFormedTeamsForEvent` and `listEventSubmissions` check, and the ones
-  // the dashboard's Teams tile is shown on. Each half is then gated on its
-  // own.
-  await requireAnyPermission(user.id, ['team:read:all', 'submission:read:all']);
-
-  const [event, canReadTeams, canReadSubmissions] = await Promise.all([
-    getAdminEventSettings(eventId),
-    hasPermission(user.id, 'team:read:all'),
-    hasPermission(user.id, 'submission:read:all'),
+  // Any part of the screen is enough to land here — the same permissions
+  // `getFormedTeamsForEvent`, `listEventSubmissions` and `getJudgingProjects`
+  // check. Each part is then gated on its own.
+  await requireAnyPermission(user.id, [
+    'team:read:all',
+    'submission:read:all',
+    'judging:manage:all',
   ]);
+
+  const [event, canReadTeams, canReadSubmissions, canManageJudging] =
+    await Promise.all([
+      getAdminEventSettings(eventId),
+      hasPermission(user.id, 'team:read:all'),
+      hasPermission(user.id, 'submission:read:all'),
+      hasPermission(user.id, 'judging:manage:all'),
+    ]);
   if (!event) notFound();
+  const submissionsEnabled = isSubmissionsEnabled(event);
 
   return (
     <TeamsPage
       eventId={eventId}
       segment={segment}
       showTeams={canReadTeams && event.teamsEnabled}
-      showProjects={canReadSubmissions && isSubmissionsEnabled(event)}
+      showProjects={canReadSubmissions && submissionsEnabled}
+      showJudging={canManageJudging && submissionsEnabled}
       maxTeamSize={event.maxTeamSize}
-      submissionsCloseAt={event.submissionsCloseAt}
     />
   );
 }
