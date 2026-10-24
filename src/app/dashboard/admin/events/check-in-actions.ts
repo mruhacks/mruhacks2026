@@ -7,9 +7,11 @@ import { z } from 'zod';
 
 import {
   checkIns,
+  dietaryRestrictions,
   eventParticipants,
   events,
   user,
+  userDietaryRestrictions,
   userProfiles,
 } from '@/db/schema';
 import { eventApplicationsCacheTag } from '@/lib/admin-event';
@@ -29,6 +31,7 @@ import { hasStatus } from '@/lib/participation/server';
 import { ok, fail, type ActionResult } from '@/utils/action-result';
 import { writeAuditLog } from '@/utils/audit-log';
 import { getUser } from '@/utils/auth';
+import { dietaryRestrictionsList } from '@/types/lookups';
 import { db } from '@/utils/db';
 
 const UUID_PATTERN =
@@ -50,6 +53,18 @@ export type CheckInOutcome = {
    * target back on the very first scan is what catches that.
    */
   targetName: string | null;
+  /**
+   * What the participant can't eat, shown on a meal check-in so the volunteer
+   * can hand them the right plate. Null when the target isn't a meal or the
+   * scanner lacks `dietary:read:all`; an empty `restrictions` means none.
+   */
+  dietary: CheckInDietary | null;
+};
+
+export type CheckInDietary = {
+  restrictions: string[];
+  /** Free text from the "Other" option, if they picked it. */
+  otherText: string | null;
 };
 
 export type CheckInRosterRow = {
@@ -122,6 +137,32 @@ async function isCheckInEnabled(
   return target?.enabled ?? true;
 }
 
+async function loadDietary(userId: string): Promise<CheckInDietary> {
+  const [labelRows, [profile]] = await Promise.all([
+    db
+      .select({ label: dietaryRestrictions.label })
+      .from(userDietaryRestrictions)
+      .innerJoin(
+        dietaryRestrictions,
+        eq(dietaryRestrictions.id, userDietaryRestrictions.restrictionId),
+      )
+      .where(eq(userDietaryRestrictions.userId, userId)),
+    db
+      .select({ otherText: userProfiles.dietaryOtherText })
+      .from(userProfiles)
+      .where(eq(userProfiles.userId, userId))
+      .limit(1),
+  ]);
+
+  // Same ordering and "Other" handling as the dietary report, so the desk and
+  // the kitchen's numbers describe a person the same way.
+  const labels = new Set<string>(labelRows.map((row) => row.label));
+  return {
+    restrictions: dietaryRestrictionsList.filter((label) => labels.has(label)),
+    otherText: labels.has('Other') ? profile?.otherText?.trim() || null : null,
+  };
+}
+
 async function loadAccountName(userId: string): Promise<string> {
   const [row] = await db
     .select({ name: user.name })
@@ -145,7 +186,10 @@ async function recordCheckIn(
   mainEventId: string,
   userId: string,
   actorId: string,
-): Promise<Omit<CheckInOutcome, 'userId' | 'name' | 'targetName'> | null> {
+): Promise<Omit<
+  CheckInOutcome,
+  'userId' | 'name' | 'targetName' | 'dietary'
+> | null> {
   const [inserted] = await db
     .insert(checkIns)
     .values({ eventId, userId, checkedInBy: actorId })
@@ -267,7 +311,12 @@ async function checkInUser(
     });
   }
 
-  return ok({ userId, name, targetName: target.name, ...recorded });
+  const dietary =
+    target.isMeal && (await hasPermission(actorId, 'dietary:read:all'))
+      ? await loadDietary(userId)
+      : null;
+
+  return ok({ userId, name, targetName: target.name, dietary, ...recorded });
 }
 
 /** The failure every action shares when a target isn't this event's sub-event. */
