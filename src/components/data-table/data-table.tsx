@@ -163,6 +163,10 @@ export function DataTable<TData, TValue>({
         : {}),
     },
     manualPagination,
+    // TanStack's default jumps back to the first page whenever `data`
+    // changes, so acting on a row (which refetches) loses the user's place.
+    // Searching, filtering and sorting still reset it, below.
+    autoResetPageIndex: false,
     pageCount: manualPagination ? (pageCount ?? -1) : undefined,
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
@@ -191,6 +195,18 @@ export function DataTable<TData, TValue>({
       },
     },
   });
+
+  React.useEffect(() => {
+    if (!manualPagination) table.setPageIndex(0);
+  }, [table, manualPagination, globalFilter, columnFilters, sorting]);
+
+  // Rows removed by a refetch can leave the current page past the end.
+  const clientPageCount = manualPagination ? 0 : table.getPageCount();
+  React.useEffect(() => {
+    if (clientPageCount > 0 && table.getState().pagination.pageIndex >= clientPageCount) {
+      table.setPageIndex(clientPageCount - 1);
+    }
+  }, [table, clientPageCount]);
 
   const showSearch = searchPlaceholder !== null;
 
