@@ -57,6 +57,7 @@ describe('submissionLinkError', () => {
     expect(
       submissionLinkError('repo', 'https://huggingface.co/spaces/a/b'),
     ).toBeNull();
+    expect(submissionLinkError('repo', 'https://co.codes/a/b')).toBeNull();
   });
 
   test('rejects other repo hosts and look-alikes', () => {

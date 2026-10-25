@@ -22,6 +22,7 @@ export const REPO_HOSTS = [
   'codeberg.org',
   'bitbucket.org',
   'huggingface.co',
+  'co.codes',
 ] as const;
 
 /** Where a demo video may live. */
