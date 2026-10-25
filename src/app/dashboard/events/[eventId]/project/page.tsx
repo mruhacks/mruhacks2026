@@ -1,5 +1,6 @@
 import { Suspense } from 'react';
 import { notFound, redirect } from 'next/navigation';
+import { connection } from 'next/server';
 
 import { getMySubmission } from '@/app/dashboard/events/submission-actions';
 import { BreadcrumbSegment } from '@/components/breadcrumb-context';
@@ -47,6 +48,11 @@ async function ProjectContent({
   if (!eventId) notFound();
   const user = await getUser();
   if (!user) redirect('/signin');
+
+  // The stage depends on the current time, and nothing above reads the
+  // request (the session is private-cached), so opt in to request time
+  // before `getMySubmission` reaches its `new Date()`.
+  await connection();
 
   // Fails for anyone not eligible (or an event without submissions) — a 404
   // rather than "forbidden", the same as a draft wiki article.
