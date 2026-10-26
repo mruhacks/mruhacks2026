@@ -37,11 +37,7 @@ export default async function ProjectsPage() {
             <ChevronLeftIcon className='size-4' aria-hidden />
             Back to MRUHacks
           </Link>
-          <p className='text-pre-title-purple text-sm font-semibold sm:text-base'>{eventName}</p>
-          <h1 className='my-3 text-[40px] leading-none font-semibold tracking-[-0.04em] sm:text-[56px]'>
-            All Projects
-          </h1>
-          <p className='max-w-xl text-base text-(--ink-700)'>Every project submitted at {eventName}.</p>
+          <h1 className='text-[40px] leading-none font-semibold tracking-[-0.04em] sm:text-[56px]'>{eventName}</h1>
         </section>
 
         <div className='mx-6 flex items-baseline justify-end gap-4 border-b border-(--ink-200) pb-4 sm:mx-14'>
