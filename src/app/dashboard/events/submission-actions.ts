@@ -23,6 +23,7 @@ import * as schema from '@/db/schema';
 import { eventApplicationsCacheTag } from '@/lib/admin-event';
 import { eventUrlSegments } from '@/lib/events';
 import * as Judging from '@/lib/judging/server';
+import { PROJECT_SHOWCASE_CACHE_TAG } from '@/lib/project-showcase';
 import { collectAttachmentKeys } from '@/lib/markdown-attachments';
 import { readImageUpload } from '@/lib/image-attachments';
 import * as Rbac from '@/lib/rbac/server';
@@ -120,6 +121,7 @@ function editBlockedReason(access: SubmissionAccess): string | null {
 
 async function revalidateSubmissionPaths(eventId: string): Promise<void> {
   updateTag(eventApplicationsCacheTag(eventId));
+  updateTag(PROJECT_SHOWCASE_CACHE_TAG);
   for (const segment of await eventUrlSegments(eventId)) {
     revalidatePath(`/dashboard/events/${segment}`);
     revalidatePath(`/dashboard/events/${segment}/project`);

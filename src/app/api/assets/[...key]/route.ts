@@ -1,3 +1,4 @@
+import { isPublicSubmissionImage } from '@/lib/project-showcase';
 import { getUser } from '@/utils/auth';
 import {
   campaignImageRedirect,
@@ -21,8 +22,10 @@ import {
  *   articles. Requires a signed-in session, since the wiki lives behind the
  *   dashboard and so must its images.
  * - `submission-content/…` — images in a team's project write-up, including
- *   its cover. Same signed-in-only check as `event-content/`: the keys are
- *   unguessable, and a draft's text is what's private, not its pictures.
+ *   its cover. Anyone, for a published, active project — the public project
+ *   gallery shows them. A draft's (or deactivated project's) images need a
+ *   signed-in session, like `event-content/`: the keys are unguessable, and
+ *   a draft's text is what's private, not its pictures.
  * - `campaign-content/…` — images in campaign emails. No session: they're
  *   loaded by mail clients, and the email can only ever hold this stable
  *   URL, never a presigned one that would expire.
@@ -36,8 +39,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ key
   const isAttachment: boolean = isEventAttachmentKey(objectKey) || isSubmissionAttachmentKey(objectKey);
 
   if (isAttachment) {
-    const user = await getUser();
-    if (!user) return new Response('Not found', { status: 404 });
+    const isPublic = isSubmissionAttachmentKey(objectKey) && (await isPublicSubmissionImage(objectKey));
+    if (!isPublic && !(await getUser())) {
+      return new Response('Not found', { status: 404 });
+    }
   } else if (!objectKey.startsWith('profile-pictures/')) {
     return new Response('Not found', { status: 404 });
   }

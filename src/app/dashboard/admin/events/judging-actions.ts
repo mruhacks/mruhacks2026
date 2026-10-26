@@ -13,13 +13,14 @@
 'use server';
 
 import { and, asc, count, eq, inArray, max, isNotNull, isNull, sql } from 'drizzle-orm';
-import { revalidatePath } from 'next/cache';
+import { revalidatePath, updateTag } from 'next/cache';
 import { z } from 'zod';
 
 import * as schema from '@/db/schema';
 import * as Auth from '@/lib/auth/server';
 import { eventUrlSegments } from '@/lib/events';
 import * as Judging from '@/lib/judging/server';
+import { PROJECT_SHOWCASE_CACHE_TAG } from '@/lib/project-showcase';
 import { isPastSubmissionDeadline } from '@/lib/submissions';
 import * as Rbac from '@/lib/rbac/server';
 import { ActionResult, fail, ok } from '@/utils/action-result';
@@ -822,6 +823,7 @@ export async function setSubmissionDeactivated(
     targetId: submissionId,
     metadata: { eventId },
   });
+  updateTag(PROJECT_SHOWCASE_CACHE_TAG);
   await revalidateJudging(eventId);
   return ok();
 }
@@ -1067,6 +1069,7 @@ export async function setSubmissionPlacement(
     targetId: submissionId,
     metadata: { eventId, placement: parsed.data },
   });
+  updateTag(PROJECT_SHOWCASE_CACHE_TAG);
   await revalidateJudging(eventId);
   return ok();
 }
