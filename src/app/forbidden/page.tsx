@@ -16,18 +16,15 @@ export default async function ForbiddenPage() {
       <Card className='max-w-md text-center shadow-md'>
         <CardHeader className='flex flex-col items-center gap-2'>
           <ShieldAlert className='size-10 text-yellow-500' />
-          <CardTitle className='text-3xl font-semibold text-yellow-500'>
-            403 – Forbidden
-          </CardTitle>
+          <CardTitle className='text-3xl font-semibold text-yellow-500'>403 – Forbidden</CardTitle>
         </CardHeader>
 
         <CardContent className='space-y-5'>
           {user ? (
             <>
               <p className='text-muted-foreground'>
-                You’re signed in as{' '}
-                <span className='font-medium'>{user.email}</span>, but you don’t
-                have permission to view this page.
+                You’re signed in as <span className='font-medium'>{user.email}</span>, but you don’t have permission to
+                view this page.
               </p>
               <Button asChild>
                 <Link href='/dashboard'>Go to Dashboard</Link>
@@ -35,9 +32,7 @@ export default async function ForbiddenPage() {
             </>
           ) : (
             <>
-              <p className='text-muted-foreground'>
-                You need to be logged in to view this resource.
-              </p>
+              <p className='text-muted-foreground'>You need to be logged in to view this resource.</p>
               <div className='flex justify-center gap-2'>
                 <Button asChild>
                   <Link href='/signin'>Sign In</Link>

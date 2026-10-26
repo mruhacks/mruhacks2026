@@ -6,14 +6,7 @@ import { toast } from 'sonner';
 
 import { authClient } from '@/utils/auth-client';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Loader2 } from 'lucide-react';
@@ -25,9 +18,7 @@ export default function ForgotPasswordPage() {
   const [email, setEmail] = React.useState('');
   const [submitting, setSubmitting] = React.useState(false);
   const [sent, setSent] = React.useState(false);
-  const [turnstileToken, setTurnstileToken] = React.useState<string | null>(
-    null,
-  );
+  const [turnstileToken, setTurnstileToken] = React.useState<string | null>(null);
   const turnstileRef = React.useRef<TurnstileHandle>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -69,11 +60,7 @@ export default function ForgotPasswordPage() {
 
         {!sent && (
           <CardContent>
-            <form
-              id='form-forgot-password'
-              onSubmit={handleSubmit}
-              className='space-y-4'
-            >
+            <form id='form-forgot-password' onSubmit={handleSubmit} className='space-y-4'>
               <div className='space-y-2'>
                 <Label htmlFor='forgot-email'>Email</Label>
                 <Input
@@ -100,11 +87,7 @@ export default function ForgotPasswordPage() {
 
         <CardFooter className='flex-col items-stretch gap-2'>
           {!sent && (
-            <Button
-              type='submit'
-              form='form-forgot-password'
-              disabled={submitting || !turnstileToken}
-            >
+            <Button type='submit' form='form-forgot-password' disabled={submitting || !turnstileToken}>
               {submitting ? (
                 <>
                   <Loader2 className='mr-2 size-4 animate-spin' />
@@ -115,10 +98,7 @@ export default function ForgotPasswordPage() {
               )}
             </Button>
           )}
-          <Link
-            href='/signin'
-            className='text-muted-foreground text-center text-xs hover:underline'
-          >
+          <Link href='/signin' className='text-muted-foreground text-center text-xs hover:underline'>
             Back to sign in
           </Link>
         </CardFooter>

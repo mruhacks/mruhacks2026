@@ -13,11 +13,7 @@ import mruIieLogo from '@/assets/display/sponsor/MRUIIE.png';
 import mruLibraryLogo from '@/assets/display/sponsor/MRUL.png';
 import { LocalDateRange, LocalDateTime } from '@/components/local-date-time';
 import { useNow } from '@/lib/use-now';
-import {
-  getVisibleEntries,
-  type DisplayFeed,
-  type DisplayScheduleEntry,
-} from '@/lib/display/schedule';
+import * as Display from '@/lib/display';
 import styles from './display.module.css';
 
 const SPONSORS: { name: string; logo: StaticImageData }[] = [
@@ -62,7 +58,7 @@ function useSlide(): Slide {
 const cx = (...names: (string | false)[]) => names.filter(Boolean).join(' ');
 
 /** The screen's content; `DisplayApp` owns the shell and Aurora around it. */
-export function DisplayScreen({ feed }: { feed: DisplayFeed }) {
+export function DisplayScreen({ feed }: { feed: Display.Feed }) {
   const slide = useSlide();
   const dark = feed.settings.theme === 'dark';
 
@@ -75,10 +71,7 @@ export function DisplayScreen({ feed }: { feed: DisplayFeed }) {
         alt='MRUHacks 2026'
         loading='eager'
         fetchPriority={dark ? 'low' : 'high'}
-        className={cx(
-          styles.bannerImage,
-          (slide.kind !== 'banner' || dark) && styles.hidden,
-        )}
+        className={cx(styles.bannerImage, (slide.kind !== 'banner' || dark) && styles.hidden)}
       />
       <Image
         src={bannerWhite}
@@ -86,17 +79,11 @@ export function DisplayScreen({ feed }: { feed: DisplayFeed }) {
         aria-hidden
         loading='eager'
         fetchPriority={dark ? 'high' : 'low'}
-        className={cx(
-          styles.bannerImage,
-          (slide.kind !== 'banner' || !dark) && styles.hidden,
-        )}
+        className={cx(styles.bannerImage, (slide.kind !== 'banner' || !dark) && styles.hidden)}
       />
 
       <section
-        className={cx(
-          styles.sponsorStage,
-          slide.kind !== 'sponsor' && styles.hidden,
-        )}
+        className={cx(styles.sponsorStage, slide.kind !== 'sponsor' && styles.hidden)}
         aria-label='Event sponsors'
       >
         {SPONSORS.map((sponsor, index) => (
@@ -104,11 +91,7 @@ export function DisplayScreen({ feed }: { feed: DisplayFeed }) {
             key={sponsor.name}
             src={sponsor.logo}
             alt={sponsor.name}
-            className={cx(
-              styles.sponsorImage,
-              !(slide.kind === 'sponsor' && slide.index === index) &&
-                styles.hidden,
-            )}
+            className={cx(styles.sponsorImage, !(slide.kind === 'sponsor' && slide.index === index) && styles.hidden)}
           />
         ))}
         <strong className={styles.sponsorLabel}>Brought to you by</strong>
@@ -119,56 +102,32 @@ export function DisplayScreen({ feed }: { feed: DisplayFeed }) {
   );
 }
 
-function ClockAndSchedule({ schedule }: { schedule: DisplayScheduleEntry[] }) {
+function ClockAndSchedule({ schedule }: { schedule: Display.ScheduleEntry[] }) {
   const now = useNow(CLOCK_TICK_MS);
   if (now === null) return null;
 
-  const { current, progress, ongoing, upcoming } = getVisibleEntries(
-    schedule,
-    now,
-  );
+  const { current, progress, ongoing, upcoming } = Display.getVisibleEntries(schedule, now);
   const [next, ...later] = upcoming;
 
   return (
     <>
       <section className={styles.clockPanel} aria-label='Current time'>
-        <LocalDateTime
-          value={new Date(now)}
-          timeOnly
-          className={styles.clockTime}
-        />
-        <LocalDateTime
-          value={new Date(now)}
-          dateStyle='full'
-          className={styles.clockDate}
-        />
+        <LocalDateTime value={new Date(now)} timeOnly className={styles.clockTime} />
+        <LocalDateTime value={new Date(now)} dateStyle='full' className={styles.clockDate} />
       </section>
 
       {(current || ongoing.length > 0 || upcoming.length > 0) && (
         <section className={styles.schedulePanel} aria-label='Event schedule'>
           {current && (
             <article className={styles.currentEvent}>
-              <strong className={styles.currentEventTitle}>
-                {current.name}
-              </strong>
-              {current.location && (
-                <span className={styles.currentEventLocation}>
-                  {current.location}
-                </span>
-              )}
+              <strong className={styles.currentEventTitle}>{current.name}</strong>
+              {current.location && <span className={styles.currentEventLocation}>{current.location}</span>}
               <strong className={styles.currentEventTime}>
-                <LocalDateRange
-                  start={current.startsAt}
-                  end={current.endsAt}
-                  timeOnly
-                />
+                <LocalDateRange start={current.startsAt} end={current.endsAt} timeOnly />
               </strong>
               {current.endsAt && (
                 <div className={styles.progressTrack} aria-hidden>
-                  <div
-                    className={styles.progressFill}
-                    style={{ width: `${progress * 100}%` }}
-                  />
+                  <div className={styles.progressFill} style={{ width: `${progress * 100}%` }} />
                 </div>
               )}
             </article>
@@ -191,12 +150,7 @@ function ClockAndSchedule({ schedule }: { schedule: DisplayScheduleEntry[] }) {
                 {entry.endsAt ? (
                   // Long sessions often end on another day, so name it.
                   <>
-                    Until{' '}
-                    <LocalDateTime
-                      value={entry.endsAt}
-                      weekday='short'
-                      timeStyle='short'
-                    />
+                    Until <LocalDateTime value={entry.endsAt} weekday='short' timeStyle='short' />
                   </>
                 ) : (
                   'Now'
@@ -219,7 +173,7 @@ function ScheduleRow({
   entry,
   children,
 }: {
-  entry: DisplayScheduleEntry;
+  entry: Display.ScheduleEntry;
   /** The row's time column. */
   children: React.ReactNode;
 }) {
@@ -227,9 +181,7 @@ function ScheduleRow({
     <article className={styles.upcomingEvent}>
       <div className={styles.eventDetails}>
         <strong className={styles.upcomingEventTitle}>{entry.name}</strong>
-        {entry.location && (
-          <span className={styles.upcomingEventLocation}>{entry.location}</span>
-        )}
+        {entry.location && <span className={styles.upcomingEventLocation}>{entry.location}</span>}
       </div>
       <strong className={styles.upcomingEventTime}>{children}</strong>
     </article>

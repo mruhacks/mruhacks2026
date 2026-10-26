@@ -3,27 +3,14 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowRight, Check, CircleHelp, MapPin, X } from 'lucide-react';
 
-import {
-  beginJudging,
-  skipJudgeProject,
-  submitJudgeVote,
-} from '@/app/dashboard/events/judge-actions';
+import { beginJudging, skipJudgeProject, submitJudgeVote } from '@/app/dashboard/events/judge-actions';
 import curtWriting from '@/assets/crt_writing.png';
 import { LocalDateTime } from '@/components/local-date-time';
 import { Button } from '@/components/ui/button';
-import {
-  getJudgeView,
-  type JudgeProjectCard,
-  type JudgeView,
-} from '@/lib/judging/judge-session';
+import * as Judging from '@/lib/judging/server';
 import { cn } from '@/lib/utils';
 
-import {
-  ActionForm,
-  AutoRefresh,
-  SkipButton,
-  SubmitButton,
-} from '../judge-controls';
+import { ActionForm, AutoRefresh, SkipButton, SubmitButton } from '../judge-controls';
 import { JudgeCard, JudgeFrame, loadJudgeEvent } from '../judge-frame';
 import { BIG, GO } from '../judge-styles';
 
@@ -39,22 +26,16 @@ export const instant = false;
  */
 export default function JudgeTablePage({ params }: Props) {
   return (
-    <Suspense
-      fallback={<div className='bg-muted h-96 animate-pulse rounded-xl' />}
-    >
+    <Suspense fallback={<div className='bg-muted h-96 animate-pulse rounded-xl' />}>
       <JudgeTable paramsPromise={params} />
     </Suspense>
   );
 }
 
-async function JudgeTable({
-  paramsPromise,
-}: {
-  paramsPromise: Props['params'];
-}) {
+async function JudgeTable({ paramsPromise }: { paramsPromise: Props['params'] }) {
   const { eventId: segment } = await paramsPromise;
   const event = await loadJudgeEvent(segment);
-  const view = await getJudgeView(event.id);
+  const view = await Judging.getJudgeView(event.id);
 
   return (
     <JudgeFrame segment={segment} eventName={event.name}>
@@ -62,16 +43,8 @@ async function JudgeTable({
         eventId={event.id}
         view={view}
         help={
-          <Button
-            asChild
-            variant='ghost'
-            size='icon-sm'
-            className='text-muted-foreground'
-          >
-            <Link
-              href={`/dashboard/events/${segment}/judge`}
-              aria-label='How judging works'
-            >
+          <Button asChild variant='ghost' size='icon-sm' className='text-muted-foreground'>
+            <Link href={`/dashboard/events/${segment}/judge`} aria-label='How judging works'>
               <CircleHelp className='size-5' />
             </Link>
           </Button>
@@ -82,29 +55,16 @@ async function JudgeTable({
 }
 
 /** `help` only shows on screens where how judging works is still relevant. */
-function Screen({
-  eventId,
-  view,
-  help,
-}: {
-  eventId: string;
-  view: JudgeView;
-  help: React.ReactNode;
-}) {
+function Screen({ eventId, view, help }: { eventId: string; view: Judging.JudgeView; help: React.ReactNode }) {
   const skip = skipJudgeProject.bind(null, eventId);
 
   switch (view.kind) {
     case 'not_judge':
-      return (
-        <Message title='You’re not judging this event'>
-          Ask an organizer to add you to the roster.
-        </Message>
-      );
+      return <Message title='You’re not judging this event'>Ask an organizer to add you to the roster.</Message>;
     case 'disabled':
       return (
         <Message title='You’ve been paused'>
-          An organizer has paused your judging for {view.eventName}. Your votes
-          so far still count.
+          An organizer has paused your judging for {view.eventName}. Your votes so far still count.
         </Message>
       );
     case 'not_open':
@@ -112,12 +72,7 @@ function Screen({
         <Message title={`${view.eventName} hasn’t started`} poll help={help}>
           Judging opens{' '}
           {view.opensAt ? (
-            <LocalDateTime
-              value={view.opensAt}
-              dateStyle='medium'
-              timeStyle='short'
-              timeZoneName='short'
-            />
+            <LocalDateTime value={view.opensAt} dateStyle='medium' timeStyle='short' timeZoneName='short' />
           ) : (
             'once organizers schedule the event'
           )}
@@ -125,50 +80,34 @@ function Screen({
         </Message>
       );
     case 'closed':
-      return (
-        <Message title='Judging is over'>
-          {view.eventName} has ended. Thanks for judging!
-        </Message>
-      );
+      return <Message title='Judging is over'>{view.eventName} has ended. Thanks for judging!</Message>;
     case 'no_criteria':
       return (
         <Message title='Almost ready' poll help={help}>
-          Organizers are still setting up the judging criteria for{' '}
-          {view.eventName}. This page will update on its own.
+          Organizers are still setting up the judging criteria for {view.eventName}. This page will update on its own.
         </Message>
       );
     case 'waiting':
       return (
         <Message title='Nothing to judge right now' poll help={help}>
-          You&apos;ve seen every project available to you. Hang tight, more may
-          open up as teams return to their tables.
+          You&apos;ve seen every project available to you. Hang tight, more may open up as teams return to their tables.
         </Message>
       );
     case 'begin':
       return (
         <JudgeCard help={help}>
           <GoTo project={view.current} />
-          <Image
-            src={curtWriting}
-            alt='Curt the CRT, taking notes'
-            className='mx-auto h-auto w-52'
-            priority
-          />
+          <Image src={curtWriting} alt='Curt the CRT, taking notes' className='mx-auto h-auto w-52' priority />
           <div className='flex flex-col gap-1 text-center'>
             <p className='m-0 font-semibold'>Listen and learn</p>
             <p className='text-muted-foreground m-0 text-sm'>
-              Get to know this team and their project. No need to think about
-              rankings just yet, you&apos;ll start comparing at your next table.
+              Get to know this team and their project. No need to think about rankings just yet, you&apos;ll start
+              comparing at your next table.
             </p>
           </div>
-          <ActionForm
-            key={view.current.id}
-            action={beginJudging.bind(null, eventId)}
-          >
+          <ActionForm key={view.current.id} action={beginJudging.bind(null, eventId)}>
             <input type='hidden' name='currentId' value={view.current.id} />
-            <ActionBar
-              skip={<SkipButton action={skip} currentId={view.current.id} />}
-            >
+            <ActionBar skip={<SkipButton action={skip} currentId={view.current.id} />}>
               <SubmitButton className={cn(BIG, GO)} icon={<Check />}>
                 Begin
               </SubmitButton>
@@ -177,9 +116,7 @@ function Screen({
         </JudgeCard>
       );
     case 'compare':
-      return (
-        <CompareScreen eventId={eventId} view={view} skip={skip} help={help} />
-      );
+      return <CompareScreen eventId={eventId} view={view} skip={skip} help={help} />;
   }
 }
 
@@ -198,24 +135,20 @@ function Message({
   return (
     <JudgeCard className='items-center py-8 text-center' help={help}>
       {poll && <AutoRefresh />}
-      <h1 className='m-0 text-2xl font-semibold tracking-tight sm:text-3xl'>
-        {title}
-      </h1>
+      <h1 className='m-0 text-2xl font-semibold tracking-tight sm:text-3xl'>{title}</h1>
       <p className='text-muted-foreground m-0 max-w-md'>{children}</p>
     </JudgeCard>
   );
 }
 
-function GoTo({ project }: { project: JudgeProjectCard }) {
+function GoTo({ project }: { project: Judging.JudgeProjectCard }) {
   return (
     <div className='flex flex-col items-center gap-0.5 text-center'>
       <p className='text-muted-foreground m-0 inline-flex items-center gap-1 text-xs font-semibold tracking-wider uppercase'>
         <MapPin aria-hidden className='size-4' />
         Go to
       </p>
-      <p className='m-0 text-4xl/tight font-bold tabular-nums'>
-        Table {project.tableLabel}
-      </p>
+      <p className='m-0 text-4xl/tight font-bold tabular-nums'>Table {project.tableLabel}</p>
       <p className='m-0 line-clamp-1 max-w-full px-16 font-medium'>
         <em>{project.title}</em>
       </p>
@@ -237,7 +170,7 @@ function CompareScreen({
   help,
 }: {
   eventId: string;
-  view: Extract<JudgeView, { kind: 'compare' }>;
+  view: Extract<Judging.JudgeView, { kind: 'compare' }>;
   skip: (formData: FormData) => Promise<{ success: boolean; error?: string }>;
   help: React.ReactNode;
 }) {
@@ -277,15 +210,10 @@ function CompareScreen({
               aria-labelledby={`criterion-${criterion.id}`}
               className='contents'
             >
-              <p
-                id={`criterion-${criterion.id}`}
-                className='col-span-2 m-0 mt-1.5 truncate text-sm font-semibold'
-              >
+              <p id={`criterion-${criterion.id}`} className='col-span-2 m-0 mt-1.5 truncate text-sm font-semibold'>
                 {criterion.name}
                 {criterion.description && (
-                  <span className='text-muted-foreground ml-2 font-normal'>
-                    {criterion.description}
-                  </span>
+                  <span className='text-muted-foreground ml-2 font-normal'>{criterion.description}</span>
                 )}
               </p>
               {SIDES.map((side) => (
@@ -301,23 +229,11 @@ function CompareScreen({
                       : 'has-checked:border-green-600 has-checked:bg-green-600 has-checked:text-white',
                   )}
                 >
-                  <input
-                    type='radio'
-                    name={`winner:${criterion.id}`}
-                    value={side}
-                    required
-                    className='sr-only'
-                  />
+                  <input type='radio' name={`winner:${criterion.id}`} value={side} required className='sr-only' />
                   {side === 'previous' ? (
-                    <X
-                      aria-hidden
-                      className='hidden size-5 group-has-checked/pick:block'
-                    />
+                    <X aria-hidden className='hidden size-5 group-has-checked/pick:block' />
                   ) : (
-                    <Check
-                      aria-hidden
-                      className='hidden size-5 group-has-checked/pick:block'
-                    />
+                    <Check aria-hidden className='hidden size-5 group-has-checked/pick:block' />
                   )}
                   {side === 'previous' ? 'Previous' : 'Current'}
                 </label>
@@ -326,23 +242,13 @@ function CompareScreen({
           ))}
         </div>
 
-        <ActionBar
-          skip={<SkipButton action={skip} currentId={view.current.id} />}
-        >
+        <ActionBar skip={<SkipButton action={skip} currentId={view.current.id} />}>
           <SubmitButton
-            className={cn(
-              BIG,
-              GO,
-              'group-invalid/vote:pointer-events-none group-invalid/vote:opacity-50',
-            )}
-            iconEnd={
-              <ArrowRight className='group-invalid/vote:hidden' aria-hidden />
-            }
+            className={cn(BIG, GO, 'group-invalid/vote:pointer-events-none group-invalid/vote:opacity-50')}
+            iconEnd={<ArrowRight className='group-invalid/vote:hidden' aria-hidden />}
           >
             <span className='group-invalid/vote:hidden'>Next table</span>
-            <span className='hidden group-invalid/vote:inline'>
-              Pick one for each
-            </span>
+            <span className='hidden group-invalid/vote:inline'>Pick one for each</span>
           </SubmitButton>
         </ActionBar>
       </ActionForm>
@@ -351,13 +257,7 @@ function CompareScreen({
 }
 
 /** Skip on the left, the screen's green go button on the right. */
-function ActionBar({
-  skip,
-  children,
-}: {
-  skip: React.ReactNode;
-  children: React.ReactNode;
-}) {
+function ActionBar({ skip, children }: { skip: React.ReactNode; children: React.ReactNode }) {
   return (
     <div className='mt-1 grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)] gap-3'>
       {skip}

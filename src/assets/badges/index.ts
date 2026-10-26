@@ -53,10 +53,4 @@ const out: TeamMember[] = [
 
 const dir: TeamMember[] = [{ name: 'Kiera', image: Kiera }];
 
-export const allMembers: TeamMember[] = [
-  ...dir,
-  ...dev,
-  ...exp,
-  ...mkt,
-  ...out,
-];
+export const allMembers: TeamMember[] = [...dir, ...dev, ...exp, ...mkt, ...out];

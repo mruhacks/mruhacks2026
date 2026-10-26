@@ -1,12 +1,6 @@
 import { getUser } from '@/utils/auth';
-import { getMyTeam } from '@/app/dashboard/events/team-actions';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { getMyTeam } from '../team-actions';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { TeamCodeDisplay } from './TeamCodeDisplay';
 import { TeamRoster } from './TeamRoster';
@@ -29,11 +23,7 @@ type Props = {
   hasEnded?: boolean;
 };
 
-export async function TeamPanel({
-  eventId,
-  joinCode,
-  hasEnded = false,
-}: Props) {
+export async function TeamPanel({ eventId, joinCode, hasEnded = false }: Props) {
   const currentUser = await getUser();
   if (!currentUser) return null;
 
@@ -44,11 +34,7 @@ export async function TeamPanel({
   const isOrganizer = organizerId === currentUser.id;
   // After the event, or once the project deadline has passed, the roster is
   // final and only shows.
-  const teamStage: TeamStage = hasEnded
-    ? 'ended'
-    : rosterLocked
-      ? 'roster_locked'
-      : 'open';
+  const teamStage: TeamStage = hasEnded ? 'ended' : rosterLocked ? 'roster_locked' : 'open';
   const frozen = teamStage !== 'open';
   const memberCount = members.length;
   const memberCountLabel =
@@ -76,10 +62,7 @@ export async function TeamPanel({
         {!frozen && (
           <div className='flex flex-wrap gap-2'>
             <ShareInviteButton eventId={eventId} code={code} />
-            <JoinTeamDialog
-              eventId={eventId}
-              defaultCode={joinCode && joinCode !== code ? joinCode : undefined}
-            />
+            <JoinTeamDialog eventId={eventId} defaultCode={joinCode && joinCode !== code ? joinCode : undefined} />
             {memberCount > 1 && <LeaveTeamButton eventId={eventId} />}
           </div>
         )}

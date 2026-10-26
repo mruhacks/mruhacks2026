@@ -13,10 +13,9 @@
  * dialog validate against this in the browser before submitting.
  */
 
-import { isValidSlug } from './slug';
+import { isValidSlug } from '@/lib/slug';
 
-const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * Static route segments that sit alongside `[eventId]` under
@@ -35,11 +34,7 @@ export function isEventUuid(value: string): boolean {
 }
 
 export function isValidEventSlug(slug: string): boolean {
-  return (
-    isValidSlug(slug) &&
-    !isEventUuid(slug) &&
-    !(RESERVED_EVENT_SLUGS as readonly string[]).includes(slug)
-  );
+  return isValidSlug(slug) && !isEventUuid(slug) && !(RESERVED_EVENT_SLUGS as readonly string[]).includes(slug);
 }
 
 /**
@@ -59,9 +54,6 @@ export function eventPath(event: { id: string; slug?: string | null }): string {
  * built from the current URL's segment instead (`useEventBasePath`), which
  * keeps whichever form the admin arrived with.
  */
-export function adminEventPath(event: {
-  id: string;
-  slug?: string | null;
-}): string {
+export function adminEventPath(event: { id: string; slug?: string | null }): string {
   return `/dashboard/admin/events/${event.slug ?? event.id}`;
 }

@@ -2,17 +2,11 @@ import 'server-only';
 
 import { and, eq, isNull } from 'drizzle-orm';
 
-import {
-  eventParticipants,
-  events,
-  participationStatuses,
-  userProfiles,
-} from '@/db/schema';
-import { isAttending, resolveStoredStatus } from '@/lib/participation/status';
+import * as schema from '@/db/schema';
+import * as Participation from '@/lib/participation';
 import { db } from '@/utils/db';
 
-export const EVENT_ID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const EVENT_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export type EventParticipation = {
   eventName: string;
@@ -35,39 +29,30 @@ export type EventParticipation = {
  *
  * Returns null for a malformed id, a sub-event, or a nonexistent event.
  */
-export async function getEventParticipation(
-  eventId: string,
-  userId: string,
-): Promise<EventParticipation | null> {
+export async function getEventParticipation(eventId: string, userId: string): Promise<EventParticipation | null> {
   if (!EVENT_ID_PATTERN.test(eventId)) return null;
 
   const [row] = await db
     .select({
-      eventName: events.name,
-      startsAt: events.startsAt,
-      endsAt: events.endsAt,
-      checkInEnabled: events.checkInEnabled,
-      location: events.location,
-      latitude: events.latitude,
-      longitude: events.longitude,
-      radiusMeters: events.radiusMeters,
-      statusLabel: participationStatuses.label,
-      fullName: userProfiles.fullName,
+      eventName: schema.events.name,
+      startsAt: schema.events.startsAt,
+      endsAt: schema.events.endsAt,
+      checkInEnabled: schema.events.checkInEnabled,
+      location: schema.events.location,
+      latitude: schema.events.latitude,
+      longitude: schema.events.longitude,
+      radiusMeters: schema.events.radiusMeters,
+      statusLabel: schema.participationStatuses.label,
+      fullName: schema.userProfiles.fullName,
     })
-    .from(events)
+    .from(schema.events)
     .leftJoin(
-      eventParticipants,
-      and(
-        eq(eventParticipants.eventId, events.id),
-        eq(eventParticipants.userId, userId),
-      ),
+      schema.eventParticipants,
+      and(eq(schema.eventParticipants.eventId, schema.events.id), eq(schema.eventParticipants.userId, userId)),
     )
-    .leftJoin(
-      participationStatuses,
-      eq(participationStatuses.id, eventParticipants.statusId),
-    )
-    .leftJoin(userProfiles, eq(userProfiles.userId, userId))
-    .where(and(eq(events.id, eventId), isNull(events.parentEventId)))
+    .leftJoin(schema.participationStatuses, eq(schema.participationStatuses.id, schema.eventParticipants.statusId))
+    .leftJoin(schema.userProfiles, eq(schema.userProfiles.userId, userId))
+    .where(and(eq(schema.events.id, eventId), isNull(schema.events.parentEventId)))
     .limit(1);
 
   if (!row) return null;
@@ -85,15 +70,11 @@ export async function getEventParticipation(
     // An invited applicant who never accepted their RSVP (or who declined
     // or let it expire) doesn't get a pass — only a held spot does.
     isParticipant:
-      row.statusLabel !== null &&
-      isAttending(resolveStoredStatus(row.statusLabel)),
+      row.statusLabel !== null && Participation.isAttending(Participation.resolveStoredStatus(row.statusLabel)),
   };
 }
 
 /** The wallet routes' shared name fallback: profile name, then account name, then a generic label — never undefined. */
-export function resolveParticipantName(
-  fullName: string | null,
-  accountName: string,
-): string {
+export function resolveParticipantName(fullName: string | null, accountName: string): string {
   return fullName || accountName || 'Participant';
 }

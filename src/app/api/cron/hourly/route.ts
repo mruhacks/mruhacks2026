@@ -1,6 +1,6 @@
-import { handleCronRequest } from '@/app/api/cron/handle-cron-request';
-import { dispatchDueCampaigns } from '@/lib/campaigns/dispatch-due-campaigns';
-import { runRsvpCron } from '@/lib/rsvp/run-rsvp-cron';
+import { handleCronRequest } from '../handle-cron-request';
+import * as Campaigns from '@/lib/campaigns/server';
+import * as Rsvp from '@/lib/rsvp/server';
 import { fail } from '@/utils/action-result';
 
 /**
@@ -15,10 +15,7 @@ async function handle(request: Request): Promise<Response> {
     logLabel: 'cron/hourly',
     failureBody: fail('Scheduled hourly run failed.'),
     run: async () => {
-      const [rsvp, campaigns] = await Promise.allSettled([
-        runRsvpCron(),
-        dispatchDueCampaigns(),
-      ]);
+      const [rsvp, campaigns] = await Promise.allSettled([Rsvp.runRsvpCron(), Campaigns.dispatchDueCampaigns()]);
       const report = {
         rsvp: settledReport(rsvp),
         campaigns: settledReport(campaigns),
@@ -26,9 +23,7 @@ async function handle(request: Request): Promise<Response> {
       console.info('[cron/hourly] completed', report);
       if (rsvp.status === 'rejected' || campaigns.status === 'rejected') {
         throw new AggregateError(
-          [rsvp, campaigns]
-            .filter((step) => step.status === 'rejected')
-            .map((step) => step.reason),
+          [rsvp, campaigns].filter((step) => step.status === 'rejected').map((step) => step.reason),
           'Scheduled hourly run failed.',
         );
       }
@@ -38,9 +33,7 @@ async function handle(request: Request): Promise<Response> {
 }
 
 function settledReport<T>(result: PromiseSettledResult<T>) {
-  return result.status === 'fulfilled'
-    ? { ok: true, result: result.value }
-    : { ok: false };
+  return result.status === 'fulfilled' ? { ok: true, result: result.value } : { ok: false };
 }
 
 export const GET = handle;

@@ -1,6 +1,5 @@
 'use client';
 
-import * as React from 'react';
 import {
   Dialog,
   DialogContent,
@@ -38,21 +37,16 @@ export function DeleteQuestionDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>
-            {canHardDelete ? 'Delete question' : 'Hide question'}
-          </DialogTitle>
+          <DialogTitle>{canHardDelete ? 'Delete question' : 'Hide question'}</DialogTitle>
           <DialogDescription>
             {canHardDelete ? (
               <>
-                Are you sure you want to delete{' '}
-                <strong>&quot;{questionLabel}&quot;</strong>? This cannot be
-                undone.
+                Are you sure you want to delete <strong>&quot;{questionLabel}&quot;</strong>? This cannot be undone.
               </>
             ) : (
               <>
-                Applications already exist for this event. The question{' '}
-                <strong>&quot;{questionLabel}&quot;</strong> will be hidden from
-                new applicants but existing responses will be preserved.
+                Applications already exist for this event. The question <strong>&quot;{questionLabel}&quot;</strong>{' '}
+                will be hidden from new applicants but existing responses will be preserved.
               </>
             )}
           </DialogDescription>
@@ -61,11 +55,7 @@ export function DeleteQuestionDialog({
           <Button variant='outline' onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button
-            variant='destructive'
-            onClick={onConfirm}
-            disabled={isLoading}
-          >
+          <Button variant='destructive' onClick={onConfirm} disabled={isLoading}>
             {canHardDelete ? 'Delete' : 'Hide'}
           </Button>
         </DialogFooter>

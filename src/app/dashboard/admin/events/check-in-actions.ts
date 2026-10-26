@@ -5,37 +5,20 @@ import { and, eq, gt, isNull, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { z } from 'zod';
 
-import {
-  checkIns,
-  dietaryRestrictions,
-  eventParticipants,
-  events,
-  user,
-  userDietaryRestrictions,
-  userProfiles,
-} from '@/db/schema';
+import * as schema from '@/db/schema';
 import { eventApplicationsCacheTag } from '@/lib/admin-event';
 import { parseInstant } from '@/lib/datetime';
-import {
-  isSubeventRunning,
-  resolveCheckInTarget,
-  type CheckInTarget,
-} from '@/lib/subevents';
-import { hasPermission, requirePermission } from '@/lib/rbac/authorization';
-import { verifyCheckInPayload } from '@/lib/wallet/check-in-token';
-import {
-  getEventParticipation,
-  resolveParticipantName,
-} from '@/lib/wallet/participation';
-import { hasStatus } from '@/lib/participation/server';
+import { isSubeventRunning, resolveCheckInTarget, type CheckInTarget } from '@/lib/subevents';
+import * as Rbac from '@/lib/rbac/server';
+import * as Wallet from '@/lib/wallet/server';
+import * as Participation from '@/lib/participation/server';
 import { ok, fail, type ActionResult } from '@/utils/action-result';
 import { writeAuditLog } from '@/utils/audit-log';
 import { getUser } from '@/utils/auth';
 import { dietaryRestrictionsList } from '@/types/lookups';
 import { db } from '@/utils/db';
 
-const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export type CheckInOutcome = {
   userId: string;
@@ -104,34 +87,30 @@ export type CheckInUpdates = {
 };
 
 /** Wall clock in America/Edmonton, computed by Postgres — never by JS Date. */
-const checkedInAtIsoSql = sql<string>`to_char(${checkIns.checkedInAt} AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`;
-const checkedInAtLabelSql = sql<string>`trim(to_char(${checkIns.checkedInAt} AT TIME ZONE 'America/Edmonton', 'Mon FMDD, YYYY, FMHH12:MI AM')) || ' MT'`;
+const checkedInAtIsoSql = sql<string>`to_char(${schema.checkIns.checkedInAt} AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`;
+const checkedInAtLabelSql = sql<string>`trim(to_char(${schema.checkIns.checkedInAt} AT TIME ZONE 'America/Edmonton', 'Mon FMDD, YYYY, FMHH12:MI AM')) || ' MT'`;
 
 async function getScanner() {
   const actor = await getUser();
   if (!actor) return null;
-  await requirePermission(actor.id, 'checkin:write:all');
+  await Rbac.requirePermission(actor.id, 'checkin:write:all');
   return actor;
 }
 
-async function isCheckInEnabled(
-  eventId: string,
-  targetEventId?: string | null,
-) {
+async function isCheckInEnabled(eventId: string, targetEventId?: string | null) {
   if (!UUID_PATTERN.test(eventId)) return false;
   const [main] = await db
-    .select({ enabled: events.checkInEnabled })
-    .from(events)
-    .where(and(eq(events.id, eventId), isNull(events.parentEventId)))
+    .select({ enabled: schema.events.checkInEnabled })
+    .from(schema.events)
+    .where(and(eq(schema.events.id, eventId), isNull(schema.events.parentEventId)))
     .limit(1);
   if (main && !main.enabled) return false;
-  if (!targetEventId || targetEventId.toLowerCase() === eventId.toLowerCase())
-    return true;
+  if (!targetEventId || targetEventId.toLowerCase() === eventId.toLowerCase()) return true;
   if (!UUID_PATTERN.test(targetEventId)) return false;
   const [target] = await db
-    .select({ enabled: events.checkInEnabled })
-    .from(events)
-    .where(and(eq(events.id, targetEventId), eq(events.parentEventId, eventId)))
+    .select({ enabled: schema.events.checkInEnabled })
+    .from(schema.events)
+    .where(and(eq(schema.events.id, targetEventId), eq(schema.events.parentEventId, eventId)))
     .limit(1);
   // The target resolver reports missing/foreign entries with its specific error.
   return target?.enabled ?? true;
@@ -140,17 +119,17 @@ async function isCheckInEnabled(
 async function loadDietary(userId: string): Promise<CheckInDietary> {
   const [labelRows, [profile]] = await Promise.all([
     db
-      .select({ label: dietaryRestrictions.label })
-      .from(userDietaryRestrictions)
+      .select({ label: schema.dietaryRestrictions.label })
+      .from(schema.userDietaryRestrictions)
       .innerJoin(
-        dietaryRestrictions,
-        eq(dietaryRestrictions.id, userDietaryRestrictions.restrictionId),
+        schema.dietaryRestrictions,
+        eq(schema.dietaryRestrictions.id, schema.userDietaryRestrictions.restrictionId),
       )
-      .where(eq(userDietaryRestrictions.userId, userId)),
+      .where(eq(schema.userDietaryRestrictions.userId, userId)),
     db
-      .select({ otherText: userProfiles.dietaryOtherText })
-      .from(userProfiles)
-      .where(eq(userProfiles.userId, userId))
+      .select({ otherText: schema.userProfiles.dietaryOtherText })
+      .from(schema.userProfiles)
+      .where(eq(schema.userProfiles.userId, userId))
       .limit(1),
   ]);
 
@@ -165,9 +144,9 @@ async function loadDietary(userId: string): Promise<CheckInDietary> {
 
 async function loadAccountName(userId: string): Promise<string> {
   const [row] = await db
-    .select({ name: user.name })
-    .from(user)
-    .where(eq(user.id, userId))
+    .select({ name: schema.user.name })
+    .from(schema.user)
+    .where(eq(schema.user.id, userId))
     .limit(1);
   return row?.name ?? '';
 }
@@ -186,14 +165,11 @@ async function recordCheckIn(
   mainEventId: string,
   userId: string,
   actorId: string,
-): Promise<Omit<
-  CheckInOutcome,
-  'userId' | 'name' | 'targetName' | 'dietary'
-> | null> {
+): Promise<Omit<CheckInOutcome, 'userId' | 'name' | 'targetName' | 'dietary'> | null> {
   const [inserted] = await db
-    .insert(checkIns)
+    .insert(schema.checkIns)
     .values({ eventId, userId, checkedInBy: actorId })
-    .onConflictDoNothing({ target: [checkIns.userId, checkIns.eventId] })
+    .onConflictDoNothing({ target: [schema.checkIns.userId, schema.checkIns.eventId] })
     .returning({
       checkedInAt: checkedInAtIsoSql,
       checkedInAtLabel: checkedInAtLabelSql,
@@ -216,16 +192,16 @@ async function recordCheckIn(
     };
   }
 
-  const scanner = alias(user, 'scanner');
+  const scanner = alias(schema.user, 'scanner');
   const [existing] = await db
     .select({
       checkedInAt: checkedInAtIsoSql,
       checkedInAtLabel: checkedInAtLabelSql,
       scannerName: scanner.name,
     })
-    .from(checkIns)
-    .leftJoin(scanner, eq(scanner.id, checkIns.checkedInBy))
-    .where(and(eq(checkIns.eventId, eventId), eq(checkIns.userId, userId)))
+    .from(schema.checkIns)
+    .leftJoin(scanner, eq(scanner.id, schema.checkIns.checkedInBy))
+    .where(and(eq(schema.checkIns.eventId, eventId), eq(schema.checkIns.userId, userId)))
     .limit(1);
 
   if (!existing) return null;
@@ -255,7 +231,7 @@ async function checkInUser(
   actorId: string,
   target: CheckInTarget,
 ): Promise<ActionResult<CheckInOutcome>> {
-  const participation = await getEventParticipation(eventId, userId);
+  const participation = await Wallet.getEventParticipation(eventId, userId);
   if (!participation) {
     return fail('Check-in is only available for main events.');
   }
@@ -266,10 +242,7 @@ async function checkInUser(
     return fail('This event has ended. Check-in is frozen.');
   }
 
-  const name = resolveParticipantName(
-    participation.fullName,
-    await loadAccountName(userId),
-  );
+  const name = Wallet.resolveParticipantName(participation.fullName, await loadAccountName(userId));
 
   // A sub-event is for people who are actually here, so the door comes first.
   // Read-then-write rather than an atomic insert-where-exists: the atomic form
@@ -278,23 +251,16 @@ async function checkInUser(
   // check-in undone microseconds earlier, which the roster shows anyway.
   if (target.isSubevent) {
     const [atDoor] = await db
-      .select({ userId: checkIns.userId })
-      .from(checkIns)
-      .where(and(eq(checkIns.eventId, eventId), eq(checkIns.userId, userId)))
+      .select({ userId: schema.checkIns.userId })
+      .from(schema.checkIns)
+      .where(and(eq(schema.checkIns.eventId, eventId), eq(schema.checkIns.userId, userId)))
       .limit(1);
     if (!atDoor) {
-      return fail(
-        `${name} has not checked in at the main event yet — check them in at the door first.`,
-      );
+      return fail(`${name} has not checked in at the main event yet — check them in at the door first.`);
     }
   }
 
-  const recorded = await recordCheckIn(
-    target.targetId,
-    eventId,
-    userId,
-    actorId,
-  );
+  const recorded = await recordCheckIn(target.targetId, eventId, userId, actorId);
   if (!recorded) {
     return fail('That check-in was just undone. Scan again to redo it.');
   }
@@ -305,16 +271,12 @@ async function checkInUser(
       action: 'checkin.create',
       targetType: 'user',
       targetId: userId,
-      metadata: target.isSubevent
-        ? { eventId, subeventId: target.targetId }
-        : { eventId },
+      metadata: target.isSubevent ? { eventId, subeventId: target.targetId } : { eventId },
     });
   }
 
   const dietary =
-    target.isMeal && (await hasPermission(actorId, 'dietary:read:all'))
-      ? await loadDietary(userId)
-      : null;
+    target.isMeal && (await Rbac.hasPermission(actorId, 'dietary:read:all')) ? await loadDietary(userId) : null;
 
   return ok({ userId, name, targetName: target.name, dietary, ...recorded });
 }
@@ -322,8 +284,7 @@ async function checkInUser(
 /** The failure every action shares when a target isn't this event's sub-event. */
 const UNKNOWN_TARGET = 'That schedule entry does not belong to this event.';
 
-const TARGET_NOT_RUNNING =
-  "That schedule entry isn't running right now, so it can't take check-ins.";
+const TARGET_NOT_RUNNING = "That schedule entry isn't running right now, so it can't take check-ins.";
 
 /**
  * Whether `actorId` may write against `target` at this moment. The door is
@@ -335,12 +296,9 @@ const TARGET_NOT_RUNNING =
  * convenience, and a stale tab or hand-edited `?target=` would otherwise walk
  * straight past it.
  */
-async function canWriteToTarget(
-  actorId: string,
-  target: CheckInTarget,
-): Promise<boolean> {
+async function canWriteToTarget(actorId: string, target: CheckInTarget): Promise<boolean> {
   if (!target.isSubevent || isSubeventRunning(target)) return true;
-  return hasPermission(actorId, 'checkin:override:all');
+  return Rbac.hasPermission(actorId, 'checkin:override:all');
 }
 
 /**
@@ -361,7 +319,7 @@ export async function scanCheckIn(
   const actor = await getScanner();
   if (!actor) return fail('Not authenticated');
 
-  const claims = verifyCheckInPayload(payload);
+  const claims = Wallet.verifyCheckInPayload(payload);
   if (!claims) return fail('This is not a valid MRUHacks pass.');
 
   // The token's id comes back lowercase from bytesToUuid, while the route
@@ -441,9 +399,9 @@ export async function undoCheckIn(
   // undo has to stay available for exactly as long as check-in does, or a
   // mis-scan at a meal becomes permanent the moment that meal's slot passes.
   const [eventRow] = await db
-    .select({ endsAt: events.endsAt })
-    .from(events)
-    .where(eq(events.id, eventId))
+    .select({ endsAt: schema.events.endsAt })
+    .from(schema.events)
+    .where(eq(schema.events.id, eventId))
     .limit(1);
   if (!eventRow) return fail('Event not found.');
   if (eventRow.endsAt && eventRow.endsAt.getTime() < Date.now()) {
@@ -451,11 +409,9 @@ export async function undoCheckIn(
   }
 
   const [removed] = await db
-    .delete(checkIns)
-    .where(
-      and(eq(checkIns.eventId, target.targetId), eq(checkIns.userId, userId)),
-    )
-    .returning({ checkedInAt: checkIns.checkedInAt });
+    .delete(schema.checkIns)
+    .where(and(eq(schema.checkIns.eventId, target.targetId), eq(schema.checkIns.userId, userId)))
+    .returning({ checkedInAt: schema.checkIns.checkedInAt });
 
   if (!removed) return fail('They were not checked in.');
 
@@ -489,9 +445,9 @@ export async function getCheckInRoster(
   if (!UUID_PATTERN.test(eventId)) return fail('Event not found.');
 
   const [topLevelEvent] = await db
-    .select({ id: events.id })
-    .from(events)
-    .where(and(eq(events.id, eventId), isNull(events.parentEventId)))
+    .select({ id: schema.events.id })
+    .from(schema.events)
+    .where(and(eq(schema.events.id, eventId), isNull(schema.events.parentEventId)))
     .limit(1);
   if (!topLevelEvent) {
     return fail('Check-in is only available for main events.');
@@ -504,55 +460,52 @@ export async function getCheckInRoster(
   const target = await resolveCheckInTarget(eventId, targetEventId);
   if (!target) return fail(UNKNOWN_TARGET);
 
-  const scanner = alias(user, 'scanner');
+  const scanner = alias(schema.user, 'scanner');
   // Door check-ins, read separately from the target's own. A sub-event roster
   // lists the *main* event's population — a child has no applicants or
   // attendees of its own — so who is actually here has to come from the main
   // event's rows even while `checkedInAt` tracks the sub-event's.
-  const doorCheckIns = alias(checkIns, 'door_check_ins');
+  const doorCheckIns = alias(schema.checkIns, 'door_check_ins');
 
   const rows = await db
     .select({
-      userId: user.id,
-      email: user.email,
-      accountName: user.name,
-      fullName: userProfiles.fullName,
+      userId: schema.user.id,
+      email: schema.user.email,
+      accountName: schema.user.name,
+      fullName: schema.userProfiles.fullName,
       checkedInAt: checkedInAtIsoSql,
       checkedInAtLabel: checkedInAtLabelSql,
       scannerName: scanner.name,
       atMainEvent: sql<boolean>`${doorCheckIns.userId} IS NOT NULL`,
     })
-    .from(user)
+    .from(schema.user)
     // Everyone holding a spot — and nobody else. An invited applicant who
     // never accepted (or declined, or let their invitation expire) isn't
     // attending.
     .innerJoin(
-      eventParticipants,
+      schema.eventParticipants,
       and(
-        eq(eventParticipants.eventId, eventId),
-        eq(eventParticipants.userId, user.id),
-        hasStatus('accepted'),
+        eq(schema.eventParticipants.eventId, eventId),
+        eq(schema.eventParticipants.userId, schema.user.id),
+        Participation.hasStatus('accepted'),
       ),
     )
-    .leftJoin(userProfiles, eq(userProfiles.userId, user.id))
+    .leftJoin(schema.userProfiles, eq(schema.userProfiles.userId, schema.user.id))
     .leftJoin(
-      checkIns,
-      and(eq(checkIns.eventId, target.targetId), eq(checkIns.userId, user.id)),
+      schema.checkIns,
+      and(eq(schema.checkIns.eventId, target.targetId), eq(schema.checkIns.userId, schema.user.id)),
     )
     // Joined unconditionally rather than only for a sub-event: on a main target
     // it resolves to the very same row as the join above (the unique index
     // guarantees at most one), so it cannot fan out, and one code path beats a
     // dynamic query whose result type changes with the target.
-    .leftJoin(
-      doorCheckIns,
-      and(eq(doorCheckIns.eventId, eventId), eq(doorCheckIns.userId, user.id)),
-    )
-    .leftJoin(scanner, eq(scanner.id, checkIns.checkedInBy));
+    .leftJoin(doorCheckIns, and(eq(doorCheckIns.eventId, eventId), eq(doorCheckIns.userId, schema.user.id)))
+    .leftJoin(scanner, eq(scanner.id, schema.checkIns.checkedInBy));
 
   return ok(
     rows.map((row) => ({
       userId: row.userId,
-      name: resolveParticipantName(row.fullName, row.accountName),
+      name: Wallet.resolveParticipantName(row.fullName, row.accountName),
       email: row.email,
       checkedInAt: row.checkedInAt,
       checkedInAtLabel: row.checkedInAtLabel,
@@ -601,29 +554,26 @@ export async function getCheckInUpdates(
   const parsed = watermarkSchema.safeParse(since);
   const watermark = parsed.success ? parseInstant(parsed.data) : null;
 
-  const scanner = alias(user, 'scanner');
+  const scanner = alias(schema.user, 'scanner');
   const [changed, [totals]] = await Promise.all([
     db
       .select({
-        userId: checkIns.userId,
+        userId: schema.checkIns.userId,
         checkedInAt: checkedInAtIsoSql,
         checkedInAtLabel: checkedInAtLabelSql,
         scannerName: scanner.name,
       })
-      .from(checkIns)
-      .leftJoin(scanner, eq(scanner.id, checkIns.checkedInBy))
+      .from(schema.checkIns)
+      .leftJoin(scanner, eq(scanner.id, schema.checkIns.checkedInBy))
       .where(
         watermark
-          ? and(
-              eq(checkIns.eventId, target.targetId),
-              gt(checkIns.checkedInAt, watermark),
-            )
-          : eq(checkIns.eventId, target.targetId),
+          ? and(eq(schema.checkIns.eventId, target.targetId), gt(schema.checkIns.checkedInAt, watermark))
+          : eq(schema.checkIns.eventId, target.targetId),
       ),
     db
       .select({ checkedInCount: sql<number>`count(*)::int` })
-      .from(checkIns)
-      .where(eq(checkIns.eventId, target.targetId)),
+      .from(schema.checkIns)
+      .where(eq(schema.checkIns.eventId, target.targetId)),
   ]);
 
   return ok({

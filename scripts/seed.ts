@@ -3,28 +3,7 @@ import { randomBytes, randomUUID } from 'crypto';
 import { faker } from '@faker-js/faker';
 import { auth } from './auth';
 import { client, db } from '@/utils/db';
-import {
-  user,
-  account,
-  session,
-  events,
-  eventTerms,
-  userProfiles,
-  userProfileAbout,
-  userInterests,
-  userDietaryRestrictions,
-  eventParticipants,
-  eventArticles,
-  genders,
-  universities,
-  majors,
-  yearsOfStudy,
-  interests,
-  dietaryRestrictions,
-  participationStatuses,
-  userRole,
-  userPermission,
-} from '@/db/schema';
+import * as schema from '@/db/schema';
 import type { InferInsertModel } from 'drizzle-orm';
 import { eq, isNull, and } from 'drizzle-orm';
 import { seedStaticTables } from './seed-static';
@@ -100,21 +79,21 @@ const ART_SCHEDULE = '33333333-0000-0000-0000-000000000002';
 const ART_JUDGING = '33333333-0000-0000-0000-000000000003';
 
 // ── Types ────────────────────────────────────────────────────────────────
-type UserInsert = InferInsertModel<typeof user>;
-type AccountInsert = InferInsertModel<typeof account>;
-type SessionInsert = InferInsertModel<typeof session>;
-type EventInsert = InferInsertModel<typeof events>;
-type UserProfileInsert = InferInsertModel<typeof userProfiles>;
-type UserProfileAboutInsert = InferInsertModel<typeof userProfileAbout>;
-type UserInterestInsert = InferInsertModel<typeof userInterests>;
-type UserDietaryInsert = InferInsertModel<typeof userDietaryRestrictions>;
-type EventParticipantInsert = InferInsertModel<typeof eventParticipants>;
-type UserRoleInsert = InferInsertModel<typeof userRole>;
-type UserPermissionInsert = InferInsertModel<typeof userPermission>;
+type UserInsert = InferInsertModel<typeof schema.user>;
+type AccountInsert = InferInsertModel<typeof schema.account>;
+type SessionInsert = InferInsertModel<typeof schema.session>;
+type EventInsert = InferInsertModel<typeof schema.events>;
+type UserProfileInsert = InferInsertModel<typeof schema.userProfiles>;
+type UserProfileAboutInsert = InferInsertModel<typeof schema.userProfileAbout>;
+type UserInterestInsert = InferInsertModel<typeof schema.userInterests>;
+type UserDietaryInsert = InferInsertModel<typeof schema.userDietaryRestrictions>;
+type EventParticipantInsert = InferInsertModel<typeof schema.eventParticipants>;
+type UserRoleInsert = InferInsertModel<typeof schema.userRole>;
+type UserPermissionInsert = InferInsertModel<typeof schema.userPermission>;
 
 // ── Seed events ───────────────────────────────────────────────────────────
 async function seedEvents() {
-  const existing = await db.select().from(events);
+  const existing = await db.select().from(schema.events);
   const eventInserts: EventInsert[] = [
     {
       name: 'MRUHacks 2026',
@@ -219,8 +198,7 @@ async function seedEvents() {
         },
         {
           id: Q_CONSENT_INFO,
-          label:
-            'I consent to MRUHacks storing my application information for the purpose of running this event.',
+          label: 'I consent to MRUHacks storing my application information for the purpose of running this event.',
           type: 'boolean' as const,
           required: true,
           showInReports: true,
@@ -238,8 +216,7 @@ async function seedEvents() {
         },
         {
           id: Q_CONSENT_MEDIA,
-          label:
-            'I consent to being photographed or filmed for promotional use during the event.',
+          label: 'I consent to being photographed or filmed for promotional use during the event.',
           type: 'boolean' as const,
           required: true,
           showInReports: true,
@@ -254,17 +231,15 @@ async function seedEvents() {
       capacity: null,
     },
   ];
-  const seededEvents: (typeof events.$inferSelect)[] = [];
+  const seededEvents: (typeof schema.events.$inferSelect)[] = [];
   for (const fixture of eventInserts) {
     const match = existing.find(
-      (event) =>
-        event.name === fixture.name &&
-        event.hasApplication === fixture.hasApplication,
+      (event) => event.name === fixture.name && event.hasApplication === fixture.hasApplication,
     );
     if (match) {
       seededEvents.push(match);
     } else {
-      const [inserted] = await db.insert(events).values(fixture).returning();
+      const [inserted] = await db.insert(schema.events).values(fixture).returning();
       seededEvents.push(inserted);
     }
   }
@@ -277,35 +252,15 @@ async function seedEvents() {
 /** Seed the schedule for the next Friday–Sunday weekend in Mountain time. */
 async function seedHackathonSchedule(parentEventId: string) {
   const schedule = [
-    [
-      'Participant Check-In Opens',
-      'Friday 7:30 PM',
-      'Friday 9:00 PM',
-      'Ross Glenn Hall',
-    ],
+    ['Participant Check-In Opens', 'Friday 7:30 PM', 'Friday 9:00 PM', 'Ross Glenn Hall'],
     ['Opening Ceremony', 'Friday 8:30 PM', 'Friday 9:00 PM', 'Ross Glenn Hall'],
     ['Hacking Begins', 'Friday 9:00 PM', 'Sunday 9:00 AM', null],
     ['Dinner Served', 'Friday 9:15 PM', 'Friday 10:00 PM', 'Ideas Lounge'],
     ['Games', 'Friday 11:00 PM', 'Saturday 1:15 AM', 'Ideas Lounge'],
-    [
-      'Midnight Snack',
-      'Saturday 12:00 AM',
-      'Saturday 12:30 AM',
-      'Ideas Lounge',
-    ],
-    [
-      'Breakfast Served',
-      'Saturday 9:00 AM',
-      'Saturday 10:00 AM',
-      'Ideas Lounge',
-    ],
+    ['Midnight Snack', 'Saturday 12:00 AM', 'Saturday 12:30 AM', 'Ideas Lounge'],
+    ['Breakfast Served', 'Saturday 9:00 AM', 'Saturday 10:00 AM', 'Ideas Lounge'],
     ['Scavenger Hunt', 'Saturday 10:00 AM', 'Sunday 12:00 AM', null],
-    [
-      'Quantum Computing Tech Presentation',
-      'Saturday 12:15 PM',
-      'Saturday 1:15 PM',
-      null,
-    ],
+    ['Quantum Computing Tech Presentation', 'Saturday 12:15 PM', 'Saturday 1:15 PM', null],
     ['Lunch Served', 'Saturday 12:00 PM', 'Saturday 1:00 PM', 'Ideas Lounge'],
     ['Typing Test', 'Saturday 2:00 PM', 'Saturday 3:00 PM', 'Ideas Lounge'],
     ['Therapy Dogs', 'Saturday 3:00 PM', 'Saturday 6:00 PM', 'Ideas Lounge'],
@@ -314,12 +269,7 @@ async function seedHackathonSchedule(parentEventId: string) {
     ['Games', 'Saturday 11:00 PM', 'Sunday 1:15 AM', 'Ideas Lounge'],
     ['Midnight Snack', 'Sunday 12:00 AM', 'Sunday 12:30 AM', 'Ideas Lounge'],
     ['Breakfast Served', 'Sunday 9:00 AM', 'Sunday 10:00 AM', 'Ideas Lounge'],
-    [
-      'Hacking Ends / Submissions Due',
-      'Sunday 9:00 AM',
-      'Sunday 9:00 AM',
-      null,
-    ],
+    ['Hacking Ends / Submissions Due', 'Sunday 9:00 AM', 'Sunday 9:00 AM', null],
     ['Judging', 'Sunday 10:00 AM', 'Sunday 12:00 PM', 'Ross Glenn Hall'],
     ['Lunch', 'Sunday 12:45 PM', 'Sunday 1:45 PM', 'Ideas Lounge'],
     ['Closing Ceremony', 'Sunday 1:30 PM', 'Sunday 2:30 PM', 'Ross Glenn Hall'],
@@ -333,8 +283,7 @@ async function seedHackathonSchedule(parentEventId: string) {
     month: '2-digit',
     day: '2-digit',
   }).formatToParts(new Date());
-  const part = (type: Intl.DateTimeFormatPartTypes) =>
-    nowParts.find((item) => item.type === type)!.value;
+  const part = (type: Intl.DateTimeFormatPartTypes) => nowParts.find((item) => item.type === type)!.value;
   const weekdayIndex = {
     Sun: 0,
     Mon: 1,
@@ -345,11 +294,7 @@ async function seedHackathonSchedule(parentEventId: string) {
     Sat: 6,
   }[part('weekday') as 'Sun' | 'Mon' | 'Tue' | 'Wed' | 'Thu' | 'Fri' | 'Sat'];
   const friday = new Date(
-    Date.UTC(
-      Number(part('year')),
-      Number(part('month')) - 1,
-      Number(part('day')) + ((5 - weekdayIndex + 7) % 7),
-    ),
+    Date.UTC(Number(part('year')), Number(part('month')) - 1, Number(part('day')) + ((5 - weekdayIndex + 7) % 7)),
   );
   const eventDate = (weekday: keyof typeof weekdayOffsets, time: string) => {
     const match = /^(\d{1,2}):(\d{2}) (AM|PM)$/.exec(time);
@@ -358,21 +303,11 @@ async function seedHackathonSchedule(parentEventId: string) {
     let hour = Number(rawHour) % 12;
     if (period === 'PM') hour += 12;
     const day = new Date(
-      Date.UTC(
-        friday.getUTCFullYear(),
-        friday.getUTCMonth(),
-        friday.getUTCDate() + weekdayOffsets[weekday],
-      ),
+      Date.UTC(friday.getUTCFullYear(), friday.getUTCMonth(), friday.getUTCDate() + weekdayOffsets[weekday]),
     );
 
     // Resolve the venue wall clock without using the process timezone.
-    const desired = Date.UTC(
-      day.getUTCFullYear(),
-      day.getUTCMonth(),
-      day.getUTCDate(),
-      hour,
-      Number(minute),
-    );
+    const desired = Date.UTC(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate(), hour, Number(minute));
     let instant = desired;
     for (let attempt = 0; attempt < 2; attempt++) {
       const viewed = new Date(instant);
@@ -385,9 +320,7 @@ async function seedHackathonSchedule(parentEventId: string) {
         minute: '2-digit',
         hourCycle: 'h23',
       }).formatToParts(viewed);
-      const values = Object.fromEntries(
-        parts.map(({ type, value }) => [type, value]),
-      );
+      const values = Object.fromEntries(parts.map(({ type, value }) => [type, value]));
       const represented = Date.UTC(
         Number(values.year),
         Number(values.month) - 1,
@@ -422,33 +355,24 @@ async function seedHackathonSchedule(parentEventId: string) {
   });
 
   await db
-    .update(events)
+    .update(schema.events)
     .set({
       startsAt: eventDate('Friday', '7:30 PM'),
       endsAt: eventDate('Sunday', '2:30 PM'),
       // Matches the "Hacking Ends / Submissions Due" schedule item.
       submissionsCloseAt: eventDate('Sunday', '9:00 AM'),
     })
-    .where(eq(events.id, parentEventId));
+    .where(eq(schema.events.id, parentEventId));
 
-  const existingSubevents = await db
-    .select()
-    .from(events)
-    .where(eq(events.parentEventId, parentEventId));
-  const existingByName = new Map<
-    string,
-    (typeof existingSubevents)[number][]
-  >();
+  const existingSubevents = await db.select().from(schema.events).where(eq(schema.events.parentEventId, parentEventId));
+  const existingByName = new Map<string, (typeof existingSubevents)[number][]>();
   for (const existing of existingSubevents) {
     const group = existingByName.get(existing.name) ?? [];
     group.push(existing);
     existingByName.set(existing.name, group);
   }
   for (const group of existingByName.values()) {
-    group.sort(
-      (left, right) =>
-        (left.startsAt?.getTime() ?? 0) - (right.startsAt?.getTime() ?? 0),
-    );
+    group.sort((left, right) => (left.startsAt?.getTime() ?? 0) - (right.startsAt?.getTime() ?? 0));
   }
   const occurrenceByName = new Map<string, number>();
 
@@ -457,9 +381,9 @@ async function seedHackathonSchedule(parentEventId: string) {
     occurrenceByName.set(fixture.name, occurrence + 1);
     const existing = existingByName.get(fixture.name)?.[occurrence];
     if (existing) {
-      await db.update(events).set(fixture).where(eq(events.id, existing.id));
+      await db.update(schema.events).set(fixture).where(eq(schema.events.id, existing.id));
     } else {
-      await db.insert(events).values(fixture);
+      await db.insert(schema.events).values(fixture);
     }
   }
 }
@@ -661,34 +585,34 @@ async function seedEventContent(
   // Demo fixtures only; the production/static seed does not add event terms.
   await db.transaction(async (tx) => {
     const [event] = await tx
-      .select({ termsId: events.termsId })
-      .from(events)
-      .where(eq(events.id, applicationEvent.id))
+      .select({ termsId: schema.events.termsId })
+      .from(schema.events)
+      .where(eq(schema.events.id, applicationEvent.id))
       .for('update');
     if (event.termsId) return;
     const [existing] = await tx
-      .select({ id: eventTerms.id })
-      .from(eventTerms)
-      .where(eq(eventTerms.eventId, applicationEvent.id))
+      .select({ id: schema.eventTerms.id })
+      .from(schema.eventTerms)
+      .where(eq(schema.eventTerms.eventId, applicationEvent.id))
       .limit(1);
     if (existing) return; // Preserve an organizer's explicit removal of terms.
     const [version] = await tx
-      .insert(eventTerms)
+      .insert(schema.eventTerms)
       .values({ eventId: applicationEvent.id, markdown: DEMO_EVENT_TERMS })
-      .returning({ id: eventTerms.id });
+      .returning({ id: schema.eventTerms.id });
     await tx
-      .update(events)
+      .update(schema.events)
       .set({ termsId: version.id, updatedAt: new Date() })
-      .where(eq(events.id, applicationEvent.id));
+      .where(eq(schema.events.id, applicationEvent.id));
   });
 
   let described = 0;
   for (const { event, markdown } of descriptions) {
     const updated = await db
-      .update(events)
+      .update(schema.events)
       .set({ descriptionMarkdown: markdown, updatedAt: new Date() })
-      .where(and(eq(events.id, event.id), isNull(events.descriptionMarkdown)))
-      .returning({ id: events.id });
+      .where(and(eq(schema.events.id, event.id), isNull(schema.events.descriptionMarkdown)))
+      .returning({ id: schema.events.id });
     described += updated.length;
   }
   console.log(
@@ -699,7 +623,7 @@ async function seedEventContent(
 
   // Two published and one draft, so the seeded database exercises both the
   // participant-visible path and the organizer-only draft badge.
-  const articles: InferInsertModel<typeof eventArticles>[] = [
+  const articles: InferInsertModel<typeof schema.eventArticles>[] = [
     {
       id: ART_GETTING_STARTED,
       eventId: applicationEvent.id,
@@ -730,10 +654,10 @@ async function seedEventContent(
   ];
 
   const inserted = await db
-    .insert(eventArticles)
+    .insert(schema.eventArticles)
     .values(articles)
-    .onConflictDoNothing({ target: eventArticles.id })
-    .returning({ id: eventArticles.id });
+    .onConflictDoNothing({ target: schema.eventArticles.id })
+    .returning({ id: schema.eventArticles.id });
 
   console.log(
     `✅ Seeded ${inserted.length} of ${articles.length} wiki articles for ${applicationEvent.name} (2 published, 1 draft).`,
@@ -741,9 +665,7 @@ async function seedEventContent(
 }
 
 // ── Seed a fixed admin user from env vars ────────────────────────────────
-async function seedEnvAdminUser(
-  insertedRoles: { id: number; slug: string | null }[],
-) {
+async function seedEnvAdminUser(insertedRoles: { id: number; slug: string | null }[]) {
   const email = process.env.SEED_ADMIN_EMAIL?.trim();
   const password = process.env.SEED_ADMIN_PASSWORD?.trim();
   const name = process.env.SEED_ADMIN_NAME?.trim() || 'Admin';
@@ -782,10 +704,7 @@ async function seedEnvAdminUser(
   await ctx.internalAdapter.updateUser(userId, { role: 'admin' });
 
   if (adminRole) {
-    await db
-      .insert(userRole)
-      .values({ userId, roleId: adminRole.id })
-      .onConflictDoNothing();
+    await db.insert(schema.userRole).values({ userId, roleId: adminRole.id }).onConflictDoNothing();
   }
 
   console.log(`✅ Admin user ready (email: ${email})`);
@@ -796,15 +715,8 @@ async function seedEnvAdminUser(
 export async function seedDemoData() {
   const COUNT = Number(process.env.SEED_COUNT ?? 3e2);
   const CHUNK_SIZE = Number(process.env.SEED_CHUNK_SIZE ?? 2000);
-  if (
-    !Number.isSafeInteger(COUNT) ||
-    COUNT < 0 ||
-    !Number.isSafeInteger(CHUNK_SIZE) ||
-    CHUNK_SIZE < 1
-  ) {
-    throw new Error(
-      'SEED_COUNT must be a non-negative integer and SEED_CHUNK_SIZE must be a positive integer.',
-    );
+  if (!Number.isSafeInteger(COUNT) || COUNT < 0 || !Number.isSafeInteger(CHUNK_SIZE) || CHUNK_SIZE < 1) {
+    throw new Error('SEED_COUNT must be a non-negative integer and SEED_CHUNK_SIZE must be a positive integer.');
   }
   const seedResume = COUNT > 0 ? await createResumeSeeder() : null;
   const { applicationEvent, noAppEvent } = await seedEvents();
@@ -814,41 +726,23 @@ export async function seedDemoData() {
 
   const { insertedRoles, insertedPerms } = await seedStaticTables();
 
-  const [
-    genderRows,
-    universityRows,
-    majorRows,
-    yearRows,
-    interestRows,
-    dietaryRows,
-    applicationStatusRows,
-  ] = await Promise.all([
-    db.select().from(genders),
-    db.select().from(universities),
-    db.select().from(majors),
-    db.select().from(yearsOfStudy),
-    db.select().from(interests),
-    db.select().from(dietaryRestrictions),
-    db.select().from(participationStatuses),
-  ]);
+  const [genderRows, universityRows, majorRows, yearRows, interestRows, dietaryRows, applicationStatusRows] =
+    await Promise.all([
+      db.select().from(schema.genders),
+      db.select().from(schema.universities),
+      db.select().from(schema.majors),
+      db.select().from(schema.yearsOfStudy),
+      db.select().from(schema.interests),
+      db.select().from(schema.dietaryRestrictions),
+      db.select().from(schema.participationStatuses),
+    ]);
 
-  const pendingReviewStatus = applicationStatusRows.find(
-    (s) => s.label === 'pending_review',
-  );
+  const pendingReviewStatus = applicationStatusRows.find((s) => s.label === 'pending_review');
   const pendingReviewStatusId = pendingReviewStatus?.id ?? null;
-  const deniedStatusId =
-    applicationStatusRows.find((s) => s.label === 'denied')?.id ?? null;
-  const waitlistedStatusId =
-    applicationStatusRows.find((s) => s.label === 'waitlisted')?.id ?? null;
-  const acceptedStatusId = applicationStatusRows.find(
-    (s) => s.label === 'accepted',
-  )?.id;
-  if (
-    !pendingReviewStatusId ||
-    !deniedStatusId ||
-    !waitlistedStatusId ||
-    !acceptedStatusId
-  ) {
+  const deniedStatusId = applicationStatusRows.find((s) => s.label === 'denied')?.id ?? null;
+  const waitlistedStatusId = applicationStatusRows.find((s) => s.label === 'waitlisted')?.id ?? null;
+  const acceptedStatusId = applicationStatusRows.find((s) => s.label === 'accepted')?.id;
+  if (!pendingReviewStatusId || !deniedStatusId || !waitlistedStatusId || !acceptedStatusId) {
     throw new Error('Seed static tables (participation_statuses) first.');
   }
 
@@ -884,17 +778,13 @@ export async function seedDemoData() {
     );
     await seedParticipation(applicationEvent.id, [admin.id]);
     await seedParticipation(noAppEvent.id, [admin.id]);
-    console.log(
-      '✅ Admin onboarding, registration, team, RSVP, and check-ins ready.',
-    );
+    console.log('✅ Admin onboarding, registration, team, RSVP, and check-ins ready.');
   }
   // Applications are spread over the ~6 weeks before "now" rather than all
   // sharing one instant, so createdAt-based charts show a real shape. These
   // stay real Date (UTC instant) objects throughout — never a bare
   // wall-clock string — per the datetime rule in AGENTS.md.
-  const applicationWindowStart = new Date(
-    now.getTime() - 1000 * 60 * 60 * 24 * 42,
-  );
+  const applicationWindowStart = new Date(now.getTime() - 1000 * 60 * 60 * 24 * 42);
   // All reviews predate the historical RSVP waves created by the participation seed.
   const applicationWindowEnd = new Date(now.getTime() - 7 * 86_400_000);
   const chunkCount = Math.ceil(COUNT / CHUNK_SIZE);
@@ -919,9 +809,7 @@ export async function seedDemoData() {
     for (let i = 0; i < size; i++) {
       const id = randomUUID();
       const name = faker.person.fullName();
-      const base = faker.internet
-        .username({ firstName: name.split(' ')[0] })
-        .toLowerCase();
+      const base = faker.internet.username({ firstName: name.split(' ')[0] }).toLowerCase();
       const email = `${base}.${i + start}@example.com`;
 
       users.push({
@@ -1065,20 +953,15 @@ export async function seedDemoData() {
         interestRows,
         faker.number.int({ min: 1, max: Math.min(4, interestRows.length) }),
       );
-      for (const it of chosenInterests)
-        interestLinks.push({ userId: id, interestId: it.id });
+      for (const it of chosenInterests) interestLinks.push({ userId: id, interestId: it.id });
 
       const chosenDietary = faker.helpers.arrayElements(
         dietaryRows,
         faker.number.int({ min: 0, max: Math.min(2, dietaryRows.length) }),
       );
-      for (const d of chosenDietary)
-        dietaryLinks.push({ userId: id, restrictionId: d.id });
+      for (const d of chosenDietary) dietaryLinks.push({ userId: id, restrictionId: d.id });
 
-      if (
-        noAppEvent.id !== applicationEvent.id &&
-        faker.datatype.boolean({ probability: 0.3 })
-      ) {
+      if (noAppEvent.id !== applicationEvent.id && faker.datatype.boolean({ probability: 0.3 })) {
         // A signup for an event without an application is a participant
         // who is `accepted` from the start.
         attendeeData.push({
@@ -1102,23 +985,17 @@ export async function seedDemoData() {
       if (roleObj) userRoles.push({ userId: id, roleId: roleObj.id });
 
       if (Math.random() < 0.01) {
-        const extraRole = faker.helpers.arrayElement(
-          insertedRoles.filter((r) => r.slug !== roleSlug),
-        );
+        const extraRole = faker.helpers.arrayElement(insertedRoles.filter((r) => r.slug !== roleSlug));
         userRoles.push({ userId: id, roleId: extraRole.id });
       }
 
       // ── Explicit user-permission overrides ──────────────────────────────
-      if (
-        (roleSlug === 'admin' || roleSlug === 'organizer') &&
-        Math.random() < 0.2
-      ) {
+      if ((roleSlug === 'admin' || roleSlug === 'organizer') && Math.random() < 0.2) {
         const chosenPerms = faker.helpers.arrayElements(insertedPerms, {
           min: 1,
           max: 2,
         });
-        for (const p of chosenPerms)
-          userPerms.push({ userId: id, permissionId: p.id });
+        for (const p of chosenPerms) userPerms.push({ userId: id, permissionId: p.id });
       }
     }
 
@@ -1126,26 +1003,23 @@ export async function seedDemoData() {
     const t0 = performance.now();
 
     await db.transaction(async (tx) => {
-      await tx.insert(user).values(users);
-      await tx.insert(account).values(accounts);
-      await tx.insert(session).values(sessions);
-      await tx.insert(userProfiles).values(profiles);
-      await tx.insert(userProfileAbout).values(profilesAbout);
-      if (interestLinks.length > 0)
-        await tx.insert(userInterests).values(interestLinks);
-      if (dietaryLinks.length > 0)
-        await tx.insert(userDietaryRestrictions).values(dietaryLinks);
-      await tx.insert(eventParticipants).values(applicationData);
+      await tx.insert(schema.user).values(users);
+      await tx.insert(schema.account).values(accounts);
+      await tx.insert(schema.session).values(sessions);
+      await tx.insert(schema.userProfiles).values(profiles);
+      await tx.insert(schema.userProfileAbout).values(profilesAbout);
+      if (interestLinks.length > 0) await tx.insert(schema.userInterests).values(interestLinks);
+      if (dietaryLinks.length > 0) await tx.insert(schema.userDietaryRestrictions).values(dietaryLinks);
+      await tx.insert(schema.eventParticipants).values(applicationData);
       if (attendeeData.length > 0)
         await tx
-          .insert(eventParticipants)
+          .insert(schema.eventParticipants)
           .values(attendeeData)
           .onConflictDoNothing({
-            target: [eventParticipants.eventId, eventParticipants.userId],
+            target: [schema.eventParticipants.eventId, schema.eventParticipants.userId],
           });
-      if (userRoles.length > 0) await tx.insert(userRole).values(userRoles);
-      if (userPerms.length > 0)
-        await tx.insert(userPermission).values(userPerms);
+      if (userRoles.length > 0) await tx.insert(schema.userRole).values(userRoles);
+      if (userPerms.length > 0) await tx.insert(schema.userPermission).values(userPerms);
     });
 
     const userIds = users.map((user) => user.id!);
@@ -1153,9 +1027,7 @@ export async function seedDemoData() {
     await seedParticipation(noAppEvent.id, userIds);
 
     const t1 = performance.now();
-    console.log(
-      `✅ Chunk ${c + 1}/${chunkCount} done in ${(t1 - t0).toFixed(1)}ms`,
-    );
+    console.log(`✅ Chunk ${c + 1}/${chunkCount} done in ${(t1 - t0).toFixed(1)}ms`);
   }
 
   console.log(

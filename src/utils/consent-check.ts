@@ -3,7 +3,7 @@ import 'server-only';
 import { desc, eq } from 'drizzle-orm';
 
 import { db } from '@/utils/db';
-import { termsAcceptances, privacyAcceptances } from '@/db/schema';
+import * as schema from '@/db/schema';
 import { CURRENT_PRIVACY_VERSION, CURRENT_TERMS_VERSION } from '@/lib/consent';
 
 /**
@@ -17,21 +17,18 @@ import { CURRENT_PRIVACY_VERSION, CURRENT_TERMS_VERSION } from '@/lib/consent';
 export async function userNeedsConsent(userId: string): Promise<boolean> {
   const [terms, privacy] = await Promise.all([
     db
-      .select({ version: termsAcceptances.version })
-      .from(termsAcceptances)
-      .where(eq(termsAcceptances.userId, userId))
-      .orderBy(desc(termsAcceptances.acceptedAt))
+      .select({ version: schema.termsAcceptances.version })
+      .from(schema.termsAcceptances)
+      .where(eq(schema.termsAcceptances.userId, userId))
+      .orderBy(desc(schema.termsAcceptances.acceptedAt))
       .limit(1),
     db
-      .select({ version: privacyAcceptances.version })
-      .from(privacyAcceptances)
-      .where(eq(privacyAcceptances.userId, userId))
-      .orderBy(desc(privacyAcceptances.acceptedAt))
+      .select({ version: schema.privacyAcceptances.version })
+      .from(schema.privacyAcceptances)
+      .where(eq(schema.privacyAcceptances.userId, userId))
+      .orderBy(desc(schema.privacyAcceptances.acceptedAt))
       .limit(1),
   ]);
 
-  return (
-    terms[0]?.version !== CURRENT_TERMS_VERSION ||
-    privacy[0]?.version !== CURRENT_PRIVACY_VERSION
-  );
+  return terms[0]?.version !== CURRENT_TERMS_VERSION || privacy[0]?.version !== CURRENT_PRIVACY_VERSION;
 }

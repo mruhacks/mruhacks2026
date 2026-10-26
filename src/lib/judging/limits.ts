@@ -10,7 +10,7 @@ export const MAX_PLACEMENT = 999;
  * much (so 0.333 × 3 passes; 0.33 × 3 doesn't). Saving stores
  * them rescaled to sum to exactly 1.
  */
-export const CRITERION_WEIGHT_SUM_TOLERANCE = 0.001;
+const CRITERION_WEIGHT_SUM_TOLERANCE = 0.001;
 
 export function criterionWeightsSumToOne(weights: readonly number[]): boolean {
   const sum = weights.reduce((total, w) => total + w, 0);
@@ -33,9 +33,7 @@ export function roundedWeights(weights: readonly number[]): number[] {
   if (weights.length === 0) return [];
   const clamped = weights.map((w) => (Number.isFinite(w) && w > 0 ? w : 0));
   const total = clamped.reduce((sum, w) => sum + w, 0);
-  const shares = clamped.map((w) =>
-    total > 0 ? w / total : 1 / clamped.length,
-  );
+  const shares = clamped.map((w) => (total > 0 ? w / total : 1 / clamped.length));
   const thousandths = shares.map((share) => Math.round(share * 1000));
   const drift = 1000 - thousandths.reduce((sum, t) => sum + t, 0);
   const largest = thousandths.indexOf(Math.max(...thousandths));

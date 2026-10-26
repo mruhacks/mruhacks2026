@@ -1,5 +1,5 @@
 /** Where Better Auth is mounted; also passed as `basePath` in `src/utils/auth.ts`. */
-export const AUTH_BASE_PATH = '/api/auth';
+export const BASE_PATH = '/api/auth';
 
 /** Our interstitial page; a GET here only renders a "Continue" button. */
 export const EMAIL_LINK_CONFIRM_PATH = '/signin/verify';
@@ -12,11 +12,11 @@ export const EMAIL_LINK_CONFIRM_PATH = '/signin/verify';
  */
 export const EMAIL_LINKS = {
   'magic-link': {
-    endpoint: `${AUTH_BASE_PATH}/magic-link/verify`,
+    endpoint: `${BASE_PATH}/magic-link/verify`,
     params: ['token', 'callbackURL', 'newUserCallbackURL'],
   },
   'verify-email': {
-    endpoint: `${AUTH_BASE_PATH}/verify-email`,
+    endpoint: `${BASE_PATH}/verify-email`,
     params: ['token', 'callbackURL'],
   },
 } as const;
@@ -44,16 +44,11 @@ export function isEmailLinkKind(value: unknown): value is EmailLinkKind {
  * changed), the confirm page would submit to a 404, so the raw link is sent
  * instead and the mismatch logged.
  */
-export function toEmailLinkConfirmUrl(
-  kind: EmailLinkKind,
-  authUrl: string,
-): string {
+export function toEmailLinkConfirmUrl(kind: EmailLinkKind, authUrl: string): string {
   const url = new URL(authUrl);
   const { endpoint } = EMAIL_LINKS[kind];
   if (url.pathname !== endpoint) {
-    console.error(
-      `[auth] ${kind} link points at ${url.pathname}, expected ${endpoint}; sending it unwrapped`,
-    );
+    console.error(`[auth] ${kind} link points at ${url.pathname}, expected ${endpoint}; sending it unwrapped`);
     return authUrl;
   }
   url.pathname = EMAIL_LINK_CONFIRM_PATH;

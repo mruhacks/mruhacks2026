@@ -17,15 +17,10 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import {
-  Field,
-  FieldDescription,
-  FieldError,
-  FieldLabel,
-} from '@/components/ui/field';
+import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 
-import { useEventBasePath } from '../../_components/use-event-base-path';
+import { useEventBasePath } from '@/app/dashboard/admin/events/[eventId]/_components/use-event-base-path';
 
 /**
  * The wiki cell's "Add" action. Creates an empty draft and goes straight to
@@ -100,8 +95,7 @@ export function CreateArticleDialog({ eventId }: { eventId: string }) {
         <DialogHeader>
           <DialogTitle>New article</DialogTitle>
           <DialogDescription>
-            Articles start as drafts — publish one once it is ready for
-            participants.
+            Articles start as drafts — publish one once it is ready for participants.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className='space-y-4'>
@@ -118,13 +112,9 @@ export function CreateArticleDialog({ eventId }: { eventId: string }) {
             />
           </Field>
           <Field>
-            <FieldLabel htmlFor='new-article-slug'>
-              URL slug (optional)
-            </FieldLabel>
+            <FieldLabel htmlFor='new-article-slug'>URL slug (optional)</FieldLabel>
             <FieldDescription>
-              {derivedSlug
-                ? `Defaults to "${derivedSlug}".`
-                : 'Derived from the title.'}
+              {derivedSlug ? `Defaults to "${derivedSlug}".` : 'Derived from the title.'}
             </FieldDescription>
             <Input
               id='new-article-slug'
@@ -138,11 +128,7 @@ export function CreateArticleDialog({ eventId }: { eventId: string }) {
           </Field>
           {error && <FieldError>{error}</FieldError>}
           <DialogFooter>
-            <Button
-              type='button'
-              variant='outline'
-              onClick={() => handleOpenChange(false)}
-            >
+            <Button type='button' variant='outline' onClick={() => handleOpenChange(false)}>
               Cancel
             </Button>
             <Button type='submit' disabled={isCreating}>

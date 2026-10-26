@@ -14,14 +14,11 @@
 import { and, eq, isNotNull, isNull } from 'drizzle-orm';
 import { revalidatePath, updateTag } from 'next/cache';
 
-import { checkIns, events } from '@/db/schema';
+import * as schema from '@/db/schema';
 import { eventTypeExists } from '@/lib/event-types';
-import {
-  adminEventCacheTag,
-  eventApplicationsCacheTag,
-} from '@/lib/admin-event';
+import { adminEventCacheTag, eventApplicationsCacheTag } from '@/lib/admin-event';
 import { EVENTS_CACHE_TAG, eventUrlSegments } from '@/lib/events';
-import { requirePermission } from '@/lib/rbac/authorization';
+import * as Rbac from '@/lib/rbac/server';
 import { subeventsCacheTag } from '@/lib/subevents';
 import { ok, fail, type ActionResult } from '@/utils/action-result';
 import { writeAuditLog } from '@/utils/audit-log';
@@ -33,7 +30,7 @@ import { createSubeventSchema, type CreateSubeventInput } from './schemas';
 async function getAuthorizedUser() {
   const user = await getUser();
   if (!user) return null;
-  await requirePermission(user.id, 'event:manage');
+  await Rbac.requirePermission(user.id, 'event:manage');
   return user;
 }
 
@@ -64,24 +61,20 @@ export async function createSubevent(
   if (!user) return fail('Not authenticated');
 
   const parsed = createSubeventSchema.safeParse(data);
-  if (!parsed.success)
-    return fail(parsed.error.issues[0]?.message ?? 'Invalid input');
+  if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? 'Invalid input');
 
   // The parent must itself be top-level. Sub-events are exactly one level
   // deep, and this is the only place that's enforced — it's what lets the
   // check-in target resolver get away with a single-hop parentage check and
   // means nothing in the codebase ever has to walk a tree of events.
   const [parent] = await db
-    .select({ id: events.id })
-    .from(events)
-    .where(and(eq(events.id, parentEventId), isNull(events.parentEventId)))
+    .select({ id: schema.events.id })
+    .from(schema.events)
+    .where(and(eq(schema.events.id, parentEventId), isNull(schema.events.parentEventId)))
     .limit(1);
   if (!parent) return fail('Event not found.');
 
-  if (
-    parsed.data.eventTypeId != null &&
-    !(await eventTypeExists(parsed.data.eventTypeId))
-  ) {
+  if (parsed.data.eventTypeId != null && !(await eventTypeExists(parsed.data.eventTypeId))) {
     return fail('Unknown schedule entry type.');
   }
 
@@ -90,7 +83,7 @@ export async function createSubevent(
   // team or wallet-pass surface. `isFeatured` especially: that index is
   // sitewide, so a featured sub-event would steal the public register link.
   const [created] = await db
-    .insert(events)
+    .insert(schema.events)
     .values({
       parentEventId,
       eventTypeId: parsed.data.eventTypeId ?? null,
@@ -107,7 +100,7 @@ export async function createSubevent(
       isFeatured: false,
       capacityVisible: false,
     })
-    .returning({ id: events.id });
+    .returning({ id: schema.events.id });
 
   await revalidateSubevents(parentEventId);
 
@@ -132,19 +125,14 @@ export async function createSubevent(
  *
  * Requires event:manage permission.
  */
-export async function deleteSubevent(
-  parentEventId: string,
-  subeventId: string,
-): Promise<ActionResult> {
+export async function deleteSubevent(parentEventId: string, subeventId: string): Promise<ActionResult> {
   const user = await getAuthorizedUser();
   if (!user) return fail('Not authenticated');
 
   const [subevent] = await db
-    .select({ id: events.id, name: events.name, termsId: events.termsId })
-    .from(events)
-    .where(
-      and(eq(events.id, subeventId), eq(events.parentEventId, parentEventId)),
-    )
+    .select({ id: schema.events.id, name: schema.events.name, termsId: schema.events.termsId })
+    .from(schema.events)
+    .where(and(eq(schema.events.id, subeventId), eq(schema.events.parentEventId, parentEventId)))
     .limit(1);
   if (!subevent) return fail('Schedule entry not found.');
 
@@ -152,20 +140,18 @@ export async function deleteSubevent(
   // would be silently promoted into a top-level event. `createSubevent`'s
   // depth guard makes that unreachable; this is the belt to its braces.
   const [grandchild] = await db
-    .select({ id: events.id })
-    .from(events)
-    .where(eq(events.parentEventId, subeventId))
+    .select({ id: schema.events.id })
+    .from(schema.events)
+    .where(eq(schema.events.parentEventId, subeventId))
     .limit(1);
   if (grandchild) {
-    return fail(
-      'That schedule entry has entries of its own. Remove them first.',
-    );
+    return fail('That schedule entry has entries of its own. Remove them first.');
   }
 
   const checkInRows = await db
-    .select({ userId: checkIns.userId })
-    .from(checkIns)
-    .where(eq(checkIns.eventId, subeventId));
+    .select({ userId: schema.checkIns.userId })
+    .from(schema.checkIns)
+    .where(eq(schema.checkIns.eventId, subeventId));
 
   await db.transaction(async (tx) => {
     // `events.terms_id -> event_terms.id` has no ON DELETE while
@@ -173,20 +159,17 @@ export async function deleteSubevent(
     // reference each other. Dropping the pointer first keeps the delete from
     // depending on which side Postgres happens to resolve first.
     if (subevent.termsId) {
-      await tx
-        .update(events)
-        .set({ termsId: null })
-        .where(eq(events.id, subeventId));
+      await tx.update(schema.events).set({ termsId: null }).where(eq(schema.events.id, subeventId));
     }
     // Re-asserting the parentage inside the transaction, not just in the read
     // above: this is the predicate that makes deleting a main event impossible.
     await tx
-      .delete(events)
+      .delete(schema.events)
       .where(
         and(
-          eq(events.id, subeventId),
-          isNotNull(events.parentEventId),
-          eq(events.parentEventId, parentEventId),
+          eq(schema.events.id, subeventId),
+          isNotNull(schema.events.parentEventId),
+          eq(schema.events.parentEventId, parentEventId),
         ),
       );
   });

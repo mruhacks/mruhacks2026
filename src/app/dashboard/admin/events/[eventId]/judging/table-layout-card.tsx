@@ -5,48 +5,22 @@ import { Lock, Printer } from 'lucide-react';
 
 import { updateJudgingTableLayout } from '@/app/dashboard/admin/events/judging-actions';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardAction,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import {
-  Field,
-  FieldDescription,
-  FieldError,
-  FieldGroup,
-  FieldLabel,
-} from '@/components/ui/field';
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
-import {
-  formatTableLabel,
-  MAX_TABLE_ROWS,
-  TABLE_ALPHABET_LABELS,
-  TABLE_ALPHABETS,
-  type TableAlphabet,
-  type TableLayout,
-} from '@/lib/judging/table-label';
+import * as Judging from '@/lib/judging';
 
 type Draft = {
   rows: string;
-  rowAlphabet: TableAlphabet;
-  columnAlphabet: TableAlphabet;
+  rowAlphabet: Judging.TableAlphabet;
+  columnAlphabet: Judging.TableAlphabet;
 };
 
 const PREVIEW_COUNT = 8;
 
-function toDraft(layout: TableLayout): Draft {
+function toDraft(layout: Judging.TableLayout): Draft {
   return { ...layout, rows: String(layout.rows) };
 }
 
@@ -61,7 +35,7 @@ export function TableLayoutCard({
   locked,
 }: {
   eventId: string;
-  layout: TableLayout;
+  layout: Judging.TableLayout;
   locked: boolean;
 }) {
   const [draft, setDraft] = React.useState(() => toDraft(layout));
@@ -69,16 +43,13 @@ export function TableLayoutCard({
   const [saving, setSaving] = React.useState(false);
 
   const rows = Number(draft.rows);
-  const rowsValid =
-    Number.isInteger(rows) && rows >= 1 && rows <= MAX_TABLE_ROWS;
+  const rowsValid = Number.isInteger(rows) && rows >= 1 && rows <= Judging.MAX_TABLE_ROWS;
   const dirty =
     draft.rows !== String(layout.rows) ||
     draft.rowAlphabet !== layout.rowAlphabet ||
     draft.columnAlphabet !== layout.columnAlphabet;
   const preview = rowsValid
-    ? Array.from({ length: PREVIEW_COUNT }, (_, slot) =>
-        formatTableLabel(slot, { ...draft, rows }),
-      )
+    ? Array.from({ length: PREVIEW_COUNT }, (_, slot) => Judging.formatTableLabel(slot, { ...draft, rows }))
     : [];
 
   function change<K extends keyof Draft>(field: K, value: Draft[K]) {
@@ -89,7 +60,7 @@ export function TableLayoutCard({
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     if (!rowsValid) {
-      setError(`Enter a whole number of rows from 1 to ${MAX_TABLE_ROWS}.`);
+      setError(`Enter a whole number of rows from 1 to ${Judging.MAX_TABLE_ROWS}.`);
       return;
     }
     setSaving(true);
@@ -147,7 +118,7 @@ export function TableLayoutCard({
                   type='number'
                   inputMode='numeric'
                   min={1}
-                  max={MAX_TABLE_ROWS}
+                  max={Judging.MAX_TABLE_ROWS}
                   step={1}
                   disabled={locked}
                   aria-invalid={Boolean(error)}
@@ -200,25 +171,21 @@ function AlphabetField({
 }: {
   id: string;
   label: string;
-  value: TableAlphabet;
+  value: Judging.TableAlphabet;
   disabled: boolean;
-  onChange: (value: TableAlphabet) => void;
+  onChange: (value: Judging.TableAlphabet) => void;
 }) {
   return (
     <Field>
       <FieldLabel htmlFor={id}>{label}</FieldLabel>
-      <Select
-        value={value}
-        disabled={disabled}
-        onValueChange={(next) => onChange(next as TableAlphabet)}
-      >
+      <Select value={value} disabled={disabled} onValueChange={(next) => onChange(next as Judging.TableAlphabet)}>
         <SelectTrigger id={id} className='w-full'>
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          {TABLE_ALPHABETS.map((alphabet) => (
+          {Judging.TABLE_ALPHABETS.map((alphabet) => (
             <SelectItem key={alphabet} value={alphabet}>
-              {TABLE_ALPHABET_LABELS[alphabet]}
+              {Judging.TABLE_ALPHABET_LABELS[alphabet]}
             </SelectItem>
           ))}
         </SelectContent>

@@ -4,13 +4,7 @@ import * as React from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Dialog,
   DialogClose,
@@ -61,9 +55,8 @@ export function DeleteAccountCard() {
       <CardHeader>
         <CardTitle className='text-destructive'>Delete your account</CardTitle>
         <CardDescription>
-          Permanently delete your account and your personal data — your profile,
-          applications, event history, and preferences. Projects you built with
-          a team stay, without your name. This cannot be undone.
+          Permanently delete your account and your personal data — your profile, applications, event history, and
+          preferences. Projects you built with a team stay, without your name. This cannot be undone.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -83,9 +76,8 @@ export function DeleteAccountCard() {
                 <DialogHeader>
                   <DialogTitle>Check your email</DialogTitle>
                   <DialogDescription>
-                    We&apos;ve sent a confirmation link to your email address.
-                    Your account and personal data will be permanently deleted
-                    only after you open that link. The link expires in 24 hours.
+                    We&apos;ve sent a confirmation link to your email address. Your account and personal data will be
+                    permanently deleted only after you open that link. The link expires in 24 hours.
                   </DialogDescription>
                 </DialogHeader>
                 <DialogFooter>
@@ -102,17 +94,14 @@ export function DeleteAccountCard() {
                     Delete account
                   </DialogTitle>
                   <DialogDescription>
-                    This permanently erases your account and your personal data.
-                    Team projects stay, without your name. For your security,
-                    we&apos;ll email you a link to confirm before anything is
-                    deleted.
+                    This permanently erases your account and your personal data. Team projects stay, without your name.
+                    For your security, we&apos;ll email you a link to confirm before anything is deleted.
                   </DialogDescription>
                 </DialogHeader>
 
                 <div className='space-y-2'>
                   <Label htmlFor='delete-confirm'>
-                    Type <span className='font-semibold'>{CONFIRM_PHRASE}</span>{' '}
-                    to continue
+                    Type <span className='font-semibold'>{CONFIRM_PHRASE}</span> to continue
                   </Label>
                   <Input
                     id='delete-confirm'
@@ -127,11 +116,7 @@ export function DeleteAccountCard() {
                   <DialogClose asChild>
                     <Button variant='outline'>Cancel</Button>
                   </DialogClose>
-                  <Button
-                    variant='destructive'
-                    onClick={handleDelete}
-                    disabled={!canDelete || submitting}
-                  >
+                  <Button variant='destructive' onClick={handleDelete} disabled={!canDelete || submitting}>
                     {submitting ? 'Sending…' : 'Send confirmation email'}
                   </Button>
                 </DialogFooter>

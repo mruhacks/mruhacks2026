@@ -1,27 +1,10 @@
 import { describe, test, expect, beforeAll, afterAll, vi } from 'vitest';
 import { and, eq } from 'drizzle-orm';
 import { db } from '@/utils/db';
-import {
-  user,
-  events,
-  eventParticipants,
-  teams,
-  permission,
-  userPermission,
-  auditLog,
-  checkIns,
-} from '@/db/schema';
+import * as schema from '@/db/schema';
 import { insertAttendees } from '@/tests/participation-fixtures';
-import {
-  getMyTeam,
-  joinTeamByCode,
-  leaveTeam,
-  removeMember,
-} from '@/app/dashboard/events/team-actions';
-import {
-  getFormedTeamsForEvent,
-  canModerateTeams,
-} from '@/app/dashboard/admin/events/actions';
+import { getMyTeam, joinTeamByCode, leaveTeam, removeMember } from '@/app/dashboard/events/team-actions';
+import { getFormedTeamsForEvent, canModerateTeams } from '@/app/dashboard/admin/events/actions';
 
 vi.mock('@/utils/auth', () => ({ getUser: vi.fn() }));
 vi.mock('next/cache', () => ({
@@ -60,7 +43,7 @@ let adminUser: TestUser;
 
 async function makeUser(label: string): Promise<TestUser> {
   const [u] = await db
-    .insert(user)
+    .insert(schema.user)
     .values({
       name: `Team Test ${label}`,
       email: `team-test-${label.toLowerCase()}@example.com`,
@@ -68,25 +51,25 @@ async function makeUser(label: string): Promise<TestUser> {
       emailVerified: true,
     })
     .returning({
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      image: user.image,
-      emailVerified: user.emailVerified,
+      id: schema.user.id,
+      email: schema.user.email,
+      name: schema.user.name,
+      image: schema.user.image,
+      emailVerified: schema.user.emailVerified,
     });
   return u;
 }
 
 beforeAll(async () => {
   const [e] = await db
-    .insert(events)
+    .insert(schema.events)
     .values({
       name: 'Team Test Event',
       hasApplication: false,
       teamsEnabled: true,
       maxTeamSize: 3,
     })
-    .returning({ id: events.id });
+    .returning({ id: schema.events.id });
   eventId = e.id;
 
   userA = await makeUser('A');
@@ -109,31 +92,20 @@ beforeAll(async () => {
   ]);
 
   const perms = await db
-    .insert(permission)
+    .insert(schema.permission)
     .values([
       { slug: 'team:manage:all', description: 'test permission' },
       { slug: 'team:read:all', description: 'test permission' },
     ])
-    .returning({ id: permission.id });
-  await db
-    .insert(userPermission)
-    .values(perms.map((p) => ({ userId: adminUser.id, permissionId: p.id })));
+    .returning({ id: schema.permission.id });
+  await db.insert(schema.userPermission).values(perms.map((p) => ({ userId: adminUser.id, permissionId: p.id })));
 });
 
 afterAll(async () => {
-  await db.delete(events).where(eq(events.id, eventId));
-  const testUsers = [
-    userA,
-    userB,
-    userC,
-    userD,
-    userE,
-    userF,
-    userG,
-    adminUser,
-  ];
+  await db.delete(schema.events).where(eq(schema.events.id, eventId));
+  const testUsers = [userA, userB, userC, userD, userE, userF, userG, adminUser];
   for (const u of testUsers) {
-    await db.delete(user).where(eq(user.id, u.id));
+    await db.delete(schema.user).where(eq(schema.user.id, u.id));
   }
 });
 
@@ -146,23 +118,23 @@ describe('getMyTeam', () => {
 
   test('fails for a non-participant', async () => {
     const [nonParticipant] = await db
-      .insert(user)
+      .insert(schema.user)
       .values({
         name: 'Non Participant',
         email: 'team-test-nonparticipant@example.com',
         emailVerified: true,
       })
       .returning({
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        image: user.image,
-        emailVerified: user.emailVerified,
+        id: schema.user.id,
+        email: schema.user.email,
+        name: schema.user.name,
+        image: schema.user.image,
+        emailVerified: schema.user.emailVerified,
       });
     loginAs(nonParticipant);
     const result = await getMyTeam(eventId);
     expect(result.success).toBe(false);
-    await db.delete(user).where(eq(user.id, nonParticipant.id));
+    await db.delete(schema.user).where(eq(schema.user.id, nonParticipant.id));
   });
 
   test('lazily creates a personal team-of-one on first access', async () => {
@@ -207,26 +179,19 @@ describe('joinTeamByCode', () => {
 
     loginAs(userB);
     const bTeamBefore = await getMyTeam(eventId);
-    if (!bTeamBefore.success || !bTeamBefore.data)
-      throw new Error('expected data');
+    if (!bTeamBefore.success || !bTeamBefore.data) throw new Error('expected data');
     const bOldTeamId = bTeamBefore.data.teamId;
 
     const joinResult = await joinTeamByCode(eventId, aCode);
     expect(joinResult.success).toBe(true);
 
     const rosterAfter = await getMyTeam(eventId);
-    if (!rosterAfter.success || !rosterAfter.data)
-      throw new Error('expected data');
+    if (!rosterAfter.success || !rosterAfter.data) throw new Error('expected data');
     expect(rosterAfter.data.teamId).toBe(aTeamId);
     expect(rosterAfter.data.organizerId).toBe(userA.id);
-    expect(rosterAfter.data.members.map((m) => m.userId).sort()).toEqual(
-      [userA.id, userB.id].sort(),
-    );
+    expect(rosterAfter.data.members.map((m) => m.userId).sort()).toEqual([userA.id, userB.id].sort());
 
-    const dissolvedTeam = await db
-      .select()
-      .from(teams)
-      .where(eq(teams.id, bOldTeamId));
+    const dissolvedTeam = await db.select().from(schema.teams).where(eq(schema.teams.id, bOldTeamId));
     expect(dissolvedTeam).toHaveLength(0);
   });
 
@@ -270,15 +235,12 @@ describe('leaveTeam', () => {
     const bTeam = await getMyTeam(eventId);
     if (!bTeam.success || !bTeam.data) throw new Error('expected data');
     expect(bTeam.data.organizerId).toBe(userB.id);
-    expect(bTeam.data.members.map((m) => m.userId).sort()).toEqual(
-      [userB.id, userC.id].sort(),
-    );
+    expect(bTeam.data.members.map((m) => m.userId).sort()).toEqual([userB.id, userC.id].sort());
 
     // A reverted to a fresh personal team-of-one.
     loginAs(userA);
     const aTeamAfter = await getMyTeam(eventId);
-    if (!aTeamAfter.success || !aTeamAfter.data)
-      throw new Error('expected data');
+    if (!aTeamAfter.success || !aTeamAfter.data) throw new Error('expected data');
     expect(aTeamAfter.data.members).toHaveLength(1);
     expect(aTeamAfter.data.organizerId).toBe(userA.id);
   });
@@ -321,10 +283,7 @@ describe('removeMember', () => {
     const result = await removeMember(eventId, userB.id);
     expect(result.success).toBe(true);
 
-    const logs = await db
-      .select()
-      .from(auditLog)
-      .where(eq(auditLog.action, 'team.member.removed'));
+    const logs = await db.select().from(schema.auditLog).where(eq(schema.auditLog.action, 'team.member.removed'));
     expect(logs.some((l) => l.targetId === userB.id)).toBe(true);
   });
 });
@@ -360,12 +319,8 @@ describe('getFormedTeamsForEvent', () => {
     if (!result.success || !result.data) throw new Error('expected data');
 
     expect(result.data.every((t) => t.memberCount > 1)).toBe(true);
-    const formedTeam = result.data.find((t) =>
-      t.members.some((m) => m.userId === userA.id),
-    );
-    expect(formedTeam?.members.map((m) => m.userId).sort()).toEqual(
-      [userA.id, userC.id].sort(),
-    );
+    const formedTeam = result.data.find((t) => t.members.some((m) => m.userId === userA.id));
+    expect(formedTeam?.members.map((m) => m.userId).sort()).toEqual([userA.id, userC.id].sort());
   });
 });
 
@@ -389,10 +344,7 @@ describe('canModerateTeams', () => {
 describe('getMyTeam concurrency', () => {
   test('two simultaneous first-time reads settle on one team, with no orphan', async () => {
     loginAs(userG);
-    const [first, second] = await Promise.all([
-      getMyTeam(eventId),
-      getMyTeam(eventId),
-    ]);
+    const [first, second] = await Promise.all([getMyTeam(eventId), getMyTeam(eventId)]);
 
     expect(first.success).toBe(true);
     expect(second.success).toBe(true);
@@ -403,9 +355,9 @@ describe('getMyTeam concurrency', () => {
     // A non-transactional create would leave a second, member-less `teams`
     // row holding a live code for this event.
     const rows = await db
-      .select({ id: teams.id })
-      .from(teams)
-      .where(eq(teams.organizerId, userG.id));
+      .select({ id: schema.teams.id })
+      .from(schema.teams)
+      .where(eq(schema.teams.organizerId, userG.id));
     expect(rows).toHaveLength(1);
   });
 });
@@ -422,13 +374,8 @@ describe('removeMember participation', () => {
 
     // E unregisters (or is denied) but stays `teams.organizerId`.
     await db
-      .delete(eventParticipants)
-      .where(
-        and(
-          eq(eventParticipants.eventId, eventId),
-          eq(eventParticipants.userId, userE.id),
-        ),
-      );
+      .delete(schema.eventParticipants)
+      .where(and(eq(schema.eventParticipants.eventId, eventId), eq(schema.eventParticipants.userId, userE.id)));
 
     loginAs(userE);
     const denied = await removeMember(eventId, userF.id);
@@ -469,10 +416,7 @@ describe('getFormedTeamsForEvent payload', () => {
   });
 
   test('flags which members have checked in', async () => {
-    await db
-      .insert(checkIns)
-      .values({ eventId, userId: userA.id })
-      .onConflictDoNothing();
+    await db.insert(schema.checkIns).values({ eventId, userId: userA.id }).onConflictDoNothing();
 
     loginAs(adminUser);
     const result = await getFormedTeamsForEvent(eventId);
@@ -482,8 +426,8 @@ describe('getFormedTeamsForEvent payload', () => {
     expect(members.find((m) => m.userId === userB.id)?.checkedIn).toBe(false);
 
     await db
-      .delete(checkIns)
-      .where(and(eq(checkIns.eventId, eventId), eq(checkIns.userId, userA.id)));
+      .delete(schema.checkIns)
+      .where(and(eq(schema.checkIns.eventId, eventId), eq(schema.checkIns.userId, userA.id)));
   });
 });
 
@@ -492,14 +436,14 @@ describe('team actions on an elapsed event', () => {
 
   beforeAll(async () => {
     const [e] = await db
-      .insert(events)
+      .insert(schema.events)
       .values({
         name: 'Team Test Elapsed Event',
         hasApplication: false,
         teamsEnabled: true,
         endsAt: new Date(Date.now() - 60_000),
       })
-      .returning({ id: events.id });
+      .returning({ id: schema.events.id });
     elapsedEventId = e.id;
 
     await insertAttendees([
@@ -509,7 +453,7 @@ describe('team actions on an elapsed event', () => {
   });
 
   afterAll(async () => {
-    await db.delete(events).where(eq(events.id, elapsedEventId));
+    await db.delete(schema.events).where(eq(schema.events.id, elapsedEventId));
   });
 
   test('leaveTeam is rejected once the event has ended', async () => {

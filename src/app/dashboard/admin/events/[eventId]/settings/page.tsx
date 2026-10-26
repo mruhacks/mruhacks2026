@@ -4,7 +4,7 @@ import { notFound, redirect } from 'next/navigation';
 import { getAdminEventSettings } from '@/lib/admin-event';
 import { listEventTypes } from '@/lib/event-types';
 import { resolveEventId } from '@/lib/events';
-import { requirePermission } from '@/lib/rbac/authorization';
+import * as Rbac from '@/lib/rbac/server';
 import { getUser } from '@/utils/auth';
 import { EventSettingsForm } from './event-settings-form';
 
@@ -26,25 +26,16 @@ function SettingsSkeleton() {
   return <div className='bg-muted h-96 animate-pulse rounded-xl' />;
 }
 
-async function SettingsContent({
-  paramsPromise,
-}: {
-  paramsPromise: Promise<{ eventId: string }>;
-}) {
+async function SettingsContent({ paramsPromise }: { paramsPromise: Promise<{ eventId: string }> }) {
   const { eventId: segment } = await paramsPromise;
   const eventId = await resolveEventId(segment);
   if (!eventId) notFound();
   const user = await getUser();
   if (!user) redirect('/signin');
-  await requirePermission(user.id, 'event:manage:all');
+  await Rbac.requirePermission(user.id, 'event:manage:all');
 
-  const [event, eventTypes] = await Promise.all([
-    getAdminEventSettings(eventId),
-    listEventTypes(),
-  ]);
+  const [event, eventTypes] = await Promise.all([getAdminEventSettings(eventId), listEventTypes()]);
   if (!event) notFound();
 
-  return (
-    <EventSettingsForm key={event.id} event={event} eventTypes={eventTypes} />
-  );
+  return <EventSettingsForm key={event.id} event={event} eventTypes={eventTypes} />;
 }

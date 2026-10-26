@@ -12,92 +12,29 @@
 
 'use server';
 
-import {
-  and,
-  asc,
-  count,
-  eq,
-  inArray,
-  max,
-  isNotNull,
-  isNull,
-  sql,
-} from 'drizzle-orm';
-import { revalidatePath } from 'next/cache';
+import { and, asc, count, eq, inArray, max, isNotNull, isNull, sql } from 'drizzle-orm';
+import { revalidatePath, updateTag } from 'next/cache';
 import { z } from 'zod';
 
-import {
-  session as authSession,
-  eventJudges,
-  events,
-  judgeState,
-  judgingCriteria,
-  judgingVotes,
-  submissions,
-  user as authUser,
-} from '@/db/schema';
-import {
-  claimMagicLinkCooldown,
-  releaseMagicLinkCooldown,
-} from '@/lib/auth/magic-link-cooldown';
+import * as schema from '@/db/schema';
+import * as Auth from '@/lib/auth/server';
 import { eventUrlSegments } from '@/lib/events';
-import { JUDGE_PRIOR } from '@/lib/judging/crowd-bt';
-import {
-  checkJudgeInviteRateLimit,
-  JUDGE_INVITE_RATE_LIMITED,
-} from '@/lib/judging/invite-rate-limit';
-import { sendJudgeInvite } from '@/lib/judging/judge-invite';
-import {
-  CRITERION_DESCRIPTION_MAX_LENGTH,
-  CRITERION_NAME_MAX_LENGTH,
-  criterionWeightsSumToOne,
-  formatWeight,
-  MAX_CRITERIA,
-  MAX_PLACEMENT,
-} from '@/lib/judging/limits';
-import {
-  normalizeWeights,
-  overallScore,
-  reliabilityMean,
-} from '@/lib/judging/results';
-import {
-  MAX_TABLE_ROWS,
-  TABLE_ALPHABETS,
-  type TableLayout,
-} from '@/lib/judging/table-label';
-import {
-  byTableSlot,
-  eventHasVotes,
-  getTableLabels,
-  inPoolCondition,
-  isParticipatingInEvent,
-  JUDGE_IS_PARTICIPANT_MESSAGE,
-  judgesSentToTables,
-  loadCriteria,
-  loadResultsPool,
-  loadTableLayout,
-  normalizeJudgeEmail,
-  replayEventVotes,
-} from '@/lib/judging/server';
+import * as Judging from '@/lib/judging/server';
+import { PROJECT_SHOWCASE_CACHE_TAG } from '@/lib/project-showcase';
 import { isPastSubmissionDeadline } from '@/lib/submissions';
-import { hasPermission } from '@/lib/rbac/authorization';
+import * as Rbac from '@/lib/rbac/server';
 import { ActionResult, fail, ok } from '@/utils/action-result';
 import { getUser } from '@/utils/auth';
 import { writeAuditLog } from '@/utils/audit-log';
 import { db } from '@/utils/db';
 
-type JudgingPermission =
-  | 'judging:manage:all'
-  | 'judging:results:all'
-  | 'judging:award:all';
+type JudgingPermission = 'judging:manage:all' | 'judging:results:all' | 'judging:award:all';
 
 /** The caller's id if they hold `permission`, else a failure to return. */
-async function authorize(
-  permission: JudgingPermission,
-): Promise<{ userId: string } | { error: ActionResult<never> }> {
+async function authorize(permission: JudgingPermission): Promise<{ userId: string } | { error: ActionResult<never> }> {
   const user = await getUser();
   if (!user) return { error: fail('Not authenticated') };
-  if (!(await hasPermission(user.id, permission))) {
+  if (!(await Rbac.hasPermission(user.id, permission))) {
     return { error: fail('You do not have permission to do that.') };
   }
   return { userId: user.id };
@@ -116,11 +53,7 @@ const STRUCTURE_LOCKED =
   'Judging has started. Criteria can no longer be added, removed or reordered — only renamed and reweighted.';
 
 /** "Deleted judge #1a2b3c4d" — what's left once a judge deletes their account. */
-function judgeLabel(row: {
-  id: string;
-  name: string | null;
-  email: string | null;
-}): string {
+function judgeLabel(row: { id: string; name: string | null; email: string | null }): string {
   return row.name || row.email || `Deleted judge #${row.id.slice(0, 8)}`;
 }
 
@@ -138,24 +71,24 @@ function judgeLabel(row: {
 async function loadRoster(eventId: string) {
   const rows = await db
     .select({
-      id: eventJudges.id,
-      email: eventJudges.email,
-      userId: eventJudges.userId,
-      name: authUser.name,
-      disabledAt: eventJudges.disabledAt,
-      inviteSentAt: eventJudges.inviteSentAt,
-      startedJudging: sql<boolean>`EXISTS (SELECT 1 FROM ${judgeState} WHERE ${judgeState.judgeId} = ${eventJudges.id})`,
+      id: schema.eventJudges.id,
+      email: schema.eventJudges.email,
+      userId: schema.eventJudges.userId,
+      name: schema.user.name,
+      disabledAt: schema.eventJudges.disabledAt,
+      inviteSentAt: schema.eventJudges.inviteSentAt,
+      startedJudging: sql<boolean>`EXISTS (SELECT 1 FROM ${schema.judgeState} WHERE ${schema.judgeState.judgeId} = ${schema.eventJudges.id})`,
       signedIn: sql<boolean>`EXISTS (
-        SELECT 1 FROM ${authSession}
-         WHERE ${authSession.userId} = ${eventJudges.userId}
-           AND ${authSession.impersonatedBy} IS NULL
-           AND ${authSession.updatedAt} > ${eventJudges.createdAt}
+        SELECT 1 FROM ${schema.session}
+         WHERE ${schema.session.userId} = ${schema.eventJudges.userId}
+           AND ${schema.session.impersonatedBy} IS NULL
+           AND ${schema.session.updatedAt} > ${schema.eventJudges.createdAt}
       )`,
     })
-    .from(eventJudges)
-    .leftJoin(authUser, eq(authUser.id, eventJudges.userId))
-    .where(eq(eventJudges.eventId, eventId))
-    .orderBy(asc(eventJudges.createdAt));
+    .from(schema.eventJudges)
+    .leftJoin(schema.user, eq(schema.user.id, schema.eventJudges.userId))
+    .where(eq(schema.eventJudges.eventId, eventId))
+    .orderBy(asc(schema.eventJudges.createdAt));
   return rows.map((row) => ({ ...row, label: judgeLabel(row) }));
 }
 
@@ -163,10 +96,7 @@ async function loadRoster(eventId: string) {
  * Every comparison casts one vote per criterion, and the criteria are frozen
  * from the first vote on, so this division is exact.
  */
-function comparisonsFromVotes(
-  votes: number | undefined,
-  criterionCount: number,
-): number {
+function comparisonsFromVotes(votes: number | undefined, criterionCount: number): number {
   return Math.round((votes ?? 0) / Math.max(criterionCount, 1));
 }
 
@@ -217,43 +147,32 @@ export type JudgingAdminData = {
    * already walking the floor.
    */
   layoutLocked: boolean;
-  tableLayout: TableLayout;
+  tableLayout: Judging.TableLayout;
   judges: JudgingRosterRow[];
 };
 
 /** Everything the Judging page shows. Requires judging:manage:all. */
-export async function getJudgingAdmin(
-  eventId: string,
-): Promise<ActionResult<JudgingAdminData>> {
+export async function getJudgingAdmin(eventId: string): Promise<ActionResult<JudgingAdminData>> {
   const auth = await authorize('judging:manage:all');
   if ('error' in auth) return auth.error;
 
-  const [
-    criteria,
-    structureLocked,
-    layoutLocked,
-    judges,
-    voteCounts,
-    tableLayout,
-  ] = await Promise.all([
-    loadCriteria(eventId),
-    eventHasVotes(eventId),
-    judgesSentToTables(eventId),
+  const [criteria, structureLocked, layoutLocked, judges, voteCounts, tableLayout] = await Promise.all([
+    Judging.loadCriteria(eventId),
+    Judging.eventHasVotes(eventId),
+    Judging.judgesSentToTables(eventId),
     loadRoster(eventId),
     db
-      .select({ judgeId: judgingVotes.judgeId, votes: count() })
-      .from(judgingVotes)
-      .innerJoin(eventJudges, eq(eventJudges.id, judgingVotes.judgeId))
-      .where(eq(eventJudges.eventId, eventId))
-      .groupBy(judgingVotes.judgeId),
-    loadTableLayout(eventId),
+      .select({ judgeId: schema.judgingVotes.judgeId, votes: count() })
+      .from(schema.judgingVotes)
+      .innerJoin(schema.eventJudges, eq(schema.eventJudges.id, schema.judgingVotes.judgeId))
+      .where(eq(schema.eventJudges.eventId, eventId))
+      .groupBy(schema.judgingVotes.judgeId),
+    Judging.loadTableLayout(eventId),
   ]);
 
-  const votesByJudge = new Map(
-    voteCounts.map((row) => [row.judgeId, row.votes]),
-  );
+  const votesByJudge = new Map(voteCounts.map((row) => [row.judgeId, row.votes]));
 
-  const weights = normalizeWeights(criteria.map((c) => c.weight));
+  const weights = Judging.normalizeWeights(criteria.map((c) => c.weight));
   return ok({
     criteria: criteria.map(({ id, name, description }, index) => ({
       id,
@@ -273,10 +192,7 @@ export async function getJudgingAdmin(
       startedJudging: row.startedJudging,
       deleted: row.userId == null && row.email == null,
       disabled: row.disabledAt != null,
-      comparisons: comparisonsFromVotes(
-        votesByJudge.get(row.id),
-        criteria.length,
-      ),
+      comparisons: comparisonsFromVotes(votesByJudge.get(row.id), criteria.length),
     })),
   });
 }
@@ -285,24 +201,22 @@ export async function getJudgingAdmin(
  * Every submission with its expo table, for deciding which are judged.
  * Its own read, apart from `getJudgingAdmin`, since it backs its own page.
  */
-export async function getJudgingProjects(
-  eventId: string,
-): Promise<ActionResult<JudgingProjectRow[]>> {
+export async function getJudgingProjects(eventId: string): Promise<ActionResult<JudgingProjectRow[]>> {
   const auth = await authorize('judging:manage:all');
   if ('error' in auth) return auth.error;
 
   const [projects, tables] = await Promise.all([
     db
       .select({
-        id: submissions.id,
-        teamId: submissions.teamId,
-        title: submissions.title,
-        published: submissions.published,
-        deactivatedAt: submissions.deactivatedAt,
+        id: schema.submissions.id,
+        teamId: schema.submissions.teamId,
+        title: schema.submissions.title,
+        published: schema.submissions.published,
+        deactivatedAt: schema.submissions.deactivatedAt,
       })
-      .from(submissions)
-      .where(eq(submissions.eventId, eventId)),
-    getTableLabels(eventId),
+      .from(schema.submissions)
+      .where(eq(schema.submissions.eventId, eventId)),
+    Judging.getTableLabels(eventId),
   ]);
 
   return ok(
@@ -316,7 +230,7 @@ export async function getJudgingProjects(
         published: row.published,
         deactivated: row.deactivatedAt != null,
       }))
-      .sort(byTableSlot),
+      .sort(Judging.byTableSlot),
   );
 }
 
@@ -328,16 +242,16 @@ export async function getJudgingProjects(
  */
 export async function getJudgingTableSigns(
   eventId: string,
-): Promise<ActionResult<{ layout: TableLayout; handedOut: number }>> {
+): Promise<ActionResult<{ layout: Judging.TableLayout; handedOut: number }>> {
   const auth = await authorize('judging:manage:all');
   if ('error' in auth) return auth.error;
 
   const [layout, [row]] = await Promise.all([
-    loadTableLayout(eventId),
+    Judging.loadTableLayout(eventId),
     db
-      .select({ highest: max(submissions.tableSlot) })
-      .from(submissions)
-      .where(eq(submissions.eventId, eventId)),
+      .select({ highest: max(schema.submissions.tableSlot) })
+      .from(schema.submissions)
+      .where(eq(schema.submissions.eventId, eventId)),
   ]);
   return ok({
     layout,
@@ -354,16 +268,13 @@ const criterionSchema = z.object({
     .string()
     .trim()
     .min(1, 'Give every criterion a name.')
-    .max(
-      CRITERION_NAME_MAX_LENGTH,
-      `Keep names under ${CRITERION_NAME_MAX_LENGTH} characters.`,
-    ),
+    .max(Judging.CRITERION_NAME_MAX_LENGTH, `Keep names under ${Judging.CRITERION_NAME_MAX_LENGTH} characters.`),
   description: z
     .string()
     .trim()
     .max(
-      CRITERION_DESCRIPTION_MAX_LENGTH,
-      `Keep descriptions to one line (under ${CRITERION_DESCRIPTION_MAX_LENGTH} characters).`,
+      Judging.CRITERION_DESCRIPTION_MAX_LENGTH,
+      `Keep descriptions to one line (under ${Judging.CRITERION_DESCRIPTION_MAX_LENGTH} characters).`,
     )
     .refine((value) => !/[\r\n]/.test(value), 'Keep descriptions to one line.'),
   weight: z
@@ -375,18 +286,18 @@ const criterionSchema = z.object({
 
 const criteriaSchema = z
   .array(criterionSchema)
-  .max(MAX_CRITERIA, `Keep it to ${MAX_CRITERIA} criteria or fewer.`)
+  .max(Judging.MAX_CRITERIA, `Keep it to ${Judging.MAX_CRITERIA} criteria or fewer.`)
   .superRefine((rows, ctx) => {
     const ids = rows.flatMap((row) => (row.id ? [row.id] : []));
     if (new Set(ids).size !== ids.length) {
       ctx.addIssue({ code: 'custom', message: 'Invalid criteria.' });
     }
     const weights = rows.map((row) => row.weight);
-    if (rows.length > 0 && !criterionWeightsSumToOne(weights)) {
+    if (rows.length > 0 && !Judging.criterionWeightsSumToOne(weights)) {
       const sum = weights.reduce((total, w) => total + w, 0);
       ctx.addIssue({
         code: 'custom',
-        message: `Weights must add up to 1; these add up to ${formatWeight(sum)}.`,
+        message: `Weights must add up to 1; these add up to ${Judging.formatWeight(sum)}.`,
       });
     }
   });
@@ -427,50 +338,39 @@ function isUniqueViolation(error: unknown): boolean {
  * (FOR UPDATE here, FOR KEY SHARE in the vote path) keeps a first vote from
  * landing in between the "no votes yet" check and the change.
  */
-export async function saveJudgingCriteria(
-  eventId: string,
-  input: CriteriaInput,
-): Promise<ActionResult> {
+export async function saveJudgingCriteria(eventId: string, input: CriteriaInput): Promise<ActionResult> {
   const auth = await authorize('judging:manage:all');
   if ('error' in auth) return auth.error;
   const parsed = criteriaSchema.safeParse(input);
   if (!parsed.success) return fail(firstIssue(parsed.error));
   const rows = parsed.data;
-  const weights = normalizeWeights(rows.map((row) => row.weight));
+  const weights = Judging.normalizeWeights(rows.map((row) => row.weight));
 
   let result: ActionResult<{ added: number; removed: string[] }>;
   try {
     result = await db.transaction(async (tx) => {
       const [event] = await tx
-        .select({ id: events.id })
-        .from(events)
-        .where(eq(events.id, eventId))
+        .select({ id: schema.events.id })
+        .from(schema.events)
+        .where(eq(schema.events.id, eventId))
         .for('update');
       if (!event) return fail('Event not found.');
 
-      const existing = await loadCriteria(eventId, tx);
+      const existing = await Judging.loadCriteria(eventId, tx);
       const existingIds = new Set(existing.map((c) => c.id));
       if (rows.some((row) => row.id && !existingIds.has(row.id))) {
-        return fail(
-          'These criteria were changed elsewhere. Reload the page and try again.',
-        );
+        return fail('These criteria were changed elsewhere. Reload the page and try again.');
       }
       const keptIds = new Set(rows.flatMap((row) => (row.id ? [row.id] : [])));
-      const removed = existing
-        .filter((c) => !keptIds.has(c.id))
-        .map((c) => c.id);
+      const removed = existing.filter((c) => !keptIds.has(c.id)).map((c) => c.id);
 
-      if (await eventHasVotes(eventId, tx)) {
-        const sameList =
-          rows.length === existing.length &&
-          rows.every((row, index) => row.id === existing[index].id);
+      if (await Judging.eventHasVotes(eventId, tx)) {
+        const sameList = rows.length === existing.length && rows.every((row, index) => row.id === existing[index].id);
         if (!sameList) return fail(STRUCTURE_LOCKED);
       }
 
       if (removed.length > 0) {
-        await tx
-          .delete(judgingCriteria)
-          .where(inArray(judgingCriteria.id, removed));
+        await tx.delete(schema.judgingCriteria).where(inArray(schema.judgingCriteria.id, removed));
       }
       let added = 0;
       for (const [position, row] of rows.entries()) {
@@ -481,12 +381,9 @@ export async function saveJudgingCriteria(
           position,
         };
         if (row.id) {
-          await tx
-            .update(judgingCriteria)
-            .set(values)
-            .where(eq(judgingCriteria.id, row.id));
+          await tx.update(schema.judgingCriteria).set(values).where(eq(schema.judgingCriteria.id, row.id));
         } else {
-          await tx.insert(judgingCriteria).values({ eventId, ...values });
+          await tx.insert(schema.judgingCriteria).values({ eventId, ...values });
           added += 1;
         }
       }
@@ -533,8 +430,7 @@ const emailSchema = z
  */
 export type JudgeInviteOutcome = 'sent' | 'failed' | 'cooling_down';
 
-const INVITE_COOLING_DOWN =
-  'A sign-in link went to this address in the last minute. Try again shortly.';
+const INVITE_COOLING_DOWN = 'A sign-in link went to this address in the last minute. Try again shortly.';
 
 /**
  * Emails one judge their invite and records when it went out. `claimedAt`:
@@ -549,33 +445,25 @@ async function deliverJudgeInvite(
   const unclaim = async () => {
     if (!claimedAt) return;
     await db
-      .update(eventJudges)
+      .update(schema.eventJudges)
       .set({ inviteSentAt: null })
-      .where(
-        and(
-          eq(eventJudges.id, judge.id),
-          eq(eventJudges.inviteSentAt, claimedAt),
-        ),
-      );
+      .where(and(eq(schema.eventJudges.id, judge.id), eq(schema.eventJudges.inviteSentAt, claimedAt)));
   };
 
-  if (!(await claimMagicLinkCooldown(judge.email))) {
+  if (!(await Auth.claimMagicLinkCooldown(judge.email))) {
     await unclaim();
     return 'cooling_down';
   }
   try {
-    await sendJudgeInvite({ email: judge.email, eventName });
+    await Judging.sendJudgeInvite({ email: judge.email, eventName });
   } catch (error) {
     console.error('[admin/events/judging] judge invite email failed', error);
-    await releaseMagicLinkCooldown(judge.email);
+    await Auth.releaseMagicLinkCooldown(judge.email);
     await unclaim();
     return 'failed';
   }
   if (!claimedAt) {
-    await db
-      .update(eventJudges)
-      .set({ inviteSentAt: new Date() })
-      .where(eq(eventJudges.id, judge.id));
+    await db.update(schema.eventJudges).set({ inviteSentAt: new Date() }).where(eq(schema.eventJudges.id, judge.id));
   }
   return 'sent';
 }
@@ -584,10 +472,10 @@ async function deliverJudgeInvite(
 async function claimOutstandingInvite(judgeId: string): Promise<Date | null> {
   const claimedAt = new Date();
   const [claimed] = await db
-    .update(eventJudges)
+    .update(schema.eventJudges)
     .set({ inviteSentAt: claimedAt })
-    .where(and(eq(eventJudges.id, judgeId), isNull(eventJudges.inviteSentAt)))
-    .returning({ id: eventJudges.id });
+    .where(and(eq(schema.eventJudges.id, judgeId), isNull(schema.eventJudges.inviteSentAt)))
+    .returning({ id: schema.eventJudges.id });
   return claimed ? claimedAt : null;
 }
 
@@ -603,59 +491,53 @@ export async function addEventJudge(
   eventId: string,
   email: string,
   { sendInvite = true }: { sendInvite?: boolean } = {},
-): Promise<
-  ActionResult<{ invite: JudgeInviteOutcome | 'not_sent' | 'rate_limited' }>
-> {
+): Promise<ActionResult<{ invite: JudgeInviteOutcome | 'not_sent' | 'rate_limited' }>> {
   const auth = await authorize('judging:manage:all');
   if ('error' in auth) return auth.error;
-  const normalized = normalizeJudgeEmail(email);
+  const normalized = Judging.normalizeJudgeEmail(email);
   const parsedEmail = emailSchema.safeParse(normalized);
   if (!parsedEmail.success) return fail(firstIssue(parsedEmail.error));
 
   const [event] = await db
-    .select({ name: events.name })
-    .from(events)
-    .where(eq(events.id, eventId))
+    .select({ name: schema.events.name })
+    .from(schema.events)
+    .where(eq(schema.events.id, eventId))
     .limit(1);
   if (!event) return fail('Event not found.');
 
   const [existingUser] = await db
-    .select({ id: authUser.id })
-    .from(authUser)
-    .where(sql`lower(${authUser.email}) = ${normalized}`)
+    .select({ id: schema.user.id })
+    .from(schema.user)
+    .where(sql`lower(${schema.user.email}) = ${normalized}`)
     .limit(1);
-  if (
-    existingUser &&
-    (await isParticipatingInEvent(eventId, existingUser.id))
-  ) {
-    return fail(JUDGE_IS_PARTICIPANT_MESSAGE);
+  if (existingUser && (await Judging.isParticipatingInEvent(eventId, existingUser.id))) {
+    return fail(Judging.JUDGE_IS_PARTICIPANT_MESSAGE);
   }
 
   const inserted = await db
-    .insert(eventJudges)
+    .insert(schema.eventJudges)
     .values({ eventId, email: normalized })
     .onConflictDoNothing()
-    .returning({ id: eventJudges.id });
-  if (inserted.length === 0)
-    return fail('That email is already on the roster.');
+    .returning({ id: schema.eventJudges.id });
+  if (inserted.length === 0) return fail('That email is already on the roster.');
   const judgeId = inserted[0].id;
 
   if (existingUser) {
     // Skipped if this account is already on the roster under another address.
     await db
-      .update(eventJudges)
+      .update(schema.eventJudges)
       .set({ userId: existingUser.id })
       .where(
         and(
-          eq(eventJudges.id, judgeId),
-          sql`NOT EXISTS (SELECT 1 FROM ${eventJudges} other WHERE other.event_id = ${eventId} AND other.user_id = ${existingUser.id})`,
+          eq(schema.eventJudges.id, judgeId),
+          sql`NOT EXISTS (SELECT 1 FROM ${schema.eventJudges} other WHERE other.event_id = ${eventId} AND other.user_id = ${existingUser.id})`,
         ),
       );
   }
 
   let invite: JudgeInviteOutcome | 'not_sent' | 'rate_limited' = 'not_sent';
   if (sendInvite) {
-    invite = (await checkJudgeInviteRateLimit(auth.userId))
+    invite = (await Judging.checkJudgeInviteRateLimit(auth.userId))
       ? await deliverJudgeInvite({ id: judgeId, email: normalized }, event.name)
       : 'rate_limited';
   }
@@ -676,25 +558,22 @@ export async function addEventJudge(
  * cooldown and the organizer's invite rate limit. Not for a disabled judge,
  * whom the bulk send leaves out too.
  */
-export async function resendJudgeInvite(
-  eventId: string,
-  judgeId: string,
-): Promise<ActionResult> {
+export async function resendJudgeInvite(eventId: string, judgeId: string): Promise<ActionResult> {
   const auth = await authorize('judging:manage:all');
   if ('error' in auth) return auth.error;
-  if (!(await checkJudgeInviteRateLimit(auth.userId))) {
-    return fail(JUDGE_INVITE_RATE_LIMITED);
+  if (!(await Judging.checkJudgeInviteRateLimit(auth.userId))) {
+    return fail(Judging.JUDGE_INVITE_RATE_LIMITED);
   }
 
   const [row] = await db
     .select({
-      email: eventJudges.email,
-      disabledAt: eventJudges.disabledAt,
-      eventName: events.name,
+      email: schema.eventJudges.email,
+      disabledAt: schema.eventJudges.disabledAt,
+      eventName: schema.events.name,
     })
-    .from(eventJudges)
-    .innerJoin(events, eq(events.id, eventJudges.eventId))
-    .where(and(eq(eventJudges.id, judgeId), eq(eventJudges.eventId, eventId)))
+    .from(schema.eventJudges)
+    .innerJoin(schema.events, eq(schema.events.id, schema.eventJudges.eventId))
+    .where(and(eq(schema.eventJudges.id, judgeId), eq(schema.eventJudges.eventId, eventId)))
     .limit(1);
   if (!row) return fail('Judge not found.');
   if (!row.email) return fail('This judge deleted their account.');
@@ -702,10 +581,7 @@ export async function resendJudgeInvite(
     return fail('This judge is disabled. Enable them to send their invite.');
   }
 
-  const outcome = await deliverJudgeInvite(
-    { id: judgeId, email: row.email },
-    row.eventName,
-  );
+  const outcome = await deliverJudgeInvite({ id: judgeId, email: row.email }, row.eventName);
   if (outcome === 'cooling_down') return fail(INVITE_COOLING_DOWN);
   if (outcome !== 'sent') return fail('Failed to send the invite.');
 
@@ -735,29 +611,29 @@ export async function sendOutstandingJudgeInvites(
 ): Promise<ActionResult<{ sent: number; failed: number; skipped: number }>> {
   const auth = await authorize('judging:manage:all');
   if ('error' in auth) return auth.error;
-  if (!(await checkJudgeInviteRateLimit(auth.userId))) {
-    return fail(JUDGE_INVITE_RATE_LIMITED);
+  if (!(await Judging.checkJudgeInviteRateLimit(auth.userId))) {
+    return fail(Judging.JUDGE_INVITE_RATE_LIMITED);
   }
 
   const [event] = await db
-    .select({ name: events.name })
-    .from(events)
-    .where(eq(events.id, eventId))
+    .select({ name: schema.events.name })
+    .from(schema.events)
+    .where(eq(schema.events.id, eventId))
     .limit(1);
   if (!event) return fail('Event not found.');
 
   const outstanding = await db
-    .select({ id: eventJudges.id, email: eventJudges.email })
-    .from(eventJudges)
+    .select({ id: schema.eventJudges.id, email: schema.eventJudges.email })
+    .from(schema.eventJudges)
     .where(
       and(
-        eq(eventJudges.eventId, eventId),
-        isNull(eventJudges.inviteSentAt),
-        isNull(eventJudges.disabledAt),
-        isNotNull(eventJudges.email),
+        eq(schema.eventJudges.eventId, eventId),
+        isNull(schema.eventJudges.inviteSentAt),
+        isNull(schema.eventJudges.disabledAt),
+        isNotNull(schema.eventJudges.email),
       ),
     )
-    .orderBy(asc(eventJudges.createdAt));
+    .orderBy(asc(schema.eventJudges.createdAt));
 
   const sentIds: string[] = [];
   let failed = 0;
@@ -769,11 +645,7 @@ export async function sendOutstandingJudgeInvites(
         const claimedAt = await claimOutstandingInvite(judge.id);
         // Another organizer's send got to them first.
         if (!claimedAt) return 'skipped' as const;
-        return deliverJudgeInvite(
-          { id: judge.id, email: judge.email! },
-          event.name,
-          claimedAt,
-        );
+        return deliverJudgeInvite({ id: judge.id, email: judge.email! }, event.name, claimedAt);
       }),
     );
     outcomes.forEach((outcome, index) => {
@@ -809,10 +681,10 @@ export async function setEventJudgeDisabled(
   if ('error' in auth) return auth.error;
 
   const [updated] = await db
-    .update(eventJudges)
+    .update(schema.eventJudges)
     .set({ disabledAt: disabled ? new Date() : null })
-    .where(and(eq(eventJudges.id, judgeId), eq(eventJudges.eventId, eventId)))
-    .returning({ id: eventJudges.id });
+    .where(and(eq(schema.eventJudges.id, judgeId), eq(schema.eventJudges.eventId, eventId)))
+    .returning({ id: schema.eventJudges.id });
   if (!updated) return fail('Judge not found.');
 
   await writeAuditLog({
@@ -827,29 +699,26 @@ export async function setEventJudgeDisabled(
 }
 
 /** Removes a judge from the roster — only while they have cast no votes. */
-export async function removeEventJudge(
-  eventId: string,
-  judgeId: string,
-): Promise<ActionResult> {
+export async function removeEventJudge(eventId: string, judgeId: string): Promise<ActionResult> {
   const auth = await authorize('judging:manage:all');
   if ('error' in auth) return auth.error;
 
   const result = await db.transaction(async (tx) => {
     const [judge] = await tx
-      .select({ id: eventJudges.id })
-      .from(eventJudges)
-      .where(and(eq(eventJudges.id, judgeId), eq(eventJudges.eventId, eventId)))
+      .select({ id: schema.eventJudges.id })
+      .from(schema.eventJudges)
+      .where(and(eq(schema.eventJudges.id, judgeId), eq(schema.eventJudges.eventId, eventId)))
       .for('update');
     if (!judge) return fail('Judge not found.');
     const [vote] = await tx
-      .select({ id: judgingVotes.id })
-      .from(judgingVotes)
-      .where(eq(judgingVotes.judgeId, judgeId))
+      .select({ id: schema.judgingVotes.id })
+      .from(schema.judgingVotes)
+      .where(eq(schema.judgingVotes.judgeId, judgeId))
       .limit(1);
     if (vote) {
       return fail('This judge has already voted. Disable them instead.');
     }
-    await tx.delete(eventJudges).where(eq(eventJudges.id, judgeId));
+    await tx.delete(schema.eventJudges).where(eq(schema.eventJudges.id, judgeId));
     return ok();
   });
 
@@ -873,9 +742,9 @@ const tableLayoutSchema = z.object({
     .number()
     .int('Enter a whole number of rows.')
     .min(1, 'There has to be at least one row.')
-    .max(MAX_TABLE_ROWS, `At most ${MAX_TABLE_ROWS} rows.`),
-  rowAlphabet: z.enum(TABLE_ALPHABETS),
-  columnAlphabet: z.enum(TABLE_ALPHABETS),
+    .max(Judging.MAX_TABLE_ROWS, `At most ${Judging.MAX_TABLE_ROWS} rows.`),
+  rowAlphabet: z.enum(Judging.TABLE_ALPHABETS),
+  columnAlphabet: z.enum(Judging.TABLE_ALPHABETS),
 });
 
 /**
@@ -886,10 +755,7 @@ const tableLayoutSchema = z.object({
  * judge transaction) keeps a first dispatch from landing between the check
  * and the change. Requires judging:manage:all.
  */
-export async function updateJudgingTableLayout(
-  eventId: string,
-  input: TableLayout,
-): Promise<ActionResult> {
+export async function updateJudgingTableLayout(eventId: string, input: Judging.TableLayout): Promise<ActionResult> {
   const auth = await authorize('judging:manage:all');
   if ('error' in auth) return auth.error;
   const parsed = tableLayoutSchema.safeParse(input);
@@ -897,24 +763,22 @@ export async function updateJudgingTableLayout(
 
   const result = await db.transaction(async (tx) => {
     const [event] = await tx
-      .select({ id: events.id })
-      .from(events)
-      .where(eq(events.id, eventId))
+      .select({ id: schema.events.id })
+      .from(schema.events)
+      .where(eq(schema.events.id, eventId))
       .for('update');
     if (!event) return fail('Event not found.');
-    if (await judgesSentToTables(eventId, tx)) {
-      return fail(
-        'Judging has started, so the table layout can no longer change.',
-      );
+    if (await Judging.judgesSentToTables(eventId, tx)) {
+      return fail('Judging has started, so the table layout can no longer change.');
     }
     await tx
-      .update(events)
+      .update(schema.events)
       .set({
         judgingTableRows: parsed.data.rows,
         judgingTableRowAlphabet: parsed.data.rowAlphabet,
         judgingTableColumnAlphabet: parsed.data.columnAlphabet,
       })
-      .where(eq(events.id, eventId));
+      .where(eq(schema.events.id, eventId));
     return ok();
   });
   if (!result.success) return result;
@@ -946,27 +810,20 @@ export async function setSubmissionDeactivated(
   if ('error' in auth) return auth.error;
 
   const [updated] = await db
-    .update(submissions)
-    .set(
-      deactivated
-        ? { deactivatedAt: new Date(), placement: null }
-        : { deactivatedAt: null },
-    )
-    .where(
-      and(eq(submissions.id, submissionId), eq(submissions.eventId, eventId)),
-    )
-    .returning({ id: submissions.id });
+    .update(schema.submissions)
+    .set(deactivated ? { deactivatedAt: new Date(), placement: null } : { deactivatedAt: null })
+    .where(and(eq(schema.submissions.id, submissionId), eq(schema.submissions.eventId, eventId)))
+    .returning({ id: schema.submissions.id });
   if (!updated) return fail('Project not found.');
 
   await writeAuditLog({
     actorId: auth.userId,
-    action: deactivated
-      ? 'judging.submission.deactivated'
-      : 'judging.submission.reactivated',
+    action: deactivated ? 'judging.submission.deactivated' : 'judging.submission.reactivated',
     targetType: 'submission',
     targetId: submissionId,
     metadata: { eventId },
   });
+  updateTag(PROJECT_SHOWCASE_CACHE_TAG);
   await revalidateJudging(eventId);
   return ok();
 }
@@ -1026,14 +883,12 @@ export type JudgingResults = {
  * Requires judging:results:all or judging:award:all; an award-only caller
  * gets the project list without any ranking, to record placements from.
  */
-export async function getJudgingResults(
-  eventId: string,
-): Promise<ActionResult<JudgingResults>> {
+export async function getJudgingResults(eventId: string): Promise<ActionResult<JudgingResults>> {
   const user = await getUser();
   if (!user) return fail('Not authenticated');
   const [canViewRankings, canAward] = await Promise.all([
-    hasPermission(user.id, 'judging:results:all'),
-    hasPermission(user.id, 'judging:award:all'),
+    Rbac.hasPermission(user.id, 'judging:results:all'),
+    Rbac.hasPermission(user.id, 'judging:award:all'),
   ]);
   if (!canViewRankings && !canAward) {
     return fail('You do not have permission to view results.');
@@ -1041,13 +896,13 @@ export async function getJudgingResults(
 
   const [[event], criteria, pool, tables] = await Promise.all([
     db
-      .select({ submissionsCloseAt: events.submissionsCloseAt })
-      .from(events)
-      .where(eq(events.id, eventId))
+      .select({ submissionsCloseAt: schema.events.submissionsCloseAt })
+      .from(schema.events)
+      .where(eq(schema.events.id, eventId))
       .limit(1),
-    loadCriteria(eventId),
-    loadResultsPool(eventId),
-    getTableLabels(eventId),
+    Judging.loadCriteria(eventId),
+    Judging.loadResultsPool(eventId),
+    Judging.getTableLabels(eventId),
   ]);
   if (!event) return fail('Event not found.');
 
@@ -1057,7 +912,7 @@ export async function getJudgingResults(
     ...project,
     tableLabel: tables.get(project.id)?.label ?? '—',
   }));
-  const byTable = byTableSlot;
+  const byTable = Judging.byTableSlot;
 
   if (!canViewRankings) {
     return ok({
@@ -1072,22 +927,18 @@ export async function getJudgingResults(
   }
 
   const criterionIds = criteria.map((c) => c.id);
-  const replay = await replayEventVotes(
-    eventId,
-    new Set(pool.map((p) => p.id)),
-    criterionIds,
-  );
+  const replay = await Judging.replayEventVotes(eventId, new Set(pool.map((p) => p.id)), criterionIds);
 
   const overall = base
     .map((project) => ({
       ...project,
-      score: overallScore(replay.byCriterion, criteria, project.id),
+      score: Judging.overallScore(replay.byCriterion, criteria, project.id),
     }))
     .sort((a, b) => b.score - a.score || byTable(a, b));
 
   // Shares of the Overall score, so older events stored at 1 each read as
   // fractions like the rest.
-  const weights = normalizeWeights(criteria.map((c) => c.weight));
+  const weights = Judging.normalizeWeights(criteria.map((c) => c.weight));
   const byCriterion = criteria.map((criterion, index) => ({
     id: criterion.id,
     name: criterion.name,
@@ -1112,15 +963,9 @@ export async function getJudgingResults(
       id: row.id,
       label: row.label,
       disabled: row.disabledAt != null,
-      comparisons: comparisonsFromVotes(
-        replay.votesByJudge.get(row.id),
-        criteria.length,
-      ),
+      comparisons: comparisonsFromVotes(replay.votesByJudge.get(row.id), criteria.length),
       reliability: Object.fromEntries(
-        criterionIds.map((id) => [
-          id,
-          reliabilityMean(reliability?.get(id) ?? JUDGE_PRIOR),
-        ]),
+        criterionIds.map((id) => [id, Judging.reliabilityMean(reliability?.get(id) ?? Judging.JUDGE_PRIOR)]),
       ),
     };
   });
@@ -1139,14 +984,10 @@ export async function getJudgingResults(
 /** A project that counts for results — the only ones that can be placed. */
 async function findAwardableProject(eventId: string, submissionId: string) {
   const [row] = await db
-    .select({ id: submissions.id })
-    .from(submissions)
+    .select({ id: schema.submissions.id })
+    .from(schema.submissions)
     .where(
-      and(
-        eq(submissions.id, submissionId),
-        eq(submissions.eventId, eventId),
-        inPoolCondition(),
-      ),
+      and(eq(schema.submissions.id, submissionId), eq(schema.submissions.eventId, eventId), Judging.inPoolCondition()),
     )
     .limit(1);
   return row ?? null;
@@ -1156,7 +997,7 @@ const placementSchema = z
   .number()
   .int('Enter a whole number.')
   .min(1, 'Placements start at 1.')
-  .max(MAX_PLACEMENT, `Placements go up to ${MAX_PLACEMENT}.`)
+  .max(Judging.MAX_PLACEMENT, `Placements go up to ${Judging.MAX_PLACEMENT}.`)
   .nullable();
 
 /**
@@ -1174,22 +1015,19 @@ export async function setSubmissionPlacement(
   if ('error' in auth) return auth.error;
   const parsed = placementSchema.safeParse(placement);
   if (!parsed.success) return fail(firstIssue(parsed.error));
-  if (
-    parsed.data !== null &&
-    !(await findAwardableProject(eventId, submissionId))
-  ) {
+  if (parsed.data !== null && !(await findAwardableProject(eventId, submissionId))) {
     return fail('That project isn’t in the judging results.');
   }
 
   if (parsed.data !== null) {
     const [holder] = await db
-      .select({ title: submissions.title })
-      .from(submissions)
+      .select({ title: schema.submissions.title })
+      .from(schema.submissions)
       .where(
         and(
-          eq(submissions.eventId, eventId),
-          eq(submissions.placement, parsed.data),
-          sql`${submissions.id} <> ${submissionId}`,
+          eq(schema.submissions.eventId, eventId),
+          eq(schema.submissions.placement, parsed.data),
+          sql`${schema.submissions.id} <> ${submissionId}`,
         ),
       )
       .limit(1);
@@ -1200,35 +1038,28 @@ export async function setSubmissionPlacement(
 
   try {
     const [updated] = await db
-      .update(submissions)
+      .update(schema.submissions)
       .set({ placement: parsed.data })
       .where(
         and(
-          eq(submissions.id, submissionId),
-          eq(submissions.eventId, eventId),
+          eq(schema.submissions.id, submissionId),
+          eq(schema.submissions.eventId, eventId),
           // Re-checked here, not just above: a project deactivated or
           // unpublished since then has had its place cleared, and must not
           // take one back that the results would never show.
-          parsed.data !== null ? inPoolCondition() : undefined,
+          parsed.data !== null ? Judging.inPoolCondition() : undefined,
         ),
       )
-      .returning({ id: submissions.id });
+      .returning({ id: schema.submissions.id });
     if (!updated) {
-      return fail(
-        parsed.data !== null
-          ? 'That project isn’t in the judging results.'
-          : 'Project not found.',
-      );
+      return fail(parsed.data !== null ? 'That project isn’t in the judging results.' : 'Project not found.');
     }
   } catch (error) {
     // Lost a race for the same place: the partial unique index caught it.
     if (isUniqueViolation(error)) {
       return fail(`Another project already holds place ${parsed.data}.`);
     }
-    console.error(
-      '[admin/events/judging] failed to set submission placement',
-      error,
-    );
+    console.error('[admin/events/judging] failed to set submission placement', error);
     return fail('Failed to save the placement.');
   }
   await writeAuditLog({
@@ -1238,6 +1069,7 @@ export async function setSubmissionPlacement(
     targetId: submissionId,
     metadata: { eventId, placement: parsed.data },
   });
+  updateTag(PROJECT_SHOWCASE_CACHE_TAG);
   await revalidateJudging(eventId);
   return ok();
 }

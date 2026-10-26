@@ -2,10 +2,7 @@ import 'server-only';
 
 import { sign, verify, type KeyObject } from 'node:crypto';
 
-import {
-  getAppSigningPrivateKey,
-  getAppSigningPublicKey,
-} from '@/lib/signing/app-signing-key';
+import * as Signing from '@/lib/signing/server';
 
 /** Fallback expiration for a wallet pass when its event has no end date — a
  *  wallet-metadata concern (`pass.setExpirationDate`), unrelated to the
@@ -63,13 +60,7 @@ function uuidToBytes(uuid: string): Buffer {
 
 function bytesToUuid(bytes: Buffer): string {
   const hex = bytes.toString('hex');
-  return [
-    hex.slice(0, 8),
-    hex.slice(8, 12),
-    hex.slice(12, 16),
-    hex.slice(16, 20),
-    hex.slice(20, 32),
-  ].join('-');
+  return [hex.slice(0, 8), hex.slice(8, 12), hex.slice(12, 16), hex.slice(16, 20), hex.slice(20, 32)].join('-');
 }
 
 /**
@@ -90,12 +81,8 @@ function bytesToUuid(bytes: Buffer): string {
  * for.
  */
 export function buildCheckInToken(eventId: string, userId: string): Buffer {
-  const body = Buffer.concat([
-    Buffer.from([TOKEN_VERSION]),
-    uuidToBytes(eventId),
-    uuidToBytes(userId),
-  ]);
-  const signature = sign(null, body, getAppSigningPrivateKey());
+  const body = Buffer.concat([Buffer.from([TOKEN_VERSION]), uuidToBytes(eventId), uuidToBytes(userId)]);
+  const signature = sign(null, body, Signing.getAppSigningPrivateKey());
   return Buffer.concat([body, signature]);
 }
 
@@ -146,7 +133,7 @@ export function verifyCheckInToken(token: Buffer): CheckInClaims | null {
 
   let publicKey: KeyObject;
   try {
-    publicKey = getAppSigningPublicKey();
+    publicKey = Signing.getAppSigningPublicKey();
   } catch {
     return null;
   }

@@ -1,14 +1,6 @@
 import { describe, expect, test } from 'vitest';
 
-import {
-  DEFAULT_MISSED_MEAL_THRESHOLD,
-  NO_RESTRICTIONS_LABEL,
-  TOTAL_LABEL,
-  buildDietaryReport,
-  parseMissedThreshold,
-  summarizeDietaryReport,
-  type DietaryReportSource,
-} from '@/lib/dietary/report';
+import * as Dietary from '@/lib/dietary';
 import type { DietaryRestriction } from '@/types/lookups';
 
 const EVENT = 'event-1';
@@ -18,16 +10,12 @@ function at(time: string) {
   return new Date(`${DAY}T${time}:00.000Z`);
 }
 
-function person(
-  userId: string,
-  restrictions: DietaryRestriction[] = [],
-  otherText: string | null = null,
-) {
+function person(userId: string, restrictions: DietaryRestriction[] = [], otherText: string | null = null) {
   return { userId, name: `User ${userId}`, restrictions, otherText };
 }
 
-function source(overrides: Partial<DietaryReportSource> = {}) {
-  return buildDietaryReport({
+function source(overrides: Partial<Dietary.ReportSource> = {}) {
+  return Dietary.buildDietaryReport({
     mainEventId: EVENT,
     eventEndsAt: at('23:00'),
     participants: [],
@@ -56,18 +44,18 @@ function mealScan(mealId: string, userId: string, time: string) {
 
 describe('parseMissedThreshold', () => {
   test('accepts 1-5', () => {
-    expect(parseMissedThreshold('1')).toBe(1);
-    expect(parseMissedThreshold('5')).toBe(5);
+    expect(Dietary.parseMissedThreshold('1')).toBe(1);
+    expect(Dietary.parseMissedThreshold('5')).toBe(5);
   });
 
   test('defaults on junk', () => {
     for (const value of [undefined, '', '0', '6', 'two', '2.5']) {
-      expect(parseMissedThreshold(value)).toBe(DEFAULT_MISSED_MEAL_THRESHOLD);
+      expect(Dietary.parseMissedThreshold(value)).toBe(Dietary.DEFAULT_MISSED_MEAL_THRESHOLD);
     }
   });
 
   test('uses the first value if the param is repeated', () => {
-    expect(parseMissedThreshold(['3', '1'])).toBe(3);
+    expect(Dietary.parseMissedThreshold(['3', '1'])).toBe(3);
   });
 });
 
@@ -87,11 +75,7 @@ describe('buildDietaryReport', () => {
     const report = source({
       meals: [LUNCH],
       participants: [person('a'), person('b')],
-      checkIns: [
-        doorScan('a'),
-        mealScan('lunch', 'a', '12:30'),
-        mealScan('workshop', 'a', '15:00'),
-      ],
+      checkIns: [doorScan('a'), mealScan('lunch', 'a', '12:30'), mealScan('workshop', 'a', '15:00')],
     });
 
     expect(report.rows[0].lastSeenAt).toBe(at('15:00').toISOString());
@@ -127,10 +111,7 @@ describe('buildDietaryReport', () => {
     expect(report.countedMealCount).toBe(2);
     const b = report.rows[1];
     expect(b.missedStreak).toBe(2);
-    expect(b.missedMeals.map((meal) => meal.name)).toEqual([
-      'Lunch',
-      'Breakfast',
-    ]);
+    expect(b.missedMeals.map((meal) => meal.name)).toEqual(['Lunch', 'Breakfast']);
     expect(b.notAtCurrentMeal).toBe(true);
   });
 
@@ -150,11 +131,7 @@ describe('buildDietaryReport', () => {
     const report = source({
       meals: [DINNER],
       participants: [person('a'), person('b')],
-      checkIns: [
-        doorScan('a'),
-        doorScan('b'),
-        mealScan('dinner', 'a', '18:10'),
-      ],
+      checkIns: [doorScan('a'), doorScan('b'), mealScan('dinner', 'a', '18:10')],
       now: at('23:30'),
     });
 
@@ -246,12 +223,7 @@ describe('buildDietaryReport', () => {
 describe('summarizeDietaryReport', () => {
   const report = source({
     meals: [BREAKFAST, LUNCH, DINNER],
-    participants: [
-      person('a', ['Vegan', 'Gluten-free']),
-      person('b', ['Vegan']),
-      person('c'),
-      person('d', ['Halal']),
-    ],
+    participants: [person('a', ['Vegan', 'Gluten-free']), person('b', ['Vegan']), person('c'), person('d', ['Halal'])],
     checkIns: [
       doorScan('a'),
       doorScan('b'),
@@ -264,20 +236,18 @@ describe('summarizeDietaryReport', () => {
   });
 
   const rowFor = (label: string, threshold = 2) =>
-    summarizeDietaryReport(report.rows, threshold).find(
-      (row) => row.label === label,
-    )!;
+    Dietary.summarizeDietaryReport(report.rows, threshold).find((row) => row.label === label)!;
 
   test('counts someone in each restriction they have', () => {
     expect(rowFor('Vegan').expected).toBe(2);
     expect(rowFor('Gluten-free').expected).toBe(1);
     expect(rowFor('Halal').expected).toBe(1);
     expect(rowFor('Kosher').expected).toBe(0);
-    expect(rowFor(NO_RESTRICTIONS_LABEL).expected).toBe(1);
+    expect(rowFor(Dietary.NO_RESTRICTIONS_LABEL).expected).toBe(1);
   });
 
   test('total is people, not the sum of the rows', () => {
-    const total = rowFor(TOTAL_LABEL);
+    const total = rowFor(Dietary.TOTAL_LABEL);
     expect(total.expected).toBe(4);
     expect(total.atDoor).toBe(3);
     expect(total.notAtDoor).toBe(1);
@@ -285,16 +255,16 @@ describe('summarizeDietaryReport', () => {
 
   test('missed follows the threshold', () => {
     expect(report.countedMealCount).toBe(3);
-    expect(rowFor(TOTAL_LABEL, 1).missed).toBe(2);
-    expect(rowFor(TOTAL_LABEL, 2).missed).toBe(2);
-    expect(rowFor(TOTAL_LABEL, 3).missed).toBe(2);
-    expect(rowFor(TOTAL_LABEL, 4).missed).toBe(0);
-    expect(rowFor(NO_RESTRICTIONS_LABEL, 1).missed).toBe(0);
+    expect(rowFor(Dietary.TOTAL_LABEL, 1).missed).toBe(2);
+    expect(rowFor(Dietary.TOTAL_LABEL, 2).missed).toBe(2);
+    expect(rowFor(Dietary.TOTAL_LABEL, 3).missed).toBe(2);
+    expect(rowFor(Dietary.TOTAL_LABEL, 4).missed).toBe(0);
+    expect(rowFor(Dietary.NO_RESTRICTIONS_LABEL, 1).missed).toBe(0);
   });
 
   test('expected never shrinks', () => {
     for (const threshold of [1, 2, 3, 4, 5]) {
-      expect(rowFor(TOTAL_LABEL, threshold).expected).toBe(4);
+      expect(rowFor(Dietary.TOTAL_LABEL, threshold).expected).toBe(4);
     }
   });
 });

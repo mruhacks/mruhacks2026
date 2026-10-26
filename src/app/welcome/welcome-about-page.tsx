@@ -6,28 +6,14 @@ import { Controller, useForm, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import type { SingleValue } from 'react-select';
 
-import {
-  welcomeAboutSchema,
-  type ProfileFormOptions,
-} from '@/components/profile-form/schema';
+import { welcomeAboutSchema, type ProfileFormOptions } from '@/components/profile-form/schema';
 import { isOtherOption } from '@/lib/other-option';
-import {
-  saveAboutProfile,
-  uploadResume,
-  type AboutProfileValues,
-} from '@/app/dashboard/profile/actions';
+import { saveAboutProfile, uploadResume, type AboutProfileValues } from '@/app/dashboard/profile/actions';
 import { completeWelcomeOnboarding } from '@/app/dashboard/account/actions';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
-import {
-  Field,
-  FieldContent,
-  FieldError,
-  FieldGroup,
-  FieldLabel,
-  RequiredAsterisk,
-} from '@/components/ui/field';
+import { Field, FieldContent, FieldError, FieldGroup, FieldLabel, RequiredAsterisk } from '@/components/ui/field';
 import { Separator } from '@/components/ui/separator';
 import { Spinner } from '@/components/ui/spinner';
 import { Select } from '@/components/select';
@@ -136,9 +122,7 @@ export function WelcomeAboutPage({
           name='universityId'
           control={form.control}
           render={({ field, fieldState }) => {
-            const selected = options.universities.find(
-              (option) => option.value === field.value,
-            );
+            const selected = options.universities.find((option) => option.value === field.value);
             return (
               <Field data-invalid={fieldState.invalid}>
                 <FieldLabel>
@@ -152,10 +136,7 @@ export function WelcomeAboutPage({
                   aria-invalid={fieldState.invalid}
                   value={selected ?? null}
                   onChange={(option) =>
-                    field.onChange(
-                      (option as SingleValue<{ value: number; label: string }>)
-                        ?.value ?? '',
-                    )
+                    field.onChange((option as SingleValue<{ value: number; label: string }>)?.value ?? '')
                   }
                 />
                 {fieldState.error && <FieldError errors={[fieldState.error]} />}
@@ -174,9 +155,7 @@ export function WelcomeAboutPage({
           name='majorId'
           control={form.control}
           render={({ field, fieldState }) => {
-            const selected = options.majors.find(
-              (option) => option.value === field.value,
-            );
+            const selected = options.majors.find((option) => option.value === field.value);
             return (
               <Field data-invalid={fieldState.invalid}>
                 <FieldLabel>
@@ -190,19 +169,12 @@ export function WelcomeAboutPage({
                   aria-invalid={fieldState.invalid}
                   value={selected ?? null}
                   onChange={(option) =>
-                    field.onChange(
-                      (option as SingleValue<{ value: number; label: string }>)
-                        ?.value ?? '',
-                    )
+                    field.onChange((option as SingleValue<{ value: number; label: string }>)?.value ?? '')
                   }
                 />
                 {fieldState.error && <FieldError errors={[fieldState.error]} />}
                 {isOtherOption(selected?.label) && (
-                  <Input
-                    {...form.register('majorOtherText')}
-                    placeholder='Please specify'
-                    aria-label='Specify major'
-                  />
+                  <Input {...form.register('majorOtherText')} placeholder='Please specify' aria-label='Specify major' />
                 )}
               </Field>
             );
@@ -222,16 +194,9 @@ export function WelcomeAboutPage({
                 instanceId='welcome-year'
                 options={options.years}
                 aria-invalid={fieldState.invalid}
-                value={
-                  options.years.find(
-                    (option) => option.value === field.value,
-                  ) ?? null
-                }
+                value={options.years.find((option) => option.value === field.value) ?? null}
                 onChange={(option) =>
-                  field.onChange(
-                    (option as SingleValue<{ value: number; label: string }>)
-                      ?.value ?? '',
-                  )
+                  field.onChange((option as SingleValue<{ value: number; label: string }>)?.value ?? '')
                 }
               />
               {fieldState.error && <FieldError errors={[fieldState.error]} />}
@@ -247,9 +212,7 @@ export function WelcomeAboutPage({
             aria-invalid={Boolean(form.formState.errors.githubUrl)}
             {...form.register('githubUrl')}
           />
-          {form.formState.errors.githubUrl && (
-            <FieldError errors={[form.formState.errors.githubUrl]} />
-          )}
+          {form.formState.errors.githubUrl && <FieldError errors={[form.formState.errors.githubUrl]} />}
         </Field>
         <Controller
           name='attendedHackathonBefore'
@@ -262,10 +225,7 @@ export function WelcomeAboutPage({
                 onCheckedChange={(value) => field.onChange(value === true)}
               />
               <FieldContent>
-                <FieldLabel
-                  htmlFor='attendedHackathonBefore'
-                  className='font-normal'
-                >
+                <FieldLabel htmlFor='attendedHackathonBefore' className='font-normal'>
                   I have attended a hackathon before.
                 </FieldLabel>
               </FieldContent>
@@ -277,12 +237,7 @@ export function WelcomeAboutPage({
       <Separator />
       <div className='flex flex-col gap-2'>
         <div className='flex items-center justify-between gap-3'>
-          <Button
-            type='button'
-            variant='outline'
-            onClick={() => router.push(backHref)}
-            disabled={busy}
-          >
+          <Button type='button' variant='outline' onClick={() => router.push(backHref)} disabled={busy}>
             Back
           </Button>
           <Button type='submit' disabled={busy}>

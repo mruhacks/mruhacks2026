@@ -18,10 +18,7 @@ function getAuthBaseUrl(): string {
 
 function getAuthSecret(): string {
   const v = (process.env.BETTER_AUTH_SECRET ?? process.env.AUTH_SECRET)?.trim();
-  if (!v)
-    throw new Error(
-      'BETTER_AUTH_SECRET or AUTH_SECRET is required for Better Auth',
-    );
+  if (!v) throw new Error('BETTER_AUTH_SECRET or AUTH_SECRET is required for Better Auth');
   return v;
 }
 

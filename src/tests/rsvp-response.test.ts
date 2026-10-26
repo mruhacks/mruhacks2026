@@ -1,14 +1,7 @@
 import { describe, test, expect, beforeAll, afterAll, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { db } from '@/utils/db';
-import {
-  user,
-  events,
-  eventTerms,
-  eventRsvpWaves,
-  eventInvitations,
-  checkIns,
-} from '@/db/schema';
+import * as schema from '@/db/schema';
 
 vi.mock('@/utils/auth', () => ({ getUser: vi.fn() }));
 vi.mock('next/cache', () => ({
@@ -27,15 +20,9 @@ import {
   submitRsvpResponse,
   withdrawParticipation,
 } from '@/app/dashboard/events/actions';
-import { EVENT_AT_CAPACITY_MESSAGE } from '@/lib/rsvp/constants';
-import { timeoutExpiredInvitations } from '@/lib/rsvp/timeout-expired-invitations';
+import * as Rsvp from '@/lib/rsvp/server';
 import type { ParticipationStatus } from '@/types/lookups';
-import {
-  countAccepted,
-  getStatus,
-  insertInvitation,
-  insertParticipant,
-} from '@/tests/participation-fixtures';
+import { countAccepted, getStatus, insertInvitation, insertParticipant } from '@/tests/participation-fixtures';
 
 let testUserId: string;
 const createdEventIds: string[] = [];
@@ -65,33 +52,30 @@ async function setupInvited(
     name?: string;
     capacity?: number | null;
     respondBy?: Date;
-    status?: Extract<
-      ParticipationStatus,
-      'invited' | 'accepted' | 'declined' | 'timed_out'
-    >;
+    status?: Extract<ParticipationStatus, 'invited' | 'accepted' | 'declined' | 'timed_out'>;
     userId?: string;
     hasApplication?: boolean;
     endsAt?: Date | null;
   } = {},
 ) {
   const [event] = await db
-    .insert(events)
+    .insert(schema.events)
     .values({
       name: options.name ?? 'RSVP Response Test Event',
       hasApplication: options.hasApplication ?? true,
       capacity: options.capacity ?? null,
       endsAt: options.endsAt ?? null,
     })
-    .returning({ id: events.id });
+    .returning({ id: schema.events.id });
   createdEventIds.push(event.id);
   const [wave] = await db
-    .insert(eventRsvpWaves)
+    .insert(schema.eventRsvpWaves)
     .values({
       eventId: event.id,
       wave: 1,
       respondBy: options.respondBy ?? FUTURE,
     })
-    .returning({ id: eventRsvpWaves.id });
+    .returning({ id: schema.eventRsvpWaves.id });
   const { participantId, invitationId } = await insertInvitation({
     rsvpWaveId: wave.id,
     eventId: event.id,
@@ -102,31 +86,28 @@ async function setupInvited(
 }
 
 async function getInvitation(invitationId: string) {
-  const [row] = await db
-    .select()
-    .from(eventInvitations)
-    .where(eq(eventInvitations.id, invitationId));
+  const [row] = await db.select().from(schema.eventInvitations).where(eq(schema.eventInvitations.id, invitationId));
   return row;
 }
 
 beforeAll(async () => {
   const [userRow] = await db
-    .insert(user)
+    .insert(schema.user)
     .values({
       name: 'RSVP Responder',
       email: 'rsvp-responder@example.com',
       emailVerified: true,
     })
-    .returning({ id: user.id });
+    .returning({ id: schema.user.id });
   testUserId = userRow.id;
   restoreDefaultSession();
 });
 
 afterAll(async () => {
   for (const id of createdEventIds) {
-    await db.delete(events).where(eq(events.id, id));
+    await db.delete(schema.events).where(eq(schema.events.id, id));
   }
-  await db.delete(user).where(eq(user.id, testUserId));
+  await db.delete(schema.user).where(eq(schema.user.id, testUserId));
 });
 
 describe('getUserParticipation', () => {
@@ -143,11 +124,7 @@ describe('getUserParticipation', () => {
 
   test('returns null when the user has not applied or registered', async () => {
     const { eventId } = await setupInvited();
-    mockSession(
-      '00000000-0000-0000-0000-000000000099',
-      'Nobody',
-      'nobody@example.com',
-    );
+    mockSession('00000000-0000-0000-0000-000000000099', 'Nobody', 'nobody@example.com');
     expect(await getUserParticipation(eventId)).toBeNull();
     restoreDefaultSession();
   });
@@ -155,9 +132,9 @@ describe('getUserParticipation', () => {
   test('an application without an invitation has no invitation details', async () => {
     restoreDefaultSession();
     const [event] = await db
-      .insert(events)
+      .insert(schema.events)
       .values({ name: 'Waitlisted Only', hasApplication: true })
-      .returning({ id: events.id });
+      .returning({ id: schema.events.id });
     createdEventIds.push(event.id);
     await insertParticipant({
       eventId: event.id,
@@ -178,14 +155,11 @@ describe('getUserParticipation', () => {
     expect(await getStatus(eventId, testUserId)).toBe('invited');
   });
 
-  test.each(['accepted', 'declined'] as const)(
-    '%s with an expired deadline stays %s',
-    async (status) => {
-      restoreDefaultSession();
-      const { eventId } = await setupInvited({ respondBy: PAST, status });
-      expect((await getUserParticipation(eventId))?.status).toBe(status);
-    },
-  );
+  test.each(['accepted', 'declined'] as const)('%s with an expired deadline stays %s', async (status) => {
+    restoreDefaultSession();
+    const { eventId } = await setupInvited({ respondBy: PAST, status });
+    expect((await getUserParticipation(eventId))?.status).toBe(status);
+  });
 });
 
 describe('submitRsvpResponse', () => {
@@ -199,9 +173,7 @@ describe('submitRsvpResponse', () => {
     expect(result.success).toBe(true);
 
     expect(await getStatus(eventId, testUserId)).toBe('accepted');
-    expect((await getInvitation(invitationId)).respondedAt).toBeInstanceOf(
-      Date,
-    );
+    expect((await getInvitation(invitationId)).respondedAt).toBeInstanceOf(Date);
     expect(await countAccepted(eventId)).toBe(1);
     expect(revalidatePath).toHaveBeenCalledWith(`/dashboard/events/${eventId}`);
     expect(revalidatePath).toHaveBeenCalledWith('/dashboard');
@@ -240,9 +212,9 @@ describe('submitRsvpResponse', () => {
   test('refuses when there is no invitation', async () => {
     restoreDefaultSession();
     const [event] = await db
-      .insert(events)
+      .insert(schema.events)
       .values({ name: 'No Invitation', hasApplication: true })
-      .returning({ id: events.id });
+      .returning({ id: schema.events.id });
     createdEventIds.push(event.id);
     await insertParticipant({
       eventId: event.id,
@@ -268,9 +240,7 @@ describe('submitRsvpResponse', () => {
     const participation = await getUserParticipation(eventId);
     expect(participation?.status).toBe('declined');
     expect(participation?.invitation?.respondedAt).toBeInstanceOf(Date);
-    expect((await getInvitation(invitationId)).respondedAt).toBeInstanceOf(
-      Date,
-    );
+    expect((await getInvitation(invitationId)).respondedAt).toBeInstanceOf(Date);
     expect(await countAccepted(eventId)).toBe(0);
   });
 
@@ -279,21 +249,19 @@ describe('submitRsvpResponse', () => {
     const { eventId, invitationId } = await setupInvited();
 
     const originalTransaction = db.transaction.bind(db);
-    const transactionSpy = vi
-      .spyOn(db, 'transaction')
-      .mockImplementationOnce(async (callback) => {
-        return originalTransaction(async (tx) => {
-          const originalUpdate = tx.update.bind(tx);
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (tx as any).update = (table: unknown) => {
-            if (table === eventInvitations) {
-              throw new Error('forced invitation update failure');
-            }
-            return originalUpdate(table as typeof eventInvitations);
-          };
-          return callback(tx);
-        });
+    const transactionSpy = vi.spyOn(db, 'transaction').mockImplementationOnce(async (callback) => {
+      return originalTransaction(async (tx) => {
+        const originalUpdate = tx.update.bind(tx);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (tx as any).update = (table: unknown) => {
+          if (table === schema.eventInvitations) {
+            throw new Error('forced invitation update failure');
+          }
+          return originalUpdate(table as typeof schema.eventInvitations);
+        };
+        return callback(tx);
       });
+    });
 
     try {
       const result = await submitRsvpResponse(eventId, 'accepted');
@@ -324,50 +292,48 @@ describe('submitRsvpResponse', () => {
     restoreDefaultSession();
     const { eventId } = await setupInvited({ capacity: 1 });
     const [other] = await db
-      .insert(user)
+      .insert(schema.user)
       .values({
         name: 'Spot Holder',
         email: 'rsvp-spot-holder@example.com',
         emailVerified: true,
       })
-      .returning({ id: user.id });
+      .returning({ id: schema.user.id });
     await insertParticipant({ eventId, userId: other.id, status: 'accepted' });
 
     try {
       const result = await submitRsvpResponse(eventId, 'accepted');
       expect(result).toMatchObject({
         success: false,
-        error: EVENT_AT_CAPACITY_MESSAGE,
+        error: Rsvp.EVENT_AT_CAPACITY_MESSAGE,
       });
       expect(await getStatus(eventId, testUserId)).toBe('invited');
       expect(await countAccepted(eventId)).toBe(1);
 
       // Declining still works on a full event.
-      expect((await submitRsvpResponse(eventId, 'declined')).success).toBe(
-        true,
-      );
+      expect((await submitRsvpResponse(eventId, 'declined')).success).toBe(true);
     } finally {
-      await db.delete(user).where(eq(user.id, other.id));
+      await db.delete(schema.user).where(eq(schema.user.id, other.id));
     }
   });
 
   test('concurrent accepts cannot both claim the last spot', async () => {
     const [userA] = await db
-      .insert(user)
+      .insert(schema.user)
       .values({
         name: 'Capacity Racer A',
         email: 'rsvp-capacity-racer-a@example.com',
         emailVerified: true,
       })
-      .returning({ id: user.id, name: user.name, email: user.email });
+      .returning({ id: schema.user.id, name: schema.user.name, email: schema.user.email });
     const [userB] = await db
-      .insert(user)
+      .insert(schema.user)
       .values({
         name: 'Capacity Racer B',
         email: 'rsvp-capacity-racer-b@example.com',
         emailVerified: true,
       })
-      .returning({ id: user.id, name: user.name, email: user.email });
+      .returning({ id: schema.user.id, name: schema.user.name, email: schema.user.email });
 
     const { eventId, waveId } = await setupInvited({
       capacity: 1,
@@ -402,20 +368,17 @@ describe('submitRsvpResponse', () => {
       expect(results.filter((result) => result.success)).toHaveLength(1);
       expect(failures).toHaveLength(1);
       if (!failures[0].success) {
-        expect(failures[0].error).toBe(EVENT_AT_CAPACITY_MESSAGE);
+        expect(failures[0].error).toBe(Rsvp.EVENT_AT_CAPACITY_MESSAGE);
       }
       expect(await countAccepted(eventId)).toBe(1);
-      const statuses = [
-        await getStatus(eventId, userA.id),
-        await getStatus(eventId, userB.id),
-      ].sort();
+      const statuses = [await getStatus(eventId, userA.id), await getStatus(eventId, userB.id)].sort();
       expect(statuses).toEqual(['accepted', 'invited']);
     } finally {
       vi.mocked(getUser).mockReset();
       restoreDefaultSession();
-      await db.delete(events).where(eq(events.id, eventId));
-      await db.delete(user).where(eq(user.id, userA.id));
-      await db.delete(user).where(eq(user.id, userB.id));
+      await db.delete(schema.events).where(eq(schema.events.id, eventId));
+      await db.delete(schema.user).where(eq(schema.user.id, userA.id));
+      await db.delete(schema.user).where(eq(schema.user.id, userB.id));
     }
   });
 });
@@ -433,17 +396,15 @@ describe('withdrawParticipation', () => {
     expect(result).toMatchObject({ success: true });
     expect(await getStatus(eventId, testUserId)).toBe('declined');
     expect(await countAccepted(eventId)).toBe(0);
-    expect((await getInvitation(invitationId)).respondedAt).toBeInstanceOf(
-      Date,
-    );
+    expect((await getInvitation(invitationId)).respondedAt).toBeInstanceOf(Date);
   });
 
   test('leaves the waitlist', async () => {
     restoreDefaultSession();
     const [event] = await db
-      .insert(events)
+      .insert(schema.events)
       .values({ name: 'Leave Waitlist', hasApplication: true })
-      .returning({ id: events.id });
+      .returning({ id: schema.events.id });
     createdEventIds.push(event.id);
     await insertParticipant({
       eventId: event.id,
@@ -458,7 +419,7 @@ describe('withdrawParticipation', () => {
   test('refuses once checked in', async () => {
     restoreDefaultSession();
     const { eventId } = await setupInvited({ status: 'accepted' });
-    await db.insert(checkIns).values({ eventId, userId: testUserId });
+    await db.insert(schema.checkIns).values({ eventId, userId: testUserId });
 
     const result = await withdrawParticipation(eventId);
     expect(result).toMatchObject({
@@ -491,9 +452,9 @@ describe('withdrawParticipation', () => {
   test('refuses for an event without an application', async () => {
     restoreDefaultSession();
     const [event] = await db
-      .insert(events)
+      .insert(schema.events)
       .values({ name: 'Simple Signup', hasApplication: false })
-      .returning({ id: events.id });
+      .returning({ id: schema.events.id });
     createdEventIds.push(event.id);
     await insertParticipant({
       eventId: event.id,
@@ -520,7 +481,7 @@ describe('timeoutExpiredInvitations', () => {
       });
     }
 
-    const { timedOutCount } = await timeoutExpiredInvitations({ eventId });
+    const { timedOutCount } = await Rsvp.timeoutExpiredInvitations({ eventId });
     expect(timedOutCount).toBe(1);
     expect(await getStatus(eventId, testUserId)).toBe('timed_out');
   });
@@ -536,8 +497,8 @@ describe('timeoutExpiredInvitations', () => {
       status: 'declined',
     });
 
-    await timeoutExpiredInvitations({ eventId: accepted.eventId });
-    await timeoutExpiredInvitations({ eventId: declined.eventId });
+    await Rsvp.timeoutExpiredInvitations({ eventId: accepted.eventId });
+    await Rsvp.timeoutExpiredInvitations({ eventId: declined.eventId });
 
     expect(await getStatus(accepted.eventId, testUserId)).toBe('accepted');
     expect(await getStatus(declined.eventId, testUserId)).toBe('declined');
@@ -546,12 +507,8 @@ describe('timeoutExpiredInvitations', () => {
   test('is idempotent', async () => {
     restoreDefaultSession();
     const { eventId } = await setupInvited({ respondBy: PAST });
-    expect((await timeoutExpiredInvitations({ eventId })).timedOutCount).toBe(
-      1,
-    );
-    expect((await timeoutExpiredInvitations({ eventId })).timedOutCount).toBe(
-      0,
-    );
+    expect((await Rsvp.timeoutExpiredInvitations({ eventId })).timedOutCount).toBe(1);
+    expect((await Rsvp.timeoutExpiredInvitations({ eventId })).timedOutCount).toBe(0);
   });
 });
 
@@ -579,16 +536,13 @@ describe('RSVP Event Terms consent', () => {
     restoreDefaultSession();
     const invited = await setupInvited({ name: 'Terms RSVP' });
     const [terms] = await db
-      .insert(eventTerms)
+      .insert(schema.eventTerms)
       .values({
         eventId: invited.eventId,
         markdown: '## Rules\nBe respectful.',
       })
       .returning();
-    await db
-      .update(events)
-      .set({ termsId: terms.id })
-      .where(eq(events.id, invited.eventId));
+    await db.update(schema.events).set({ termsId: terms.id }).where(eq(schema.events.id, invited.eventId));
     return { ...invited, terms };
   }
 
@@ -632,30 +586,22 @@ describe('RSVP Event Terms consent', () => {
         })
       ).success,
     ).toBe(false);
-    expect((await getInvitation(invitationId)).termsAcceptedAt).toEqual(
-      stored.termsAcceptedAt,
-    );
+    expect((await getInvitation(invitationId)).termsAcceptedAt).toEqual(stored.termsAcceptedAt);
 
     // The recorded version survives a later edit.
     const [newVersion] = await db
-      .insert(eventTerms)
+      .insert(schema.eventTerms)
       .values({ eventId, markdown: 'New rules after acceptance' })
       .returning();
-    await db
-      .update(events)
-      .set({ termsId: newVersion.id })
-      .where(eq(events.id, eventId));
+    await db.update(schema.events).set({ termsId: newVersion.id }).where(eq(schema.events.id, eventId));
     const [consentRecord] = await db
       .select({
-        termsId: eventInvitations.acceptedTermsId,
-        markdown: eventTerms.markdown,
+        termsId: schema.eventInvitations.acceptedTermsId,
+        markdown: schema.eventTerms.markdown,
       })
-      .from(eventInvitations)
-      .innerJoin(
-        eventTerms,
-        eq(eventInvitations.acceptedTermsId, eventTerms.id),
-      )
-      .where(eq(eventInvitations.id, invitationId));
+      .from(schema.eventInvitations)
+      .innerJoin(schema.eventTerms, eq(schema.eventInvitations.acceptedTermsId, schema.eventTerms.id))
+      .where(eq(schema.eventInvitations.id, invitationId));
     expect(consentRecord).toEqual({
       termsId: terms.id,
       markdown: terms.markdown,
@@ -664,14 +610,8 @@ describe('RSVP Event Terms consent', () => {
 
   test('rejects a previously displayed terms version after an edit', async () => {
     const { eventId, terms } = await inviteWithTerms();
-    const [next] = await db
-      .insert(eventTerms)
-      .values({ eventId, markdown: 'Updated rules' })
-      .returning();
-    await db
-      .update(events)
-      .set({ termsId: next.id })
-      .where(eq(events.id, eventId));
+    const [next] = await db.insert(schema.eventTerms).values({ eventId, markdown: 'Updated rules' }).returning();
+    await db.update(schema.events).set({ termsId: next.id }).where(eq(schema.events.id, eventId));
 
     const result = await submitRsvpResponse(eventId, 'accepted', {
       accepted: true,

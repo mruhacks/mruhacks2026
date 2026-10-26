@@ -39,7 +39,7 @@ import { relations, sql } from 'drizzle-orm';
 
 import type { TableAlphabet } from '@/lib/judging/table-label';
 import type { ApplicationQuestion } from '@/types/application';
-import { user } from './auth-schema';
+import { user } from '@/db/auth-schema';
 import {
   genders,
   universities,
@@ -49,7 +49,7 @@ import {
   dietaryRestrictions,
   participationStatuses,
   eventTypes,
-} from './lookups';
+} from '@/db/lookups';
 
 // ---------------------------------------------------------------------------
 // Events
@@ -111,9 +111,7 @@ export const events = pgTable(
      * creation: `respond_by = created_at + rsvp_response_window_hours`.
      * Changing this only affects waves created afterwards.
      */
-    rsvpResponseWindowHours: integer('rsvp_response_window_hours')
-      .notNull()
-      .default(48),
+    rsvpResponseWindowHours: integer('rsvp_response_window_hours').notNull().default(48),
     // Marks the single event whose registerUrl the public site links to.
     isFeatured: boolean('is_featured').notNull().default(false),
     teamsEnabled: boolean('teams_enabled').notNull().default(false),
@@ -134,10 +132,7 @@ export const events = pgTable(
      * column by column across this many rows. One row means plain numbers.
      */
     judgingTableRows: integer('judging_table_rows').notNull().default(1),
-    judgingTableRowAlphabet: text('judging_table_row_alphabet')
-      .$type<TableAlphabet>()
-      .notNull()
-      .default('latin'),
+    judgingTableRowAlphabet: text('judging_table_row_alphabet').$type<TableAlphabet>().notNull().default('latin'),
     judgingTableColumnAlphabet: text('judging_table_column_alphabet')
       .$type<TableAlphabet>()
       .notNull()
@@ -146,31 +141,22 @@ export const events = pgTable(
      * Next `submissions.table_slot` to hand out. Only ever incremented (see
      * `assignTableSlot`), so a slot is never reused, even after a delete.
      */
-    judgingNextTableSlot: integer('judging_next_table_slot')
-      .notNull()
-      .default(0),
-    createdAt: timestamp('created_at', { withTimezone: true })
-      .defaultNow()
-      .notNull(),
+    judgingNextTableSlot: integer('judging_next_table_slot').notNull().default(0),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true })
       .defaultNow()
       .$onUpdate(() => new Date())
       .notNull(),
   },
   (table) => ({
-    idxHasApplication: index('idx_events_has_application').on(
-      table.hasApplication,
-    ),
+    idxHasApplication: index('idx_events_has_application').on(table.hasApplication),
     idxFeaturedUnique: uniqueIndex('idx_events_featured_unique')
       .on(table.isFeatured)
       .where(sql`${table.isFeatured} = true`),
     // Nulls are distinct in Postgres, so this still allows any number of
     // events with no slug while keeping every set slug unambiguous.
     idxSlugUnique: uniqueIndex('idx_events_slug_unique').on(table.slug),
-    judgingTableRowsPositive: check(
-      'events_judging_table_rows_positive',
-      sql`${table.judgingTableRows} >= 1`,
-    ),
+    judgingTableRowsPositive: check('events_judging_table_rows_positive', sql`${table.judgingTableRows} >= 1`),
     judgingTableRowAlphabetValid: check(
       'events_judging_table_row_alphabet_valid',
       sql`${table.judgingTableRowAlphabet} IN ('latin', 'arabic', 'roman')`,
@@ -191,9 +177,7 @@ export const eventTerms = pgTable(
       .notNull()
       .references(() => events.id, { onDelete: 'cascade' }),
     markdown: text('markdown').notNull(),
-    createdAt: timestamp('created_at', { withTimezone: true })
-      .defaultNow()
-      .notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => ({
     idxEvent: index('idx_event_terms_event').on(table.eventId),
@@ -225,9 +209,7 @@ export const userProfiles = pgTable('user_profiles', {
   resumeFile: text('resume_file'),
   resumeFileName: varchar('resume_file_name', { length: 255 }),
   resumeFileType: varchar('resume_file_type', { length: 100 }),
-  createdAt: timestamp('created_at', { withTimezone: true })
-    .defaultNow()
-    .notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true })
     .defaultNow()
     .$onUpdate(() => new Date())
@@ -257,14 +239,10 @@ export const userProfileAbout = pgTable('user_profile_about', {
   yearOfStudyId: integer('year_of_study_id')
     .notNull()
     .references(() => yearsOfStudy.id),
-  attendedHackathonBefore: boolean('attended_hackathon_before')
-    .notNull()
-    .default(false),
+  attendedHackathonBefore: boolean('attended_hackathon_before').notNull().default(false),
   /** Optional GitHub, shown to organizers/sponsors reviewing applications. */
   githubUrl: varchar('github_url', { length: 255 }),
-  createdAt: timestamp('created_at', { withTimezone: true })
-    .defaultNow()
-    .notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true })
     .defaultNow()
     .$onUpdate(() => new Date())
@@ -282,9 +260,7 @@ export const userProfileProfessional = pgTable('user_profile_professional', {
     .references(() => user.id, { onDelete: 'cascade' }),
   company: varchar('company', { length: 255 }).notNull(),
   jobTitle: varchar('job_title', { length: 255 }).notNull(),
-  createdAt: timestamp('created_at', { withTimezone: true })
-    .defaultNow()
-    .notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true })
     .defaultNow()
     .$onUpdate(() => new Date())
@@ -317,9 +293,7 @@ export const eventParticipants = pgTable(
     reviewedBy: uuid('reviewed_by').references(() => user.id, {
       onDelete: 'set null',
     }),
-    createdAt: timestamp('created_at', { withTimezone: true })
-      .defaultNow()
-      .notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true })
       .defaultNow()
       .$onUpdate(() => new Date())
@@ -328,17 +302,9 @@ export const eventParticipants = pgTable(
     responses: jsonb('responses').$type<Record<string, unknown>>(),
   },
   (table) => ({
-    eventUserUnique: uniqueIndex(
-      'event_participants_event_id_user_id_unique',
-    ).on(table.eventId, table.userId),
-    idxEventCreatedAt: index('idx_event_participants_event_id_created_at').on(
-      table.eventId,
-      table.createdAt.desc(),
-    ),
-    idxEventStatus: index('idx_event_participants_event_id_status_id').on(
-      table.eventId,
-      table.statusId,
-    ),
+    eventUserUnique: uniqueIndex('event_participants_event_id_user_id_unique').on(table.eventId, table.userId),
+    idxEventCreatedAt: index('idx_event_participants_event_id_created_at').on(table.eventId, table.createdAt.desc()),
+    idxEventStatus: index('idx_event_participants_event_id_status_id').on(table.eventId, table.statusId),
     idxUserId: index('idx_event_participants_user_id').on(table.userId),
   }),
 );
@@ -369,18 +335,17 @@ export const applicationVotes = pgTable(
       onDelete: 'set null',
     }),
     approve: boolean('approve').notNull(),
-    createdAt: timestamp('created_at', { withTimezone: true })
-      .defaultNow()
-      .notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true })
       .defaultNow()
       .$onUpdate(() => new Date())
       .notNull(),
   },
   (table) => ({
-    participantVoterUnique: uniqueIndex(
-      'application_votes_participant_id_voter_id_unique',
-    ).on(table.participantId, table.voterId),
+    participantVoterUnique: uniqueIndex('application_votes_participant_id_voter_id_unique').on(
+      table.participantId,
+      table.voterId,
+    ),
     idxEventId: index('idx_application_votes_event_id').on(table.eventId),
   }),
 );
@@ -400,9 +365,7 @@ export const userInterests = pgTable(
       .references(() => interests.id),
   },
   (table) => ({
-    idxUserInterest: uniqueIndex(
-      'user_interests_user_id_interest_id_unique',
-    ).on(table.userId, table.interestId),
+    idxUserInterest: uniqueIndex('user_interests_user_id_interest_id_unique').on(table.userId, table.interestId),
   }),
 );
 
@@ -421,9 +384,10 @@ export const userDietaryRestrictions = pgTable(
       .references(() => dietaryRestrictions.id),
   },
   (table) => ({
-    idxUserRestriction: uniqueIndex(
-      'user_dietary_restrictions_user_id_restriction_id_unique',
-    ).on(table.userId, table.restrictionId),
+    idxUserRestriction: uniqueIndex('user_dietary_restrictions_user_id_restriction_id_unique').on(
+      table.userId,
+      table.restrictionId,
+    ),
   }),
 );
 
@@ -440,22 +404,14 @@ export const checkIns = pgTable(
     eventId: uuid('event_id')
       .notNull()
       .references(() => events.id, { onDelete: 'cascade' }),
-    checkedInAt: timestamp('checked_in_at', { withTimezone: true })
-      .defaultNow()
-      .notNull(),
+    checkedInAt: timestamp('checked_in_at', { withTimezone: true }).defaultNow().notNull(),
     checkedInBy: uuid('checked_in_by').references(() => user.id, {
       onDelete: 'set null',
     }),
   },
   (table) => ({
-    userEventUnique: uniqueIndex('check_ins_user_id_event_id_unique').on(
-      table.userId,
-      table.eventId,
-    ),
-    idxEventCheckedInAt: index('idx_check_ins_event_id_checked_in_at').on(
-      table.eventId,
-      table.checkedInAt,
-    ),
+    userEventUnique: uniqueIndex('check_ins_user_id_event_id_unique').on(table.userId, table.eventId),
+    idxEventCheckedInAt: index('idx_check_ins_event_id_checked_in_at').on(table.eventId, table.checkedInAt),
     idxUserId: index('idx_check_ins_user_id').on(table.userId),
   }),
 );
@@ -473,15 +429,10 @@ export const eventRsvpWaves = pgTable(
       .references(() => events.id, { onDelete: 'cascade' }),
     wave: smallint('wave').notNull(),
     respondBy: timestamp('respond_by', { withTimezone: true }).notNull(),
-    createdAt: timestamp('created_at', { withTimezone: true })
-      .defaultNow()
-      .notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => ({
-    eventWaveUnique: uniqueIndex('event_rsvp_waves_event_id_wave_unique').on(
-      table.eventId,
-      table.wave,
-    ),
+    eventWaveUnique: uniqueIndex('event_rsvp_waves_event_id_wave_unique').on(table.eventId, table.wave),
   }),
 );
 
@@ -506,12 +457,8 @@ export const eventInvitations = pgTable(
     acceptedTermsId: uuid('accepted_terms_id').references(() => eventTerms.id),
     // Invitation email delivery state (separate from the participant's
     // status): 'legacy' | 'unsent' | 'queued' | 'sent' | 'failed'.
-    invitationEmailStatus: text('invitation_email_status')
-      .notNull()
-      .default('unsent'),
-    invitationEmailAttempts: smallint('invitation_email_attempts')
-      .notNull()
-      .default(0),
+    invitationEmailStatus: text('invitation_email_status').notNull().default('unsent'),
+    invitationEmailAttempts: smallint('invitation_email_attempts').notNull().default(0),
     invitationEmailLastError: text('invitation_email_last_error'),
     invitationEmailQueuedAt: timestamp('invitation_email_queued_at', {
       withTimezone: true,
@@ -519,9 +466,7 @@ export const eventInvitations = pgTable(
     invitationEmailSentAt: timestamp('invitation_email_sent_at', {
       withTimezone: true,
     }),
-    createdAt: timestamp('created_at', { withTimezone: true })
-      .defaultNow()
-      .notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true })
       .defaultNow()
       .$onUpdate(() => new Date())
@@ -530,15 +475,9 @@ export const eventInvitations = pgTable(
   (table) => ({
     // A participant is invited at most once: wave eligibility only takes
     // `waitlisted`, and an invitation moves them off the waitlist.
-    participantUnique: uniqueIndex(
-      'event_invitations_participant_id_unique',
-    ).on(table.participantId),
-    idxRsvpWaveId: index('idx_event_invitations_rsvp_wave_id').on(
-      table.rsvpWaveId,
-    ),
-    idxInvitationEmailStatus: index(
-      'idx_event_invitations_invitation_email_status',
-    ).on(table.invitationEmailStatus),
+    participantUnique: uniqueIndex('event_invitations_participant_id_unique').on(table.participantId),
+    idxRsvpWaveId: index('idx_event_invitations_rsvp_wave_id').on(table.rsvpWaveId),
+    idxInvitationEmailStatus: index('idx_event_invitations_invitation_email_status').on(table.invitationEmailStatus),
   }),
 );
 
@@ -561,19 +500,14 @@ export const teams = pgTable(
     }),
     // 8-char alphanumeric join code, unique per event (not globally).
     code: varchar('code', { length: 8 }).notNull(),
-    createdAt: timestamp('created_at', { withTimezone: true })
-      .defaultNow()
-      .notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true })
       .defaultNow()
       .$onUpdate(() => new Date())
       .notNull(),
   },
   (table) => ({
-    eventCodeUnique: uniqueIndex('teams_event_id_code_unique').on(
-      table.eventId,
-      table.code,
-    ),
+    eventCodeUnique: uniqueIndex('teams_event_id_code_unique').on(table.eventId, table.code),
     idxEventId: index('idx_teams_event_id').on(table.eventId),
   }),
 );
@@ -597,15 +531,10 @@ export const teamMembers = pgTable(
     eventId: uuid('event_id')
       .notNull()
       .references(() => events.id, { onDelete: 'cascade' }),
-    joinedAt: timestamp('joined_at', { withTimezone: true })
-      .defaultNow()
-      .notNull(),
+    joinedAt: timestamp('joined_at', { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => ({
-    userEventUnique: uniqueIndex('team_members_user_id_event_id_unique').on(
-      table.userId,
-      table.eventId,
-    ),
+    userEventUnique: uniqueIndex('team_members_user_id_event_id_unique').on(table.userId, table.eventId),
     idxTeamId: index('idx_team_members_team_id').on(table.teamId),
     idxEventId: index('idx_team_members_event_id').on(table.eventId),
   }),
@@ -637,23 +566,15 @@ export const eventArticles = pgTable(
     updatedBy: uuid('updated_by').references(() => user.id, {
       onDelete: 'set null',
     }),
-    createdAt: timestamp('created_at', { withTimezone: true })
-      .defaultNow()
-      .notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true })
       .defaultNow()
       .$onUpdate(() => new Date())
       .notNull(),
   },
   (table) => ({
-    eventSlugUnique: uniqueIndex('event_articles_event_id_slug_unique').on(
-      table.eventId,
-      table.slug,
-    ),
-    idxEventPublished: index('idx_event_articles_event_id_published').on(
-      table.eventId,
-      table.published,
-    ),
+    eventSlugUnique: uniqueIndex('event_articles_event_id_slug_unique').on(table.eventId, table.slug),
+    idxEventPublished: index('idx_event_articles_event_id_published').on(table.eventId, table.published),
   }),
 );
 
@@ -707,9 +628,7 @@ export const submissions = pgTable(
      * so a place is never held by a project nobody can see.
      */
     placement: integer('placement'),
-    createdAt: timestamp('created_at', { withTimezone: true })
-      .defaultNow()
-      .notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     /**
      * Last *content* save — the stale-save check compares against it, so a
      * publish toggle deliberately leaves it alone.
@@ -722,9 +641,7 @@ export const submissions = pgTable(
   (table) => ({
     teamUnique: uniqueIndex('submissions_team_id_unique').on(table.teamId),
     idxEventId: index('idx_submissions_event_id').on(table.eventId),
-    eventTableSlotUnique: uniqueIndex(
-      'submissions_event_id_table_slot_unique',
-    ).on(table.eventId, table.tableSlot),
+    eventTableSlotUnique: uniqueIndex('submissions_event_id_table_slot_unique').on(table.eventId, table.tableSlot),
     eventPlacementUnique: uniqueIndex('submissions_event_id_placement_unique')
       .on(table.eventId, table.placement)
       .where(sql`${table.placement} IS NOT NULL`),
@@ -745,9 +662,7 @@ export const submissionEditors = pgTable(
     userId: uuid('user_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
-    lastSeenAt: timestamp('last_seen_at', { withTimezone: true })
-      .defaultNow()
-      .notNull(),
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => ({
     pk: primaryKey({ columns: [table.submissionId, table.userId] }),
@@ -794,19 +709,16 @@ export const submissionsRelations = relations(submissions, ({ one, many }) => ({
   editors: many(submissionEditors),
 }));
 
-export const submissionEditorsRelations = relations(
-  submissionEditors,
-  ({ one }) => ({
-    submission: one(submissions, {
-      fields: [submissionEditors.submissionId],
-      references: [submissions.id],
-    }),
-    user: one(user, {
-      fields: [submissionEditors.userId],
-      references: [user.id],
-    }),
+export const submissionEditorsRelations = relations(submissionEditors, ({ one }) => ({
+  submission: one(submissions, {
+    fields: [submissionEditors.submissionId],
+    references: [submissions.id],
   }),
-);
+  user: one(user, {
+    fields: [submissionEditors.userId],
+    references: [user.id],
+  }),
+}));
 
 export const eventArticlesRelations = relations(eventArticles, ({ one }) => ({
   event: one(events, {
@@ -833,49 +745,43 @@ export const userProfilesRelations = relations(userProfiles, ({ one }) => ({
   }),
 }));
 
-export const userProfileAboutRelations = relations(
-  userProfileAbout,
-  ({ one }) => ({
-    user: one(user, {
-      fields: [userProfileAbout.userId],
-      references: [user.id],
-    }),
-    university: one(universities, {
-      fields: [userProfileAbout.universityId],
-      references: [universities.id],
-    }),
-    major: one(majors, {
-      fields: [userProfileAbout.majorId],
-      references: [majors.id],
-    }),
-    yearOfStudy: one(yearsOfStudy, {
-      fields: [userProfileAbout.yearOfStudyId],
-      references: [yearsOfStudy.id],
-    }),
+export const userProfileAboutRelations = relations(userProfileAbout, ({ one }) => ({
+  user: one(user, {
+    fields: [userProfileAbout.userId],
+    references: [user.id],
   }),
-);
+  university: one(universities, {
+    fields: [userProfileAbout.universityId],
+    references: [universities.id],
+  }),
+  major: one(majors, {
+    fields: [userProfileAbout.majorId],
+    references: [majors.id],
+  }),
+  yearOfStudy: one(yearsOfStudy, {
+    fields: [userProfileAbout.yearOfStudyId],
+    references: [yearsOfStudy.id],
+  }),
+}));
 
-export const eventParticipantsRelations = relations(
-  eventParticipants,
-  ({ one }) => ({
-    event: one(events, {
-      fields: [eventParticipants.eventId],
-      references: [events.id],
-    }),
-    user: one(user, {
-      fields: [eventParticipants.userId],
-      references: [user.id],
-    }),
-    status: one(participationStatuses, {
-      fields: [eventParticipants.statusId],
-      references: [participationStatuses.id],
-    }),
-    invitation: one(eventInvitations, {
-      fields: [eventParticipants.id],
-      references: [eventInvitations.participantId],
-    }),
+export const eventParticipantsRelations = relations(eventParticipants, ({ one }) => ({
+  event: one(events, {
+    fields: [eventParticipants.eventId],
+    references: [events.id],
   }),
-);
+  user: one(user, {
+    fields: [eventParticipants.userId],
+    references: [user.id],
+  }),
+  status: one(participationStatuses, {
+    fields: [eventParticipants.statusId],
+    references: [participationStatuses.id],
+  }),
+  invitation: one(eventInvitations, {
+    fields: [eventParticipants.id],
+    references: [eventInvitations.participantId],
+  }),
+}));
 
 export const userInterestsRelations = relations(userInterests, ({ one }) => ({
   user: one(user, { fields: [userInterests.userId], references: [user.id] }),
@@ -885,19 +791,16 @@ export const userInterestsRelations = relations(userInterests, ({ one }) => ({
   }),
 }));
 
-export const userDietaryRestrictionsRelations = relations(
-  userDietaryRestrictions,
-  ({ one }) => ({
-    user: one(user, {
-      fields: [userDietaryRestrictions.userId],
-      references: [user.id],
-    }),
-    restriction: one(dietaryRestrictions, {
-      fields: [userDietaryRestrictions.restrictionId],
-      references: [dietaryRestrictions.id],
-    }),
+export const userDietaryRestrictionsRelations = relations(userDietaryRestrictions, ({ one }) => ({
+  user: one(user, {
+    fields: [userDietaryRestrictions.userId],
+    references: [user.id],
   }),
-);
+  restriction: one(dietaryRestrictions, {
+    fields: [userDietaryRestrictions.restrictionId],
+    references: [dietaryRestrictions.id],
+  }),
+}));
 
 export const checkInsRelations = relations(checkIns, ({ one }) => ({
   event: one(events, {
@@ -910,30 +813,24 @@ export const checkInsRelations = relations(checkIns, ({ one }) => ({
   }),
 }));
 
-export const eventRsvpWavesRelations = relations(
-  eventRsvpWaves,
-  ({ one, many }) => ({
-    event: one(events, {
-      fields: [eventRsvpWaves.eventId],
-      references: [events.id],
-    }),
-    invitations: many(eventInvitations),
+export const eventRsvpWavesRelations = relations(eventRsvpWaves, ({ one, many }) => ({
+  event: one(events, {
+    fields: [eventRsvpWaves.eventId],
+    references: [events.id],
   }),
-);
+  invitations: many(eventInvitations),
+}));
 
-export const eventInvitationsRelations = relations(
-  eventInvitations,
-  ({ one }) => ({
-    rsvpWave: one(eventRsvpWaves, {
-      fields: [eventInvitations.rsvpWaveId],
-      references: [eventRsvpWaves.id],
-    }),
-    participant: one(eventParticipants, {
-      fields: [eventInvitations.participantId],
-      references: [eventParticipants.id],
-    }),
+export const eventInvitationsRelations = relations(eventInvitations, ({ one }) => ({
+  rsvpWave: one(eventRsvpWaves, {
+    fields: [eventInvitations.rsvpWaveId],
+    references: [eventRsvpWaves.id],
   }),
-);
+  participant: one(eventParticipants, {
+    fields: [eventInvitations.participantId],
+    references: [eventParticipants.id],
+  }),
+}));
 
 export const teamsRelations = relations(teams, ({ one, many }) => ({
   event: one(events, {

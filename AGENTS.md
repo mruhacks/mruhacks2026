@@ -51,3 +51,18 @@ Client-supplied dates (currently the two `datetime-local` event fields) are conv
 All date/time **display** goes through `LocalDateTime` / `LocalDateRange` (`src/components/local-date-time.tsx`), never a one-off `Intl.DateTimeFormat` or `.toLocaleString()`. These render `EVENT_TIME_ZONE` during SSR (so first paint is identical for every viewer, required for anything inside a `'use cache'` boundary) and swap to the viewer's detected zone after hydration.
 
 Why: `Intl.DateTimeFormat(undefined, …)` resolves to whichever _process_ is rendering — the server's zone for a server component, the viewer's for a client component — so the same instant rendered two ways showed two different times, and an event's own edit form drifted by the server's UTC offset every time it was opened and saved. Pinning the data layer to instants and pushing all zone conversion to the one shared frontend module removes the ambiguity at its source instead of re-deriving the correct zone at every call site.
+
+# Imports: namespaces for big modules, relative for neighbours
+
+Two lint rules (`eslint-rules/namespace-imports.mjs`, `eslint-rules/nearby-relative-imports.mjs`) enforce this, and `pnpm lint --fix` rewrites most violations for you.
+
+- **Schema:** `import * as schema from '@/db/schema'` and use `schema.events`, `schema.teams`, … Never a named-import list.
+- **Domain modules:** every folder under `src/lib/` with a `server.ts` (`auth`, `campaigns`, `dietary`, `display`, `judging`, `participation`, `rbac`, `rsvp`, `signing`, `wallet`) is imported from outside as one PascalCase namespace named after the folder: `import * as Rsvp from '@/lib/rsvp/server'` → `Rsvp.sendRsvpWave(...)`. No deep imports like `@/lib/rsvp/waitlist`. Each module has two entry points:
+  - `@/lib/<domain>` (`index.ts`): the client-safe files, plus the _types_ of the server-only ones. Client components use this.
+  - `@/lib/<domain>/server` (`server.ts`): `server-only`, re-exports `index.ts` plus every server-only file. Server code uses this.
+
+  When you add a file to a module, add it to the right barrel: `server.ts` if it (transitively) touches the DB, auth, `server-only` or Node APIs, otherwise `index.ts` — and add an `export type *` line for server files in `index.ts`. Files inside a module import each other relatively, never through their own barrel. Exports don't repeat the module name, since callers already write it as the namespace: `Display.Feed`, not `Display.DisplayFeed` (same for `displayFeed`, `DISPLAY_FEED`, and the singular: `Campaigns.Status`, not `Campaigns.CampaignStatus`). `src/db/**` is exempt so the schema doesn't load whole modules. New domain: create the folder with both barrels and it's picked up automatically.
+
+- **Nearby files are relative, everything else uses `@/`:** a file imports relatively anything inside its parent directory (or its own directory, when the parent is `src/` or a top-level area like `src/app`/`src/lib`), so a relative path never climbs more than one `../`. E.g. in `src/app/dashboard/events/[eventId]/page.tsx`, `'../team/TeamPanel'`, not `'@/app/dashboard/events/team/TeamPanel'`.
+
+Why: long named-import lists from the schema, UI and domain folders were wrapping into multi-line blocks across hundreds of files. A namespace keeps it to one line per module however much of it is used, and the PascalCase alias can't collide with the local variables that tend to share a domain's name (`const participation = …`).

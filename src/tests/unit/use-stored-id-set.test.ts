@@ -3,8 +3,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 // Exercise the external store through its hook, without a DOM renderer.
 vi.mock('react', () => ({
   useMemo: (factory: () => unknown) => factory(),
-  useSyncExternalStore: (_subscribe: unknown, getSnapshot: () => unknown) =>
-    getSnapshot(),
+  useSyncExternalStore: (_subscribe: unknown, getSnapshot: () => unknown) => getSnapshot(),
 }));
 
 import { useStoredIdSet } from '@/lib/use-stored-id-set';

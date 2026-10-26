@@ -1,45 +1,35 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { generateKeyPairSync } from 'node:crypto';
 import forge from 'node-forge';
-import {
-  formatDateRange,
-  generateParticipantPass,
-  setFieldByKey,
-  type PassParticipant,
-} from '@/lib/wallet/generate-pass';
-import { resolveParticipantName } from '@/lib/wallet/participation';
-import {
-  buildCheckInPayload,
-  DEFAULT_QR_TTL_MS,
-} from '@/lib/wallet/check-in-token';
+import * as Wallet from '@/lib/wallet/server';
 
 describe('formatDateRange', () => {
   it('returns null when neither date is set', () => {
-    expect(formatDateRange(null, null)).toBeNull();
+    expect(Wallet.formatDateRange(null, null)).toBeNull();
   });
 
   it('formats a same-year range without repeating the year on the start date', () => {
     const startsAt = new Date('2026-10-23T09:00:00-06:00');
     const endsAt = new Date('2026-10-25T23:59:59-06:00');
-    expect(formatDateRange(startsAt, endsAt)).toBe('Oct 23–Oct 25, 2026');
+    expect(Wallet.formatDateRange(startsAt, endsAt)).toBe('Oct 23–Oct 25, 2026');
   });
 
   it('formats a same-day event as a time range rather than a repeated date', () => {
     const startsAt = new Date('2026-09-16T09:00:00-06:00');
     const endsAt = new Date('2026-09-16T17:00:00-06:00');
-    expect(formatDateRange(startsAt, endsAt)).toBe('Sep 16, 9:00 AM–5:00 PM');
+    expect(Wallet.formatDateRange(startsAt, endsAt)).toBe('Sep 16, 9:00 AM–5:00 PM');
   });
 
   it('treats the venue day, not the UTC day, as the same day', () => {
     // 6pm-11pm MDT is already the next day in UTC.
     const startsAt = new Date('2026-09-16T18:00:00-06:00');
     const endsAt = new Date('2026-09-16T23:00:00-06:00');
-    expect(formatDateRange(startsAt, endsAt)).toBe('Sep 16, 6:00 PM–11:00 PM');
+    expect(Wallet.formatDateRange(startsAt, endsAt)).toBe('Sep 16, 6:00 PM–11:00 PM');
   });
 
   it('prints one time when a same-day event starts and ends at the same instant', () => {
     const at = new Date('2026-09-16T09:00:00-06:00');
-    expect(formatDateRange(at, at)).toBe('Sep 16, 9:00 AM');
+    expect(Wallet.formatDateRange(at, at)).toBe('Sep 16, 9:00 AM');
   });
 
   it('includes the year on both ends of a cross-year range', () => {
@@ -47,17 +37,17 @@ describe('formatDateRange', () => {
     // tzdata puts Alberta at UTC-7 or (2026c+) UTC-6 in winter.
     const startsAt = new Date('2026-12-31T09:00:00-07:00');
     const endsAt = new Date('2027-01-02T17:00:00-07:00');
-    expect(formatDateRange(startsAt, endsAt)).toBe('Dec 31, 2026–Jan 2, 2027');
+    expect(Wallet.formatDateRange(startsAt, endsAt)).toBe('Dec 31, 2026–Jan 2, 2027');
   });
 
   it('formats a single date when only the start is known', () => {
     const startsAt = new Date('2026-10-23T09:00:00-06:00');
-    expect(formatDateRange(startsAt, null)).toBe('Oct 23, 2026');
+    expect(Wallet.formatDateRange(startsAt, null)).toBe('Oct 23, 2026');
   });
 
   it('formats a single date when only the end is known', () => {
     const endsAt = new Date('2026-10-25T23:59:59-06:00');
-    expect(formatDateRange(null, endsAt)).toBe('Oct 25, 2026');
+    expect(Wallet.formatDateRange(null, endsAt)).toBe('Oct 25, 2026');
   });
 });
 
@@ -93,7 +83,7 @@ function readPassJson(pkpass: Buffer): Record<string, unknown> {
   return JSON.parse(readZipEntry(pkpass, 'pass.json').toString('utf8'));
 }
 
-const BASE_PARTICIPANT: PassParticipant = {
+const BASE_PARTICIPANT: Wallet.PassParticipant = {
   eventId: '11111111-1111-4111-8111-111111111111',
   userId: '22222222-2222-4222-8222-222222222222',
   name: 'Jane Doe',
@@ -137,10 +127,7 @@ function generateSelfSignedCertificate(): {
 }
 
 /** Temporarily overrides `process.env` entries for the duration of `fn`, restoring them afterward (even on throw). */
-async function withEnv<T>(
-  overrides: Record<string, string | undefined>,
-  fn: () => Promise<T>,
-): Promise<T> {
+async function withEnv<T>(overrides: Record<string, string | undefined>, fn: () => Promise<T>): Promise<T> {
   const original: Record<string, string | undefined> = {};
   for (const key of Object.keys(overrides)) {
     original[key] = process.env[key];
@@ -177,9 +164,7 @@ describe('generateParticipantPass', () => {
     // check-in-token.ts) — mocked here too so the suite doesn't depend on
     // CHECK_IN_SIGNING_PRIVATE_KEY being set in the environment it runs in.
     const { privateKey } = generateKeyPairSync('ed25519');
-    process.env.CHECK_IN_SIGNING_PRIVATE_KEY = privateKey
-      .export({ type: 'pkcs8', format: 'pem' })
-      .toString();
+    process.env.CHECK_IN_SIGNING_PRIVATE_KEY = privateKey.export({ type: 'pkcs8', format: 'pem' }).toString();
     delete process.env.CHECK_IN_SIGNING_PUBLIC_KEY;
   });
 
@@ -188,7 +173,7 @@ describe('generateParticipantPass', () => {
       const startsAt = new Date('2026-10-23T09:00:00-06:00');
       const endsAt = new Date('2026-10-23T17:00:00-06:00');
 
-      const pkpass = await generateParticipantPass({
+      const pkpass = await Wallet.generateParticipantPass({
         ...BASE_PARTICIPANT,
         startsAt,
         endsAt,
@@ -207,7 +192,7 @@ describe('generateParticipantPass', () => {
     it('starts relevance 15 minutes early when only the start is known', async () => {
       const startsAt = new Date('2026-10-23T09:00:00-06:00');
 
-      const pkpass = await generateParticipantPass({
+      const pkpass = await Wallet.generateParticipantPass({
         ...BASE_PARTICIPANT,
         startsAt,
         endsAt: null,
@@ -215,15 +200,13 @@ describe('generateParticipantPass', () => {
       const passJson = readPassJson(pkpass);
 
       expect(passJson.relevantDates).toBeUndefined();
-      expect(passJson.relevantDate).toBe(
-        new Date('2026-10-23T08:45:00-06:00').toISOString(),
-      );
+      expect(passJson.relevantDate).toBe(new Date('2026-10-23T08:45:00-06:00').toISOString());
     });
 
     it('leaves the relevant date unshifted when only the end is known', async () => {
       const endsAt = new Date('2026-10-23T17:00:00-06:00');
 
-      const pkpass = await generateParticipantPass({
+      const pkpass = await Wallet.generateParticipantPass({
         ...BASE_PARTICIPANT,
         startsAt: null,
         endsAt,
@@ -235,7 +218,7 @@ describe('generateParticipantPass', () => {
     });
 
     it('sets no relevance date when neither is known', async () => {
-      const pkpass = await generateParticipantPass({
+      const pkpass = await Wallet.generateParticipantPass({
         ...BASE_PARTICIPANT,
         startsAt: null,
         endsAt: null,
@@ -249,59 +232,51 @@ describe('generateParticipantPass', () => {
 
   describe('identity and fields', () => {
     it('derives the serial number from eventId:userId', async () => {
-      const pkpass = await generateParticipantPass(BASE_PARTICIPANT);
+      const pkpass = await Wallet.generateParticipantPass(BASE_PARTICIPANT);
       const passJson = readPassJson(pkpass);
 
-      expect(passJson.serialNumber).toBe(
-        `${BASE_PARTICIPANT.eventId}:${BASE_PARTICIPANT.userId}`,
-      );
-      expect(passJson.description).toBe(
-        `${BASE_PARTICIPANT.eventName} Participant Pass`,
-      );
+      expect(passJson.serialNumber).toBe(`${BASE_PARTICIPANT.eventId}:${BASE_PARTICIPANT.userId}`);
+      expect(passJson.description).toBe(`${BASE_PARTICIPANT.eventName} Participant Pass`);
     });
 
     it('writes the event name into the primary field', async () => {
-      const pkpass = await generateParticipantPass({
+      const pkpass = await Wallet.generateParticipantPass({
         ...BASE_PARTICIPANT,
         eventName: 'Winter Jam',
       });
       const passJson = readPassJson(pkpass);
 
-      expect(
-        (passJson.generic as { primaryFields: unknown }).primaryFields,
-      ).toEqual([{ key: 'event', label: 'EVENT', value: 'Winter Jam' }]);
+      expect((passJson.generic as { primaryFields: unknown }).primaryFields).toEqual([
+        { key: 'event', label: 'EVENT', value: 'Winter Jam' },
+      ]);
     });
 
     it('writes the formatted date range into the auxiliary dates field', async () => {
       const startsAt = new Date('2026-10-23T09:00:00-06:00');
       const endsAt = new Date('2026-10-23T17:00:00-06:00');
 
-      const pkpass = await generateParticipantPass({
+      const pkpass = await Wallet.generateParticipantPass({
         ...BASE_PARTICIPANT,
         startsAt,
         endsAt,
       });
       const passJson = readPassJson(pkpass);
-      const auxiliaryFields = (
-        passJson.generic as { auxiliaryFields: { key: string }[] }
-      ).auxiliaryFields;
+      const auxiliaryFields = (passJson.generic as { auxiliaryFields: { key: string }[] }).auxiliaryFields;
 
       expect(auxiliaryFields.find((f) => f.key === 'dates')).toEqual({
         key: 'dates',
         label: 'DATES',
-        value: formatDateRange(startsAt, endsAt),
+        value: Wallet.formatDateRange(startsAt, endsAt),
       });
     });
 
     it('writes the location into the auxiliary venue field', async () => {
-      const pkpass = await generateParticipantPass({
+      const pkpass = await Wallet.generateParticipantPass({
         ...BASE_PARTICIPANT,
         location: 'Riddell Library',
       });
       const passJson = readPassJson(pkpass);
-      const auxiliaryFields = (
-        passJson.generic as { auxiliaryFields: { key: string }[] }
-      ).auxiliaryFields;
+      const auxiliaryFields = (passJson.generic as { auxiliaryFields: { key: string }[] }).auxiliaryFields;
 
       expect(auxiliaryFields.find((f) => f.key === 'venue')).toEqual({
         key: 'venue',
@@ -311,36 +286,32 @@ describe('generateParticipantPass', () => {
     });
 
     it('drops the venue field entirely when location is null', async () => {
-      const pkpass = await generateParticipantPass({
+      const pkpass = await Wallet.generateParticipantPass({
         ...BASE_PARTICIPANT,
         location: null,
       });
       const passJson = readPassJson(pkpass);
-      const auxiliaryFields = (
-        passJson.generic as { auxiliaryFields: { key: string }[] }
-      ).auxiliaryFields;
+      const auxiliaryFields = (passJson.generic as { auxiliaryFields: { key: string }[] }).auxiliaryFields;
 
       expect(auxiliaryFields.find((f) => f.key === 'venue')).toBeUndefined();
     });
 
     it('includes the participant name and role as secondary fields', async () => {
-      const pkpass = await generateParticipantPass({
+      const pkpass = await Wallet.generateParticipantPass({
         ...BASE_PARTICIPANT,
         name: 'Jordan Lee',
         role: 'Volunteer',
       });
       const passJson = readPassJson(pkpass);
 
-      expect(
-        (passJson.generic as { secondaryFields: unknown }).secondaryFields,
-      ).toEqual([
+      expect((passJson.generic as { secondaryFields: unknown }).secondaryFields).toEqual([
         { key: 'name', label: 'NAME', value: 'Jordan Lee' },
         { key: 'role', label: 'ROLE', value: 'Volunteer' },
       ]);
     });
 
     it('includes the serial number as the ticket id back field', async () => {
-      const pkpass = await generateParticipantPass(BASE_PARTICIPANT);
+      const pkpass = await Wallet.generateParticipantPass(BASE_PARTICIPANT);
       const passJson = readPassJson(pkpass);
 
       expect((passJson.generic as { backFields: unknown }).backFields).toEqual([
@@ -355,7 +326,7 @@ describe('generateParticipantPass', () => {
 
   describe('geofence', () => {
     it('sets a pass location and maxDistance when latitude, longitude and radius are all present', async () => {
-      const pkpass = await generateParticipantPass({
+      const pkpass = await Wallet.generateParticipantPass({
         ...BASE_PARTICIPANT,
         eventName: 'MRUHacks 2026',
         latitude: 51.0447,
@@ -375,7 +346,7 @@ describe('generateParticipantPass', () => {
     });
 
     it('omits location and maxDistance when only some geofence fields are present', async () => {
-      const pkpass = await generateParticipantPass({
+      const pkpass = await Wallet.generateParticipantPass({
         ...BASE_PARTICIPANT,
         latitude: 51.0447,
         longitude: -114.0719,
@@ -388,7 +359,7 @@ describe('generateParticipantPass', () => {
     });
 
     it('omits location and maxDistance when no geofence fields are present', async () => {
-      const pkpass = await generateParticipantPass(BASE_PARTICIPANT);
+      const pkpass = await Wallet.generateParticipantPass(BASE_PARTICIPANT);
       const passJson = readPassJson(pkpass);
 
       expect(passJson.maxDistance).toBeUndefined();
@@ -398,16 +369,13 @@ describe('generateParticipantPass', () => {
 
   describe('barcode', () => {
     it('encodes the signed check-in payload as an Aztec barcode with explicit iso-8859-1 encoding', async () => {
-      const pkpass = await generateParticipantPass(BASE_PARTICIPANT);
+      const pkpass = await Wallet.generateParticipantPass(BASE_PARTICIPANT);
       const passJson = readPassJson(pkpass);
 
       expect(passJson.barcodes).toEqual([
         {
           format: 'PKBarcodeFormatAztec',
-          message: buildCheckInPayload(
-            BASE_PARTICIPANT.eventId,
-            BASE_PARTICIPANT.userId,
-          ),
+          message: Wallet.buildCheckInPayload(BASE_PARTICIPANT.eventId, BASE_PARTICIPANT.userId),
           messageEncoding: 'iso-8859-1',
         },
       ]);
@@ -418,7 +386,7 @@ describe('generateParticipantPass', () => {
     it('uses the provided expiresAt as the pass expiration date', async () => {
       const expiresAt = new Date('2026-11-01T00:00:00Z');
 
-      const pkpass = await generateParticipantPass({
+      const pkpass = await Wallet.generateParticipantPass({
         ...BASE_PARTICIPANT,
         expiresAt,
       });
@@ -429,18 +397,16 @@ describe('generateParticipantPass', () => {
 
     it('falls back to now + DEFAULT_QR_TTL_MS when expiresAt is null', async () => {
       const before = Date.now();
-      const pkpass = await generateParticipantPass({
+      const pkpass = await Wallet.generateParticipantPass({
         ...BASE_PARTICIPANT,
         expiresAt: null,
       });
       const after = Date.now();
       const passJson = readPassJson(pkpass);
 
-      const expirationMs = new Date(
-        passJson.expirationDate as string,
-      ).getTime();
-      expect(expirationMs).toBeGreaterThanOrEqual(before + DEFAULT_QR_TTL_MS);
-      expect(expirationMs).toBeLessThanOrEqual(after + DEFAULT_QR_TTL_MS);
+      const expirationMs = new Date(passJson.expirationDate as string).getTime();
+      expect(expirationMs).toBeGreaterThanOrEqual(before + Wallet.DEFAULT_QR_TTL_MS);
+      expect(expirationMs).toBeLessThanOrEqual(after + Wallet.DEFAULT_QR_TTL_MS);
     });
   });
 
@@ -448,30 +414,23 @@ describe('generateParticipantPass', () => {
     it('accepts base64-encoded certificates and key, not just raw PEM', async () => {
       await withEnv(
         {
-          APPLE_WALLET_WWDR_CERT:
-            Buffer.from(certificatePem).toString('base64'),
-          APPLE_WALLET_SIGNER_CERT:
-            Buffer.from(certificatePem).toString('base64'),
-          APPLE_WALLET_SIGNER_KEY:
-            Buffer.from(privateKeyPem).toString('base64'),
+          APPLE_WALLET_WWDR_CERT: Buffer.from(certificatePem).toString('base64'),
+          APPLE_WALLET_SIGNER_CERT: Buffer.from(certificatePem).toString('base64'),
+          APPLE_WALLET_SIGNER_KEY: Buffer.from(privateKeyPem).toString('base64'),
         },
         async () => {
-          const pkpass = await generateParticipantPass(BASE_PARTICIPANT);
+          const pkpass = await Wallet.generateParticipantPass(BASE_PARTICIPANT);
           const passJson = readPassJson(pkpass);
-          expect(passJson.serialNumber).toBe(
-            `${BASE_PARTICIPANT.eventId}:${BASE_PARTICIPANT.userId}`,
-          );
+          expect(passJson.serialNumber).toBe(`${BASE_PARTICIPANT.eventId}:${BASE_PARTICIPANT.userId}`);
         },
       );
     });
 
     it('supports a passphrase-protected signer key', async () => {
       const { privateKey } = generateSelfSignedCertificate();
-      const encryptedKeyPem = forge.pki.encryptRsaPrivateKey(
-        privateKey,
-        'correct horse battery staple',
-        { algorithm: 'aes256' },
-      );
+      const encryptedKeyPem = forge.pki.encryptRsaPrivateKey(privateKey, 'correct horse battery staple', {
+        algorithm: 'aes256',
+      });
 
       await withEnv(
         {
@@ -479,48 +438,42 @@ describe('generateParticipantPass', () => {
           APPLE_WALLET_SIGNER_KEY_PASSPHRASE: 'correct horse battery staple',
         },
         async () => {
-          const pkpass = await generateParticipantPass(BASE_PARTICIPANT);
+          const pkpass = await Wallet.generateParticipantPass(BASE_PARTICIPANT);
           const passJson = readPassJson(pkpass);
-          expect(passJson.serialNumber).toBe(
-            `${BASE_PARTICIPANT.eventId}:${BASE_PARTICIPANT.userId}`,
-          );
+          expect(passJson.serialNumber).toBe(`${BASE_PARTICIPANT.eventId}:${BASE_PARTICIPANT.userId}`);
         },
       );
     });
 
-    it.each([
-      ['APPLE_WALLET_WWDR_CERT'],
-      ['APPLE_WALLET_SIGNER_CERT'],
-      ['APPLE_WALLET_SIGNER_KEY'],
-    ])('throws a descriptive error when %s is missing', async (envVar) => {
-      await withEnv({ [envVar]: undefined }, async () => {
-        await expect(generateParticipantPass(BASE_PARTICIPANT)).rejects.toThrow(
-          `${envVar} is required to sign Apple Wallet passes`,
-        );
-      });
-    });
+    it.each([['APPLE_WALLET_WWDR_CERT'], ['APPLE_WALLET_SIGNER_CERT'], ['APPLE_WALLET_SIGNER_KEY']])(
+      'throws a descriptive error when %s is missing',
+      async (envVar) => {
+        await withEnv({ [envVar]: undefined }, async () => {
+          await expect(Wallet.generateParticipantPass(BASE_PARTICIPANT)).rejects.toThrow(
+            `${envVar} is required to sign Apple Wallet passes`,
+          );
+        });
+      },
+    );
 
-    it.each([
-      ['APPLE_WALLET_WWDR_CERT'],
-      ['APPLE_WALLET_SIGNER_CERT'],
-      ['APPLE_WALLET_SIGNER_KEY'],
-    ])('throws a descriptive error when %s is blank', async (envVar) => {
-      await withEnv({ [envVar]: '   ' }, async () => {
-        await expect(generateParticipantPass(BASE_PARTICIPANT)).rejects.toThrow(
-          `${envVar} is required to sign Apple Wallet passes`,
-        );
-      });
-    });
+    it.each([['APPLE_WALLET_WWDR_CERT'], ['APPLE_WALLET_SIGNER_CERT'], ['APPLE_WALLET_SIGNER_KEY']])(
+      'throws a descriptive error when %s is blank',
+      async (envVar) => {
+        await withEnv({ [envVar]: '   ' }, async () => {
+          await expect(Wallet.generateParticipantPass(BASE_PARTICIPANT)).rejects.toThrow(
+            `${envVar} is required to sign Apple Wallet passes`,
+          );
+        });
+      },
+    );
   });
 });
 
 describe('setFieldByKey', () => {
   it('overwrites the value of an existing field', () => {
     const fields = [{ key: 'event', label: 'EVENT', value: 'placeholder' }];
-    setFieldByKey(fields, 'event', 'MRUHacks 2026');
-    expect(fields).toEqual([
-      { key: 'event', label: 'EVENT', value: 'MRUHacks 2026' },
-    ]);
+    Wallet.setFieldByKey(fields, 'event', 'MRUHacks 2026');
+    expect(fields).toEqual([{ key: 'event', label: 'EVENT', value: 'MRUHacks 2026' }]);
   });
 
   it('removes the field when value is null', () => {
@@ -528,43 +481,37 @@ describe('setFieldByKey', () => {
       { key: 'dates', label: 'DATES', value: 'placeholder' },
       { key: 'venue', label: 'VENUE', value: 'placeholder' },
     ];
-    setFieldByKey(fields, 'venue', null);
-    expect(fields).toEqual([
-      { key: 'dates', label: 'DATES', value: 'placeholder' },
-    ]);
+    Wallet.setFieldByKey(fields, 'venue', null);
+    expect(fields).toEqual([{ key: 'dates', label: 'DATES', value: 'placeholder' }]);
   });
 
   it('is a no-op when the key is not found and value is non-null', () => {
     const fields = [{ key: 'dates', label: 'DATES', value: 'placeholder' }];
-    setFieldByKey(fields, 'missing', 'value');
-    expect(fields).toEqual([
-      { key: 'dates', label: 'DATES', value: 'placeholder' },
-    ]);
+    Wallet.setFieldByKey(fields, 'missing', 'value');
+    expect(fields).toEqual([{ key: 'dates', label: 'DATES', value: 'placeholder' }]);
   });
 
   it('is a no-op when the key is not found and value is null', () => {
     const fields = [{ key: 'dates', label: 'DATES', value: 'placeholder' }];
-    setFieldByKey(fields, 'missing', null);
-    expect(fields).toEqual([
-      { key: 'dates', label: 'DATES', value: 'placeholder' },
-    ]);
+    Wallet.setFieldByKey(fields, 'missing', null);
+    expect(fields).toEqual([{ key: 'dates', label: 'DATES', value: 'placeholder' }]);
   });
 });
 
 describe('resolveParticipantName', () => {
   it('prefers the profile full name when set', () => {
-    expect(resolveParticipantName('Jane Doe', 'jdoe')).toBe('Jane Doe');
+    expect(Wallet.resolveParticipantName('Jane Doe', 'jdoe')).toBe('Jane Doe');
   });
 
   it('falls back to the account name when there is no profile', () => {
-    expect(resolveParticipantName(null, 'jdoe')).toBe('jdoe');
+    expect(Wallet.resolveParticipantName(null, 'jdoe')).toBe('jdoe');
   });
 
   it('falls back to the account name when the profile name is empty', () => {
-    expect(resolveParticipantName('', 'jdoe')).toBe('jdoe');
+    expect(Wallet.resolveParticipantName('', 'jdoe')).toBe('jdoe');
   });
 
   it('falls back to a generic label when neither name is set', () => {
-    expect(resolveParticipantName(null, '')).toBe('Participant');
+    expect(Wallet.resolveParticipantName(null, '')).toBe('Participant');
   });
 });

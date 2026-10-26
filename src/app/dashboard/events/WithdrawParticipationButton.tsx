@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
 
-import { withdrawParticipation } from '@/app/dashboard/events/actions';
+import { withdrawParticipation } from './actions';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -35,9 +35,7 @@ export function WithdrawParticipationButton({ eventId, kind }: Props) {
     startTransition(async () => {
       const result = await withdrawParticipation(eventId);
       if (result.success) {
-        toast.success(
-          typeof result.data === 'string' ? result.data : 'Updated.',
-        );
+        toast.success(typeof result.data === 'string' ? result.data : 'Updated.');
         // The action revalidates this page, so the new status renders on
         // its own.
         setOpen(false);
@@ -49,11 +47,7 @@ export function WithdrawParticipationButton({ eventId, kind }: Props) {
 
   return (
     <>
-      <Button
-        size='sm'
-        variant={kind === 'spot' ? 'destructive' : 'outline'}
-        onClick={() => setOpen(true)}
-      >
+      <Button size='sm' variant={kind === 'spot' ? 'destructive' : 'outline'} onClick={() => setOpen(true)}>
         {label}
       </Button>
       <Dialog open={open} onOpenChange={(next) => !isPending && setOpen(next)}>
@@ -67,18 +61,10 @@ export function WithdrawParticipationButton({ eventId, kind }: Props) {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button
-              variant='outline'
-              onClick={() => setOpen(false)}
-              disabled={isPending}
-            >
+            <Button variant='outline' onClick={() => setOpen(false)} disabled={isPending}>
               Cancel
             </Button>
-            <Button
-              variant='destructive'
-              onClick={confirm}
-              disabled={isPending}
-            >
+            <Button variant='destructive' onClick={confirm} disabled={isPending}>
               {isPending && <Spinner data-icon='inline-start' />}
               {label}
             </Button>

@@ -5,34 +5,12 @@ import { useQuery } from '@tanstack/react-query';
 import { Send } from 'lucide-react';
 import { toast } from 'sonner';
 
-import {
-  previewCampaignEmail,
-  sendCampaignTest,
-  updateCampaignContent,
-  uploadCampaignImage,
-} from '@/app/dashboard/admin/campaigns/actions';
-import {
-  DraftSaver,
-  type DraftSaveState,
-  type DraftEditorHandle,
-} from '@/lib/campaigns/draft-saver';
-import { mergeFieldError } from '@/lib/campaigns/merge-fields';
-import type { CampaignDetail } from '@/lib/campaigns/queries';
+import { previewCampaignEmail, sendCampaignTest, updateCampaignContent, uploadCampaignImage } from '../actions';
+import * as Campaigns from '@/lib/campaigns';
 import { MarkdownEditor } from '@/components/markdown/markdown-editor';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import {
-  Field,
-  FieldDescription,
-  FieldError,
-  FieldLabel,
-} from '@/components/ui/field';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
 
@@ -46,7 +24,7 @@ type Content = {
   bodyMarkdown: string;
 };
 
-type SaveState = DraftSaveState;
+type SaveState = Campaigns.DraftSaveState;
 
 function useDebounced<T>(value: T, delayMs: number): T {
   const [debounced, setDebounced] = React.useState(value);
@@ -64,8 +42,8 @@ export function CampaignComposer({
   editorRef,
   onSavedChange,
 }: {
-  campaign: CampaignDetail;
-  editorRef: React.Ref<DraftEditorHandle>;
+  campaign: Campaigns.Detail;
+  editorRef: React.Ref<Campaigns.DraftEditorHandle>;
   onSavedChange: (saved: boolean) => void;
   /** Draft and `campaign:write:all`. */
   editable: boolean;
@@ -86,15 +64,15 @@ export function CampaignComposer({
   const [isSendingTest, setIsSendingTest] = React.useState(false);
 
   const fieldErrors = {
-    subject: mergeFieldError(content.subject),
-    previewText: mergeFieldError(content.previewText),
-    bodyMarkdown: mergeFieldError(content.bodyMarkdown),
+    subject: Campaigns.mergeFieldError(content.subject),
+    previewText: Campaigns.mergeFieldError(content.previewText),
+    bodyMarkdown: Campaigns.mergeFieldError(content.bodyMarkdown),
   };
   const hasFieldErrors = Object.values(fieldErrors).some(Boolean);
 
   const [saver] = React.useState(
     () =>
-      new DraftSaver(
+      new Campaigns.DraftSaver(
         content,
         (snapshot) => updateCampaignContent(campaign.id, snapshot),
         (state) => {
@@ -163,9 +141,8 @@ export function CampaignComposer({
         <CardHeader>
           <CardTitle>Email</CardTitle>
           <CardDescription>
-            Use <code>{'{{firstName}}'}</code> for the recipient&apos;s first
-            name (it falls back to &quot;there&quot;, or{' '}
-            <code>{'{{firstName|friend}}'}</code> picks your own).
+            Use <code>{'{{firstName}}'}</code> for the recipient&apos;s first name (it falls back to &quot;there&quot;,
+            or <code>{'{{firstName|friend}}'}</code> picks your own).
           </CardDescription>
         </CardHeader>
         <CardContent className='space-y-4'>
@@ -188,14 +165,10 @@ export function CampaignComposer({
               aria-invalid={Boolean(fieldErrors.subject)}
               onChange={(e) => update({ subject: e.target.value })}
             />
-            {fieldErrors.subject && (
-              <FieldError>{fieldErrors.subject}</FieldError>
-            )}
+            {fieldErrors.subject && <FieldError>{fieldErrors.subject}</FieldError>}
           </Field>
           <Field>
-            <FieldLabel htmlFor='campaign-preview-text'>
-              Preview text
-            </FieldLabel>
+            <FieldLabel htmlFor='campaign-preview-text'>Preview text</FieldLabel>
             <Input
               id='campaign-preview-text'
               value={content.previewText}
@@ -204,9 +177,7 @@ export function CampaignComposer({
               placeholder='Shown next to the subject in most inboxes'
               onChange={(e) => update({ previewText: e.target.value })}
             />
-            {fieldErrors.previewText && (
-              <FieldError>{fieldErrors.previewText}</FieldError>
-            )}
+            {fieldErrors.previewText && <FieldError>{fieldErrors.previewText}</FieldError>}
           </Field>
           <Field>
             <FieldLabel>Body</FieldLabel>
@@ -225,32 +196,22 @@ export function CampaignComposer({
               />
             ) : (
               <p className='text-muted-foreground text-sm'>
-                This campaign can no longer be edited. The preview shows what
-                was sent.
+                This campaign can no longer be edited. The preview shows what was sent.
               </p>
             )}
-            {fieldErrors.bodyMarkdown && (
-              <FieldError>{fieldErrors.bodyMarkdown}</FieldError>
-            )}
+            {fieldErrors.bodyMarkdown && <FieldError>{fieldErrors.bodyMarkdown}</FieldError>}
             {uploadError && <FieldError>{uploadError}</FieldError>}
           </Field>
 
           <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
             {editable ? <SaveStatus state={saveState} /> : <span />}
             {canSendTest && (
-              <Button
-                type='button'
-                variant='outline'
-                onClick={sendTest}
-                disabled={isSendingTest}
-              >
+              <Button type='button' variant='outline' onClick={sendTest} disabled={isSendingTest}>
                 <Send /> {isSendingTest ? 'Sending…' : 'Send test to me'}
               </Button>
             )}
           </div>
-          {saveState.kind === 'error' && (
-            <FieldError>{saveState.message}</FieldError>
-          )}
+          {saveState.kind === 'error' && <FieldError>{saveState.message}</FieldError>}
           {testError && <FieldError>{testError}</FieldError>}
         </CardContent>
       </Card>
@@ -259,11 +220,7 @@ export function CampaignComposer({
         <CardHeader>
           <CardTitle>Preview</CardTitle>
           <CardDescription className='truncate'>
-            {preview.data?.subject ? (
-              <>Subject: {preview.data.subject}</>
-            ) : (
-              'No subject yet'
-            )}
+            {preview.data?.subject ? <>Subject: {preview.data.subject}</> : 'No subject yet'}
           </CardDescription>
         </CardHeader>
         <CardContent>

@@ -3,7 +3,7 @@ import { notFound, redirect } from 'next/navigation';
 
 import { getAdminEventSettings } from '@/lib/admin-event';
 import { resolveEventId } from '@/lib/events';
-import { hasPermission, requirePermission } from '@/lib/rbac/authorization';
+import * as Rbac from '@/lib/rbac/server';
 import { getUser } from '@/utils/auth';
 
 import { EventRsvpPage } from './rsvp-page';
@@ -25,35 +25,26 @@ export default function EventRsvpRoute({ params }: Props) {
 }
 
 function RsvpSkeleton() {
-  return (
-    <div className='text-muted-foreground py-8 text-center'>Loading...</div>
-  );
+  return <div className='text-muted-foreground py-8 text-center'>Loading...</div>;
 }
 
-async function RsvpContent({
-  paramsPromise,
-}: {
-  paramsPromise: Props['params'];
-}) {
+async function RsvpContent({ paramsPromise }: { paramsPromise: Props['params'] }) {
   const { eventId: segment } = await paramsPromise;
-  const [eventId, user] = await Promise.all([
-    resolveEventId(segment),
-    getUser(),
-  ]);
+  const [eventId, user] = await Promise.all([resolveEventId(segment), getUser()]);
   if (!eventId) notFound();
   if (!user) redirect('/signin');
   // The same permission the read actions behind this page check, and the one
   // the dashboard's RSVP tile is shown on.
-  await requirePermission(user.id, 'rsvp:read:all');
+  await Rbac.requirePermission(user.id, 'rsvp:read:all');
 
   const [event, canManageEvent, canManageRsvp] = await Promise.all([
     getAdminEventSettings(eventId),
     // Sending a wave, resending an invitation and the response window are
     // event management; the actions re-check it.
-    hasPermission(user.id, 'event:manage:all'),
+    Rbac.hasPermission(user.id, 'event:manage:all'),
     // Closing an open wave early overrides who keeps an RSVP, so it's gated
     // on `rsvp:write:all`; the action re-checks it.
-    hasPermission(user.id, 'rsvp:write:all'),
+    Rbac.hasPermission(user.id, 'rsvp:write:all'),
   ]);
   if (!event) notFound();
 

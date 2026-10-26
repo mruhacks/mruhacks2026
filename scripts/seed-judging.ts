@@ -4,28 +4,7 @@ import { faker } from '@faker-js/faker';
 import { eq, like } from 'drizzle-orm';
 import type { InferInsertModel } from 'drizzle-orm';
 import { client, db } from '@/utils/db';
-import {
-  checkIns,
-  eventJudges,
-  eventParticipants,
-  events,
-  genders,
-  judgingCriteria,
-  majors,
-  marketingConsents,
-  participationStatuses,
-  privacyAcceptances,
-  submissions,
-  teamMembers,
-  teams,
-  termsAcceptances,
-  universities,
-  user,
-  userProfileAbout,
-  userProfileProfessional,
-  userProfiles,
-  yearsOfStudy,
-} from '@/db/schema';
+import * as schema from '@/db/schema';
 import { CURRENT_PRIVACY_VERSION, CURRENT_TERMS_VERSION } from '@/lib/consent';
 import { generateTeamCode } from '@/lib/team-code';
 
@@ -57,8 +36,7 @@ const HOUR = 3_600_000;
 const CRITERIA = [
   {
     name: 'Innovation',
-    description:
-      'How original is the idea, and how well does it solve a real problem?',
+    description: 'How original is the idea, and how well does it solve a real problem?',
   },
   {
     name: 'Technical difficulty',
@@ -101,7 +79,7 @@ const PROJECT_TITLES = [
   'Volunteer Valet',
 ];
 
-type UserInsert = InferInsertModel<typeof user>;
+type UserInsert = InferInsertModel<typeof schema.user>;
 
 function readCount(name: string, fallback: number): number {
   const raw = process.env[name];
@@ -153,23 +131,17 @@ async function main(): Promise<void> {
   const now = new Date();
 
   // ── Depends on the base seed: static tables and the main event ──────────
-  const [[baseEvent], statuses, [gender], universityRows, majorRows, yearRows] =
-    await Promise.all([
-      db
-        .select({ id: events.id })
-        .from(events)
-        .where(eq(events.slug, 'mruhacks-2026')),
-      db.select().from(participationStatuses),
-      db.select().from(genders).where(eq(genders.label, 'Prefer not to say')),
-      db.select().from(universities),
-      db.select().from(majors),
-      db.select().from(yearsOfStudy),
-    ]);
+  const [[baseEvent], statuses, [gender], universityRows, majorRows, yearRows] = await Promise.all([
+    db.select({ id: schema.events.id }).from(schema.events).where(eq(schema.events.slug, 'mruhacks-2026')),
+    db.select().from(schema.participationStatuses),
+    db.select().from(schema.genders).where(eq(schema.genders.label, 'Prefer not to say')),
+    db.select().from(schema.universities),
+    db.select().from(schema.majors),
+    db.select().from(schema.yearsOfStudy),
+  ]);
   const accepted = statuses.find((row) => row.label === 'accepted');
   if (!baseEvent || !accepted || !gender || universityRows.length === 0) {
-    console.error(
-      'The base seed has not been run. Run `pnpm db:seed` first.\n',
-    );
+    console.error('The base seed has not been run. Run `pnpm db:seed` first.\n');
     console.error(USAGE);
     process.exitCode = 1;
     return;
@@ -178,21 +150,21 @@ async function main(): Promise<void> {
   const adminEmail = process.env.SEED_ADMIN_EMAIL?.trim().toLowerCase();
   const [admin] = adminEmail
     ? await db
-        .select({ id: user.id, email: user.email })
-        .from(user)
-        .where(eq(user.email, adminEmail))
+        .select({ id: schema.user.id, email: schema.user.email })
+        .from(schema.user)
+        .where(eq(schema.user.email, adminEmail))
     : [];
 
   const result = await db.transaction(async (tx) => {
     // ── Replace any previous run ───────────────────────────────────────────
     // Deleting the event cascades to its teams, submissions, criteria and
     // roster; then the seeded users go.
-    await tx.delete(events).where(eq(events.slug, EVENT_SLUG));
-    await tx.delete(user).where(like(user.email, `%@${EMAIL_DOMAIN}`));
+    await tx.delete(schema.events).where(eq(schema.events.slug, EVENT_SLUG));
+    await tx.delete(schema.user).where(like(schema.user.email, `%@${EMAIL_DOMAIN}`));
 
     // ── Event: in progress, submissions closed, judging window open ────────
     const [event] = await tx
-      .insert(events)
+      .insert(schema.events)
       .values({
         name: 'Expo Judging Demo',
         slug: EVENT_SLUG,
@@ -212,7 +184,7 @@ async function main(): Promise<void> {
       })
       .returning();
 
-    await tx.insert(judgingCriteria).values(
+    await tx.insert(schema.judgingCriteria).values(
       CRITERIA.map((criterion, position) => ({
         eventId: event.id,
         position,
@@ -242,15 +214,15 @@ async function main(): Promise<void> {
       }
       rosters.push(roster);
     }
-    await tx.insert(user).values(users);
-    await tx.insert(userProfiles).values(
+    await tx.insert(schema.user).values(users);
+    await tx.insert(schema.userProfiles).values(
       users.map((row) => ({
         userId: row.id!,
         fullName: row.name,
         genderId: gender.id,
       })),
     );
-    await tx.insert(userProfileAbout).values(
+    await tx.insert(schema.userProfileAbout).values(
       users.map((row) => ({
         userId: row.id!,
         universityId: faker.helpers.arrayElement(universityRows).id,
@@ -259,7 +231,7 @@ async function main(): Promise<void> {
       })),
     );
     const registeredAt = new Date(now.getTime() - 14 * 24 * HOUR);
-    await tx.insert(eventParticipants).values(
+    await tx.insert(schema.eventParticipants).values(
       users.map((row) => ({
         eventId: event.id,
         userId: row.id!,
@@ -270,14 +242,12 @@ async function main(): Promise<void> {
         updatedAt: registeredAt,
       })),
     );
-    await tx.insert(checkIns).values(
+    await tx.insert(schema.checkIns).values(
       users.map((row, index) => ({
         userId: row.id!,
         eventId: event.id,
         checkedInBy: admin?.id ?? null,
-        checkedInAt: new Date(
-          event.startsAt!.getTime() + (index % 90) * 60_000,
-        ),
+        checkedInAt: new Date(event.startsAt!.getTime() + (index % 90) * 60_000),
       })),
     );
 
@@ -285,7 +255,7 @@ async function main(): Promise<void> {
     for (let p = 0; p < PROJECTS; p++) {
       const roster = rosters[p];
       const [team] = await tx
-        .insert(teams)
+        .insert(schema.teams)
         .values({
           eventId: event.id,
           organizerId: roster[0],
@@ -294,7 +264,7 @@ async function main(): Promise<void> {
           updatedAt: formedAt,
         })
         .returning();
-      await tx.insert(teamMembers).values(
+      await tx.insert(schema.teamMembers).values(
         roster.map((userId) => ({
           teamId: team.id,
           eventId: event.id,
@@ -305,25 +275,19 @@ async function main(): Promise<void> {
 
       const title =
         PROJECT_TITLES[p % PROJECT_TITLES.length] +
-        (p >= PROJECT_TITLES.length
-          ? ` ${Math.floor(p / PROJECT_TITLES.length) + 1}`
-          : '');
+        (p >= PROJECT_TITLES.length ? ` ${Math.floor(p / PROJECT_TITLES.length) + 1}` : '');
       const repo = slugify(title);
       // The last team never published: no table, and out of the judging pool.
       const published = p !== PROJECTS - 1 || PROJECTS === 1;
       const createdAt = new Date(formedAt.getTime() + p * 60_000);
-      const publishedAt = new Date(
-        event.submissionsCloseAt!.getTime() - (PROJECTS - p) * 60_000,
-      );
-      await tx.insert(submissions).values({
+      const publishedAt = new Date(event.submissionsCloseAt!.getTime() - (PROJECTS - p) * 60_000);
+      await tx.insert(schema.submissions).values({
         eventId: event.id,
         teamId: team.id,
         title,
         markdown: projectMarkdown(title),
         repoUrl: `https://github.com/${slugify(faker.internet.username())}/${repo}`,
-        demoUrl: faker.datatype.boolean({ probability: 0.6 })
-          ? `https://${repo}.vercel.app`
-          : null,
+        demoUrl: faker.datatype.boolean({ probability: 0.6 }) ? `https://${repo}.vercel.app` : null,
         videoUrl: faker.datatype.boolean({ probability: 0.5 })
           ? `https://youtu.be/${faker.string.alphanumeric(11)}`
           : null,
@@ -351,36 +315,36 @@ async function main(): Promise<void> {
         updatedAt: now,
       };
     });
-    await tx.insert(user).values(judges);
-    await tx.insert(userProfiles).values(
+    await tx.insert(schema.user).values(judges);
+    await tx.insert(schema.userProfiles).values(
       judges.map((row) => ({
         userId: row.id!,
         fullName: row.name,
         genderId: gender.id,
       })),
     );
-    await tx.insert(termsAcceptances).values(
+    await tx.insert(schema.termsAcceptances).values(
       judges.map((row) => ({
         userId: row.id!,
         version: CURRENT_TERMS_VERSION,
         acceptedAt: now,
       })),
     );
-    await tx.insert(privacyAcceptances).values(
+    await tx.insert(schema.privacyAcceptances).values(
       judges.map((row) => ({
         userId: row.id!,
         version: CURRENT_PRIVACY_VERSION,
         acceptedAt: now,
       })),
     );
-    await tx.insert(marketingConsents).values(
+    await tx.insert(schema.marketingConsents).values(
       judges.map((row) => ({
         userId: row.id!,
         optedIn: false,
         changedAt: now,
       })),
     );
-    await tx.insert(userProfileProfessional).values(
+    await tx.insert(schema.userProfileProfessional).values(
       judges.map((row) => ({
         userId: row.id!,
         company: faker.company.name().slice(0, 255),
@@ -388,12 +352,11 @@ async function main(): Promise<void> {
       })),
     );
 
-    const roster: { eventId: string; email: string; userId: string | null }[] =
-      judges.map((row) => ({
-        eventId: event.id,
-        email: row.email,
-        userId: row.id!,
-      }));
+    const roster: { eventId: string; email: string; userId: string | null }[] = judges.map((row) => ({
+      eventId: event.id,
+      email: row.email,
+      userId: row.id!,
+    }));
     // Invited but hasn't signed in yet: linked on their first sign-in.
     roster.push({
       eventId: event.id,
@@ -405,7 +368,7 @@ async function main(): Promise<void> {
       // The admin finished the participant path in the base seed; judges
       // also need a professional profile, or the gate sends them to it.
       await tx
-        .insert(userProfileProfessional)
+        .insert(schema.userProfileProfessional)
         .values({
           userId: admin.id,
           company: 'MRUHacks',
@@ -418,16 +381,14 @@ async function main(): Promise<void> {
         userId: admin.id,
       });
     }
-    await tx.insert(eventJudges).values(roster);
+    await tx.insert(schema.eventJudges).values(roster);
 
     return { event, participants: users.length, rosterSize: roster.length };
   });
 
   const eventId = result.event.id;
   console.log(`✅ Seeded "${result.event.name}" (${eventId}), ready to judge.`);
-  console.log(
-    `  Projects: ${PROJECTS} (${PROJECTS > 1 ? PROJECTS - 1 : 1} published)`,
-  );
+  console.log(`  Projects: ${PROJECTS} (${PROJECTS > 1 ? PROJECTS - 1 : 1} published)`);
   console.log(`  Participants: ${result.participants}, all checked in`);
   console.log(`  Criteria: ${CRITERIA.map((c) => c.name).join(', ')}`);
   console.log(
@@ -435,9 +396,7 @@ async function main(): Promise<void> {
   );
   console.log(`  Organizer page: /dashboard/admin/events/${eventId}/judging`);
   console.log(`  Judge console:  /dashboard/events/${eventId}/judge`);
-  console.log(
-    '  Judges sign in by magic link; in dev the email lands in Mailhog.',
-  );
+  console.log('  Judges sign in by magic link; in dev the email lands in Mailhog.');
 }
 
 main()

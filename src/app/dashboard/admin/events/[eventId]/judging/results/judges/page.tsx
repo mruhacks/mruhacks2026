@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { redirect } from 'next/navigation';
 
-import { requirePermission } from '@/lib/rbac/authorization';
+import * as Rbac from '@/lib/rbac/server';
 import { getUser } from '@/utils/auth';
 
 import { JudgesTable } from '../_components/judges-table';
@@ -18,6 +18,6 @@ export default function JudgeResultsPage() {
 async function JudgeResults() {
   const user = await getUser();
   if (!user) redirect('/signin');
-  await requirePermission(user.id, 'judging:results:all');
+  await Rbac.requirePermission(user.id, 'judging:results:all');
   return <JudgesTable />;
 }

@@ -1,12 +1,8 @@
 import React from 'react';
 import { render } from 'react-email';
 import { MagicLinkEmail } from '@/emails/MagicLinkEmail';
-import { getRsvpMagicLinkMailContext } from '@/lib/rsvp/rsvp-magic-link-context';
-import { buildRsvpInvitationEmail } from '@/lib/rsvp/rsvp-invitation-email';
-import {
-  buildJudgeInviteEmail,
-  getJudgeInviteMailContext,
-} from '@/lib/judging/judge-invite-mail';
+import * as Rsvp from '@/lib/rsvp/server';
+import * as Judging from '@/lib/judging/server';
 import type { SendMailOptions } from '@/utils/mail';
 
 /**
@@ -14,8 +10,7 @@ import type { SendMailOptions } from '@/utils/mail';
  * email never promises more time than the link actually has.
  */
 function formatLinkLifetime(seconds: number): string {
-  const plural = (n: number, unit: string) =>
-    `${n} ${unit}${n === 1 ? '' : 's'}`;
+  const plural = (n: number, unit: string) => `${n} ${unit}${n === 1 ? '' : 's'}`;
   if (seconds < 3600) {
     return plural(Math.max(1, Math.floor(seconds / 60)), 'minute');
   }
@@ -63,12 +58,12 @@ export async function resolveMagicLinkMailOptions(options: {
 }): Promise<SendMailOptions> {
   const { email, magicLinkUrl, baseUrl } = options;
   const expiresIn = formatLinkLifetime(options.expiresInSeconds);
-  const rsvp = getRsvpMagicLinkMailContext();
+  const rsvp = Rsvp.getRsvpMagicLinkMailContext();
 
   if (rsvp) {
     return {
       to: email,
-      ...(await buildRsvpInvitationEmail({
+      ...(await Rsvp.buildRsvpInvitationEmail({
         eventName: rsvp.eventName,
         respondBy: rsvp.respondBy,
         magicLinkUrl,
@@ -77,11 +72,11 @@ export async function resolveMagicLinkMailOptions(options: {
     };
   }
 
-  const judge = getJudgeInviteMailContext();
+  const judge = Judging.getJudgeInviteMailContext();
   if (judge) {
     return {
       to: email,
-      ...(await buildJudgeInviteEmail({
+      ...(await Judging.buildJudgeInviteEmail({
         eventName: judge.eventName,
         magicLinkUrl,
         baseUrl,

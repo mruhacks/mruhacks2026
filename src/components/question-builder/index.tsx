@@ -3,28 +3,13 @@
 import * as React from 'react';
 import { toast } from 'sonner';
 import { Plus } from 'lucide-react';
-import {
-  DndContext,
-  DragEndEvent,
-  closestCenter,
-  PointerSensor,
-  useSensor,
-  useSensors,
-} from '@dnd-kit/core';
-import {
-  arrayMove,
-  SortableContext,
-  verticalListSortingStrategy,
-} from '@dnd-kit/sortable';
+import { DndContext, DragEndEvent, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { arrayMove, SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 
 import { Button } from '@/components/ui/button';
 import type { ApplicationQuestion } from '@/types/application';
 import { QuestionCard } from './question-card';
-import {
-  QuestionDialog,
-  normalizeMaxLength,
-  type QuestionFormValues,
-} from './question-dialog';
+import { QuestionDialog, normalizeMaxLength, type QuestionFormValues } from './question-dialog';
 import { DeleteQuestionDialog } from './delete-question-dialog';
 import {
   addQuestion,
@@ -40,11 +25,7 @@ type QuestionBuilderProps = {
   hasApplications: boolean;
 };
 
-export function QuestionBuilder({
-  eventId,
-  initialQuestions,
-  hasApplications,
-}: QuestionBuilderProps) {
+export function QuestionBuilder({ eventId, initialQuestions, hasApplications }: QuestionBuilderProps) {
   // TODO: Disable edit/delete buttons if current user lacks event-specific 'event:manage' permission
   // TODO: Show read-only view if user has 'event:read' but not 'event:manage' for this event
   const isMounted = React.useSyncExternalStore(
@@ -52,15 +33,11 @@ export function QuestionBuilder({
     () => true,
     () => false,
   );
-  const [questions, setQuestions] = React.useState(
-    [...initialQuestions].sort((a, b) => a.order - b.order),
-  );
+  const [questions, setQuestions] = React.useState([...initialQuestions].sort((a, b) => a.order - b.order));
 
   const [addOpen, setAddOpen] = React.useState(false);
-  const [editTarget, setEditTarget] =
-    React.useState<ApplicationQuestion | null>(null);
-  const [deleteTarget, setDeleteTarget] =
-    React.useState<ApplicationQuestion | null>(null);
+  const [editTarget, setEditTarget] = React.useState<ApplicationQuestion | null>(null);
+  const [deleteTarget, setDeleteTarget] = React.useState<ApplicationQuestion | null>(null);
   const [deleteLoading, setDeleteLoading] = React.useState(false);
   const [activeDragId, setActiveDragId] = React.useState<string | null>(null);
 
@@ -76,9 +53,7 @@ export function QuestionBuilder({
       maxLength: normalizeMaxLength(data.maxLength),
       showInApplicationReview: data.showInApplicationReview,
       showInReports: data.showInReports,
-      options: data.options
-        ?.filter((o) => o.label)
-        .map((o) => ({ label: o.label })),
+      options: data.options?.filter((o) => o.label).map((o) => ({ label: o.label })),
     });
     if (result.success && result.data) {
       toast.success('Question added.');
@@ -120,10 +95,7 @@ export function QuestionBuilder({
                 showInReports: data.showInReports,
                 options:
                   data.options?.map((o) => ({
-                    value:
-                      o.value ||
-                      q.options?.find((opt) => opt.label === o.label)?.value ||
-                      crypto.randomUUID(),
+                    value: o.value || q.options?.find((opt) => opt.label === o.label)?.value || crypto.randomUUID(),
                     label: o.label,
                     active: o.active ?? true,
                   })) ?? q.options,
@@ -143,9 +115,7 @@ export function QuestionBuilder({
     const result = await removeQuestion(eventId, deleteTarget.id);
     setDeleteLoading(false);
     if (result.success) {
-      toast.success(
-        typeof result.data === 'string' ? result.data : 'Question removed.',
-      );
+      toast.success(typeof result.data === 'string' ? result.data : 'Question removed.');
       setDeleteTarget(null);
       // Update local state: section dividers are always hard-deleted; others are soft-deleted if applications exist
       const isSectionDivider = deleteTarget.type === 'section_divider';
@@ -153,9 +123,7 @@ export function QuestionBuilder({
       setQuestions(
         shouldHardDelete
           ? questions.filter((q) => q.id !== deleteTarget.id)
-          : questions.map((q) =>
-              q.id === deleteTarget.id ? { ...q, active: false } : q,
-            ),
+          : questions.map((q) => (q.id === deleteTarget.id ? { ...q, active: false } : q)),
       );
     } else {
       toast.error(result.error);
@@ -198,11 +166,7 @@ export function QuestionBuilder({
     const result = await reactivateQuestion(eventId, questionId);
     if (result.success) {
       toast.success('Question reactivated.');
-      setQuestions(
-        questions.map((q) =>
-          q.id === questionId ? { ...q, active: true } : q,
-        ),
-      );
+      setQuestions(questions.map((q) => (q.id === questionId ? { ...q, active: true } : q)));
     } else {
       toast.error(result.error);
     }
@@ -211,9 +175,7 @@ export function QuestionBuilder({
   return (
     <div className='space-y-3'>
       {questions.length === 0 && (
-        <p className='text-muted-foreground py-4 text-center text-sm'>
-          No questions yet. Add one below.
-        </p>
+        <p className='text-muted-foreground py-4 text-center text-sm'>No questions yet. Add one below.</p>
       )}
 
       {isMounted && (
@@ -224,10 +186,7 @@ export function QuestionBuilder({
           onDragEnd={handleDragEnd}
           onDragCancel={() => setActiveDragId(null)}
         >
-          <SortableContext
-            items={questions.map((q) => q.id)}
-            strategy={verticalListSortingStrategy}
-          >
+          <SortableContext items={questions.map((q) => q.id)} strategy={verticalListSortingStrategy}>
             {questions.map((q) => (
               <QuestionCard
                 key={q.id}
@@ -242,22 +201,13 @@ export function QuestionBuilder({
         </DndContext>
       )}
 
-      <Button
-        variant='outline'
-        className='w-full'
-        onClick={() => setAddOpen(true)}
-      >
+      <Button variant='outline' className='w-full' onClick={() => setAddOpen(true)}>
         <Plus className='mr-2 size-4' />
         Add Question
       </Button>
 
       {/* Add dialog */}
-      <QuestionDialog
-        open={addOpen}
-        onOpenChange={setAddOpen}
-        hasApplications={hasApplications}
-        onSubmit={handleAdd}
-      />
+      <QuestionDialog open={addOpen} onOpenChange={setAddOpen} hasApplications={hasApplications} onSubmit={handleAdd} />
 
       {/* Edit dialog */}
       <QuestionDialog

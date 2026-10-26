@@ -16,9 +16,5 @@ const getServerSnapshot = () => false;
  * an extra cascading render).
  */
 export function useIsHydrated(): boolean {
-  return React.useSyncExternalStore(
-    subscribeNoop,
-    getClientSnapshot,
-    getServerSnapshot,
-  );
+  return React.useSyncExternalStore(subscribeNoop, getClientSnapshot, getServerSnapshot);
 }

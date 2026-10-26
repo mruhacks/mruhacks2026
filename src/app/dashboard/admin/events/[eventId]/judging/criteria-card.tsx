@@ -3,38 +3,14 @@
 import * as React from 'react';
 import { ArrowDown, ArrowUp, Lock, Plus, Trash2 } from 'lucide-react';
 
-import {
-  saveJudgingCriteria,
-  type JudgingCriterionRow,
-} from '@/app/dashboard/admin/events/judging-actions';
+import { saveJudgingCriteria, type JudgingCriterionRow } from '@/app/dashboard/admin/events/judging-actions';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { FieldError } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableFooter,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import {
-  CRITERION_DESCRIPTION_MAX_LENGTH,
-  CRITERION_NAME_MAX_LENGTH,
-  criterionWeightsSumToOne,
-  formatWeight,
-  MAX_CRITERIA,
-  roundedWeights,
-} from '@/lib/judging/limits';
+import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import * as Judging from '@/lib/judging';
 
 type DraftRow = {
   /** Stable React key and element-id suffix; the criterion id once saved. */
@@ -47,13 +23,13 @@ type DraftRow = {
 };
 
 function toDraft(criteria: JudgingCriterionRow[]): DraftRow[] {
-  const weights = roundedWeights(criteria.map((c) => c.weight));
+  const weights = Judging.roundedWeights(criteria.map((c) => c.weight));
   return criteria.map((criterion, index) => ({
     key: criterion.id,
     id: criterion.id,
     name: criterion.name,
     description: criterion.description,
-    weight: formatWeight(weights[index]),
+    weight: Judging.formatWeight(weights[index]),
   }));
 }
 
@@ -101,14 +77,10 @@ export function CriteriaCard({
   const weights = rows.map((row) => parseWeight(row.weight));
   const sum = weights.reduce<number>((total, w) => total + (w ?? 0), 0);
   const sumOk =
-    rows.length === 0 ||
-    (weights.every((w) => w !== null) &&
-      criterionWeightsSumToOne(weights as number[]));
+    rows.length === 0 || (weights.every((w) => w !== null) && Judging.criterionWeightsSumToOne(weights as number[]));
 
   function edit(index: number, patch: Partial<DraftRow>) {
-    setRows((prev) =>
-      prev.map((row, i) => (i === index ? { ...row, ...patch } : row)),
-    );
+    setRows((prev) => prev.map((row, i) => (i === index ? { ...row, ...patch } : row)));
     setError(undefined);
   }
 
@@ -141,10 +113,8 @@ export function CriteriaCard({
   }
 
   function normalize() {
-    const next = roundedWeights(weights.map((w) => w ?? 0));
-    setRows((prev) =>
-      prev.map((row, i) => ({ ...row, weight: formatWeight(next[i]) })),
-    );
+    const next = Judging.roundedWeights(weights.map((w) => w ?? 0));
+    setRows((prev) => prev.map((row, i) => ({ ...row, weight: Judging.formatWeight(next[i]) })));
     setError(undefined);
   }
 
@@ -164,7 +134,7 @@ export function CriteriaCard({
       return 'Each weight is a fraction of 1, like 0.25.';
     }
     if (!sumOk) {
-      return `Weights must add up to 1; these add up to ${formatWeight(sum)}.`;
+      return `Weights must add up to 1; these add up to ${Judging.formatWeight(sum)}.`;
     }
     return null;
   }
@@ -204,8 +174,7 @@ export function CriteriaCard({
           {structureLocked ? (
             <span className='inline-flex items-center gap-1.5'>
               <Lock aria-hidden className='size-3.5' />
-              Judging has started: criteria can be renamed and reweighted, but
-              not added, removed or reordered.
+              Judging has started: criteria can be renamed and reweighted, but not added, removed or reordered.
             </span>
           ) : (
             'Judges pick the better of two projects on each criterion. Weights are each criterion’s share of the Overall score and add up to 1. Judges can’t be sent out until there is at least one criterion.'
@@ -241,11 +210,9 @@ export function CriteriaCard({
                           id={`${rowId}-name`}
                           aria-label={`Name of ${label}`}
                           value={row.name}
-                          maxLength={CRITERION_NAME_MAX_LENGTH}
+                          maxLength={Judging.CRITERION_NAME_MAX_LENGTH}
                           placeholder='Technical execution'
-                          onChange={(e) =>
-                            edit(index, { name: e.target.value })
-                          }
+                          onChange={(e) => edit(index, { name: e.target.value })}
                         />
                       </TableCell>
                       <TableCell className='align-top'>
@@ -253,11 +220,9 @@ export function CriteriaCard({
                           id={`${rowId}-description`}
                           aria-label={`Description of ${label}`}
                           value={row.description}
-                          maxLength={CRITERION_DESCRIPTION_MAX_LENGTH}
+                          maxLength={Judging.CRITERION_DESCRIPTION_MAX_LENGTH}
                           placeholder='Does it work? Was it hard to build?'
-                          onChange={(e) =>
-                            edit(index, { description: e.target.value })
-                          }
+                          onChange={(e) => edit(index, { description: e.target.value })}
                         />
                       </TableCell>
                       <TableCell className='align-top'>
@@ -271,9 +236,7 @@ export function CriteriaCard({
                           step='any'
                           aria-invalid={!sumOk || weights[index] === null}
                           value={row.weight}
-                          onChange={(e) =>
-                            edit(index, { weight: e.target.value })
-                          }
+                          onChange={(e) => edit(index, { weight: e.target.value })}
                         />
                       </TableCell>
                       {!structureLocked && (
@@ -322,11 +285,8 @@ export function CriteriaCard({
                   <TableCell colSpan={2} className='text-right'>
                     Total
                   </TableCell>
-                  <TableCell
-                    className={sumOk ? undefined : 'text-destructive'}
-                    aria-live='polite'
-                  >
-                    {formatWeight(sum)}
+                  <TableCell className={sumOk ? undefined : 'text-destructive'} aria-live='polite'>
+                    {Judging.formatWeight(sum)}
                   </TableCell>
                   {!structureLocked && <TableCell />}
                 </TableRow>
@@ -342,30 +302,20 @@ export function CriteriaCard({
                 type='button'
                 variant='outline'
                 onClick={add}
-                disabled={saving || rows.length >= MAX_CRITERIA}
+                disabled={saving || rows.length >= Judging.MAX_CRITERIA}
               >
                 <Plus data-icon='inline-start' />
                 Add criterion
               </Button>
             )}
             {rows.length > 0 && (
-              <Button
-                type='button'
-                variant='ghost'
-                onClick={normalize}
-                disabled={saving || sumOk}
-              >
+              <Button type='button' variant='ghost' onClick={normalize} disabled={saving || sumOk}>
                 Make weights add up to 1
               </Button>
             )}
             <div className='ml-auto flex gap-2'>
               {dirty && (
-                <Button
-                  type='button'
-                  variant='ghost'
-                  onClick={discard}
-                  disabled={saving}
-                >
+                <Button type='button' variant='ghost' onClick={discard} disabled={saving}>
                   Discard changes
                 </Button>
               )}

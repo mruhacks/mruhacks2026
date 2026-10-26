@@ -1,8 +1,5 @@
 import type { ParticipationStatus, StatusBadgeVariant } from '@/types/lookups';
-import {
-  STATIC_STATUS_DISPLAY,
-  type StatusDisplay,
-} from '@/lib/participation/status';
+import * as Participation from '@/lib/participation';
 
 /**
  * Dashboard / listing badge for a user and an event, derived from their one
@@ -39,12 +36,10 @@ export type EventDisplayStatusInput = {
    */
   isJudge?: boolean;
   /** DB display config; falls back to the seeded copy when absent. */
-  statusDisplay?: Pick<StatusDisplay, 'title' | 'variant'> | null;
+  statusDisplay?: Pick<Participation.StatusDisplay, 'title' | 'variant'> | null;
 };
 
-export function getEventDisplayStatus(
-  input: EventDisplayStatusInput,
-): EventDisplayStatus {
+export function getEventDisplayStatus(input: EventDisplayStatusInput): EventDisplayStatus {
   if (input.isJudge) {
     return { label: 'Judging', pill: 'judging', badgeVariant: 'default' };
   }
@@ -59,7 +54,7 @@ export function getEventDisplayStatus(
         badgeVariant: 'success',
       };
     }
-    const display = input.statusDisplay ?? STATIC_STATUS_DISPLAY[input.status];
+    const display = input.statusDisplay ?? Participation.STATIC_STATUS_DISPLAY[input.status];
     return {
       label: display.title,
       pill: input.status,

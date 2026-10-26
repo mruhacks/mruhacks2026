@@ -16,22 +16,10 @@ export const SUBMISSION_HEARTBEAT_INTERVAL_MS = 30_000;
 export const SUBMISSION_PRESENCE_WINDOW_MS = 90_000;
 
 /** Where source code may live. Required before a project can be published. */
-export const REPO_HOSTS = [
-  'github.com',
-  'gitlab.com',
-  'codeberg.org',
-  'bitbucket.org',
-  'huggingface.co',
-  'co.codes',
-] as const;
+const REPO_HOSTS = ['github.com', 'gitlab.com', 'codeberg.org', 'bitbucket.org', 'huggingface.co', 'co.codes'] as const;
 
 /** Where a demo video may live. */
-export const VIDEO_HOSTS = [
-  'youtube.com',
-  'youtu.be',
-  'vimeo.com',
-  'loom.com',
-] as const;
+const VIDEO_HOSTS = ['youtube.com', 'youtu.be', 'vimeo.com', 'loom.com'] as const;
 
 export type SubmissionLinkKind = 'repo' | 'video' | 'demo';
 
@@ -47,9 +35,7 @@ function parseHttpsUrl(value: string): URL | null {
 /** `host` itself or any subdomain of it (`www.github.com`, `m.youtube.com`). */
 function hostMatches(hostname: string, hosts: readonly string[]): boolean {
   const host = hostname.toLowerCase();
-  return hosts.some(
-    (allowed) => host === allowed || host.endsWith(`.${allowed}`),
-  );
+  return hosts.some((allowed) => host === allowed || host.endsWith(`.${allowed}`));
 }
 
 /**
@@ -57,10 +43,7 @@ function hostMatches(hostname: string, hosts: readonly string[]): boolean {
  * link must be `https://`; repo and video links must also be on their host
  * list.
  */
-export function submissionLinkError(
-  kind: SubmissionLinkKind,
-  value: string,
-): string | null {
+export function submissionLinkError(kind: SubmissionLinkKind, value: string): string | null {
   const url = parseHttpsUrl(value);
   if (!url) return 'Enter a full https:// link.';
   if (kind === 'repo' && !hostMatches(url.hostname, REPO_HOSTS)) {
@@ -104,10 +87,7 @@ export function isSubmissionsEnabled(event: SubmissionEventFields): boolean {
  */
 export type SubmissionWindow = 'disabled' | 'not_open' | 'open' | 'closed';
 
-export function getSubmissionWindow(
-  event: SubmissionEventFields,
-  now: Date = new Date(),
-): SubmissionWindow {
+export function getSubmissionWindow(event: SubmissionEventFields, now: Date = new Date()): SubmissionWindow {
   if (!isSubmissionsEnabled(event)) return 'disabled';
   if (now.getTime() < event.startsAt!.getTime()) return 'not_open';
   if (now.getTime() >= event.submissionsCloseAt!.getTime()) return 'closed';
@@ -119,11 +99,6 @@ export function getSubmissionWindow(
  * self-service team changes stop. Applies whenever a deadline is set, even if
  * the rest of the feature's prerequisites are not.
  */
-export function isPastSubmissionDeadline(
-  submissionsCloseAt: Date | null,
-  now: Date = new Date(),
-): boolean {
-  return (
-    submissionsCloseAt != null && now.getTime() >= submissionsCloseAt.getTime()
-  );
+export function isPastSubmissionDeadline(submissionsCloseAt: Date | null, now: Date = new Date()): boolean {
+  return submissionsCloseAt != null && now.getTime() >= submissionsCloseAt.getTime();
 }

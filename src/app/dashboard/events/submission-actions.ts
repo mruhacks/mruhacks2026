@@ -19,23 +19,15 @@ import { randomUUID } from 'crypto';
 import { and, asc, desc, eq, gt, inArray, ne, sql } from 'drizzle-orm';
 import { revalidatePath, updateTag } from 'next/cache';
 
-import {
-  submissionEditors,
-  submissions,
-  teamMembers,
-  user as authUser,
-} from '@/db/schema';
+import * as schema from '@/db/schema';
 import { eventApplicationsCacheTag } from '@/lib/admin-event';
 import { eventUrlSegments } from '@/lib/events';
-import { assignTableSlot, getTableLabels } from '@/lib/judging/server';
+import * as Judging from '@/lib/judging/server';
+import { PROJECT_SHOWCASE_CACHE_TAG } from '@/lib/project-showcase';
 import { collectAttachmentKeys } from '@/lib/markdown-attachments';
 import { readImageUpload } from '@/lib/image-attachments';
-import { requirePermission, hasPermission } from '@/lib/rbac/authorization';
-import {
-  loadSubmissionAccess,
-  type SubmissionAccess,
-  type SubmissionRow,
-} from '@/lib/submission-access';
+import * as Rbac from '@/lib/rbac/server';
+import { loadSubmissionAccess, type SubmissionAccess, type SubmissionRow } from '@/lib/submission-access';
 import {
   NEW_SUBMISSION_TITLE,
   SUBMISSION_MAX_IMAGES,
@@ -54,11 +46,7 @@ import {
   putObject,
   submissionAttachmentPrefix,
 } from '@/utils/object-storage';
-import {
-  publishSubmissionSchema,
-  saveSubmissionSchema,
-  type SaveSubmissionInput,
-} from './submission-schemas';
+import { publishSubmissionSchema, saveSubmissionSchema, type SaveSubmissionInput } from './submission-schemas';
 
 // ── Shared shapes ─────────────────────────────────────────────────────────
 
@@ -97,11 +85,7 @@ export type MySubmissionState = {
 
 async function toView(row: SubmissionRow): Promise<SubmissionView> {
   const [editor] = row.lastEditedBy
-    ? await db
-        .select({ name: authUser.name })
-        .from(authUser)
-        .where(eq(authUser.id, row.lastEditedBy))
-        .limit(1)
+    ? await db.select({ name: schema.user.name }).from(schema.user).where(eq(schema.user.id, row.lastEditedBy)).limit(1)
     : [];
   return {
     id: row.id,
@@ -137,6 +121,7 @@ function editBlockedReason(access: SubmissionAccess): string | null {
 
 async function revalidateSubmissionPaths(eventId: string): Promise<void> {
   updateTag(eventApplicationsCacheTag(eventId));
+  updateTag(PROJECT_SHOWCASE_CACHE_TAG);
   for (const segment of await eventUrlSegments(eventId)) {
     revalidatePath(`/dashboard/events/${segment}`);
     revalidatePath(`/dashboard/events/${segment}/project`);
@@ -150,17 +135,9 @@ async function revalidateSubmissionPaths(eventId: string): Promise<void> {
  * project's image, a wiki attachment) is never this submission's to count
  * or delete.
  */
-function ownImageKeys(
-  submissionId: string,
-  markdown: string,
-  coverImageUrl: string | null,
-): Set<string> {
+function ownImageKeys(submissionId: string, markdown: string, coverImageUrl: string | null): Set<string> {
   const prefix = submissionAttachmentPrefix(submissionId);
-  const keys = new Set(
-    [...collectAttachmentKeys(markdown)].filter((key) =>
-      key.startsWith(prefix),
-    ),
-  );
+  const keys = new Set([...collectAttachmentKeys(markdown)].filter((key) => key.startsWith(prefix)));
   const coverKey = parseSubmissionAttachmentKey(coverImageUrl);
   if (coverKey?.startsWith(prefix)) keys.add(coverKey);
   return keys;
@@ -169,11 +146,7 @@ function ownImageKeys(
 /** Best effort: the row is already gone, so a storage hiccup only leaves orphans. */
 async function deleteSubmissionImages(row: SubmissionRow): Promise<void> {
   try {
-    await Promise.all(
-      [...ownImageKeys(row.id, row.markdown, row.coverImageUrl)].map((key) =>
-        deleteObject(key),
-      ),
-    );
+    await Promise.all([...ownImageKeys(row.id, row.markdown, row.coverImageUrl)].map((key) => deleteObject(key)));
   } catch (error) {
     console.error('[submissions] failed to delete submission images', {
       submissionId: row.id,
@@ -189,9 +162,7 @@ async function deleteSubmissionImages(row: SubmissionRow): Promise<void> {
  * not eligible — an ineligible teammate (e.g. not yet checked in) can't see
  * the project at all.
  */
-export async function getMySubmission(
-  eventId: string,
-): Promise<ActionResult<MySubmissionState>> {
+export async function getMySubmission(eventId: string): Promise<ActionResult<MySubmissionState>> {
   const currentUser = await getUser();
   if (!currentUser) return fail('Not authenticated');
 
@@ -205,7 +176,7 @@ export async function getMySubmission(
   const { submission } = access;
   const tableLabel =
     submissionWindow === 'closed' && submission?.published
-      ? ((await getTableLabels(eventId)).get(submission.id)?.label ?? null)
+      ? ((await Judging.getTableLabels(eventId)).get(submission.id)?.label ?? null)
       : null;
 
   return ok({
@@ -223,9 +194,7 @@ export async function getMySubmission(
  * Starts the team's project as an empty draft. The row has to exist before
  * the editor opens, because uploaded images are stored under its id.
  */
-export async function createSubmission(
-  eventId: string,
-): Promise<ActionResult<{ id: string }>> {
+export async function createSubmission(eventId: string): Promise<ActionResult<{ id: string }>> {
   const currentUser = await getUser();
   if (!currentUser) return fail('Not authenticated');
 
@@ -237,14 +206,10 @@ export async function createSubmission(
 
   try {
     const created = await db.transaction(async (tx) => {
-      const { teamId } = await getOrCreatePersonalTeam(
-        currentUser.id,
-        eventId,
-        tx,
-      );
+      const { teamId } = await getOrCreatePersonalTeam(currentUser.id, eventId, tx);
       const now = new Date();
       const [row] = await tx
-        .insert(submissions)
+        .insert(schema.submissions)
         .values({
           eventId,
           teamId,
@@ -253,14 +218,14 @@ export async function createSubmission(
           createdAt: now,
           updatedAt: now,
         })
-        .onConflictDoNothing({ target: submissions.teamId })
-        .returning({ id: submissions.id });
+        .onConflictDoNothing({ target: schema.submissions.teamId })
+        .returning({ id: schema.submissions.id });
       if (row) return row;
       // A teammate started it a moment ago: open theirs.
       const [existing] = await tx
-        .select({ id: submissions.id })
-        .from(submissions)
-        .where(eq(submissions.teamId, teamId))
+        .select({ id: schema.submissions.id })
+        .from(schema.submissions)
+        .where(eq(schema.submissions.teamId, teamId))
         .limit(1);
       return existing!;
     });
@@ -310,21 +275,18 @@ export async function saveSubmission(
       // staleness check and the write.
       const [row] = await tx
         .select()
-        .from(submissions)
-        .where(eq(submissions.id, access.submission.id))
+        .from(schema.submissions)
+        .where(eq(schema.submissions.id, access.submission.id))
         .limit(1)
         .for('update');
       if (!row) return fail('Your project no longer exists.');
 
-      if (
-        !data.force &&
-        row.updatedAt.getTime() > new Date(data.expectedUpdatedAt).getTime()
-      ) {
+      if (!data.force && row.updatedAt.getTime() > new Date(data.expectedUpdatedAt).getTime()) {
         const [editor] = row.lastEditedBy
           ? await tx
-              .select({ name: authUser.name })
-              .from(authUser)
-              .where(eq(authUser.id, row.lastEditedBy))
+              .select({ name: schema.user.name })
+              .from(schema.user)
+              .where(eq(schema.user.id, row.lastEditedBy))
               .limit(1)
           : [];
         return ok<SaveSubmissionResult>({
@@ -339,23 +301,16 @@ export async function saveSubmission(
       if (data.coverImageUrl && !coverKey?.startsWith(prefix)) {
         return fail('Upload the cover image here rather than linking one.');
       }
-      if (
-        ownImageKeys(row.id, data.markdown, data.coverImageUrl).size >
-        SUBMISSION_MAX_IMAGES
-      ) {
-        return fail(
-          `A project can have at most ${SUBMISSION_MAX_IMAGES} images, including the cover.`,
-        );
+      if (ownImageKeys(row.id, data.markdown, data.coverImageUrl).size > SUBMISSION_MAX_IMAGES) {
+        return fail(`A project can have at most ${SUBMISSION_MAX_IMAGES} images, including the cover.`);
       }
       if (row.published && !data.repoUrl) {
-        return fail(
-          'A public project needs a repository link. Make it private first to remove the link.',
-        );
+        return fail('A public project needs a repository link. Make it private first to remove the link.');
       }
 
       const updatedAt = new Date();
       await tx
-        .update(submissions)
+        .update(schema.submissions)
         .set({
           title: data.title,
           markdown: data.markdown,
@@ -366,7 +321,7 @@ export async function saveSubmission(
           lastEditedBy: currentUser.id,
           updatedAt,
         })
-        .where(eq(submissions.id, row.id));
+        .where(eq(schema.submissions.id, row.id));
 
       return ok<SaveSubmissionResult>({ status: 'saved', updatedAt });
     });
@@ -385,10 +340,7 @@ export async function saveSubmission(
  * member may, any time the window is open. Going public needs a repository
  * link.
  */
-export async function setSubmissionPublished(
-  eventId: string,
-  published: boolean,
-): Promise<ActionResult> {
+export async function setSubmissionPublished(eventId: string, published: boolean): Promise<ActionResult> {
   const currentUser = await getUser();
   if (!currentUser) return fail('Not authenticated');
 
@@ -405,8 +357,8 @@ export async function setSubmissionPublished(
       // this check and the write, leaving a public project without one.
       const [row] = await tx
         .select()
-        .from(submissions)
-        .where(eq(submissions.id, access.submission.id))
+        .from(schema.submissions)
+        .where(eq(schema.submissions.id, access.submission.id))
         .limit(1)
         .for('update');
       if (!row) return fail('Your project no longer exists.');
@@ -418,7 +370,7 @@ export async function setSubmissionPublished(
       }
 
       await tx
-        .update(submissions)
+        .update(schema.submissions)
         .set({
           published,
           publishedAt: published ? new Date() : null,
@@ -428,14 +380,12 @@ export async function setSubmissionPublished(
           // `updatedAt` tracks content saves for the stale-save check;
           // flipping the flag isn't one, so a teammate mid-edit isn't told
           // to reload.
-          updatedAt: sql`${submissions.updatedAt}`,
+          updatedAt: sql`${schema.submissions.updatedAt}`,
         })
-        .where(eq(submissions.id, row.id));
+        .where(eq(schema.submissions.id, row.id));
       // First time public: the project takes its expo table for good.
-      if (published) await assignTableSlot(tx, eventId, row.id);
-      return ok(
-        published ? 'Project is now public.' : 'Project is now private.',
-      );
+      if (published) await Judging.assignTableSlot(tx, eventId, row.id);
+      return ok(published ? 'Project is now public.' : 'Project is now private.');
     });
     if (result.success) await revalidateSubmissionPaths(eventId);
     return result;
@@ -458,8 +408,8 @@ export async function deleteSubmission(eventId: string): Promise<ActionResult> {
 
   try {
     const [deleted] = await db
-      .delete(submissions)
-      .where(eq(submissions.id, access.submission.id))
+      .delete(schema.submissions)
+      .where(eq(schema.submissions.id, access.submission.id))
       .returning();
     if (deleted) await deleteSubmissionImages(deleted);
     await revalidateSubmissionPaths(eventId);
@@ -497,10 +447,7 @@ export async function uploadSubmissionAttachment(
     });
     return ok({ url: eventAttachmentUrl(key) });
   } catch (error) {
-    console.error(
-      '[team/submission] Submission attachment upload error:',
-      error,
-    );
+    console.error('[team/submission] Submission attachment upload error:', error);
     return fail('Unable to upload that image.');
   }
 }
@@ -514,9 +461,7 @@ export type SubmissionEditorPresence = { userId: string; name: string };
  * have done the same within the presence window — the editor's "<name> is
  * also editing" banner.
  */
-export async function heartbeatSubmissionEditor(
-  eventId: string,
-): Promise<ActionResult<SubmissionEditorPresence[]>> {
+export async function heartbeatSubmissionEditor(eventId: string): Promise<ActionResult<SubmissionEditorPresence[]>> {
   const currentUser = await getUser();
   if (!currentUser) return fail('Not authenticated');
 
@@ -528,28 +473,25 @@ export async function heartbeatSubmissionEditor(
   try {
     const now = new Date();
     await db
-      .insert(submissionEditors)
+      .insert(schema.submissionEditors)
       .values({ submissionId, userId: currentUser.id, lastSeenAt: now })
       .onConflictDoUpdate({
-        target: [submissionEditors.submissionId, submissionEditors.userId],
+        target: [schema.submissionEditors.submissionId, schema.submissionEditors.userId],
         set: { lastSeenAt: now },
       });
 
     const others = await db
-      .select({ userId: submissionEditors.userId, name: authUser.name })
-      .from(submissionEditors)
-      .innerJoin(authUser, eq(authUser.id, submissionEditors.userId))
+      .select({ userId: schema.submissionEditors.userId, name: schema.user.name })
+      .from(schema.submissionEditors)
+      .innerJoin(schema.user, eq(schema.user.id, schema.submissionEditors.userId))
       .where(
         and(
-          eq(submissionEditors.submissionId, submissionId),
-          ne(submissionEditors.userId, currentUser.id),
-          gt(
-            submissionEditors.lastSeenAt,
-            new Date(now.getTime() - SUBMISSION_PRESENCE_WINDOW_MS),
-          ),
+          eq(schema.submissionEditors.submissionId, submissionId),
+          ne(schema.submissionEditors.userId, currentUser.id),
+          gt(schema.submissionEditors.lastSeenAt, new Date(now.getTime() - SUBMISSION_PRESENCE_WINDOW_MS)),
         ),
       )
-      .orderBy(asc(authUser.name));
+      .orderBy(asc(schema.user.name));
     return ok(others);
   } catch (error) {
     console.error('[team/submission] heartbeatSubmissionEditor error:', error);
@@ -558,9 +500,7 @@ export async function heartbeatSubmissionEditor(
 }
 
 /** Clears the caller's presence row when the editor closes. Best effort. */
-export async function leaveSubmissionEditor(
-  eventId: string,
-): Promise<ActionResult> {
+export async function leaveSubmissionEditor(eventId: string): Promise<ActionResult> {
   const currentUser = await getUser();
   if (!currentUser) return fail('Not authenticated');
 
@@ -568,11 +508,11 @@ export async function leaveSubmissionEditor(
   if (!access?.submission) return ok();
 
   await db
-    .delete(submissionEditors)
+    .delete(schema.submissionEditors)
     .where(
       and(
-        eq(submissionEditors.submissionId, access.submission.id),
-        eq(submissionEditors.userId, currentUser.id),
+        eq(schema.submissionEditors.submissionId, access.submission.id),
+        eq(schema.submissionEditors.userId, currentUser.id),
       ),
     );
   return ok();
@@ -590,17 +530,15 @@ export type AdminSubmissionRow = {
   members: string[];
 };
 
-async function teamMemberNames(
-  teamIds: string[],
-): Promise<Map<string, string[]>> {
+async function teamMemberNames(teamIds: string[]): Promise<Map<string, string[]>> {
   const byTeam = new Map<string, string[]>();
   if (teamIds.length === 0) return byTeam;
   const rows = await db
-    .select({ teamId: teamMembers.teamId, name: authUser.name })
-    .from(teamMembers)
-    .innerJoin(authUser, eq(authUser.id, teamMembers.userId))
-    .where(inArray(teamMembers.teamId, teamIds))
-    .orderBy(asc(teamMembers.joinedAt));
+    .select({ teamId: schema.teamMembers.teamId, name: schema.user.name })
+    .from(schema.teamMembers)
+    .innerJoin(schema.user, eq(schema.user.id, schema.teamMembers.userId))
+    .where(inArray(schema.teamMembers.teamId, teamIds))
+    .orderBy(asc(schema.teamMembers.joinedAt));
   for (const row of rows) {
     byTeam.set(row.teamId, [...(byTeam.get(row.teamId) ?? []), row.name]);
   }
@@ -611,25 +549,23 @@ async function teamMemberNames(
  * Every submission for an event, drafts included.
  * Requires submission:read:all permission.
  */
-export async function listEventSubmissions(
-  eventId: string,
-): Promise<ActionResult<AdminSubmissionRow[]>> {
+export async function listEventSubmissions(eventId: string): Promise<ActionResult<AdminSubmissionRow[]>> {
   const currentUser = await getUser();
   if (!currentUser) return fail('Not authenticated');
-  await requirePermission(currentUser.id, 'submission:read:all');
+  await Rbac.requirePermission(currentUser.id, 'submission:read:all');
 
   const rows = await db
     .select({
-      id: submissions.id,
-      teamId: submissions.teamId,
-      title: submissions.title,
-      published: submissions.published,
-      publishedAt: submissions.publishedAt,
-      updatedAt: submissions.updatedAt,
+      id: schema.submissions.id,
+      teamId: schema.submissions.teamId,
+      title: schema.submissions.title,
+      published: schema.submissions.published,
+      publishedAt: schema.submissions.publishedAt,
+      updatedAt: schema.submissions.updatedAt,
     })
-    .from(submissions)
-    .where(eq(submissions.eventId, eventId))
-    .orderBy(desc(submissions.published), asc(submissions.title));
+    .from(schema.submissions)
+    .where(eq(schema.submissions.eventId, eventId))
+    .orderBy(desc(schema.submissions.published), asc(schema.submissions.title));
 
   const names = await teamMemberNames(rows.map((row) => row.teamId));
   return ok(
@@ -650,14 +586,12 @@ export async function getEventSubmission(
 ): Promise<ActionResult<SubmissionView & { members: string[] }>> {
   const currentUser = await getUser();
   if (!currentUser) return fail('Not authenticated');
-  await requirePermission(currentUser.id, 'submission:read:all');
+  await Rbac.requirePermission(currentUser.id, 'submission:read:all');
 
   const [row] = await db
     .select()
-    .from(submissions)
-    .where(
-      and(eq(submissions.id, submissionId), eq(submissions.eventId, eventId)),
-    )
+    .from(schema.submissions)
+    .where(and(eq(schema.submissions.id, submissionId), eq(schema.submissions.eventId, eventId)))
     .limit(1);
   if (!row) return fail('Submission not found.');
 
@@ -673,7 +607,7 @@ export async function getEventSubmission(
 export async function canDeleteAnySubmission(): Promise<boolean> {
   const currentUser = await getUser();
   if (!currentUser) return false;
-  return hasPermission(currentUser.id, 'submission:delete:all');
+  return Rbac.hasPermission(currentUser.id, 'submission:delete:all');
 }
 
 /**
@@ -681,22 +615,17 @@ export async function canDeleteAnySubmission(): Promise<boolean> {
  * the deadline doesn't apply. Audit-logged by id.
  * Requires submission:delete:all permission.
  */
-export async function adminDeleteSubmission(
-  eventId: string,
-  submissionId: string,
-): Promise<ActionResult> {
+export async function adminDeleteSubmission(eventId: string, submissionId: string): Promise<ActionResult> {
   const currentUser = await getUser();
   if (!currentUser) return fail('Not authenticated');
-  if (!(await hasPermission(currentUser.id, 'submission:delete:all'))) {
+  if (!(await Rbac.hasPermission(currentUser.id, 'submission:delete:all'))) {
     return fail('Not authorized to delete submissions.');
   }
 
   try {
     const [deleted] = await db
-      .delete(submissions)
-      .where(
-        and(eq(submissions.id, submissionId), eq(submissions.eventId, eventId)),
-      )
+      .delete(schema.submissions)
+      .where(and(eq(schema.submissions.id, submissionId), eq(schema.submissions.eventId, eventId)))
       .returning();
     if (!deleted) return fail('Submission not found.');
 

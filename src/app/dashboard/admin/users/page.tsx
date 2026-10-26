@@ -1,19 +1,15 @@
-import { requireAuthWithPermission } from '@/lib/rbac/guards';
-import { hasAnyPermission, hasPermission } from '@/lib/rbac/authorization';
+import * as Rbac from '@/lib/rbac/server';
 import { listUsers } from '@/app/actions/users';
 import { listRoles } from '@/app/actions/roles';
 import { UsersTable } from './users-table';
 import { InviteUserDialog } from './invite-user-dialog';
 
 export default async function AdminUsersPage() {
-  const caller = await requireAuthWithPermission([
-    'user:read:all',
-    'user:all:all',
-  ]);
+  const caller = await Rbac.requireAuthWithPermission(['user:read:all', 'user:all:all']);
 
   // The role filter and the invite dialog's role picker need the role list,
   // which is its own permission; without it they go without.
-  const canReadRoles = await hasPermission(caller.id, 'role:read:all');
+  const canReadRoles = await Rbac.hasPermission(caller.id, 'role:read:all');
   const [usersRes, rolesRes] = await Promise.all([
     listUsers({ page: 1, pageSize: 25 }),
     canReadRoles ? listRoles() : null,
@@ -27,27 +23,20 @@ export default async function AdminUsersPage() {
     );
   }
 
-  const roles =
-    rolesRes?.success && rolesRes.data
-      ? rolesRes.data.map((r) => ({ id: r.id, slug: r.slug }))
-      : [];
+  const roles = rolesRes?.success && rolesRes.data ? rolesRes.data.map((r) => ({ id: r.id, slug: r.slug })) : [];
 
   const [canWrite, canPurge] = await Promise.all([
-    hasAnyPermission(caller.id, ['user:write:all', 'user:all:all']),
+    Rbac.hasAnyPermission(caller.id, ['user:write:all', 'user:all:all']),
     // The full-wipe action checks exactly this, and nothing else.
-    hasPermission(caller.id, 'user:purge:all'),
+    Rbac.hasPermission(caller.id, 'user:purge:all'),
   ]);
 
   return (
     <div className='space-y-4'>
       <div className='flex items-start justify-between gap-4'>
         <div>
-          <h1 className='text-2xl font-semibold tracking-tight'>
-            User management
-          </h1>
-          <p className='text-muted-foreground text-sm'>
-            Search, filter, and manage every user in the system.
-          </p>
+          <h1 className='text-2xl font-semibold tracking-tight'>User management</h1>
+          <p className='text-muted-foreground text-sm'>Search, filter, and manage every user in the system.</p>
         </div>
         {canWrite && <InviteUserDialog roles={roles} />}
       </div>

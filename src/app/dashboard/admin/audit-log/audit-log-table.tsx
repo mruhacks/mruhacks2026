@@ -2,32 +2,18 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import {
-  ColumnDef,
-  ColumnFiltersState,
-  SortingState,
-} from '@tanstack/react-table';
+import { ColumnDef, ColumnFiltersState, SortingState } from '@tanstack/react-table';
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { FileJson, Filter, X } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DataTable } from '@/components/data-table/data-table';
 import { DataTableFacetedFilter } from '@/components/data-table/data-table-faceted-filter';
 import { LocalDateTime } from '@/components/local-date-time';
-import {
-  listAuditLog,
-  type AuditLogRow,
-  type ListAuditLogResult,
-} from '@/app/actions/audit-log';
+import { listAuditLog, type AuditLogRow, type ListAuditLogResult } from '@/app/actions/audit-log';
 
 interface AuditLogTableProps {
   initialData: ListAuditLogResult;
@@ -44,46 +30,26 @@ function filterValues(filters: ColumnFiltersState, id: string): string[] {
   return Array.isArray(v) ? (v as string[]) : [];
 }
 
-function UserLink({
-  id,
-  label,
-  canReadUsers,
-}: {
-  id: string;
-  label: string;
-  canReadUsers: boolean;
-}) {
+function UserLink({ id, label, canReadUsers }: { id: string; label: string; canReadUsers: boolean }) {
   if (!canReadUsers) return <span>{label}</span>;
   return (
-    <Link
-      href={`/dashboard/admin/users/${id}`}
-      className='underline-offset-4 hover:underline'
-    >
+    <Link href={`/dashboard/admin/users/${id}`} className='underline-offset-4 hover:underline'>
       {label}
     </Link>
   );
 }
 
-export function AuditLogTable({
-  initialData,
-  actions,
-  targetTypes,
-  canReadUsers,
-}: AuditLogTableProps) {
+export function AuditLogTable({ initialData, actions, targetTypes, canReadUsers }: AuditLogTableProps) {
   const [search, setSearch] = React.useState('');
   const [debouncedSearch, setDebouncedSearch] = React.useState('');
-  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
-    [],
-  );
+  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
   const [actor, setActor] = React.useState<{
     id: string;
     name: string;
   } | null>(null);
   const [page, setPage] = React.useState(initialData.page);
   const [pageSize, setPageSize] = React.useState(initialData.pageSize);
-  const [sorting, setSorting] = React.useState<SortingState>([
-    { id: 'createdAt', desc: true },
-  ]);
+  const [sorting, setSorting] = React.useState<SortingState>([{ id: 'createdAt', desc: true }]);
   const [viewing, setViewing] = React.useState<AuditLogRow | null>(null);
 
   const actionFilter = filterValues(columnFilters, 'action');
@@ -98,14 +64,7 @@ export function AuditLogTable({
   // Reset to page 1 whenever the filters/sort/pageSize change. Adjusted
   // during render (rather than in an effect) per
   // https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes
-  const filtersKey = JSON.stringify([
-    debouncedSearch,
-    actionFilter,
-    targetTypeFilter,
-    actor?.id,
-    pageSize,
-    sorting,
-  ]);
+  const filtersKey = JSON.stringify([debouncedSearch, actionFilter, targetTypeFilter, actor?.id, pageSize, sorting]);
   const [prevFiltersKey, setPrevFiltersKey] = React.useState(filtersKey);
   if (filtersKey !== prevFiltersKey) {
     setPrevFiltersKey(filtersKey);
@@ -186,21 +145,13 @@ export function AuditLogTable({
         cell: ({ row }) => {
           const a = row.original.actor;
           if (!a) {
-            return (
-              <span className='text-muted-foreground text-xs'>
-                System / deleted user
-              </span>
-            );
+            return <span className='text-muted-foreground text-xs'>System / deleted user</span>;
           }
           return (
             <div className='group flex items-start gap-1'>
               <div className='min-w-0'>
                 <div className='font-medium'>
-                  <UserLink
-                    id={a.id}
-                    label={a.name}
-                    canReadUsers={canReadUsers}
-                  />
+                  <UserLink id={a.id} label={a.name} canReadUsers={canReadUsers} />
                 </div>
                 <div className='text-muted-foreground text-xs'>{a.email}</div>
               </div>
@@ -243,11 +194,7 @@ export function AuditLogTable({
               {targetId && (
                 <div className='text-muted-foreground font-mono text-xs break-all'>
                   {targetType === 'user' ? (
-                    <UserLink
-                      id={targetId}
-                      label={targetId}
-                      canReadUsers={canReadUsers}
-                    />
+                    <UserLink id={targetId} label={targetId} canReadUsers={canReadUsers} />
                   ) : (
                     targetId
                   )}
@@ -267,11 +214,7 @@ export function AuditLogTable({
             return <span className='text-muted-foreground text-xs'>—</span>;
           }
           return (
-            <Button
-              variant='outline'
-              size='sm'
-              onClick={() => setViewing(row.original)}
-            >
+            <Button variant='outline' size='sm' onClick={() => setViewing(row.original)}>
               <FileJson className='size-4' /> View
             </Button>
           );
@@ -299,9 +242,7 @@ export function AuditLogTable({
         onSortingChange={setSorting}
         initialSorting={sorting}
         onColumnFiltersChange={setColumnFilters}
-        emptyMessage={
-          loading ? 'Loading…' : 'No audit entries match these filters.'
-        }
+        emptyMessage={loading ? 'Loading…' : 'No audit entries match these filters.'}
         toolbar={
           <>
             <input
@@ -355,20 +296,10 @@ export function AuditLogTable({
           {viewing && (
             <>
               <DialogHeader>
-                <DialogTitle className='font-mono'>
-                  {viewing.action}
-                </DialogTitle>
+                <DialogTitle className='font-mono'>{viewing.action}</DialogTitle>
                 <DialogDescription>
-                  {viewing.actor
-                    ? `${viewing.actor.name} (${viewing.actor.email})`
-                    : 'System / deleted user'}{' '}
-                  ·{' '}
-                  <LocalDateTime
-                    value={viewing.createdAt}
-                    dateStyle='medium'
-                    timeStyle='medium'
-                    timeZoneName='short'
-                  />
+                  {viewing.actor ? `${viewing.actor.name} (${viewing.actor.email})` : 'System / deleted user'} ·{' '}
+                  <LocalDateTime value={viewing.createdAt} dateStyle='medium' timeStyle='medium' timeZoneName='short' />
                 </DialogDescription>
               </DialogHeader>
               <dl className='grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm'>

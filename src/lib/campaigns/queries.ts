@@ -3,22 +3,15 @@ import 'server-only';
 import { asc, desc, eq } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 
-import {
-  campaigns,
-  events,
-  role,
-  user,
-  type CampaignStatus,
-  type CampaignType,
-} from '@/db/schema';
+import * as schema from '@/db/schema';
 import { db } from '@/utils/db';
 import type { AudienceOptions } from './audience-options';
 
-export type CampaignListRow = {
+export type ListRow = {
   id: string;
   name: string;
-  type: CampaignType;
-  status: CampaignStatus;
+  type: schema.CampaignType;
+  status: schema.CampaignStatus;
   eventName: string | null;
   scheduledFor: Date | null;
   sentAt: Date | null;
@@ -26,56 +19,54 @@ export type CampaignListRow = {
   updatedByName: string | null;
 };
 
-const editor = alias(user, 'campaign_editor');
+const editor = alias(schema.user, 'campaign_editor');
 
 /** Every campaign, most recently edited first. Ownership is shared, so there's no per-user filter. */
-export async function listCampaigns(): Promise<CampaignListRow[]> {
+export async function listCampaigns(): Promise<ListRow[]> {
   return db
     .select({
-      id: campaigns.id,
-      name: campaigns.name,
-      type: campaigns.type,
-      status: campaigns.status,
-      eventName: events.name,
-      scheduledFor: campaigns.scheduledFor,
-      sentAt: campaigns.sentAt,
-      updatedAt: campaigns.updatedAt,
+      id: schema.campaigns.id,
+      name: schema.campaigns.name,
+      type: schema.campaigns.type,
+      status: schema.campaigns.status,
+      eventName: schema.events.name,
+      scheduledFor: schema.campaigns.scheduledFor,
+      sentAt: schema.campaigns.sentAt,
+      updatedAt: schema.campaigns.updatedAt,
       updatedByName: editor.name,
     })
-    .from(campaigns)
-    .leftJoin(events, eq(campaigns.eventId, events.id))
-    .leftJoin(editor, eq(campaigns.updatedBy, editor.id))
-    .orderBy(desc(campaigns.updatedAt));
+    .from(schema.campaigns)
+    .leftJoin(schema.events, eq(schema.campaigns.eventId, schema.events.id))
+    .leftJoin(editor, eq(schema.campaigns.updatedBy, editor.id))
+    .orderBy(desc(schema.campaigns.updatedAt));
 }
 
-export type CampaignDetail = typeof campaigns.$inferSelect & {
+export type Detail = typeof schema.campaigns.$inferSelect & {
   eventName: string | null;
   /** The event allows a wallet block: top-level (always, for a campaign event) with check-in on. */
   walletAllowed: boolean;
   updatedByName: string | null;
 };
 
-export async function getCampaign(id: string): Promise<CampaignDetail | null> {
+export async function getCampaign(id: string): Promise<Detail | null> {
   const [row] = await db
     .select({
-      campaign: campaigns,
-      eventName: events.name,
-      eventCheckInEnabled: events.checkInEnabled,
-      eventParentId: events.parentEventId,
+      campaign: schema.campaigns,
+      eventName: schema.events.name,
+      eventCheckInEnabled: schema.events.checkInEnabled,
+      eventParentId: schema.events.parentEventId,
       updatedByName: editor.name,
     })
-    .from(campaigns)
-    .leftJoin(events, eq(campaigns.eventId, events.id))
-    .leftJoin(editor, eq(campaigns.updatedBy, editor.id))
-    .where(eq(campaigns.id, id))
+    .from(schema.campaigns)
+    .leftJoin(schema.events, eq(schema.campaigns.eventId, schema.events.id))
+    .leftJoin(editor, eq(schema.campaigns.updatedBy, editor.id))
+    .where(eq(schema.campaigns.id, id))
     .limit(1);
   if (!row) return null;
   return {
     ...row.campaign,
     eventName: row.eventName,
-    walletAllowed: Boolean(
-      row.campaign.eventId && row.eventCheckInEnabled && !row.eventParentId,
-    ),
+    walletAllowed: Boolean(row.campaign.eventId && row.eventCheckInEnabled && !row.eventParentId),
     updatedByName: row.updatedByName,
   };
 }
@@ -85,18 +76,18 @@ export async function getAudienceOptions(): Promise<AudienceOptions> {
   const [eventRows, roleRows] = await Promise.all([
     db
       .select({
-        id: events.id,
-        name: events.name,
-        parentEventId: events.parentEventId,
-        startsAt: events.startsAt,
-        checkInEnabled: events.checkInEnabled,
+        id: schema.events.id,
+        name: schema.events.name,
+        parentEventId: schema.events.parentEventId,
+        startsAt: schema.events.startsAt,
+        checkInEnabled: schema.events.checkInEnabled,
       })
-      .from(events)
-      .orderBy(desc(events.startsAt), asc(events.name)),
+      .from(schema.events)
+      .orderBy(desc(schema.events.startsAt), asc(schema.events.name)),
     db
-      .select({ id: role.id, slug: role.slug, description: role.description })
-      .from(role)
-      .orderBy(asc(role.slug)),
+      .select({ id: schema.role.id, slug: schema.role.slug, description: schema.role.description })
+      .from(schema.role)
+      .orderBy(asc(schema.role.slug)),
   ]);
 
   const topLevel = eventRows.filter((row) => !row.parentEventId);

@@ -2,12 +2,8 @@ import 'server-only';
 
 import { and, eq, inArray, lt } from 'drizzle-orm';
 
-import {
-  eventInvitations,
-  eventParticipants,
-  eventRsvpWaves,
-} from '@/db/schema';
-import { hasStatus, statusIdOf } from '@/lib/participation/server';
+import * as schema from '@/db/schema';
+import * as Participation from '@/lib/participation/server';
 import { db } from '@/utils/db';
 
 export type TimeoutExpiredInvitationsOptions = {
@@ -35,22 +31,16 @@ export async function timeoutExpiredInvitations(
 ): Promise<TimeoutExpiredInvitationsResult> {
   const now = options.now ?? new Date();
 
-  const filters = [hasStatus('invited'), lt(eventRsvpWaves.respondBy, now)];
+  const filters = [Participation.hasStatus('invited'), lt(schema.eventRsvpWaves.respondBy, now)];
   if (options.eventId) {
-    filters.push(eq(eventParticipants.eventId, options.eventId));
+    filters.push(eq(schema.eventParticipants.eventId, options.eventId));
   }
 
   const expired = await db
-    .select({ id: eventParticipants.id })
-    .from(eventParticipants)
-    .innerJoin(
-      eventInvitations,
-      eq(eventInvitations.participantId, eventParticipants.id),
-    )
-    .innerJoin(
-      eventRsvpWaves,
-      eq(eventInvitations.rsvpWaveId, eventRsvpWaves.id),
-    )
+    .select({ id: schema.eventParticipants.id })
+    .from(schema.eventParticipants)
+    .innerJoin(schema.eventInvitations, eq(schema.eventInvitations.participantId, schema.eventParticipants.id))
+    .innerJoin(schema.eventRsvpWaves, eq(schema.eventInvitations.rsvpWaveId, schema.eventRsvpWaves.id))
     .where(and(...filters));
 
   if (expired.length === 0) {
@@ -58,18 +48,18 @@ export async function timeoutExpiredInvitations(
   }
 
   const updated = await db
-    .update(eventParticipants)
-    .set({ statusId: statusIdOf('timed_out') })
+    .update(schema.eventParticipants)
+    .set({ statusId: Participation.statusIdOf('timed_out') })
     .where(
       and(
         inArray(
-          eventParticipants.id,
+          schema.eventParticipants.id,
           expired.map((row) => row.id),
         ),
-        hasStatus('invited'),
+        Participation.hasStatus('invited'),
       ),
     )
-    .returning({ id: eventParticipants.id });
+    .returning({ id: schema.eventParticipants.id });
 
   return { timedOutCount: updated.length };
 }

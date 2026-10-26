@@ -9,26 +9,14 @@ import {
   getUserParticipation,
   submitEventApplication,
 } from '@/app/dashboard/events/actions';
-import {
-  getUserProfile,
-  type UserProfileData,
-} from '@/app/dashboard/profile/actions';
+import { getUserProfile, type UserProfileData } from '@/app/dashboard/profile/actions';
 import { db } from '@/utils/db';
-import { events } from '@/db/schema';
+import * as schema from '@/db/schema';
 import { hasEventElapsed, resolveEventId } from '@/lib/events';
 import { eventPath } from '@/lib/event-slug';
-import {
-  isJudgingEvent,
-  JUDGE_SIGNUP_BLOCKED_MESSAGE,
-} from '@/lib/judging/server';
+import * as Judging from '@/lib/judging/server';
 import { eq } from 'drizzle-orm';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ProfileView } from '@/components/profile-view';
 import ApplicationForm from '@/components/application-form';
@@ -36,7 +24,7 @@ import type { ProfileFormValues } from '@/components/profile-form/schema';
 import type { EventOnlyFormValues } from '@/components/application-form/schema';
 import { ApplicationStatusBanner } from '@/app/dashboard/events/ApplicationStatusBanner';
 import { oauthPrefillName } from '@/lib/oauth-name';
-import { canEditApplication } from '@/lib/participation/status';
+import * as Participation from '@/lib/participation';
 
 type PreviousSubmission = {
   fullName: string;
@@ -107,20 +95,16 @@ export default async function ApplyEventPage({ params }: Props) {
   const user = await getUser();
   if (!user) redirect('/signin');
 
-  const [event] = await db
-    .select()
-    .from(events)
-    .where(eq(events.id, eventId))
-    .limit(1);
+  const [event] = await db.select().from(schema.events).where(eq(schema.events.id, eventId)).limit(1);
 
   if (!event) notFound();
-  if (await isJudgingEvent(eventId, user)) {
+  if (await Judging.isJudgingEvent(eventId, user)) {
     return (
       <Card className='w-full sm:max-w-2xl'>
         <BreadcrumbSegment id={segment} label={event.name} />
         <CardHeader>
           <CardTitle>You&apos;re a judge</CardTitle>
-          <CardDescription>{JUDGE_SIGNUP_BLOCKED_MESSAGE}</CardDescription>
+          <CardDescription>{Judging.JUDGE_SIGNUP_BLOCKED_MESSAGE}</CardDescription>
         </CardHeader>
         <CardContent>
           <Button asChild>
@@ -136,31 +120,25 @@ export default async function ApplyEventPage({ params }: Props) {
         <CardHeader>
           <CardTitle>No application required</CardTitle>
           <CardDescription>
-            This event does not have an application. You can register to attend
-            from the event page.
+            This event does not have an application. You can register to attend from the event page.
           </CardDescription>
         </CardHeader>
       </Card>
     );
   }
 
-  const [previousApplication, options, profileResult, applicationStatus] =
-    await Promise.all([
-      getPreviousFormSubmission(eventId),
-      getOptions(),
-      getUserProfile(),
-      getUserParticipation(eventId),
-    ]);
+  const [previousApplication, options, profileResult, applicationStatus] = await Promise.all([
+    getPreviousFormSubmission(eventId),
+    getOptions(),
+    getUserProfile(),
+    getUserParticipation(eventId),
+  ]);
 
   const hasProfile = profileResult.success && profileResult.data != null;
   const profileData = hasProfile ? profileResult.data : null;
   const prev = previousApplication.success ? previousApplication.data : null;
 
-  const { profileInitial, eventInitial } = buildApplyInitials(
-    prev ?? null,
-    profileData ?? null,
-    user,
-  );
+  const { profileInitial, eventInitial } = buildApplyInitials(prev ?? null, profileData ?? null, user);
 
   // No profile yet — or a judge, who onboarded without the About step and is
   // asked for it now, the first time they apply as a participant.
@@ -170,8 +148,7 @@ export default async function ApplyEventPage({ params }: Props) {
   }
 
   const hasEnded = hasEventElapsed(event.endsAt);
-  const decisionIsFinal =
-    applicationStatus != null && !canEditApplication(applicationStatus.status);
+  const decisionIsFinal = applicationStatus != null && !Participation.canEditApplication(applicationStatus.status);
   const hasCustomQuestions = event.applicationQuestions.some(
     (question) => question.active && question.type !== 'section_divider',
   );
@@ -188,9 +165,7 @@ export default async function ApplyEventPage({ params }: Props) {
           <Card className='w-full sm:max-w-2xl'>
             <CardHeader>
               <CardTitle>Applications closed</CardTitle>
-              <CardDescription>
-                {event.name} has ended and is no longer accepting applications.
-              </CardDescription>
+              <CardDescription>{event.name} has ended and is no longer accepting applications.</CardDescription>
             </CardHeader>
           </Card>
         )}
@@ -228,9 +203,7 @@ export default async function ApplyEventPage({ params }: Props) {
         </CardDescription>
       </CardHeader>
       <CardContent className='space-y-8'>
-        {applicationStatus && (
-          <ApplicationStatusBanner application={applicationStatus} />
-        )}
+        {applicationStatus && <ApplicationStatusBanner application={applicationStatus} />}
         <section>
           <ProfileView profile={profileInitial} options={options} />
         </section>
@@ -240,9 +213,7 @@ export default async function ApplyEventPage({ params }: Props) {
             applicationQuestions={event.applicationQuestions}
             submitAction={submitEventApplication}
             eventId={eventId}
-            submitLabel={
-              applicationStatus ? 'Save changes' : 'Submit application'
-            }
+            submitLabel={applicationStatus ? 'Save changes' : 'Submit application'}
           />
         </section>
       </CardContent>

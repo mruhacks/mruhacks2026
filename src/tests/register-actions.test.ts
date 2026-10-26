@@ -1,13 +1,9 @@
 import { describe, test, expect, beforeAll, afterAll, vi } from 'vitest';
 import { db } from '@/utils/db';
 import { eq, and } from 'drizzle-orm';
-import { user, events, eventParticipants } from '@/db/schema';
+import * as schema from '@/db/schema';
 import { insertAttendees } from '@/tests/participation-fixtures';
-import {
-  registerForEvent,
-  registerForEventFormAction,
-  unregisterFromEvent,
-} from '@/app/register/actions';
+import { registerForEvent, registerForEventFormAction, unregisterFromEvent } from '@/app/register/actions';
 
 vi.mock('@/utils/auth', () => ({ getUser: vi.fn() }));
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn(), updateTag: vi.fn() }));
@@ -20,29 +16,29 @@ let elapsedEventId: string;
 
 beforeAll(async () => {
   const [u] = await db
-    .insert(user)
+    .insert(schema.user)
     .values({
       name: 'Register Test User',
       email: 'register-test@example.com',
       emailVerified: true,
     })
-    .returning({ id: user.id });
+    .returning({ id: schema.user.id });
   testUserId = u.id;
 
   const [e] = await db
-    .insert(events)
+    .insert(schema.events)
     .values({ name: 'Test Register Event', hasApplication: false })
-    .returning({ id: events.id });
+    .returning({ id: schema.events.id });
   testEventId = e.id;
 
   const [elapsed] = await db
-    .insert(events)
+    .insert(schema.events)
     .values({
       name: 'Test Elapsed Register Event',
       hasApplication: false,
       endsAt: new Date(Date.now() - 60_000),
     })
-    .returning({ id: events.id });
+    .returning({ id: schema.events.id });
   elapsedEventId = elapsed.id;
 
   vi.mocked(getUser).mockResolvedValue({
@@ -54,12 +50,10 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await db
-    .delete(eventParticipants)
-    .where(eq(eventParticipants.userId, testUserId));
-  await db.delete(events).where(eq(events.id, testEventId));
-  await db.delete(events).where(eq(events.id, elapsedEventId));
-  await db.delete(user).where(eq(user.id, testUserId));
+  await db.delete(schema.eventParticipants).where(eq(schema.eventParticipants.userId, testUserId));
+  await db.delete(schema.events).where(eq(schema.events.id, testEventId));
+  await db.delete(schema.events).where(eq(schema.events.id, elapsedEventId));
+  await db.delete(schema.user).where(eq(schema.user.id, testUserId));
 });
 
 describe('registerForEvent', () => {
@@ -76,13 +70,8 @@ describe('registerForEvent', () => {
 
     const rows = await db
       .select()
-      .from(eventParticipants)
-      .where(
-        and(
-          eq(eventParticipants.userId, testUserId),
-          eq(eventParticipants.eventId, testEventId),
-        ),
-      );
+      .from(schema.eventParticipants)
+      .where(and(eq(schema.eventParticipants.userId, testUserId), eq(schema.eventParticipants.eventId, testEventId)));
     expect(rows).toHaveLength(1);
   });
 
@@ -92,13 +81,8 @@ describe('registerForEvent', () => {
 
     const rows = await db
       .select()
-      .from(eventParticipants)
-      .where(
-        and(
-          eq(eventParticipants.userId, testUserId),
-          eq(eventParticipants.eventId, testEventId),
-        ),
-      );
+      .from(schema.eventParticipants)
+      .where(and(eq(schema.eventParticipants.userId, testUserId), eq(schema.eventParticipants.eventId, testEventId)));
     expect(rows).toHaveLength(1);
   });
 
@@ -115,32 +99,30 @@ describe('registerForEvent capacity', () => {
 
   beforeAll(async () => {
     const [e] = await db
-      .insert(events)
+      .insert(schema.events)
       .values({
         name: 'Test Capped Event',
         hasApplication: false,
         capacity: 1,
       })
-      .returning({ id: events.id });
+      .returning({ id: schema.events.id });
     cappedEventId = e.id;
 
     const [u] = await db
-      .insert(user)
+      .insert(schema.user)
       .values({
         name: 'Register Test User 2',
         email: 'register-test-2@example.com',
         emailVerified: true,
       })
-      .returning({ id: user.id });
+      .returning({ id: schema.user.id });
     otherUserId = u.id;
   });
 
   afterAll(async () => {
-    await db
-      .delete(eventParticipants)
-      .where(eq(eventParticipants.eventId, cappedEventId));
-    await db.delete(events).where(eq(events.id, cappedEventId));
-    await db.delete(user).where(eq(user.id, otherUserId));
+    await db.delete(schema.eventParticipants).where(eq(schema.eventParticipants.eventId, cappedEventId));
+    await db.delete(schema.events).where(eq(schema.events.id, cappedEventId));
+    await db.delete(schema.user).where(eq(schema.user.id, otherUserId));
   });
 
   test('allows registration up to capacity, rejects once full', async () => {
@@ -165,8 +147,8 @@ describe('registerForEvent capacity', () => {
 
     const rows = await db
       .select()
-      .from(eventParticipants)
-      .where(eq(eventParticipants.eventId, cappedEventId));
+      .from(schema.eventParticipants)
+      .where(eq(schema.eventParticipants.eventId, cappedEventId));
     expect(rows).toHaveLength(1);
   });
 
@@ -192,13 +174,8 @@ describe('registerForEventFormAction', () => {
 
   test('registers when valid eventId is in FormData', async () => {
     await db
-      .delete(eventParticipants)
-      .where(
-        and(
-          eq(eventParticipants.userId, testUserId),
-          eq(eventParticipants.eventId, testEventId),
-        ),
-      );
+      .delete(schema.eventParticipants)
+      .where(and(eq(schema.eventParticipants.userId, testUserId), eq(schema.eventParticipants.eventId, testEventId)));
     const formData = new FormData();
     formData.set('eventId', testEventId);
     const result = await registerForEventFormAction(formData);
@@ -221,13 +198,8 @@ describe('unregisterFromEvent', () => {
 
     const rows = await db
       .select()
-      .from(eventParticipants)
-      .where(
-        and(
-          eq(eventParticipants.userId, testUserId),
-          eq(eventParticipants.eventId, testEventId),
-        ),
-      );
+      .from(schema.eventParticipants)
+      .where(and(eq(schema.eventParticipants.userId, testUserId), eq(schema.eventParticipants.eventId, testEventId)));
     expect(rows).toHaveLength(0);
   });
 

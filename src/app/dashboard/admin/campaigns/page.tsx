@@ -2,27 +2,19 @@ import { Suspense } from 'react';
 import Link from 'next/link';
 import { Users } from 'lucide-react';
 
-import { getAudienceOptions, listCampaigns } from '@/lib/campaigns/queries';
-import { hasPermission } from '@/lib/rbac/authorization';
+import * as Campaigns from '@/lib/campaigns/server';
+import * as Rbac from '@/lib/rbac/server';
 import { getUser } from '@/utils/auth';
 import { NewCampaignDialog } from './_components/new-campaign-dialog';
-import { requireAuthWithPermission } from '@/lib/rbac/guards';
 import { LocalDateTime } from '@/components/local-date-time';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import type { CampaignStatus } from '@/db/schema';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import type * as schema from '@/db/schema';
 
 const STATUS_BADGE: Record<
-  CampaignStatus,
+  schema.CampaignStatus,
   {
     label: string;
     variant: 'outline' | 'info' | 'warning' | 'success' | 'destructive';
@@ -36,19 +28,14 @@ const STATUS_BADGE: Record<
 };
 
 function CampaignListSkeleton() {
-  return (
-    <div
-      className='bg-muted animate-pulse rounded-xl'
-      style={{ height: 220 }}
-    />
-  );
+  return <div className='bg-muted animate-pulse rounded-xl' style={{ height: 220 }} />;
 }
 
 // Reads the session and the campaign list, so it streams in behind Suspense
 // while the heading ships in the shell.
 async function CampaignList() {
-  await requireAuthWithPermission('campaign:read:all');
-  const rows = await listCampaigns();
+  await Rbac.requireAuthWithPermission('campaign:read:all');
+  const rows = await Campaigns.listCampaigns();
 
   if (rows.length === 0) {
     return (
@@ -77,16 +64,11 @@ async function CampaignList() {
             return (
               <TableRow key={row.id}>
                 <TableCell className='max-w-56 truncate font-medium'>
-                  <Link
-                    href={`/dashboard/admin/campaigns/${row.id}`}
-                    className='hover:underline'
-                  >
+                  <Link href={`/dashboard/admin/campaigns/${row.id}`} className='hover:underline'>
                     {row.name}
                   </Link>
                   {row.eventName && (
-                    <span className='text-muted-foreground block truncate text-xs font-normal'>
-                      {row.eventName}
-                    </span>
+                    <span className='text-muted-foreground block truncate text-xs font-normal'>{row.eventName}</span>
                   )}
                 </TableCell>
                 <TableCell className='capitalize'>{row.type}</TableCell>
@@ -94,20 +76,12 @@ async function CampaignList() {
                   <Badge variant={status.variant}>{status.label}</Badge>
                   {row.status === 'scheduled' && row.scheduledFor && (
                     <span className='text-muted-foreground mt-1 block text-xs'>
-                      <LocalDateTime
-                        value={row.scheduledFor}
-                        dateStyle='medium'
-                        timeStyle='short'
-                      />
+                      <LocalDateTime value={row.scheduledFor} dateStyle='medium' timeStyle='short' />
                     </span>
                   )}
                 </TableCell>
                 <TableCell className='text-muted-foreground hidden text-xs sm:table-cell'>
-                  <LocalDateTime
-                    value={row.updatedAt}
-                    dateStyle='medium'
-                    timeStyle='short'
-                  />
+                  <LocalDateTime value={row.updatedAt} dateStyle='medium' timeStyle='short' />
                   {row.updatedByName && <> by {row.updatedByName}</>}
                 </TableCell>
               </TableRow>
@@ -122,12 +96,12 @@ async function CampaignList() {
 // Creating a draft runs `createCampaign`, which requires campaign:write:all.
 async function NewCampaignButton() {
   const user = await getUser();
-  if (!user || !(await hasPermission(user.id, 'campaign:write:all'))) {
+  if (!user || !(await Rbac.hasPermission(user.id, 'campaign:write:all'))) {
     return null;
   }
   const [options, canSendOperational] = await Promise.all([
-    getAudienceOptions(),
-    hasPermission(user.id, 'campaign:operational:all'),
+    Campaigns.getAudienceOptions(),
+    Rbac.hasPermission(user.id, 'campaign:operational:all'),
   ]);
   return (
     <NewCampaignDialog
@@ -143,9 +117,7 @@ export default function AdminCampaignsPage() {
       <div className='flex flex-wrap items-center justify-between gap-4'>
         <div>
           <h1 className='text-2xl font-semibold'>Campaigns</h1>
-          <p className='text-muted-foreground mt-1 text-sm'>
-            Write emails and send them to rule-based audiences.
-          </p>
+          <p className='text-muted-foreground mt-1 text-sm'>Write emails and send them to rule-based audiences.</p>
         </div>
         <div className='flex flex-wrap gap-2'>
           <Button asChild variant='outline'>

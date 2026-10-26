@@ -4,9 +4,9 @@ import React from 'react';
 import { Column, Img, Link, Row, Section } from 'react-email';
 import { and, eq, isNull } from 'drizzle-orm';
 
-import { events } from '@/db/schema';
-import { buildWalletLinkToken } from '@/lib/signing/email-tokens';
-import { walletParticipation } from '@/lib/wallet/wallet-responses';
+import * as schema from '@/db/schema';
+import * as Signing from '@/lib/signing/server';
+import * as Wallet from '@/lib/wallet/server';
 import { db } from '@/utils/db';
 import { isWalletBlock } from './email-markdown';
 import type { BlockRenderers } from './render-campaign-email';
@@ -29,16 +29,13 @@ export type WalletLinks = { apple: string; google: string };
  * Why a campaign can't carry a wallet block, or null when it can: it needs
  * an event context that's a top-level event with check-in on.
  */
-export async function walletBlockError(
-  eventId: string | null,
-): Promise<string | null> {
-  const message =
-    'The wallet block needs the campaign to be about an event with check-in turned on.';
+export async function walletBlockError(eventId: string | null): Promise<string | null> {
+  const message = 'The wallet block needs the campaign to be about an event with check-in turned on.';
   if (!eventId) return message;
   const [row] = await db
-    .select({ checkInEnabled: events.checkInEnabled })
-    .from(events)
-    .where(and(eq(events.id, eventId), isNull(events.parentEventId)))
+    .select({ checkInEnabled: schema.events.checkInEnabled })
+    .from(schema.events)
+    .where(and(eq(schema.events.id, eventId), isNull(schema.events.parentEventId)))
     .limit(1);
   return row?.checkInEnabled ? null : message;
 }
@@ -53,28 +50,23 @@ export async function walletLinksFor(
   baseUrl: string,
   now: Date = new Date(),
 ): Promise<WalletLinks | null> {
-  const participation = await walletParticipation(eventId, userId);
+  const participation = await Wallet.participation(eventId, userId);
   if (!participation) return null;
   if (participation.endsAt && participation.endsAt.getTime() < now.getTime()) {
     return null;
   }
-  const token = await buildWalletLinkToken(userId, eventId);
+  const token = await Signing.buildWalletLinkToken(userId, eventId);
   const url = `${baseUrl}/api/wallet/email/${token}`;
   return { apple: `${url}?platform=apple`, google: `${url}?platform=google` };
 }
 
-function badge(
-  platform: 'apple' | 'google',
-  href: string,
-  baseUrl: string,
-): React.ReactNode {
+function badge(platform: 'apple' | 'google', href: string, baseUrl: string): React.ReactNode {
   return React.createElement(
     Link,
     { href },
     React.createElement(Img, {
       src: `${baseUrl}${WALLET_BADGE_PATHS[platform]}`,
-      alt:
-        platform === 'apple' ? 'Add to Apple Wallet' : 'Add to Google Wallet',
+      alt: platform === 'apple' ? 'Add to Apple Wallet' : 'Add to Google Wallet',
       width: BADGE_WIDTHS[platform],
       height: BADGE_HEIGHT,
       style: { display: 'block' },
@@ -87,10 +79,7 @@ function badge(
  * recipient without a held spot); `'placeholder'` shows the badges with
  * inert links, for the composer's preview.
  */
-export function walletBlockRenderers(
-  links: WalletLinks | 'placeholder' | null,
-  baseUrl: string,
-): BlockRenderers {
+export function walletBlockRenderers(links: WalletLinks | 'placeholder' | null, baseUrl: string): BlockRenderers {
   const hrefs = links === 'placeholder' ? { apple: '#', google: '#' } : links;
   return {
     html: (node) => {
@@ -107,11 +96,7 @@ export function walletBlockRenderers(
             { style: { width: BADGE_WIDTHS.apple + 12 } },
             badge('apple', hrefs.apple, baseUrl),
           ),
-          React.createElement(
-            Column,
-            null,
-            badge('google', hrefs.google, baseUrl),
-          ),
+          React.createElement(Column, null, badge('google', hrefs.google, baseUrl)),
         ),
       );
     },

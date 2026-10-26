@@ -1,12 +1,5 @@
 import { Heading, Text } from 'react-email';
-import {
-  CtaButton,
-  EmailLayout,
-  FallbackLink,
-  bodyStyle,
-  headingStyle,
-  mutedStyle,
-} from './EmailLayout';
+import { CtaButton, EmailLayout, FallbackLink, bodyStyle, headingStyle, mutedStyle } from '@/emails/EmailLayout';
 
 type Props = {
   eventName: string;
@@ -16,23 +9,15 @@ type Props = {
   expiresIn: string;
 };
 
-export function JudgeInvitationEmail({
-  eventName,
-  url,
-  baseUrl,
-  expiresIn,
-}: Props) {
+export function JudgeInvitationEmail({ eventName, url, baseUrl, expiresIn }: Props) {
   return (
     <EmailLayout preview={`You're judging ${eventName}`} baseUrl={baseUrl}>
       <Heading style={headingStyle}>You&rsquo;re judging {eventName}</Heading>
       <Text style={bodyStyle}>
-        You&rsquo;ve been added as a judge for <strong>{eventName}</strong>.
-        Sign in to set up your account. During the expo, the app will tell you
-        which table to visit next.
+        You&rsquo;ve been added as a judge for <strong>{eventName}</strong>. Sign in to set up your account. During the
+        expo, the app will tell you which table to visit next.
       </Text>
-      <Text style={mutedStyle}>
-        {`This link expires in ${expiresIn} and can only be used once.`}
-      </Text>
+      <Text style={mutedStyle}>{`This link expires in ${expiresIn} and can only be used once.`}</Text>
       <CtaButton label='Set up my account' url={url} />
       <FallbackLink url={url} />
     </EmailLayout>

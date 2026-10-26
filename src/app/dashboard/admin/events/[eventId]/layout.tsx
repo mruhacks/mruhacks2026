@@ -6,8 +6,7 @@ import { BreadcrumbSegment } from '@/components/breadcrumb-context';
 import { LocalDateRange } from '@/components/local-date-time';
 import { getAdminEventHeader } from '@/lib/admin-event';
 import { resolveEventId } from '@/lib/events';
-import { hasPermission, requireAnyPermission } from '@/lib/rbac/authorization';
-import { EVENT_DASHBOARD_PERMISSIONS } from '@/lib/rbac/event-access';
+import * as Rbac from '@/lib/rbac/server';
 import { getUser } from '@/utils/auth';
 
 import { EditEventButton } from './_components/edit-event-button';
@@ -51,11 +50,7 @@ function EventHeaderSkeleton() {
   );
 }
 
-async function EventHeader({
-  paramsPromise,
-}: {
-  paramsPromise: Promise<{ eventId: string }>;
-}) {
+async function EventHeader({ paramsPromise }: { paramsPromise: Promise<{ eventId: string }> }) {
   // The segment is the event's uuid or its custom slug; the header and every
   // page below it read by the resolved uuid, while links keep the segment.
   const { eventId: segment } = await paramsPromise;
@@ -66,12 +61,12 @@ async function EventHeader({
   if (!user) redirect('/signin');
   // Any one tool under this event is enough to get in; each page and cell
   // below gates itself on its own permission.
-  await requireAnyPermission(user.id, [...EVENT_DASHBOARD_PERMISSIONS]);
+  await Rbac.requireAnyPermission(user.id, [...Rbac.EVENT_DASHBOARD_PERMISSIONS]);
 
   const [event, canEditEvent] = await Promise.all([
     getAdminEventHeader(eventId),
     // Same permission the settings page gates on.
-    hasPermission(user.id, 'event:manage:all'),
+    Rbac.hasPermission(user.id, 'event:manage:all'),
   ]);
 
   if (!event) notFound();

@@ -3,27 +3,15 @@ import 'server-only';
 import { and, eq, ne, sql } from 'drizzle-orm';
 import { APIError } from 'better-auth';
 
-import {
-  events,
-  eventInvitations,
-  eventParticipants,
-  eventRsvpWaves,
-  participationStatuses,
-  user,
-} from '@/db/schema';
-import { resolveEffectiveStatus } from '@/lib/participation/status';
-import { sendRsvpMagicLink } from '@/lib/rsvp/send-rsvp-magic-link';
+import * as schema from '@/db/schema';
+import * as Participation from '@/lib/participation';
+import { sendRsvpMagicLink } from './send-rsvp-magic-link';
 import { db } from '@/utils/db';
 
 /** Delivery attempts after which a failing invitation is marked 'failed' instead of retried. */
 export const MAX_INVITATION_DELIVERY_ATTEMPTS = 8;
 
-export type ProcessRsvpInvitationOutcome =
-  | 'sent'
-  | 'already_sent'
-  | 'not_found'
-  | 'not_pending'
-  | 'given_up';
+export type ProcessRsvpInvitationOutcome = 'sent' | 'already_sent' | 'not_found' | 'not_pending' | 'given_up';
 
 /**
  * Queue-provider-agnostic consumer logic for one RSVP invitation message.
@@ -36,29 +24,20 @@ export async function processRsvpInvitation(
 ): Promise<ProcessRsvpInvitationOutcome> {
   const [row] = await db
     .select({
-      invitationEmailStatus: eventInvitations.invitationEmailStatus,
-      statusLabel: participationStatuses.label,
-      respondBy: eventRsvpWaves.respondBy,
-      eventId: eventRsvpWaves.eventId,
-      eventName: events.name,
-      email: user.email,
+      invitationEmailStatus: schema.eventInvitations.invitationEmailStatus,
+      statusLabel: schema.participationStatuses.label,
+      respondBy: schema.eventRsvpWaves.respondBy,
+      eventId: schema.eventRsvpWaves.eventId,
+      eventName: schema.events.name,
+      email: schema.user.email,
     })
-    .from(eventInvitations)
-    .innerJoin(
-      eventRsvpWaves,
-      eq(eventInvitations.rsvpWaveId, eventRsvpWaves.id),
-    )
-    .innerJoin(events, eq(eventRsvpWaves.eventId, events.id))
-    .innerJoin(
-      eventParticipants,
-      eq(eventInvitations.participantId, eventParticipants.id),
-    )
-    .innerJoin(
-      participationStatuses,
-      eq(eventParticipants.statusId, participationStatuses.id),
-    )
-    .innerJoin(user, eq(eventParticipants.userId, user.id))
-    .where(eq(eventInvitations.id, responseId))
+    .from(schema.eventInvitations)
+    .innerJoin(schema.eventRsvpWaves, eq(schema.eventInvitations.rsvpWaveId, schema.eventRsvpWaves.id))
+    .innerJoin(schema.events, eq(schema.eventRsvpWaves.eventId, schema.events.id))
+    .innerJoin(schema.eventParticipants, eq(schema.eventInvitations.participantId, schema.eventParticipants.id))
+    .innerJoin(schema.participationStatuses, eq(schema.eventParticipants.statusId, schema.participationStatuses.id))
+    .innerJoin(schema.user, eq(schema.eventParticipants.userId, schema.user.id))
+    .where(eq(schema.eventInvitations.id, responseId))
     .limit(1);
 
   if (!row) {
@@ -72,7 +51,7 @@ export async function processRsvpInvitation(
     return 'already_sent';
   }
 
-  if (resolveEffectiveStatus(row.statusLabel, row.respondBy) !== 'invited') {
+  if (Participation.resolveEffectiveStatus(row.statusLabel, row.respondBy) !== 'invited') {
     return 'not_pending';
   }
 
@@ -84,36 +63,28 @@ export async function processRsvpInvitation(
       respondBy: row.respondBy,
     });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : 'Unknown magic-link error';
+    const message = error instanceof Error ? error.message : 'Unknown magic-link error';
 
     await db
-      .update(eventInvitations)
+      .update(schema.eventInvitations)
       .set({
-        invitationEmailAttempts: sql`${eventInvitations.invitationEmailAttempts} + 1`,
+        invitationEmailAttempts: sql`${schema.eventInvitations.invitationEmailAttempts} + 1`,
         invitationEmailLastError: message,
       })
-      .where(eq(eventInvitations.id, responseId));
+      .where(eq(schema.eventInvitations.id, responseId));
 
     // A validation error (e.g. malformed email) is never going to succeed on
     // redelivery — the request body doesn't change between attempts — so
     // give up immediately instead of burning through retries.
-    const isPermanentFailure =
-      error instanceof APIError && error.body?.code === 'VALIDATION_ERROR';
+    const isPermanentFailure = error instanceof APIError && error.body?.code === 'VALIDATION_ERROR';
 
-    if (
-      isPermanentFailure ||
-      deliveryCount >= MAX_INVITATION_DELIVERY_ATTEMPTS
-    ) {
+    if (isPermanentFailure || deliveryCount >= MAX_INVITATION_DELIVERY_ATTEMPTS) {
       // Guard against a stale write if a concurrent delivery already sent it.
       await db
-        .update(eventInvitations)
+        .update(schema.eventInvitations)
         .set({ invitationEmailStatus: 'failed' })
         .where(
-          and(
-            eq(eventInvitations.id, responseId),
-            ne(eventInvitations.invitationEmailStatus, 'sent'),
-          ),
+          and(eq(schema.eventInvitations.id, responseId), ne(schema.eventInvitations.invitationEmailStatus, 'sent')),
         );
       console.error(
         isPermanentFailure
@@ -128,18 +99,13 @@ export async function processRsvpInvitation(
   }
 
   await db
-    .update(eventInvitations)
+    .update(schema.eventInvitations)
     .set({
       invitationEmailStatus: 'sent',
       invitationEmailSentAt: new Date(),
       invitationEmailLastError: null,
     })
-    .where(
-      and(
-        eq(eventInvitations.id, responseId),
-        ne(eventInvitations.invitationEmailStatus, 'sent'),
-      ),
-    );
+    .where(and(eq(schema.eventInvitations.id, responseId), ne(schema.eventInvitations.invitationEmailStatus, 'sent')));
 
   return 'sent';
 }

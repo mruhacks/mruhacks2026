@@ -9,44 +9,14 @@
  */
 
 import { db } from '@/utils/db';
-import {
-  and,
-  asc,
-  desc,
-  eq,
-  exists,
-  ilike,
-  notExists,
-  or,
-  sql,
-  inArray,
-} from 'drizzle-orm';
+import { and, asc, desc, eq, exists, ilike, notExists, or, sql, inArray } from 'drizzle-orm';
 import { unionAll } from 'drizzle-orm/pg-core';
-import {
-  user,
-  userRole,
-  role,
-  userPermission,
-  permission,
-  invite,
-  account,
-} from '@/db/schema';
+import * as schema from '@/db/schema';
 import { ok, fail, type ActionResult } from '@/utils/action-result';
 import { auth, getUser } from '@/utils/auth';
 import { headers } from 'next/headers';
-import {
-  grantDeniedReason,
-  hasPermission,
-  loadDirectUserPermissions,
-  loadUserRoles,
-  requirePermission,
-  loadRolesForUsers,
-} from '@/lib/rbac/authorization';
-import { type RoleId, type PermissionId } from '@/app/actions/roles';
-import {
-  replaceUserDirectPermissions,
-  replaceUserRoles,
-} from '@/lib/rbac/role-mutations';
+import * as Rbac from '@/lib/rbac/server';
+import { type RoleId, type PermissionId } from './roles';
 import { revalidatePath, updateTag } from 'next/cache';
 import { serverActionError } from '@/utils/server-action-error';
 import { writeAuditLog } from '@/utils/audit-log';
@@ -57,8 +27,8 @@ import { prepareUserDeletion } from '@/lib/account-deletion';
 // TYPES
 // ─────────────────────────────────────────────
 
-export type UserSortField = 'name' | 'email' | 'createdAt';
-export type SortDirection = 'asc' | 'desc';
+type UserSortField = 'name' | 'email' | 'createdAt';
+type SortDirection = 'asc' | 'desc';
 
 export interface ListUsersParams {
   search?: string;
@@ -69,7 +39,7 @@ export interface ListUsersParams {
   sortDirection?: SortDirection;
 }
 
-export interface AdminInvite {
+interface AdminInvite {
   id: string;
   expiresAt: Date;
   roles: { id: number; slug: string | null }[];
@@ -112,22 +82,13 @@ export interface ListUsersResult {
  * Paginated list of users with search, role-filter and sorting. Used by the
  * admin user management table.
  */
-export async function listUsers(
-  params: ListUsersParams = {},
-): Promise<ActionResult<ListUsersResult>> {
+export async function listUsers(params: ListUsersParams = {}): Promise<ActionResult<ListUsersResult>> {
   try {
     const caller = await getUser();
     if (!caller) return fail('Not authenticated');
-    await requirePermission(caller.id, 'user:read:all');
+    await Rbac.requirePermission(caller.id, 'user:read:all');
 
-    const {
-      search = '',
-      roleSlugs,
-      page = 1,
-      pageSize = 25,
-      sortField = 'createdAt',
-      sortDirection = 'desc',
-    } = params;
+    const { search = '', roleSlugs, page = 1, pageSize = 25, sortField = 'createdAt', sortDirection = 'desc' } = params;
 
     const clampedPageSize = Math.min(Math.max(pageSize, 1), 200);
     const clampedPage = Math.max(page, 1);
@@ -144,15 +105,13 @@ export async function listUsers(
       notExists(
         db
           .select({ one: sql`1` })
-          .from(user)
-          .where(sql`lower(${user.email}) = ${invite.email}`),
+          .from(schema.user)
+          .where(sql`lower(${schema.user.email}) = ${schema.invite.email}`),
       ),
     ];
     if (needle) {
-      userPredicates.push(
-        or(ilike(user.name, needle), ilike(user.email, needle)),
-      );
-      invitePredicates.push(ilike(invite.email, needle));
+      userPredicates.push(or(ilike(schema.user.name, needle), ilike(schema.user.email, needle)));
+      invitePredicates.push(ilike(schema.invite.email, needle));
     }
     if (filterRoles) {
       // EXISTS avoids materialising a huge user-id IN list when a role
@@ -162,27 +121,17 @@ export async function listUsers(
         exists(
           db
             .select({ one: sql`1` })
-            .from(userRole)
-            .innerJoin(role, eq(userRole.roleId, role.id))
-            .where(
-              and(
-                eq(userRole.userId, user.id),
-                inArray(role.slug, filterRoles),
-              ),
-            ),
+            .from(schema.userRole)
+            .innerJoin(schema.role, eq(schema.userRole.roleId, schema.role.id))
+            .where(and(eq(schema.userRole.userId, schema.user.id), inArray(schema.role.slug, filterRoles))),
         ),
       );
       invitePredicates.push(
         exists(
           db
             .select({ one: sql`1` })
-            .from(role)
-            .where(
-              and(
-                sql`${role.id} = any(${invite.roleIds})`,
-                inArray(role.slug, filterRoles),
-              ),
-            ),
+            .from(schema.role)
+            .where(and(sql`${schema.role.id} = any(${schema.invite.roleIds})`, inArray(schema.role.slug, filterRoles))),
         ),
       );
     }
@@ -191,50 +140,44 @@ export async function listUsers(
       db
         .select({
           kind: sql<'user' | 'invite'>`'user'`.as('kind'),
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          emailVerified: user.emailVerified,
-          image: user.image,
-          createdAt: user.createdAt,
-          banned: user.banned,
-          banReason: user.banReason,
-          banExpires: user.banExpires,
+          id: schema.user.id,
+          name: schema.user.name,
+          email: schema.user.email,
+          emailVerified: schema.user.emailVerified,
+          image: schema.user.image,
+          createdAt: schema.user.createdAt,
+          banned: schema.user.banned,
+          banReason: schema.user.banReason,
+          banExpires: schema.user.banExpires,
         })
-        .from(user)
+        .from(schema.user)
         .where(and(...userPredicates)),
       db
         .select({
           kind: sql<'user' | 'invite'>`'invite'`.as('kind'),
-          id: invite.id,
+          id: schema.invite.id,
           // No name yet: use the email so a name sort interleaves invites
           // instead of bunching them at one end. The table doesn't show it.
-          name: sql<string>`${invite.email}`.as('name'),
-          email: invite.email,
+          name: sql<string>`${schema.invite.email}`.as('name'),
+          email: schema.invite.email,
           emailVerified: sql<boolean>`false`.as('email_verified'),
           image: sql<string | null>`null`.as('image'),
-          createdAt: invite.createdAt,
+          createdAt: schema.invite.createdAt,
           banned: sql<boolean | null>`false`.as('banned'),
           banReason: sql<string | null>`null`.as('ban_reason'),
           banExpires: sql<Date | null>`null`.as('ban_expires'),
         })
-        .from(invite)
+        .from(schema.invite)
         .where(and(...invitePredicates)),
     ).as('rows');
 
     const sortColumn =
-      sortField === 'name'
-        ? combined.name
-        : sortField === 'email'
-          ? combined.email
-          : combined.createdAt;
+      sortField === 'name' ? combined.name : sortField === 'email' ? combined.email : combined.createdAt;
     const orderFn = sortDirection === 'asc' ? asc : desc;
 
     // Count + page fetch are independent — issue them in parallel.
     const [countRow, rows] = await Promise.all([
-      db
-        .select({ total: sql<number>`COUNT(*)`.mapWith(Number) })
-        .from(combined),
+      db.select({ total: sql<number>`COUNT(*)`.mapWith(Number) }).from(combined),
       db
         .select()
         .from(combined)
@@ -246,29 +189,23 @@ export async function listUsers(
 
     const userIds = rows.filter((r) => r.kind === 'user').map((r) => r.id);
     const inviteIds = rows.filter((r) => r.kind === 'invite').map((r) => r.id);
-    const userEmails = rows
-      .filter((r) => r.kind === 'user')
-      .map((r) => r.email.toLowerCase());
+    const userEmails = rows.filter((r) => r.kind === 'user').map((r) => r.email.toLowerCase());
 
     const [rolesMap, inviteRows] = await Promise.all([
-      loadRolesForUsers(userIds),
+      Rbac.loadRolesForUsers(userIds),
       rows.length > 0
         ? db
             .select({
-              id: invite.id,
-              email: invite.email,
-              roleIds: invite.roleIds,
-              expiresAt: invite.expiresAt,
+              id: schema.invite.id,
+              email: schema.invite.email,
+              roleIds: schema.invite.roleIds,
+              expiresAt: schema.invite.expiresAt,
             })
-            .from(invite)
+            .from(schema.invite)
             .where(
               or(
-                inviteIds.length > 0
-                  ? inArray(invite.id, inviteIds)
-                  : undefined,
-                userEmails.length > 0
-                  ? inArray(invite.email, userEmails)
-                  : undefined,
+                inviteIds.length > 0 ? inArray(schema.invite.id, inviteIds) : undefined,
+                userEmails.length > 0 ? inArray(schema.invite.email, userEmails) : undefined,
               ) ?? sql`false`,
             )
         : [],
@@ -278,9 +215,9 @@ export async function listUsers(
     const inviteRoles =
       inviteRoleIds.length > 0
         ? await db
-            .select({ id: role.id, slug: role.slug })
-            .from(role)
-            .where(inArray(role.id, inviteRoleIds))
+            .select({ id: schema.role.id, slug: schema.role.slug })
+            .from(schema.role)
+            .where(inArray(schema.role.id, inviteRoleIds))
         : [];
     const toInvite = (i: (typeof inviteRows)[number]): AdminInvite => ({
       id: i.id,
@@ -289,9 +226,7 @@ export async function listUsers(
       roles: inviteRoles.filter((r) => i.roleIds.includes(r.id)),
     });
     const inviteById = new Map(inviteRows.map((i) => [i.id, toInvite(i)]));
-    const inviteByEmail = new Map(
-      inviteRows.map((i) => [i.email, inviteById.get(i.id)!]),
-    );
+    const inviteByEmail = new Map(inviteRows.map((i) => [i.email, inviteById.get(i.id)!]));
 
     const users: AdminUserRow[] = rows.map((r) => ({
       kind: r.kind,
@@ -305,10 +240,7 @@ export async function listUsers(
       banReason: r.banReason,
       banExpires: r.banExpires,
       roles: r.kind === 'user' ? (rolesMap[r.id] ?? []) : [],
-      invite:
-        (r.kind === 'invite'
-          ? inviteById.get(r.id)
-          : inviteByEmail.get(r.email.toLowerCase())) ?? null,
+      invite: (r.kind === 'invite' ? inviteById.get(r.id) : inviteByEmail.get(r.email.toLowerCase())) ?? null,
     }));
 
     const totalPages = Math.max(1, Math.ceil(total / clampedPageSize));
@@ -349,41 +281,41 @@ export async function getUserDetails(userId: string): Promise<
   try {
     const caller = await getUser();
     if (!caller) return fail('Not authenticated');
-    await requirePermission(caller.id, 'user:read:all');
+    await Rbac.requirePermission(caller.id, 'user:read:all');
 
     // All three fetches are independent — run them in parallel.
     const [userRows, rolesRows, permRows] = await Promise.all([
       db
         .select({
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          emailVerified: user.emailVerified,
-          image: user.image,
-          createdAt: user.createdAt,
-          updatedAt: user.updatedAt,
+          id: schema.user.id,
+          name: schema.user.name,
+          email: schema.user.email,
+          emailVerified: schema.user.emailVerified,
+          image: schema.user.image,
+          createdAt: schema.user.createdAt,
+          updatedAt: schema.user.updatedAt,
         })
-        .from(user)
-        .where(eq(user.id, userId))
+        .from(schema.user)
+        .where(eq(schema.user.id, userId))
         .limit(1),
       db
         .select({
-          id: role.id,
-          slug: role.slug,
-          description: role.description,
+          id: schema.role.id,
+          slug: schema.role.slug,
+          description: schema.role.description,
         })
-        .from(userRole)
-        .innerJoin(role, eq(userRole.roleId, role.id))
-        .where(eq(userRole.userId, userId)),
+        .from(schema.userRole)
+        .innerJoin(schema.role, eq(schema.userRole.roleId, schema.role.id))
+        .where(eq(schema.userRole.userId, userId)),
       db
         .select({
-          id: permission.id,
-          slug: permission.slug,
-          description: permission.description,
+          id: schema.permission.id,
+          slug: schema.permission.slug,
+          description: schema.permission.description,
         })
-        .from(userPermission)
-        .innerJoin(permission, eq(userPermission.permissionId, permission.id))
-        .where(eq(userPermission.userId, userId)),
+        .from(schema.userPermission)
+        .innerJoin(schema.permission, eq(schema.userPermission.permissionId, schema.permission.id))
+        .where(eq(schema.userPermission.userId, userId)),
     ]);
 
     const row = userRows[0];
@@ -406,22 +338,19 @@ export async function getUserDetails(userId: string): Promise<
 /**
  * Replaces all role assignments for a user.
  */
-export async function updateUserRoles(
-  userId: string,
-  roleIds: RoleId[],
-): Promise<ActionResult> {
+export async function updateUserRoles(userId: string, roleIds: RoleId[]): Promise<ActionResult> {
   try {
     const caller = await getUser();
     if (!caller) return fail('Not authenticated');
-    await requirePermission(caller.id, 'user:write:all');
+    await Rbac.requirePermission(caller.id, 'user:write:all');
 
-    const current = new Set((await loadUserRoles(userId)).map((r) => r.id));
-    const denied = await grantDeniedReason(caller.id, {
+    const current = new Set((await Rbac.loadUserRoles(userId)).map((r) => r.id));
+    const denied = await Rbac.grantDeniedReason(caller.id, {
       roleIds: roleIds.filter((id) => !current.has(id)),
     });
     if (denied) return fail(denied);
 
-    await replaceUserRoles(userId, roleIds);
+    await Rbac.replaceUserRoles(userId, roleIds);
     await writeAuditLog({
       actorId: caller.id,
       action: 'user.roles.updated',
@@ -447,17 +376,15 @@ export async function updateUserDirectPermissions(
   try {
     const caller = await getUser();
     if (!caller) return fail('Not authenticated');
-    await requirePermission(caller.id, 'user:write:all');
+    await Rbac.requirePermission(caller.id, 'user:write:all');
 
-    const current = new Set(
-      (await loadDirectUserPermissions(userId)).map((p) => p.id),
-    );
-    const denied = await grantDeniedReason(caller.id, {
+    const current = new Set((await Rbac.loadDirectUserPermissions(userId)).map((p) => p.id));
+    const denied = await Rbac.grantDeniedReason(caller.id, {
       permissionIds: permissionIds.filter((id) => !current.has(id)),
     });
     if (denied) return fail(denied);
 
-    await replaceUserDirectPermissions(userId, permissionIds);
+    await Rbac.replaceUserDirectPermissions(userId, permissionIds);
     await writeAuditLog({
       actorId: caller.id,
       action: 'user.permissions.updated',
@@ -482,18 +409,18 @@ export async function deleteUser(userId: string): Promise<ActionResult> {
     if (!caller) return fail('Not authenticated');
     if (caller.id === userId) return fail('You cannot delete your own account');
 
-    await requirePermission(caller.id, 'user:write:all');
+    await Rbac.requirePermission(caller.id, 'user:write:all');
 
     // Refuse to delete a user that has higher-or-equal admin privileges unless
     // the caller is also admin.
-    const targetIsAdmin = await hasPermission(userId, 'user:all:all');
-    const callerIsAdmin = await hasPermission(caller.id, 'user:all:all');
+    const targetIsAdmin = await Rbac.hasPermission(userId, 'user:all:all');
+    const callerIsAdmin = await Rbac.hasPermission(caller.id, 'user:all:all');
     if (targetIsAdmin && !callerIsAdmin) {
       return fail('You cannot delete an administrator');
     }
 
     await prepareUserDeletion(userId);
-    await db.delete(user).where(eq(user.id, userId));
+    await db.delete(schema.user).where(eq(schema.user.id, userId));
     await writeAuditLog({
       actorId: caller.id,
       action: 'user.deleted',
@@ -526,27 +453,27 @@ export async function purgeUser(userId: string): Promise<ActionResult> {
     if (caller.id === userId) {
       return fail('Delete your own account from Account & Privacy instead.');
     }
-    if (!(await hasPermission(caller.id, 'user:purge:all'))) {
+    if (!(await Rbac.hasPermission(caller.id, 'user:purge:all'))) {
       return fail('Not authorized to purge users.');
     }
 
     const [target] = await db
-      .select({ id: user.id })
-      .from(user)
-      .where(eq(user.id, userId))
+      .select({ id: schema.user.id })
+      .from(schema.user)
+      .where(eq(schema.user.id, userId))
       .limit(1);
     if (!target) return fail('User not found');
 
     // Same guard as deleteUser: `user:purge:all` is meant to be grantable on
     // its own (e.g. a compliance role), which must not reach administrators.
-    const targetIsAdmin = await hasPermission(userId, 'user:all:all');
-    const callerIsAdmin = await hasPermission(caller.id, 'user:all:all');
+    const targetIsAdmin = await Rbac.hasPermission(userId, 'user:all:all');
+    const callerIsAdmin = await Rbac.hasPermission(caller.id, 'user:all:all');
     if (targetIsAdmin && !callerIsAdmin) {
       return fail('You cannot purge an administrator');
     }
 
     await prepareUserDeletion(userId);
-    await db.delete(user).where(eq(user.id, userId));
+    await db.delete(schema.user).where(eq(schema.user.id, userId));
     await writeAuditLog({
       actorId: caller.id,
       action: 'user.purged',
@@ -566,14 +493,11 @@ export async function purgeUser(userId: string): Promise<ActionResult> {
  * Requires the caller to have user:write:all and to be an admin in Better Auth
  * (user.role = 'admin').
  */
-export async function adminSetUserPassword(
-  userId: string,
-  newPassword: string,
-): Promise<ActionResult> {
+export async function adminSetUserPassword(userId: string, newPassword: string): Promise<ActionResult> {
   try {
     const caller = await getUser();
     if (!caller) return fail('Not authenticated');
-    await requirePermission(caller.id, 'user:write:all');
+    await Rbac.requirePermission(caller.id, 'user:write:all');
 
     const res = await auth.api.setUserPassword({
       body: { userId, newPassword },
@@ -596,13 +520,11 @@ export async function adminSetUserPassword(
  * Admin: send a password reset email to a user.
  * Requires sendResetPassword to be configured in auth.ts.
  */
-export async function adminSendPasswordReset(
-  email: string,
-): Promise<ActionResult> {
+export async function adminSendPasswordReset(email: string): Promise<ActionResult> {
   try {
     const caller = await getUser();
     if (!caller) return fail('Not authenticated');
-    await requirePermission(caller.id, 'user:write:all');
+    await Rbac.requirePermission(caller.id, 'user:write:all');
 
     await auth.api.requestPasswordReset({
       body: { email, redirectTo: '/reset-password' },
@@ -619,14 +541,11 @@ export async function adminSendPasswordReset(
  * so Better Auth emails them a link. Signing in applies the roles and deletes
  * the invite (`applyPendingInvite`, run from the session-create hook).
  */
-export async function inviteUser(
-  email: string,
-  roleIds: number[],
-): Promise<ActionResult> {
+export async function inviteUser(email: string, roleIds: number[]): Promise<ActionResult> {
   try {
     const caller = await getUser();
     if (!caller) return fail('Not authenticated');
-    await requirePermission(caller.id, 'user:write:all');
+    await Rbac.requirePermission(caller.id, 'user:write:all');
 
     const normalized = email.trim().toLowerCase();
     if (!normalized || !normalized.includes('@')) {
@@ -637,21 +556,19 @@ export async function inviteUser(
     // its roles edited directly, so an invite never replaces roles someone
     // already holds.
     const [existing] = await db
-      .select({ id: user.id })
-      .from(user)
-      .where(sql`lower(${user.email}) = ${normalized}`)
+      .select({ id: schema.user.id })
+      .from(schema.user)
+      .where(sql`lower(${schema.user.email}) = ${normalized}`)
       .limit(1);
     if (existing) {
-      return fail(
-        'An account with this email already exists. Edit its roles instead.',
-      );
+      return fail('An account with this email already exists. Edit its roles instead.');
     }
 
-    const denied = await grantDeniedReason(caller.id, { roleIds });
+    const denied = await Rbac.grantDeniedReason(caller.id, { roleIds });
     if (denied) return fail(denied);
 
     await db
-      .insert(invite)
+      .insert(schema.invite)
       .values({
         email: normalized,
         roleIds,
@@ -659,7 +576,7 @@ export async function inviteUser(
         expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       })
       .onConflictDoUpdate({
-        target: invite.email,
+        target: schema.invite.email,
         set: {
           roleIds,
           invitedBy: caller.id,
@@ -696,12 +613,12 @@ export async function revokeInvite(inviteId: string): Promise<ActionResult> {
   try {
     const caller = await getUser();
     if (!caller) return fail('Not authenticated');
-    await requirePermission(caller.id, 'user:write:all');
+    await Rbac.requirePermission(caller.id, 'user:write:all');
 
     const [deleted] = await db
-      .delete(invite)
-      .where(eq(invite.id, inviteId))
-      .returning({ email: invite.email });
+      .delete(schema.invite)
+      .where(eq(schema.invite.id, inviteId))
+      .returning({ email: schema.invite.email });
     if (!deleted) return fail('Invite not found');
 
     await writeAuditLog({
@@ -722,19 +639,15 @@ export async function revokeInvite(inviteId: string): Promise<ActionResult> {
  * credential account. Used on /welcome to decide whether to prompt for a
  * password after a magic-link sign-in.
  */
-export async function currentUserHasPassword(): Promise<
-  ActionResult<{ hasPassword: boolean }>
-> {
+export async function currentUserHasPassword(): Promise<ActionResult<{ hasPassword: boolean }>> {
   try {
     const caller = await getUser();
     if (!caller) return fail('Not authenticated');
     const rows = await db
-      .select({ password: account.password })
-      .from(account)
-      .where(eq(account.userId, caller.id));
-    const hasPassword = rows.some(
-      (r) => typeof r.password === 'string' && r.password.length > 0,
-    );
+      .select({ password: schema.account.password })
+      .from(schema.account)
+      .where(eq(schema.account.userId, caller.id));
+    const hasPassword = rows.some((r) => typeof r.password === 'string' && r.password.length > 0);
     return ok({ hasPassword });
   } catch (e) {
     return serverActionError('check password state', e);
@@ -752,7 +665,7 @@ export async function setOwnName(name: string): Promise<ActionResult> {
     const trimmed = name.trim();
     if (trimmed.length === 0) return fail('Enter your name');
     if (trimmed.length > 200) return fail('Name is too long');
-    await db.update(user).set({ name: trimmed }).where(eq(user.id, caller.id));
+    await db.update(schema.user).set({ name: trimmed }).where(eq(schema.user.id, caller.id));
     return ok();
   } catch (e) {
     return serverActionError('save name', e);
@@ -764,9 +677,7 @@ export async function setOwnName(name: string): Promise<ActionResult> {
  * a credential account (e.g. just signed in via magic link). Refuses to run
  * if they already have one — they should use change-password instead.
  */
-export async function setInitialPassword(
-  newPassword: string,
-): Promise<ActionResult> {
+export async function setInitialPassword(newPassword: string): Promise<ActionResult> {
   try {
     const caller = await getUser();
     if (!caller) return fail('Not authenticated');
@@ -775,14 +686,9 @@ export async function setInitialPassword(
     }
 
     const existing = await db
-      .select({ id: account.id })
-      .from(account)
-      .where(
-        and(
-          eq(account.userId, caller.id),
-          eq(account.providerId, 'credential'),
-        ),
-      )
+      .select({ id: schema.account.id })
+      .from(schema.account)
+      .where(and(eq(schema.account.userId, caller.id), eq(schema.account.providerId, 'credential')))
       .limit(1);
     if (existing.length > 0) {
       return fail('A password is already set on this account');
@@ -805,19 +711,15 @@ export async function setInitialPassword(
 /**
  * Admin: ban a user. `banExpiresIn` is in seconds (omit for a permanent ban).
  */
-export async function adminBanUser(
-  userId: string,
-  banReason?: string,
-  banExpiresIn?: number,
-): Promise<ActionResult> {
+export async function adminBanUser(userId: string, banReason?: string, banExpiresIn?: number): Promise<ActionResult> {
   try {
     const caller = await getUser();
     if (!caller) return fail('Not authenticated');
     if (caller.id === userId) return fail('You cannot ban your own account');
-    await requirePermission(caller.id, 'user:write:all');
+    await Rbac.requirePermission(caller.id, 'user:write:all');
 
-    const targetIsAdmin = await hasPermission(userId, 'user:all:all');
-    const callerIsAdmin = await hasPermission(caller.id, 'user:all:all');
+    const targetIsAdmin = await Rbac.hasPermission(userId, 'user:all:all');
+    const callerIsAdmin = await Rbac.hasPermission(caller.id, 'user:all:all');
     if (targetIsAdmin && !callerIsAdmin) {
       return fail('You cannot ban an administrator');
     }
@@ -851,7 +753,7 @@ export async function adminUnbanUser(userId: string): Promise<ActionResult> {
   try {
     const caller = await getUser();
     if (!caller) return fail('Not authenticated');
-    await requirePermission(caller.id, 'user:write:all');
+    await Rbac.requirePermission(caller.id, 'user:write:all');
 
     await auth.api.unbanUser({
       body: { userId },
@@ -873,13 +775,11 @@ export async function adminUnbanUser(userId: string): Promise<ActionResult> {
 /**
  * Admin: revoke every active session for a user, forcing them to sign in again.
  */
-export async function adminRevokeUserSessions(
-  userId: string,
-): Promise<ActionResult> {
+export async function adminRevokeUserSessions(userId: string): Promise<ActionResult> {
   try {
     const caller = await getUser();
     if (!caller) return fail('Not authenticated');
-    await requirePermission(caller.id, 'user:write:all');
+    await Rbac.requirePermission(caller.id, 'user:write:all');
 
     await auth.api.revokeUserSessions({
       body: { userId },
@@ -901,7 +801,7 @@ export async function updateUserProfile(
   try {
     const caller = await getUser();
     if (!caller) return fail('Not authenticated');
-    await requirePermission(caller.id, 'user:write:all');
+    await Rbac.requirePermission(caller.id, 'user:write:all');
 
     const changes: Record<string, unknown> = {};
     if (typeof patch.name === 'string' && patch.name.trim().length > 0) {
@@ -912,7 +812,7 @@ export async function updateUserProfile(
     }
     if (Object.keys(changes).length === 0) return ok();
 
-    await db.update(user).set(changes).where(eq(user.id, userId));
+    await db.update(schema.user).set(changes).where(eq(schema.user.id, userId));
     await writeAuditLog({
       actorId: caller.id,
       action: 'user.profile.updated',

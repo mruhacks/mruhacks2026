@@ -20,17 +20,14 @@ const isTest = env.NODE_ENV === 'test';
 /**
  * Type guard for undefined/null
  */
-const isNil = (v: unknown): v is undefined | null =>
-  v === undefined || v === null;
+const isNil = (v: unknown): v is undefined | null => v === undefined || v === null;
 
 /**
  * Builds a PostgreSQL URL from either the normal or test prefix set.
  *
  * @param prefix "POSTGRES" or "TEST_POSTGRES"
  */
-function buildPostgresURL(
-  prefix: 'POSTGRES' | 'TEST_POSTGRES',
-): string | undefined {
+function buildPostgresURL(prefix: 'POSTGRES' | 'TEST_POSTGRES'): string | undefined {
   const u = env[`${prefix}_USER`];
   const p = env[`${prefix}_PASSWORD`];
   const d = env[`${prefix}_DB`];
@@ -65,11 +62,7 @@ export function getDatabaseURL(): string {
   if (cDef && eDef && constructed === explicit) return constructed!;
   if (constructed && explicit && constructed !== explicit)
     throw new Error(
-      [
-        'Conflicting database URLs detected:',
-        `  Constructed: ${constructed}`,
-        `  Explicit:    ${explicit}`,
-      ].join('\n'),
+      ['Conflicting database URLs detected:', `  Constructed: ${constructed}`, `  Explicit:    ${explicit}`].join('\n'),
     );
 
   throw new Error('No database configuration found.');

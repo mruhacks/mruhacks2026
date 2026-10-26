@@ -2,20 +2,11 @@ import 'server-only';
 
 import { and, asc, count, eq, ne, notExists, sql } from 'drizzle-orm';
 
-import {
-  applicationVotes,
-  eventParticipants,
-  events,
-  participationStatuses,
-} from '@/db/schema';
-import { hasAnyStatus } from '@/lib/participation/server';
-import { resolveStoredStatus } from '@/lib/participation/status';
-import { syncWaitlist, type WaitlistSyncResult } from '@/lib/rsvp/waitlist';
+import * as schema from '@/db/schema';
+import * as Participation from '@/lib/participation/server';
+import * as Rsvp from '@/lib/rsvp/server';
 import { otherTextKey } from '@/lib/other-option';
-import {
-  resolveShowInApplicationReview,
-  type ApplicationQuestion,
-} from '@/types/application';
+import { resolveShowInApplicationReview, type ApplicationQuestion } from '@/types/application';
 import type { ParticipationStatus } from '@/types/lookups';
 import { db } from '@/utils/db';
 
@@ -32,10 +23,7 @@ import { db } from '@/utils/db';
  */
 
 /** Statuses the swipe review deals with; everything else is already decided. */
-const VOTABLE_STATUSES = [
-  'pending_review',
-  'waitlisted',
-] as const satisfies readonly ParticipationStatus[];
+const VOTABLE_STATUSES = ['pending_review', 'waitlisted'] as const satisfies readonly ParticipationStatus[];
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -55,16 +43,9 @@ export type ReviewCard = {
 };
 
 /** The questions a reviewer is allowed to see, in form order. */
-export function reviewQuestions(
-  questions: readonly ApplicationQuestion[],
-): ApplicationQuestion[] {
+export function reviewQuestions(questions: readonly ApplicationQuestion[]): ApplicationQuestion[] {
   return questions
-    .filter(
-      (q) =>
-        q.active &&
-        q.type !== 'section_divider' &&
-        resolveShowInApplicationReview(q),
-    )
+    .filter((q) => q.active && q.type !== 'section_divider' && resolveShowInApplicationReview(q))
     .sort((a, b) => a.order - b.order);
 }
 
@@ -100,51 +81,41 @@ export async function getReviewQueue(input: {
 }): Promise<{ cards: ReviewCard[]; remaining: number; reviewed: number }> {
   const notVotedByMe = notExists(
     db
-      .select({ id: applicationVotes.id })
-      .from(applicationVotes)
+      .select({ id: schema.applicationVotes.id })
+      .from(schema.applicationVotes)
       .where(
         and(
-          eq(applicationVotes.participantId, eventParticipants.id),
-          eq(applicationVotes.voterId, input.voterId),
+          eq(schema.applicationVotes.participantId, schema.eventParticipants.id),
+          eq(schema.applicationVotes.voterId, input.voterId),
         ),
       ),
   );
   const pool = and(
-    eq(eventParticipants.eventId, input.eventId),
-    ne(eventParticipants.userId, input.voterId),
-    hasAnyStatus(VOTABLE_STATUSES),
+    eq(schema.eventParticipants.eventId, input.eventId),
+    ne(schema.eventParticipants.userId, input.voterId),
+    Participation.hasAnyStatus(VOTABLE_STATUSES),
   );
   const voteCount = db
     .select({ n: count() })
-    .from(applicationVotes)
-    .where(eq(applicationVotes.participantId, eventParticipants.id));
+    .from(schema.applicationVotes)
+    .where(eq(schema.applicationVotes.participantId, schema.eventParticipants.id));
 
   const [rows, [{ remaining }], [{ reviewed }]] = await Promise.all([
     db
       .select({
-        participantId: eventParticipants.id,
-        responses: eventParticipants.responses,
+        participantId: schema.eventParticipants.id,
+        responses: schema.eventParticipants.responses,
       })
-      .from(eventParticipants)
+      .from(schema.eventParticipants)
       .where(and(pool, notVotedByMe))
-      .orderBy(
-        sql`(${voteCount}) ASC`,
-        asc(eventParticipants.createdAt),
-        asc(eventParticipants.id),
-      )
+      .orderBy(sql`(${voteCount}) ASC`, asc(schema.eventParticipants.createdAt), asc(schema.eventParticipants.id))
       .limit(input.limit),
-    db
-      .select({ remaining: count() })
-      .from(eventParticipants)
-      .where(and(pool, notVotedByMe)),
+    db.select({ remaining: count() }).from(schema.eventParticipants).where(and(pool, notVotedByMe)),
     db
       .select({ reviewed: count() })
-      .from(applicationVotes)
+      .from(schema.applicationVotes)
       .where(
-        and(
-          eq(applicationVotes.eventId, input.eventId),
-          eq(applicationVotes.voterId, input.voterId),
-        ),
+        and(eq(schema.applicationVotes.eventId, input.eventId), eq(schema.applicationVotes.voterId, input.voterId)),
       ),
   ]);
 
@@ -159,9 +130,7 @@ export async function getReviewQueue(input: {
   };
 }
 
-export type VoteResult =
-  | { success: true; status: ParticipationStatus }
-  | { success: false; error: string };
+export type VoteResult = { success: true; status: ParticipationStatus } | { success: false; error: string };
 
 /**
  * Lock the event (same lock order as `sendRsvpWave`: event, then
@@ -175,37 +144,29 @@ async function lockVotable(
   voterId: string,
 ): Promise<{ status: ParticipationStatus } | { error: string }> {
   const [event] = await tx
-    .select({ id: events.id })
-    .from(events)
-    .where(eq(events.id, eventId))
+    .select({ id: schema.events.id })
+    .from(schema.events)
+    .where(eq(schema.events.id, eventId))
     .for('update')
     .limit(1);
   if (!event) return { error: 'Event not found.' };
 
   const [row] = await tx
     .select({
-      userId: eventParticipants.userId,
-      statusLabel: participationStatuses.label,
+      userId: schema.eventParticipants.userId,
+      statusLabel: schema.participationStatuses.label,
     })
-    .from(eventParticipants)
-    .innerJoin(
-      participationStatuses,
-      eq(eventParticipants.statusId, participationStatuses.id),
-    )
-    .where(
-      and(
-        eq(eventParticipants.id, participantId),
-        eq(eventParticipants.eventId, eventId),
-      ),
-    )
-    .for('update', { of: eventParticipants })
+    .from(schema.eventParticipants)
+    .innerJoin(schema.participationStatuses, eq(schema.eventParticipants.statusId, schema.participationStatuses.id))
+    .where(and(eq(schema.eventParticipants.id, participantId), eq(schema.eventParticipants.eventId, eventId)))
+    .for('update', { of: schema.eventParticipants })
     .limit(1);
   if (!row) return { error: 'Application not found.' };
   if (row.userId === voterId) {
     return { error: "You can't review your own application." };
   }
 
-  const status = resolveStoredStatus(row.statusLabel);
+  const status = Participation.resolveStoredStatus(row.statusLabel);
   if (!(VOTABLE_STATUSES as readonly string[]).includes(status)) {
     return { error: 'This application has already been decided.' };
   }
@@ -215,7 +176,7 @@ async function lockVotable(
 function statusAfter(
   before: ParticipationStatus,
   participantId: string,
-  sync: WaitlistSyncResult,
+  sync: Rsvp.WaitlistSyncResult,
 ): ParticipationStatus {
   if (sync.promoted.includes(participantId)) return 'waitlisted';
   if (sync.demoted.includes(participantId)) return 'pending_review';
@@ -234,27 +195,22 @@ export async function castApplicationVote(input: {
   approve: boolean;
 }): Promise<VoteResult> {
   return db.transaction(async (tx) => {
-    const locked = await lockVotable(
-      tx,
-      input.eventId,
-      input.participantId,
-      input.voterId,
-    );
+    const locked = await lockVotable(tx, input.eventId, input.participantId, input.voterId);
     if ('error' in locked) return { success: false, error: locked.error };
 
     const [previous] = await tx
-      .select({ approve: applicationVotes.approve })
-      .from(applicationVotes)
+      .select({ approve: schema.applicationVotes.approve })
+      .from(schema.applicationVotes)
       .where(
         and(
-          eq(applicationVotes.participantId, input.participantId),
-          eq(applicationVotes.voterId, input.voterId),
+          eq(schema.applicationVotes.participantId, input.participantId),
+          eq(schema.applicationVotes.voterId, input.voterId),
         ),
       )
       .limit(1);
 
     await tx
-      .insert(applicationVotes)
+      .insert(schema.applicationVotes)
       .values({
         participantId: input.participantId,
         eventId: input.eventId,
@@ -262,13 +218,13 @@ export async function castApplicationVote(input: {
         approve: input.approve,
       })
       .onConflictDoUpdate({
-        target: [applicationVotes.participantId, applicationVotes.voterId],
+        target: [schema.applicationVotes.participantId, schema.applicationVotes.voterId],
         set: { approve: input.approve, updatedAt: new Date() },
       });
 
     // Flipping a yes to a no may leave the applicant's group with none.
     const lostYes = previous?.approve === true && !input.approve;
-    const sync = await syncWaitlist(tx, input.eventId, {
+    const sync = await Rsvp.syncWaitlist(tx, input.eventId, {
       actorId: input.voterId,
       demoteGroupOf: lostYes ? input.participantId : undefined,
     });
@@ -290,28 +246,23 @@ export async function retractApplicationVote(input: {
   voterId: string;
 }): Promise<VoteResult> {
   return db.transaction(async (tx) => {
-    const locked = await lockVotable(
-      tx,
-      input.eventId,
-      input.participantId,
-      input.voterId,
-    );
+    const locked = await lockVotable(tx, input.eventId, input.participantId, input.voterId);
     if ('error' in locked) return { success: false, error: locked.error };
 
     const [removed] = await tx
-      .delete(applicationVotes)
+      .delete(schema.applicationVotes)
       .where(
         and(
-          eq(applicationVotes.participantId, input.participantId),
-          eq(applicationVotes.voterId, input.voterId),
+          eq(schema.applicationVotes.participantId, input.participantId),
+          eq(schema.applicationVotes.voterId, input.voterId),
         ),
       )
-      .returning({ approve: applicationVotes.approve });
+      .returning({ approve: schema.applicationVotes.approve });
     if (!removed) {
       return { success: false, error: 'There is no vote to undo.' };
     }
 
-    const sync = await syncWaitlist(tx, input.eventId, {
+    const sync = await Rsvp.syncWaitlist(tx, input.eventId, {
       actorId: input.voterId,
       demoteGroupOf: removed.approve ? input.participantId : undefined,
     });

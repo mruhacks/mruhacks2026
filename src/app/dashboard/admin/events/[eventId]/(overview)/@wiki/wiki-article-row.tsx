@@ -3,19 +3,9 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import {
-  Eye,
-  EyeOff,
-  FileText,
-  MoreHorizontal,
-  Pencil,
-  Trash2,
-} from 'lucide-react';
+import { Eye, EyeOff, FileText, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
 
-import {
-  deleteEventArticle,
-  updateEventArticle,
-} from '@/app/dashboard/admin/events/content-actions';
+import { deleteEventArticle, updateEventArticle } from '@/app/dashboard/admin/events/content-actions';
 import { LocalDateTime } from '@/components/local-date-time';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -34,7 +24,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
-import { useEventBasePath } from '../../_components/use-event-base-path';
+import { useEventBasePath } from '@/app/dashboard/admin/events/[eventId]/_components/use-event-base-path';
 
 /** Exactly what `getAllArticlesForAdmin` returns per row. */
 export type WikiArticleRowData = {
@@ -85,9 +75,7 @@ export function WikiArticleRow({
       toast.error(result.error);
       return;
     }
-    toast.success(
-      article.published ? 'Article unpublished' : 'Article published',
-    );
+    toast.success(article.published ? 'Article unpublished' : 'Article published');
   }
 
   async function handleDelete() {
@@ -106,21 +94,12 @@ export function WikiArticleRow({
     <div className='hover:bg-accent/50 relative flex items-center gap-2 px-4 py-3'>
       {/* `after:inset-0` stretches the link over the whole row, which leaves
           room beside it for the menu — positioned, so it stays clickable. */}
-      <Link
-        href={articleHref}
-        className='flex min-w-0 flex-1 items-center gap-3 after:absolute after:inset-0'
-      >
-        <FileText
-          aria-hidden
-          className='text-muted-foreground size-4 shrink-0'
-        />
+      <Link href={articleHref} className='flex min-w-0 flex-1 items-center gap-3 after:absolute after:inset-0'>
+        <FileText aria-hidden className='text-muted-foreground size-4 shrink-0' />
         <span className='min-w-0'>
-          <span className='block truncate text-sm font-medium'>
-            {article.title}
-          </span>
+          <span className='block truncate text-sm font-medium'>{article.title}</span>
           <span className='text-muted-foreground block truncate text-xs'>
-            /{article.slug} · updated{' '}
-            <LocalDateTime value={article.updatedAt} dateStyle='medium' />
+            /{article.slug} · updated <LocalDateTime value={article.updatedAt} dateStyle='medium' />
           </span>
         </span>
       </Link>
@@ -136,12 +115,7 @@ export function WikiArticleRow({
       {canWrite && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button
-              variant='ghost'
-              size='icon-sm'
-              className='relative shrink-0'
-              disabled={isBusy || disabled}
-            >
+            <Button variant='ghost' size='icon-sm' className='relative shrink-0' disabled={isBusy || disabled}>
               <MoreHorizontal className='size-4' />
               <span className='sr-only'>Actions for {article.title}</span>
             </Button>
@@ -153,47 +127,29 @@ export function WikiArticleRow({
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem onSelect={handleTogglePublished}>
-              {article.published ? (
-                <EyeOff className='size-4' />
-              ) : (
-                <Eye className='size-4' />
-              )}
+              {article.published ? <EyeOff className='size-4' /> : <Eye className='size-4' />}
               {article.published ? 'Unpublish' : 'Publish'}
             </DropdownMenuItem>
-            <DropdownMenuItem
-              variant='destructive'
-              onSelect={() => setConfirmingDelete(true)}
-            >
+            <DropdownMenuItem variant='destructive' onSelect={() => setConfirmingDelete(true)}>
               <Trash2 className='size-4' /> Delete
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       )}
 
-      <Dialog
-        open={confirmingDelete}
-        onOpenChange={(open) => !open && setConfirmingDelete(false)}
-      >
+      <Dialog open={confirmingDelete} onOpenChange={(open) => !open && setConfirmingDelete(false)}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Delete article?</DialogTitle>
             <DialogDescription>
-              “{article.title}” and any images only it used will be permanently
-              removed. This cannot be undone.
+              “{article.title}” and any images only it used will be permanently removed. This cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button
-              variant='outline'
-              onClick={() => setConfirmingDelete(false)}
-            >
+            <Button variant='outline' onClick={() => setConfirmingDelete(false)}>
               Cancel
             </Button>
-            <Button
-              variant='destructive'
-              disabled={isBusy}
-              onClick={handleDelete}
-            >
+            <Button variant='destructive' disabled={isBusy} onClick={handleDelete}>
               Delete
             </Button>
           </DialogFooter>

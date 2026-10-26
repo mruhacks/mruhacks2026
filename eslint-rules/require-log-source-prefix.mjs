@@ -8,14 +8,7 @@
  * then the message. Extra details stay in later arguments.
  */
 
-const CONSOLE_METHODS = new Set([
-  'log',
-  'info',
-  'warn',
-  'error',
-  'debug',
-  'trace',
-]);
+const CONSOLE_METHODS = new Set(['log', 'info', 'warn', 'error', 'debug', 'trace']);
 
 /** `[segment] ` or `[segment/segment] `, segments are kebab-case. */
 const SOURCE_TAG = String.raw`\[(?:[a-z0-9]+(?:-[a-z0-9]+)*(?:\/[a-z0-9]+(?:-[a-z0-9]+)*)*)\]`;
@@ -31,8 +24,7 @@ const rule = {
   meta: {
     type: 'problem',
     docs: {
-      description:
-        'Require console messages to start with a [source] prefix that identifies where the log came from.',
+      description: 'Require console messages to start with a [source] prefix that identifies where the log came from.',
     },
     messages: {
       missingPrefix:
@@ -79,9 +71,7 @@ function messageHasPrefix(node) {
   }
 
   if (node.type === 'ConditionalExpression') {
-    return (
-      messageHasPrefix(node.consequent) && messageHasPrefix(node.alternate)
-    );
+    return messageHasPrefix(node.consequent) && messageHasPrefix(node.alternate);
   }
 
   return false;

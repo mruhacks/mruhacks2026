@@ -1,7 +1,7 @@
 import { and, eq } from 'drizzle-orm';
 
-import { eventParticipants, userProfiles } from '@/db/schema';
-import { hasPermission } from '@/lib/rbac/authorization';
+import * as schema from '@/db/schema';
+import * as Rbac from '@/lib/rbac/server';
 import { getUser } from '@/utils/auth';
 import { db } from '@/utils/db';
 import { isObjectStorageKey, resumeRedirect } from '@/utils/object-storage';
@@ -17,31 +17,23 @@ import { isObjectStorageKey, resumeRedirect } from '@/utils/object-storage';
  * event, so an event's reviewer can't page through resumes belonging to a
  * different event's applicants.
  */
-export async function GET(
-  _request: Request,
-  { params }: { params: Promise<{ eventId: string; userId: string }> },
-) {
+export async function GET(_request: Request, { params }: { params: Promise<{ eventId: string; userId: string }> }) {
   const { eventId, userId } = await params;
 
   const admin = await getUser();
   if (!admin) return new Response('Unauthorized', { status: 401 });
-  if (!(await hasPermission(admin.id, 'application:read:all'))) {
+  if (!(await Rbac.hasPermission(admin.id, 'application:read:all'))) {
     return new Response('Forbidden', { status: 403 });
   }
 
   const [row] = await db
     .select({
-      key: userProfiles.resumeFile,
-      fileName: userProfiles.resumeFileName,
+      key: schema.userProfiles.resumeFile,
+      fileName: schema.userProfiles.resumeFileName,
     })
-    .from(eventParticipants)
-    .innerJoin(userProfiles, eq(userProfiles.userId, eventParticipants.userId))
-    .where(
-      and(
-        eq(eventParticipants.eventId, eventId),
-        eq(eventParticipants.userId, userId),
-      ),
-    )
+    .from(schema.eventParticipants)
+    .innerJoin(schema.userProfiles, eq(schema.userProfiles.userId, schema.eventParticipants.userId))
+    .where(and(eq(schema.eventParticipants.eventId, eventId), eq(schema.eventParticipants.userId, userId)))
     .limit(1);
 
   if (!row?.key || !isObjectStorageKey(row.key)) {

@@ -56,8 +56,6 @@ export function applyMergeFields(
   return text.replace(MERGE_FIELD_PATTERN, (whole, field, fallback) => {
     if (field !== 'firstName') return whole;
     const value = values.firstName || fallback || DEFAULT_FIRST_NAME_FALLBACK;
-    return options.escapeMarkdown
-      ? value.replace(MARKDOWN_SPECIAL, (c: string) => `\\${c}`)
-      : value;
+    return options.escapeMarkdown ? value.replace(MARKDOWN_SPECIAL, (c: string) => `\\${c}`) : value;
   });
 }

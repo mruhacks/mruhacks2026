@@ -5,15 +5,11 @@ import { getAdminEventHeader } from '@/lib/admin-event';
 import { listEventTypes } from '@/lib/event-types';
 import { resolveEventId } from '@/lib/events';
 import { serializeInstant } from '@/lib/datetime';
-import { hasPermission } from '@/lib/rbac/authorization';
-import {
-  listSubevents,
-  isScheduleVisible,
-  getSubeventCheckInCounts,
-} from '@/lib/subevents';
+import * as Rbac from '@/lib/rbac/server';
+import { listSubevents, isScheduleVisible, getSubeventCheckInCounts } from '@/lib/subevents';
 import { getUser } from '@/utils/auth';
-import { BentoCardSkeleton } from '../../_components/bento-card';
-import { SubeventList } from '../../subevents/subevent-list';
+import { BentoCardSkeleton } from '@/app/dashboard/admin/events/[eventId]/_components/bento-card';
+import { SubeventList } from '@/app/dashboard/admin/events/[eventId]/subevents/subevent-list';
 
 type Props = { params: Promise<{ eventId: string }> };
 
@@ -31,15 +27,13 @@ async function ScheduleSection({ params }: Props) {
   if (!eventId) return null;
   const user = await getUser();
   if (!user) redirect('/signin');
-  const [event, entries, eventTypes, canManage, canCheckIn] = await Promise.all(
-    [
-      getAdminEventHeader(eventId),
-      listSubevents(eventId),
-      listEventTypes(),
-      hasPermission(user.id, 'event:manage'),
-      hasPermission(user.id, 'checkin:write:all'),
-    ],
-  );
+  const [event, entries, eventTypes, canManage, canCheckIn] = await Promise.all([
+    getAdminEventHeader(eventId),
+    listSubevents(eventId),
+    listEventTypes(),
+    Rbac.hasPermission(user.id, 'event:manage'),
+    Rbac.hasPermission(user.id, 'checkin:write:all'),
+  ]);
   if (!event) return null;
   if (canManage)
     return (
@@ -53,9 +47,7 @@ async function ScheduleSection({ params }: Props) {
         canCheckIn={canCheckIn}
         eventTypes={eventTypes}
         checkInCounts={
-          canCheckIn && event.checkInEnabled
-            ? await getSubeventCheckInCounts(entries.map((entry) => entry.id))
-            : {}
+          canCheckIn && event.checkInEnabled ? await getSubeventCheckInCounts(entries.map((entry) => entry.id)) : {}
         }
       />
     );

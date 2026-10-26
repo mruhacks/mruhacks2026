@@ -1,4 +1,4 @@
-import { StatTileSkeleton } from '../../_components/stat-tile';
+import { StatTileSkeleton } from '@/app/dashboard/admin/events/[eventId]/_components/stat-tile';
 
 export default function SummaryLoading() {
   return (

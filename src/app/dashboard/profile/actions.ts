@@ -6,13 +6,7 @@
 
 'use server';
 
-import {
-  user as authUser,
-  userProfiles,
-  userProfileAbout,
-  userProfileProfessional,
-  userDietaryRestrictions,
-} from '@/db/schema';
+import * as schema from '@/db/schema';
 import { getUser } from '@/utils/auth';
 import { db } from '@/utils/db';
 import { eq } from 'drizzle-orm';
@@ -28,7 +22,7 @@ import {
   profileFormOptionalAboutSchema,
   type ProfileFormInput,
 } from '@/components/profile-form/schema';
-import { isOnAnyJudgeRoster } from '@/lib/judging/server';
+import * as Judging from '@/lib/judging/server';
 import {
   deleteObject,
   isObjectStorageKey,
@@ -64,11 +58,7 @@ export type ProfessionalProfileValues = z.input<typeof professionalSchema>;
 
 const MAX_PROFILE_PICTURE_BYTES = 2 * 1024 * 1024;
 const MAX_RESUME_BYTES = 5 * 1024 * 1024;
-const PROFILE_PICTURE_TYPES = new Set([
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-]);
+const PROFILE_PICTURE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const RESUME_TYPES = new Set([
   'application/pdf',
   'application/msword',
@@ -88,11 +78,7 @@ async function readUploadedFile(
   maxBytes: number,
 ): Promise<ActionResult<UploadedFile>> {
   const value = formData.get(key);
-  if (
-    !value ||
-    typeof value === 'string' ||
-    typeof value.arrayBuffer !== 'function'
-  ) {
+  if (!value || typeof value === 'string' || typeof value.arrayBuffer !== 'function') {
     return fail('Choose a file to upload.');
   }
   if (!allowedTypes.has(value.type)) {
@@ -132,9 +118,7 @@ const PROFILE_PICTURE_PROCESSING_TIMEOUT_MS = 8000;
  * Sharp does not copy EXIF/ICC/XMP metadata to the output unless
  * `.withMetadata()` is called, so this also strips it in the process.
  */
-async function processProfilePicture(
-  bytes: Uint8Array,
-): Promise<ActionResult<Uint8Array>> {
+async function processProfilePicture(bytes: Uint8Array): Promise<ActionResult<Uint8Array>> {
   try {
     const output = await Promise.race([
       sharp(bytes, {
@@ -151,10 +135,7 @@ async function processProfilePicture(
         .webp({ quality: 85 })
         .toBuffer(),
       new Promise<never>((_, reject) =>
-        setTimeout(
-          () => reject(new Error('timeout')),
-          PROFILE_PICTURE_PROCESSING_TIMEOUT_MS,
-        ),
+        setTimeout(() => reject(new Error('timeout')), PROFILE_PICTURE_PROCESSING_TIMEOUT_MS),
       ),
     ]);
     return ok(new Uint8Array(output));
@@ -182,44 +163,39 @@ function revalidateProfile() {
  * step (or a dashboard edit) has saved them. Returns ok(null) when no
  * user_profiles row exists at all (Personal step not done).
  */
-export async function getUserProfile(): Promise<
-  ActionResult<UserProfileData | null>
-> {
+export async function getUserProfile(): Promise<ActionResult<UserProfileData | null>> {
   const user = await getUser();
   if (!user) return fail('User not authenticated');
 
   const [row] = await db
     .select({
-      fullName: userProfiles.fullName,
-      genderId: userProfiles.genderId,
-      genderOtherText: userProfiles.genderOtherText,
-      dietaryOtherText: userProfiles.dietaryOtherText,
-      resumeFile: userProfiles.resumeFile,
-      resumeFileName: userProfiles.resumeFileName,
-      resumeFileType: userProfiles.resumeFileType,
-      linkedinUrl: userProfiles.linkedinUrl,
-      universityId: userProfileAbout.universityId,
-      universityOtherText: userProfileAbout.universityOtherText,
-      majorId: userProfileAbout.majorId,
-      majorOtherText: userProfileAbout.majorOtherText,
-      yearOfStudyId: userProfileAbout.yearOfStudyId,
-      attendedHackathonBefore: userProfileAbout.attendedHackathonBefore,
-      githubUrl: userProfileAbout.githubUrl,
+      fullName: schema.userProfiles.fullName,
+      genderId: schema.userProfiles.genderId,
+      genderOtherText: schema.userProfiles.genderOtherText,
+      dietaryOtherText: schema.userProfiles.dietaryOtherText,
+      resumeFile: schema.userProfiles.resumeFile,
+      resumeFileName: schema.userProfiles.resumeFileName,
+      resumeFileType: schema.userProfiles.resumeFileType,
+      linkedinUrl: schema.userProfiles.linkedinUrl,
+      universityId: schema.userProfileAbout.universityId,
+      universityOtherText: schema.userProfileAbout.universityOtherText,
+      majorId: schema.userProfileAbout.majorId,
+      majorOtherText: schema.userProfileAbout.majorOtherText,
+      yearOfStudyId: schema.userProfileAbout.yearOfStudyId,
+      attendedHackathonBefore: schema.userProfileAbout.attendedHackathonBefore,
+      githubUrl: schema.userProfileAbout.githubUrl,
     })
-    .from(userProfiles)
-    .leftJoin(
-      userProfileAbout,
-      eq(userProfileAbout.userId, userProfiles.userId),
-    )
-    .where(eq(userProfiles.userId, user.id))
+    .from(schema.userProfiles)
+    .leftJoin(schema.userProfileAbout, eq(schema.userProfileAbout.userId, schema.userProfiles.userId))
+    .where(eq(schema.userProfiles.userId, user.id))
     .limit(1);
 
   if (!row) return ok(null);
 
   const restrictionRows = await db
-    .select({ restrictionId: userDietaryRestrictions.restrictionId })
-    .from(userDietaryRestrictions)
-    .where(eq(userDietaryRestrictions.userId, user.id));
+    .select({ restrictionId: schema.userDietaryRestrictions.restrictionId })
+    .from(schema.userDietaryRestrictions)
+    .where(eq(schema.userDietaryRestrictions.userId, user.id));
 
   return ok({
     fullName: row.fullName,
@@ -255,7 +231,7 @@ async function upsertAboutProfile(
   attendedHackathonBefore?: boolean,
 ) {
   await db
-    .insert(userProfileAbout)
+    .insert(schema.userProfileAbout)
     .values({
       userId,
       universityId: data.universityId,
@@ -269,7 +245,7 @@ async function upsertAboutProfile(
       }),
     })
     .onConflictDoUpdate({
-      target: userProfileAbout.userId,
+      target: schema.userProfileAbout.userId,
       set: {
         universityId: data.universityId,
         universityOtherText: data.universityOtherText || null,
@@ -290,9 +266,7 @@ async function upsertAboutProfile(
  * name, gender, dietary, LinkedIn. Independent of the About step — creates the profile
  * row on its own.
  */
-export async function savePersonalProfile(
-  formData: PersonalProfileValues,
-): Promise<ActionResult> {
+export async function savePersonalProfile(formData: PersonalProfileValues): Promise<ActionResult> {
   const user = await getUser();
   if (!user) return fail('User not authenticated');
 
@@ -306,7 +280,7 @@ export async function savePersonalProfile(
   try {
     await db.transaction(async (tx) => {
       await tx
-        .insert(userProfiles)
+        .insert(schema.userProfiles)
         .values({
           userId: user.id,
           fullName: data.fullName,
@@ -316,7 +290,7 @@ export async function savePersonalProfile(
           linkedinUrl: data.linkedinUrl || null,
         })
         .onConflictDoUpdate({
-          target: userProfiles.userId,
+          target: schema.userProfiles.userId,
           set: {
             fullName: data.fullName,
             genderId: data.genderId,
@@ -329,18 +303,12 @@ export async function savePersonalProfile(
 
       // Keep the Better Auth display name in sync with the required profile
       // name so first-time users do not appear anonymous in the dashboard.
-      await tx
-        .update(authUser)
-        .set({ name: data.fullName })
-        .where(eq(authUser.id, user.id));
+      await tx.update(schema.user).set({ name: data.fullName }).where(eq(schema.user.id, user.id));
 
-      await tx
-        .delete(userDietaryRestrictions)
-        .where(eq(userDietaryRestrictions.userId, user.id));
-      const realRestrictions =
-        data.dietaryRestrictions?.filter((id) => id > 0) ?? [];
+      await tx.delete(schema.userDietaryRestrictions).where(eq(schema.userDietaryRestrictions.userId, user.id));
+      const realRestrictions = data.dietaryRestrictions?.filter((id) => id > 0) ?? [];
       if (realRestrictions.length) {
-        await tx.insert(userDietaryRestrictions).values(
+        await tx.insert(schema.userDietaryRestrictions).values(
           realRestrictions.map((restrictionId) => ({
             userId: user.id,
             restrictionId,
@@ -361,9 +329,7 @@ export async function savePersonalProfile(
  * Saves the About-owned fields (user_profile_about): academic info + GitHub
  * + attendedHackathonBefore. Independent of the Personal step.
  */
-export async function saveAboutProfile(
-  formData: AboutProfileValues,
-): Promise<ActionResult> {
+export async function saveAboutProfile(formData: AboutProfileValues): Promise<ActionResult> {
   const user = await getUser();
   if (!user) return fail('User not authenticated');
 
@@ -373,11 +339,7 @@ export async function saveAboutProfile(
   }
 
   try {
-    await upsertAboutProfile(
-      user.id,
-      parsed.data,
-      parsed.data.attendedHackathonBefore,
-    );
+    await upsertAboutProfile(user.id, parsed.data, parsed.data.attendedHackathonBefore);
     revalidateProfile();
     return ok('Profile saved successfully.');
   } catch (error) {
@@ -397,11 +359,11 @@ export async function getProfessionalProfile(): Promise<
   if (!user) return fail('User not authenticated');
   const [row] = await db
     .select({
-      company: userProfileProfessional.company,
-      jobTitle: userProfileProfessional.jobTitle,
+      company: schema.userProfileProfessional.company,
+      jobTitle: schema.userProfileProfessional.jobTitle,
     })
-    .from(userProfileProfessional)
-    .where(eq(userProfileProfessional.userId, user.id))
+    .from(schema.userProfileProfessional)
+    .where(eq(schema.userProfileProfessional.userId, user.id))
     .limit(1);
   return ok(row ?? null);
 }
@@ -411,9 +373,7 @@ export async function getProfessionalProfile(): Promise<
  * title. Judges fill this in instead of About; their LinkedIn is the shared
  * one on the Personal step.
  */
-export async function saveProfessionalProfile(
-  formData: ProfessionalProfileValues,
-): Promise<ActionResult> {
+export async function saveProfessionalProfile(formData: ProfessionalProfileValues): Promise<ActionResult> {
   const user = await getUser();
   if (!user) return fail('User not authenticated');
 
@@ -428,10 +388,10 @@ export async function saveProfessionalProfile(
 
   try {
     await db
-      .insert(userProfileProfessional)
+      .insert(schema.userProfileProfessional)
       .values({ userId: user.id, ...values })
       .onConflictDoUpdate({
-        target: userProfileProfessional.userId,
+        target: schema.userProfileProfessional.userId,
         set: { ...values, updatedAt: new Date() },
       });
     revalidateProfile();
@@ -451,18 +411,14 @@ export async function saveProfessionalProfile(
  * onboard without the About step, so it's only saved once they fill it in.
  * Everyone else must fill in both halves, as before.
  */
-export async function saveFullProfile(
-  formData: ProfileFormInput,
-): Promise<ActionResult> {
+export async function saveFullProfile(formData: ProfileFormInput): Promise<ActionResult> {
   const user = await getUser();
   if (!user) return fail('User not authenticated');
 
   // Validate the whole dashboard payload before either half is persisted. A
   // malformed About field must not partially save the Personal half.
-  const aboutOptional = await isOnAnyJudgeRoster(user);
-  const parsed = (
-    aboutOptional ? profileFormOptionalAboutSchema : profileFormSchema
-  ).safeParse(formData);
+  const aboutOptional = await Judging.isOnAnyJudgeRoster(user);
+  const parsed = (aboutOptional ? profileFormOptionalAboutSchema : profileFormSchema).safeParse(formData);
   if (!parsed.success) {
     return fail(parsed.error.issues[0]?.message ?? 'Validation failed.');
   }
@@ -493,18 +449,11 @@ export async function saveFullProfile(
 }
 
 /** Uploads a profile photo for the signed-in user. */
-export async function uploadProfilePicture(
-  formData: FormData,
-): Promise<ActionResult> {
+export async function uploadProfilePicture(formData: FormData): Promise<ActionResult> {
   const currentUser = await getUser();
   if (!currentUser) return fail('User not authenticated');
 
-  const file = await readUploadedFile(
-    formData,
-    'profilePicture',
-    PROFILE_PICTURE_TYPES,
-    MAX_PROFILE_PICTURE_BYTES,
-  );
+  const file = await readUploadedFile(formData, 'profilePicture', PROFILE_PICTURE_TYPES, MAX_PROFILE_PICTURE_BYTES);
   if (!file.success) return fail(file.error);
   if (!file.data) return fail('Unable to read image.');
 
@@ -520,18 +469,15 @@ export async function uploadProfilePicture(
       contentType: 'image/webp',
     });
     const [existing] = await db
-      .select({ image: authUser.image })
-      .from(authUser)
-      .where(eq(authUser.id, currentUser.id))
+      .select({ image: schema.user.image })
+      .from(schema.user)
+      .where(eq(schema.user.id, currentUser.id))
       .limit(1);
     await db
-      .update(authUser)
+      .update(schema.user)
       .set({ image: profilePictureUrl(key) })
-      .where(eq(authUser.id, currentUser.id));
-    const previousKey = parseOwnedProfilePictureKey(
-      existing?.image,
-      currentUser.id,
-    );
+      .where(eq(schema.user.id, currentUser.id));
+    const previousKey = parseOwnedProfilePictureKey(existing?.image, currentUser.id);
     if (previousKey) await deleteObject(previousKey);
     revalidateProfile();
     return ok();
@@ -548,14 +494,11 @@ export async function removeProfilePicture(): Promise<ActionResult> {
 
   try {
     const [existing] = await db
-      .select({ image: authUser.image })
-      .from(authUser)
-      .where(eq(authUser.id, currentUser.id))
+      .select({ image: schema.user.image })
+      .from(schema.user)
+      .where(eq(schema.user.id, currentUser.id))
       .limit(1);
-    await db
-      .update(authUser)
-      .set({ image: null })
-      .where(eq(authUser.id, currentUser.id));
+    await db.update(schema.user).set({ image: null }).where(eq(schema.user.id, currentUser.id));
     const key = parseOwnedProfilePictureKey(existing?.image, currentUser.id);
     if (key) await deleteObject(key);
     revalidateProfile();
@@ -571,12 +514,7 @@ export async function uploadResume(formData: FormData): Promise<ActionResult> {
   const currentUser = await getUser();
   if (!currentUser) return fail('User not authenticated');
 
-  const file = await readUploadedFile(
-    formData,
-    'resume',
-    RESUME_TYPES,
-    MAX_RESUME_BYTES,
-  );
+  const file = await readUploadedFile(formData, 'resume', RESUME_TYPES, MAX_RESUME_BYTES);
   if (!file.success) return fail(file.error);
   if (!file.data) return fail('Unable to read resume.');
 
@@ -588,20 +526,20 @@ export async function uploadResume(formData: FormData): Promise<ActionResult> {
       contentType: file.data.type,
     });
     const [existing] = await db
-      .select({ resumeFile: userProfiles.resumeFile })
-      .from(userProfiles)
-      .where(eq(userProfiles.userId, currentUser.id))
+      .select({ resumeFile: schema.userProfiles.resumeFile })
+      .from(schema.userProfiles)
+      .where(eq(schema.userProfiles.userId, currentUser.id))
       .limit(1);
     const result = await db
-      .update(userProfiles)
+      .update(schema.userProfiles)
       .set({
         resumeFile: key,
         resumeFileName: file.data.name,
         resumeFileType: file.data.type,
         updatedAt: new Date(),
       })
-      .where(eq(userProfiles.userId, currentUser.id))
-      .returning({ userId: userProfiles.userId });
+      .where(eq(schema.userProfiles.userId, currentUser.id))
+      .returning({ userId: schema.userProfiles.userId });
     if (result.length === 0) {
       await deleteObject(key);
       return fail('Complete your profile before uploading a resume.');
@@ -624,19 +562,19 @@ export async function removeResume(): Promise<ActionResult> {
 
   try {
     const [existing] = await db
-      .select({ resumeFile: userProfiles.resumeFile })
-      .from(userProfiles)
-      .where(eq(userProfiles.userId, currentUser.id))
+      .select({ resumeFile: schema.userProfiles.resumeFile })
+      .from(schema.userProfiles)
+      .where(eq(schema.userProfiles.userId, currentUser.id))
       .limit(1);
     await db
-      .update(userProfiles)
+      .update(schema.userProfiles)
       .set({
         resumeFile: null,
         resumeFileName: null,
         resumeFileType: null,
         updatedAt: new Date(),
       })
-      .where(eq(userProfiles.userId, currentUser.id));
+      .where(eq(schema.userProfiles.userId, currentUser.id));
     if (existing?.resumeFile && isObjectStorageKey(existing.resumeFile)) {
       await deleteObject(existing.resumeFile);
     }
@@ -649,22 +587,19 @@ export async function removeResume(): Promise<ActionResult> {
 }
 
 /** Returns the current user's resume only; the data is never exposed in list views. */
-export async function getOwnResume(): Promise<
-  ActionResult<{ url: string; fileName: string } | null>
-> {
+export async function getOwnResume(): Promise<ActionResult<{ url: string; fileName: string } | null>> {
   const currentUser = await getUser();
   if (!currentUser) return fail('User not authenticated');
 
   const [profile] = await db
     .select({
-      resumeFile: userProfiles.resumeFile,
-      resumeFileName: userProfiles.resumeFileName,
+      resumeFile: schema.userProfiles.resumeFile,
+      resumeFileName: schema.userProfiles.resumeFileName,
     })
-    .from(userProfiles)
-    .where(eq(userProfiles.userId, currentUser.id))
+    .from(schema.userProfiles)
+    .where(eq(schema.userProfiles.userId, currentUser.id))
     .limit(1);
-  if (!profile?.resumeFile || !isObjectStorageKey(profile.resumeFile))
-    return ok(null);
+  if (!profile?.resumeFile || !isObjectStorageKey(profile.resumeFile)) return ok(null);
   return ok({
     url: '/api/profile/resume',
     fileName: profile.resumeFileName ?? 'resume',

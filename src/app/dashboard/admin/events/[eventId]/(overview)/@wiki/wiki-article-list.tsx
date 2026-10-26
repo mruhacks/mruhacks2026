@@ -39,8 +39,7 @@ export function WikiArticleList({ eventId, articles, canWrite }: Props) {
   );
   // Revalidation supplies the authoritative list; failed saves automatically
   // roll back when the transition ends, and other mutations stay in sync.
-  const [orderedArticles, setOptimisticArticles] =
-    React.useOptimistic(articles);
+  const [orderedArticles, setOptimisticArticles] = React.useOptimistic(articles);
   const [isPending, startTransition] = React.useTransition();
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
@@ -51,12 +50,8 @@ export function WikiArticleList({ eventId, articles, canWrite }: Props) {
 
   function handleDragEnd({ active, over }: DragEndEvent) {
     if (!canWrite || isPending || !over || active.id === over.id) return;
-    const oldIndex = orderedArticles.findIndex(
-      (article) => article.id === active.id,
-    );
-    const newIndex = orderedArticles.findIndex(
-      (article) => article.id === over.id,
-    );
+    const oldIndex = orderedArticles.findIndex((article) => article.id === active.id);
+    const newIndex = orderedArticles.findIndex((article) => article.id === over.id);
     if (oldIndex === -1 || newIndex === -1) return;
 
     const reordered = arrayMove(orderedArticles, oldIndex, newIndex);
@@ -83,11 +78,7 @@ export function WikiArticleList({ eventId, articles, canWrite }: Props) {
       <ul className='m-0 list-none divide-y p-0'>
         {articles.map((article) => (
           <li key={article.id}>
-            <WikiArticleRow
-              eventId={eventId}
-              article={article}
-              canWrite={canWrite}
-            />
+            <WikiArticleRow eventId={eventId} article={article} canWrite={canWrite} />
           </li>
         ))}
       </ul>
@@ -95,23 +86,11 @@ export function WikiArticleList({ eventId, articles, canWrite }: Props) {
   }
 
   return (
-    <DndContext
-      sensors={sensors}
-      collisionDetection={closestCenter}
-      onDragEnd={handleDragEnd}
-    >
-      <SortableContext
-        items={orderedArticles.map((article) => article.id)}
-        strategy={verticalListSortingStrategy}
-      >
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+      <SortableContext items={orderedArticles.map((article) => article.id)} strategy={verticalListSortingStrategy}>
         <ul className='m-0 list-none divide-y p-0' aria-busy={isPending}>
           {orderedArticles.map((article) => (
-            <SortableArticle
-              key={article.id}
-              eventId={eventId}
-              article={article}
-              disabled={isPending}
-            />
+            <SortableArticle key={article.id} eventId={eventId} article={article} disabled={isPending} />
           ))}
         </ul>
       </SortableContext>
@@ -128,15 +107,10 @@ function SortableArticle({
   article: WikiArticleRowData;
   disabled: boolean;
 }) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    setActivatorNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: article.id, disabled });
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
+    id: article.id,
+    disabled,
+  });
 
   return (
     <li

@@ -18,11 +18,7 @@ import * as React from 'react';
  */
 export function useNow(intervalMs: number): number | null {
   const store = React.useMemo(() => getClock(intervalMs), [intervalMs]);
-  return React.useSyncExternalStore(
-    store.subscribe,
-    store.getSnapshot,
-    getServerSnapshot,
-  );
+  return React.useSyncExternalStore(store.subscribe, store.getSnapshot, getServerSnapshot);
 }
 
 const getServerSnapshot = (): number | null => null;

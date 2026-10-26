@@ -4,41 +4,22 @@ import * as React from 'react';
 import { toast } from 'sonner';
 
 import { updateDisplaySettings } from './actions';
-import type { DisplaySettings } from '@/lib/display/schedule';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import {
-  Field,
-  FieldContent,
-  FieldDescription,
-  FieldError,
-  FieldLabel,
-} from '@/components/ui/field';
+import type * as Display from '@/lib/display';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Field, FieldContent, FieldDescription, FieldError, FieldLabel } from '@/components/ui/field';
 import { Switch } from '@/components/ui/switch';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 
-export function DisplaySettingsCard({ initial }: { initial: DisplaySettings }) {
+export function DisplaySettingsCard({ initial }: { initial: Display.Settings }) {
   const [saved, setSaved] = React.useState(initial);
   const [settings, setSettings] = React.useState(initial);
   const [error, setError] = React.useState<string | null>(null);
   const [saving, setSaving] = React.useState(false);
 
-  const dirty =
-    settings.showClock !== saved.showClock || settings.theme !== saved.theme;
+  const dirty = settings.showClock !== saved.showClock || settings.theme !== saved.theme;
 
-  const update = (patch: Partial<DisplaySettings>) => {
+  const update = (patch: Partial<Display.Settings>) => {
     setSettings((current) => ({ ...current, ...patch }));
     setError(null);
   };
@@ -52,9 +33,7 @@ export function DisplaySettingsCard({ initial }: { initial: DisplaySettings }) {
       setSaved(settings);
       toast.success('Display settings saved');
     } catch {
-      setError(
-        'Could not reach the server. Check your connection and try again.',
-      );
+      setError('Could not reach the server. Check your connection and try again.');
     } finally {
       setSaving(false);
     }
@@ -64,21 +43,14 @@ export function DisplaySettingsCard({ initial }: { initial: DisplaySettings }) {
     <Card>
       <CardHeader>
         <CardTitle>Settings</CardTitle>
-        <CardDescription>
-          Every display follows these. Screens pick up changes within 15
-          seconds.
-        </CardDescription>
+        <CardDescription>Every display follows these. Screens pick up changes within 15 seconds.</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={onSubmit} className='flex flex-col gap-4'>
           <Field orientation='horizontal'>
             <FieldContent>
-              <FieldLabel htmlFor='display-show-clock'>
-                Clock and schedule
-              </FieldLabel>
-              <FieldDescription>
-                Show the time and the schedule down the left side.
-              </FieldDescription>
+              <FieldLabel htmlFor='display-show-clock'>Clock and schedule</FieldLabel>
+              <FieldDescription>Show the time and the schedule down the left side.</FieldDescription>
             </FieldContent>
             <Switch
               id='display-show-clock'
@@ -92,9 +64,7 @@ export function DisplaySettingsCard({ initial }: { initial: DisplaySettings }) {
             </FieldContent>
             <Select
               value={settings.theme}
-              onValueChange={(theme) =>
-                update({ theme: theme as DisplaySettings['theme'] })
-              }
+              onValueChange={(theme) => update({ theme: theme as Display.Settings['theme'] })}
             >
               <SelectTrigger id='display-theme' className='w-32'>
                 <SelectValue />

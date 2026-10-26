@@ -20,7 +20,7 @@ import 'server-only';
 
 import { and, eq, inArray } from 'drizzle-orm';
 
-import { eventJudges, events, judgeState, submissions } from '@/db/schema';
+import * as schema from '@/db/schema';
 import {
   dispatchNext,
   findJudgeForUser,
@@ -30,7 +30,7 @@ import {
   loadCriteria,
   lockEventForJudging,
   type JudgeRow,
-} from '@/lib/judging/server';
+} from './queries';
 import { getUser } from '@/utils/auth';
 import { db } from '@/utils/db';
 
@@ -41,7 +41,7 @@ export type JudgeProjectCard = {
   tableLabel: string;
 };
 
-export type JudgeCriterion = { id: string; name: string; description: string };
+type JudgeCriterion = { id: string; name: string; description: string };
 
 export type JudgeView =
   | { kind: 'not_judge' }
@@ -79,12 +79,12 @@ export async function loadJudgeContext(eventId: string): Promise<JudgeContext> {
 
   const [event] = await db
     .select({
-      name: events.name,
-      startsAt: events.startsAt,
-      endsAt: events.endsAt,
+      name: schema.events.name,
+      startsAt: schema.events.startsAt,
+      endsAt: schema.events.endsAt,
     })
-    .from(events)
-    .where(eq(events.id, eventId))
+    .from(schema.events)
+    .where(eq(schema.events.id, eventId))
     .limit(1);
   if (!event) return { ok: false, view: { kind: 'not_judge' } };
 
@@ -130,46 +130,29 @@ export async function loadJudgeContext(eventId: string): Promise<JudgeContext> {
  * (and a removal then sees any vote this transaction cast); one that already
  * committed is seen here.
  */
-export async function lockActiveJudge(
-  tx: Tx,
-  judgeId: string,
-): Promise<boolean> {
+export async function lockActiveJudge(tx: Tx, judgeId: string): Promise<boolean> {
   const [row] = await tx
-    .select({ disabledAt: eventJudges.disabledAt })
-    .from(eventJudges)
-    .where(eq(eventJudges.id, judgeId))
+    .select({ disabledAt: schema.eventJudges.disabledAt })
+    .from(schema.eventJudges)
+    .where(eq(schema.eventJudges.id, judgeId))
     .for('share');
   return row != null && row.disabledAt == null;
 }
 
 /** Creates the judge's state row on first use, then locks it. */
 export async function lockState(tx: Tx, judgeId: string) {
-  await tx.insert(judgeState).values({ judgeId }).onConflictDoNothing();
-  const [state] = await tx
-    .select()
-    .from(judgeState)
-    .where(eq(judgeState.judgeId, judgeId))
-    .for('update');
+  await tx.insert(schema.judgeState).values({ judgeId }).onConflictDoNothing();
+  const [state] = await tx.select().from(schema.judgeState).where(eq(schema.judgeState.judgeId, judgeId)).for('update');
   return state!;
 }
 
-export async function poolMembers(
-  tx: Tx,
-  eventId: string,
-  ids: (string | null)[],
-): Promise<Set<string>> {
+export async function poolMembers(tx: Tx, eventId: string, ids: (string | null)[]): Promise<Set<string>> {
   const wanted = ids.filter((id): id is string => id != null);
   if (wanted.length === 0) return new Set();
   const rows = await tx
-    .select({ id: submissions.id })
-    .from(submissions)
-    .where(
-      and(
-        eq(submissions.eventId, eventId),
-        inArray(submissions.id, wanted),
-        inPoolCondition(),
-      ),
-    );
+    .select({ id: schema.submissions.id })
+    .from(schema.submissions)
+    .where(and(eq(schema.submissions.eventId, eventId), inArray(schema.submissions.id, wanted), inPoolCondition()));
   return new Set(rows.map((row) => row.id));
 }
 
@@ -187,25 +170,13 @@ export async function settleAssignment(
   await lockEventForJudging(tx, ctx.eventId);
   if (!(await lockActiveJudge(tx, ctx.judge.id))) return null;
   const state = await lockState(tx, ctx.judge.id);
-  const active = await poolMembers(tx, ctx.eventId, [
-    state.previousSubmissionId,
-    state.currentSubmissionId,
-  ]);
+  const active = await poolMembers(tx, ctx.eventId, [state.previousSubmissionId, state.currentSubmissionId]);
   const previousId =
-    state.previousSubmissionId && active.has(state.previousSubmissionId)
-      ? state.previousSubmissionId
-      : null;
-  let currentId =
-    state.currentSubmissionId && active.has(state.currentSubmissionId)
-      ? state.currentSubmissionId
-      : null;
+    state.previousSubmissionId && active.has(state.previousSubmissionId) ? state.previousSubmissionId : null;
+  let currentId = state.currentSubmissionId && active.has(state.currentSubmissionId) ? state.currentSubmissionId : null;
   if (currentId === previousId) currentId = null;
 
-  if (
-    previousId !== state.previousSubmissionId ||
-    currentId !== state.currentSubmissionId ||
-    currentId === null
-  ) {
+  if (previousId !== state.previousSubmissionId || currentId !== state.currentSubmissionId || currentId === null) {
     if (currentId === null) {
       currentId = await dispatchNext(tx, {
         eventId: ctx.eventId,
@@ -214,16 +185,13 @@ export async function settleAssignment(
       });
     }
     await tx
-      .update(judgeState)
+      .update(schema.judgeState)
       .set({
         previousSubmissionId: previousId,
         currentSubmissionId: currentId,
-        assignedAt:
-          currentId !== state.currentSubmissionId
-            ? new Date()
-            : state.assignedAt,
+        assignedAt: currentId !== state.currentSubmissionId ? new Date() : state.assignedAt,
       })
-      .where(eq(judgeState.judgeId, ctx.judge.id));
+      .where(eq(schema.judgeState.judgeId, ctx.judge.id));
   }
 
   return { previousId, currentId };
@@ -243,7 +211,7 @@ export async function advance(
     alsoExclude: leavingId,
   });
   await tx
-    .update(judgeState)
+    .update(schema.judgeState)
     .set({
       // Kept while there's nowhere to go, so the next project that turns up
       // is compared against it rather than sending the judge back to Begin.
@@ -251,7 +219,7 @@ export async function advance(
       currentSubmissionId: currentId,
       assignedAt: new Date(),
     })
-    .where(eq(judgeState.judgeId, ctx.judge.id));
+    .where(eq(schema.judgeState.judgeId, ctx.judge.id));
 }
 
 async function buildView(
@@ -264,9 +232,9 @@ async function buildView(
   const ids = previousId ? [previousId, currentId] : [currentId];
   const [rows, tables, criteria] = await Promise.all([
     db
-      .select({ id: submissions.id, title: submissions.title })
-      .from(submissions)
-      .where(inArray(submissions.id, ids)),
+      .select({ id: schema.submissions.id, title: schema.submissions.title })
+      .from(schema.submissions)
+      .where(inArray(schema.submissions.id, ids)),
     getTableLabels(ctx.eventId),
     loadCriteria(ctx.eventId),
   ]);
@@ -308,9 +276,7 @@ export async function getJudgeView(eventId: string): Promise<JudgeView> {
   if (!assignment) {
     // Disabled or removed in the meantime: show that rather than a stale screen.
     const latest = await loadJudgeContext(eventId);
-    return latest.ok
-      ? { kind: 'waiting', eventName: latest.eventName }
-      : latest.view;
+    return latest.ok ? { kind: 'waiting', eventName: latest.eventName } : latest.view;
   }
   return buildView(ctx, assignment);
 }

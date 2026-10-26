@@ -1,15 +1,11 @@
 import * as React from 'react';
 import { notFound, redirect } from 'next/navigation';
 
-import { hasPermission, requirePermission } from '@/lib/rbac/authorization';
+import * as Rbac from '@/lib/rbac/server';
 import { getUser } from '@/utils/auth';
 import { hasEventElapsed, resolveEventId } from '@/lib/events';
 import { getAdminEventHeader } from '@/lib/admin-event';
-import {
-  getParentEventId,
-  isSubeventRunning,
-  listSubevents,
-} from '@/lib/subevents';
+import { getParentEventId, isSubeventRunning, listSubevents } from '@/lib/subevents';
 import { serializeInstant } from '@/lib/datetime';
 
 import { CheckInPage } from './check-in-page';
@@ -36,18 +32,13 @@ type Props = {
 export default function CheckInRoute({ params, searchParams }: Props) {
   return (
     <React.Suspense fallback={<CheckInSkeleton />}>
-      <CheckInContent
-        paramsPromise={params}
-        searchParamsPromise={searchParams}
-      />
+      <CheckInContent paramsPromise={params} searchParamsPromise={searchParams} />
     </React.Suspense>
   );
 }
 
 function CheckInSkeleton() {
-  return (
-    <div className='text-muted-foreground py-8 text-center'>Loading...</div>
-  );
+  return <div className='text-muted-foreground py-8 text-center'>Loading...</div>;
 }
 
 async function CheckInContent({
@@ -62,7 +53,7 @@ async function CheckInContent({
   if (!eventId) notFound();
   const user = await getUser();
   if (!user) redirect('/signin');
-  await requirePermission(user.id, 'checkin:write:all');
+  await Rbac.requirePermission(user.id, 'checkin:write:all');
 
   // A sub-event has no check-in desk of its own: its roster is the parent's and
   // the passes are the parent's. Arriving here from a sub-event's own admin
@@ -71,9 +62,7 @@ async function CheckInContent({
   // otherwise return.
   const parentEventId = await getParentEventId(eventId);
   if (parentEventId) {
-    redirect(
-      `/dashboard/admin/events/${parentEventId}/checkin?target=${eventId}`,
-    );
+    redirect(`/dashboard/admin/events/${parentEventId}/checkin?target=${eventId}`);
   }
 
   const { target: rawTarget } = await searchParamsPromise;
@@ -83,7 +72,7 @@ async function CheckInContent({
   const [event, subeventRows, canPickAnyTarget] = await Promise.all([
     getAdminEventHeader(eventId),
     listSubevents(eventId),
-    hasPermission(user.id, 'checkin:override:all'),
+    Rbac.hasPermission(user.id, 'checkin:override:all'),
   ]);
   if (!event) notFound();
   if (!event.checkInEnabled) return <p>Check-in is disabled for this event.</p>;
@@ -112,13 +101,10 @@ async function CheckInContent({
   // An unrecognised target is reported, never quietly swapped for the door.
   // Silently arming something other than what the URL asked for is the exact
   // mistake this whole surface is built to prevent.
-  const unknownTarget = Boolean(
-    requestedTarget && requestedTarget !== eventId && !armed,
-  );
+  const unknownTarget = Boolean(requestedTarget && requestedTarget !== eventId && !armed);
   // A real entry that just isn't on right now (a stale link, or a tab left
   // open past the slot) gets its own message rather than "doesn't belong".
-  const targetNotRunning =
-    unknownTarget && enabledRows.some((row) => row.id === requestedTarget);
+  const targetNotRunning = unknownTarget && enabledRows.some((row) => row.id === requestedTarget);
 
   return (
     <CheckInPage

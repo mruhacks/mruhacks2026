@@ -2,7 +2,7 @@ import { describe, test, expect, beforeAll, afterAll, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 
 import { db } from '@/utils/db';
-import { events } from '@/db/schema';
+import * as schema from '@/db/schema';
 
 vi.mock('next/cache', () => ({
   revalidatePath: vi.fn(),
@@ -17,37 +17,35 @@ let plainEventId: string;
 
 beforeAll(async () => {
   const [slugged] = await db
-    .insert(events)
+    .insert(schema.events)
     .values({
       name: 'Slug Resolution Event',
       hasApplication: false,
       applicationQuestions: [],
       slug: 'resolution-2026',
     })
-    .returning({ id: events.id });
+    .returning({ id: schema.events.id });
   sluggedEventId = slugged.id;
 
   const [plain] = await db
-    .insert(events)
+    .insert(schema.events)
     .values({
       name: 'Uuid Only Event',
       hasApplication: false,
       applicationQuestions: [],
     })
-    .returning({ id: events.id });
+    .returning({ id: schema.events.id });
   plainEventId = plain.id;
 });
 
 afterAll(async () => {
-  await db.delete(events).where(eq(events.id, sluggedEventId));
-  await db.delete(events).where(eq(events.id, plainEventId));
+  await db.delete(schema.events).where(eq(schema.events.id, sluggedEventId));
+  await db.delete(schema.events).where(eq(schema.events.id, plainEventId));
 });
 
 describe('resolveEventId', () => {
   test('resolves a custom slug to the event uuid', async () => {
-    await expect(resolveEventId('resolution-2026')).resolves.toBe(
-      sluggedEventId,
-    );
+    await expect(resolveEventId('resolution-2026')).resolves.toBe(sluggedEventId);
   });
 
   test('passes a uuid segment straight through', async () => {
@@ -66,15 +64,10 @@ describe('resolveEventId', () => {
 
 describe('eventUrlSegments', () => {
   test('lists the uuid and the slug for a slugged event', async () => {
-    await expect(eventUrlSegments(sluggedEventId)).resolves.toEqual([
-      sluggedEventId,
-      'resolution-2026',
-    ]);
+    await expect(eventUrlSegments(sluggedEventId)).resolves.toEqual([sluggedEventId, 'resolution-2026']);
   });
 
   test('lists only the uuid when the event has no slug', async () => {
-    await expect(eventUrlSegments(plainEventId)).resolves.toEqual([
-      plainEventId,
-    ]);
+    await expect(eventUrlSegments(plainEventId)).resolves.toEqual([plainEventId]);
   });
 });

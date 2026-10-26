@@ -19,9 +19,7 @@
 const ATTACHMENT_URL_PATTERN =
   /\/api\/assets\/((?:event|submission)-content\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.[a-z0-9]{1,10})/gi;
 
-export function collectAttachmentKeys(
-  markdown: string | null | undefined,
-): Set<string> {
+export function collectAttachmentKeys(markdown: string | null | undefined): Set<string> {
   const keys = new Set<string>();
   if (!markdown) return keys;
   for (const match of markdown.matchAll(ATTACHMENT_URL_PATTERN)) {

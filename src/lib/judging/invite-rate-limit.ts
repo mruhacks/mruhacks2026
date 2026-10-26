@@ -21,9 +21,7 @@ import { RateLimiterMemory } from 'rate-limiter-flexible';
 const limiter = new RateLimiterMemory({ points: 10, duration: 60 });
 
 /** Returns false when `userId` has sent too many invites by hand lately. */
-export async function checkJudgeInviteRateLimit(
-  userId: string,
-): Promise<boolean> {
+export async function checkJudgeInviteRateLimit(userId: string): Promise<boolean> {
   try {
     await limiter.consume(userId);
     return true;

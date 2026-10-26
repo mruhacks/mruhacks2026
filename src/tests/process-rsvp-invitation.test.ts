@@ -2,18 +2,9 @@ import { describe, test, expect, beforeAll, afterAll, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 
 import { db } from '@/utils/db';
-import {
-  events,
-  eventInvitations,
-  eventRsvpWaves,
-  user,
-  verification,
-} from '@/db/schema';
+import * as schema from '@/db/schema';
 import { insertInvitation } from '@/tests/participation-fixtures';
-import {
-  MAX_INVITATION_DELIVERY_ATTEMPTS,
-  processRsvpInvitation,
-} from '@/lib/rsvp/process-rsvp-invitation';
+import * as Rsvp from '@/lib/rsvp/server';
 
 vi.mock('@/utils/mail', () => ({
   sendMail: vi.fn().mockResolvedValue(undefined),
@@ -33,13 +24,13 @@ async function createResponse(options: {
 }): Promise<{ responseId: string; waveId: string }> {
   // One event per invitation: a participant is invited at most once.
   const [eventRow] = await db
-    .insert(events)
+    .insert(schema.events)
     .values({ name: 'Invitation Delivery Test', hasApplication: true })
-    .returning({ id: events.id });
+    .returning({ id: schema.events.id });
   const [wave] = await db
-    .insert(eventRsvpWaves)
+    .insert(schema.eventRsvpWaves)
     .values({ eventId: eventRow.id, wave: 1, respondBy: options.respondBy })
-    .returning({ id: eventRsvpWaves.id });
+    .returning({ id: schema.eventRsvpWaves.id });
 
   const { invitationId } = await insertInvitation({
     rsvpWaveId: wave.id,
@@ -57,15 +48,15 @@ async function createResponse(options: {
 async function getResponse(responseId: string) {
   const [row] = await db
     .select()
-    .from(eventInvitations)
-    .where(eq(eventInvitations.id, responseId))
+    .from(schema.eventInvitations)
+    .where(eq(schema.eventInvitations.id, responseId))
     .limit(1);
   return row;
 }
 
 async function deleteResponse(eventId: string): Promise<void> {
   // Cascades to the wave, participant and invitation rows.
-  await db.delete(events).where(eq(events.id, eventId));
+  await db.delete(schema.events).where(eq(schema.events.id, eventId));
 }
 
 const STATUS_BY_LABEL = {
@@ -86,9 +77,9 @@ function magicLinkTokenFromLastMail(): string {
 
 async function getVerificationExpiresAt(token: string): Promise<Date> {
   const [row] = await db
-    .select({ expiresAt: verification.expiresAt })
-    .from(verification)
-    .where(eq(verification.identifier, token))
+    .select({ expiresAt: schema.verification.expiresAt })
+    .from(schema.verification)
+    .where(eq(schema.verification.identifier, token))
     .limit(1);
   if (!row) {
     throw new Error('verification row missing');
@@ -97,35 +88,33 @@ async function getVerificationExpiresAt(token: string): Promise<Date> {
 }
 
 async function deleteVerification(token: string): Promise<void> {
-  await db.delete(verification).where(eq(verification.identifier, token));
+  await db.delete(schema.verification).where(eq(schema.verification.identifier, token));
 }
 
 beforeAll(async () => {
   process.env.BETTER_AUTH_URL = 'http://localhost:3000';
 
   const [eventRow] = await db
-    .insert(events)
+    .insert(schema.events)
     .values({ name: 'Process Invitation Test Event', hasApplication: true })
-    .returning({ id: events.id });
+    .returning({ id: schema.events.id });
   testEventId = eventRow.id;
 
   const [userRow] = await db
-    .insert(user)
+    .insert(schema.user)
     .values({
       name: 'Process Invitation User',
       email: 'process-invitation@example.com',
       emailVerified: true,
     })
-    .returning({ id: user.id });
+    .returning({ id: schema.user.id });
   testUserId = userRow.id;
 });
 
 afterAll(async () => {
-  await db
-    .delete(eventRsvpWaves)
-    .where(eq(eventRsvpWaves.eventId, testEventId));
-  await db.delete(events).where(eq(events.id, testEventId));
-  await db.delete(user).where(eq(user.id, testUserId));
+  await db.delete(schema.eventRsvpWaves).where(eq(schema.eventRsvpWaves.eventId, testEventId));
+  await db.delete(schema.events).where(eq(schema.events.id, testEventId));
+  await db.delete(schema.user).where(eq(schema.user.id, testUserId));
 });
 
 describe('processRsvpInvitation', () => {
@@ -140,7 +129,7 @@ describe('processRsvpInvitation', () => {
 
     let token: string | undefined;
     try {
-      const outcome = await processRsvpInvitation(responseId, 1);
+      const outcome = await Rsvp.processRsvpInvitation(responseId, 1);
       expect(outcome).toBe('sent');
       expect(signInSpy).toHaveBeenCalledTimes(1);
       expect(sendMail).toHaveBeenCalledTimes(1);
@@ -152,9 +141,7 @@ describe('processRsvpInvitation', () => {
 
       token = magicLinkTokenFromLastMail();
       const expiresAt = await getVerificationExpiresAt(token);
-      expect(Math.abs(expiresAt.getTime() - respondBy.getTime())).toBeLessThan(
-        5000,
-      );
+      expect(Math.abs(expiresAt.getTime() - respondBy.getTime())).toBeLessThan(5000);
     } finally {
       signInSpy.mockRestore();
       if (token) await deleteVerification(token);
@@ -170,17 +157,13 @@ describe('processRsvpInvitation', () => {
 
     let token: string | undefined;
     try {
-      const outcome = await processRsvpInvitation(responseId, 1);
+      const outcome = await Rsvp.processRsvpInvitation(responseId, 1);
       expect(outcome).toBe('sent');
 
       token = magicLinkTokenFromLastMail();
       const expiresAt = await getVerificationExpiresAt(token);
-      expect(Math.abs(expiresAt.getTime() - respondBy.getTime())).toBeLessThan(
-        5000,
-      );
-      expect(expiresAt.getTime()).toBeLessThan(
-        Date.now() + 48 * 60 * 60 * 1000,
-      );
+      expect(Math.abs(expiresAt.getTime() - respondBy.getTime())).toBeLessThan(5000);
+      expect(expiresAt.getTime()).toBeLessThan(Date.now() + 48 * 60 * 60 * 1000);
     } finally {
       if (token) await deleteVerification(token);
       await deleteResponse(waveId);
@@ -197,7 +180,7 @@ describe('processRsvpInvitation', () => {
     });
 
     try {
-      const outcome = await processRsvpInvitation(responseId, 1);
+      const outcome = await Rsvp.processRsvpInvitation(responseId, 1);
       expect(outcome).toBe('already_sent');
       expect(signInSpy).not.toHaveBeenCalled();
       expect(sendMail).not.toHaveBeenCalled();
@@ -218,7 +201,7 @@ describe('processRsvpInvitation', () => {
 
     try {
       // Simulate a redelivery of a message the consumer already handled.
-      const outcome = await processRsvpInvitation(responseId, 3);
+      const outcome = await Rsvp.processRsvpInvitation(responseId, 3);
       expect(outcome).toBe('already_sent');
       expect(sendMail).not.toHaveBeenCalled();
 
@@ -230,10 +213,7 @@ describe('processRsvpInvitation', () => {
   });
 
   test('acks a message whose response row no longer exists', async () => {
-    const outcome = await processRsvpInvitation(
-      '00000000-0000-0000-0000-000000000000',
-      1,
-    );
+    const outcome = await Rsvp.processRsvpInvitation('00000000-0000-0000-0000-000000000000', 1);
     expect(outcome).toBe('not_found');
   });
 
@@ -246,7 +226,7 @@ describe('processRsvpInvitation', () => {
     });
 
     try {
-      const outcome = await processRsvpInvitation(responseId, 1);
+      const outcome = await Rsvp.processRsvpInvitation(responseId, 1);
       expect(outcome).toBe('not_pending');
       expect(sendMail).not.toHaveBeenCalled();
     } finally {
@@ -263,7 +243,7 @@ describe('processRsvpInvitation', () => {
     });
 
     try {
-      const outcome = await processRsvpInvitation(responseId, 1);
+      const outcome = await Rsvp.processRsvpInvitation(responseId, 1);
       expect(outcome).toBe('not_pending');
       expect(sendMail).not.toHaveBeenCalled();
     } finally {
@@ -273,20 +253,18 @@ describe('processRsvpInvitation', () => {
 
   test('records the error and rethrows when a delivery attempt fails and retries remain', async () => {
     vi.mocked(sendMail).mockClear();
-    const signInSpy = vi
-      .spyOn(auth.api, 'signInMagicLink')
-      .mockImplementationOnce(async () => {
-        throw new Error('magic link unavailable');
-      });
+    const signInSpy = vi.spyOn(auth.api, 'signInMagicLink').mockImplementationOnce(async () => {
+      throw new Error('magic link unavailable');
+    });
 
     const { responseId, waveId } = await createResponse({
       respondBy: new Date('2099-08-01T23:59:59.000Z'),
     });
 
     try {
-      await expect(
-        processRsvpInvitation(responseId, MAX_INVITATION_DELIVERY_ATTEMPTS - 1),
-      ).rejects.toThrow('magic link unavailable');
+      await expect(Rsvp.processRsvpInvitation(responseId, Rsvp.MAX_INVITATION_DELIVERY_ATTEMPTS - 1)).rejects.toThrow(
+        'magic link unavailable',
+      );
 
       const row = await getResponse(responseId);
       expect(row.invitationEmailAttempts).toBe(1);
@@ -300,21 +278,16 @@ describe('processRsvpInvitation', () => {
 
   test('gives up and marks the response failed after the max delivery attempts', async () => {
     vi.mocked(sendMail).mockClear();
-    const signInSpy = vi
-      .spyOn(auth.api, 'signInMagicLink')
-      .mockImplementationOnce(async () => {
-        throw new Error('magic link unavailable');
-      });
+    const signInSpy = vi.spyOn(auth.api, 'signInMagicLink').mockImplementationOnce(async () => {
+      throw new Error('magic link unavailable');
+    });
 
     const { responseId, waveId } = await createResponse({
       respondBy: new Date('2099-08-01T23:59:59.000Z'),
     });
 
     try {
-      const outcome = await processRsvpInvitation(
-        responseId,
-        MAX_INVITATION_DELIVERY_ATTEMPTS,
-      );
+      const outcome = await Rsvp.processRsvpInvitation(responseId, Rsvp.MAX_INVITATION_DELIVERY_ATTEMPTS);
       expect(outcome).toBe('given_up');
 
       const row = await getResponse(responseId);

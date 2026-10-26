@@ -1,20 +1,7 @@
 import { describe, test, expect, beforeAll, afterAll, vi } from 'vitest';
 import { db } from '@/utils/db';
 import { eq } from 'drizzle-orm';
-import {
-  user,
-  userProfiles,
-  userProfileAbout,
-  userProfileProfessional,
-  userDietaryRestrictions,
-  genders,
-  universities,
-  majors,
-  yearsOfStudy,
-  dietaryRestrictions,
-  events,
-  eventJudges,
-} from '@/db/schema';
+import * as schema from '@/db/schema';
 import {
   getUserProfile,
   savePersonalProfile,
@@ -45,91 +32,91 @@ let dietaryRestrictionId: number;
 
 beforeAll(async () => {
   const [u] = await db
-    .insert(user)
+    .insert(schema.user)
     .values({
       name: 'Profile Test User',
       email: 'profile-test@example.com',
       emailVerified: true,
     })
-    .returning({ id: user.id });
+    .returning({ id: schema.user.id });
   testUserId = u.id;
 
   const [g] = await db
-    .insert(genders)
+    .insert(schema.genders)
     .values({ label: 'test-gender' })
     .onConflictDoNothing()
-    .returning({ id: genders.id });
+    .returning({ id: schema.genders.id });
   if (g) {
     genderId = g.id;
   } else {
     const [existing] = await db
-      .select({ id: genders.id })
-      .from(genders)
-      .where(eq(genders.label, 'test-gender'))
+      .select({ id: schema.genders.id })
+      .from(schema.genders)
+      .where(eq(schema.genders.label, 'test-gender'))
       .limit(1);
     genderId = existing.id;
   }
 
   const [uni] = await db
-    .insert(universities)
+    .insert(schema.universities)
     .values({ label: 'test-university' })
     .onConflictDoNothing()
-    .returning({ id: universities.id });
+    .returning({ id: schema.universities.id });
   if (uni) {
     universityId = uni.id;
   } else {
     const [existing] = await db
-      .select({ id: universities.id })
-      .from(universities)
-      .where(eq(universities.label, 'test-university'))
+      .select({ id: schema.universities.id })
+      .from(schema.universities)
+      .where(eq(schema.universities.label, 'test-university'))
       .limit(1);
     universityId = existing.id;
   }
 
   const [maj] = await db
-    .insert(majors)
+    .insert(schema.majors)
     .values({ label: 'test-major' })
     .onConflictDoNothing()
-    .returning({ id: majors.id });
+    .returning({ id: schema.majors.id });
   if (maj) {
     majorId = maj.id;
   } else {
     const [existing] = await db
-      .select({ id: majors.id })
-      .from(majors)
-      .where(eq(majors.label, 'test-major'))
+      .select({ id: schema.majors.id })
+      .from(schema.majors)
+      .where(eq(schema.majors.label, 'test-major'))
       .limit(1);
     majorId = existing.id;
   }
 
   const [yr] = await db
-    .insert(yearsOfStudy)
+    .insert(schema.yearsOfStudy)
     .values({ label: '1st' })
     .onConflictDoNothing()
-    .returning({ id: yearsOfStudy.id });
+    .returning({ id: schema.yearsOfStudy.id });
   if (yr) {
     yearOfStudyId = yr.id;
   } else {
     const [existing] = await db
-      .select({ id: yearsOfStudy.id })
-      .from(yearsOfStudy)
-      .where(eq(yearsOfStudy.label, '1st'))
+      .select({ id: schema.yearsOfStudy.id })
+      .from(schema.yearsOfStudy)
+      .where(eq(schema.yearsOfStudy.label, '1st'))
       .limit(1);
     yearOfStudyId = existing.id;
   }
 
   const [diet] = await db
-    .insert(dietaryRestrictions)
+    .insert(schema.dietaryRestrictions)
     .values({ label: 'test-diet' })
     .onConflictDoNothing()
-    .returning({ id: dietaryRestrictions.id });
+    .returning({ id: schema.dietaryRestrictions.id });
   if (diet) {
     dietaryRestrictionId = diet.id;
   } else {
     const [existing] = await db
-      .select({ id: dietaryRestrictions.id })
-      .from(dietaryRestrictions)
-      .where(eq(dietaryRestrictions.label, 'test-diet'))
+      .select({ id: schema.dietaryRestrictions.id })
+      .from(schema.dietaryRestrictions)
+      .where(eq(schema.dietaryRestrictions.label, 'test-diet'))
       .limit(1);
     dietaryRestrictionId = existing.id;
   }
@@ -143,17 +130,11 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await db
-    .delete(userDietaryRestrictions)
-    .where(eq(userDietaryRestrictions.userId, testUserId));
-  await db
-    .delete(userProfileAbout)
-    .where(eq(userProfileAbout.userId, testUserId));
-  await db
-    .delete(userProfileProfessional)
-    .where(eq(userProfileProfessional.userId, testUserId));
-  await db.delete(userProfiles).where(eq(userProfiles.userId, testUserId));
-  await db.delete(user).where(eq(user.id, testUserId));
+  await db.delete(schema.userDietaryRestrictions).where(eq(schema.userDietaryRestrictions.userId, testUserId));
+  await db.delete(schema.userProfileAbout).where(eq(schema.userProfileAbout.userId, testUserId));
+  await db.delete(schema.userProfileProfessional).where(eq(schema.userProfileProfessional.userId, testUserId));
+  await db.delete(schema.userProfiles).where(eq(schema.userProfiles.userId, testUserId));
+  await db.delete(schema.user).where(eq(schema.user.id, testUserId));
 });
 
 function validPersonalData() {
@@ -179,13 +160,9 @@ function validProfileData() {
 }
 
 async function clearProfile() {
-  await db
-    .delete(userDietaryRestrictions)
-    .where(eq(userDietaryRestrictions.userId, testUserId));
-  await db
-    .delete(userProfileAbout)
-    .where(eq(userProfileAbout.userId, testUserId));
-  await db.delete(userProfiles).where(eq(userProfiles.userId, testUserId));
+  await db.delete(schema.userDietaryRestrictions).where(eq(schema.userDietaryRestrictions.userId, testUserId));
+  await db.delete(schema.userProfileAbout).where(eq(schema.userProfileAbout.userId, testUserId));
+  await db.delete(schema.userProfiles).where(eq(schema.userProfiles.userId, testUserId));
 }
 
 describe('getUserProfile', () => {
@@ -203,7 +180,7 @@ describe('getUserProfile', () => {
   });
 
   test('returns profile data with null about-fields when only the personal step is done', async () => {
-    await db.insert(userProfiles).values({
+    await db.insert(schema.userProfiles).values({
       userId: testUserId,
       fullName: 'Alice Smith',
       genderId,
@@ -223,12 +200,12 @@ describe('getUserProfile', () => {
   });
 
   test('includes about fields once the about step is also saved', async () => {
-    await db.insert(userProfiles).values({
+    await db.insert(schema.userProfiles).values({
       userId: testUserId,
       fullName: 'Bob',
       genderId,
     });
-    await db.insert(userProfileAbout).values({
+    await db.insert(schema.userProfileAbout).values({
       userId: testUserId,
       universityId,
       majorId,
@@ -246,14 +223,12 @@ describe('getUserProfile', () => {
   });
 
   test('includes dietary restrictions in profile', async () => {
-    await db.insert(userProfiles).values({
+    await db.insert(schema.userProfiles).values({
       userId: testUserId,
       fullName: 'Bob',
       genderId,
     });
-    await db
-      .insert(userDietaryRestrictions)
-      .values({ userId: testUserId, restrictionId: dietaryRestrictionId });
+    await db.insert(schema.userDietaryRestrictions).values({ userId: testUserId, restrictionId: dietaryRestrictionId });
 
     const result = await getUserProfile();
     expect(result.success).toBe(true);
@@ -290,8 +265,8 @@ describe('savePersonalProfile', () => {
 
     const [about] = await db
       .select()
-      .from(userProfileAbout)
-      .where(eq(userProfileAbout.userId, testUserId));
+      .from(schema.userProfileAbout)
+      .where(eq(schema.userProfileAbout.userId, testUserId));
     expect(about).toBeUndefined();
   });
 
@@ -299,23 +274,20 @@ describe('savePersonalProfile', () => {
     const result = await savePersonalProfile(validPersonalData());
     expect(result.success).toBe(true);
 
-    const [profile] = await db
-      .select()
-      .from(userProfiles)
-      .where(eq(userProfiles.userId, testUserId));
+    const [profile] = await db.select().from(schema.userProfiles).where(eq(schema.userProfiles.userId, testUserId));
     expect(profile.fullName).toBe('Alice Smith');
     expect(profile.genderId).toBe(genderId);
 
     const [updatedUser] = await db
-      .select({ name: user.name })
-      .from(user)
-      .where(eq(user.id, testUserId));
+      .select({ name: schema.user.name })
+      .from(schema.user)
+      .where(eq(schema.user.id, testUserId));
     expect(updatedUser.name).toBe('Alice Smith');
 
     const [about] = await db
       .select()
-      .from(userProfileAbout)
-      .where(eq(userProfileAbout.userId, testUserId));
+      .from(schema.userProfileAbout)
+      .where(eq(schema.userProfileAbout.userId, testUserId));
     expect(about).toBeUndefined();
   });
 
@@ -326,10 +298,7 @@ describe('savePersonalProfile', () => {
     });
     expect(result.success).toBe(true);
 
-    const [profile] = await db
-      .select()
-      .from(userProfiles)
-      .where(eq(userProfiles.userId, testUserId));
+    const [profile] = await db.select().from(schema.userProfiles).where(eq(schema.userProfiles.userId, testUserId));
     expect(profile.fullName).toBe('Alice Updated');
   });
 
@@ -341,8 +310,8 @@ describe('savePersonalProfile', () => {
 
     const rows = await db
       .select()
-      .from(userDietaryRestrictions)
-      .where(eq(userDietaryRestrictions.userId, testUserId));
+      .from(schema.userDietaryRestrictions)
+      .where(eq(schema.userDietaryRestrictions.userId, testUserId));
     expect(rows).toHaveLength(1);
     expect(rows[0].restrictionId).toBe(dietaryRestrictionId);
   });
@@ -355,8 +324,8 @@ describe('savePersonalProfile', () => {
 
     const rows = await db
       .select()
-      .from(userDietaryRestrictions)
-      .where(eq(userDietaryRestrictions.userId, testUserId));
+      .from(schema.userDietaryRestrictions)
+      .where(eq(schema.userDietaryRestrictions.userId, testUserId));
     expect(rows).toHaveLength(0);
 
     await clearProfile();
@@ -368,10 +337,7 @@ describe('savePersonalProfile', () => {
       linkedinUrl: 'http://www.linkedin.com/in/alice/?utm_source=x&trk=y',
     });
 
-    const [profile] = await db
-      .select()
-      .from(userProfiles)
-      .where(eq(userProfiles.userId, testUserId));
+    const [profile] = await db.select().from(schema.userProfiles).where(eq(schema.userProfiles.userId, testUserId));
     expect(profile.linkedinUrl).toBe('https://www.linkedin.com/in/alice');
 
     const result = await getUserProfile();
@@ -382,10 +348,7 @@ describe('savePersonalProfile', () => {
   test('clears linkedin when saved blank', async () => {
     await savePersonalProfile({ ...validPersonalData(), linkedinUrl: '' });
 
-    const [profile] = await db
-      .select()
-      .from(userProfiles)
-      .where(eq(userProfiles.userId, testUserId));
+    const [profile] = await db.select().from(schema.userProfiles).where(eq(schema.userProfiles.userId, testUserId));
     expect(profile.linkedinUrl).toBeNull();
 
     await clearProfile();
@@ -447,8 +410,8 @@ describe('saveAboutProfile', () => {
 
     const [about] = await db
       .select()
-      .from(userProfileAbout)
-      .where(eq(userProfileAbout.userId, testUserId));
+      .from(schema.userProfileAbout)
+      .where(eq(schema.userProfileAbout.userId, testUserId));
     expect(about.universityId).toBe(universityId);
     expect(about.attendedHackathonBefore).toBe(true);
   });
@@ -462,8 +425,8 @@ describe('saveAboutProfile', () => {
 
     const [about] = await db
       .select()
-      .from(userProfileAbout)
-      .where(eq(userProfileAbout.userId, testUserId));
+      .from(schema.userProfileAbout)
+      .where(eq(schema.userProfileAbout.userId, testUserId));
     expect(about.attendedHackathonBefore).toBe(false);
   });
 
@@ -476,8 +439,8 @@ describe('saveAboutProfile', () => {
 
     const [about] = await db
       .select()
-      .from(userProfileAbout)
-      .where(eq(userProfileAbout.userId, testUserId));
+      .from(schema.userProfileAbout)
+      .where(eq(schema.userProfileAbout.userId, testUserId));
     expect(about.githubUrl).toBe('https://github.com/alice');
 
     await clearProfile();
@@ -506,14 +469,11 @@ describe('saveFullProfile', () => {
     const result = await saveFullProfile(validProfileData());
     expect(result.success).toBe(true);
 
-    const [profile] = await db
-      .select()
-      .from(userProfiles)
-      .where(eq(userProfiles.userId, testUserId));
+    const [profile] = await db.select().from(schema.userProfiles).where(eq(schema.userProfiles.userId, testUserId));
     const [about] = await db
       .select()
-      .from(userProfileAbout)
-      .where(eq(userProfileAbout.userId, testUserId));
+      .from(schema.userProfileAbout)
+      .where(eq(schema.userProfileAbout.userId, testUserId));
     expect(profile.fullName).toBe('Alice Smith');
     expect(about.universityId).toBe(universityId);
   });
@@ -527,14 +487,11 @@ describe('saveFullProfile', () => {
     });
     expect(result.success).toBe(false);
 
-    const [profile] = await db
-      .select()
-      .from(userProfiles)
-      .where(eq(userProfiles.userId, testUserId));
+    const [profile] = await db.select().from(schema.userProfiles).where(eq(schema.userProfiles.userId, testUserId));
     const [about] = await db
       .select()
-      .from(userProfileAbout)
-      .where(eq(userProfileAbout.userId, testUserId));
+      .from(schema.userProfileAbout)
+      .where(eq(schema.userProfileAbout.userId, testUserId));
     expect(profile).toBeUndefined();
     expect(about).toBeUndefined();
   });
@@ -552,8 +509,8 @@ describe('saveFullProfile', () => {
 
     const [about] = await db
       .select()
-      .from(userProfileAbout)
-      .where(eq(userProfileAbout.userId, testUserId));
+      .from(schema.userProfileAbout)
+      .where(eq(schema.userProfileAbout.userId, testUserId));
     expect(about.attendedHackathonBefore).toBe(true);
 
     await clearProfile();
@@ -573,11 +530,11 @@ describe('saveFullProfile', () => {
 
     beforeAll(async () => {
       const [event] = await db
-        .insert(events)
+        .insert(schema.events)
         .values({ name: 'Profile Judge Test Event' })
-        .returning({ id: events.id });
+        .returning({ id: schema.events.id });
       eventId = event.id;
-      await db.insert(eventJudges).values({
+      await db.insert(schema.eventJudges).values({
         eventId,
         userId: testUserId,
         email: 'profile-test@example.com',
@@ -585,7 +542,7 @@ describe('saveFullProfile', () => {
     });
 
     afterAll(async () => {
-      await db.delete(events).where(eq(events.id, eventId));
+      await db.delete(schema.events).where(eq(schema.events.id, eventId));
     });
 
     test('saves the personal half without any student fields', async () => {
@@ -596,14 +553,11 @@ describe('saveFullProfile', () => {
       });
       expect(result.success).toBe(true);
 
-      const [profile] = await db
-        .select()
-        .from(userProfiles)
-        .where(eq(userProfiles.userId, testUserId));
+      const [profile] = await db.select().from(schema.userProfiles).where(eq(schema.userProfiles.userId, testUserId));
       const [about] = await db
         .select()
-        .from(userProfileAbout)
-        .where(eq(userProfileAbout.userId, testUserId));
+        .from(schema.userProfileAbout)
+        .where(eq(schema.userProfileAbout.userId, testUserId));
       expect(profile.fullName).toBe('Alice Smith');
       expect(about).toBeUndefined();
     });
@@ -617,10 +571,7 @@ describe('saveFullProfile', () => {
       });
       expect(result.success).toBe(false);
 
-      const [profile] = await db
-        .select()
-        .from(userProfiles)
-        .where(eq(userProfiles.userId, testUserId));
+      const [profile] = await db.select().from(schema.userProfiles).where(eq(schema.userProfiles.userId, testUserId));
       expect(profile).toBeUndefined();
     });
 
@@ -631,8 +582,8 @@ describe('saveFullProfile', () => {
 
       const [about] = await db
         .select()
-        .from(userProfileAbout)
-        .where(eq(userProfileAbout.userId, testUserId));
+        .from(schema.userProfileAbout)
+        .where(eq(schema.userProfileAbout.userId, testUserId));
       expect(about.universityId).toBe(universityId);
       await clearProfile();
     });
@@ -646,14 +597,11 @@ describe('saveFullProfile', () => {
       });
       expect(result.success).toBe(true);
 
-      const [profile] = await db
-        .select()
-        .from(userProfiles)
-        .where(eq(userProfiles.userId, testUserId));
+      const [profile] = await db.select().from(schema.userProfiles).where(eq(schema.userProfiles.userId, testUserId));
       const [about] = await db
         .select()
-        .from(userProfileAbout)
-        .where(eq(userProfileAbout.userId, testUserId));
+        .from(schema.userProfileAbout)
+        .where(eq(schema.userProfileAbout.userId, testUserId));
       expect(profile.linkedinUrl).toBe('https://linkedin.com/in/alice');
       expect(about).toBeUndefined();
       await clearProfile();
@@ -684,9 +632,7 @@ describe('saveFullProfile', () => {
       if (!profile.success) throw new Error(profile.error);
       expect(profile.data?.linkedinUrl).toBe('https://linkedin.com/in/alice');
 
-      await db
-        .delete(userProfileProfessional)
-        .where(eq(userProfileProfessional.userId, testUserId));
+      await db.delete(schema.userProfileProfessional).where(eq(schema.userProfileProfessional.userId, testUserId));
       await clearProfile();
     });
   });
@@ -703,7 +649,7 @@ describe('removeProfilePicture', () => {
 
   test('succeeds when user has no profile picture (no-op S3)', async () => {
     // Ensure user has no image set.
-    await db.update(user).set({ image: null }).where(eq(user.id, testUserId));
+    await db.update(schema.user).set({ image: null }).where(eq(schema.user.id, testUserId));
     const result = await removeProfilePicture();
     expect(result.success).toBe(true);
   });

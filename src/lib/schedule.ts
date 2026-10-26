@@ -29,29 +29,15 @@ export type ScheduleInstant = {
 
 /** Prefer an ongoing entry, then the next one, then the last completed entry.
  * An open-ended entry runs until the next distinct start on the schedule. */
-export function currentScheduleEntryId(
-  entries: ScheduleInstant[],
-  now: number,
-) {
+export function currentScheduleEntryId(entries: ScheduleInstant[], now: number) {
   const sorted = entries
     .filter((entry) => entry.startsAt !== null)
     .toSorted((a, b) => Date.parse(a.startsAt!) - Date.parse(b.startsAt!));
   const current = sorted.find((entry) => {
     const start = Date.parse(entry.startsAt!);
-    const next = sorted.find(
-      (candidate) => Date.parse(candidate.startsAt!) > start,
-    );
-    const end = entry.endsAt
-      ? Date.parse(entry.endsAt)
-      : next
-        ? Date.parse(next.startsAt!)
-        : Infinity;
+    const next = sorted.find((candidate) => Date.parse(candidate.startsAt!) > start);
+    const end = entry.endsAt ? Date.parse(entry.endsAt) : next ? Date.parse(next.startsAt!) : Infinity;
     return start <= now && now < end;
   });
-  return (
-    current?.id ??
-    sorted.find((entry) => Date.parse(entry.startsAt!) > now)?.id ??
-    sorted.at(-1)?.id ??
-    null
-  );
+  return current?.id ?? sorted.find((entry) => Date.parse(entry.startsAt!) > now)?.id ?? sorted.at(-1)?.id ?? null;
 }

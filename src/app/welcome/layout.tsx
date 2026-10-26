@@ -3,31 +3,15 @@ export const instant = false;
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import {
-  canReviewStep,
-  getOnboardingProgress,
-  type Step,
-} from './onboarding-progress';
+import { canReviewStep, getOnboardingProgress, type Step } from './onboarding-progress';
 import { WelcomeStepNav, type WelcomeStep } from './welcome-layout';
 
 // Account/app pages aren't useful search results; keep them out of the index.
 export const metadata: Metadata = { robots: { index: false } };
 
-export default async function WelcomeRouteLayout({
-  children,
-  modal,
-}: {
-  children: ReactNode;
-  modal: ReactNode;
-}) {
+export default async function WelcomeRouteLayout({ children, modal }: { children: ReactNode; modal: ReactNode }) {
   const progress = await getOnboardingProgress();
 
   const steps: WelcomeStep[] = [
@@ -78,9 +62,7 @@ export default async function WelcomeRouteLayout({
               <h1>{progress.isFirstLogin ? 'Welcome!' : 'Welcome back!'}</h1>
             </CardTitle>
             <CardDescription>
-              Signed in as{' '}
-              <span className='font-medium'>{progress.user.email}</span>. Set up
-              your account to continue.
+              Signed in as <span className='font-medium'>{progress.user.email}</span>. Set up your account to continue.
             </CardDescription>
             <WelcomeStepNav steps={steps} />
           </CardHeader>

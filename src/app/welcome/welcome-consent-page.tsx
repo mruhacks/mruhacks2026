@@ -5,20 +5,10 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 
-import {
-  recordOnboardingConsent,
-  completeWelcomeOnboarding,
-} from '@/app/dashboard/account/actions';
+import { recordOnboardingConsent, completeWelcomeOnboarding } from '@/app/dashboard/account/actions';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import {
-  Field,
-  FieldContent,
-  FieldError,
-  FieldGroup,
-  FieldLabel,
-  RequiredAsterisk,
-} from '@/components/ui/field';
+import { Field, FieldContent, FieldError, FieldGroup, FieldLabel, RequiredAsterisk } from '@/components/ui/field';
 import { Separator } from '@/components/ui/separator';
 import { Spinner } from '@/components/ui/spinner';
 import curtWaving from '@/assets/crt_waving.png';
@@ -82,37 +72,24 @@ export function WelcomeConsentPage({
     <form onSubmit={submit} noValidate>
       <div className='flex flex-col gap-6'>
         <div>
-          <Image
-            src={curtWaving}
-            alt='Curt waving'
-            className='mx-auto mb-5 h-auto w-40'
-            priority
-          />
+          <Image src={curtWaving} alt='Curt waving' className='mx-auto mb-5 h-auto w-40' priority />
           {isReacceptance ? (
             <>
-              <h2 className='text-lg font-semibold'>
-                We&apos;ve updated our terms
-              </h2>
+              <h2 className='text-lg font-semibold'>We&apos;ve updated our terms</h2>
               <p className='text-muted-foreground mt-1 text-sm'>
-                Our Terms of Use or Privacy Policy changed since you last
-                agreed. Please review and accept them to continue.
+                Our Terms of Use or Privacy Policy changed since you last agreed. Please review and accept them to
+                continue.
               </p>
             </>
           ) : (
             <>
               <h2 className='text-lg font-semibold'>Welcome to MRUHacks!</h2>
-              <p className='text-muted-foreground mt-1 text-sm'>
-                First, some legal stuff.
-              </p>
+              <p className='text-muted-foreground mt-1 text-sm'>First, some legal stuff.</p>
             </>
           )}
         </div>
         <FieldGroup className='gap-3'>
-          <Field
-            orientation='horizontal'
-            data-invalid={Boolean(legalError)}
-            data-disabled={submitting}
-          >
+          <Field orientation='horizontal' data-invalid={Boolean(legalError)} data-disabled={submitting}>
             <Checkbox
               id='welcome-legal'
               checked={acceptLegal}
@@ -125,22 +102,13 @@ export function WelcomeConsentPage({
               required
             />
             <FieldContent className='min-w-0'>
-              <FieldLabel
-                htmlFor='welcome-legal'
-                className='block w-full font-normal'
-              >
+              <FieldLabel htmlFor='welcome-legal' className='block w-full font-normal'>
                 I agree to the{' '}
-                <Link
-                  href='/terms'
-                  className='text-primary whitespace-nowrap underline underline-offset-2'
-                >
+                <Link href='/terms' className='text-primary whitespace-nowrap underline underline-offset-2'>
                   Terms of Use
                 </Link>{' '}
                 and{' '}
-                <Link
-                  href='/privacy'
-                  className='text-primary whitespace-nowrap underline underline-offset-2'
-                >
+                <Link href='/privacy' className='text-primary whitespace-nowrap underline underline-offset-2'>
                   Privacy Policy
                 </Link>
                 <RequiredAsterisk />
@@ -156,8 +124,7 @@ export function WelcomeConsentPage({
               disabled={submitting}
             />
             <FieldLabel htmlFor='welcome-marketing' className='font-normal'>
-              Send me newsletters, sponsor offers, and updates about future
-              MRUHacks events.
+              Send me newsletters, sponsor offers, and updates about future MRUHacks events.
             </FieldLabel>
           </Field>
         </FieldGroup>

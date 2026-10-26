@@ -11,19 +11,12 @@ import {
   scanCheckIn,
   undoCheckIn,
 } from '@/app/dashboard/admin/events/check-in-actions';
-import type {
-  CheckInDietary,
-  CheckInOutcome,
-  CheckInRosterRow,
-} from '@/app/dashboard/admin/events/check-in-actions';
+import type { CheckInDietary, CheckInOutcome, CheckInRosterRow } from '@/app/dashboard/admin/events/check-in-actions';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { CheckInRoster } from './check-in-roster';
 import { CheckInScanner } from './check-in-scanner';
-import {
-  CheckInTargetSelector,
-  type CheckInTargetOption,
-} from './check-in-target-selector';
+import { CheckInTargetSelector, type CheckInTargetOption } from './check-in-target-selector';
 import {
   applyCheckIn,
   browserPollingHost,
@@ -59,24 +52,14 @@ const FEEDBACK_STYLES = {
 
 function DietaryBadges({ dietary }: { dietary: CheckInDietary }) {
   if (dietary.restrictions.length === 0) {
-    return (
-      <p className='text-muted-foreground mt-2 text-sm'>
-        No dietary restrictions.
-      </p>
-    );
+    return <p className='text-muted-foreground mt-2 text-sm'>No dietary restrictions.</p>;
   }
 
   return (
     <div className='mt-2 flex flex-wrap gap-1.5'>
       {dietary.restrictions.map((label) => (
-        <Badge
-          key={label}
-          variant='warning'
-          className='text-left text-sm whitespace-normal'
-        >
-          {label === 'Other' && dietary.otherText
-            ? `Other: ${dietary.otherText}`
-            : label}
+        <Badge key={label} variant='warning' className='text-left text-sm whitespace-normal'>
+          {label === 'Other' && dietary.otherText ? `Other: ${dietary.otherText}` : label}
         </Badge>
       ))}
     </div>
@@ -116,9 +99,7 @@ function ScanFeedbackPanel({ feedback }: { feedback: ScanFeedback }) {
         </p>
         <p className='text-muted-foreground text-sm'>
           At {outcome.checkedInAtLabel}
-          {duplicate && outcome.checkedInByName
-            ? ` by ${outcome.checkedInByName}`
-            : ''}
+          {duplicate && outcome.checkedInByName ? ` by ${outcome.checkedInByName}` : ''}
           {duplicate ? '. This pass has already been used.' : '.'}
         </p>
         {outcome.dietary && <DietaryBadges dietary={outcome.dietary} />}
@@ -219,11 +200,7 @@ export function CheckInPage({
       const seq = mutationSeqRef.current;
 
       try {
-        const result = await getCheckInUpdates(
-          currentEventId,
-          rosterWatermark(rosterRef.current),
-          currentTarget,
-        );
+        const result = await getCheckInUpdates(currentEventId, rosterWatermark(rosterRef.current), currentTarget);
         if (cancelled || seq !== mutationSeqRef.current) return;
         if (!result.success || !result.data) return;
 
@@ -252,10 +229,7 @@ export function CheckInPage({
     // The scheduler owns when a poll may run — it stops the interval outright
     // while the page is backgrounded or unfocused, and polls the moment it
     // comes back.
-    const stopPolling = startRosterPolling(
-      () => void poll(eventId, targetId),
-      browserPollingHost(),
-    );
+    const stopPolling = startRosterPolling(() => void poll(eventId, targetId), browserPollingHost());
 
     return () => {
       cancelled = true;
@@ -265,20 +239,17 @@ export function CheckInPage({
 
   /** Writes a mutation's own result straight into the roster. Falls back to a
    *  full reload only when the roster has no row to patch. */
-  const applyLocalPatch = React.useCallback(
-    (patched: CheckInRosterRow[] | null) => {
-      mutationSeqRef.current += 1;
-      if (!patched) {
-        setReloadToken((token) => token + 1);
-        return;
-      }
-      // Written eagerly as well as through state so back-to-back scans each
-      // build on the previous one rather than on the last committed render.
-      rosterRef.current = patched;
-      setRoster(patched);
-    },
-    [],
-  );
+  const applyLocalPatch = React.useCallback((patched: CheckInRosterRow[] | null) => {
+    mutationSeqRef.current += 1;
+    if (!patched) {
+      setReloadToken((token) => token + 1);
+      return;
+    }
+    // Written eagerly as well as through state so back-to-back scans each
+    // build on the previous one rather than on the last committed render.
+    rosterRef.current = patched;
+    setRoster(patched);
+  }, []);
 
   const handlePayload = React.useCallback(
     async (payload: string) => {
@@ -315,9 +286,7 @@ export function CheckInPage({
           const { name, alreadyCheckedIn, targetName } = result.data;
           const forTarget = targetName ? ` for ${targetName}` : '';
           toast.success(
-            alreadyCheckedIn
-              ? `${name} was already checked in${forTarget}.`
-              : `${name} is checked in${forTarget}.`,
+            alreadyCheckedIn ? `${name} was already checked in${forTarget}.` : `${name} is checked in${forTarget}.`,
           );
           applyLocalPatch(applyCheckIn(rosterRef.current, result.data));
         } else if (!result.success) {
@@ -353,12 +322,7 @@ export function CheckInPage({
   // only way back to the door from a dead link.
   const selector =
     subevents.length > 0 || unknownTarget ? (
-      <CheckInTargetSelector
-        eventId={eventId}
-        eventName={eventName}
-        subevents={subevents}
-        targetId={targetId}
-      />
+      <CheckInTargetSelector eventId={eventId} eventName={eventName} subevents={subevents} targetId={targetId} />
     ) : null;
 
   // The URL asked for a sub-event this event doesn't have. Show the picker so
@@ -400,9 +364,7 @@ export function CheckInPage({
   // For a sub-event the population that matters is the people who actually
   // turned up, not everyone registered: "18 of 40 who are here" is the number a
   // meal volunteer is working against, while "18 of 300" tells them nothing.
-  const total = isSubeventArmed
-    ? roster.filter((row) => row.atMainEvent).length
-    : roster.length;
+  const total = isSubeventArmed ? roster.filter((row) => row.atMainEvent).length : roster.length;
   const progress = total ? Math.round((checkedInCount / total) * 100) : 0;
 
   return (
@@ -413,15 +375,11 @@ export function CheckInPage({
         <div>
           <h2 className='text-lg font-semibold'>Check-in</h2>
           <p className='text-muted-foreground mt-1 text-sm'>
-            {checkedInCount} of {total}{' '}
-            {isSubeventArmed ? 'here checked in' : 'checked in'}
+            {checkedInCount} of {total} {isSubeventArmed ? 'here checked in' : 'checked in'}
           </p>
         </div>
         <div className='bg-muted h-2 w-full overflow-hidden rounded-full'>
-          <div
-            className='bg-primary h-full rounded-full transition-[width]'
-            style={{ width: `${progress}%` }}
-          />
+          <div className='bg-primary h-full rounded-full transition-[width]' style={{ width: `${progress}%` }} />
         </div>
       </div>
 
@@ -430,8 +388,7 @@ export function CheckInPage({
           {hasEnded ? (
             // No camera at all: every scan would only come back rejected.
             <div className='text-muted-foreground rounded-xl border p-4 text-sm'>
-              This event has ended. Check-in is frozen — the roster below is the
-              final record.
+              This event has ended. Check-in is frozen — the roster below is the final record.
             </div>
           ) : (
             <>

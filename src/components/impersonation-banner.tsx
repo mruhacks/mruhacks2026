@@ -7,9 +7,9 @@ export function ImpersonationBanner() {
   const { data: session } = authClient.useSession();
 
   // The admin plugin adds impersonatedBy to the session object
-  const impersonatedBy = (
-    session?.session as Record<string, unknown> | undefined
-  )?.impersonatedBy as string | undefined;
+  const impersonatedBy = (session?.session as Record<string, unknown> | undefined)?.impersonatedBy as
+    | string
+    | undefined;
 
   if (!impersonatedBy) return null;
 

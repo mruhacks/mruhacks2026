@@ -13,13 +13,7 @@ import { eventSettingsFormSchema } from '@/app/dashboard/admin/events/schemas';
 import type { UpdateEventSettingsInput } from '@/app/dashboard/admin/events/schemas';
 import { useZoneAbbreviation } from '@/components/local-date-time';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Field,
   FieldDescription,
@@ -43,13 +37,7 @@ import { sanitizeReturnPath } from '@/utils/return-path';
 import { EventTypeSelect } from '../_components/event-type-select';
 import { useEventBasePath } from '../_components/use-event-base-path';
 
-export function EventSettingsForm({
-  event,
-  eventTypes,
-}: {
-  event: AdminEventSettings;
-  eventTypes: EventTypeOption[];
-}) {
+export function EventSettingsForm({ event, eventTypes }: { event: AdminEventSettings; eventTypes: EventTypeOption[] }) {
   const router = useRouter();
   const basePath = useEventBasePath();
   const searchParams = useSearchParams();
@@ -74,9 +62,7 @@ export function EventSettingsForm({
       // check (which needs to know all three) runs on every save.
       startsAt: event.startsAt ? event.startsAt.toISOString() : null,
       endsAt: event.endsAt ? event.endsAt.toISOString() : null,
-      submissionsCloseAt: event.submissionsCloseAt
-        ? event.submissionsCloseAt.toISOString()
-        : null,
+      submissionsCloseAt: event.submissionsCloseAt ? event.submissionsCloseAt.toISOString() : null,
       location: event.location ?? undefined,
       latitude: event.latitude ?? null,
       longitude: event.longitude ?? null,
@@ -100,25 +86,9 @@ export function EventSettingsForm({
     defaultValues: defaults,
   });
 
-  const [
-    teamsEnabled,
-    startsAt,
-    endsAt,
-    name,
-    slug,
-    capacityVisible,
-    submissionsCloseAt,
-  ] = useWatch({
+  const [teamsEnabled, startsAt, endsAt, name, slug, capacityVisible, submissionsCloseAt] = useWatch({
     control,
-    name: [
-      'teamsEnabled',
-      'startsAt',
-      'endsAt',
-      'name',
-      'slug',
-      'capacityVisible',
-      'submissionsCloseAt',
-    ],
+    name: ['teamsEnabled', 'startsAt', 'endsAt', 'name', 'slug', 'capacityVisible', 'submissionsCloseAt'],
   });
   // What the participant URL will look like once saved — the uuid is the
   // fallback for an event with no slug.
@@ -126,9 +96,7 @@ export function EventSettingsForm({
   const suggestedSlug = slugify(name ?? '');
   const startsAtAbbr = useZoneAbbreviation(startsAt ?? undefined);
   const endsAtAbbr = useZoneAbbreviation(endsAt ?? undefined);
-  const submissionsCloseAtAbbr = useZoneAbbreviation(
-    submissionsCloseAt ?? undefined,
-  );
+  const submissionsCloseAtAbbr = useZoneAbbreviation(submissionsCloseAt ?? undefined);
 
   async function onSubmit(data: UpdateEventSettingsInput) {
     setSubmitError(null);
@@ -175,9 +143,7 @@ export function EventSettingsForm({
             <Card className='gap-4 py-5'>
               <CardHeader className='gap-1 px-5'>
                 <CardTitle>Event page</CardTitle>
-                <CardDescription>
-                  What participants see when they find your event.
-                </CardDescription>
+                <CardDescription>What participants see when they find your event.</CardDescription>
               </CardHeader>
               <CardContent className='px-5'>
                 <FieldGroup className='gap-4'>
@@ -211,20 +177,13 @@ export function EventSettingsForm({
                     />
                     <FieldDescription>
                       Participants reach this event at{' '}
-                      <span className='font-mono break-all'>
-                        /dashboard/events/{urlSegment}
-                      </span>
-                      . Leave blank to keep using the event id.
+                      <span className='font-mono break-all'>/dashboard/events/{urlSegment}</span>. Leave blank to keep
+                      using the event id.
                     </FieldDescription>
                     {errors.slug && <FieldError errors={[errors.slug]} />}
                   </Field>
-                  <Field
-                    className='gap-1.5'
-                    data-invalid={!!errors.eventTypeId}
-                  >
-                    <FieldLabel htmlFor='eventTypeId'>
-                      Type (optional)
-                    </FieldLabel>
+                  <Field className='gap-1.5' data-invalid={!!errors.eventTypeId}>
+                    <FieldLabel htmlFor='eventTypeId'>Type (optional)</FieldLabel>
                     <Controller
                       name='eventTypeId'
                       control={control}
@@ -241,21 +200,13 @@ export function EventSettingsForm({
                         />
                       )}
                     />
-                    <FieldDescription>
-                      Tag meals so they show up on the dietary report.
-                    </FieldDescription>
-                    {errors.eventTypeId && (
-                      <FieldError errors={[errors.eventTypeId]} />
-                    )}
+                    <FieldDescription>Tag meals so they show up on the dietary report.</FieldDescription>
+                    {errors.eventTypeId && <FieldError errors={[errors.eventTypeId]} />}
                   </Field>
                   <Field orientation='horizontal' className='gap-4'>
                     <FieldContent>
-                      <FieldLabel htmlFor='isFeatured'>
-                        Feature on homepage
-                      </FieldLabel>
-                      <FieldDescription>
-                        Use this event for the homepage registration link.
-                      </FieldDescription>
+                      <FieldLabel htmlFor='isFeatured'>Feature on homepage</FieldLabel>
+                      <FieldDescription>Use this event for the homepage registration link.</FieldDescription>
                     </FieldContent>
                     <Controller
                       name='isFeatured'
@@ -278,17 +229,13 @@ export function EventSettingsForm({
             <Card className='gap-4 py-5'>
               <CardHeader className='gap-1 px-5'>
                 <CardTitle>When &amp; where</CardTitle>
-                <CardDescription>
-                  Set the schedule and venue when they’re confirmed.
-                </CardDescription>
+                <CardDescription>Set the schedule and venue when they’re confirmed.</CardDescription>
               </CardHeader>
               <CardContent className='px-5'>
                 <FieldGroup className='gap-4'>
                   <FieldGroup className='grid gap-3 sm:grid-cols-2'>
                     <Field className='gap-1.5' data-invalid={!!errors.startsAt}>
-                      <FieldLabel htmlFor='startsAt'>
-                        Starts ({startsAtAbbr})
-                      </FieldLabel>
+                      <FieldLabel htmlFor='startsAt'>Starts ({startsAtAbbr})</FieldLabel>
                       <Controller
                         name='startsAt'
                         control={control}
@@ -298,29 +245,17 @@ export function EventSettingsForm({
                             id='startsAt'
                             aria-invalid={!!errors.startsAt}
                             type='datetime-local'
-                            value={
-                              field.value
-                                ? toDateTimeLocalValue(new Date(field.value))
-                                : ''
-                            }
+                            value={field.value ? toDateTimeLocalValue(new Date(field.value)) : ''}
                             onChange={(e) =>
-                              field.onChange(
-                                fromDateTimeLocalValue(
-                                  e.target.value,
-                                )?.toISOString() ?? null,
-                              )
+                              field.onChange(fromDateTimeLocalValue(e.target.value)?.toISOString() ?? null)
                             }
                           />
                         )}
                       />
-                      {errors.startsAt && (
-                        <FieldError errors={[errors.startsAt]} />
-                      )}
+                      {errors.startsAt && <FieldError errors={[errors.startsAt]} />}
                     </Field>
                     <Field className='gap-1.5' data-invalid={!!errors.endsAt}>
-                      <FieldLabel htmlFor='endsAt'>
-                        Ends ({endsAtAbbr}, optional)
-                      </FieldLabel>
+                      <FieldLabel htmlFor='endsAt'>Ends ({endsAtAbbr}, optional)</FieldLabel>
                       <Controller
                         name='endsAt'
                         control={control}
@@ -330,17 +265,9 @@ export function EventSettingsForm({
                             id='endsAt'
                             aria-invalid={!!errors.endsAt}
                             type='datetime-local'
-                            value={
-                              field.value
-                                ? toDateTimeLocalValue(new Date(field.value))
-                                : ''
-                            }
+                            value={field.value ? toDateTimeLocalValue(new Date(field.value)) : ''}
                             onChange={(e) =>
-                              field.onChange(
-                                fromDateTimeLocalValue(
-                                  e.target.value,
-                                )?.toISOString() ?? null,
-                              )
+                              field.onChange(fromDateTimeLocalValue(e.target.value)?.toISOString() ?? null)
                             }
                           />
                         )}
@@ -349,28 +276,21 @@ export function EventSettingsForm({
                     </Field>
                   </FieldGroup>
                   <Field className='gap-1.5' data-invalid={!!errors.location}>
-                    <FieldLabel htmlFor='location'>
-                      Location (optional)
-                    </FieldLabel>
+                    <FieldLabel htmlFor='location'>Location (optional)</FieldLabel>
                     <Input
                       id='location'
                       aria-invalid={!!errors.location}
                       {...register('location')}
                       placeholder='e.g. Riddell Library & Learning Centre'
                     />
-                    {errors.location && (
-                      <FieldError errors={[errors.location]} />
-                    )}
+                    {errors.location && <FieldError errors={[errors.location]} />}
                   </Field>
                   <FieldSet className='gap-2'>
                     <FieldLegend variant='label' className='mb-0'>
                       Wallet pass location (optional)
                     </FieldLegend>
                     <FieldGroup className='grid gap-3 sm:grid-cols-3'>
-                      <Field
-                        className='gap-1.5'
-                        data-invalid={!!errors.latitude}
-                      >
+                      <Field className='gap-1.5' data-invalid={!!errors.latitude}>
                         <FieldLabel htmlFor='latitude'>Latitude</FieldLabel>
                         <Input
                           id='latitude'
@@ -382,14 +302,9 @@ export function EventSettingsForm({
                           })}
                           placeholder='e.g. 51.012'
                         />
-                        {errors.latitude && (
-                          <FieldError errors={[errors.latitude]} />
-                        )}
+                        {errors.latitude && <FieldError errors={[errors.latitude]} />}
                       </Field>
-                      <Field
-                        className='gap-1.5'
-                        data-invalid={!!errors.longitude}
-                      >
+                      <Field className='gap-1.5' data-invalid={!!errors.longitude}>
                         <FieldLabel htmlFor='longitude'>Longitude</FieldLabel>
                         <Input
                           id='longitude'
@@ -401,17 +316,10 @@ export function EventSettingsForm({
                           })}
                           placeholder='e.g. -114.13'
                         />
-                        {errors.longitude && (
-                          <FieldError errors={[errors.longitude]} />
-                        )}
+                        {errors.longitude && <FieldError errors={[errors.longitude]} />}
                       </Field>
-                      <Field
-                        className='gap-1.5'
-                        data-invalid={!!errors.radiusMeters}
-                      >
-                        <FieldLabel htmlFor='radiusMeters'>
-                          Radius (m)
-                        </FieldLabel>
+                      <Field className='gap-1.5' data-invalid={!!errors.radiusMeters}>
+                        <FieldLabel htmlFor='radiusMeters'>Radius (m)</FieldLabel>
                         <Input
                           id='radiusMeters'
                           type='number'
@@ -422,14 +330,11 @@ export function EventSettingsForm({
                           })}
                           placeholder='e.g. 150'
                         />
-                        {errors.radiusMeters && (
-                          <FieldError errors={[errors.radiusMeters]} />
-                        )}
+                        {errors.radiusMeters && <FieldError errors={[errors.radiusMeters]} />}
                       </Field>
                     </FieldGroup>
                     <FieldDescription>
-                      Suggest the pass near the venue. Set all three values, or
-                      leave them blank.
+                      Suggest the pass near the venue. Set all three values, or leave them blank.
                     </FieldDescription>
                   </FieldSet>
                 </FieldGroup>
@@ -440,20 +345,14 @@ export function EventSettingsForm({
             <Card className='gap-4 py-5'>
               <CardHeader className='gap-1 px-5'>
                 <CardTitle>Registration</CardTitle>
-                <CardDescription>
-                  Who can attend and how many places are available.
-                </CardDescription>
+                <CardDescription>Who can attend and how many places are available.</CardDescription>
               </CardHeader>
               <CardContent className='px-5'>
                 <FieldGroup className='gap-4'>
                   <Field orientation='horizontal' className='gap-4'>
                     <FieldContent>
-                      <FieldLabel htmlFor='hasApplication'>
-                        Require an application
-                      </FieldLabel>
-                      <FieldDescription>
-                        Participants apply before they can attend.
-                      </FieldDescription>
+                      <FieldLabel htmlFor='hasApplication'>Require an application</FieldLabel>
+                      <FieldDescription>Participants apply before they can attend.</FieldDescription>
                     </FieldContent>
                     <Controller
                       name='hasApplication'
@@ -472,12 +371,9 @@ export function EventSettingsForm({
                   </Field>
                   <Field orientation='horizontal' className='gap-4'>
                     <FieldContent>
-                      <FieldLabel htmlFor='checkInEnabled'>
-                        Enable check-in
-                      </FieldLabel>
+                      <FieldLabel htmlFor='checkInEnabled'>Enable check-in</FieldLabel>
                       <FieldDescription>
-                        Offer participant passes and let volunteers record
-                        attendance.
+                        Offer participant passes and let volunteers record attendance.
                       </FieldDescription>
                     </FieldContent>
                     <Controller
@@ -499,10 +395,7 @@ export function EventSettingsForm({
                     <FieldLabel htmlFor='capacity'>
                       Attendee capacity
                       {!capacityVisible && (
-                        <span className='text-muted-foreground font-normal'>
-                          {' '}
-                          (publicly hidden)
-                        </span>
+                        <span className='text-muted-foreground font-normal'> (publicly hidden)</span>
                       )}
                     </FieldLabel>
                     <div className='flex items-center gap-2'>
@@ -534,31 +427,16 @@ export function EventSettingsForm({
                               field.onChange(!field.value);
                             }}
                           >
-                            {field.value ? (
-                              <Eye className='size-4' />
-                            ) : (
-                              <EyeOff className='size-4' />
-                            )}
+                            {field.value ? <Eye className='size-4' /> : <EyeOff className='size-4' />}
                           </Button>
                         )}
                       />
                     </div>
-                    <FieldDescription>
-                      Total attendees. Leave blank for no limit.
-                    </FieldDescription>
-                    {errors.capacity && (
-                      <FieldError errors={[errors.capacity]} />
-                    )}
+                    <FieldDescription>Total attendees. Leave blank for no limit.</FieldDescription>
+                    {errors.capacity && <FieldError errors={[errors.capacity]} />}
                   </Field>
-                  <Button
-                    asChild
-                    variant='outline'
-                    size='sm'
-                    className='self-start'
-                  >
-                    <Link href={`${basePath}/settings/questions`}>
-                      Edit application questions
-                    </Link>
+                  <Button asChild variant='outline' size='sm' className='self-start'>
+                    <Link href={`${basePath}/settings/questions`}>Edit application questions</Link>
                   </Button>
                 </FieldGroup>
               </CardContent>
@@ -566,20 +444,14 @@ export function EventSettingsForm({
             <Card className='gap-4 py-5'>
               <CardHeader className='gap-1 px-5'>
                 <CardTitle>Teams</CardTitle>
-                <CardDescription>
-                  How participants work together.
-                </CardDescription>
+                <CardDescription>How participants work together.</CardDescription>
               </CardHeader>
               <CardContent className='px-5'>
                 <FieldGroup className='gap-4'>
                   <Field orientation='horizontal' className='gap-4'>
                     <FieldContent>
-                      <FieldLabel htmlFor='teamsEnabled'>
-                        Allow teams
-                      </FieldLabel>
-                      <FieldDescription>
-                        Participants can create and join teams.
-                      </FieldDescription>
+                      <FieldLabel htmlFor='teamsEnabled'>Allow teams</FieldLabel>
+                      <FieldDescription>Participants can create and join teams.</FieldDescription>
                     </FieldContent>
                     <Controller
                       name='teamsEnabled'
@@ -597,13 +469,8 @@ export function EventSettingsForm({
                     />
                   </Field>
                   {teamsEnabled && (
-                    <Field
-                      className='gap-1.5'
-                      data-invalid={!!errors.maxTeamSize}
-                    >
-                      <FieldLabel htmlFor='maxTeamSize'>
-                        Members per team
-                      </FieldLabel>
+                    <Field className='gap-1.5' data-invalid={!!errors.maxTeamSize}>
+                      <FieldLabel htmlFor='maxTeamSize'>Members per team</FieldLabel>
                       <Input
                         id='maxTeamSize'
                         aria-invalid={!!errors.maxTeamSize}
@@ -613,12 +480,8 @@ export function EventSettingsForm({
                         })}
                         placeholder='No limit'
                       />
-                      <FieldDescription>
-                        Leave blank for no team size limit.
-                      </FieldDescription>
-                      {errors.maxTeamSize && (
-                        <FieldError errors={[errors.maxTeamSize]} />
-                      )}
+                      <FieldDescription>Leave blank for no team size limit.</FieldDescription>
+                      {errors.maxTeamSize && <FieldError errors={[errors.maxTeamSize]} />}
                     </Field>
                   )}
                 </FieldGroup>
@@ -628,15 +491,11 @@ export function EventSettingsForm({
               <CardHeader className='gap-1 px-5'>
                 <CardTitle>Project submissions</CardTitle>
                 <CardDescription>
-                  Teams write up what they built. Needs an application, teams,
-                  and a start and end time.
+                  Teams write up what they built. Needs an application, teams, and a start and end time.
                 </CardDescription>
               </CardHeader>
               <CardContent className='px-5'>
-                <Field
-                  className='gap-1.5'
-                  data-invalid={!!errors.submissionsCloseAt}
-                >
+                <Field className='gap-1.5' data-invalid={!!errors.submissionsCloseAt}>
                   <FieldLabel htmlFor='submissionsCloseAt'>
                     Submission deadline ({submissionsCloseAtAbbr}, optional)
                   </FieldLabel>
@@ -649,29 +508,16 @@ export function EventSettingsForm({
                         id='submissionsCloseAt'
                         aria-invalid={!!errors.submissionsCloseAt}
                         type='datetime-local'
-                        value={
-                          field.value
-                            ? toDateTimeLocalValue(new Date(field.value))
-                            : ''
-                        }
-                        onChange={(e) =>
-                          field.onChange(
-                            fromDateTimeLocalValue(
-                              e.target.value,
-                            )?.toISOString() ?? null,
-                          )
-                        }
+                        value={field.value ? toDateTimeLocalValue(new Date(field.value)) : ''}
+                        onChange={(e) => field.onChange(fromDateTimeLocalValue(e.target.value)?.toISOString() ?? null)}
                       />
                     )}
                   />
                   <FieldDescription>
-                    Submissions open when the event starts and freeze at this
-                    time. Must fall between the start and end. Leave blank to
-                    take no submissions.
+                    Submissions open when the event starts and freeze at this time. Must fall between the start and end.
+                    Leave blank to take no submissions.
                   </FieldDescription>
-                  {errors.submissionsCloseAt && (
-                    <FieldError errors={[errors.submissionsCloseAt]} />
-                  )}
+                  {errors.submissionsCloseAt && <FieldError errors={[errors.submissionsCloseAt]} />}
                 </Field>
               </CardContent>
             </Card>

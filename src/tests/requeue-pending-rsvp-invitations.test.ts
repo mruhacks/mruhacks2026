@@ -1,16 +1,8 @@
-import {
-  describe,
-  test,
-  expect,
-  beforeAll,
-  afterAll,
-  beforeEach,
-  vi,
-} from 'vitest';
+import { describe, test, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 
 import { db } from '@/utils/db';
-import { events, eventInvitations, eventRsvpWaves, user } from '@/db/schema';
+import * as schema from '@/db/schema';
 import { insertInvitation } from '@/tests/participation-fixtures';
 
 const { publishRsvpInvitation } = vi.hoisted(() => ({
@@ -20,7 +12,7 @@ vi.mock('@/lib/rsvp/rsvp-invitation-queue', () => ({
   publishRsvpInvitation,
 }));
 
-import { requeuePendingRsvpInvitations } from '@/lib/rsvp/requeue-pending-rsvp-invitations';
+import * as Rsvp from '@/lib/rsvp/server';
 
 const FUTURE_RESPOND_BY = new Date('2099-08-01T23:59:59.000Z');
 const STALE_CREATED_AT = new Date(Date.now() - 10 * 60 * 1000);
@@ -37,13 +29,13 @@ async function createResponse(options: {
 }): Promise<{ responseId: string; waveId: string }> {
   // One event per invitation: a participant is invited at most once.
   const [eventRow] = await db
-    .insert(events)
+    .insert(schema.events)
     .values({ name: 'Invitation Delivery Test', hasApplication: true })
-    .returning({ id: events.id });
+    .returning({ id: schema.events.id });
   const [wave] = await db
-    .insert(eventRsvpWaves)
+    .insert(schema.eventRsvpWaves)
     .values({ eventId: eventRow.id, wave: 1, respondBy: options.respondBy })
-    .returning({ id: eventRsvpWaves.id });
+    .returning({ id: schema.eventRsvpWaves.id });
 
   const { invitationId } = await insertInvitation({
     rsvpWaveId: wave.id,
@@ -61,15 +53,15 @@ async function createResponse(options: {
 async function getResponse(responseId: string) {
   const [row] = await db
     .select()
-    .from(eventInvitations)
-    .where(eq(eventInvitations.id, responseId))
+    .from(schema.eventInvitations)
+    .where(eq(schema.eventInvitations.id, responseId))
     .limit(1);
   return row;
 }
 
 async function deleteResponse(eventId: string): Promise<void> {
   // Cascades to the wave, participant and invitation rows.
-  await db.delete(events).where(eq(events.id, eventId));
+  await db.delete(schema.events).where(eq(schema.events.id, eventId));
 }
 
 const STATUS_BY_LABEL = {
@@ -81,28 +73,26 @@ const STATUS_BY_LABEL = {
 
 beforeAll(async () => {
   const [eventRow] = await db
-    .insert(events)
+    .insert(schema.events)
     .values({ name: 'Reconciliation Sweep Test Event', hasApplication: true })
-    .returning({ id: events.id });
+    .returning({ id: schema.events.id });
   testEventId = eventRow.id;
 
   const [userRow] = await db
-    .insert(user)
+    .insert(schema.user)
     .values({
       name: 'Reconciliation Sweep User',
       email: 'reconciliation-sweep@example.com',
       emailVerified: true,
     })
-    .returning({ id: user.id });
+    .returning({ id: schema.user.id });
   testUserId = userRow.id;
 });
 
 afterAll(async () => {
-  await db
-    .delete(eventRsvpWaves)
-    .where(eq(eventRsvpWaves.eventId, testEventId));
-  await db.delete(events).where(eq(events.id, testEventId));
-  await db.delete(user).where(eq(user.id, testUserId));
+  await db.delete(schema.eventRsvpWaves).where(eq(schema.eventRsvpWaves.eventId, testEventId));
+  await db.delete(schema.events).where(eq(schema.events.id, testEventId));
+  await db.delete(schema.user).where(eq(schema.user.id, testUserId));
 });
 
 beforeEach(() => {
@@ -119,7 +109,7 @@ describe('requeuePendingRsvpInvitations', () => {
     });
 
     try {
-      const result = await requeuePendingRsvpInvitations();
+      const result = await Rsvp.requeuePendingRsvpInvitations();
 
       expect(result.inspected).toBe(1);
       expect(result.queued).toBe(1);
@@ -143,7 +133,7 @@ describe('requeuePendingRsvpInvitations', () => {
     });
 
     try {
-      const result = await requeuePendingRsvpInvitations();
+      const result = await Rsvp.requeuePendingRsvpInvitations();
 
       expect(result.inspected).toBe(0);
       expect(publishRsvpInvitation).not.toHaveBeenCalled();
@@ -175,7 +165,7 @@ describe('requeuePendingRsvpInvitations', () => {
     });
 
     try {
-      const result = await requeuePendingRsvpInvitations();
+      const result = await Rsvp.requeuePendingRsvpInvitations();
 
       expect(result.inspected).toBe(2);
       expect(result.queued).toBe(1);
@@ -192,28 +182,25 @@ describe('requeuePendingRsvpInvitations', () => {
     }
   });
 
-  test.each(['legacy', 'queued', 'sent', 'failed'])(
-    'ignores rows already in %s status',
-    async (status) => {
-      const { responseId, waveId } = await createResponse({
-        respondBy: FUTURE_RESPOND_BY,
-        invitationEmailStatus: status,
-        createdAt: STALE_CREATED_AT,
-      });
+  test.each(['legacy', 'queued', 'sent', 'failed'])('ignores rows already in %s status', async (status) => {
+    const { responseId, waveId } = await createResponse({
+      respondBy: FUTURE_RESPOND_BY,
+      invitationEmailStatus: status,
+      createdAt: STALE_CREATED_AT,
+    });
 
-      try {
-        const result = await requeuePendingRsvpInvitations();
+    try {
+      const result = await Rsvp.requeuePendingRsvpInvitations();
 
-        expect(result.inspected).toBe(0);
-        expect(publishRsvpInvitation).not.toHaveBeenCalled();
+      expect(result.inspected).toBe(0);
+      expect(publishRsvpInvitation).not.toHaveBeenCalled();
 
-        const row = await getResponse(responseId);
-        expect(row.invitationEmailStatus).toBe(status);
-      } finally {
-        await deleteResponse(waveId);
-      }
-    },
-  );
+      const row = await getResponse(responseId);
+      expect(row.invitationEmailStatus).toBe(status);
+    } finally {
+      await deleteResponse(waveId);
+    }
+  });
 
   test('skips a stale unsent row whose RSVP is no longer effectively pending', async () => {
     const { responseId, waveId } = await createResponse({
@@ -224,7 +211,7 @@ describe('requeuePendingRsvpInvitations', () => {
     });
 
     try {
-      const result = await requeuePendingRsvpInvitations();
+      const result = await Rsvp.requeuePendingRsvpInvitations();
 
       expect(result.inspected).toBe(1);
       expect(result.skipped).toBe(1);
@@ -246,7 +233,7 @@ describe('requeuePendingRsvpInvitations', () => {
     });
 
     try {
-      const result = await requeuePendingRsvpInvitations();
+      const result = await Rsvp.requeuePendingRsvpInvitations();
 
       expect(result.skipped).toBe(1);
       expect(publishRsvpInvitation).not.toHaveBeenCalled();
@@ -270,17 +257,17 @@ describe('requeuePendingRsvpInvitations', () => {
     // delivered, processed, and marked 'sent'.
     publishRsvpInvitation.mockImplementationOnce(async (id: string) => {
       await db
-        .update(eventInvitations)
+        .update(schema.eventInvitations)
         .set({
           invitationEmailStatus: 'sent',
           invitationEmailSentAt: new Date(),
         })
-        .where(eq(eventInvitations.id, id));
+        .where(eq(schema.eventInvitations.id, id));
       return { messageId: 'msg-race' };
     });
 
     try {
-      const result = await requeuePendingRsvpInvitations();
+      const result = await Rsvp.requeuePendingRsvpInvitations();
       expect(result.queued).toBe(1);
 
       const row = await getResponse(responseId);

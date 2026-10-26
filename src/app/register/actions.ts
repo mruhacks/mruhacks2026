@@ -6,7 +6,7 @@
 
 'use server';
 
-import { events, eventParticipants } from '@/db/schema';
+import * as schema from '@/db/schema';
 import { getUser } from '@/utils/auth';
 import { ActionResult, fail, ok } from '@/utils/action-result';
 import { db } from '@/utils/db';
@@ -14,15 +14,8 @@ import { and, eq, isNull } from 'drizzle-orm';
 import { revalidatePath, updateTag } from 'next/cache';
 import { eventApplicationsCacheTag } from '@/lib/admin-event';
 import { hasEventElapsed } from '@/lib/events';
-import {
-  isJudgingEvent,
-  JUDGE_SIGNUP_BLOCKED_MESSAGE,
-} from '@/lib/judging/server';
-import {
-  countAttending,
-  hasStatus,
-  statusIdOf,
-} from '@/lib/participation/server';
+import * as Judging from '@/lib/judging/server';
+import * as Participation from '@/lib/participation/server';
 
 /**
  * The event's end instant and whether it takes applications, or `undefined`
@@ -38,9 +31,9 @@ async function getRegistrableEvent(
   eventId: string,
 ): Promise<{ endsAt: Date | null; hasApplication: boolean } | undefined> {
   const [row] = await db
-    .select({ endsAt: events.endsAt, hasApplication: events.hasApplication })
-    .from(events)
-    .where(and(eq(events.id, eventId), isNull(events.parentEventId)))
+    .select({ endsAt: schema.events.endsAt, hasApplication: schema.events.hasApplication })
+    .from(schema.events)
+    .where(and(eq(schema.events.id, eventId), isNull(schema.events.parentEventId)))
     .limit(1);
   return row;
 }
@@ -62,8 +55,8 @@ export async function registerForEvent(eventId: string): Promise<ActionResult> {
   if (hasEventElapsed(event.endsAt)) {
     return fail('This event has already ended.');
   }
-  if (await isJudgingEvent(eventId, user)) {
-    return fail(JUDGE_SIGNUP_BLOCKED_MESSAGE);
+  if (await Judging.isJudgingEvent(eventId, user)) {
+    return fail(Judging.JUDGE_SIGNUP_BLOCKED_MESSAGE);
   }
 
   try {
@@ -73,22 +66,17 @@ export async function registerForEvent(eventId: string): Promise<ActionResult> {
       // could both read the pre-registration count and both pass, overflowing
       // capacity (same race handled for teams in joinTeamByCode).
       const [eventRow] = await tx
-        .select({ capacity: events.capacity })
-        .from(events)
-        .where(eq(events.id, eventId))
+        .select({ capacity: schema.events.capacity })
+        .from(schema.events)
+        .where(eq(schema.events.id, eventId))
         .for('update')
         .limit(1);
       if (!eventRow) return fail('Event not found.');
 
       const [existing] = await tx
-        .select({ id: eventParticipants.id })
-        .from(eventParticipants)
-        .where(
-          and(
-            eq(eventParticipants.eventId, eventId),
-            eq(eventParticipants.userId, user.id),
-          ),
-        )
+        .select({ id: schema.eventParticipants.id })
+        .from(schema.eventParticipants)
+        .where(and(eq(schema.eventParticipants.eventId, eventId), eq(schema.eventParticipants.userId, user.id)))
         .limit(1);
 
       // Only a new registration counts against capacity; re-registering
@@ -96,20 +84,20 @@ export async function registerForEvent(eventId: string): Promise<ActionResult> {
       if (
         !existing &&
         eventRow.capacity != null &&
-        (await countAttending(eventId, tx)) >= eventRow.capacity
+        (await Participation.countAttending(eventId, tx)) >= eventRow.capacity
       ) {
         return fail('This event is full.');
       }
 
       await tx
-        .insert(eventParticipants)
+        .insert(schema.eventParticipants)
         .values({
           eventId,
           userId: user.id,
-          statusId: statusIdOf('accepted'),
+          statusId: Participation.statusIdOf('accepted'),
         })
         .onConflictDoNothing({
-          target: [eventParticipants.eventId, eventParticipants.userId],
+          target: [schema.eventParticipants.eventId, schema.eventParticipants.userId],
         });
 
       return ok('Registered for event.');
@@ -132,9 +120,7 @@ export async function registerForEvent(eventId: string): Promise<ActionResult> {
 /**
  * Form action wrapper for registerForEvent (used by dashboard/events page).
  */
-export async function registerForEventFormAction(
-  formData: FormData,
-): Promise<ActionResult> {
+export async function registerForEventFormAction(formData: FormData): Promise<ActionResult> {
   const eventId = formData.get('eventId');
   if (typeof eventId !== 'string') return fail('Missing event ID');
   return registerForEvent(eventId);
@@ -145,9 +131,7 @@ export async function registerForEventFormAction(
  * signup) by removing their participant row. An event with an application
  * keeps its row — see `withdrawParticipation`.
  */
-export async function unregisterFromEvent(
-  eventId: string,
-): Promise<ActionResult> {
+export async function unregisterFromEvent(eventId: string): Promise<ActionResult> {
   const user = await getUser();
   if (!user) return fail('User not authenticated');
 
@@ -162,12 +146,12 @@ export async function unregisterFromEvent(
 
   try {
     await db
-      .delete(eventParticipants)
+      .delete(schema.eventParticipants)
       .where(
         and(
-          eq(eventParticipants.eventId, eventId),
-          eq(eventParticipants.userId, user.id),
-          hasStatus('accepted'),
+          eq(schema.eventParticipants.eventId, eventId),
+          eq(schema.eventParticipants.userId, user.id),
+          Participation.hasStatus('accepted'),
         ),
       );
     revalidatePath('/dashboard/events');

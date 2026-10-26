@@ -1,10 +1,10 @@
 import * as React from 'react';
 import { redirect } from 'next/navigation';
 
-import { requirePermission } from '@/lib/rbac/authorization';
+import * as Rbac from '@/lib/rbac/server';
 import { getUser } from '@/utils/auth';
 
-import { CriterionTable } from '../../_components/criterion-table';
+import { CriterionTable } from '@/app/dashboard/admin/events/[eventId]/judging/results/_components/criterion-table';
 
 type Props = { params: Promise<{ eventId: string; criterionId: string }> };
 
@@ -17,14 +17,10 @@ export default function CriterionResultsPage({ params }: Props) {
   );
 }
 
-async function CriterionResults({
-  paramsPromise,
-}: {
-  paramsPromise: Props['params'];
-}) {
+async function CriterionResults({ paramsPromise }: { paramsPromise: Props['params'] }) {
   const { criterionId } = await paramsPromise;
   const user = await getUser();
   if (!user) redirect('/signin');
-  await requirePermission(user.id, 'judging:results:all');
+  await Rbac.requirePermission(user.id, 'judging:results:all');
   return <CriterionTable criterionId={criterionId} />;
 }

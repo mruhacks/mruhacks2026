@@ -31,7 +31,7 @@ type EmbedProvider = {
   paths?: readonly string[];
 };
 
-export const EMBED_PROVIDERS: readonly EmbedProvider[] = [
+const EMBED_PROVIDERS: readonly EmbedProvider[] = [
   {
     name: 'YouTube',
     origin: 'https://www.youtube-nocookie.com',
@@ -65,9 +65,7 @@ export const EMBED_PROVIDERS: readonly EmbedProvider[] = [
 ];
 
 /** Provider names for display, de-duplicated. */
-export const EMBED_PROVIDER_NAMES = [
-  ...new Set(EMBED_PROVIDERS.map((provider) => provider.name)),
-];
+export const EMBED_PROVIDER_NAMES = [...new Set(EMBED_PROVIDERS.map((provider) => provider.name))];
 
 /**
  * Capabilities granted to every embedded frame — never taken from the
@@ -87,8 +85,7 @@ export const EMBED_IFRAME_SANDBOX = [
 ].join(' ');
 
 /** Permissions-Policy for embedded frames — fixed, like the sandbox. */
-export const EMBED_IFRAME_ALLOW =
-  'fullscreen; picture-in-picture; encrypted-media';
+export const EMBED_IFRAME_ALLOW = 'fullscreen; picture-in-picture; encrypted-media';
 
 /**
  * YouTube refuses to play without at least the referring origin, so
@@ -123,8 +120,7 @@ export function getAllowedEmbedSrc(src: unknown): string | null {
   const allowed = EMBED_PROVIDERS.some(
     (provider) =>
       provider.origin === url.origin &&
-      (!provider.paths ||
-        provider.paths.some((rule) => pathMatches(url.pathname, rule))),
+      (!provider.paths || provider.paths.some((rule) => pathMatches(url.pathname, rule))),
   );
   return allowed ? url.href : null;
 }
@@ -191,11 +187,7 @@ export function toEmbedUrl(input: string): string {
 }
 
 function escapeAttribute(value: string): string {
-  return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('"', '&quot;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;');
+  return value.replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
 }
 
 export type EmbedAttributes = {
@@ -211,12 +203,7 @@ export type EmbedAttributes = {
  * and the renderer's HTML parser would treat everything after it as the
  * frame's fallback text.
  */
-export function serializeEmbedHtml({
-  src,
-  title,
-  width,
-  height,
-}: EmbedAttributes): string {
+export function serializeEmbedHtml({ src, title, width, height }: EmbedAttributes): string {
   const attributes = [`src="${escapeAttribute(src)}"`];
   if (title) attributes.push(`title="${escapeAttribute(title)}"`);
   if (width) attributes.push(`width="${width}"`);
@@ -229,9 +216,7 @@ export function embedFrameSources(): string[] {
   return [
     ...new Set(
       EMBED_PROVIDERS.flatMap((provider) =>
-        provider.paths
-          ? provider.paths.map((path) => `${provider.origin}${path}`)
-          : [provider.origin],
+        provider.paths ? provider.paths.map((path) => `${provider.origin}${path}`) : [provider.origin],
       ),
     ),
   ];

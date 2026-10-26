@@ -9,14 +9,7 @@ import { Loader2 } from 'lucide-react';
 import type { SingleValue, MultiValue } from 'react-select';
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import {
-  Field,
-  FieldDescription,
-  FieldGroup,
-  FieldLabel,
-  FieldError,
-  RequiredAsterisk,
-} from '@/components/ui/field';
+import { Field, FieldDescription, FieldGroup, FieldLabel, FieldError, RequiredAsterisk } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/select';
@@ -25,12 +18,8 @@ import { type ActionResult } from '@/utils/action-result';
 import { ProfileAssets } from '@/app/dashboard/profile/profile-assets';
 import { uploadResume } from '@/app/dashboard/profile/actions';
 
-import {
-  profileFormOptionalAboutSchema,
-  profileFormSchema,
-  type ProfileFormInput,
-} from '@/components/profile-form/schema';
-import { type ProfileFormOptions } from '@/components/profile-form/schema';
+import { profileFormOptionalAboutSchema, profileFormSchema, type ProfileFormInput } from './schema';
+import { type ProfileFormOptions } from './schema';
 
 // Mirrors the welcome onboarding flow's step categories (Personal / About you).
 const tabLabels: Record<string, string> = {
@@ -39,24 +28,17 @@ const tabLabels: Record<string, string> = {
 };
 
 /** A tab beside Personal / About you that saves on its own (its own form). */
-export type ProfileFormExtraTab = {
+type ProfileFormExtraTab = {
   value: string;
   label: string;
   content: React.ReactNode;
 };
 
-const PERSONAL_FIELDS = [
-  'fullName',
-  'genderId',
-  'dietaryRestrictions',
-  'linkedinUrl',
-] as const;
+const PERSONAL_FIELDS = ['fullName', 'genderId', 'dietaryRestrictions', 'linkedinUrl'] as const;
 const ABOUT_FIELDS = ['universityId', 'majorId', 'yearOfStudyId'] as const;
 
-const getSingleValue = (opt: SingleValue<{ value: number; label: string }>) =>
-  opt?.value ?? '';
-const getMultiValues = (opts: MultiValue<{ value: number; label: string }>) =>
-  opts.map((o) => o.value);
+const getSingleValue = (opt: SingleValue<{ value: number; label: string }>) => opt?.value ?? '';
+const getMultiValues = (opts: MultiValue<{ value: number; label: string }>) => opts.map((o) => o.value);
 
 type ProfileFormProps = {
   initial?: Partial<ProfileFormInput>;
@@ -196,23 +178,13 @@ export default function ProfileForm({
         toast.error(errorMessage);
       }
     },
-    [
-      onSubmit,
-      successMessage,
-      errorMessage,
-      onSuccess,
-      successHref,
-      router,
-      queuedResume,
-    ],
+    [onSubmit, successMessage, errorMessage, onSuccess, successHref, router, queuedResume],
   );
 
   const focusActiveSection = () => {
     requestAnimationFrame(() => {
       // Scoped to this form: the extra tab's panel sits outside it.
-      const nextPanel = formRef.current?.querySelector<HTMLElement>(
-        `[role="tabpanel"][data-state="active"]`,
-      );
+      const nextPanel = formRef.current?.querySelector<HTMLElement>(`[role="tabpanel"][data-state="active"]`);
       const focusable = nextPanel?.querySelector<HTMLElement>(
         'input, select, textarea, button, [tabindex]:not([tabindex="-1"])',
       );
@@ -234,8 +206,7 @@ export default function ProfileForm({
     focusActiveSection();
   };
 
-  const tabHasError = (fields: readonly (keyof ProfileFormInput)[]) =>
-    fields.some((key) => errors[key]);
+  const tabHasError = (fields: readonly (keyof ProfileFormInput)[]) => fields.some((key) => errors[key]);
 
   const personalFields = (
     <>
@@ -245,11 +216,7 @@ export default function ProfileForm({
             Full Name
             <RequiredAsterisk />
           </FieldLabel>
-          <Input
-            {...register('fullName')}
-            id='fullName'
-            placeholder='John Doe'
-          />
+          <Input {...register('fullName')} id='fullName' placeholder='John Doe' />
           {errors.fullName && <FieldError errors={[errors.fullName]} />}
         </Field>
 
@@ -257,9 +224,7 @@ export default function ProfileForm({
           name='genderId'
           control={control}
           render={({ field, fieldState }) => {
-            const selected = options.genders.find(
-              (o) => o.value === field.value,
-            );
+            const selected = options.genders.find((o) => o.value === field.value);
             return (
               <Field data-invalid={fieldState.invalid}>
                 <FieldLabel>
@@ -275,11 +240,7 @@ export default function ProfileForm({
                 />
                 {fieldState.error && <FieldError errors={[fieldState.error]} />}
                 {isOtherOption(selected?.label) && (
-                  <Input
-                    {...register('genderOtherText')}
-                    placeholder='Please specify'
-                    aria-label='Specify gender'
-                  />
+                  <Input {...register('genderOtherText')} placeholder='Please specify' aria-label='Specify gender' />
                 )}
               </Field>
             );
@@ -333,10 +294,7 @@ export default function ProfileForm({
 
         <Field>
           <FieldLabel htmlFor='linkedinUrl'>
-            LinkedIn{' '}
-            <span className='text-muted-foreground font-normal'>
-              (optional)
-            </span>
+            LinkedIn <span className='text-muted-foreground font-normal'>(optional)</span>
           </FieldLabel>
           <Input
             {...register('linkedinUrl')}
@@ -359,9 +317,8 @@ export default function ProfileForm({
     <>
       {aboutOptional && (
         <FieldDescription className='mb-6'>
-          Only needed if you also take part in events as a hacker. Leave it
-          blank otherwise, or fill in your university, program and year
-          together.
+          Only needed if you also take part in events as a hacker. Leave it blank otherwise, or fill in your university,
+          program and year together.
         </FieldDescription>
       )}
       <FieldGroup>
@@ -369,9 +326,7 @@ export default function ProfileForm({
           name='universityId'
           control={control}
           render={({ field, fieldState }) => {
-            const selected = options.universities.find(
-              (o) => o.value === field.value,
-            );
+            const selected = options.universities.find((o) => o.value === field.value);
             return (
               <Field data-invalid={fieldState.invalid}>
                 <FieldLabel>
@@ -402,9 +357,7 @@ export default function ProfileForm({
           name='majorId'
           control={control}
           render={({ field, fieldState }) => {
-            const selected = options.majors.find(
-              (o) => o.value === field.value,
-            );
+            const selected = options.majors.find((o) => o.value === field.value);
             return (
               <Field data-invalid={fieldState.invalid}>
                 <FieldLabel>
@@ -420,11 +373,7 @@ export default function ProfileForm({
                 />
                 {fieldState.error && <FieldError errors={[fieldState.error]} />}
                 {isOtherOption(selected?.label) && (
-                  <Input
-                    {...register('majorOtherText')}
-                    placeholder='Please specify'
-                    aria-label='Specify major'
-                  />
+                  <Input {...register('majorOtherText')} placeholder='Please specify' aria-label='Specify major' />
                 )}
               </Field>
             );
@@ -444,9 +393,7 @@ export default function ProfileForm({
                 id='yearOfStudyId'
                 instanceId='yearOfStudyId'
                 options={options.years}
-                value={
-                  options.years.find((o) => o.value === field.value) ?? null
-                }
+                value={options.years.find((o) => o.value === field.value) ?? null}
                 onChange={(opt) => field.onChange(getSingleValue(opt))}
               />
               {fieldState.error && <FieldError errors={[fieldState.error]} />}
@@ -456,17 +403,9 @@ export default function ProfileForm({
 
         <Field>
           <FieldLabel htmlFor='githubUrl'>
-            GitHub{' '}
-            <span className='text-muted-foreground font-normal'>
-              (optional)
-            </span>
+            GitHub <span className='text-muted-foreground font-normal'>(optional)</span>
           </FieldLabel>
-          <Input
-            {...register('githubUrl')}
-            id='githubUrl'
-            type='url'
-            placeholder='https://github.com/janedoe'
-          />
+          <Input {...register('githubUrl')} id='githubUrl' type='url' placeholder='https://github.com/janedoe' />
           {errors.githubUrl && <FieldError errors={[errors.githubUrl]} />}
         </Field>
       </FieldGroup>
@@ -500,43 +439,23 @@ export default function ProfileForm({
           )}
         </Button>
       </div>
-      {submitError && (
-        <FieldError className='mt-2 text-right'>{submitError}</FieldError>
-      )}
+      {submitError && <FieldError className='mt-2 text-right'>{submitError}</FieldError>}
     </>
   );
 
   return (
     <Tabs value={tab} onValueChange={setTab} className='w-full'>
-      <TabsList
-        className={`mb-6 grid w-full ${extraTab ? 'grid-cols-3' : 'grid-cols-2'}`}
-      >
-        <TabsTrigger
-          value='personal'
-          className={
-            tabHasError(PERSONAL_FIELDS) ? 'text-destructive underline' : ''
-          }
-        >
+      <TabsList className={`mb-6 grid w-full ${extraTab ? 'grid-cols-3' : 'grid-cols-2'}`}>
+        <TabsTrigger value='personal' className={tabHasError(PERSONAL_FIELDS) ? 'text-destructive underline' : ''}>
           {tabLabels.personal}
         </TabsTrigger>
-        <TabsTrigger
-          value='about'
-          className={
-            tabHasError(ABOUT_FIELDS) ? 'text-destructive underline' : ''
-          }
-        >
+        <TabsTrigger value='about' className={tabHasError(ABOUT_FIELDS) ? 'text-destructive underline' : ''}>
           {aboutLabel}
         </TabsTrigger>
-        {extraTab && (
-          <TabsTrigger value={extraTab.value}>{extraTab.label}</TabsTrigger>
-        )}
+        {extraTab && <TabsTrigger value={extraTab.value}>{extraTab.label}</TabsTrigger>}
       </TabsList>
 
-      <form
-        ref={formRef}
-        onSubmit={handleSubmit(submitHandler)}
-        onChange={() => setSubmitError(undefined)}
-      >
+      <form ref={formRef} onSubmit={handleSubmit(submitHandler)} onChange={() => setSubmitError(undefined)}>
         <TabsContent value='personal'>{personalFields}</TabsContent>
 
         <TabsContent value='about'>{aboutFields}</TabsContent>
@@ -544,11 +463,7 @@ export default function ProfileForm({
 
       {extraTab && (
         // Kept mounted so switching tabs doesn't drop its unsaved edits.
-        <TabsContent
-          value={extraTab.value}
-          forceMount
-          className='data-[state=inactive]:hidden'
-        >
+        <TabsContent value={extraTab.value} forceMount className='data-[state=inactive]:hidden'>
           {extraTab.content}
         </TabsContent>
       )}

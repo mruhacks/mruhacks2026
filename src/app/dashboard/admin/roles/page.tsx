@@ -1,24 +1,13 @@
-import { requireAuthWithPermission } from '@/lib/rbac/guards';
-import { hasAnyPermission } from '@/lib/rbac/authorization';
+import * as Rbac from '@/lib/rbac/server';
 import { listRoles, listPermissions } from '@/app/actions/roles';
 import { RolesTable } from './roles-table';
 
 export default async function AdminRolesPage() {
-  const caller = await requireAuthWithPermission([
-    'role:read:all',
-    'role:write:all',
-    'user:all:all',
-  ]);
+  const caller = await Rbac.requireAuthWithPermission(['role:read:all', 'role:write:all', 'user:all:all']);
 
-  const [rolesRes, permsRes] = await Promise.all([
-    listRoles(),
-    listPermissions(),
-  ]);
+  const [rolesRes, permsRes] = await Promise.all([listRoles(), listPermissions()]);
 
-  const canWrite = await hasAnyPermission(caller.id, [
-    'role:write:all',
-    'user:all:all',
-  ]);
+  const canWrite = await Rbac.hasAnyPermission(caller.id, ['role:write:all', 'user:all:all']);
 
   if (!rolesRes.success || !rolesRes.data) {
     return (

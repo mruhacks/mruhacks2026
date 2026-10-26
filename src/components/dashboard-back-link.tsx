@@ -32,27 +32,16 @@ function parentCrumb(pathname: string, crumbs: Crumb[]): Crumb | null {
  * table) better than the path does, and since the trail can't express that,
  * the link stays visible on desktop too.
  */
-export function DashboardBackLink({
-  pathname,
-  crumbs,
-}: {
-  pathname: string;
-  crumbs: Crumb[];
-}) {
+export function DashboardBackLink({ pathname, crumbs }: { pathname: string; crumbs: Crumb[] }) {
   const searchParams = useSearchParams();
   const backHref = sanitizeReturnPath(searchParams.get('back'), '');
-  const target = backHref
-    ? { label: 'Back', href: backHref }
-    : parentCrumb(pathname, crumbs);
+  const target = backHref ? { label: 'Back', href: backHref } : parentCrumb(pathname, crumbs);
   if (!target) return null;
 
   return (
     <Link
       href={target.href}
-      className={cn(
-        'flex min-w-0 items-center gap-0.5',
-        !backHref && 'sm:hidden',
-      )}
+      className={cn('flex min-w-0 items-center gap-0.5', !backHref && 'sm:hidden')}
       style={{
         fontFamily: 'var(--font-ui)',
         fontWeight: 'var(--fw-semibold)',

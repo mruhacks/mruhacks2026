@@ -5,20 +5,10 @@ import { useRouter } from 'next/navigation';
 import { AlertTriangle, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
-import {
-  deleteSavedAudience,
-  updateSavedAudience,
-} from '@/app/dashboard/admin/campaigns/audience-actions';
-import type { AudienceOptions } from '@/lib/campaigns/audience-options';
-import type { AudienceRuleGroup } from '@/lib/campaigns/audience-rules';
+import { deleteSavedAudience, updateSavedAudience } from '../audience-actions';
+import type * as Campaigns from '@/lib/campaigns';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Field, FieldError, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { AudienceBuilder } from './audience-builder';
@@ -27,21 +17,16 @@ type Props = {
   audience: {
     id: string;
     name: string;
-    rules: AudienceRuleGroup;
+    rules: Campaigns.AudienceRuleGroup;
     usedBy: number;
     scheduled: number;
   };
-  options: AudienceOptions;
+  options: Campaigns.AudienceOptions;
   canWrite: boolean;
   canPreview: boolean;
 };
 
-export function SavedAudienceEditor({
-  audience,
-  options,
-  canWrite,
-  canPreview,
-}: Props) {
+export function SavedAudienceEditor({ audience, options, canWrite, canPreview }: Props) {
   const router = useRouter();
   const [name, setName] = React.useState(audience.name);
   const [rules, setRules] = React.useState(audience.rules);
@@ -49,7 +34,7 @@ export function SavedAudienceEditor({
   const [deleteError, setDeleteError] = React.useState<string | null>(null);
   const [isBusy, setIsBusy] = React.useState(false);
 
-  const handleChange = React.useCallback((next: AudienceRuleGroup) => {
+  const handleChange = React.useCallback((next: Campaigns.AudienceRuleGroup) => {
     setRules(next);
     setError(null);
   }, []);
@@ -100,12 +85,10 @@ export function SavedAudienceEditor({
           <p>
             Used by{' '}
             <strong>
-              {audience.usedBy}{' '}
-              {audience.usedBy === 1 ? 'campaign' : 'campaigns'}
+              {audience.usedBy} {audience.usedBy === 1 ? 'campaign' : 'campaigns'}
             </strong>
-            {audience.scheduled > 0 && <> ({audience.scheduled} scheduled)</>}.
-            Changes apply to every linked campaign that hasn&apos;t been sent
-            yet.
+            {audience.scheduled > 0 && <> ({audience.scheduled} scheduled)</>}. Changes apply to every linked campaign
+            that hasn&apos;t been sent yet.
           </p>
         </div>
       )}
@@ -114,8 +97,8 @@ export function SavedAudienceEditor({
         <CardHeader>
           <CardTitle>Rules</CardTitle>
           <CardDescription>
-            The count shows who a marketing campaign would reach. Operational
-            campaigns are also limited to their event&apos;s participants.
+            The count shows who a marketing campaign would reach. Operational campaigns are also limited to their
+            event&apos;s participants.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -136,13 +119,7 @@ export function SavedAudienceEditor({
       {canWrite && (
         <div className='flex flex-col-reverse gap-3 sm:flex-row sm:items-start sm:justify-between'>
           <div className='space-y-1'>
-            <Button
-              type='button'
-              variant='outline'
-              className='text-destructive'
-              disabled={isBusy}
-              onClick={remove}
-            >
+            <Button type='button' variant='outline' className='text-destructive' disabled={isBusy} onClick={remove}>
               <Trash2 /> Delete audience
             </Button>
             {deleteError && <FieldError>{deleteError}</FieldError>}

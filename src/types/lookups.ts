@@ -4,14 +4,7 @@
  * for profile/application lookups (genders, universities, majors, etc.).
  */
 
-export const gendersList = [
-  'Male',
-  'Female',
-  'Non-binary',
-  'Other',
-  'Prefer not to say',
-] as const;
-export type Gender = (typeof gendersList)[number];
+export const gendersList = ['Male', 'Female', 'Non-binary', 'Other', 'Prefer not to say'] as const;
 
 export const universitiesList = [
   'Mount Royal University',
@@ -23,7 +16,6 @@ export const universitiesList = [
   'NAIT',
   'Other / Not listed',
 ] as const;
-export type University = (typeof universitiesList)[number];
 
 export const majorsList = [
   'Bachelor of Computer Information Systems',
@@ -35,10 +27,8 @@ export const majorsList = [
   'Software Engineering',
   'Other / Custom',
 ] as const;
-export type Major = (typeof majorsList)[number];
 
 export const yearsOfStudyList = ['1st', '2nd', '3rd', '4th', '4th+'] as const;
-export type YearOfStudy = (typeof yearsOfStudyList)[number];
 
 export const interestsList = [
   'Mobile App Development',
@@ -47,7 +37,6 @@ export const interestsList = [
   'UX / UI Design',
   'Game Development',
 ] as const;
-export type Interest = (typeof interestsList)[number];
 
 export const dietaryRestrictionsList = [
   'Vegetarian',
@@ -68,7 +57,6 @@ export const heardFromSourcesList = [
   'Professor / Course Announcement',
   'Other',
 ] as const;
-export type HeardFromSource = (typeof heardFromSourcesList)[number];
 
 /**
  * The single participation lifecycle for a person and an event — see the
@@ -90,14 +78,7 @@ export const participationStatusesList = [
 ] as const;
 export type ParticipationStatus = (typeof participationStatusesList)[number];
 
-export type StatusBadgeVariant =
-  | 'default'
-  | 'secondary'
-  | 'success'
-  | 'warning'
-  | 'destructive'
-  | 'outline'
-  | 'purple';
+export type StatusBadgeVariant = 'default' | 'secondary' | 'success' | 'warning' | 'destructive' | 'outline' | 'purple';
 
 /**
  * Display config for each participation status, seeded into the
@@ -107,15 +88,13 @@ export const participationStatusDisplayList = [
   {
     label: 'pending_review',
     title: 'Under review',
-    description:
-      "We're reviewing your application and will email you when a decision has been made.",
+    description: "We're reviewing your application and will email you when a decision has been made.",
     variant: 'warning',
   },
   {
     label: 'waitlisted',
     title: 'Waitlisted',
-    description:
-      "You're on the waitlist. We'll email you an invitation when a spot opens up.",
+    description: "You're on the waitlist. We'll email you an invitation when a spot opens up.",
     variant: 'secondary',
   },
   {
@@ -128,8 +107,7 @@ export const participationStatusDisplayList = [
   {
     label: 'invited',
     title: 'RSVP required',
-    description:
-      "You've been offered a spot! Please confirm whether you will attend before the deadline.",
+    description: "You've been offered a spot! Please confirm whether you will attend before the deadline.",
     variant: 'purple',
   },
   {
@@ -162,7 +140,5 @@ export type EventType = (typeof eventTypesList)[number];
 export const MEAL_EVENT_TYPE = 'meal' as const satisfies EventType;
 
 export function parseEventType(label: string | null): EventType | null {
-  return eventTypesList.includes(label as EventType)
-    ? (label as EventType)
-    : null;
+  return eventTypesList.includes(label as EventType) ? (label as EventType) : null;
 }

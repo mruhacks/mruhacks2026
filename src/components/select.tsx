@@ -1,6 +1,5 @@
 'use client';
 
-import * as React from 'react';
 import type { GroupBase, StylesConfig, ThemeConfig } from 'react-select';
 import SelectInner, { Props as SelectProps } from 'react-select';
 import { useIsHydrated } from '@/lib/use-is-hydrated';
@@ -9,18 +8,16 @@ import { useIsHydrated } from '@/lib/use-is-hydrated';
 // shadcn-style theming for OKLCH variable system
 // ───────────────────────────────────────────────
 
-const shadcnSelectStyles = <
+const shadcnSelectStyles = <Option, IsMulti extends boolean, Group extends GroupBase<Option>>(): StylesConfig<
   Option,
-  IsMulti extends boolean,
-  Group extends GroupBase<Option>,
->(): StylesConfig<Option, IsMulti, Group> => ({
+  IsMulti,
+  Group
+> => ({
   control: (base, state) => ({
     ...base,
     backgroundColor: 'var(--background)',
     borderColor: state.isFocused ? 'var(--ring)' : 'var(--input)',
-    boxShadow: state.isFocused
-      ? '0 0 0 2px color-mix(in srgb, var(--ring) 30%, transparent)'
-      : 'none',
+    boxShadow: state.isFocused ? '0 0 0 2px color-mix(in srgb, var(--ring) 30%, transparent)' : 'none',
     '&:hover': { borderColor: 'var(--ring)' },
     minHeight: '2.5rem',
     borderRadius: 'var(--radius)',
@@ -58,8 +55,7 @@ const shadcnSelectStyles = <
     color: 'var(--muted-foreground)',
     borderRadius: '9999px',
     '&:hover': {
-      backgroundColor:
-        'color-mix(in srgb, var(--muted-foreground) 15%, transparent)',
+      backgroundColor: 'color-mix(in srgb, var(--muted-foreground) 15%, transparent)',
       color: 'var(--foreground)',
     },
   }),
@@ -82,19 +78,14 @@ const shadcnSelectStyles = <
     backgroundColor: 'var(--popover)',
     border: '1px solid var(--border)',
     borderRadius: 'var(--radius)',
-    boxShadow:
-      '0 4px 12px color-mix(in srgb, var(--foreground) 5%, transparent)',
+    boxShadow: '0 4px 12px color-mix(in srgb, var(--foreground) 5%, transparent)',
     marginTop: '4px',
     zIndex: 50,
   }),
 
   option: (base, state) => ({
     ...base,
-    backgroundColor: state.isSelected
-      ? 'var(--accent)'
-      : state.isFocused
-        ? 'var(--muted)'
-        : 'transparent',
+    backgroundColor: state.isSelected ? 'var(--accent)' : state.isFocused ? 'var(--muted)' : 'transparent',
     color: state.isSelected ? 'var(--accent-foreground)' : 'var(--foreground)',
     cursor: 'pointer',
     fontSize: '0.875rem',
@@ -116,11 +107,9 @@ const shadcnSelectTheme: ThemeConfig = (theme) => ({
 // Exported Multiselect (typed + OKLCH safe)
 // ───────────────────────────────────────────────
 
-export function Select<
-  Option,
-  IsMulti extends boolean = false,
-  Group extends GroupBase<Option> = GroupBase<Option>,
->(props: SelectProps<Option, IsMulti, Group>) {
+export function Select<Option, IsMulti extends boolean = false, Group extends GroupBase<Option> = GroupBase<Option>>(
+  props: SelectProps<Option, IsMulti, Group>,
+) {
   // react-select injects its emotion <style> tags in an order that can
   // differ between server and client render, which React reports as a
   // hydration mismatch. Render a plain placeholder on the server (and on

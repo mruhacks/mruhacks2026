@@ -10,7 +10,7 @@ import type {
  * fast enough that a second scanner's work shows up before anyone wonders
  * whether the list is broken.
  */
-export const ROSTER_POLL_INTERVAL_MS = 15_000;
+const ROSTER_POLL_INTERVAL_MS = 15_000;
 
 /**
  * The newest check-in on screen — what the next poll asks the server to
@@ -54,13 +54,8 @@ function samePatch(row: CheckInRosterRow, patch: CheckInPatch): boolean {
  * Both show up as the merged check-in count disagreeing with the server's,
  * so the count is the authority and the patch is only the fast path.
  */
-export function mergeCheckInUpdates(
-  rows: CheckInRosterRow[],
-  updates: CheckInUpdates,
-): RosterMerge {
-  const patches = new Map(
-    updates.changed.map((patch) => [patch.userId, patch]),
-  );
+export function mergeCheckInUpdates(rows: CheckInRosterRow[], updates: CheckInUpdates): RosterMerge {
+  const patches = new Map(updates.changed.map((patch) => [patch.userId, patch]));
 
   // The watermark is truncated to milliseconds while the column keeps
   // microseconds, so the newest check-in is usually re-sent on every poll.
@@ -84,10 +79,7 @@ export function mergeCheckInUpdates(
   // of, which only a fresh roster can name.
   if (patches.size > 0) return { kind: 'stale' };
 
-  const checkedIn = merged.reduce(
-    (count, row) => (row.checkedInAt ? count + 1 : count),
-    0,
-  );
+  const checkedIn = merged.reduce((count, row) => (row.checkedInAt ? count + 1 : count), 0);
   if (checkedIn !== updates.checkedInCount) return { kind: 'stale' };
 
   return touched ? { kind: 'patched', rows: merged } : { kind: 'unchanged' };
@@ -100,10 +92,7 @@ export function mergeCheckInUpdates(
  * Returns null when nobody on the roster matches — a participant approved
  * after the page loaded — which only a full reload can add.
  */
-export function applyCheckIn(
-  rows: CheckInRosterRow[],
-  outcome: CheckInOutcome,
-): CheckInRosterRow[] | null {
+export function applyCheckIn(rows: CheckInRosterRow[], outcome: CheckInOutcome): CheckInRosterRow[] | null {
   return patchRow(rows, outcome.userId, {
     checkedInAt: outcome.checkedInAt,
     checkedInAtLabel: outcome.checkedInAtLabel,
@@ -112,10 +101,7 @@ export function applyCheckIn(
 }
 
 /** The undo counterpart: puts a row back to not-yet-arrived. */
-export function clearCheckIn(
-  rows: CheckInRosterRow[],
-  userId: string,
-): CheckInRosterRow[] | null {
+export function clearCheckIn(rows: CheckInRosterRow[], userId: string): CheckInRosterRow[] | null {
   return patchRow(rows, userId, {
     checkedInAt: null,
     checkedInAtLabel: null,
@@ -126,10 +112,7 @@ export function clearCheckIn(
 function patchRow(
   rows: CheckInRosterRow[],
   userId: string,
-  fields: Pick<
-    CheckInRosterRow,
-    'checkedInAt' | 'checkedInAtLabel' | 'checkedInByName'
-  >,
+  fields: Pick<CheckInRosterRow, 'checkedInAt' | 'checkedInAtLabel' | 'checkedInByName'>,
 ): CheckInRosterRow[] | null {
   const index = rows.findIndex((row) => row.userId === userId);
   if (index === -1) return null;

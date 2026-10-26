@@ -1,6 +1,5 @@
 'use client';
 
-import * as React from 'react';
 import { ListFilter, SlidersHorizontal } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -15,7 +14,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import type { StatusSplitStat } from '@/lib/application-stats';
-import { STATIC_STATUS_DISPLAY } from '@/lib/participation/status';
+import * as Participation from '@/lib/participation';
 import { participationStatusesList } from '@/types/lookups';
 import { useStoredIdSet } from '@/lib/use-stored-id-set';
 
@@ -33,9 +32,8 @@ function statusStorageKey(eventId: string) {
 }
 
 function statusTitle(status: string): string {
-  if (status in STATIC_STATUS_DISPLAY) {
-    return STATIC_STATUS_DISPLAY[status as keyof typeof STATIC_STATUS_DISPLAY]
-      .title;
+  if (status in Participation.STATIC_STATUS_DISPLAY) {
+    return Participation.STATIC_STATUS_DISPLAY[status as keyof typeof Participation.STATIC_STATUS_DISPLAY].title;
   }
   return status === 'unknown' ? 'Unknown' : status;
 }
@@ -57,15 +55,9 @@ type MergedStat = {
  * recomputed against the summed respondents, so they mean the same thing as
  * an unfiltered card: share of the people counted who picked that option.
  */
-function mergeStat(
-  stat: StatusSplitStat,
-  included: (status: string) => boolean,
-): MergedStat {
+function mergeStat(stat: StatusSplitStat, included: (status: string) => boolean): MergedStat {
   const sum = (counts: Record<string, number>) =>
-    Object.entries(counts).reduce(
-      (total, [status, count]) => (included(status) ? total + count : total),
-      0,
-    );
+    Object.entries(counts).reduce((total, [status, count]) => (included(status) ? total + count : total), 0);
   const answered = sum(stat.answered);
   return {
     id: stat.id,
@@ -92,11 +84,7 @@ export function QuestionStatsGrid({
   statusCounts: Record<string, number>;
 }) {
   const { ids: hidden, toggle, clear } = useStoredIdSet(storageKey(eventId));
-  const {
-    ids: hiddenStatuses,
-    toggle: toggleStatus,
-    clear: clearStatuses,
-  } = useStoredIdSet(statusStorageKey(eventId));
+  const { ids: hiddenStatuses, toggle: toggleStatus, clear: clearStatuses } = useStoredIdSet(statusStorageKey(eventId));
 
   // Both sets are null until the browser's value is known, and everything
   // renders (and counts) until then — that keeps the hydration render
@@ -111,9 +99,7 @@ export function QuestionStatsGrid({
   const statuses = [
     ...participationStatusesList,
     ...Object.keys(statusCounts).filter(
-      (status) =>
-        !(participationStatusesList as readonly string[]).includes(status) &&
-        statusCounts[status] > 0,
+      (status) => !(participationStatusesList as readonly string[]).includes(status) && statusCounts[status] > 0,
     ),
   ];
 
@@ -121,13 +107,9 @@ export function QuestionStatsGrid({
   const visibleCount = all.filter(isVisible).length;
   const hiddenCount = all.length - visibleCount;
 
-  const totalApplicants = statuses.reduce(
-    (total, status) => total + (statusCounts[status] ?? 0),
-    0,
-  );
+  const totalApplicants = statuses.reduce((total, status) => total + (statusCounts[status] ?? 0), 0);
   const includedApplicants = statuses.reduce(
-    (total, status) =>
-      included(status) ? total + (statusCounts[status] ?? 0) : total,
+    (total, status) => (included(status) ? total + (statusCounts[status] ?? 0) : total),
     0,
   );
   const includedStatusCount = statuses.filter(included).length;
@@ -141,9 +123,7 @@ export function QuestionStatsGrid({
   const groups = sections
     .map((group) => ({
       title: group.title,
-      stats: group.stats
-        .filter(isVisible)
-        .map((stat) => mergeStat(stat, included)),
+      stats: group.stats.filter(isVisible).map((stat) => mergeStat(stat, included)),
     }))
     .filter((group) => group.stats.length > 0);
 
@@ -203,9 +183,7 @@ export function QuestionStatsGrid({
               {isFiltered && (
                 <>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onSelect={() => clearStatuses()}>
-                    All statuses
-                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => clearStatuses()}>All statuses</DropdownMenuItem>
                 </>
               )}
             </DropdownMenuContent>
@@ -223,10 +201,7 @@ export function QuestionStatsGrid({
                 )}
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align='end'
-              className='max-h-96 w-64 overflow-y-auto'
-            >
+            <DropdownMenuContent align='end' className='max-h-96 w-64 overflow-y-auto'>
               {sections.map((group, index) => (
                 <DropdownMenuGroup key={group.title}>
                   {index > 0 && <DropdownMenuSeparator />}
@@ -246,9 +221,7 @@ export function QuestionStatsGrid({
               {hiddenCount > 0 && (
                 <>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onSelect={() => clear()}>
-                    Show all
-                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => clear()}>Show all</DropdownMenuItem>
                 </>
               )}
             </DropdownMenuContent>
@@ -257,33 +230,24 @@ export function QuestionStatsGrid({
       </div>
 
       {groups.length === 0 ? (
-        <p className='text-muted-foreground text-sm'>
-          Every stat is hidden. Use “Choose stats” to bring some back.
-        </p>
+        <p className='text-muted-foreground text-sm'>Every stat is hidden. Use “Choose stats” to bring some back.</p>
       ) : includedStatusCount === 0 ? (
         <p className='text-muted-foreground text-sm'>
-          Every application status is filtered out. Use “Filter” to bring some
-          back.
+          Every application status is filtered out. Use “Filter” to bring some back.
         </p>
       ) : (
         groups.map((group) => (
           <div key={group.title} className='space-y-3'>
-            <h3 className='text-muted-foreground m-0 text-sm font-medium'>
-              {group.title}
-            </h3>
+            <h3 className='text-muted-foreground m-0 text-sm font-medium'>{group.title}</h3>
             <div className='grid grid-cols-1 gap-4 lg:grid-cols-2'>
               {group.stats.map((stat) => (
                 <BentoCard
                   key={stat.id}
                   title={stat.label}
-                  description={`${stat.answered.toLocaleString()} ${
-                    stat.answered === 1 ? 'response' : 'responses'
-                  }`}
+                  description={`${stat.answered.toLocaleString()} ${stat.answered === 1 ? 'response' : 'responses'}`}
                 >
                   {stat.answered === 0 ? (
-                    <p className='text-muted-foreground text-sm'>
-                      No responses yet.
-                    </p>
+                    <p className='text-muted-foreground text-sm'>No responses yet.</p>
                   ) : (
                     <div className='space-y-2.5'>
                       {stat.buckets.map((bucket) => (

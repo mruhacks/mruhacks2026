@@ -5,11 +5,8 @@ import { DashboardHeader } from '@/components/dashboard-header';
 import { DashboardFooter } from '@/components/dashboard-footer';
 import { BreadcrumbProvider } from '@/components/breadcrumb-context';
 import { getUser } from '@/utils/auth';
-import { getConsentStatus } from '@/app/dashboard/account/actions';
-import {
-  getProfessionalProfile,
-  getUserProfile,
-} from '@/app/dashboard/profile/actions';
+import { getConsentStatus } from './account/actions';
+import { getProfessionalProfile, getUserProfile } from './profile/actions';
 import { redirect } from 'next/navigation';
 
 // Account/app pages aren't useful search results; keep them out of the index.
@@ -155,12 +152,8 @@ async function DashboardHeaderLoader() {
 
   // Bounce back into onboarding if it was never finished — e.g. the user
   // closed the tab mid-welcome-flow, or typed a dashboard URL directly.
-  const [consentRes, profileRes] = await Promise.all([
-    getConsentStatus(),
-    getUserProfile(),
-  ]);
-  const needsConsent =
-    consentRes.success && consentRes.data ? consentRes.data.needsConsent : true;
+  const [consentRes, profileRes] = await Promise.all([getConsentStatus(), getUserProfile()]);
+  const needsConsent = consentRes.success && consentRes.data ? consentRes.data.needsConsent : true;
   const needsProfile = !profileRes.success || profileRes.data == null;
   if (needsConsent || needsProfile) redirect('/welcome');
 
@@ -188,11 +181,7 @@ async function DashboardHeaderLoader() {
 
 // ── Layout ─────────────────────────────────────────────────────────────────────
 
-export default function DashboardLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
     <div
       className='flex min-h-screen flex-col'
@@ -203,10 +192,7 @@ export default function DashboardLayout({
         <Suspense fallback={<HeaderSkeleton />}>
           <DashboardHeaderLoader />
         </Suspense>
-        <main
-          className='mx-auto w-full flex-1 px-4 py-8 sm:px-6'
-          style={{ maxWidth: 'var(--content-max)' }}
-        >
+        <main className='mx-auto w-full flex-1 px-4 py-8 sm:px-6' style={{ maxWidth: 'var(--content-max)' }}>
           <Suspense fallback={<ContentSkeleton />}>{children}</Suspense>
         </main>
       </BreadcrumbProvider>

@@ -3,27 +3,16 @@ import 'server-only';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { cacheLife, cacheTag } from 'next/cache';
 
-import {
-  checkIns,
-  dietaryRestrictions,
-  eventParticipants,
-  events,
-  eventTypes,
-  user,
-  userDietaryRestrictions,
-  userProfiles,
-} from '@/db/schema';
+import * as schema from '@/db/schema';
 import { eventApplicationsCacheTag } from '@/lib/admin-event';
-import { buildDietaryReport, type DietaryReport } from '@/lib/dietary/report';
-import { hasStatus } from '@/lib/participation/server';
+import { buildDietaryReport, type Report } from './report';
+import * as Participation from '@/lib/participation/server';
 import { listEventTreeIds, resolveEventRoot } from '@/lib/subevents';
-import { resolveParticipantName } from '@/lib/wallet/participation';
+import * as Wallet from '@/lib/wallet/server';
 import { dietaryRestrictionsList, MEAL_EVENT_TYPE } from '@/types/lookups';
 import { db } from '@/utils/db';
 
-export async function loadDietaryReport(
-  eventId: string,
-): Promise<DietaryReport | null> {
+export async function loadDietaryReport(eventId: string): Promise<Report | null> {
   const root = await resolveEventRoot(eventId);
   if (!root) return null;
 
@@ -32,58 +21,54 @@ export async function loadDietaryReport(
   const [participantRows, mealRows, checkInRows] = await Promise.all([
     db
       .select({
-        userId: user.id,
-        accountName: user.name,
-        fullName: userProfiles.fullName,
-        otherText: userProfiles.dietaryOtherText,
+        userId: schema.user.id,
+        accountName: schema.user.name,
+        fullName: schema.userProfiles.fullName,
+        otherText: schema.userProfiles.dietaryOtherText,
         restrictionLabels: sql<string[]>`ARRAY(
-          SELECT ${dietaryRestrictions.label}::text
-          FROM ${userDietaryRestrictions}
-          INNER JOIN ${dietaryRestrictions}
-            ON ${dietaryRestrictions.id} = ${userDietaryRestrictions.restrictionId}
-          WHERE ${userDietaryRestrictions.userId} = ${user.id}
+          SELECT ${schema.dietaryRestrictions.label}::text
+          FROM ${schema.userDietaryRestrictions}
+          INNER JOIN ${schema.dietaryRestrictions}
+            ON ${schema.dietaryRestrictions.id} = ${schema.userDietaryRestrictions.restrictionId}
+          WHERE ${schema.userDietaryRestrictions.userId} = ${schema.user.id}
         )`,
       })
-      .from(user)
+      .from(schema.user)
       .innerJoin(
-        eventParticipants,
+        schema.eventParticipants,
         and(
-          eq(eventParticipants.eventId, root.id),
-          eq(eventParticipants.userId, user.id),
-          hasStatus('accepted'),
+          eq(schema.eventParticipants.eventId, root.id),
+          eq(schema.eventParticipants.userId, schema.user.id),
+          Participation.hasStatus('accepted'),
         ),
       )
-      .leftJoin(userProfiles, eq(userProfiles.userId, user.id)),
+      .leftJoin(schema.userProfiles, eq(schema.userProfiles.userId, schema.user.id)),
     db
       .select({
-        id: events.id,
-        name: events.name,
-        startsAt: events.startsAt,
-        endsAt: events.endsAt,
+        id: schema.events.id,
+        name: schema.events.name,
+        startsAt: schema.events.startsAt,
+        endsAt: schema.events.endsAt,
       })
-      .from(events)
-      .innerJoin(eventTypes, eq(eventTypes.id, events.eventTypeId))
-      .where(
-        and(inArray(events.id, treeIds), eq(eventTypes.label, MEAL_EVENT_TYPE)),
-      ),
+      .from(schema.events)
+      .innerJoin(schema.eventTypes, eq(schema.eventTypes.id, schema.events.eventTypeId))
+      .where(and(inArray(schema.events.id, treeIds), eq(schema.eventTypes.label, MEAL_EVENT_TYPE))),
     db
       .select({
-        eventId: checkIns.eventId,
-        userId: checkIns.userId,
-        checkedInAt: checkIns.checkedInAt,
+        eventId: schema.checkIns.eventId,
+        userId: schema.checkIns.userId,
+        checkedInAt: schema.checkIns.checkedInAt,
       })
-      .from(checkIns)
-      .where(inArray(checkIns.eventId, treeIds)),
+      .from(schema.checkIns)
+      .where(inArray(schema.checkIns.eventId, treeIds)),
   ]);
 
   const participants = participantRows.map((row) => {
     const labels = new Set(row.restrictionLabels ?? []);
     return {
       userId: row.userId,
-      name: resolveParticipantName(row.fullName, row.accountName),
-      restrictions: dietaryRestrictionsList.filter((label) =>
-        labels.has(label),
-      ),
+      name: Wallet.resolveParticipantName(row.fullName, row.accountName),
+      restrictions: dietaryRestrictionsList.filter((label) => labels.has(label)),
       otherText: labels.has('Other') ? row.otherText?.trim() || null : null,
     };
   });
@@ -109,9 +94,7 @@ export async function loadDietaryReport(
   });
 }
 
-export async function getDietaryExpectedCount(
-  eventId: string,
-): Promise<number> {
+export async function getDietaryExpectedCount(eventId: string): Promise<number> {
   'use cache';
   cacheTag(eventApplicationsCacheTag(eventId));
   cacheLife('minutes');
@@ -122,8 +105,8 @@ export async function getDietaryExpectedCount(
 
   const [row] = await db
     .select({ c: sql<number>`COUNT(*)`.mapWith(Number) })
-    .from(eventParticipants)
-    .where(and(eq(eventParticipants.eventId, root.id), hasStatus('accepted')));
+    .from(schema.eventParticipants)
+    .where(and(eq(schema.eventParticipants.eventId, root.id), Participation.hasStatus('accepted')));
 
   return row?.c ?? 0;
 }

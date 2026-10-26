@@ -21,9 +21,7 @@ export function formatInstant(
   locale: string | string[],
   options?: Intl.DateTimeFormatOptions,
 ): string {
-  return new Intl.DateTimeFormat(locale, { ...options, timeZone }).format(
-    value,
-  );
+  return new Intl.DateTimeFormat(locale, { ...options, timeZone }).format(value);
 }
 
 /**
@@ -47,17 +45,14 @@ export function parseInstant(value: Date | string | null): Date | null {
   const match = TIMESTAMP_PATTERN.exec(trimmed);
   // Anything that isn't a recognizable timestamp (an RFC 2822 date, say) is
   // handed to the Date parser untouched rather than mangled on the way in.
-  const date = match
-    ? new Date(`${match[1]}T${match[2]}${normalizeOffset(match[3])}`)
-    : new Date(trimmed);
+  const date = match ? new Date(`${match[1]}T${match[2]}${normalizeOffset(match[3])}`) : new Date(trimmed);
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
 /** `YYYY-MM-DD`, a `T` or the space Postgres emits, a time, and an optional
  *  zone in any of the spellings Postgres and ISO 8601 between them produce:
  *  `Z`, `+00`, `+0000`, `+00:00`. */
-const TIMESTAMP_PATTERN =
-  /^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?)(Z|[+-]\d{2}(?::?\d{2})?)?$/i;
+const TIMESTAMP_PATTERN = /^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?)(Z|[+-]\d{2}(?::?\d{2})?)?$/i;
 
 /**
  * Zone suffix -> the `±HH:MM`/`Z` spelling `new Date` actually accepts.
@@ -140,15 +135,13 @@ export function toZonedOffsetString(value: Date, timeZone: string): string {
     second: '2-digit',
     timeZoneName: 'longOffset',
   }).formatToParts(value);
-  const part = (type: Intl.DateTimeFormatPartTypes) =>
-    parts.find((entry) => entry.type === type)?.value ?? '';
+  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((entry) => entry.type === type)?.value ?? '';
 
   // "GMT-06:00" -> "-06:00". UTC formats as a bare "GMT" with no offset.
   const offset = part('timeZoneName').replace('GMT', '') || '+00:00';
 
   return (
-    `${part('year')}-${part('month')}-${part('day')}` +
-    `T${part('hour')}:${part('minute')}:${part('second')}${offset}`
+    `${part('year')}-${part('month')}-${part('day')}` + `T${part('hour')}:${part('minute')}:${part('second')}${offset}`
   );
 }
 

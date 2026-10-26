@@ -16,27 +16,16 @@ describe('schedule focus', () => {
     [14, 'lunch'],
     [16, 'lunch'],
   ])('focuses the current, upcoming, or final entry at %s', (hour, id) => {
-    const now =
-      hour === 9
-        ? Date.parse('2026-09-30T09:00:00Z')
-        : Date.parse(at(Number(hour)));
+    const now = hour === 9 ? Date.parse('2026-09-30T09:00:00Z') : Date.parse(at(Number(hour)));
     expect(currentScheduleEntryId(entries, now)).toBe(id);
   });
   test('ignores undated entries and handles an empty schedule', () => {
     expect(currentScheduleEntryId([], Date.parse(at(12)))).toBeNull();
-    expect(
-      currentScheduleEntryId(
-        [{ id: 'undated', startsAt: null, endsAt: null }],
-        Date.parse(at(12)),
-      ),
-    ).toBeNull();
+    expect(currentScheduleEntryId([{ id: 'undated', startsAt: null, endsAt: null }], Date.parse(at(12)))).toBeNull();
   });
   test('keeps an ongoing entry ahead of the next item, including overlapping entries', () => {
     expect(
-      currentScheduleEntryId(
-        [{ id: 'long', startsAt: at(10), endsAt: at(15) }, ...entries],
-        Date.parse(at(13)),
-      ),
+      currentScheduleEntryId([{ id: 'long', startsAt: at(10), endsAt: at(15) }, ...entries], Date.parse(at(13))),
     ).toBe('long');
   });
 });
@@ -57,9 +46,7 @@ describe('schedule day groups', () => {
       ['undated'],
     ]);
     expect(days[0].key).not.toBe(days[2].key);
-    expect(
-      groupScheduleByDay(entries, 'UTC')[0].entries.map((entry) => entry.id),
-    ).toEqual(['evening', 'morning']);
+    expect(groupScheduleByDay(entries, 'UTC')[0].entries.map((entry) => entry.id)).toEqual(['evening', 'morning']);
   });
   test('handles an empty schedule', () => {
     expect(groupScheduleByDay([], 'America/Edmonton')).toEqual([]);

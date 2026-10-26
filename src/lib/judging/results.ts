@@ -8,13 +8,7 @@
  * reliability. Pure: the caller loads votes and the pool.
  */
 
-import {
-  JUDGE_PRIOR,
-  PROJECT_PRIOR,
-  update,
-  type JudgeReliability,
-  type ProjectEstimate,
-} from './crowd-bt';
+import { JUDGE_PRIOR, PROJECT_PRIOR, update, type JudgeReliability, type ProjectEstimate } from './crowd-bt';
 
 export type ReplayVote = {
   judgeId: string;
@@ -48,8 +42,7 @@ export function replayVotes(
   const byCriterion = new Map<string, Map<string, ProjectCriterionResult>>();
   for (const criterionId of criterionIds) {
     const projects = new Map<string, ProjectCriterionResult>();
-    for (const id of pool)
-      projects.set(id, { ...PROJECT_PRIOR, comparisons: 0 });
+    for (const id of pool) projects.set(id, { ...PROJECT_PRIOR, comparisons: 0 });
     byCriterion.set(criterionId, projects);
   }
   const reliability = new Map<string, Map<string, JudgeReliability>>();
@@ -68,11 +61,7 @@ export function replayVotes(
       judge = new Map();
       reliability.set(vote.judgeId, judge);
     }
-    const next = update(
-      judge.get(vote.criterionId) ?? JUDGE_PRIOR,
-      winner,
-      loser,
-    );
+    const next = update(judge.get(vote.criterionId) ?? JUDGE_PRIOR, winner, loser);
     judge.set(vote.criterionId, next.judge);
     projects.set(vote.winnerId, {
       ...next.winner,
@@ -96,9 +85,7 @@ export function replayVotes(
 export function normalizeWeights(weights: readonly number[]): number[] {
   const clamped = weights.map((w) => (Number.isFinite(w) ? Math.max(w, 0) : 0));
   const total = clamped.reduce((sum, w) => sum + w, 0);
-  return total > 0
-    ? clamped.map((w) => w / total)
-    : clamped.map(() => 1 / Math.max(clamped.length, 1));
+  return total > 0 ? clamped.map((w) => w / total) : clamped.map(() => 1 / Math.max(clamped.length, 1));
 }
 
 /**

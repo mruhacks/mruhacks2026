@@ -7,10 +7,7 @@ import { toast } from 'sonner';
 import { Plus } from 'lucide-react';
 
 import { createSubevent } from '@/app/dashboard/admin/events/subevent-actions';
-import {
-  createSubeventSchema,
-  type CreateSubeventInput,
-} from '@/app/dashboard/admin/events/schemas';
+import { createSubeventSchema, type CreateSubeventInput } from '@/app/dashboard/admin/events/schemas';
 import { useZoneAbbreviation } from '@/components/local-date-time';
 import { fromDateTimeLocalValue, toDateTimeLocalValue } from '@/lib/datetime';
 import { Button } from '@/components/ui/button';
@@ -23,13 +20,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import {
-  Field,
-  FieldDescription,
-  FieldError,
-  FieldGroup,
-  FieldLabel,
-} from '@/components/ui/field';
+import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
@@ -117,16 +108,10 @@ export function CreateSubeventDialog({
       <DialogContent className='sm:max-w-md'>
         <DialogHeader>
           <DialogTitle>New schedule entry</DialogTitle>
-          <DialogDescription>
-            Add a meal, workshop or ceremony to the participant schedule.
-          </DialogDescription>
+          <DialogDescription>Add a meal, workshop or ceremony to the participant schedule.</DialogDescription>
         </DialogHeader>
 
-        <form
-          onSubmit={onSubmit}
-          onChangeCapture={() => setSubmitError(null)}
-          className='flex flex-col gap-4'
-        >
+        <form onSubmit={onSubmit} onChangeCapture={() => setSubmitError(null)} className='flex flex-col gap-4'>
           <FieldGroup className='gap-4'>
             <Field className='gap-1.5' data-invalid={!!errors.name}>
               <FieldLabel htmlFor='subevent-name'>Name</FieldLabel>
@@ -141,9 +126,7 @@ export function CreateSubeventDialog({
 
             <FieldGroup className='grid gap-3 sm:grid-cols-2'>
               <Field className='gap-1.5' data-invalid={!!errors.startsAt}>
-                <FieldLabel htmlFor='subevent-startsAt'>
-                  Starts ({startsAtAbbr})
-                </FieldLabel>
+                <FieldLabel htmlFor='subevent-startsAt'>Starts ({startsAtAbbr})</FieldLabel>
                 <Controller
                   name='startsAt'
                   control={control}
@@ -153,17 +136,9 @@ export function CreateSubeventDialog({
                       id='subevent-startsAt'
                       aria-invalid={!!errors.startsAt}
                       type='datetime-local'
-                      value={
-                        field.value
-                          ? toDateTimeLocalValue(new Date(field.value))
-                          : ''
-                      }
+                      value={field.value ? toDateTimeLocalValue(new Date(field.value)) : ''}
                       onChange={(event) =>
-                        field.onChange(
-                          fromDateTimeLocalValue(
-                            event.target.value,
-                          )?.toISOString() ?? '',
-                        )
+                        field.onChange(fromDateTimeLocalValue(event.target.value)?.toISOString() ?? '')
                       }
                     />
                   )}
@@ -172,9 +147,7 @@ export function CreateSubeventDialog({
               </Field>
 
               <Field className='gap-1.5' data-invalid={!!errors.endsAt}>
-                <FieldLabel htmlFor='subevent-endsAt'>
-                  Ends ({endsAtAbbr}, optional)
-                </FieldLabel>
+                <FieldLabel htmlFor='subevent-endsAt'>Ends ({endsAtAbbr}, optional)</FieldLabel>
                 <Controller
                   name='endsAt'
                   control={control}
@@ -184,17 +157,9 @@ export function CreateSubeventDialog({
                       id='subevent-endsAt'
                       aria-invalid={!!errors.endsAt}
                       type='datetime-local'
-                      value={
-                        field.value
-                          ? toDateTimeLocalValue(new Date(field.value))
-                          : ''
-                      }
+                      value={field.value ? toDateTimeLocalValue(new Date(field.value)) : ''}
                       onChange={(event) =>
-                        field.onChange(
-                          fromDateTimeLocalValue(
-                            event.target.value,
-                          )?.toISOString() ?? null,
-                        )
+                        field.onChange(fromDateTimeLocalValue(event.target.value)?.toISOString() ?? null)
                       }
                     />
                   )}
@@ -205,9 +170,7 @@ export function CreateSubeventDialog({
 
             <Field className='gap-1.5' data-invalid={!!errors.eventTypeId}>
               <FieldLabel htmlFor='subevent-type'>Type (optional)</FieldLabel>
-              <FieldDescription>
-                Tag meals so they show up on the dietary report.
-              </FieldDescription>
+              <FieldDescription>Tag meals so they show up on the dietary report.</FieldDescription>
               <Controller
                 name='eventTypeId'
                 control={control}
@@ -224,17 +187,11 @@ export function CreateSubeventDialog({
                   />
                 )}
               />
-              {errors.eventTypeId && (
-                <FieldError errors={[errors.eventTypeId]} />
-              )}
+              {errors.eventTypeId && <FieldError errors={[errors.eventTypeId]} />}
             </Field>
             <Field className='gap-1.5' data-invalid={!!errors.location}>
-              <FieldLabel htmlFor='subevent-location'>
-                Location (optional)
-              </FieldLabel>
-              <FieldDescription>
-                Shown on the participant schedule.
-              </FieldDescription>
+              <FieldLabel htmlFor='subevent-location'>Location (optional)</FieldLabel>
+              <FieldDescription>Shown on the participant schedule.</FieldDescription>
               <Input
                 id='subevent-location'
                 aria-invalid={!!errors.location}
@@ -244,25 +201,17 @@ export function CreateSubeventDialog({
               {errors.location && <FieldError errors={[errors.location]} />}
             </Field>
             <Field data-invalid={!!errors.descriptionMarkdown}>
-              <FieldLabel htmlFor='schedule-description'>
-                Description (optional)
-              </FieldLabel>
-              <FieldDescription>
-                Supports Markdown and appears inline on the schedule.
-              </FieldDescription>
+              <FieldLabel htmlFor='schedule-description'>Description (optional)</FieldLabel>
+              <FieldDescription>Supports Markdown and appears inline on the schedule.</FieldDescription>
               <Textarea
                 id='schedule-description'
                 aria-invalid={!!errors.descriptionMarkdown}
                 {...register('descriptionMarkdown')}
               />
-              {errors.descriptionMarkdown && (
-                <FieldError errors={[errors.descriptionMarkdown]} />
-              )}
+              {errors.descriptionMarkdown && <FieldError errors={[errors.descriptionMarkdown]} />}
             </Field>
             <Field orientation='horizontal'>
-              <FieldLabel htmlFor='schedule-check-in'>
-                Enable check-in
-              </FieldLabel>
+              <FieldLabel htmlFor='schedule-check-in'>Enable check-in</FieldLabel>
               <Controller
                 name='checkInEnabled'
                 control={control}
@@ -283,11 +232,7 @@ export function CreateSubeventDialog({
           {submitError && <FieldError>{submitError}</FieldError>}
 
           <DialogFooter>
-            <Button
-              type='button'
-              variant='outline'
-              onClick={() => handleOpenChange(false)}
-            >
+            <Button type='button' variant='outline' onClick={() => handleOpenChange(false)}>
               Cancel
             </Button>
             <Button type='submit' disabled={isSubmitting}>

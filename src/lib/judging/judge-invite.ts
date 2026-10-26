@@ -1,12 +1,9 @@
 import 'server-only';
 
-import { getBackgroundAuthHeaders } from '@/lib/rsvp/send-rsvp-magic-link';
+import * as Rsvp from '@/lib/rsvp/server';
 import { auth } from '@/utils/auth';
 
-import {
-  judgeInviteMailContext,
-  judgeSignInLinkCapture,
-} from './judge-invite-mail';
+import { judgeInviteMailContext, judgeSignInLinkCapture } from './judge-invite-mail';
 
 /**
  * Where the judge's magic link lands. The dashboard sends anyone not yet
@@ -21,17 +18,14 @@ const JUDGE_SIGNUP_PATH = '/dashboard';
  * the admin `inviteUser` flow relies on. Judges get no role: the roster row
  * is what authorizes them.
  */
-export async function sendJudgeInvite(options: {
-  email: string;
-  eventName: string;
-}): Promise<void> {
+export async function sendJudgeInvite(options: { email: string; eventName: string }): Promise<void> {
   await judgeInviteMailContext.run({ eventName: options.eventName }, () =>
     auth.api.signInMagicLink({
       body: {
         email: options.email,
         callbackURL: JUDGE_SIGNUP_PATH,
       },
-      headers: getBackgroundAuthHeaders(),
+      headers: Rsvp.getBackgroundAuthHeaders(),
     }),
   );
 }
@@ -46,7 +40,7 @@ export async function createJudgeSignInLink(email: string): Promise<string> {
   await judgeSignInLinkCapture.run(capture, () =>
     auth.api.signInMagicLink({
       body: { email, callbackURL: JUDGE_SIGNUP_PATH },
-      headers: getBackgroundAuthHeaders(),
+      headers: Rsvp.getBackgroundAuthHeaders(),
     }),
   );
   if (!capture.url) throw new Error('No sign-in link was minted');

@@ -4,7 +4,7 @@ import { notFound, redirect } from 'next/navigation';
 import { getJudgingResults } from '@/app/dashboard/admin/events/judging-actions';
 import { Card } from '@/components/ui/card';
 import { resolveEventId } from '@/lib/events';
-import { requireAnyPermission } from '@/lib/rbac/authorization';
+import * as Rbac from '@/lib/rbac/server';
 import { getUser } from '@/utils/auth';
 
 import { ResultsHeader } from './_components/results-header';
@@ -26,9 +26,7 @@ type Props = {
  */
 export default function JudgingResultsLayout({ children, params }: Props) {
   return (
-    <React.Suspense
-      fallback={<div className='bg-muted h-64 animate-pulse rounded-xl' />}
-    >
+    <React.Suspense fallback={<div className='bg-muted h-64 animate-pulse rounded-xl' />}>
       <ResultsShell paramsPromise={params}>{children}</ResultsShell>
     </React.Suspense>
   );
@@ -48,18 +46,11 @@ async function ResultsShell({
   if (!user) redirect('/signin');
   // Either permission opens the section; `getJudgingResults` decides what's
   // in it, and the ranking-only pages gate themselves.
-  await requireAnyPermission(user.id, [
-    'judging:results:all',
-    'judging:award:all',
-  ]);
+  await Rbac.requireAnyPermission(user.id, ['judging:results:all', 'judging:award:all']);
 
   const result = await getJudgingResults(eventId);
   if (!result.success || !result.data) {
-    return (
-      <p className='text-destructive'>
-        {!result.success ? result.error : 'Failed to load results.'}
-      </p>
-    );
+    return <p className='text-destructive'>{!result.success ? result.error : 'Failed to load results.'}</p>;
   }
 
   return (

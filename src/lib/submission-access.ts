@@ -2,20 +2,8 @@ import 'server-only';
 
 import { and, eq, exists, sql } from 'drizzle-orm';
 
-import {
-  checkIns,
-  eventInvitations,
-  eventParticipants,
-  eventRsvpWaves,
-  events,
-  participationStatuses,
-  submissions,
-  teamMembers,
-} from '@/db/schema';
-import {
-  canSubmitProject,
-  resolveEffectiveStatus,
-} from '@/lib/participation/status';
+import * as schema from '@/db/schema';
+import * as Participation from '@/lib/participation';
 import { getSubmissionWindow, type SubmissionWindow } from '@/lib/submissions';
 import type { Queryable } from '@/lib/team-membership';
 import { db } from '@/utils/db';
@@ -30,7 +18,7 @@ type SubmissionEvent = {
   submissionsCloseAt: Date | null;
 };
 
-export type SubmissionRow = typeof submissions.$inferSelect;
+export type SubmissionRow = typeof schema.submissions.$inferSelect;
 
 export type SubmissionAccess = {
   event: SubmissionEvent;
@@ -63,85 +51,61 @@ export async function loadSubmissionAccess(
 ): Promise<SubmissionAccess | null> {
   const [event] = await dbHandle
     .select({
-      id: events.id,
-      hasApplication: events.hasApplication,
-      teamsEnabled: events.teamsEnabled,
-      checkInEnabled: events.checkInEnabled,
-      startsAt: events.startsAt,
-      endsAt: events.endsAt,
-      submissionsCloseAt: events.submissionsCloseAt,
+      id: schema.events.id,
+      hasApplication: schema.events.hasApplication,
+      teamsEnabled: schema.events.teamsEnabled,
+      checkInEnabled: schema.events.checkInEnabled,
+      startsAt: schema.events.startsAt,
+      endsAt: schema.events.endsAt,
+      submissionsCloseAt: schema.events.submissionsCloseAt,
       hasSentRsvpWave: sql<boolean>`${exists(
         dbHandle
-          .select({ id: eventRsvpWaves.id })
-          .from(eventRsvpWaves)
-          .where(eq(eventRsvpWaves.eventId, events.id)),
+          .select({ id: schema.eventRsvpWaves.id })
+          .from(schema.eventRsvpWaves)
+          .where(eq(schema.eventRsvpWaves.eventId, schema.events.id)),
       )}`,
     })
-    .from(events)
-    .where(eq(events.id, eventId))
+    .from(schema.events)
+    .where(eq(schema.events.id, eventId))
     .limit(1);
   if (!event) return null;
 
   const [[participant], [checkIn], [membership]] = await Promise.all([
     dbHandle
       .select({
-        statusLabel: participationStatuses.label,
-        respondBy: eventRsvpWaves.respondBy,
+        statusLabel: schema.participationStatuses.label,
+        respondBy: schema.eventRsvpWaves.respondBy,
       })
-      .from(eventParticipants)
-      .innerJoin(
-        participationStatuses,
-        eq(eventParticipants.statusId, participationStatuses.id),
-      )
-      .leftJoin(
-        eventInvitations,
-        eq(eventInvitations.participantId, eventParticipants.id),
-      )
-      .leftJoin(
-        eventRsvpWaves,
-        eq(eventInvitations.rsvpWaveId, eventRsvpWaves.id),
-      )
-      .where(
-        and(
-          eq(eventParticipants.eventId, eventId),
-          eq(eventParticipants.userId, userId),
-        ),
-      )
+      .from(schema.eventParticipants)
+      .innerJoin(schema.participationStatuses, eq(schema.eventParticipants.statusId, schema.participationStatuses.id))
+      .leftJoin(schema.eventInvitations, eq(schema.eventInvitations.participantId, schema.eventParticipants.id))
+      .leftJoin(schema.eventRsvpWaves, eq(schema.eventInvitations.rsvpWaveId, schema.eventRsvpWaves.id))
+      .where(and(eq(schema.eventParticipants.eventId, eventId), eq(schema.eventParticipants.userId, userId)))
       .limit(1),
     dbHandle
-      .select({ userId: checkIns.userId })
-      .from(checkIns)
-      .where(and(eq(checkIns.eventId, eventId), eq(checkIns.userId, userId)))
+      .select({ userId: schema.checkIns.userId })
+      .from(schema.checkIns)
+      .where(and(eq(schema.checkIns.eventId, eventId), eq(schema.checkIns.userId, userId)))
       .limit(1),
     dbHandle
-      .select({ teamId: teamMembers.teamId })
-      .from(teamMembers)
-      .where(
-        and(eq(teamMembers.eventId, eventId), eq(teamMembers.userId, userId)),
-      )
+      .select({ teamId: schema.teamMembers.teamId })
+      .from(schema.teamMembers)
+      .where(and(eq(schema.teamMembers.eventId, eventId), eq(schema.teamMembers.userId, userId)))
       .limit(1),
   ]);
 
   const { hasSentRsvpWave, ...eventFields } = event;
   const eligible =
     participant != null &&
-    canSubmitProject(
+    Participation.canSubmitProject(
       { checkInEnabled: event.checkInEnabled, hasSentRsvpWave },
-      resolveEffectiveStatus(
-        participant.statusLabel,
-        participant.respondBy,
-        now,
-      ),
+      Participation.resolveEffectiveStatus(participant.statusLabel, participant.respondBy, now),
       checkIn != null,
     );
 
   const teamId = membership?.teamId ?? null;
   const [submission] = teamId
-    ? await dbHandle
-        .select()
-        .from(submissions)
-        .where(eq(submissions.teamId, teamId))
-        .limit(1)
+    ? await dbHandle.select().from(schema.submissions).where(eq(schema.submissions.teamId, teamId)).limit(1)
     : [];
 
   return {

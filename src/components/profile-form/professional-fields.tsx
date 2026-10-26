@@ -4,13 +4,7 @@ import type { UseFormReturn } from 'react-hook-form';
 
 import type { ProfessionalProfileValues } from '@/app/dashboard/profile/actions';
 import { Input } from '@/components/ui/input';
-import {
-  Field,
-  FieldError,
-  FieldGroup,
-  FieldLabel,
-  RequiredAsterisk,
-} from '@/components/ui/field';
+import { Field, FieldError, FieldGroup, FieldLabel, RequiredAsterisk } from '@/components/ui/field';
 
 /**
  * Company and job title — shared by the judge onboarding step and the

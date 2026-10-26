@@ -1,11 +1,5 @@
 import { describe, test, expect } from 'vitest';
-import {
-  RESERVED_EVENT_SLUGS,
-  adminEventPath,
-  eventPath,
-  isEventUuid,
-  isValidEventSlug,
-} from '@/lib/event-slug';
+import { RESERVED_EVENT_SLUGS, adminEventPath, eventPath, isEventUuid, isValidEventSlug } from '@/lib/event-slug';
 import { SLUG_MAX_LENGTH } from '@/lib/slug';
 
 const UUID = '3f0c9b4e-1d2a-4c5b-8e7f-0a1b2c3d4e5f';
@@ -31,12 +25,9 @@ describe('isValidEventSlug', () => {
     expect(isValidEventSlug(UUID)).toBe(false);
   });
 
-  test.each(RESERVED_EVENT_SLUGS)(
-    'rejects %s, shadowed by the sibling route',
-    (reserved) => {
-      expect(isValidEventSlug(reserved)).toBe(false);
-    },
-  );
+  test.each(RESERVED_EVENT_SLUGS)('rejects %s, shadowed by the sibling route', (reserved) => {
+    expect(isValidEventSlug(reserved)).toBe(false);
+  });
 
   test.each([
     ['', 'empty'],
@@ -51,29 +42,21 @@ describe('isValidEventSlug', () => {
 
 describe('eventPath', () => {
   test('prefers the slug when the event has one', () => {
-    expect(eventPath({ id: UUID, slug: 'mruhacks-2026' })).toBe(
-      '/dashboard/events/mruhacks-2026',
-    );
+    expect(eventPath({ id: UUID, slug: 'mruhacks-2026' })).toBe('/dashboard/events/mruhacks-2026');
   });
 
   test('falls back to the id when the slug is null or absent', () => {
-    expect(eventPath({ id: UUID, slug: null })).toBe(
-      `/dashboard/events/${UUID}`,
-    );
+    expect(eventPath({ id: UUID, slug: null })).toBe(`/dashboard/events/${UUID}`);
     expect(eventPath({ id: UUID })).toBe(`/dashboard/events/${UUID}`);
   });
 });
 
 describe('adminEventPath', () => {
   test('prefers the slug when the event has one', () => {
-    expect(adminEventPath({ id: UUID, slug: 'mruhacks-2026' })).toBe(
-      '/dashboard/admin/events/mruhacks-2026',
-    );
+    expect(adminEventPath({ id: UUID, slug: 'mruhacks-2026' })).toBe('/dashboard/admin/events/mruhacks-2026');
   });
 
   test('falls back to the id when there is no slug', () => {
-    expect(adminEventPath({ id: UUID, slug: null })).toBe(
-      `/dashboard/admin/events/${UUID}`,
-    );
+    expect(adminEventPath({ id: UUID, slug: null })).toBe(`/dashboard/admin/events/${UUID}`);
   });
 });

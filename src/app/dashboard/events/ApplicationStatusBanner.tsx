@@ -1,16 +1,10 @@
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import type { ParticipationForUser } from '@/app/dashboard/events/actions';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import type { ParticipationForUser } from './actions';
 import { LocalDateTime } from '@/components/local-date-time';
-import { canEditApplication } from '@/lib/participation/status';
+import * as Participation from '@/lib/participation';
 
 const TIMELINE_FIELDS = [
   {
@@ -34,14 +28,10 @@ type Props = {
 };
 
 /** Participation status badge and application timeline for the current user. */
-export function ApplicationStatusBanner({
-  application,
-  standalone = false,
-  editHref,
-}: Props) {
+export function ApplicationStatusBanner({ application, standalone = false, editHref }: Props) {
   const { display, createdAt } = application;
   const label = display.title;
-  const showEdit = Boolean(editHref) && canEditApplication(application.status);
+  const showEdit = Boolean(editHref) && Participation.canEditApplication(application.status);
 
   if (standalone) {
     return (
@@ -62,11 +52,7 @@ export function ApplicationStatusBanner({
                 <div key={key}>
                   <dt className='text-muted-foreground'>{fieldLabel}</dt>
                   <dd>
-                    <LocalDateTime
-                      value={date}
-                      dateStyle='medium'
-                      timeStyle='short'
-                    />
+                    <LocalDateTime value={date} dateStyle='medium' timeStyle='short' />
                   </dd>
                 </div>
               );
@@ -87,12 +73,7 @@ export function ApplicationStatusBanner({
           <p>{display.description}</p>
           {createdAt && (
             <p className='text-muted-foreground text-sm'>
-              Submitted{' '}
-              <LocalDateTime
-                value={createdAt}
-                dateStyle='medium'
-                timeStyle='short'
-              />
+              Submitted <LocalDateTime value={createdAt} dateStyle='medium' timeStyle='short' />
             </p>
           )}
         </div>

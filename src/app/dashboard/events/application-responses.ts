@@ -5,10 +5,7 @@
 
 import type { ApplicationQuestion } from '@/types/application';
 import { isOtherOption, otherTextKey } from '@/lib/other-option';
-import {
-  applicationOtherTextSchema,
-  createApplicationQuestionSchema,
-} from '@/components/application-form/schema';
+import { applicationOtherTextSchema, createApplicationQuestionSchema } from '@/components/application-form/schema';
 
 export type BuildApplicationResponsesResult =
   | { ok: true; responses: Record<string, unknown> }
@@ -62,9 +59,7 @@ export function buildApplicationResponses(
 
       if (otherSelected) {
         const otherKey = otherTextKey(question.id);
-        const otherResult = applicationOtherTextSchema.safeParse(
-          formResponses[otherKey],
-        );
+        const otherResult = applicationOtherTextSchema.safeParse(formResponses[otherKey]);
         if (!otherResult.success) {
           const issue = otherResult.error.issues[0];
           return {

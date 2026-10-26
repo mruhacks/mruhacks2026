@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { runWithRsvpMagicLinkMailContext } from '@/lib/rsvp/rsvp-magic-link-context';
+import { runWithRsvpMagicLinkMailContext } from './rsvp-magic-link-context';
 import { auth } from '@/utils/auth';
 
 /**
@@ -10,9 +10,7 @@ import { auth } from '@/utils/auth';
 export function getBackgroundAuthHeaders(): Headers {
   const baseUrl = process.env.BETTER_AUTH_URL?.trim();
   if (!baseUrl) {
-    throw new Error(
-      'BETTER_AUTH_URL is required to send RSVP magic-link invitations',
-    );
+    throw new Error('BETTER_AUTH_URL is required to send RSVP magic-link invitations');
   }
   return new Headers({
     origin: baseUrl,
@@ -42,15 +40,13 @@ export async function sendRsvpMagicLink(options: {
   const callbackURL = getRsvpMagicLinkCallbackURL(options.eventId);
   const headers = options.headers ?? getBackgroundAuthHeaders();
 
-  await runWithRsvpMagicLinkMailContext(
-    { eventName: options.eventName, respondBy: options.respondBy },
-    () =>
-      auth.api.signInMagicLink({
-        body: {
-          email: options.email,
-          callbackURL,
-        },
-        headers,
-      }),
+  await runWithRsvpMagicLinkMailContext({ eventName: options.eventName, respondBy: options.respondBy }, () =>
+    auth.api.signInMagicLink({
+      body: {
+        email: options.email,
+        callbackURL,
+      },
+      headers,
+    }),
   );
 }

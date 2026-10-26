@@ -2,27 +2,12 @@
  * Campaign server actions: authorization, draft creation and the audience
  * builder's count / preview.
  */
-import {
-  afterAll,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  test,
-  vi,
-} from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
 import { generateKeyPairSync } from 'node:crypto';
 import { eq, inArray } from 'drizzle-orm';
 
 import { db } from '@/utils/db';
-import {
-  campaigns,
-  events,
-  marketingConsents,
-  permission,
-  user,
-  userPermission,
-} from '@/db/schema';
+import * as schema from '@/db/schema';
 import { insertAttendees } from '@/tests/participation-fixtures';
 
 vi.mock('@/utils/auth', () => ({ getUser: vi.fn() }));
@@ -60,14 +45,11 @@ const createdCampaigns: string[] = [];
 async function grant(userId: string, slugs: string[]) {
   for (const slug of slugs) {
     const [row] = await db
-      .insert(permission)
+      .insert(schema.permission)
       .values({ slug })
-      .onConflictDoUpdate({ target: permission.slug, set: { slug } })
-      .returning({ id: permission.id });
-    await db
-      .insert(userPermission)
-      .values({ userId, permissionId: row.id })
-      .onConflictDoNothing();
+      .onConflictDoUpdate({ target: schema.permission.slug, set: { slug } })
+      .returning({ id: schema.permission.id });
+    await db.insert(schema.userPermission).values({ userId, permissionId: row.id }).onConflictDoNothing();
   }
 }
 
@@ -85,48 +67,40 @@ beforeAll(async () => {
   }).privateKey as unknown as string;
   for (const name of ['writer', 'previewer', 'operator', 'reader', 'member']) {
     const [row] = await db
-      .insert(user)
+      .insert(schema.user)
       .values({
         name: `Campaign action ${name}`,
         email: `campaign-action-${name}@example.com`,
         emailVerified: true,
       })
-      .returning({ id: user.id });
+      .returning({ id: schema.user.id });
     userIds[name] = row.id;
   }
   await grant(userIds.writer, ['campaign:write:all', 'campaign:read:all']);
-  await grant(userIds.previewer, [
-    'campaign:write:all',
-    'participant:read:all',
-  ]);
-  await grant(userIds.operator, [
-    'campaign:write:all',
-    'campaign:operational:all',
-  ]);
+  await grant(userIds.previewer, ['campaign:write:all', 'participant:read:all']);
+  await grant(userIds.operator, ['campaign:write:all', 'campaign:operational:all']);
   await grant(userIds.reader, ['campaign:read:all']);
 
   const [event] = await db
-    .insert(events)
+    .insert(schema.events)
     .values({ name: 'Campaign actions event' })
-    .returning({ id: events.id });
+    .returning({ id: schema.events.id });
   eventId = event.id;
   const [sub] = await db
-    .insert(events)
+    .insert(schema.events)
     .values({ name: 'Campaign actions lunch', parentEventId: eventId })
-    .returning({ id: events.id });
+    .returning({ id: schema.events.id });
   subeventId = sub.id;
   await insertAttendees({ eventId, userId: userIds.member });
-  await db
-    .insert(marketingConsents)
-    .values({ userId: userIds.member, optedIn: true });
+  await db.insert(schema.marketingConsents).values({ userId: userIds.member, optedIn: true });
 });
 
 beforeEach(() => vi.mocked(getUser).mockReset());
 
 afterAll(async () => {
-  await db.delete(campaigns).where(inArray(campaigns.id, createdCampaigns));
-  await db.delete(events).where(inArray(events.id, [subeventId, eventId]));
-  await db.delete(user).where(inArray(user.id, Object.values(userIds)));
+  await db.delete(schema.campaigns).where(inArray(schema.campaigns.id, createdCampaigns));
+  await db.delete(schema.events).where(inArray(schema.events.id, [subeventId, eventId]));
+  await db.delete(schema.user).where(inArray(schema.user.id, Object.values(userIds)));
 });
 
 const audienceForEvent = () => ({
@@ -154,7 +128,7 @@ describe('createCampaign', () => {
     expect(result.success).toBe(true);
     const id = result.success ? result.data!.id : '';
     createdCampaigns.push(id);
-    const [row] = await db.select().from(campaigns).where(eq(campaigns.id, id));
+    const [row] = await db.select().from(schema.campaigns).where(eq(schema.campaigns.id, id));
     expect(row).toMatchObject({
       status: 'draft',
       type: 'marketing',
@@ -167,16 +141,15 @@ describe('createCampaign', () => {
 
   test('operational needs campaign:operational:all', async () => {
     actAs('writer');
-    await expect(
-      createCampaign({ name: 'Logistics', type: 'operational', eventId }),
-    ).rejects.toThrow(FORBIDDEN);
+    await expect(createCampaign({ name: 'Logistics', type: 'operational', eventId })).rejects.toThrow(FORBIDDEN);
   });
 
   test('operational needs a top-level event', async () => {
     actAs('operator');
-    expect(
-      await createCampaign({ name: 'X', type: 'operational', eventId: null }),
-    ).toEqual({ success: false, error: 'Operational email needs an event.' });
+    expect(await createCampaign({ name: 'X', type: 'operational', eventId: null })).toEqual({
+      success: false,
+      error: 'Operational email needs an event.',
+    });
     const sub = await createCampaign({
       name: 'X',
       type: 'operational',
@@ -195,9 +168,7 @@ describe('createCampaign', () => {
 
   test('read-only holders cannot create', async () => {
     actAs('reader');
-    await expect(
-      createCampaign({ name: 'Nope', type: 'marketing', eventId: null }),
-    ).rejects.toThrow(FORBIDDEN);
+    await expect(createCampaign({ name: 'Nope', type: 'marketing', eventId: null })).rejects.toThrow(FORBIDDEN);
   });
 });
 
@@ -226,7 +197,7 @@ describe('updateCampaignAudience', () => {
       success: true,
       data: undefined,
     });
-    const [row] = await db.select().from(campaigns).where(eq(campaigns.id, id));
+    const [row] = await db.select().from(schema.campaigns).where(eq(schema.campaigns.id, id));
     expect(row.audienceRules).toEqual(rules);
 
     const bad = await updateCampaignAudience(id, {
@@ -235,10 +206,7 @@ describe('updateCampaignAudience', () => {
     } as never);
     expect(bad.success).toBe(false);
 
-    await db
-      .update(campaigns)
-      .set({ status: 'sent' })
-      .where(eq(campaigns.id, id));
+    await db.update(schema.campaigns).set({ status: 'sent' }).where(eq(schema.campaigns.id, id));
     expect(await updateCampaignAudience(id, rules)).toMatchObject({
       success: false,
       error: expect.stringMatching(/Only drafts/),
@@ -257,9 +225,7 @@ describe('audience builder count and preview', () => {
 
   test('count is refused without campaign read or write access', async () => {
     actAs('member');
-    await expect(countAudienceForBuilder(audienceForEvent())).rejects.toThrow(
-      FORBIDDEN,
-    );
+    await expect(countAudienceForBuilder(audienceForEvent())).rejects.toThrow(FORBIDDEN);
   });
 
   test('read-only viewers can count and participant readers can preview', async () => {
@@ -309,18 +275,18 @@ describe('audience builder count and preview', () => {
   test('marketing context forces the opt-in filter', async () => {
     actAs('writer');
     await db
-      .update(marketingConsents)
+      .update(schema.marketingConsents)
       .set({ optedIn: false })
-      .where(eq(marketingConsents.userId, userIds.member));
+      .where(eq(schema.marketingConsents.userId, userIds.member));
     const result = await countAudienceForBuilder({
       ...audienceForEvent(),
       context: { type: 'marketing', eventId: null },
     });
     expect(result).toEqual({ success: true, data: 0 });
     await db
-      .update(marketingConsents)
+      .update(schema.marketingConsents)
       .set({ optedIn: true })
-      .where(eq(marketingConsents.userId, userIds.member));
+      .where(eq(schema.marketingConsents.userId, userIds.member));
   });
 
   test('operational context without an event is rejected', async () => {
@@ -355,7 +321,7 @@ describe('campaign content', () => {
       bodyMarkdown: 'Hello {{firstName|friend}}',
     });
     expect(saved.success).toBe(true);
-    const [row] = await db.select().from(campaigns).where(eq(campaigns.id, id));
+    const [row] = await db.select().from(schema.campaigns).where(eq(schema.campaigns.id, id));
     expect(row).toMatchObject({
       name: 'Renamed',
       subject: 'Hi {{firstName}}',
@@ -406,16 +372,10 @@ describe('campaign content', () => {
       bodyMarkdown: '# Hello {{firstName}}\n\n<script>alert(1)</script>',
     });
     // Identical apart from the footer link: a preview has no signed token.
-    const unlink = (html: string) =>
-      html.replace(
-        /href="[^"]*(unsubscribe\?t=|dashboard\/account)[^"]*"/g,
-        'href=""',
-      );
+    const unlink = (html: string) => html.replace(/href="[^"]*(unsubscribe\?t=|dashboard\/account)[^"]*"/g, 'href=""');
     expect(mail.html).toContain('/unsubscribe?t=');
     expect(mail.listUnsubscribeUrl).toMatch(/\/api\/unsubscribe\?t=/);
-    expect(unlink(preview.success ? preview.data!.html : '')).toBe(
-      unlink(mail.html!),
-    );
+    expect(unlink(preview.success ? preview.data!.html : '')).toBe(unlink(mail.html!));
   });
 
   test('send test refuses an empty subject', async () => {
@@ -449,17 +409,12 @@ describe('uploadCampaignImage', () => {
       .png()
       .toBuffer();
     const form = new FormData();
-    form.append(
-      'file',
-      new File([new Uint8Array(png)], 'x.png', { type: 'image/png' }),
-    );
+    form.append('file', new File([new Uint8Array(png)], 'x.png', { type: 'image/png' }));
     const result = await uploadCampaignImage(form);
     expect(result).toMatchObject({
       success: true,
       data: {
-        url: expect.stringMatching(
-          /^\/api\/assets\/campaign-content\/[0-9a-f-]{36}-w1200\.jpg$/,
-        ),
+        url: expect.stringMatching(/^\/api\/assets\/campaign-content\/[0-9a-f-]{36}-w1200\.jpg$/),
       },
     });
   });
@@ -467,10 +422,7 @@ describe('uploadCampaignImage', () => {
   test('refuses SVG, oversize files, and non-writers', async () => {
     actAs('writer');
     const svg = new FormData();
-    svg.append(
-      'file',
-      new File(['<svg/>'], 'x.svg', { type: 'image/svg+xml' }),
-    );
+    svg.append('file', new File(['<svg/>'], 'x.svg', { type: 'image/svg+xml' }));
     expect((await uploadCampaignImage(svg)).success).toBe(false);
 
     const big = new FormData();

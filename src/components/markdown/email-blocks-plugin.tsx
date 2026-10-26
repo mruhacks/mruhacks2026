@@ -21,7 +21,7 @@ import { usePublisher } from '@mdxeditor/gurx';
 import type { RootContent } from 'mdast';
 import { MousePointerClick, Wallet, X } from 'lucide-react';
 
-import { CTA_DIRECTIVE, WALLET_DIRECTIVE } from '@/lib/campaigns/email-blocks';
+import * as Campaigns from '@/lib/campaigns';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -33,8 +33,7 @@ function CtaEditor({ mdastNode }: DirectiveEditorProps<LeafDirective>) {
   const remove = useLexicalNodeRemove();
   const id = React.useId();
   const attributes = mdastNode.attributes ?? {};
-  const set = (name: 'label' | 'href', value: string) =>
-    update({ attributes: { ...attributes, [name]: value } });
+  const set = (name: 'label' | 'href', value: string) => update({ attributes: { ...attributes, [name]: value } });
 
   return (
     <div
@@ -87,10 +86,9 @@ function CtaEditor({ mdastNode }: DirectiveEditorProps<LeafDirective>) {
 }
 
 export const CTA_DIRECTIVE_DESCRIPTOR: DirectiveDescriptor<LeafDirective> = {
-  name: CTA_DIRECTIVE,
+  name: Campaigns.CTA_DIRECTIVE,
   type: 'leafDirective',
-  testNode: (node) =>
-    node.type === 'leafDirective' && node.name === CTA_DIRECTIVE,
+  testNode: (node) => node.type === 'leafDirective' && node.name === Campaigns.CTA_DIRECTIVE,
   attributes: ['label', 'href'],
   hasChildren: false,
   Editor: CtaEditor,
@@ -104,7 +102,7 @@ export function InsertCtaButton() {
       onClick={() =>
         insertDirective({
           type: 'leafDirective',
-          name: CTA_DIRECTIVE,
+          name: Campaigns.CTA_DIRECTIVE,
           attributes: { label: '', href: '' },
         })
       }
@@ -123,8 +121,8 @@ function WalletEditor() {
           <Wallet className='size-3.5' /> Wallet buttons
         </span>
         <p className='text-muted-foreground text-xs'>
-          Add to Apple Wallet / Google Wallet, with links made for each
-          recipient. People without a confirmed spot get the email without them.
+          Add to Apple Wallet / Google Wallet, with links made for each recipient. People without a confirmed spot get
+          the email without them.
         </p>
       </div>
       <Button
@@ -142,10 +140,9 @@ function WalletEditor() {
 }
 
 export const WALLET_DIRECTIVE_DESCRIPTOR: DirectiveDescriptor<LeafDirective> = {
-  name: WALLET_DIRECTIVE,
+  name: Campaigns.WALLET_DIRECTIVE,
   type: 'leafDirective',
-  testNode: (node) =>
-    node.type === 'leafDirective' && node.name === WALLET_DIRECTIVE,
+  testNode: (node) => node.type === 'leafDirective' && node.name === Campaigns.WALLET_DIRECTIVE,
   attributes: [],
   hasChildren: false,
   Editor: WalletEditor,
@@ -156,9 +153,7 @@ export function InsertWalletButton() {
   return (
     <ButtonWithTooltip
       title='Insert wallet buttons'
-      onClick={() =>
-        insertDirective({ type: 'leafDirective', name: WALLET_DIRECTIVE })
-      }
+      onClick={() => insertDirective({ type: 'leafDirective', name: Campaigns.WALLET_DIRECTIVE })}
     >
       <Wallet className='size-5' />
     </ButtonWithTooltip>

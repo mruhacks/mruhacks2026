@@ -1,12 +1,12 @@
 import Link from 'next/link';
 
-import type { ParticipationForUser } from '@/app/dashboard/events/actions';
-import { EventParticipationStatusCard } from '@/app/dashboard/events/EventParticipationStatusCard';
-import { RsvpResponseButtons } from '@/app/dashboard/events/RsvpResponseButtons';
-import { WithdrawParticipationButton } from '@/app/dashboard/events/WithdrawParticipationButton';
+import type { ParticipationForUser } from './actions';
+import { EventParticipationStatusCard } from './EventParticipationStatusCard';
+import { RsvpResponseButtons } from './RsvpResponseButtons';
+import { WithdrawParticipationButton } from './WithdrawParticipationButton';
 import { LocalDateTime } from '@/components/local-date-time';
 import { Button } from '@/components/ui/button';
-import { canEditApplication } from '@/lib/participation/status';
+import * as Participation from '@/lib/participation';
 
 type Props = {
   eventId: string;
@@ -32,12 +32,7 @@ function DateRow({
 }) {
   return (
     <>
-      {label}{' '}
-      <LocalDateTime
-        value={value}
-        dateStyle={compact ? 'short' : 'medium'}
-        timeStyle='short'
-      />
+      {label} <LocalDateTime value={value} dateStyle={compact ? 'short' : 'medium'} timeStyle='short' />
     </>
   );
 }
@@ -77,20 +72,14 @@ export function ParticipationStatusCard({
   if (hasEnded) {
     // Every action below is refused server-side once the event is over.
     footer = null;
-  } else if (canEditApplication(status)) {
+  } else if (Participation.canEditApplication(status)) {
     footer = (
       <Button asChild size='sm' variant='outline'>
         <Link href={`${eventHref}/apply`}>Edit application</Link>
       </Button>
     );
   } else if (status === 'invited') {
-    footer = (
-      <RsvpResponseButtons
-        eventId={eventId}
-        termsMarkdown={termsMarkdown}
-        termsId={termsId}
-      />
-    );
+    footer = <RsvpResponseButtons eventId={eventId} termsMarkdown={termsMarkdown} termsId={termsId} />;
   } else if (status === 'waitlisted') {
     footer = <WithdrawParticipationButton eventId={eventId} kind='waitlist' />;
   } else if (status === 'accepted') {

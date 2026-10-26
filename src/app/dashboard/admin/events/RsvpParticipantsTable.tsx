@@ -9,19 +9,16 @@ import {
   type AdminRsvpParticipant,
   type AdminRsvpWaveSummary,
   type RsvpInvitationEmailStatus,
-} from '@/app/dashboard/admin/events/actions';
+} from './actions';
 import { DataTable } from '@/components/data-table/data-table';
 import { DataTableFacetedFilter } from '@/components/data-table/data-table-faceted-filter';
 import { LocalDateTime } from '@/components/local-date-time';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { rsvpStatusFilterFn } from '@/lib/rsvp/rsvp-status-filter';
-import {
-  STATIC_STATUS_DISPLAY,
-  type InvitationStatus,
-} from '@/lib/participation/status';
+import * as Rsvp from '@/lib/rsvp';
+import * as Participation from '@/lib/participation';
 
-const STATUS_FILTER_OPTIONS: { label: string; value: InvitationStatus }[] = [
+const STATUS_FILTER_OPTIONS: { label: string; value: Participation.InvitationStatus }[] = [
   { label: 'Waiting', value: 'invited' },
   { label: 'Accepted', value: 'accepted' },
   { label: 'Declined', value: 'declined' },
@@ -33,8 +30,8 @@ const DELIVERY_FILTER_OPTIONS: {
   value: RsvpInvitationEmailStatus;
 }[] = [{ label: 'Delivery failed', value: 'failed' }];
 
-function StatusBadge({ status }: { status: InvitationStatus }) {
-  const display = STATIC_STATUS_DISPLAY[status];
+function StatusBadge({ status }: { status: Participation.InvitationStatus }) {
+  const display = Participation.STATIC_STATUS_DISPLAY[status];
   return <Badge variant={display.variant}>{display.title}</Badge>;
 }
 
@@ -90,13 +87,7 @@ function ResendButton({
   }
 
   return (
-    <Button
-      type='button'
-      variant='outline'
-      size='sm'
-      disabled={isSending || hasResent}
-      onClick={handleClick}
-    >
+    <Button type='button' variant='outline' size='sm' disabled={isSending || hasResent} onClick={handleClick}>
       {hasResent ? 'Resent' : isSending ? 'Resending…' : 'Resend'}
     </Button>
   );
@@ -112,25 +103,15 @@ function ParticipantTiming({
   if (participant.statusLabel === 'invited') {
     return (
       <>
-        Respond by{' '}
-        <LocalDateTime value={respondBy} dateStyle='medium' timeStyle='short' />
+        Respond by <LocalDateTime value={respondBy} dateStyle='medium' timeStyle='short' />
       </>
     );
   }
 
-  if (
-    (participant.statusLabel === 'accepted' ||
-      participant.statusLabel === 'declined') &&
-    participant.respondedAt
-  ) {
+  if ((participant.statusLabel === 'accepted' || participant.statusLabel === 'declined') && participant.respondedAt) {
     return (
       <>
-        Responded{' '}
-        <LocalDateTime
-          value={participant.respondedAt}
-          dateStyle='medium'
-          timeStyle='short'
-        />
+        Responded <LocalDateTime value={participant.respondedAt} dateStyle='medium' timeStyle='short' />
       </>
     );
   }
@@ -144,10 +125,7 @@ function ParticipantTiming({
 
 function timingSortValue(participant: AdminRsvpParticipant): number {
   if (!participant.respondedAt) return 0;
-  const date =
-    participant.respondedAt instanceof Date
-      ? participant.respondedAt
-      : new Date(participant.respondedAt);
+  const date = participant.respondedAt instanceof Date ? participant.respondedAt : new Date(participant.respondedAt);
   return date.getTime();
 }
 
@@ -162,9 +140,7 @@ export function RsvpParticipantsTable({ eventId, wave, canResend }: Props) {
   // Resend only ever flips a row to 'sent' — applied locally so a resend
   // doesn't have to trigger a full summary refetch (and its loading state)
   // just to reflect one row's delivery status.
-  const [sentOverrides, setSentOverrides] = React.useState<ReadonlySet<string>>(
-    new Set(),
-  );
+  const [sentOverrides, setSentOverrides] = React.useState<ReadonlySet<string>>(new Set());
   const handleResent = React.useCallback((responseId: string) => {
     setSentOverrides((current) => new Set(current).add(responseId));
   }, []);
@@ -190,9 +166,7 @@ export function RsvpParticipantsTable({ eventId, wave, canResend }: Props) {
         cell: ({ row }) => (
           <div className='flex flex-col'>
             <span className='font-medium'>{row.original.name}</span>
-            <span className='text-muted-foreground text-xs'>
-              {row.original.email}
-            </span>
+            <span className='text-muted-foreground text-xs'>{row.original.email}</span>
           </div>
         ),
       },
@@ -200,7 +174,7 @@ export function RsvpParticipantsTable({ eventId, wave, canResend }: Props) {
         id: 'status',
         accessorKey: 'statusLabel',
         header: 'Status',
-        filterFn: rsvpStatusFilterFn,
+        filterFn: Rsvp.statusFilterFn,
         cell: ({ row }) => <StatusBadge status={row.original.statusLabel} />,
       },
       {
@@ -210,26 +184,18 @@ export function RsvpParticipantsTable({ eventId, wave, canResend }: Props) {
         enableColumnFilter: false,
         cell: ({ row }) => (
           <span className='text-muted-foreground'>
-            <ParticipantTiming
-              participant={row.original}
-              respondBy={wave.respondBy}
-            />
+            <ParticipantTiming participant={row.original} respondBy={wave.respondBy} />
           </span>
         ),
       },
       {
         id: 'termsAcceptedAt',
-        accessorFn: (row) =>
-          row.termsAcceptedAt ? new Date(row.termsAcceptedAt).getTime() : 0,
+        accessorFn: (row) => (row.termsAcceptedAt ? new Date(row.termsAcceptedAt).getTime() : 0),
         header: 'Event Terms consent',
         enableColumnFilter: false,
         cell: ({ row }) =>
           row.original.termsAcceptedAt ? (
-            <LocalDateTime
-              value={row.original.termsAcceptedAt}
-              dateStyle='medium'
-              timeStyle='short'
-            />
+            <LocalDateTime value={row.original.termsAcceptedAt} dateStyle='medium' timeStyle='short' />
           ) : (
             '—'
           ),
@@ -238,10 +204,8 @@ export function RsvpParticipantsTable({ eventId, wave, canResend }: Props) {
         id: 'delivery',
         accessorKey: 'invitationEmailStatus',
         header: 'Invitation',
-        filterFn: rsvpStatusFilterFn,
-        cell: ({ row }) => (
-          <DeliveryBadge status={row.original.invitationEmailStatus} />
-        ),
+        filterFn: Rsvp.statusFilterFn,
+        cell: ({ row }) => <DeliveryBadge status={row.original.invitationEmailStatus} />,
       },
       ...(canResend
         ? [
@@ -271,19 +235,13 @@ export function RsvpParticipantsTable({ eventId, wave, canResend }: Props) {
       data={data}
       searchPlaceholder='Search applicants...'
       emptyMessage={
-        wave.participants.length === 0
-          ? 'No invitation records for this wave.'
-          : 'No matching participants.'
+        wave.participants.length === 0 ? 'No invitation records for this wave.' : 'No matching participants.'
       }
       pageSize={10}
       initialSorting={[{ id: 'applicant', desc: false }]}
       toolbarRight={(table) => (
         <>
-          <DataTableFacetedFilter
-            column={table.getColumn('status')}
-            title='Status'
-            options={STATUS_FILTER_OPTIONS}
-          />
+          <DataTableFacetedFilter column={table.getColumn('status')} title='Status' options={STATUS_FILTER_OPTIONS} />
           <DataTableFacetedFilter
             column={table.getColumn('delivery')}
             title='Invitation'

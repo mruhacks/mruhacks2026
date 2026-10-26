@@ -3,7 +3,7 @@
 import * as React from 'react';
 
 import type { DisplayTheme } from '@/db/display';
-import type { DisplayFeed } from '@/lib/display/schedule';
+import type * as Display from '@/lib/display';
 import { Aurora } from './aurora';
 import { DisplayScreen } from './display-screen';
 import styles from './display.module.css';
@@ -22,9 +22,7 @@ const THEME_STORAGE_KEY = 'display-theme';
 
 function rememberedTheme(): DisplayTheme {
   try {
-    return window.localStorage.getItem(THEME_STORAGE_KEY) === 'dark'
-      ? 'dark'
-      : 'light';
+    return window.localStorage.getItem(THEME_STORAGE_KEY) === 'dark' ? 'dark' : 'light';
   } catch {
     return 'light';
   }
@@ -34,14 +32,10 @@ function rememberedTheme(): DisplayTheme {
 const subscribeToNothing = () => () => {};
 
 export function DisplayApp() {
-  const [feed, setFeed] = React.useState<DisplayFeed | null>(null);
+  const [feed, setFeed] = React.useState<Display.Feed | null>(null);
   // Only for the moments before the first feed lands. Null on the server
   // and during hydration, so both renders agree.
-  const initialTheme = React.useSyncExternalStore<DisplayTheme | null>(
-    subscribeToNothing,
-    rememberedTheme,
-    () => null,
-  );
+  const initialTheme = React.useSyncExternalStore<DisplayTheme | null>(subscribeToNothing, rememberedTheme, () => null);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -87,11 +81,7 @@ export function DisplayApp() {
   // waits for the first feed so it never renders without the clock and jumps.
   return (
     <main
-      className={cx(
-        styles.shell,
-        theme === 'dark' && styles.dark,
-        showClock && styles.withSidebar,
-      )}
+      className={cx(styles.shell, theme === 'dark' && styles.dark, showClock && styles.withSidebar)}
       aria-busy={!feed}
     >
       {theme && <Aurora lightMode={theme === 'light'} />}

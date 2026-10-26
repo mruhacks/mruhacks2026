@@ -9,13 +9,7 @@
 import { describe, test, expect, beforeAll, afterAll, vi } from 'vitest';
 import { and, eq, isNull } from 'drizzle-orm';
 
-import {
-  checkIns,
-  events,
-  permission,
-  user,
-  userPermission,
-} from '@/db/schema';
+import * as schema from '@/db/schema';
 import { db } from '@/utils/db';
 
 vi.mock('@/utils/auth', () => ({ getUser: vi.fn() }));
@@ -33,15 +27,8 @@ vi.mock('next/cache', () => ({
 }));
 
 import { getUser } from '@/utils/auth';
-import {
-  createSubevent,
-  deleteSubevent,
-} from '@/app/dashboard/admin/events/subevent-actions';
-import {
-  isScheduleVisible,
-  listSubevents,
-  subeventsCacheTag,
-} from '@/lib/subevents';
+import { createSubevent, deleteSubevent } from '@/app/dashboard/admin/events/subevent-actions';
+import { isScheduleVisible, listSubevents, subeventsCacheTag } from '@/lib/subevents';
 import { updateTag } from 'next/cache';
 import { updateEventDescription } from '@/app/dashboard/admin/events/content-actions';
 import { updateEventSettings } from '@/app/dashboard/admin/events/actions';
@@ -70,47 +57,44 @@ async function newSubevent(name: string, parentId = eventId) {
 
 beforeAll(async () => {
   const [u] = await db
-    .insert(user)
+    .insert(schema.user)
     .values({
       name: 'Subevent Admin',
       email: 'subevent-admin@test.dev',
       emailVerified: true,
     })
-    .returning({ id: user.id });
+    .returning({ id: schema.user.id });
   adminUserId = u.id;
 
   const [a] = await db
-    .insert(user)
+    .insert(schema.user)
     .values({
       name: 'Subevent Attendee',
       email: 'subevent-attendee@test.dev',
       emailVerified: true,
     })
-    .returning({ id: user.id });
+    .returning({ id: schema.user.id });
   attendeeId = a.id;
 
   const [p] = await db
-    .insert(permission)
+    .insert(schema.permission)
     .values({ slug: 'event:manage:all' })
     .onConflictDoNothing()
-    .returning({ id: permission.id });
+    .returning({ id: schema.permission.id });
   if (p) {
     permissionId = p.id;
   } else {
     const [existing] = await db
-      .select({ id: permission.id })
-      .from(permission)
-      .where(eq(permission.slug, 'event:manage:all'))
+      .select({ id: schema.permission.id })
+      .from(schema.permission)
+      .where(eq(schema.permission.slug, 'event:manage:all'))
       .limit(1);
     permissionId = existing!.id;
   }
-  await db
-    .insert(userPermission)
-    .values({ userId: adminUserId, permissionId })
-    .onConflictDoNothing();
+  await db.insert(schema.userPermission).values({ userId: adminUserId, permissionId }).onConflictDoNothing();
 
   const rows = await db
-    .insert(events)
+    .insert(schema.events)
     .values([
       {
         name: 'Subevent Parent',
@@ -123,7 +107,7 @@ beforeAll(async () => {
         applicationQuestions: [],
       },
     ])
-    .returning({ id: events.id });
+    .returning({ id: schema.events.id });
   eventId = rows[0].id;
   otherEventId = rows[1].id;
 
@@ -138,14 +122,14 @@ beforeAll(async () => {
 afterAll(async () => {
   // Children first: the parent delete would otherwise orphan them, since
   // parent_event_id is ON DELETE SET NULL.
-  await db.delete(events).where(eq(events.parentEventId, eventId));
-  await db.delete(events).where(eq(events.parentEventId, otherEventId));
-  await db.delete(events).where(eq(events.id, eventId));
-  await db.delete(events).where(eq(events.id, otherEventId));
-  await db.delete(userPermission).where(eq(userPermission.userId, adminUserId));
-  await db.delete(permission).where(eq(permission.id, permissionId));
-  await db.delete(user).where(eq(user.id, adminUserId));
-  await db.delete(user).where(eq(user.id, attendeeId));
+  await db.delete(schema.events).where(eq(schema.events.parentEventId, eventId));
+  await db.delete(schema.events).where(eq(schema.events.parentEventId, otherEventId));
+  await db.delete(schema.events).where(eq(schema.events.id, eventId));
+  await db.delete(schema.events).where(eq(schema.events.id, otherEventId));
+  await db.delete(schema.userPermission).where(eq(schema.userPermission.userId, adminUserId));
+  await db.delete(schema.permission).where(eq(schema.permission.id, permissionId));
+  await db.delete(schema.user).where(eq(schema.user.id, adminUserId));
+  await db.delete(schema.user).where(eq(schema.user.id, attendeeId));
 });
 
 describe('createSubevent', () => {
@@ -224,9 +208,7 @@ describe('createSubevent', () => {
     vi.mocked(updateTag).mockClear();
     await updateEventDescription(entry.id, '# Updated copy');
     expect(updateTag).toHaveBeenCalledWith(subeventsCacheTag(eventId));
-    const updated = (await listSubevents(eventId)).find(
-      (row) => row.id === entry.id,
-    )!;
+    const updated = (await listSubevents(eventId)).find((row) => row.id === entry.id)!;
     expect(updated.endsAt).toBeNull();
     expect(updated.checkInEnabled).toBe(true);
     expect(updated.descriptionMarkdown).toBe('# Updated copy');
@@ -235,11 +217,7 @@ describe('createSubevent', () => {
   test('creates a child with participation flags pinned off', async () => {
     const id = await newSubevent('Saturday Lunch');
 
-    const [row] = await db
-      .select()
-      .from(events)
-      .where(eq(events.id, id))
-      .limit(1);
+    const [row] = await db.select().from(schema.events).where(eq(schema.events.id, id)).limit(1);
 
     expect(row).toMatchObject({
       parentEventId: eventId,
@@ -263,9 +241,9 @@ describe('createSubevent', () => {
     expect(withLocation.success).toBe(true);
 
     const [row] = await db
-      .select({ location: events.location })
-      .from(events)
-      .where(eq(events.id, withLocation.success ? withLocation.data!.id : ''))
+      .select({ location: schema.events.location })
+      .from(schema.events)
+      .where(eq(schema.events.id, withLocation.success ? withLocation.data!.id : ''))
       .limit(1);
     expect(row.location).toBe('EA 1042');
   });
@@ -298,19 +276,16 @@ describe('createSubevent', () => {
 describe('deleteSubevent', () => {
   test('removes the sub-event and its check-ins', async () => {
     const id = await newSubevent('Doomed Lunch');
-    await db.insert(checkIns).values({ eventId: id, userId: attendeeId });
+    await db.insert(schema.checkIns).values({ eventId: id, userId: attendeeId });
 
     await expect(deleteSubevent(eventId, id)).resolves.toMatchObject({
       success: true,
     });
 
-    const rows = await db.select().from(events).where(eq(events.id, id));
+    const rows = await db.select().from(schema.events).where(eq(schema.events.id, id));
     expect(rows).toHaveLength(0);
     // check_ins.event_id cascades, so the attendance goes with it.
-    const checkInRows = await db
-      .select()
-      .from(checkIns)
-      .where(eq(checkIns.eventId, id));
+    const checkInRows = await db.select().from(schema.checkIns).where(eq(schema.checkIns.eventId, id));
     expect(checkInRows).toHaveLength(0);
   });
 
@@ -324,9 +299,9 @@ describe('deleteSubevent', () => {
     });
 
     const survivors = await db
-      .select({ id: events.id })
-      .from(events)
-      .where(and(eq(events.id, eventId), isNull(events.parentEventId)));
+      .select({ id: schema.events.id })
+      .from(schema.events)
+      .where(and(eq(schema.events.id, eventId), isNull(schema.events.parentEventId)));
     expect(survivors).toHaveLength(1);
   });
 
@@ -337,7 +312,7 @@ describe('deleteSubevent', () => {
       success: false,
     });
 
-    const rows = await db.select().from(events).where(eq(events.id, foreign));
+    const rows = await db.select().from(schema.events).where(eq(schema.events.id, foreign));
     expect(rows).toHaveLength(1);
   });
 
@@ -348,7 +323,7 @@ describe('deleteSubevent', () => {
     await expect(deleteSubevent(eventId, id)).resolves.toMatchObject({
       success: false,
     });
-    const rows = await db.select().from(events).where(eq(events.id, id));
+    const rows = await db.select().from(schema.events).where(eq(schema.events.id, id));
     expect(rows).toHaveLength(1);
   });
 });
@@ -363,30 +338,23 @@ describe('featured-event guard', () => {
   test('updateEventSettings refuses to feature a sub-event', async () => {
     const id = await newSubevent('Not Featured');
 
-    await expect(
-      updateEventSettings(id, { isFeatured: true }),
-    ).resolves.toMatchObject({
+    await expect(updateEventSettings(id, { isFeatured: true })).resolves.toMatchObject({
       success: false,
       error: expect.stringContaining('cannot be the featured event'),
     });
 
     const [row] = await db
-      .select({ isFeatured: events.isFeatured })
-      .from(events)
-      .where(eq(events.id, id))
+      .select({ isFeatured: schema.events.isFeatured })
+      .from(schema.events)
+      .where(eq(schema.events.id, id))
       .limit(1);
     expect(row.isFeatured).toBe(false);
   });
 
   test('a main event can still be featured', async () => {
-    await expect(
-      updateEventSettings(otherEventId, { isFeatured: true }),
-    ).resolves.toMatchObject({ success: true });
+    await expect(updateEventSettings(otherEventId, { isFeatured: true })).resolves.toMatchObject({ success: true });
 
     // Put it back, so this doesn't leak into another suite's expectations.
-    await db
-      .update(events)
-      .set({ isFeatured: false })
-      .where(eq(events.id, otherEventId));
+    await db.update(schema.events).set({ isFeatured: false }).where(eq(schema.events.id, otherEventId));
   });
 });

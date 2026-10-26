@@ -15,8 +15,7 @@ const rule = {
   meta: {
     type: 'suggestion',
     docs: {
-      description:
-        'Disallow router.refresh() — use TanStack Query invalidation for reloading stale data.',
+      description: 'Disallow router.refresh() — use TanStack Query invalidation for reloading stale data.',
     },
     messages: {
       noRouterRefresh:

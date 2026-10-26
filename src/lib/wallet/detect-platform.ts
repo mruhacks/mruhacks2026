@@ -3,14 +3,14 @@ import 'server-only';
 import { headers } from 'next/headers';
 import { userAgent } from 'next/server';
 
-export type WalletPlatform = 'apple' | 'google' | 'other';
+export type Platform = 'apple' | 'google' | 'other';
 
 /**
  * Picks which single wallet action to show for the current request: the
  * Apple badge on iOS/macOS, the Google badge on Android, and the QR code
  * fallback everywhere else (desktop, unknown UAs).
  */
-export async function detectWalletPlatform(): Promise<WalletPlatform> {
+export async function detectWalletPlatform(): Promise<Platform> {
   const headersList = await headers();
   const { os } = userAgent({ headers: headersList });
 

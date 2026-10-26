@@ -9,21 +9,8 @@ import { describe, test, expect, beforeAll, afterAll, vi } from 'vitest';
 import { generateKeyPairSync } from 'node:crypto';
 import { and, eq } from 'drizzle-orm';
 
-import {
-  checkIns,
-  dietaryRestrictions,
-  eventParticipants,
-  events,
-  eventTypes,
-  permission,
-  user,
-  userDietaryRestrictions,
-  userPermission,
-} from '@/db/schema';
-import {
-  insertAttendees,
-  insertParticipant,
-} from '@/tests/participation-fixtures';
+import * as schema from '@/db/schema';
+import { insertAttendees, insertParticipant } from '@/tests/participation-fixtures';
 import { MEAL_EVENT_TYPE } from '@/types/lookups';
 import { db } from '@/utils/db';
 
@@ -33,7 +20,7 @@ vi.mock('@/utils/auth', () => ({ getUser: vi.fn() }));
 vi.mock('next/cache', () => ({ updateTag: vi.fn() }));
 
 import { getUser } from '@/utils/auth';
-import { buildCheckInPayload } from '@/lib/wallet/check-in-token';
+import * as Wallet from '@/lib/wallet/server';
 import {
   checkInParticipant,
   getCheckInRoster,
@@ -42,8 +29,7 @@ import {
   undoCheckIn,
 } from '@/app/dashboard/admin/events/check-in-actions';
 
-const FORBIDDEN =
-  'REDIRECT:/forbidden?reason=missing_permission&permission=checkin:write:all';
+const FORBIDDEN = 'REDIRECT:/forbidden?reason=missing_permission&permission=checkin:write:all';
 
 const SCANNER_NAME = 'Door Volunteer';
 const PARTICIPANT_NAME = 'Check-in Participant';
@@ -73,20 +59,15 @@ const originalKey = process.env.CHECK_IN_SIGNING_PRIVATE_KEY;
 
 async function createUser(name: string, email: string): Promise<string> {
   const [row] = await db
-    .insert(user)
+    .insert(schema.user)
     .values({ name, email, emailVerified: true })
-    .returning({ id: user.id });
+    .returning({ id: schema.user.id });
   return row.id;
 }
 
-async function createEvent(
-  name: string,
-  parentEventId?: string,
-  endsAt?: Date,
-  startsAt?: Date,
-): Promise<string> {
+async function createEvent(name: string, parentEventId?: string, endsAt?: Date, startsAt?: Date): Promise<string> {
   const [row] = await db
-    .insert(events)
+    .insert(schema.events)
     .values({
       name,
       hasApplication: false,
@@ -95,14 +76,14 @@ async function createEvent(
       ...(endsAt ? { endsAt } : {}),
       ...(startsAt ? { startsAt } : {}),
     })
-    .returning({ id: events.id });
+    .returning({ id: schema.events.id });
   return row.id;
 }
 
 /** What the scanner reports after reading a pass — the wallet passes and the
  *  in-app QR all encode the same base64url token text (see check-in-token.ts). */
 function passFor(targetEventId: string, targetUserId: string): string {
-  return buildCheckInPayload(targetEventId, targetUserId);
+  return Wallet.buildCheckInPayload(targetEventId, targetUserId);
 }
 
 beforeAll(async () => {
@@ -128,10 +109,7 @@ beforeAll(async () => {
     emailVerified: true,
   };
 
-  participantId = await createUser(
-    PARTICIPANT_NAME,
-    'check-in-participant@test.dev',
-  );
+  participantId = await createUser(PARTICIPANT_NAME, 'check-in-participant@test.dev');
   strangerId = await createUser('Stranger', 'check-in-stranger@test.dev');
 
   eventId = await createEvent('Check-in Test Event');
@@ -151,11 +129,7 @@ beforeAll(async () => {
     new Date(Date.now() - 7_200_000),
   );
   foreignChildEventId = await createEvent('Check-in Other Lunch', otherEventId);
-  expiredEventId = await createEvent(
-    'Check-in Ended Event',
-    undefined,
-    new Date(Date.now() - 60_000),
-  );
+  expiredEventId = await createEvent('Check-in Ended Event', undefined, new Date(Date.now() - 60_000));
 
   await insertAttendees([
     { eventId, userId: participantId },
@@ -165,53 +139,42 @@ beforeAll(async () => {
   ]);
 
   const [created] = await db
-    .insert(permission)
+    .insert(schema.permission)
     .values({ slug: 'checkin:write:all' })
     .onConflictDoNothing()
-    .returning({ id: permission.id });
+    .returning({ id: schema.permission.id });
   if (created) {
     permissionId = created.id;
   } else {
     const [existing] = await db
-      .select({ id: permission.id })
-      .from(permission)
-      .where(eq(permission.slug, 'checkin:write:all'))
+      .select({ id: schema.permission.id })
+      .from(schema.permission)
+      .where(eq(schema.permission.slug, 'checkin:write:all'))
       .limit(1);
     permissionId = existing!.id;
   }
-  await db
-    .insert(userPermission)
-    .values({ userId: scannerId, permissionId })
-    .onConflictDoNothing();
+  await db.insert(schema.userPermission).values({ userId: scannerId, permissionId }).onConflictDoNothing();
 
   vi.mocked(getUser).mockResolvedValue(scanner as never);
 });
 
 afterAll(async () => {
-  await db.delete(checkIns).where(eq(checkIns.eventId, eventId));
-  await db.delete(checkIns).where(eq(checkIns.eventId, expiredEventId));
-  await db
-    .delete(eventParticipants)
-    .where(eq(eventParticipants.eventId, eventId));
-  await db
-    .delete(eventParticipants)
-    .where(eq(eventParticipants.eventId, otherEventId));
-  await db
-    .delete(eventParticipants)
-    .where(eq(eventParticipants.eventId, childEventId));
-  await db
-    .delete(eventParticipants)
-    .where(eq(eventParticipants.eventId, expiredEventId));
-  await db.delete(events).where(eq(events.id, childEventId));
-  await db.delete(events).where(eq(events.id, pastChildEventId));
-  await db.delete(events).where(eq(events.id, foreignChildEventId));
-  await db.delete(events).where(eq(events.id, otherEventId));
-  await db.delete(events).where(eq(events.id, expiredEventId));
-  await db.delete(events).where(eq(events.id, eventId));
-  await db.delete(userPermission).where(eq(userPermission.userId, scanner.id));
-  await db.delete(permission).where(eq(permission.id, permissionId));
+  await db.delete(schema.checkIns).where(eq(schema.checkIns.eventId, eventId));
+  await db.delete(schema.checkIns).where(eq(schema.checkIns.eventId, expiredEventId));
+  await db.delete(schema.eventParticipants).where(eq(schema.eventParticipants.eventId, eventId));
+  await db.delete(schema.eventParticipants).where(eq(schema.eventParticipants.eventId, otherEventId));
+  await db.delete(schema.eventParticipants).where(eq(schema.eventParticipants.eventId, childEventId));
+  await db.delete(schema.eventParticipants).where(eq(schema.eventParticipants.eventId, expiredEventId));
+  await db.delete(schema.events).where(eq(schema.events.id, childEventId));
+  await db.delete(schema.events).where(eq(schema.events.id, pastChildEventId));
+  await db.delete(schema.events).where(eq(schema.events.id, foreignChildEventId));
+  await db.delete(schema.events).where(eq(schema.events.id, otherEventId));
+  await db.delete(schema.events).where(eq(schema.events.id, expiredEventId));
+  await db.delete(schema.events).where(eq(schema.events.id, eventId));
+  await db.delete(schema.userPermission).where(eq(schema.userPermission.userId, scanner.id));
+  await db.delete(schema.permission).where(eq(schema.permission.id, permissionId));
   for (const id of [scanner.id, noPermUser.id, participantId, strangerId]) {
-    await db.delete(user).where(eq(user.id, id));
+    await db.delete(schema.user).where(eq(schema.user.id, id));
   }
 
   if (originalKey === undefined) {
@@ -222,7 +185,7 @@ afterAll(async () => {
 });
 
 async function clearCheckIns() {
-  await db.delete(checkIns).where(eq(checkIns.eventId, eventId));
+  await db.delete(schema.checkIns).where(eq(schema.checkIns.eventId, eventId));
 }
 
 // ─── Authorization ─────────────────────────────────────────────────────────────
@@ -235,9 +198,7 @@ describe('authorization', () => {
       await expect(scanCheckIn(eventId, pass)).resolves.toMatchObject({
         success: false,
       });
-      await expect(
-        checkInParticipant(eventId, participantId),
-      ).resolves.toMatchObject({ success: false });
+      await expect(checkInParticipant(eventId, participantId)).resolves.toMatchObject({ success: false });
       await expect(undoCheckIn(eventId, participantId)).resolves.toMatchObject({
         success: false,
       });
@@ -257,12 +218,8 @@ describe('authorization', () => {
     try {
       const pass = passFor(eventId, participantId);
       await expect(scanCheckIn(eventId, pass)).rejects.toThrow(FORBIDDEN);
-      await expect(checkInParticipant(eventId, participantId)).rejects.toThrow(
-        FORBIDDEN,
-      );
-      await expect(undoCheckIn(eventId, participantId)).rejects.toThrow(
-        FORBIDDEN,
-      );
+      await expect(checkInParticipant(eventId, participantId)).rejects.toThrow(FORBIDDEN);
+      await expect(undoCheckIn(eventId, participantId)).rejects.toThrow(FORBIDDEN);
       await expect(getCheckInRoster(eventId)).rejects.toThrow(FORBIDDEN);
       await expect(getCheckInUpdates(eventId, null)).rejects.toThrow(FORBIDDEN);
     } finally {
@@ -291,11 +248,9 @@ describe('scanCheckIn', () => {
     await scanCheckIn(eventId, passFor(eventId, participantId));
 
     const [row] = await db
-      .select({ checkedInBy: checkIns.checkedInBy })
-      .from(checkIns)
-      .where(
-        and(eq(checkIns.eventId, eventId), eq(checkIns.userId, participantId)),
-      )
+      .select({ checkedInBy: schema.checkIns.checkedInBy })
+      .from(schema.checkIns)
+      .where(and(eq(schema.checkIns.eventId, eventId), eq(schema.checkIns.userId, participantId)))
       .limit(1);
     expect(row?.checkedInBy).toBe(scanner.id);
   });
@@ -312,35 +267,26 @@ describe('scanCheckIn', () => {
       alreadyCheckedIn: true,
       checkedInByName: SCANNER_NAME,
     });
-    expect(
-      Date.parse(second.success ? (second.data?.checkedInAt ?? '') : ''),
-    ).toBe(Date.parse(first.success ? (first.data?.checkedInAt ?? '') : ''));
+    expect(Date.parse(second.success ? (second.data?.checkedInAt ?? '') : '')).toBe(
+      Date.parse(first.success ? (first.data?.checkedInAt ?? '') : ''),
+    );
   });
 
   test('leaves exactly one row behind after repeated scans', async () => {
     await clearCheckIns();
     const pass = passFor(eventId, participantId);
-    await Promise.all([
-      scanCheckIn(eventId, pass),
-      scanCheckIn(eventId, pass),
-      scanCheckIn(eventId, pass),
-    ]);
+    await Promise.all([scanCheckIn(eventId, pass), scanCheckIn(eventId, pass), scanCheckIn(eventId, pass)]);
 
     const rows = await db
-      .select({ userId: checkIns.userId })
-      .from(checkIns)
-      .where(
-        and(eq(checkIns.eventId, eventId), eq(checkIns.userId, participantId)),
-      );
+      .select({ userId: schema.checkIns.userId })
+      .from(schema.checkIns)
+      .where(and(eq(schema.checkIns.eventId, eventId), eq(schema.checkIns.userId, participantId)));
     expect(rows).toHaveLength(1);
   });
 
   test('rejects a pass issued for a different event', async () => {
     await clearCheckIns();
-    const result = await scanCheckIn(
-      eventId,
-      passFor(otherEventId, participantId),
-    );
+    const result = await scanCheckIn(eventId, passFor(otherEventId, participantId));
     expect(result).toMatchObject({
       success: false,
       error: expect.stringContaining('different event'),
@@ -348,10 +294,7 @@ describe('scanCheckIn', () => {
   });
 
   test('rejects a scan for an event that has already ended', async () => {
-    const result = await scanCheckIn(
-      expiredEventId,
-      passFor(expiredEventId, participantId),
-    );
+    const result = await scanCheckIn(expiredEventId, passFor(expiredEventId, participantId));
     expect(result).toMatchObject({
       success: false,
       error: expect.stringContaining('ended'),
@@ -383,10 +326,7 @@ describe('scanCheckIn', () => {
   test.each(['invited', 'declined', 'timed_out', 'waitlisted'] as const)(
     'rejects a %s participant, who holds no spot',
     async (status) => {
-      const userId = await createUser(
-        `Not attending ${status}`,
-        `check-in-${status}@test.dev`,
-      );
+      const userId = await createUser(`Not attending ${status}`, `check-in-${status}@test.dev`);
       await insertParticipant({ eventId, userId, status });
       try {
         const scan = await scanCheckIn(eventId, passFor(eventId, userId));
@@ -395,21 +335,16 @@ describe('scanCheckIn', () => {
           error: expect.stringContaining('not registered'),
         });
         const roster = await getCheckInRoster(eventId);
-        const ids = roster.success
-          ? (roster.data ?? []).map((row) => row.userId)
-          : [];
+        const ids = roster.success ? (roster.data ?? []).map((row) => row.userId) : [];
         expect(ids).not.toContain(userId);
       } finally {
-        await db.delete(user).where(eq(user.id, userId));
+        await db.delete(schema.user).where(eq(schema.user.id, userId));
       }
     },
   );
 
   test('refuses a sub-event, which issues no passes of its own', async () => {
-    const result = await scanCheckIn(
-      childEventId,
-      passFor(childEventId, participantId),
-    );
+    const result = await scanCheckIn(childEventId, passFor(childEventId, participantId));
     expect(result).toMatchObject({
       success: false,
       error: expect.stringContaining('main events'),
@@ -455,7 +390,7 @@ describe('checkInParticipant and undoCheckIn', () => {
   });
 
   test('rejects a hand check-in after the event has ended, same as a scan', async () => {
-    await db.delete(checkIns).where(eq(checkIns.eventId, expiredEventId));
+    await db.delete(schema.checkIns).where(eq(schema.checkIns.eventId, expiredEventId));
     const result = await checkInParticipant(expiredEventId, participantId);
     expect(result).toMatchObject({
       success: false,
@@ -464,16 +399,13 @@ describe('checkInParticipant and undoCheckIn', () => {
   });
 
   test('rejects undoing a check-in after the event has ended', async () => {
-    await db
-      .insert(checkIns)
-      .values({ eventId: expiredEventId, userId: participantId })
-      .onConflictDoNothing();
+    await db.insert(schema.checkIns).values({ eventId: expiredEventId, userId: participantId }).onConflictDoNothing();
     const result = await undoCheckIn(expiredEventId, participantId);
     expect(result).toMatchObject({
       success: false,
       error: expect.stringContaining('ended'),
     });
-    await db.delete(checkIns).where(eq(checkIns.eventId, expiredEventId));
+    await db.delete(schema.checkIns).where(eq(schema.checkIns.eventId, expiredEventId));
   });
 });
 
@@ -499,9 +431,7 @@ describe('getCheckInRoster', () => {
     await scanCheckIn(eventId, passFor(eventId, participantId));
 
     const result = await getCheckInRoster(eventId);
-    const row = result.success
-      ? result.data?.find((entry) => entry.userId === participantId)
-      : undefined;
+    const row = result.success ? result.data?.find((entry) => entry.userId === participantId) : undefined;
 
     expect(row?.checkedInAt).toMatch(/^\d{4}-\d{2}-\d{2}T.*Z$/);
     expect(row?.checkedInAtLabel).toMatch(/[AP]M MT/);
@@ -544,9 +474,7 @@ describe('getCheckInUpdates', () => {
 
     // A second past the newest row, so the millisecond-truncated watermark
     // the page actually sends cannot re-include it.
-    const updates = await updatesSince(
-      new Date(Date.now() + 1000).toISOString(),
-    );
+    const updates = await updatesSince(new Date(Date.now() + 1000).toISOString());
     expect(updates.changed).toHaveLength(0);
     expect(updates.checkedInCount).toBe(1);
   });
@@ -589,7 +517,7 @@ describe('getCheckInUpdates', () => {
 describe('sub-event check-in', () => {
   async function clearAll() {
     for (const id of [eventId, childEventId, pastChildEventId]) {
-      await db.delete(checkIns).where(eq(checkIns.eventId, id));
+      await db.delete(schema.checkIns).where(eq(schema.checkIns.eventId, id));
     }
   }
 
@@ -601,11 +529,7 @@ describe('sub-event check-in', () => {
   test('refuses someone who has not checked in at the main event', async () => {
     await clearAll();
 
-    const result = await scanCheckIn(
-      eventId,
-      passFor(eventId, participantId),
-      childEventId,
-    );
+    const result = await scanCheckIn(eventId, passFor(eventId, participantId), childEventId);
 
     expect(result).toMatchObject({
       success: false,
@@ -613,9 +537,9 @@ describe('sub-event check-in', () => {
     });
     // And nothing was written for the sub-event.
     const rows = await db
-      .select({ userId: checkIns.userId })
-      .from(checkIns)
-      .where(eq(checkIns.eventId, childEventId));
+      .select({ userId: schema.checkIns.userId })
+      .from(schema.checkIns)
+      .where(eq(schema.checkIns.eventId, childEventId));
     expect(rows).toHaveLength(0);
   });
 
@@ -623,11 +547,7 @@ describe('sub-event check-in', () => {
     await clearAll();
     await atDoor();
 
-    const result = await scanCheckIn(
-      eventId,
-      passFor(eventId, participantId),
-      childEventId,
-    );
+    const result = await scanCheckIn(eventId, passFor(eventId, participantId), childEventId);
 
     expect(result).toMatchObject({
       success: true,
@@ -642,11 +562,9 @@ describe('sub-event check-in', () => {
     // The door row and the sub-event row are independent: one per event id.
     for (const id of [eventId, childEventId]) {
       const rows = await db
-        .select({ userId: checkIns.userId })
-        .from(checkIns)
-        .where(
-          and(eq(checkIns.eventId, id), eq(checkIns.userId, participantId)),
-        );
+        .select({ userId: schema.checkIns.userId })
+        .from(schema.checkIns)
+        .where(and(eq(schema.checkIns.eventId, id), eq(schema.checkIns.userId, participantId)));
       expect(rows).toHaveLength(1);
     }
   });
@@ -656,11 +574,7 @@ describe('sub-event check-in', () => {
     await atDoor();
     await scanCheckIn(eventId, passFor(eventId, participantId), childEventId);
 
-    const result = await scanCheckIn(
-      eventId,
-      passFor(eventId, participantId),
-      childEventId,
-    );
+    const result = await scanCheckIn(eventId, passFor(eventId, participantId), childEventId);
 
     expect(result).toMatchObject({
       success: true,
@@ -684,9 +598,7 @@ describe('sub-event check-in', () => {
     await clearAll();
     await atDoor();
 
-    await expect(
-      scanCheckIn(eventId, passFor(eventId, participantId), otherEventId),
-    ).resolves.toMatchObject({
+    await expect(scanCheckIn(eventId, passFor(eventId, participantId), otherEventId)).resolves.toMatchObject({
       success: false,
       error: expect.stringContaining('does not belong to this event'),
     });
@@ -696,33 +608,25 @@ describe('sub-event check-in', () => {
     await clearAll();
     await atDoor();
 
-    await expect(
-      scanCheckIn(
-        eventId,
-        passFor(eventId, participantId),
-        foreignChildEventId,
-      ),
-    ).resolves.toMatchObject({ success: false });
+    await expect(scanCheckIn(eventId, passFor(eventId, participantId), foreignChildEventId)).resolves.toMatchObject({
+      success: false,
+    });
   });
 
   test('checkInParticipant honours the same rules', async () => {
     await clearAll();
 
-    await expect(
-      checkInParticipant(eventId, participantId, childEventId),
-    ).resolves.toMatchObject({ success: false });
+    await expect(checkInParticipant(eventId, participantId, childEventId)).resolves.toMatchObject({ success: false });
 
     await atDoor();
 
-    await expect(
-      checkInParticipant(eventId, participantId, childEventId),
-    ).resolves.toMatchObject({
+    await expect(checkInParticipant(eventId, participantId, childEventId)).resolves.toMatchObject({
       success: true,
       data: { targetName: 'Check-in Lunch' },
     });
-    await expect(
-      checkInParticipant(eventId, participantId, foreignChildEventId),
-    ).resolves.toMatchObject({ success: false });
+    await expect(checkInParticipant(eventId, participantId, foreignChildEventId)).resolves.toMatchObject({
+      success: false,
+    });
   });
 
   test('undo removes only the targeted sub-event row', async () => {
@@ -730,21 +634,19 @@ describe('sub-event check-in', () => {
     await atDoor();
     await scanCheckIn(eventId, passFor(eventId, participantId), childEventId);
 
-    await expect(
-      undoCheckIn(eventId, participantId, childEventId),
-    ).resolves.toMatchObject({ success: true });
+    await expect(undoCheckIn(eventId, participantId, childEventId)).resolves.toMatchObject({ success: true });
 
     const subeventRows = await db
-      .select({ userId: checkIns.userId })
-      .from(checkIns)
-      .where(eq(checkIns.eventId, childEventId));
+      .select({ userId: schema.checkIns.userId })
+      .from(schema.checkIns)
+      .where(eq(schema.checkIns.eventId, childEventId));
     expect(subeventRows).toHaveLength(0);
 
     // Still at the door — undoing a meal is not a departure.
     const doorRows = await db
-      .select({ userId: checkIns.userId })
-      .from(checkIns)
-      .where(eq(checkIns.eventId, eventId));
+      .select({ userId: schema.checkIns.userId })
+      .from(schema.checkIns)
+      .where(eq(schema.checkIns.eventId, eventId));
     expect(doorRows).toHaveLength(1);
   });
 
@@ -758,9 +660,9 @@ describe('sub-event check-in', () => {
     // Cascading would silently destroy attendance data that was correctly
     // recorded; they were at lunch whether or not the door scan stands.
     const subeventRows = await db
-      .select({ userId: checkIns.userId })
-      .from(checkIns)
-      .where(eq(checkIns.eventId, childEventId));
+      .select({ userId: schema.checkIns.userId })
+      .from(schema.checkIns)
+      .where(eq(schema.checkIns.eventId, childEventId));
     expect(subeventRows).toHaveLength(1);
   });
 
@@ -768,18 +670,14 @@ describe('sub-event check-in', () => {
     await clearAll();
     await atDoor();
 
-    await expect(
-      scanCheckIn(eventId, passFor(eventId, participantId), pastChildEventId),
-    ).resolves.toMatchObject({
+    await expect(scanCheckIn(eventId, passFor(eventId, participantId), pastChildEventId)).resolves.toMatchObject({
       success: false,
       error: expect.stringContaining("isn't running"),
     });
-    await expect(
-      checkInParticipant(eventId, participantId, pastChildEventId),
-    ).resolves.toMatchObject({ success: false });
-    await expect(
-      undoCheckIn(eventId, participantId, pastChildEventId),
-    ).resolves.toMatchObject({
+    await expect(checkInParticipant(eventId, participantId, pastChildEventId)).resolves.toMatchObject({
+      success: false,
+    });
+    await expect(undoCheckIn(eventId, participantId, pastChildEventId)).resolves.toMatchObject({
       success: false,
       error: expect.stringContaining("isn't running"),
     });
@@ -792,85 +690,69 @@ describe('sub-event check-in', () => {
     await atDoor();
 
     const [created] = await db
-      .insert(permission)
+      .insert(schema.permission)
       .values({ slug: 'checkin:override:all' })
       .onConflictDoNothing()
-      .returning({ id: permission.id });
+      .returning({ id: schema.permission.id });
     const overrideId =
       created?.id ??
       (
         await db
-          .select({ id: permission.id })
-          .from(permission)
-          .where(eq(permission.slug, 'checkin:override:all'))
+          .select({ id: schema.permission.id })
+          .from(schema.permission)
+          .where(eq(schema.permission.slug, 'checkin:override:all'))
           .limit(1)
       )[0]!.id;
     await db
-      .insert(userPermission)
+      .insert(schema.userPermission)
       .values({ userId: scanner.id, permissionId: overrideId })
       .onConflictDoNothing();
 
     try {
-      await expect(
-        scanCheckIn(eventId, passFor(eventId, participantId), pastChildEventId),
-      ).resolves.toMatchObject({ success: true });
+      await expect(scanCheckIn(eventId, passFor(eventId, participantId), pastChildEventId)).resolves.toMatchObject({
+        success: true,
+      });
     } finally {
       await db
-        .delete(userPermission)
-        .where(
-          and(
-            eq(userPermission.userId, scanner.id),
-            eq(userPermission.permissionId, overrideId),
-          ),
-        );
+        .delete(schema.userPermission)
+        .where(and(eq(schema.userPermission.userId, scanner.id), eq(schema.userPermission.permissionId, overrideId)));
       if (created) {
-        await db.delete(permission).where(eq(permission.id, overrideId));
+        await db.delete(schema.permission).where(eq(schema.permission.id, overrideId));
       }
     }
   });
 
   test('a meal check-in carries dietary restrictions only with dietary:read:all', async () => {
     async function upsertId(
-      table: typeof eventTypes | typeof dietaryRestrictions,
+      table: typeof schema.eventTypes | typeof schema.dietaryRestrictions,
       label: string,
     ): Promise<number> {
-      const [inserted] = await db
-        .insert(table)
-        .values({ label })
-        .onConflictDoNothing()
-        .returning({ id: table.id });
+      const [inserted] = await db.insert(table).values({ label }).onConflictDoNothing().returning({ id: table.id });
       if (inserted) return inserted.id;
-      const [existing] = await db
-        .select({ id: table.id })
-        .from(table)
-        .where(eq(table.label, label))
-        .limit(1);
+      const [existing] = await db.select({ id: table.id }).from(table).where(eq(table.label, label)).limit(1);
       return existing!.id;
     }
 
-    const mealTypeId = await upsertId(eventTypes, MEAL_EVENT_TYPE);
-    const veganId = await upsertId(dietaryRestrictions, 'Vegan');
+    const mealTypeId = await upsertId(schema.eventTypes, MEAL_EVENT_TYPE);
+    const veganId = await upsertId(schema.dietaryRestrictions, 'Vegan');
     const [createdPerm] = await db
-      .insert(permission)
+      .insert(schema.permission)
       .values({ slug: 'dietary:read:all' })
       .onConflictDoNothing()
-      .returning({ id: permission.id });
+      .returning({ id: schema.permission.id });
     const dietaryPermId =
       createdPerm?.id ??
       (
         await db
-          .select({ id: permission.id })
-          .from(permission)
-          .where(eq(permission.slug, 'dietary:read:all'))
+          .select({ id: schema.permission.id })
+          .from(schema.permission)
+          .where(eq(schema.permission.slug, 'dietary:read:all'))
           .limit(1)
       )[0]!.id;
 
+    await db.update(schema.events).set({ eventTypeId: mealTypeId }).where(eq(schema.events.id, childEventId));
     await db
-      .update(events)
-      .set({ eventTypeId: mealTypeId })
-      .where(eq(events.id, childEventId));
-    await db
-      .insert(userDietaryRestrictions)
+      .insert(schema.userDietaryRestrictions)
       .values({ userId: participantId, restrictionId: veganId })
       .onConflictDoNothing();
 
@@ -880,23 +762,15 @@ describe('sub-event check-in', () => {
 
       // Without the permission the scan still works, it just says nothing
       // about what they eat.
-      const hidden = await scanCheckIn(
-        eventId,
-        passFor(eventId, participantId),
-        childEventId,
-      );
+      const hidden = await scanCheckIn(eventId, passFor(eventId, participantId), childEventId);
       expect(hidden).toMatchObject({ success: true, data: { dietary: null } });
 
       await db
-        .insert(userPermission)
+        .insert(schema.userPermission)
         .values({ userId: scanner.id, permissionId: dietaryPermId })
         .onConflictDoNothing();
 
-      const shown = await scanCheckIn(
-        eventId,
-        passFor(eventId, participantId),
-        childEventId,
-      );
+      const shown = await scanCheckIn(eventId, passFor(eventId, participantId), childEventId);
       expect(shown).toMatchObject({
         success: true,
         data: { dietary: { restrictions: ['Vegan'], otherText: null } },
@@ -906,31 +780,21 @@ describe('sub-event check-in', () => {
       const door = await scanCheckIn(eventId, passFor(eventId, participantId));
       expect(door).toMatchObject({ success: true, data: { dietary: null } });
     } finally {
+      await db.update(schema.events).set({ eventTypeId: null }).where(eq(schema.events.id, childEventId));
+      await db.delete(schema.userDietaryRestrictions).where(eq(schema.userDietaryRestrictions.userId, participantId));
       await db
-        .update(events)
-        .set({ eventTypeId: null })
-        .where(eq(events.id, childEventId));
-      await db
-        .delete(userDietaryRestrictions)
-        .where(eq(userDietaryRestrictions.userId, participantId));
-      await db
-        .delete(userPermission)
+        .delete(schema.userPermission)
         .where(
-          and(
-            eq(userPermission.userId, scanner.id),
-            eq(userPermission.permissionId, dietaryPermId),
-          ),
+          and(eq(schema.userPermission.userId, scanner.id), eq(schema.userPermission.permissionId, dietaryPermId)),
         );
       if (createdPerm) {
-        await db.delete(permission).where(eq(permission.id, dietaryPermId));
+        await db.delete(schema.permission).where(eq(schema.permission.id, dietaryPermId));
       }
     }
   });
 
   test('freezes once the parent event has ended', async () => {
-    await expect(
-      scanCheckIn(expiredEventId, passFor(expiredEventId, participantId)),
-    ).resolves.toMatchObject({
+    await expect(scanCheckIn(expiredEventId, passFor(expiredEventId, participantId))).resolves.toMatchObject({
       success: false,
       error: expect.stringContaining('frozen'),
     });
@@ -959,9 +823,7 @@ describe('sub-event check-in', () => {
     await clearAll();
 
     const result = await getCheckInRoster(eventId, childEventId);
-    const row = result.success
-      ? result.data?.find((entry) => entry.userId === participantId)
-      : undefined;
+    const row = result.success ? result.data?.find((entry) => entry.userId === participantId) : undefined;
 
     expect(row).toMatchObject({ atMainEvent: false, checkedInAt: null });
   });
@@ -979,45 +841,32 @@ describe('sub-event check-in', () => {
   });
 
   test('refuses a forged target on the read paths too', async () => {
-    await expect(
-      getCheckInRoster(eventId, otherEventId),
-    ).resolves.toMatchObject({ success: false });
-    await expect(
-      getCheckInUpdates(eventId, null, otherEventId),
-    ).resolves.toMatchObject({ success: false });
+    await expect(getCheckInRoster(eventId, otherEventId)).resolves.toMatchObject({ success: false });
+    await expect(getCheckInUpdates(eventId, null, otherEventId)).resolves.toMatchObject({ success: false });
   });
 });
 
 describe('disabled check-in', () => {
-  test.each(['main', 'schedule'] as const)(
-    'blocks every scanner action when %s check-in is disabled',
-    async (kind) => {
-      vi.mocked(getUser).mockResolvedValue(scanner as never);
-      const disabledId = kind === 'main' ? eventId : childEventId;
-      const targetId = kind === 'main' ? undefined : childEventId;
-      await db
-        .update(events)
-        .set({ checkInEnabled: false })
-        .where(eq(events.id, disabledId));
-      try {
-        for (const action of [
-          () => scanCheckIn(eventId, passFor(eventId, participantId), targetId),
-          () => checkInParticipant(eventId, participantId, targetId),
-          () => undoCheckIn(eventId, participantId, targetId),
-          () => getCheckInRoster(eventId, targetId),
-          () => getCheckInUpdates(eventId, null, targetId),
-        ]) {
-          await expect(action()).resolves.toMatchObject({
-            success: false,
-            error: 'Check-in is disabled for this event.',
-          });
-        }
-      } finally {
-        await db
-          .update(events)
-          .set({ checkInEnabled: true })
-          .where(eq(events.id, disabledId));
+  test.each(['main', 'schedule'] as const)('blocks every scanner action when %s check-in is disabled', async (kind) => {
+    vi.mocked(getUser).mockResolvedValue(scanner as never);
+    const disabledId = kind === 'main' ? eventId : childEventId;
+    const targetId = kind === 'main' ? undefined : childEventId;
+    await db.update(schema.events).set({ checkInEnabled: false }).where(eq(schema.events.id, disabledId));
+    try {
+      for (const action of [
+        () => scanCheckIn(eventId, passFor(eventId, participantId), targetId),
+        () => checkInParticipant(eventId, participantId, targetId),
+        () => undoCheckIn(eventId, participantId, targetId),
+        () => getCheckInRoster(eventId, targetId),
+        () => getCheckInUpdates(eventId, null, targetId),
+      ]) {
+        await expect(action()).resolves.toMatchObject({
+          success: false,
+          error: 'Check-in is disabled for this event.',
+        });
       }
-    },
-  );
+    } finally {
+      await db.update(schema.events).set({ checkInEnabled: true }).where(eq(schema.events.id, disabledId));
+    }
+  });
 });

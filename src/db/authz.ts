@@ -10,13 +10,12 @@ import {
   primaryKey,
   index,
 } from 'drizzle-orm/pg-core';
-import { user } from './auth-schema';
+import { user } from '@/db/auth-schema';
 
 export const authz = pgSchema('authz');
 
-const lowerSlug = (table: {
-  slug: ExtraConfigColumn<ColumnBaseConfig<ColumnDataType, string>>;
-}) => check('lower_slug', sql`${table.slug} = lower(${table.slug})`);
+const lowerSlug = (table: { slug: ExtraConfigColumn<ColumnBaseConfig<ColumnDataType, string>> }) =>
+  check('lower_slug', sql`${table.slug} = lower(${table.slug})`);
 
 export const permission = authz.table(
   'permission',
@@ -49,10 +48,7 @@ export const userRole = authz.table(
       .notNull()
       .references(() => role.id, { onDelete: 'cascade' }),
   },
-  (table) => [
-    primaryKey({ columns: [table.userId, table.roleId] }),
-    index('user_role_role_id_idx').on(table.roleId),
-  ],
+  (table) => [primaryKey({ columns: [table.userId, table.roleId] }), index('user_role_role_id_idx').on(table.roleId)],
 );
 
 export const userPermission = authz.table(

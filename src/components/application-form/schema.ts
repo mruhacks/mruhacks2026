@@ -1,8 +1,5 @@
 import { z } from 'zod';
-import {
-  resolveMaxLength,
-  type ApplicationQuestion,
-} from '@/types/application';
+import { resolveMaxLength, type ApplicationQuestion } from '@/types/application';
 import { otherTextKey } from '@/lib/other-option';
 
 export const applicationOtherTextSchema = z
@@ -19,12 +16,8 @@ export const eventOnlySchema = z.object({
 
 export type EventOnlyFormValues = z.infer<typeof eventOnlySchema>;
 
-export type ApplicationSelectOption = { value: string; label: string };
-
 /** Builds the client/server validation rule for one active event question. */
-export function createApplicationQuestionSchema(
-  question: ApplicationQuestion,
-): z.ZodTypeAny {
+export function createApplicationQuestionSchema(question: ApplicationQuestion): z.ZodTypeAny {
   let fieldSchema: z.ZodTypeAny;
 
   switch (question.type) {
@@ -57,9 +50,7 @@ export function createApplicationQuestionSchema(
     }
 
     case 'boolean': {
-      const booleanError = question.required
-        ? 'Please check this box to continue.'
-        : 'Please choose yes or no.';
+      const booleanError = question.required ? 'Please check this box to continue.' : 'Please choose yes or no.';
       fieldSchema = z.boolean({ error: booleanError });
       if (question.required) {
         return fieldSchema.refine((value) => value === true, {
@@ -77,9 +68,7 @@ export function createApplicationQuestionSchema(
 
     case 'multi_select': {
       const selectOptions = 'Please select at least one option.';
-      fieldSchema = z
-        .array(z.string(), { error: selectOptions })
-        .min(1, selectOptions);
+      fieldSchema = z.array(z.string(), { error: selectOptions }).min(1, selectOptions);
       break;
     }
 
@@ -97,9 +86,7 @@ export function createApplicationQuestionSchema(
  * Generates a Zod schema for validation based on application questions.
  * Creates field-level validation rules for each question type.
  */
-export function createApplicationFormSchema(
-  questions: ApplicationQuestion[] | null,
-) {
+export function createApplicationFormSchema(questions: ApplicationQuestion[] | null) {
   const responsesSchema: Record<string, z.ZodTypeAny> = {};
 
   if (!questions) {

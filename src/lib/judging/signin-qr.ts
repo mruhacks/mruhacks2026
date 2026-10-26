@@ -12,10 +12,6 @@ export const JUDGE_SIGNIN_LINK_EXPIRES_IN_SECONDS = 15 * 60;
  * code. Every request mints a fresh link, so `nonce` keeps the browser from
  * reusing an image it already has for the same judge.
  */
-export function judgeSignInQrPath(
-  eventId: string,
-  judgeId: string,
-  nonce: string | number,
-): string {
+export function judgeSignInQrPath(eventId: string, judgeId: string, nonce: string | number): string {
   return `/api/admin/events/${encodeURIComponent(eventId)}/judges/${encodeURIComponent(judgeId)}/signin-qr?n=${nonce}`;
 }

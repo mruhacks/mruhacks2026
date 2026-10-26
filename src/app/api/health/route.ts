@@ -2,15 +2,12 @@ import { timingSafeEqual } from 'crypto';
 import { sql } from 'drizzle-orm';
 import { db } from '@/utils/db';
 import { getUser } from '@/utils/auth';
-import { hasPermission } from '@/lib/rbac/authorization';
+import * as Rbac from '@/lib/rbac/server';
 import { verifyMailConnection } from '@/utils/mail';
 import { checkObjectStorageConnection } from '@/utils/object-storage';
 import { MRUHACKS_LOGO_URL } from '@/content';
-import { WALLET_BADGE_PATHS } from '@/lib/campaigns/wallet-badges';
-import {
-  APP_SIGNING_PRIVATE_KEY_ENV,
-  readEnvWithFallback,
-} from '@/lib/signing/app-signing-key';
+import * as Campaigns from '@/lib/campaigns';
+import * as Signing from '@/lib/signing/server';
 
 /** Dedicated permission for the full health report — unrelated to any other admin permission. */
 const HEALTH_PERMISSION = 'system:read:all';
@@ -38,7 +35,7 @@ const REQUIRED_ENV_VARS: readonly (string | readonly string[])[] = [
   'APPLE_WALLET_WWDR_CERT',
   'APPLE_WALLET_SIGNER_CERT',
   'APPLE_WALLET_SIGNER_KEY',
-  APP_SIGNING_PRIVATE_KEY_ENV,
+  Signing.APP_SIGNING_PRIVATE_KEY_ENV,
   // Bearer token the Cloudflare Worker scheduler (workers/rsvp-cron) sends to
   // /api/cron/*; without it the scheduled RSVP waves and invitation sweep
   // reject every invocation.
@@ -53,16 +50,11 @@ async function timed(fn: () => Promise<void>): Promise<CheckResult> {
   try {
     await Promise.race([
       fn(),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('timeout')), CHECK_TIMEOUT_MS),
-      ),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), CHECK_TIMEOUT_MS)),
     ]);
     return { ok: true, latencyMs: Date.now() - start };
   } catch (error) {
-    const detail =
-      error instanceof Error && error.message === 'timeout'
-        ? 'timeout'
-        : 'unreachable';
+    const detail = error instanceof Error && error.message === 'timeout' ? 'timeout' : 'unreachable';
     return { ok: false, latencyMs: Date.now() - start, detail };
   }
 }
@@ -95,15 +87,12 @@ async function checkTurnstile(): Promise<CheckResult> {
     return { ok: false, latencyMs: 0, detail: 'not configured' };
   }
   try {
-    const res = await fetch(
-      'https://challenges.cloudflare.com/turnstile/v0/siteverify',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ secret, response: 'health-check-probe' }),
-        signal: AbortSignal.timeout(CHECK_TIMEOUT_MS),
-      },
-    );
+    const res = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ secret, response: 'health-check-probe' }),
+      signal: AbortSignal.timeout(CHECK_TIMEOUT_MS),
+    });
     const data = (await res.json().catch(() => null)) as {
       'error-codes'?: string[];
     } | null;
@@ -166,14 +155,10 @@ async function checkGoogleWallet(): Promise<CheckResult> {
  * just to answer a health probe.
  */
 async function checkAppleWallet(): Promise<CheckResult> {
-  const missing = [
-    'APPLE_WALLET_WWDR_CERT',
-    'APPLE_WALLET_SIGNER_CERT',
-    'APPLE_WALLET_SIGNER_KEY',
-  ].filter((name) => !process.env[name]?.trim());
-  return missing.length > 0
-    ? { ok: false, latencyMs: 0, detail: 'not configured' }
-    : { ok: true, latencyMs: 0 };
+  const missing = ['APPLE_WALLET_WWDR_CERT', 'APPLE_WALLET_SIGNER_CERT', 'APPLE_WALLET_SIGNER_KEY'].filter(
+    (name) => !process.env[name]?.trim(),
+  );
+  return missing.length > 0 ? { ok: false, latencyMs: 0, detail: 'not configured' } : { ok: true, latencyMs: 0 };
 }
 
 /**
@@ -185,7 +170,7 @@ async function checkAppleWallet(): Promise<CheckResult> {
  * `CHECK_IN_SIGNING_PRIVATE_KEY` counts.
  */
 async function checkCheckInSigning(): Promise<CheckResult> {
-  return readEnvWithFallback(APP_SIGNING_PRIVATE_KEY_ENV)
+  return Signing.readEnvWithFallback(Signing.APP_SIGNING_PRIVATE_KEY_ENV)
     ? { ok: true, latencyMs: 0 }
     : { ok: false, latencyMs: 0, detail: 'not configured' };
 }
@@ -201,10 +186,10 @@ async function checkCheckInSigning(): Promise<CheckResult> {
 async function checkQrScannerWasm(): Promise<CheckResult> {
   const start = Date.now();
   try {
-    const res = await fetch(
-      'https://fastly.jsdelivr.net/npm/zxing-wasm/dist/reader/zxing_reader.wasm',
-      { method: 'HEAD', signal: AbortSignal.timeout(CHECK_TIMEOUT_MS) },
-    );
+    const res = await fetch('https://fastly.jsdelivr.net/npm/zxing-wasm/dist/reader/zxing_reader.wasm', {
+      method: 'HEAD',
+      signal: AbortSignal.timeout(CHECK_TIMEOUT_MS),
+    });
     if (!res.ok) {
       return {
         ok: false,
@@ -230,7 +215,7 @@ async function checkWalletBadges(): Promise<CheckResult> {
   if (!origin) return { ok: false, latencyMs: 0, detail: 'not configured' };
   try {
     const responses = await Promise.all(
-      Object.values(WALLET_BADGE_PATHS).map((path) =>
+      Object.values(Campaigns.WALLET_BADGE_PATHS).map((path) =>
         fetch(`${origin}${path}`, {
           method: 'HEAD',
           signal: AbortSignal.timeout(CHECK_TIMEOUT_MS),
@@ -258,7 +243,7 @@ async function checkWalletBadges(): Promise<CheckResult> {
 function missingEnvVars(): string[] {
   return REQUIRED_ENV_VARS.flatMap((entry) => {
     const names = typeof entry === 'string' ? [entry] : entry;
-    return readEnvWithFallback(names) ? [] : [names[0]!];
+    return Signing.readEnvWithFallback(names) ? [] : [names[0]!];
   });
 }
 
@@ -384,16 +369,11 @@ export async function GET(request: Request) {
   const httpStatus = report.status === 'down' ? 503 : 200;
 
   const user = await getUser().catch(() => null);
-  const canReadHealth = user
-    ? await hasPermission(user.id, HEALTH_PERMISSION)
-    : false;
+  const canReadHealth = user ? await Rbac.hasPermission(user.id, HEALTH_PERMISSION) : false;
   const hasFullAccess = canReadHealth || hasValidAccessKey(request);
 
   if (!hasFullAccess) {
-    return Response.json(
-      { status: report.status, buildInfo: report.buildInfo },
-      { status: httpStatus },
-    );
+    return Response.json({ status: report.status, buildInfo: report.buildInfo }, { status: httpStatus });
   }
 
   return Response.json(report, { status: httpStatus });

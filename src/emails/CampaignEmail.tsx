@@ -2,13 +2,9 @@ import React from 'react';
 import { Heading, Hr, Img, Link, Text } from 'react-email';
 import type { Root, RootContent, PhrasingContent } from 'mdast';
 
-import {
-  ctaFromNode,
-  safeHref,
-  safeImageSrc,
-} from '@/lib/campaigns/email-markdown';
+import * as Campaigns from '@/lib/campaigns';
 import { campaignImageWidth } from '@/utils/object-storage';
-import { CtaButton, EmailLayout } from './EmailLayout';
+import { CtaButton, EmailLayout } from '@/emails/EmailLayout';
 
 /** Widest an image is drawn: the body column of the 600px layout, minus padding. */
 const EMAIL_IMAGE_MAX_WIDTH = 520;
@@ -28,13 +24,7 @@ type Props = {
  * the node types handled below are ever rendered — raw HTML, code, tables,
  * embeds and unknown directives are dropped.
  */
-export function CampaignEmail({
-  tree,
-  preview,
-  baseUrl,
-  footer,
-  renderBlock,
-}: Props) {
+export function CampaignEmail({ tree, preview, baseUrl, footer, renderBlock }: Props) {
   const ctx: RenderContext = { baseUrl, renderBlock };
   return (
     <EmailLayout preview={preview} baseUrl={baseUrl} footer={footer}>
@@ -48,10 +38,7 @@ type RenderContext = {
   renderBlock?: Props['renderBlock'];
 };
 
-function renderPhrasing(
-  nodes: PhrasingContent[],
-  ctx: RenderContext,
-): React.ReactNode[] {
+function renderPhrasing(nodes: PhrasingContent[], ctx: RenderContext): React.ReactNode[] {
   return nodes.map((node, i) => {
     switch (node.type) {
       case 'text':
@@ -66,7 +53,7 @@ function renderPhrasing(
       case 'break':
         return <br key={i} />;
       case 'link': {
-        const href = safeHref(node.url);
+        const href = Campaigns.safeHref(node.url);
         const children = renderPhrasing(node.children, ctx);
         return href ? (
           <Link key={i} href={href} style={link}>
@@ -77,24 +64,14 @@ function renderPhrasing(
         );
       }
       case 'image': {
-        const src = safeImageSrc(node.url, ctx.baseUrl);
+        const src = Campaigns.safeImageSrc(node.url, ctx.baseUrl);
         if (!src) return null;
         // Our uploads record their pixel width; draw them no wider than the
         // column (a 1200px upload is a 2x image for it) and never upscaled.
         // An external image's size is unknown, so it's only capped by CSS.
         const stored = campaignImageWidth(node.url);
-        const width = stored
-          ? Math.min(stored, EMAIL_IMAGE_MAX_WIDTH)
-          : undefined;
-        return (
-          <Img
-            key={i}
-            src={src}
-            alt={node.alt ?? ''}
-            width={width}
-            style={image}
-          />
-        );
+        const width = stored ? Math.min(stored, EMAIL_IMAGE_MAX_WIDTH) : undefined;
+        return <Img key={i} src={src} alt={node.alt ?? ''} width={width} style={image} />;
       }
       case 'textDirective':
         return (
@@ -109,11 +86,7 @@ function renderPhrasing(
   });
 }
 
-function renderBlockNode(
-  node: RootContent,
-  key: number,
-  ctx: RenderContext,
-): React.ReactNode {
+function renderBlockNode(node: RootContent, key: number, ctx: RenderContext): React.ReactNode {
   const custom = ctx.renderBlock?.(node);
   if (custom !== undefined) {
     return <React.Fragment key={key}>{custom}</React.Fragment>;
@@ -146,9 +119,7 @@ function renderBlockNode(
         <ListTag
           key={key}
           style={list}
-          {...(node.ordered && node.start && node.start !== 1
-            ? { start: node.start }
-            : {})}
+          {...(node.ordered && node.start && node.start !== 1 ? { start: node.start } : {})}
         >
           {node.children.map((item, i) => (
             <li key={i} style={listItem}>
@@ -156,9 +127,7 @@ function renderBlockNode(
                 // Tight list items are bare paragraphs; don't give them
                 // paragraph margins.
                 child.type === 'paragraph' ? (
-                  <React.Fragment key={j}>
-                    {renderPhrasing(child.children, ctx)}
-                  </React.Fragment>
+                  <React.Fragment key={j}>{renderPhrasing(child.children, ctx)}</React.Fragment>
                 ) : (
                   renderBlockNode(child, j, ctx)
                 ),
@@ -171,10 +140,8 @@ function renderBlockNode(
     case 'thematicBreak':
       return <Hr key={key} style={rule} />;
     case 'leafDirective': {
-      const cta = ctaFromNode(node);
-      return cta ? (
-        <CtaButton key={key} label={cta.label} url={cta.href} />
-      ) : null;
+      const cta = Campaigns.ctaFromNode(node);
+      return cta ? <CtaButton key={key} label={cta.label} url={cta.href} /> : null;
     }
     case 'code':
       return (

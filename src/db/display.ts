@@ -5,18 +5,10 @@
  * the admin dashboard.
  */
 
-import {
-  boolean,
-  check,
-  integer,
-  pgTable,
-  text,
-  timestamp,
-  uuid,
-} from 'drizzle-orm/pg-core';
+import { boolean, check, integer, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
-import { user } from './auth-schema';
+import { user } from '@/db/auth-schema';
 
 export type DisplayTheme = 'light' | 'dark';
 
@@ -37,9 +29,6 @@ export const displaySettings = pgTable(
   },
   (table) => [
     check('display_settings_singleton_check', sql`${table.id} = 1`),
-    check(
-      'display_settings_theme_check',
-      sql`${table.theme} in ('light', 'dark')`,
-    ),
+    check('display_settings_theme_check', sql`${table.theme} in ('light', 'dark')`),
   ],
 );

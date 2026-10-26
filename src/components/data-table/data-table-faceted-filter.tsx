@@ -1,6 +1,5 @@
 'use client';
 
-import * as React from 'react';
 import { Check, PlusCircle } from 'lucide-react';
 import type { Column } from '@tanstack/react-table';
 
@@ -15,11 +14,7 @@ import {
   CommandList,
   CommandSeparator,
 } from '@/components/ui/command';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 
@@ -34,9 +29,7 @@ export function DataTableFacetedFilter<TData, TValue>({
   title,
   options,
 }: DataTableFacetedFilterProps<TData, TValue>) {
-  const selectedValues = new Set(
-    (column?.getFilterValue() as string[] | undefined) ?? [],
-  );
+  const selectedValues = new Set((column?.getFilterValue() as string[] | undefined) ?? []);
 
   return (
     <Popover>
@@ -47,29 +40,19 @@ export function DataTableFacetedFilter<TData, TValue>({
           {selectedValues.size > 0 && (
             <>
               <Separator orientation='vertical' className='mx-1 h-4' />
-              <Badge
-                variant='secondary'
-                className='rounded-sm px-1 font-normal lg:hidden'
-              >
+              <Badge variant='secondary' className='rounded-sm px-1 font-normal lg:hidden'>
                 {selectedValues.size}
               </Badge>
               <div className='hidden gap-1 lg:flex'>
                 {selectedValues.size > 2 ? (
-                  <Badge
-                    variant='secondary'
-                    className='rounded-sm px-1 font-normal'
-                  >
+                  <Badge variant='secondary' className='rounded-sm px-1 font-normal'>
                     {selectedValues.size} selected
                   </Badge>
                 ) : (
                   options
                     .filter((o) => selectedValues.has(o.value))
                     .map((o) => (
-                      <Badge
-                        key={o.value}
-                        variant='secondary'
-                        className='rounded-sm px-1 font-normal'
-                      >
+                      <Badge key={o.value} variant='secondary' className='rounded-sm px-1 font-normal'>
                         {o.label}
                       </Badge>
                     ))
@@ -94,17 +77,13 @@ export function DataTableFacetedFilter<TData, TValue>({
                       if (isSelected) selectedValues.delete(option.value);
                       else selectedValues.add(option.value);
                       const values = Array.from(selectedValues);
-                      column?.setFilterValue(
-                        values.length ? values : undefined,
-                      );
+                      column?.setFilterValue(values.length ? values : undefined);
                     }}
                   >
                     <div
                       className={cn(
                         'border-primary flex size-4 items-center justify-center rounded-sm border',
-                        isSelected
-                          ? 'bg-primary text-primary-foreground'
-                          : 'opacity-50 [&_svg]:invisible',
+                        isSelected ? 'bg-primary text-primary-foreground' : 'opacity-50 [&_svg]:invisible',
                       )}
                     >
                       <Check className='size-3' />

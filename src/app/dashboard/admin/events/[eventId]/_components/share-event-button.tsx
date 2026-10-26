@@ -13,13 +13,7 @@ import { eventPath } from '@/lib/event-slug';
  * right here: this is a button-only action with no input to anchor an inline
  * error to (AGENTS.md).
  */
-export function ShareEventButton({
-  eventId,
-  slug,
-}: {
-  eventId: string;
-  slug: string | null;
-}) {
+export function ShareEventButton({ eventId, slug }: { eventId: string; slug: string | null }) {
   async function share() {
     const url = `${window.location.origin}${eventPath({ id: eventId, slug })}`;
     const copied = await copyToClipboard(url);

@@ -2,21 +2,10 @@ import 'server-only';
 
 import { desc, eq, inArray } from 'drizzle-orm';
 
-import {
-  eventInvitations,
-  eventParticipants,
-  eventRsvpWaves,
-  events,
-  participationStatuses,
-  user,
-} from '@/db/schema';
-import {
-  isInvitationStatus,
-  resolveEffectiveStatus,
-  type InvitationStatus,
-} from '@/lib/participation/status';
-import { isRsvpWaveActive } from '@/lib/rsvp/compute-rsvp-respond-by';
-import { getEligibleRsvpApplicants } from '@/lib/rsvp/eligible-rsvp-applicants';
+import * as schema from '@/db/schema';
+import * as Participation from '@/lib/participation';
+import { isRsvpWaveActive } from './compute-rsvp-respond-by';
+import { getEligibleRsvpApplicants } from './eligible-rsvp-applicants';
 import { db } from '@/utils/db';
 
 export type AdminRsvpLifecycle =
@@ -29,12 +18,7 @@ export type AdminRsvpLifecycle =
   | 'event_started';
 
 /** Invitation email delivery state, separate from the RSVP decision itself. */
-export type RsvpInvitationEmailStatus =
-  | 'legacy'
-  | 'unsent'
-  | 'queued'
-  | 'sent'
-  | 'failed';
+export type InvitationEmailStatus = 'legacy' | 'unsent' | 'queued' | 'sent' | 'failed';
 
 export type AdminRsvpParticipant = {
   responseId: string;
@@ -42,10 +26,10 @@ export type AdminRsvpParticipant = {
   name: string;
   email: string;
   /** The participant's effective status — always an invitation outcome. */
-  statusLabel: InvitationStatus;
+  statusLabel: Participation.InvitationStatus;
   respondedAt: Date | null;
   termsAcceptedAt: Date | null;
-  invitationEmailStatus: RsvpInvitationEmailStatus;
+  invitationEmailStatus: InvitationEmailStatus;
 };
 
 export type AdminRsvpWaveSummary = {
@@ -75,7 +59,7 @@ export type AdminRsvpSummary = {
   previousWaves: AdminRsvpWaveSummary[];
 };
 
-const STATUS_SORT_ORDER: Record<InvitationStatus, number> = {
+const STATUS_SORT_ORDER: Record<Participation.InvitationStatus, number> = {
   invited: 0,
   accepted: 1,
   declined: 2,
@@ -119,11 +103,7 @@ function summarizeWave(options: {
   }[];
 }): AdminRsvpWaveSummary {
   const participants: AdminRsvpParticipant[] = options.rows.map((row) => {
-    const status = resolveEffectiveStatus(
-      row.storedLabel,
-      options.respondBy,
-      options.now,
-    );
+    const status = Participation.resolveEffectiveStatus(row.storedLabel, options.respondBy, options.now);
     return {
       responseId: row.responseId,
       userId: row.userId,
@@ -131,17 +111,15 @@ function summarizeWave(options: {
       email: row.email,
       // An invitation always moves its participant to an invitation outcome;
       // anything else would be a hand-edited row, shown as still waiting.
-      statusLabel: isInvitationStatus(status) ? status : 'invited',
+      statusLabel: Participation.isInvitationStatus(status) ? status : 'invited',
       respondedAt: row.respondedAt,
       termsAcceptedAt: row.termsAcceptedAt,
-      invitationEmailStatus:
-        row.invitationEmailStatus as RsvpInvitationEmailStatus,
+      invitationEmailStatus: row.invitationEmailStatus as InvitationEmailStatus,
     };
   });
 
   participants.sort((a, b) => {
-    const statusDiff =
-      STATUS_SORT_ORDER[a.statusLabel] - STATUS_SORT_ORDER[b.statusLabel];
+    const statusDiff = STATUS_SORT_ORDER[a.statusLabel] - STATUS_SORT_ORDER[b.statusLabel];
     if (statusDiff !== 0) return statusDiff;
     return a.name.localeCompare(b.name);
   });
@@ -176,25 +154,20 @@ function summarizeWave(options: {
  * Read-only RSVP overview for an event, derived from its waves, invitations,
  * participant statuses and eligibility — no extra tables.
  */
-export async function getAdminRsvpSummary(
-  eventId: string,
-  now: Date = new Date(),
-): Promise<AdminRsvpSummary | null> {
+export async function getAdminRsvpSummary(eventId: string, now: Date = new Date()): Promise<AdminRsvpSummary | null> {
   const [eventRow] = await db
     .select({
-      id: events.id,
-      hasApplication: events.hasApplication,
-      startsAt: events.startsAt,
+      id: schema.events.id,
+      hasApplication: schema.events.hasApplication,
+      startsAt: schema.events.startsAt,
     })
-    .from(events)
-    .where(eq(events.id, eventId))
+    .from(schema.events)
+    .where(eq(schema.events.id, eventId))
     .limit(1);
 
   if (!eventRow) return null;
 
-  const eventHasStarted = Boolean(
-    eventRow.startsAt && now.getTime() >= eventRow.startsAt.getTime(),
-  );
+  const eventHasStarted = Boolean(eventRow.startsAt && now.getTime() >= eventRow.startsAt.getTime());
 
   if (!eventRow.hasApplication) {
     return {
@@ -215,14 +188,14 @@ export async function getAdminRsvpSummary(
     getEligibleRsvpApplicants(eventId),
     db
       .select({
-        id: eventRsvpWaves.id,
-        wave: eventRsvpWaves.wave,
-        createdAt: eventRsvpWaves.createdAt,
-        respondBy: eventRsvpWaves.respondBy,
+        id: schema.eventRsvpWaves.id,
+        wave: schema.eventRsvpWaves.wave,
+        createdAt: schema.eventRsvpWaves.createdAt,
+        respondBy: schema.eventRsvpWaves.respondBy,
       })
-      .from(eventRsvpWaves)
-      .where(eq(eventRsvpWaves.eventId, eventId))
-      .orderBy(desc(eventRsvpWaves.wave)),
+      .from(schema.eventRsvpWaves)
+      .where(eq(schema.eventRsvpWaves.eventId, eventId))
+      .orderBy(desc(schema.eventRsvpWaves.wave)),
   ]);
 
   if (!eligibility) return null;
@@ -234,27 +207,24 @@ export async function getAdminRsvpSummary(
       ? []
       : await db
           .select({
-            responseId: eventInvitations.id,
-            waveId: eventInvitations.rsvpWaveId,
-            userId: user.id,
-            name: user.name,
-            email: user.email,
-            storedLabel: participationStatuses.label,
-            respondedAt: eventInvitations.respondedAt,
-            termsAcceptedAt: eventInvitations.termsAcceptedAt,
-            invitationEmailStatus: eventInvitations.invitationEmailStatus,
+            responseId: schema.eventInvitations.id,
+            waveId: schema.eventInvitations.rsvpWaveId,
+            userId: schema.user.id,
+            name: schema.user.name,
+            email: schema.user.email,
+            storedLabel: schema.participationStatuses.label,
+            respondedAt: schema.eventInvitations.respondedAt,
+            termsAcceptedAt: schema.eventInvitations.termsAcceptedAt,
+            invitationEmailStatus: schema.eventInvitations.invitationEmailStatus,
           })
-          .from(eventInvitations)
+          .from(schema.eventInvitations)
+          .innerJoin(schema.eventParticipants, eq(schema.eventInvitations.participantId, schema.eventParticipants.id))
           .innerJoin(
-            eventParticipants,
-            eq(eventInvitations.participantId, eventParticipants.id),
+            schema.participationStatuses,
+            eq(schema.eventParticipants.statusId, schema.participationStatuses.id),
           )
-          .innerJoin(
-            participationStatuses,
-            eq(eventParticipants.statusId, participationStatuses.id),
-          )
-          .innerJoin(user, eq(eventParticipants.userId, user.id))
-          .where(inArray(eventInvitations.rsvpWaveId, waveIds));
+          .innerJoin(schema.user, eq(schema.eventParticipants.userId, schema.user.id))
+          .where(inArray(schema.eventInvitations.rsvpWaveId, waveIds));
 
   const rowsByWaveId = new Map<string, typeof responseRows>();
   for (const row of responseRows) {

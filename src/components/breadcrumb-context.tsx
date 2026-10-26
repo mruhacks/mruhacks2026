@@ -16,17 +16,11 @@ const BreadcrumbContext = React.createContext<ContextValue>({
 
 const EMPTY_SEGMENTS: Record<string, string> = {};
 
-export function BreadcrumbProvider({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export function BreadcrumbProvider({ children }: { children: React.ReactNode }) {
   const [segments, setSegments] = React.useState<Record<string, string>>({});
 
   const setSegment = React.useCallback((id: string, label: string) => {
-    setSegments((prev) =>
-      prev[id] === label ? prev : { ...prev, [id]: label },
-    );
+    setSegments((prev) => (prev[id] === label ? prev : { ...prev, [id]: label }));
   }, []);
 
   // Page content and the header hydrate as independent boundaries, so a
@@ -42,11 +36,7 @@ export function BreadcrumbProvider({
     [hydrated, segments, setSegment],
   );
 
-  return (
-    <BreadcrumbContext.Provider value={value}>
-      {children}
-    </BreadcrumbContext.Provider>
-  );
+  return <BreadcrumbContext.Provider value={value}>{children}</BreadcrumbContext.Provider>;
 }
 
 export function useBreadcrumbContext() {
@@ -54,10 +44,7 @@ export function useBreadcrumbContext() {
 }
 
 /** Hook for client components to register a dynamic-segment label. */
-export function useBreadcrumbSegment(
-  id: string | null | undefined,
-  label: string | null | undefined,
-) {
+function useBreadcrumbSegment(id: string | null | undefined, label: string | null | undefined) {
   const { setSegment } = useBreadcrumbContext();
   React.useEffect(() => {
     if (id && label) setSegment(id, label);
@@ -68,13 +55,7 @@ export function useBreadcrumbSegment(
  * Zero-render component for server components to register a dynamic-segment
  * label into the client breadcrumb context.
  */
-export function BreadcrumbSegment({
-  id,
-  label,
-}: {
-  id: string;
-  label: string;
-}) {
+export function BreadcrumbSegment({ id, label }: { id: string; label: string }) {
   useBreadcrumbSegment(id, label);
   return null;
 }

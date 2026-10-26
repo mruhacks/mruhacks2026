@@ -9,16 +9,10 @@ interface EditUserFormStandaloneProps {
   /** Null when the viewer can't read roles: the Roles tab is hidden. */
   allRoles: { id: number; slug: string | null }[] | null;
   /** Null when the viewer can't read permissions: that tab is hidden. */
-  allPermissions:
-    | { id: number; slug: string; description: string | null }[]
-    | null;
+  allPermissions: { id: number; slug: string; description: string | null }[] | null;
 }
 
-export function EditUserFormStandalone({
-  user,
-  allRoles,
-  allPermissions,
-}: EditUserFormStandaloneProps) {
+export function EditUserFormStandalone({ user, allRoles, allPermissions }: EditUserFormStandaloneProps) {
   const router = useRouter();
 
   const handleSaved = () => {
@@ -32,10 +26,7 @@ export function EditUserFormStandalone({
       allPermissions={allPermissions}
       onSaved={handleSaved}
       footer={
-        <Button
-          variant='outline'
-          onClick={() => router.push('/dashboard/admin/users')}
-        >
+        <Button variant='outline' onClick={() => router.push('/dashboard/admin/users')}>
           Cancel
         </Button>
       }

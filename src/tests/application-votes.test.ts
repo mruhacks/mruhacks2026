@@ -2,20 +2,9 @@ import { describe, test, expect, afterAll, vi } from 'vitest';
 import { eq, inArray } from 'drizzle-orm';
 
 import { db } from '@/utils/db';
-import {
-  eventParticipants,
-  events,
-  participationStatuses,
-  teamMembers,
-  teams,
-  user,
-} from '@/db/schema';
-import {
-  castApplicationVote,
-  getReviewQueue,
-  retractApplicationVote,
-} from '@/lib/application-votes';
-import { getWaitlist, syncWaitlistForEvent } from '@/lib/rsvp/waitlist';
+import * as schema from '@/db/schema';
+import { castApplicationVote, getReviewQueue, retractApplicationVote } from '@/lib/application-votes';
+import * as Rsvp from '@/lib/rsvp/server';
 import { voteOnApplication } from '@/app/dashboard/admin/events/review-actions';
 import { insertParticipant, statusId } from '@/tests/participation-fixtures';
 import type { ApplicationQuestion } from '@/types/application';
@@ -30,29 +19,29 @@ const createdEventIds: string[] = [];
 const createdUserIds: string[] = [];
 
 afterAll(async () => {
-  await db.delete(events).where(inArray(events.id, createdEventIds));
-  await db.delete(user).where(inArray(user.id, createdUserIds));
+  await db.delete(schema.events).where(inArray(schema.events.id, createdEventIds));
+  await db.delete(schema.user).where(inArray(schema.user.id, createdUserIds));
 });
 
 let counter = 0;
 async function createUser(name: string): Promise<string> {
   const [row] = await db
-    .insert(user)
+    .insert(schema.user)
     .values({
       name,
       email: `votes-${Date.now()}-${counter++}@example.com`,
       emailVerified: true,
     })
-    .returning({ id: user.id });
+    .returning({ id: schema.user.id });
   createdUserIds.push(row.id);
   return row.id;
 }
 
 async function createEvent(): Promise<string> {
   const [event] = await db
-    .insert(events)
+    .insert(schema.events)
     .values({ name: 'Vote Test', hasApplication: true })
-    .returning({ id: events.id });
+    .returning({ id: schema.events.id });
   createdEventIds.push(event.id);
   return event.id;
 }
@@ -75,48 +64,34 @@ async function applicant(
 
 async function statusOf(participantId: string): Promise<string> {
   const [row] = await db
-    .select({ label: participationStatuses.label })
-    .from(eventParticipants)
-    .innerJoin(
-      participationStatuses,
-      eq(eventParticipants.statusId, participationStatuses.id),
-    )
-    .where(eq(eventParticipants.id, participantId));
+    .select({ label: schema.participationStatuses.label })
+    .from(schema.eventParticipants)
+    .innerJoin(schema.participationStatuses, eq(schema.eventParticipants.statusId, schema.participationStatuses.id))
+    .where(eq(schema.eventParticipants.id, participantId));
   return row.label;
 }
 
-async function makeTeam(
-  eventId: string,
-  members: { userId: string }[],
-): Promise<void> {
+async function makeTeam(eventId: string, members: { userId: string }[]): Promise<void> {
   const [team] = await db
-    .insert(teams)
+    .insert(schema.teams)
     .values({
       eventId,
       organizerId: members[0].userId,
       code: `T${counter++}`.padEnd(8, '0').slice(0, 8),
     })
-    .returning({ id: teams.id });
-  await db
-    .insert(teamMembers)
-    .values(
-      members.map((m) => ({ teamId: team.id, userId: m.userId, eventId })),
-    );
+    .returning({ id: schema.teams.id });
+  await db.insert(schema.teamMembers).values(members.map((m) => ({ teamId: team.id, userId: m.userId, eventId })));
 }
 
 async function setStatus(participantId: string, status: ParticipationStatus) {
   await db
-    .update(eventParticipants)
+    .update(schema.eventParticipants)
     .set({ statusId: await statusId(status) })
-    .where(eq(eventParticipants.id, participantId));
+    .where(eq(schema.eventParticipants.id, participantId));
 }
 
-const vote = (
-  eventId: string,
-  participantId: string,
-  voterId: string,
-  approve: boolean,
-) => castApplicationVote({ eventId, participantId, voterId, approve });
+const vote = (eventId: string, participantId: string, voterId: string, approve: boolean) =>
+  castApplicationVote({ eventId, participantId, voterId, approve });
 
 describe('castApplicationVote', () => {
   test('a no keeps an applicant in review; the first yes waitlists them', async () => {
@@ -139,11 +114,7 @@ describe('castApplicationVote', () => {
 
   test('ranks the waitlist by approval ratio', async () => {
     const eventId = await createEvent();
-    const reviewers = [
-      await createUser('R1'),
-      await createUser('R2'),
-      await createUser('R3'),
-    ];
+    const reviewers = [await createUser('R1'), await createUser('R2'), await createUser('R3')];
     const low = await applicant(eventId, 'Low');
     const high = await applicant(eventId, 'High');
 
@@ -155,7 +126,7 @@ describe('castApplicationVote', () => {
     await vote(eventId, high.participantId, reviewers[1], true);
     await vote(eventId, high.participantId, reviewers[2], true);
 
-    const waitlist = await getWaitlist(eventId);
+    const waitlist = await Rsvp.getWaitlist(eventId);
     expect(waitlist.map((e) => e.name)).toEqual(['High', 'Low']);
   });
 
@@ -175,7 +146,7 @@ describe('castApplicationVote', () => {
     await vote(eventId, star.participantId, r1, true);
     await vote(eventId, star.participantId, r2, true);
 
-    const names = (await getWaitlist(eventId)).map((e) => e.name);
+    const names = (await Rsvp.getWaitlist(eventId)).map((e) => e.name);
     // Weak rides Star's score above Solo, and stays next to Star.
     expect(names.slice(0, 2).sort()).toEqual(['Star', 'Weak']);
     expect(names[2]).toBe('Solo');
@@ -208,18 +179,11 @@ describe('castApplicationVote', () => {
     await vote(eventId, mate.participantId, r1, true);
     await vote(eventId, mate.participantId, r2, false);
     await vote(eventId, solo.participantId, r1, true);
-    expect((await getWaitlist(eventId)).map((e) => e.name)).toEqual([
-      'Star',
-      'Mate',
-      'Solo',
-    ]);
+    expect((await Rsvp.getWaitlist(eventId)).map((e) => e.name)).toEqual(['Star', 'Mate', 'Solo']);
 
     // ...until Star is denied: Mate ranks on their own score.
     await setStatus(star.participantId, 'denied');
-    expect((await getWaitlist(eventId)).map((e) => e.name)).toEqual([
-      'Solo',
-      'Mate',
-    ]);
+    expect((await Rsvp.getWaitlist(eventId)).map((e) => e.name)).toEqual(['Solo', 'Mate']);
   });
 
   test('joining a team with a yes later brings the joiner along', async () => {
@@ -231,7 +195,7 @@ describe('castApplicationVote', () => {
     expect(await statusOf(late.participantId)).toBe('pending_review');
 
     await makeTeam(eventId, [star, late]);
-    await syncWaitlistForEvent(eventId);
+    await Rsvp.syncWaitlistForEvent(eventId);
     expect(await statusOf(late.participantId)).toBe('waitlisted');
   });
 
@@ -248,7 +212,7 @@ describe('castApplicationVote', () => {
     await vote(eventId, solo.participantId, r1, true);
     await vote(eventId, late.participantId, r1, true);
     await vote(eventId, late.participantId, r2, false);
-    const names = async () => (await getWaitlist(eventId)).map((e) => e.name);
+    const names = async () => (await Rsvp.getWaitlist(eventId)).map((e) => e.name);
     expect(await names()).toEqual(['Star', 'Solo', 'Late']);
 
     // Joining Star's team lifts Late to Star's score, right beside Star.
@@ -305,7 +269,7 @@ describe('retractApplicationVote', () => {
       }),
     ).toEqual({ success: true, status: 'pending_review' });
     expect(await statusOf(a.participantId)).toBe('pending_review');
-    expect(await getWaitlist(eventId)).toEqual([]);
+    expect(await Rsvp.getWaitlist(eventId)).toEqual([]);
   });
 
   test('undoing the last yes sends the dragged-along team back too', async () => {
@@ -367,12 +331,8 @@ describe('getReviewQueue', () => {
       limit: 10,
     });
 
-    expect(queue.cards.map((c) => c.participantId)).toEqual([
-      fresh.participantId,
-    ]);
-    expect(queue.cards[0].answers).toEqual([
-      expect.objectContaining({ questionId: 'q-shown', value: 'Because' }),
-    ]);
+    expect(queue.cards.map((c) => c.participantId)).toEqual([fresh.participantId]);
+    expect(queue.cards[0].answers).toEqual([expect.objectContaining({ questionId: 'q-shown', value: 'Because' })]);
     expect(JSON.stringify(queue.cards)).not.toContain('555-0100');
     expect(queue).toMatchObject({ remaining: 1, reviewed: 1 });
   });

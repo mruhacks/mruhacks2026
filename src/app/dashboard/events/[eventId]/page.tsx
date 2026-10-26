@@ -7,48 +7,27 @@ import { getUser } from '@/utils/auth';
 import { db } from '@/utils/db';
 import { BreadcrumbSegment } from '@/components/breadcrumb-context';
 import { MarkdownContent } from '@/components/markdown/markdown-content';
-import { events, eventTypes, eventArticles, eventTerms } from '@/db/schema';
+import * as schema from '@/db/schema';
 import { hasEventElapsed, resolveEventId } from '@/lib/events';
-import { countAttending } from '@/lib/participation/server';
-import { findJudgeForUser } from '@/lib/judging/server';
+import * as Participation from '@/lib/participation/server';
+import * as Judging from '@/lib/judging/server';
 import { eventPath } from '@/lib/event-slug';
 import { isScheduleVisible, listSubevents } from '@/lib/subevents';
 import { serializeInstant } from '@/lib/datetime';
-import {
-  EventSchedule,
-  type ScheduleEntry,
-} from '@/app/dashboard/events/[eventId]/event-schedule';
-import {
-  getUserParticipation,
-  type ParticipationForUser,
-} from '@/app/dashboard/events/actions';
-import { ParticipationStatusCard } from '@/app/dashboard/events/ParticipationStatusCard';
-import { RsvpPendingPrompt } from '@/app/dashboard/events/RsvpPendingPrompt';
+import { EventSchedule, type ScheduleEntry } from './event-schedule';
+import { getUserParticipation, type ParticipationForUser } from '../actions';
+import { ParticipationStatusCard } from '../ParticipationStatusCard';
+import { RsvpPendingPrompt } from '../RsvpPendingPrompt';
 import { LocalDateRange } from '@/components/local-date-time';
-import {
-  canEditApplication,
-  canFormTeam,
-  isAttending,
-} from '@/lib/participation/status';
-import { RegisterEventButton } from '@/app/dashboard/events/RegisterEventButton';
-import { UnregisterEventButton } from '@/app/dashboard/events/UnregisterEventButton';
-import { TeamPanel } from '@/app/dashboard/events/team/TeamPanel';
-import { ProjectPanel } from '@/app/dashboard/events/project/ProjectPanel';
+import { RegisterEventButton } from '../RegisterEventButton';
+import { UnregisterEventButton } from '../UnregisterEventButton';
+import { TeamPanel } from '../team/TeamPanel';
+import { ProjectPanel } from '../project/ProjectPanel';
 import { AddToWalletButton } from '@/components/add-to-wallet-button';
 import { AddToGoogleWalletButton } from '@/components/add-to-google-wallet-button';
 import { EventTicketButton } from '@/components/event-ticket-button';
-import {
-  detectWalletPlatform,
-  type WalletPlatform,
-} from '@/lib/wallet/detect-platform';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import * as Wallet from '@/lib/wallet/server';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -119,30 +98,30 @@ async function EventEntryContent({ params, searchParams }: Props) {
   const user = await getUser();
   if (!user) redirect('/signin');
 
-  const walletPlatform = await detectWalletPlatform();
+  const walletPlatform = await Wallet.detectWalletPlatform();
 
   const [row] = await db
     .select({
-      id: events.id,
-      slug: events.slug,
-      name: events.name,
-      parentEventId: events.parentEventId,
-      descriptionMarkdown: events.descriptionMarkdown,
-      termsMarkdown: eventTerms.markdown,
-      termsId: events.termsId,
-      hasApplication: events.hasApplication,
-      startsAt: events.startsAt,
-      endsAt: events.endsAt,
-      checkInEnabled: events.checkInEnabled,
-      capacity: events.capacity,
-      capacityVisible: events.capacityVisible,
-      teamsEnabled: events.teamsEnabled,
-      eventTypeLabel: eventTypes.label,
+      id: schema.events.id,
+      slug: schema.events.slug,
+      name: schema.events.name,
+      parentEventId: schema.events.parentEventId,
+      descriptionMarkdown: schema.events.descriptionMarkdown,
+      termsMarkdown: schema.eventTerms.markdown,
+      termsId: schema.events.termsId,
+      hasApplication: schema.events.hasApplication,
+      startsAt: schema.events.startsAt,
+      endsAt: schema.events.endsAt,
+      checkInEnabled: schema.events.checkInEnabled,
+      capacity: schema.events.capacity,
+      capacityVisible: schema.events.capacityVisible,
+      teamsEnabled: schema.events.teamsEnabled,
+      eventTypeLabel: schema.eventTypes.label,
     })
-    .from(events)
-    .leftJoin(eventTerms, eq(events.termsId, eventTerms.id))
-    .leftJoin(eventTypes, eq(events.eventTypeId, eventTypes.id))
-    .where(eq(events.id, eventId))
+    .from(schema.events)
+    .leftJoin(schema.eventTerms, eq(schema.events.termsId, schema.eventTerms.id))
+    .leftJoin(schema.eventTypes, eq(schema.events.eventTypeId, schema.eventTypes.id))
+    .where(eq(schema.events.id, eventId))
     .limit(1);
 
   if (!row) notFound();
@@ -158,32 +137,25 @@ async function EventEntryContent({ params, searchParams }: Props) {
 
   const [publishedArticlesRows, subeventRows] = await Promise.all([
     db
-      .select({ slug: eventArticles.slug, title: eventArticles.title })
-      .from(eventArticles)
-      .where(
-        and(
-          eq(eventArticles.eventId, eventId),
-          eq(eventArticles.published, true),
-        ),
-      )
-      .orderBy(asc(eventArticles.sortOrder), asc(eventArticles.title)),
+      .select({ slug: schema.eventArticles.slug, title: schema.eventArticles.title })
+      .from(schema.eventArticles)
+      .where(and(eq(schema.eventArticles.eventId, eventId), eq(schema.eventArticles.published, true)))
+      .orderBy(asc(schema.eventArticles.sortOrder), asc(schema.eventArticles.title)),
     listSubevents(eventId),
   ]);
 
   // Incomplete sub-events are held back from the schedule rather than filtered
   // out of the getter, so the admin list and this page share one cache entry.
-  const schedule: ScheduleEntry[] = subeventRows
-    .filter(isScheduleVisible)
-    .map((subevent) => ({
-      id: subevent.id,
-      name: subevent.name,
-      // Non-null by `isScheduleVisible`; serialized because a Date must never
-      // cross into a client component.
-      startsAt: serializeInstant(subevent.startsAt!),
-      endsAt: serializeInstant(subevent.endsAt),
-      descriptionMarkdown: subevent.descriptionMarkdown,
-      location: subevent.location,
-    }));
+  const schedule: ScheduleEntry[] = subeventRows.filter(isScheduleVisible).map((subevent) => ({
+    id: subevent.id,
+    name: subevent.name,
+    // Non-null by `isScheduleVisible`; serialized because a Date must never
+    // cross into a client component.
+    startsAt: serializeInstant(subevent.startsAt!),
+    endsAt: serializeInstant(subevent.endsAt),
+    descriptionMarkdown: subevent.descriptionMarkdown,
+    location: subevent.location,
+  }));
 
   // Event Terms isn't a real article — it's synthesized onto the end of the
   // list so it's always reachable from the wiki without living in
@@ -194,7 +166,7 @@ async function EventEntryContent({ params, searchParams }: Props) {
 
   const [participation, judge] = await Promise.all([
     getUserParticipation(eventId),
-    findJudgeForUser(eventId, user),
+    Judging.findJudgeForUser(eventId, user),
   ]);
   // Every participant action is refused server-side once the event is over,
   // so the page drops the controls instead of offering ones that will fail.
@@ -210,28 +182,15 @@ async function EventEntryContent({ params, searchParams }: Props) {
         articles={publishedArticles}
         schedule={schedule}
         hasEnded={hasEnded}
-        mobileAction={
-          hasEnded || judge.disabledAt
-            ? null
-            : { label: 'Start judging', href: `${eventHref}/judge` }
-        }
-        participation={
-          <JudgingPanel
-            eventHref={eventHref}
-            disabled={judge.disabledAt != null}
-            hasEnded={hasEnded}
-          />
-        }
+        mobileAction={hasEnded || judge.disabledAt ? null : { label: 'Start judging', href: `${eventHref}/judge` }}
+        participation={<JudgingPanel eventHref={eventHref} disabled={judge.disabledAt != null} hasEnded={hasEnded} />}
         team={null}
       />
     );
   }
 
   if (row.hasApplication) {
-    const canManageTeam =
-      row.teamsEnabled &&
-      participation != null &&
-      canFormTeam(participation.status);
+    const canManageTeam = row.teamsEnabled && participation != null && Participation.canFormTeam(participation.status);
 
     return (
       <EventPageLayout
@@ -243,8 +202,7 @@ async function EventEntryContent({ params, searchParams }: Props) {
         mobileAction={
           // Once the application is decided, the only thing left to act on
           // (an RSVP, giving up a spot) lives in the panel — no sticky bar.
-          hasEnded ||
-          (participation && !canEditApplication(participation.status))
+          hasEnded || (participation && !Participation.canEditApplication(participation.status))
             ? null
             : {
                 label: participation ? 'Edit application' : 'Start application',
@@ -264,28 +222,15 @@ async function EventEntryContent({ params, searchParams }: Props) {
             hasEnded={hasEnded}
           />
         }
-        project={
-          canManageTeam ? (
-            <ProjectPanel eventId={eventId} eventHref={eventHref} />
-          ) : null
-        }
-        team={
-          canManageTeam ? (
-            <TeamPanel
-              eventId={eventId}
-              joinCode={joinCode}
-              hasEnded={hasEnded}
-            />
-          ) : null
-        }
+        project={canManageTeam ? <ProjectPanel eventId={eventId} eventHref={eventHref} /> : null}
+        team={canManageTeam ? <TeamPanel eventId={eventId} joinCode={joinCode} hasEnded={hasEnded} /> : null}
       />
     );
   }
 
-  const isRegistered =
-    participation != null && isAttending(participation.status);
+  const isRegistered = participation != null && Participation.isAttending(participation.status);
 
-  const attendeeCount = await countAttending(eventId);
+  const attendeeCount = await Participation.countAttending(eventId);
   const isFull = row.capacity != null && attendeeCount >= row.capacity;
 
   return (
@@ -300,13 +245,7 @@ async function EventEntryContent({ params, searchParams }: Props) {
           ? null
           : {
               label: isFull ? 'Event full' : 'Register',
-              control: (
-                <RegisterEventButton
-                  eventId={eventId}
-                  className='w-full'
-                  full={isFull}
-                />
-              ),
+              control: <RegisterEventButton eventId={eventId} className='w-full' full={isFull} />,
             }
       }
       participation={
@@ -315,22 +254,14 @@ async function EventEntryContent({ params, searchParams }: Props) {
           checkInEnabled={row.checkInEnabled}
           isRegistered={isRegistered}
           isFull={isFull}
-          spotsRemaining={
-            row.capacity != null
-              ? Math.max(row.capacity - attendeeCount, 0)
-              : null
-          }
+          spotsRemaining={row.capacity != null ? Math.max(row.capacity - attendeeCount, 0) : null}
           walletPlatform={walletPlatform}
           hasEnded={hasEnded}
         />
       }
       team={
         isRegistered && row.teamsEnabled ? (
-          <TeamPanel
-            eventId={eventId}
-            joinCode={joinCode}
-            hasEnded={hasEnded}
-          />
+          <TeamPanel eventId={eventId} joinCode={joinCode} hasEnded={hasEnded} />
         ) : null
       }
     />
@@ -374,9 +305,7 @@ function EventPageLayout({
       <header className='flex flex-col gap-3'>
         <div className='flex flex-col gap-2'>
           <div className='flex flex-wrap items-center gap-3'>
-            <h1 className='text-3xl font-semibold tracking-tight sm:text-4xl'>
-              {event.name}
-            </h1>
+            <h1 className='text-3xl font-semibold tracking-tight sm:text-4xl'>{event.name}</h1>
             {hasEnded && <Badge variant='secondary'>Ended</Badge>}
           </div>
           <EventMeta
@@ -420,17 +349,9 @@ function EventPageLayout({
 }
 
 /** Shows exactly one wallet action, picked by the visitor's detected platform. */
-function WalletAction({
-  eventId,
-  walletPlatform,
-}: {
-  eventId: string;
-  walletPlatform: WalletPlatform;
-}) {
-  if (walletPlatform === 'apple')
-    return <AddToWalletButton eventId={eventId} />;
-  if (walletPlatform === 'google')
-    return <AddToGoogleWalletButton eventId={eventId} />;
+function WalletAction({ eventId, walletPlatform }: { eventId: string; walletPlatform: Wallet.Platform }) {
+  if (walletPlatform === 'apple') return <AddToWalletButton eventId={eventId} />;
+  if (walletPlatform === 'google') return <AddToGoogleWalletButton eventId={eventId} />;
 }
 
 function ApplicationParticipationPanel({
@@ -450,24 +371,22 @@ function ApplicationParticipationPanel({
   termsMarkdown: string | null;
   termsId: string | null;
   participation: ParticipationForUser | null;
-  walletPlatform: WalletPlatform;
+  walletPlatform: Wallet.Platform;
   checkInEnabled: boolean;
   hasEnded: boolean;
 }) {
   if (participation) {
     return (
       <>
-        {!hasEnded &&
-          participation.status === 'invited' &&
-          participation.invitation && (
-            <RsvpPendingPrompt
-              eventId={eventId}
-              eventName={eventName}
-              termsMarkdown={termsMarkdown}
-              termsId={termsId}
-              respondBy={participation.invitation.respondBy}
-            />
-          )}
+        {!hasEnded && participation.status === 'invited' && participation.invitation && (
+          <RsvpPendingPrompt
+            eventId={eventId}
+            eventName={eventName}
+            termsMarkdown={termsMarkdown}
+            termsId={termsId}
+            respondBy={participation.invitation.respondBy}
+          />
+        )}
         <ParticipationStatusCard
           eventId={eventId}
           eventHref={eventHref}
@@ -478,10 +397,7 @@ function ApplicationParticipationPanel({
           pass={
             checkInEnabled ? (
               <>
-                <WalletAction
-                  eventId={eventId}
-                  walletPlatform={walletPlatform}
-                />
+                <WalletAction eventId={eventId} walletPlatform={walletPlatform} />
                 <EventTicketButton eventId={eventId} />
               </>
             ) : undefined
@@ -496,9 +412,7 @@ function ApplicationParticipationPanel({
       <Card>
         <CardHeader>
           <CardTitle>Application</CardTitle>
-          <CardDescription>
-            This event has ended. Applications are closed.
-          </CardDescription>
+          <CardDescription>This event has ended. Applications are closed.</CardDescription>
         </CardHeader>
       </Card>
     );
@@ -509,8 +423,8 @@ function ApplicationParticipationPanel({
       <CardHeader>
         <CardTitle>Application</CardTitle>
         <CardDescription>
-          This event uses an application process. Tell us a little about
-          yourself — spots are limited and reviewed by our team.
+          This event uses an application process. Tell us a little about yourself — spots are limited and reviewed by
+          our team.
         </CardDescription>
       </CardHeader>
       <CardFooter className='flex-col gap-2'>
@@ -522,23 +436,13 @@ function ApplicationParticipationPanel({
   );
 }
 
-function JudgingPanel({
-  eventHref,
-  disabled,
-  hasEnded,
-}: {
-  eventHref: string;
-  disabled: boolean;
-  hasEnded: boolean;
-}) {
+function JudgingPanel({ eventHref, disabled, hasEnded }: { eventHref: string; disabled: boolean; hasEnded: boolean }) {
   return (
     <Card>
       <CardHeader>
         <div className='flex items-center justify-between gap-2'>
           <CardTitle>You&apos;re judging</CardTitle>
-          <Badge variant={disabled ? 'destructive' : 'default'}>
-            {disabled ? 'Paused' : 'Judge'}
-          </Badge>
+          <Badge variant={disabled ? 'destructive' : 'default'}>{disabled ? 'Paused' : 'Judge'}</Badge>
         </div>
         <CardDescription>
           {hasEnded
@@ -575,7 +479,7 @@ function RegistrationParticipationPanel({
   isRegistered: boolean;
   isFull: boolean;
   spotsRemaining: number | null;
-  walletPlatform: WalletPlatform;
+  walletPlatform: Wallet.Platform;
   checkInEnabled: boolean;
   hasEnded: boolean;
 }) {
@@ -587,9 +491,7 @@ function RegistrationParticipationPanel({
             <CardTitle>You were registered</CardTitle>
             <Badge variant='success'>Registered</Badge>
           </div>
-          <CardDescription>
-            This event has ended. Thanks for signing up!
-          </CardDescription>
+          <CardDescription>This event has ended. Thanks for signing up!</CardDescription>
         </CardHeader>
       </Card>
     );
@@ -600,9 +502,7 @@ function RegistrationParticipationPanel({
       <Card>
         <CardHeader>
           <CardTitle>Registration</CardTitle>
-          <CardDescription>
-            This event has ended. Registration is closed.
-          </CardDescription>
+          <CardDescription>This event has ended. Registration is closed.</CardDescription>
         </CardHeader>
       </Card>
     );
@@ -616,18 +516,13 @@ function RegistrationParticipationPanel({
             <CardTitle>You&apos;re registered</CardTitle>
             <Badge variant='success'>Registered</Badge>
           </div>
-          <CardDescription>
-            Your spot is confirmed. We&apos;ll see you there!
-          </CardDescription>
+          <CardDescription>Your spot is confirmed. We&apos;ll see you there!</CardDescription>
         </CardHeader>
         <CardFooter className='flex-col gap-2'>
           {checkInEnabled && (
             <>
               <div className='flex flex-row gap-2'>
-                <WalletAction
-                  eventId={eventId}
-                  walletPlatform={walletPlatform}
-                />
+                <WalletAction eventId={eventId} walletPlatform={walletPlatform} />
                 <EventTicketButton eventId={eventId} />
               </div>
               <p className='text-muted-foreground text-center text-xs'>
@@ -654,11 +549,7 @@ function RegistrationParticipationPanel({
         </CardDescription>
       </CardHeader>
       <CardFooter>
-        <RegisterEventButton
-          eventId={eventId}
-          className='w-full'
-          full={isFull}
-        />
+        <RegisterEventButton eventId={eventId} className='w-full' full={isFull} />
       </CardFooter>
     </Card>
   );
@@ -676,19 +567,10 @@ function EventDescription({ markdown }: { markdown: string | null }) {
 }
 
 /** Shows the existing published wiki content directly on the event page. */
-function WikiArticles({
-  eventHref,
-  articles,
-}: {
-  eventHref: string;
-  articles: PublishedArticle[];
-}) {
+function WikiArticles({ eventHref, articles }: { eventHref: string; articles: PublishedArticle[] }) {
   if (articles.length === 0) return null;
   return (
-    <section
-      aria-labelledby='event-wiki-heading'
-      className='flex flex-col gap-4'
-    >
+    <section aria-labelledby='event-wiki-heading' className='flex flex-col gap-4'>
       <div className='flex items-center justify-between gap-3'>
         <div className='flex items-center gap-2'>
           <BookOpen className='size-4' aria-hidden />
@@ -734,12 +616,7 @@ function EventMeta({
       {(startsAt || endsAt) && (
         <span className='flex items-center gap-1.5'>
           <CalendarDays className='size-4 shrink-0' aria-hidden />
-          <LocalDateRange
-            start={startsAt}
-            end={endsAt}
-            singleDateStyle='long'
-            singleTimeStyle='short'
-          />
+          <LocalDateRange start={startsAt} end={endsAt} singleDateStyle='long' singleTimeStyle='short' />
         </span>
       )}
       {capacity != null && (

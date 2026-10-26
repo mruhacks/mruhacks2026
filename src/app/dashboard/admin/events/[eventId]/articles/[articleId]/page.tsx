@@ -1,16 +1,13 @@
 import * as React from 'react';
 import { notFound, redirect } from 'next/navigation';
 
-import {
-  canWriteArticles,
-  getEventArticle,
-} from '@/app/dashboard/admin/events/content-actions';
+import { canWriteArticles, getEventArticle } from '@/app/dashboard/admin/events/content-actions';
 import { BreadcrumbSegment } from '@/components/breadcrumb-context';
 import { MarkdownContent } from '@/components/markdown/markdown-content';
 import { getAdminEventHeader } from '@/lib/admin-event';
 import { eventPath } from '@/lib/event-slug';
 import { resolveEventId } from '@/lib/events';
-import { requirePermission } from '@/lib/rbac/authorization';
+import * as Rbac from '@/lib/rbac/server';
 import { getUser } from '@/utils/auth';
 
 import { ArticleEditor } from './article-editor';
@@ -31,26 +28,20 @@ type ArticlePageProps = {
  */
 export default function ArticlePage({ params }: ArticlePageProps) {
   return (
-    <React.Suspense
-      fallback={<div className='bg-muted h-96 animate-pulse rounded-xl' />}
-    >
+    <React.Suspense fallback={<div className='bg-muted h-96 animate-pulse rounded-xl' />}>
       <ArticleContent paramsPromise={params} />
     </React.Suspense>
   );
 }
 
-async function ArticleContent({
-  paramsPromise,
-}: {
-  paramsPromise: ArticlePageProps['params'];
-}) {
+async function ArticleContent({ paramsPromise }: { paramsPromise: ArticlePageProps['params'] }) {
   const { eventId: segment, articleId } = await paramsPromise;
   const eventId = await resolveEventId(segment);
   if (!eventId) notFound();
 
   const user = await getUser();
   if (!user) redirect('/signin');
-  await requirePermission(user.id, 'article:read:all');
+  await Rbac.requirePermission(user.id, 'article:read:all');
 
   // The header read is the same cached entry the layout above already
   // filled; it's here for the event's own slug, which the editor shows in
@@ -62,11 +53,7 @@ async function ArticleContent({
   ]);
 
   if (!result.success || !result.data) {
-    return (
-      <p className='text-destructive'>
-        {!result.success ? result.error : 'Article not found'}
-      </p>
-    );
+    return <p className='text-destructive'>{!result.success ? result.error : 'Article not found'}</p>;
   }
   const article = result.data;
 
@@ -90,9 +77,7 @@ async function ArticleContent({
           {article.bodyMarkdown.trim() ? (
             <MarkdownContent markdown={article.bodyMarkdown} allowEmbeds />
           ) : (
-            <p className='text-muted-foreground text-sm'>
-              This article has no content yet.
-            </p>
+            <p className='text-muted-foreground text-sm'>This article has no content yet.</p>
           )}
         </div>
       )}

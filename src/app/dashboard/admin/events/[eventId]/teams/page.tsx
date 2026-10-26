@@ -3,7 +3,7 @@ import { notFound, redirect } from 'next/navigation';
 
 import { getAdminEventSettings } from '@/lib/admin-event';
 import { resolveEventId } from '@/lib/events';
-import { hasPermission, requireAnyPermission } from '@/lib/rbac/authorization';
+import * as Rbac from '@/lib/rbac/server';
 import { isSubmissionsEnabled } from '@/lib/submissions';
 import { getUser } from '@/utils/auth';
 
@@ -26,16 +26,10 @@ export default function TeamsRoute({ params }: Props) {
 }
 
 function TeamsSkeleton() {
-  return (
-    <div className='text-muted-foreground py-8 text-center'>Loading...</div>
-  );
+  return <div className='text-muted-foreground py-8 text-center'>Loading...</div>;
 }
 
-async function TeamsContent({
-  paramsPromise,
-}: {
-  paramsPromise: Props['params'];
-}) {
+async function TeamsContent({ paramsPromise }: { paramsPromise: Props['params'] }) {
   const { eventId: segment } = await paramsPromise;
   const eventId = await resolveEventId(segment);
   if (!eventId) notFound();
@@ -44,19 +38,14 @@ async function TeamsContent({
   // Any part of the screen is enough to land here — the same permissions
   // `getFormedTeamsForEvent`, `listEventSubmissions` and `getJudgingProjects`
   // check. Each part is then gated on its own.
-  await requireAnyPermission(user.id, [
-    'team:read:all',
-    'submission:read:all',
-    'judging:manage:all',
-  ]);
+  await Rbac.requireAnyPermission(user.id, ['team:read:all', 'submission:read:all', 'judging:manage:all']);
 
-  const [event, canReadTeams, canReadSubmissions, canManageJudging] =
-    await Promise.all([
-      getAdminEventSettings(eventId),
-      hasPermission(user.id, 'team:read:all'),
-      hasPermission(user.id, 'submission:read:all'),
-      hasPermission(user.id, 'judging:manage:all'),
-    ]);
+  const [event, canReadTeams, canReadSubmissions, canManageJudging] = await Promise.all([
+    getAdminEventSettings(eventId),
+    Rbac.hasPermission(user.id, 'team:read:all'),
+    Rbac.hasPermission(user.id, 'submission:read:all'),
+    Rbac.hasPermission(user.id, 'judging:manage:all'),
+  ]);
   if (!event) notFound();
   const submissionsEnabled = isSubmissionsEnabled(event);
 

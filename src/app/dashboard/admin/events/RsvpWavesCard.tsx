@@ -3,32 +3,14 @@
 import * as React from 'react';
 import { ChevronRight } from 'lucide-react';
 
-import {
-  type AdminRsvpSummary,
-  type AdminRsvpWaveSummary,
-  type WaitlistEntry,
-} from '@/app/dashboard/admin/events/actions';
-import { RsvpParticipantsTable } from '@/app/dashboard/admin/events/RsvpParticipantsTable';
-import { SendNextWaveButton } from '@/app/dashboard/admin/events/SendNextWaveButton';
+import { type AdminRsvpSummary, type AdminRsvpWaveSummary, type WaitlistEntry } from './actions';
+import { RsvpParticipantsTable } from './RsvpParticipantsTable';
+import { SendNextWaveButton } from './SendNextWaveButton';
 import { LocalDateTime } from '@/components/local-date-time';
 import { Badge } from '@/components/ui/badge';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { formatRemaining, toDate } from '@/lib/rsvp/format-remaining';
-import { estimateAutoWaveAt } from '@/lib/rsvp/scheduled-wave-time';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import * as Rsvp from '@/lib/rsvp';
 import { useIsHydrated } from '@/lib/use-is-hydrated';
 import { cn } from '@/lib/utils';
 
@@ -83,9 +65,8 @@ export function RsvpWavesCard({
       <CardHeader>
         <CardTitle>Waves</CardTitle>
         <CardDescription>
-          Accepted applications wait on the waitlist, ranked by their review
-          votes, and each wave invites from the top of it to fill the open
-          spots. Expand a wave to see who is in it.
+          Accepted applications wait on the waitlist, ranked by their review votes, and each wave invites from the top
+          of it to fill the open spots. Expand a wave to see who is in it.
         </CardDescription>
       </CardHeader>
       <CardContent className='flex flex-col gap-2'>
@@ -93,20 +74,10 @@ export function RsvpWavesCard({
           <WaveSection
             key={wave.id}
             title={`Wave ${wave.wave}`}
-            badge={
-              wave.isActive ? (
-                <Badge variant='purple'>Open</Badge>
-              ) : (
-                <Badge variant='outline'>Closed</Badge>
-              )
-            }
+            badge={wave.isActive ? <Badge variant='purple'>Open</Badge> : <Badge variant='outline'>Closed</Badge>}
             summary={<SentWaveSummary wave={wave} />}
           >
-            <RsvpParticipantsTable
-              eventId={eventId}
-              wave={wave}
-              canResend={canManageEvent}
-            />
+            <RsvpParticipantsTable eventId={eventId} wave={wave} canResend={canManageEvent} />
           </WaveSection>
         ))}
 
@@ -172,46 +143,28 @@ export function RsvpWavesCard({
 
 function SentWaveSummary({ wave }: { wave: AdminRsvpWaveSummary }) {
   const responded = wave.acceptedCount + wave.declinedCount;
-  const rate =
-    wave.invitedCount === 0
-      ? null
-      : Math.round((responded / wave.invitedCount) * 100);
+  const rate = wave.invitedCount === 0 ? null : Math.round((responded / wave.invitedCount) * 100);
 
   return (
     <span className='flex flex-col gap-1'>
       <span className='flex flex-wrap gap-x-3 gap-y-1'>
         <span>
-          Started{' '}
-          <LocalDateTime
-            value={wave.createdAt}
-            dateStyle='medium'
-            timeStyle='short'
-          />
+          Started <LocalDateTime value={wave.createdAt} dateStyle='medium' timeStyle='short' />
         </span>
         <span>
           {wave.isActive ? 'Ends' : 'Ended'}{' '}
-          <LocalDateTime
-            value={wave.respondBy}
-            dateStyle='medium'
-            timeStyle='short'
-          />
+          <LocalDateTime value={wave.respondBy} dateStyle='medium' timeStyle='short' />
           {wave.isActive && <TimeUntil at={wave.respondBy} />}
         </span>
       </span>
       <span className='flex flex-wrap gap-x-3 gap-y-1'>
         <span className='text-foreground font-medium'>
-          {rate === null
-            ? 'No invitations'
-            : `${rate}% responded (${responded} of ${wave.invitedCount})`}
+          {rate === null ? 'No invitations' : `${rate}% responded (${responded} of ${wave.invitedCount})`}
         </span>
         <span>
           {wave.acceptedCount} accepted · {wave.declinedCount} declined ·{' '}
-          {wave.isActive
-            ? `${wave.waitingCount} waiting`
-            : `${wave.timedOutCount} timed out`}
-          {wave.isActive && wave.timedOutCount > 0
-            ? ` · ${wave.timedOutCount} timed out`
-            : ''}
+          {wave.isActive ? `${wave.waitingCount} waiting` : `${wave.timedOutCount} timed out`}
+          {wave.isActive && wave.timedOutCount > 0 ? ` · ${wave.timedOutCount} timed out` : ''}
         </span>
       </span>
     </span>
@@ -246,9 +199,7 @@ function NextWaveSummary({
     inviteCount === 0
       ? 'No open spots right now. Goes out once someone gives up their spot, declines or times out.'
       : `${inviteCount} ${inviteCount === 1 ? 'person' : 'people'} from the top of the waitlist${
-          openWaveNumber !== null
-            ? `, fewer if anyone in wave ${openWaveNumber} accepts before it ends`
-            : ''
+          openWaveNumber !== null ? `, fewer if anyone in wave ${openWaveNumber} accepts before it ends` : ''
         }.`;
 
   let when: React.ReactNode;
@@ -256,17 +207,11 @@ function NextWaveSummary({
     // The first wave is always sent by hand ("Start waves").
     when = null;
   } else {
-    const at = estimateAutoWaveAt(
-      toDate(summary.latestWave.respondBy),
-      new Date(),
-    );
+    const at = Rsvp.estimateAutoWaveAt(Rsvp.toDate(summary.latestWave.respondBy), new Date());
     when =
       at === null ? null : (
         <>
-          {inviteCount === 0
-            ? 'Checked hourly; next check'
-            : 'Sends automatically'}{' '}
-          ~
+          {inviteCount === 0 ? 'Checked hourly; next check' : 'Sends automatically'} ~
           <LocalDateTime value={at} dateStyle='medium' timeStyle='short' />
           <TimeUntil at={at} />
         </>
@@ -285,7 +230,7 @@ function NextWaveSummary({
 function TimeUntil({ at }: { at: Date | string }) {
   const isHydrated = useIsHydrated();
   if (!isHydrated) return null;
-  const remaining = formatRemaining(toDate(at), new Date());
+  const remaining = Rsvp.formatRemaining(Rsvp.toDate(at), new Date());
   return remaining ? <> (in {remaining})</> : null;
 }
 
@@ -360,15 +305,11 @@ function WaitlistTable({ entries }: { entries: WaitlistEntry[] }) {
       <TableBody>
         {entries.map((entry) => (
           <TableRow key={entry.participantId}>
-            <TableCell className='font-medium tabular-nums'>
-              {entry.position}
-            </TableCell>
+            <TableCell className='font-medium tabular-nums'>{entry.position}</TableCell>
             <TableCell>
               <div className='flex flex-col'>
                 <span className='font-medium'>{entry.name}</span>
-                <span className='text-muted-foreground text-xs'>
-                  {entry.email}
-                </span>
+                <span className='text-muted-foreground text-xs'>{entry.email}</span>
               </div>
             </TableCell>
             <TableCell>

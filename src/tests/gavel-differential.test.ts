@@ -37,17 +37,7 @@ import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest';
 import { asc, eq, inArray } from 'drizzle-orm';
 
 import { db } from '@/utils/db';
-import {
-  eventJudges,
-  events,
-  judgeReliability,
-  judgingCriteria,
-  judgingVotes,
-  submissionScores,
-  submissions,
-  teams,
-  user,
-} from '@/db/schema';
+import * as schema from '@/db/schema';
 
 vi.mock('@/utils/auth', () => ({ getUser: vi.fn() }));
 vi.mock('next/cache', () => ({
@@ -59,20 +49,9 @@ vi.mock('next/cache', () => ({
 }));
 
 import { getUser } from '@/utils/auth';
-import {
-  beginJudging,
-  skipJudgeProject,
-  submitJudgeVote,
-} from '@/app/dashboard/events/judge-actions';
-import {
-  betaln,
-  expectedInformationGain,
-  psi,
-  update,
-} from '@/lib/judging/crowd-bt';
-import { getJudgeView } from '@/lib/judging/judge-session';
-import { replayVotes } from '@/lib/judging/results';
-import { unwrap } from './unwrap';
+import { beginJudging, skipJudgeProject, submitJudgeVote } from '@/app/dashboard/events/judge-actions';
+import * as Judging from '@/lib/judging/server';
+import { unwrap } from '@/tests/unwrap';
 
 const VENDOR_DIR = path.resolve(process.cwd(), 'vendor');
 const ORACLE_IMAGE = 'mruhacks-gavel-oracle';
@@ -87,15 +66,7 @@ if (!RUN) {
 function buildOracleImage() {
   const build = spawnSync(
     'docker',
-    [
-      'build',
-      '--quiet',
-      '--tag',
-      ORACLE_IMAGE,
-      '--file',
-      path.join(VENDOR_DIR, 'gavel-oracle/Dockerfile'),
-      VENDOR_DIR,
-    ],
+    ['build', '--quiet', '--tag', ORACLE_IMAGE, '--file', path.join(VENDOR_DIR, 'gavel-oracle/Dockerfile'), VENDOR_DIR],
     { encoding: 'utf8' },
   );
   if (build.status !== 0) {
@@ -105,9 +76,7 @@ function buildOracleImage() {
 
 const FIXED_SEED = process.env.GAVEL_FUZZ_SEED;
 const RUNS = Number(process.env.GAVEL_FUZZ_RUNS ?? 25);
-const SEEDS = FIXED_SEED
-  ? [Number(FIXED_SEED)]
-  : Array.from({ length: RUNS }, (_, i) => 1000 + i);
+const SEEDS = FIXED_SEED ? [Number(FIXED_SEED)] : Array.from({ length: RUNS }, (_, i) => 1000 + i);
 
 // ── Oracle process ─────────────────────────────────────────────────────────
 
@@ -123,17 +92,12 @@ class Oracle {
       stdio: ['pipe', 'pipe', 'pipe'],
     });
     this.child.stderr!.on('data', (chunk) => (this.stderr += chunk));
-    createInterface({ input: this.child.stdout! }).on('line', (line) =>
-      this.pending.shift()?.(line),
-    );
+    createInterface({ input: this.child.stdout! }).on('line', (line) => this.pending.shift()?.(line));
   }
 
-  async call<T>(
-    message: Record<string, unknown>,
-  ): Promise<OracleReply & { result: T }> {
+  async call<T>(message: Record<string, unknown>): Promise<OracleReply & { result: T }> {
     const line = await new Promise<string>((resolve, reject) => {
-      const exited = (code: number | null) =>
-        new Error(`oracle exited (${code}): ${this.stderr}`);
+      const exited = (code: number | null) => new Error(`oracle exited (${code}): ${this.stderr}`);
       // An already-dead process never emits 'exit' again, so waiting on it
       // would hang forever.
       if (this.child.exitCode !== null || this.child.signalCode !== null) {
@@ -148,9 +112,7 @@ class Oracle {
       });
       this.child.stdin!.write(JSON.stringify(message) + '\n');
     });
-    const reply = JSON.parse(line) as
-      | OracleReply
-      | { ok: false; error: string };
+    const reply = JSON.parse(line) as OracleReply | { ok: false; error: string };
     if (!reply.ok) throw new Error(`oracle: ${reply.error}`);
     return reply as OracleReply & { result: T };
   }
@@ -196,16 +158,11 @@ function normal(rand: () => number): number {
  */
 function close(actual: number, expected: number, rel = 1e-9): boolean {
   if (Number.isNaN(expected)) return Number.isNaN(actual);
-  return (
-    Math.abs(actual - expected) <=
-    rel * Math.max(1, Math.abs(actual), Math.abs(expected))
-  );
+  return Math.abs(actual - expected) <= rel * Math.max(1, Math.abs(actual), Math.abs(expected));
 }
 
 function expectClose(actual: number[], expected: number[], context: unknown) {
-  const ok =
-    actual.length === expected.length &&
-    actual.every((value, i) => close(value, expected[i]));
+  const ok = actual.length === expected.length && actual.every((value, i) => close(value, expected[i]));
   if (!ok) {
     throw new Error(
       `mismatch for ${JSON.stringify(context)}\n  ours:  ${JSON.stringify(actual)}\n  gavel: ${JSON.stringify(expected)}`,
@@ -219,8 +176,7 @@ function expectClose(actual: number[], expected: number[], context: unknown) {
 type CrowdBtArgs = [number, number, number, number, number, number];
 
 function randomCrowdBtArgs(rand: () => number): CrowdBtArgs {
-  const reliability = (): number =>
-    rand() < 0.3 ? 1 + rand() * 20 : logUniform(rand, 0.05, 500);
+  const reliability = (): number => (rand() < 0.3 ? 1 + rand() * 20 : logUniform(rand, 0.05, 500));
   const mu = (): number => (rand() < 0.2 ? 0 : normal(rand) * 3);
   const sigmaSq = (): number => (rand() < 0.2 ? 1 : logUniform(rand, 1e-4, 3));
   return [reliability(), reliability(), mu(), sigmaSq(), mu(), sigmaSq()];
@@ -245,24 +201,16 @@ async function compareCrowdBt(seed: number, n: number) {
     const [alpha, beta, muW, sigmaSqW, muL, sigmaSqL] = args;
     const winner = { mu: muW, sigmaSq: sigmaSqW };
     const loser = { mu: muL, sigmaSq: sigmaSqL };
-    const ours = update({ alpha, beta }, winner, loser);
+    const ours = Judging.update({ alpha, beta }, winner, loser);
     expectClose(
-      [
-        ours.judge.alpha,
-        ours.judge.beta,
-        ours.winner.mu,
-        ours.winner.sigmaSq,
-        ours.loser.mu,
-        ours.loser.sigmaSq,
-      ],
+      [ours.judge.alpha, ours.judge.beta, ours.winner.mu, ours.winner.sigmaSq, ours.loser.mu, ours.loser.sigmaSq],
       updates.result[i],
       { fn: 'update', args },
     );
-    expectClose(
-      [expectedInformationGain({ alpha, beta }, winner, loser)],
-      [gains.result[i]],
-      { fn: 'expected_information_gain', args },
-    );
+    expectClose([Judging.expectedInformationGain({ alpha, beta }, winner, loser)], [gains.result[i]], {
+      fn: 'expected_information_gain',
+      args,
+    });
   });
 }
 
@@ -298,18 +246,18 @@ let counter = 0;
 async function makeUser(): Promise<TestUser> {
   counter += 1;
   const [u] = await db
-    .insert(user)
+    .insert(schema.user)
     .values({
       name: `Gavel judge ${counter}`,
       email: `gavel-diff-${counter}-${Date.now()}@example.com`,
       emailVerified: true,
     })
     .returning({
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      image: user.image,
-      emailVerified: user.emailVerified,
+      id: schema.user.id,
+      email: schema.user.email,
+      name: schema.user.name,
+      image: schema.user.image,
+      emailVerified: schema.user.emailVerified,
     });
   created.users.push(u.id);
   return u;
@@ -319,7 +267,7 @@ async function makeUser(): Promise<TestUser> {
 async function makeScenarioEvent(n: number, m: number) {
   const now = Date.now();
   const [event] = await db
-    .insert(events)
+    .insert(schema.events)
     .values({
       name: 'Gavel Differential Event',
       hasApplication: true,
@@ -327,25 +275,25 @@ async function makeScenarioEvent(n: number, m: number) {
       startsAt: new Date(now - 60 * 60 * 1000),
       endsAt: new Date(now + 30 * 24 * 60 * 60 * 1000),
     })
-    .returning({ id: events.id });
+    .returning({ id: schema.events.id });
   created.events.push(event.id);
 
   const [criterion] = await db
-    .insert(judgingCriteria)
+    .insert(schema.judgingCriteria)
     .values({ eventId: event.id, name: 'Overall', position: 0 })
-    .returning({ id: judgingCriteria.id });
+    .returning({ id: schema.judgingCriteria.id });
 
   const projectIds: string[] = [];
   for (let i = 0; i < n; i++) {
     const [team] = await db
-      .insert(teams)
+      .insert(schema.teams)
       .values({
         eventId: event.id,
         code: `G${String(counter++).padStart(7, '0')}`,
       })
-      .returning({ id: teams.id });
+      .returning({ id: schema.teams.id });
     const [s] = await db
-      .insert(submissions)
+      .insert(schema.submissions)
       .values({
         eventId: event.id,
         teamId: team.id,
@@ -355,7 +303,7 @@ async function makeScenarioEvent(n: number, m: number) {
         // Gavel lists items by id; the port lists the pool by creation.
         createdAt: new Date(now - 10 * 60 * 60 * 1000 + i * 1000),
       })
-      .returning({ id: submissions.id });
+      .returning({ id: schema.submissions.id });
     projectIds.push(s.id);
   }
 
@@ -363,9 +311,9 @@ async function makeScenarioEvent(n: number, m: number) {
   for (let j = 0; j < m; j++) {
     const u = await makeUser();
     const [row] = await db
-      .insert(eventJudges)
+      .insert(schema.eventJudges)
       .values({ eventId: event.id, email: u.email.toLowerCase(), userId: u.id })
-      .returning({ id: eventJudges.id });
+      .returning({ id: schema.eventJudges.id });
     judges.push({ user: u, judgeId: row.id });
   }
 
@@ -397,10 +345,7 @@ async function runScenario(seed: number) {
   const streamRand = prng(seed ^ 0x5eed);
   const stream = Array.from({ length: 50_000 }, () => streamRand());
 
-  const { eventId, criterionId, projectIds, judges } = await makeScenarioEvent(
-    n,
-    m,
-  );
+  const { eventId, criterionId, projectIds, judges } = await makeScenarioEvent(n, m);
   const indexOf = new Map(projectIds.map((id, i) => [id, i]));
   await oracle.call({ op: 'reset', projects: n, judges: m, stream });
 
@@ -419,12 +364,11 @@ async function runScenario(seed: number) {
 
   const log: string[] = [];
   const context = () =>
-    `seed ${seed} (n=${n}, m=${m}); replay with GAVEL_FUZZ_SEED=${seed}\n` +
-    log.slice(-12).join('\n');
+    `seed ${seed} (n=${n}, m=${m}); replay with GAVEL_FUZZ_SEED=${seed}\n` + log.slice(-12).join('\n');
 
   async function ourScreen(j: number): Promise<Screen> {
     vi.mocked(getUser).mockResolvedValue(judges[j].user as never);
-    const view = await getJudgeView(eventId);
+    const view = await Judging.getJudgeView(eventId);
     switch (view.kind) {
       case 'waiting':
         return { kind: 'waiting' };
@@ -446,12 +390,7 @@ async function runScenario(seed: number) {
     if (screen.kind === 'waiting') throw new Error('nothing to act on');
     const currentId = projectIds[screen.current];
     if (action === 'skip') {
-      unwrap(
-        await skipJudgeProject(
-          eventId,
-          formData({ currentId, reason: 'conflict' }),
-        ),
-      );
+      unwrap(await skipJudgeProject(eventId, formData({ currentId, reason: 'conflict' })));
     } else if (action === 'begin') {
       unwrap(await beginJudging(eventId, formData({ currentId })));
     } else if (screen.kind === 'compare') {
@@ -475,9 +414,7 @@ async function runScenario(seed: number) {
       `${label} judge ${j}: ours ${JSON.stringify(ours)} @${consumed}, gavel ${JSON.stringify(gavel.result)} @${gavel.consumed}`,
     );
     expect(ours, context()).toEqual(gavel.result);
-    expect(consumed, `random draws diverged — ${context()}`).toBe(
-      gavel.consumed,
-    );
+    expect(consumed, `random draws diverged — ${context()}`).toBe(gavel.consumed);
     return ours;
   }
 
@@ -501,10 +438,7 @@ async function runScenario(seed: number) {
       } else if (screen.kind === 'begin') {
         action = 'begin';
       } else {
-        const diff =
-          quality[screen.current] -
-          quality[screen.previous] +
-          noise[j] * normal(rand);
+        const diff = quality[screen.current] - quality[screen.previous] + noise[j] * normal(rand);
         action = diff > 0 ? 'current' : 'previous';
       }
       log.push(`step ${step} judge ${j}: ${action}`);
@@ -522,14 +456,14 @@ async function runScenario(seed: number) {
 
   const votes = await db
     .select({
-      judgeId: judgingVotes.judgeId,
-      criterionId: judgingVotes.criterionId,
-      winnerId: judgingVotes.winnerSubmissionId,
-      loserId: judgingVotes.loserSubmissionId,
+      judgeId: schema.judgingVotes.judgeId,
+      criterionId: schema.judgingVotes.criterionId,
+      winnerId: schema.judgingVotes.winnerSubmissionId,
+      loserId: schema.judgingVotes.loserSubmissionId,
     })
-    .from(judgingVotes)
-    .where(eq(judgingVotes.criterionId, criterionId))
-    .orderBy(asc(judgingVotes.seq));
+    .from(schema.judgingVotes)
+    .where(eq(schema.judgingVotes.criterionId, criterionId))
+    .orderBy(asc(schema.judgingVotes.seq));
   const judgeIndex = new Map(judges.map((judge, i) => [judge.judgeId, i]));
   expect(
     votes.map((v) => ({
@@ -542,13 +476,10 @@ async function runScenario(seed: number) {
 
   const scores = new Map(
     (
-      await db
-        .select()
-        .from(submissionScores)
-        .where(inArray(submissionScores.submissionId, projectIds))
+      await db.select().from(schema.submissionScores).where(inArray(schema.submissionScores.submissionId, projectIds))
     ).map((row) => [row.submissionId, row]),
   );
-  const replay = replayVotes(votes, new Set(projectIds), [criterionId]);
+  const replay = Judging.replayVotes(votes, new Set(projectIds), [criterionId]);
   projectIds.forEach((id, i) => {
     const expected = [gavel.projects[i].mu, gavel.projects[i].sigmaSq];
     const online = scores.get(id) ?? { mu: 0, sigmaSq: 1 };
@@ -569,10 +500,10 @@ async function runScenario(seed: number) {
     (
       await db
         .select()
-        .from(judgeReliability)
+        .from(schema.judgeReliability)
         .where(
           inArray(
-            judgeReliability.judgeId,
+            schema.judgeReliability.judgeId,
             judges.map((judge) => judge.judgeId),
           ),
         )
@@ -580,11 +511,11 @@ async function runScenario(seed: number) {
   );
   judges.forEach(({ judgeId }, i) => {
     const online = reliability.get(judgeId) ?? { alpha: 10, beta: 1 };
-    expectClose(
-      [online.alpha, online.beta],
-      [gavel.judges[i].alpha, gavel.judges[i].beta],
-      { seed, judge: i, source: 'judge_reliability' },
-    );
+    expectClose([online.alpha, online.beta], [gavel.judges[i].alpha, gavel.judges[i].beta], {
+      seed,
+      judge: i,
+      source: 'judge_reliability',
+    });
   });
 
   return votes.length;
@@ -603,10 +534,10 @@ describe.runIf(RUN)('Gavel differential', () => {
   afterAll(async () => {
     oracle?.close();
     if (created.events.length > 0) {
-      await db.delete(events).where(inArray(events.id, created.events));
+      await db.delete(schema.events).where(inArray(schema.events.id, created.events));
     }
     if (created.users.length > 0) {
-      await db.delete(user).where(inArray(user.id, created.users));
+      await db.delete(schema.user).where(inArray(schema.user.id, created.users));
     }
   });
 
@@ -616,13 +547,8 @@ describe.runIf(RUN)('Gavel differential', () => {
 
   test('betaln and psi match scipy across their range', async () => {
     const rand = prng(7);
-    const pairs = Array.from({ length: 2000 }, () => [
-      logUniform(rand, 1e-3, 1e4),
-      logUniform(rand, 1e-3, 1e4),
-    ]);
-    const xs = Array.from({ length: 2000 }, () => [
-      logUniform(rand, 1e-3, 1e5),
-    ]);
+    const pairs = Array.from({ length: 2000 }, () => [logUniform(rand, 1e-3, 1e4), logUniform(rand, 1e-3, 1e4)]);
+    const xs = Array.from({ length: 2000 }, () => [logUniform(rand, 1e-3, 1e5)]);
     const gavelBetaln = await oracle.call<number[]>({
       op: 'crowd_bt',
       fn: 'betaln',
@@ -634,15 +560,13 @@ describe.runIf(RUN)('Gavel differential', () => {
       calls: xs,
     });
     pairs.forEach(([a, b], i) =>
-      expectClose([betaln(a, b)], [gavelBetaln.result[i]], {
+      expectClose([Judging.betaln(a, b)], [gavelBetaln.result[i]], {
         fn: 'betaln',
         a,
         b,
       }),
     );
-    xs.forEach(([x], i) =>
-      expectClose([psi(x)], [gavelPsi.result[i]], { fn: 'psi', x }),
-    );
+    xs.forEach(([x], i) => expectClose([Judging.psi(x)], [gavelPsi.result[i]], { fn: 'psi', x }));
   });
 
   describe('judge flow, step for step', () => {

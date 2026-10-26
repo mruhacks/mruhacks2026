@@ -1,13 +1,7 @@
 'use client';
 
 import { useIsHydrated } from '@/lib/use-is-hydrated';
-import {
-  DEFAULT_LOCALE,
-  EVENT_TIME_ZONE,
-  formatInstant,
-  parseInstant,
-  timeZoneAbbreviation,
-} from '@/lib/datetime';
+import { DEFAULT_LOCALE, EVENT_TIME_ZONE, formatInstant, parseInstant, timeZoneAbbreviation } from '@/lib/datetime';
 
 /**
  * EVENT_TIME_ZONE during SSR and the hydration render (so first paint is
@@ -18,9 +12,7 @@ import {
  */
 export function useDisplayTimeZone(): string {
   const isHydrated = useIsHydrated();
-  return isHydrated
-    ? Intl.DateTimeFormat().resolvedOptions().timeZone
-    : EVENT_TIME_ZONE;
+  return isHydrated ? Intl.DateTimeFormat().resolvedOptions().timeZone : EVENT_TIME_ZONE;
 }
 
 /**
@@ -28,7 +20,7 @@ export function useDisplayTimeZone(): string {
  * during SSR and the hydration render, then the viewer's own browser
  * locale from the first post-hydration render onward.
  */
-export function useDisplayLocale(): string {
+function useDisplayLocale(): string {
   const isHydrated = useIsHydrated();
   return isHydrated ? navigator.language : DEFAULT_LOCALE;
 }
@@ -40,10 +32,7 @@ export function useDisplayLocale(): string {
 export function useZoneAbbreviation(datetimeLocalValue?: string): string {
   const timeZone = useDisplayTimeZone();
   const at = datetimeLocalValue ? new Date(datetimeLocalValue) : new Date();
-  return timeZoneAbbreviation(
-    timeZone,
-    Number.isNaN(at.getTime()) ? new Date() : at,
-  );
+  return timeZoneAbbreviation(timeZone, Number.isNaN(at.getTime()) ? new Date() : at);
 }
 
 function toDate(value: Date | string | null): Date | null {
@@ -86,17 +75,12 @@ export function LocalDateTime({
       : weekday
         ? {
             weekday,
-            ...(timeStyle
-              ? ({ hour: 'numeric', minute: '2-digit' } as const)
-              : {}),
+            ...(timeStyle ? ({ hour: 'numeric', minute: '2-digit' } as const) : {}),
           }
         : { dateStyle, timeStyle },
   );
   // dateStyle/timeStyle cannot be mixed with timeZoneName in Intl.
-  const labeled =
-    timeZoneName === 'short'
-      ? `${text} ${timeZoneAbbreviation(timeZone, date)}`
-      : text;
+  const labeled = timeZoneName === 'short' ? `${text} ${timeZoneAbbreviation(timeZone, date)}` : text;
 
   return (
     <time dateTime={date.toISOString()} className={className}>
@@ -135,12 +119,7 @@ export function LocalDateRange({
   const options: Intl.DateTimeFormatOptions = weekday
     ? { weekday, hour: 'numeric', minute: '2-digit' }
     : { dateStyle: singleDateStyle ?? dateStyle, timeStyle: singleTimeStyle };
-  const startText = formatInstant(
-    startDate,
-    timeZone,
-    locale,
-    timeOnly ? { timeStyle: singleTimeStyle } : options,
-  );
+  const startText = formatInstant(startDate, timeZone, locale, timeOnly ? { timeStyle: singleTimeStyle } : options);
   const sameDay =
     endDate &&
     formatInstant(startDate, timeZone, 'en-CA', {

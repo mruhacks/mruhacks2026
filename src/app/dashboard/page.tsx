@@ -5,14 +5,9 @@ import Link from 'next/link';
 import { getUser } from '@/utils/auth';
 import { getAdminCounts } from '@/lib/admin-counts';
 import { adminEventPath } from '@/lib/event-slug';
-import { getAuthenticatedUserPermissions } from '@/lib/rbac/guards';
-import { anyPermissionMatches } from '@/lib/rbac/permissions';
-import { canOpenEventDashboard } from '@/lib/rbac/event-access';
-import { getEventsWithUserStatus } from '@/app/dashboard/events/actions';
-import {
-  EventTileList,
-  SectionEyebrow,
-} from '@/app/dashboard/events/EventTileList';
+import * as Rbac from '@/lib/rbac/server';
+import { getEventsWithUserStatus } from './events/actions';
+import { EventTileList, SectionEyebrow } from './events/EventTileList';
 import { Button } from '@/components/ui/button';
 import { ArrowRight, ChevronRight } from 'lucide-react';
 
@@ -28,23 +23,21 @@ const ADMIN_TILES = [
     countKey: 'events' as const,
     unit: 'Event',
     href: '/dashboard/admin/events',
-    visible: canOpenEventDashboard,
+    visible: Rbac.canOpenEventDashboard,
   },
   {
     label: 'Campaigns',
     countKey: 'campaigns' as const,
     unit: 'Campaign',
     href: '/dashboard/admin/campaigns',
-    visible: (permissions: Set<string>) =>
-      anyPermissionMatches(permissions, 'campaign:read:all'),
+    visible: (permissions: Set<string>) => Rbac.anyPermissionMatches(permissions, 'campaign:read:all'),
   },
   {
     label: 'Users',
     countKey: 'users' as const,
     unit: 'User',
     href: '/dashboard/admin/users',
-    visible: (permissions: Set<string>) =>
-      anyPermissionMatches(permissions, 'user:read:all'),
+    visible: (permissions: Set<string>) => Rbac.anyPermissionMatches(permissions, 'user:read:all'),
   },
 ];
 
@@ -222,11 +215,7 @@ function AdminTile({
             </>
           )}
         </div>
-        <ArrowRight
-          aria-hidden
-          className='size-4 shrink-0'
-          style={{ color: 'var(--ink-500)' }}
-        />
+        <ArrowRight aria-hidden className='size-4 shrink-0' style={{ color: 'var(--ink-500)' }} />
       </div>
 
       {children && (
@@ -248,10 +237,7 @@ function AdminTile({
 
 function AdminPanelSkeleton() {
   return (
-    <div
-      className='border border-(--hairline)'
-      style={{ ...adminFrame, boxShadow: 'none' }}
-    >
+    <div className='border border-(--hairline)' style={{ ...adminFrame, boxShadow: 'none' }}>
       <div
         className='animate-pulse'
         style={{
@@ -280,15 +266,10 @@ function AdminPanelSkeleton() {
 
 async function AdminPanel({ permissions }: { permissions: Set<string> }) {
   const visibleTiles = ADMIN_TILES.filter((t) => t.visible(permissions));
-  const canSeeUsers = anyPermissionMatches(permissions, 'user:read:all');
-  const visibleUserLinks = USER_TILE_LINKS.filter((l) =>
-    anyPermissionMatches(permissions, l.permission),
-  );
-  const canSeeFeaturedEvent = canOpenEventDashboard(permissions);
-  const canSeeFeaturedCount = anyPermissionMatches(
-    permissions,
-    FEATURED_EVENT_COUNT_PERMISSION,
-  );
+  const canSeeUsers = Rbac.anyPermissionMatches(permissions, 'user:read:all');
+  const visibleUserLinks = USER_TILE_LINKS.filter((l) => Rbac.anyPermissionMatches(permissions, l.permission));
+  const canSeeFeaturedEvent = Rbac.canOpenEventDashboard(permissions);
+  const canSeeFeaturedCount = Rbac.anyPermissionMatches(permissions, FEATURED_EVENT_COUNT_PERMISSION);
 
   const counts = await getAdminCounts();
   const featured = canSeeFeaturedEvent ? counts.featuredEvent : null;
@@ -298,11 +279,7 @@ async function AdminPanel({ permissions }: { permissions: Set<string> }) {
   }
 
   return (
-    <section
-      className='border border-(--hairline)'
-      style={adminFrame}
-      aria-label='Admin'
-    >
+    <section className='border border-(--hairline)' style={adminFrame} aria-label='Admin'>
       <SectionEyebrow color='var(--pink)'>Admin</SectionEyebrow>
 
       <div style={adminTileGrid}>
@@ -315,25 +292,17 @@ async function AdminPanel({ permissions }: { permissions: Set<string> }) {
             unit='Application'
             href={adminEventPath(featured)}
           >
-            {FEATURED_EVENT_LINKS.filter((link) =>
-              anyPermissionMatches(permissions, link.permission),
-            ).map((link) => (
-              <Button key={link.label} asChild variant='outline' size='sm'>
-                <Link href={link.href(adminEventPath(featured))}>
-                  {link.label}
-                </Link>
-              </Button>
-            ))}
+            {FEATURED_EVENT_LINKS.filter((link) => Rbac.anyPermissionMatches(permissions, link.permission)).map(
+              (link) => (
+                <Button key={link.label} asChild variant='outline' size='sm'>
+                  <Link href={link.href(adminEventPath(featured))}>{link.label}</Link>
+                </Button>
+              ),
+            )}
           </AdminTile>
         )}
         {visibleTiles.map(({ label, countKey, unit, href }) => (
-          <AdminTile
-            key={label}
-            label={label}
-            value={counts[countKey]}
-            unit={unit}
-            href={href}
-          >
+          <AdminTile key={label} label={label} value={counts[countKey]} unit={unit} href={href}>
             {label === 'Users' &&
               visibleUserLinks.map((link) => (
                 <Button key={link.label} asChild variant='outline' size='sm'>
@@ -360,13 +329,11 @@ async function AdminPanel({ permissions }: { permissions: Set<string> }) {
 }
 
 async function AdminSection() {
-  const { permissions } = await getAuthenticatedUserPermissions();
+  const { permissions } = await Rbac.getAuthenticatedUserPermissions();
 
   const hasAnyAccess =
     ADMIN_TILES.some((t) => t.visible(permissions)) ||
-    USER_TILE_LINKS.some((l) =>
-      anyPermissionMatches(permissions, l.permission),
-    );
+    USER_TILE_LINKS.some((l) => Rbac.anyPermissionMatches(permissions, l.permission));
 
   if (!hasAnyAccess) return null;
 
@@ -408,9 +375,7 @@ async function DashboardEvents() {
   const upcoming = events.filter((e) => !e.hasEnded);
   // Most recently finished first — the one someone is most likely looking
   // back on.
-  const past = events
-    .filter((e) => e.hasEnded)
-    .sort((a, b) => (b.endsAt?.getTime() ?? 0) - (a.endsAt?.getTime() ?? 0));
+  const past = events.filter((e) => e.hasEnded).sort((a, b) => (b.endsAt?.getTime() ?? 0) - (a.endsAt?.getTime() ?? 0));
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -424,13 +389,8 @@ async function DashboardEvents() {
             className='flex w-fit cursor-pointer list-none items-center gap-1.5 [&::-webkit-details-marker]:hidden'
             style={{ color: 'var(--ink-500)' }}
           >
-            <ChevronRight
-              aria-hidden
-              className='size-4 transition-transform group-open:rotate-90'
-            />
-            <SectionEyebrow color='var(--ink-500)'>
-              Past events ({past.length})
-            </SectionEyebrow>
+            <ChevronRight aria-hidden className='size-4 transition-transform group-open:rotate-90' />
+            <SectionEyebrow color='var(--ink-500)'>Past events ({past.length})</SectionEyebrow>
           </summary>
           <div style={{ marginTop: '12px' }}>
             <EventTileList events={past} />

@@ -8,7 +8,7 @@ import { randomInt } from 'node:crypto';
 import { and, eq } from 'drizzle-orm';
 
 import type { db as dbSingleton } from '@/utils/db';
-import { teams } from '@/db/schema';
+import * as schema from '@/db/schema';
 
 /** Accepts either the db singleton or a transaction handle from db.transaction(). */
 type Queryable = Pick<typeof dbSingleton, 'select'>;
@@ -18,7 +18,7 @@ import { TEAM_CODE_CHARSET, TEAM_CODE_LENGTH } from '@/lib/team-code-constants';
 
 export { TEAM_CODE_LENGTH, TEAM_CODE_CHARSET } from '@/lib/team-code-constants';
 
-export const TEAM_CODE_MAX_ATTEMPTS = 25;
+const TEAM_CODE_MAX_ATTEMPTS = 25;
 
 const DENYLIST = new Set([...EN_BAD_WORDS, ...FR_BAD_WORDS]);
 
@@ -57,11 +57,7 @@ export function isCodeDenylisted(code: string): boolean {
   const normalized = normalizeLeetspeak(code);
   const maxLength = Math.min(DENYLIST_MAX_LENGTH, normalized.length);
   for (let start = 0; start < normalized.length; start++) {
-    for (
-      let length = DENYLIST_MIN_LENGTH;
-      length <= maxLength && start + length <= normalized.length;
-      length++
-    ) {
+    for (let length = DENYLIST_MIN_LENGTH; length <= maxLength && start + length <= normalized.length; length++) {
       if (DENYLIST.has(normalized.slice(start, start + length))) return true;
     }
   }
@@ -83,18 +79,15 @@ export function generateRawTeamCode(): string {
  * Accepts a `db` or transaction handle so callers can generate the code
  * inside the same transaction that inserts the `teams` row.
  */
-export async function generateTeamCode(
-  eventId: string,
-  db: Queryable,
-): Promise<string> {
+export async function generateTeamCode(eventId: string, db: Queryable): Promise<string> {
   for (let attempt = 0; attempt < TEAM_CODE_MAX_ATTEMPTS; attempt++) {
     const candidate = generateRawTeamCode();
     if (isCodeDenylisted(candidate)) continue;
 
     const [existing] = await db
-      .select({ id: teams.id })
-      .from(teams)
-      .where(and(eq(teams.eventId, eventId), eq(teams.code, candidate)))
+      .select({ id: schema.teams.id })
+      .from(schema.teams)
+      .where(and(eq(schema.teams.eventId, eventId), eq(schema.teams.code, candidate)))
       .limit(1);
 
     if (!existing) return candidate;

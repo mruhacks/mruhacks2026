@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { RegisterOrDashboardButton } from '@/components/register-or-dashboard-button';
-import { INTRO_BLURB } from '../content';
+import { INTRO_BLURB } from '@/content';
 
 /**
  *About
@@ -21,9 +21,7 @@ export function About({ registerUrl }: AboutProps) {
   return (
     <div className='max-w-2xl'>
       {/* pre-title */}
-      <p className='text-pre-title-blue mb-2 text-sm font-semibold sm:text-base'>
-        About MRUHacks
-      </p>
+      <p className='text-pre-title-blue mb-2 text-sm font-semibold sm:text-base'>About MRUHacks</p>
 
       {/* main title */}
       <h2 className='mb-4 text-2xl font-semibold tracking-tight sm:mb-6 sm:text-3xl'>
@@ -31,19 +29,13 @@ export function About({ registerUrl }: AboutProps) {
       </h2>
 
       {/* description text */}
-      <p className='text-description mb-6 text-base sm:mb-10 sm:text-lg'>
-        {INTRO_BLURB}
-      </p>
+      <p className='text-description mb-6 text-base sm:mb-10 sm:text-lg'>{INTRO_BLURB}</p>
 
       {/* buttons */}
       <div className='flex flex-row flex-wrap justify-start gap-3'>
         {/* register / dashboard button */}
 
-        <RegisterOrDashboardButton
-          registerUrl={registerUrl}
-          variant='gradient'
-          size='lg'
-        />
+        <RegisterOrDashboardButton registerUrl={registerUrl} variant='gradient' size='lg' />
 
         {/* sponsor button */}
 

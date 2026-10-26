@@ -30,9 +30,7 @@ export type MarkdownEditorProps = {
    * Each caller passes the action carrying the permission check for *its*
    * feature, so the editor never has to know who is allowed to upload.
    */
-  uploadAttachment?: (
-    formData: FormData,
-  ) => Promise<ActionResult<{ url: string }>>;
+  uploadAttachment?: (formData: FormData) => Promise<ActionResult<{ url: string }>>;
   /**
    * Called with a human-readable reason when an image upload fails, so the
    * host form can show it inline next to the editor.

@@ -1,7 +1,7 @@
 import { describe, test, expect, beforeAll, afterAll } from 'vitest';
 import { db } from '@/utils/db';
 import { eq } from 'drizzle-orm';
-import { user, termsAcceptances, privacyAcceptances } from '@/db/schema';
+import * as schema from '@/db/schema';
 import { CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION } from '@/lib/consent';
 import { userNeedsConsent } from '@/utils/consent-check';
 
@@ -9,41 +9,33 @@ let testUserId: string;
 
 beforeAll(async () => {
   const [u] = await db
-    .insert(user)
+    .insert(schema.user)
     .values({
       name: 'Consent Test User',
       email: 'consent-check@example.com',
       emailVerified: true,
     })
-    .returning({ id: user.id });
+    .returning({ id: schema.user.id });
   testUserId = u.id;
 });
 
 afterAll(async () => {
-  await db
-    .delete(termsAcceptances)
-    .where(eq(termsAcceptances.userId, testUserId));
-  await db
-    .delete(privacyAcceptances)
-    .where(eq(privacyAcceptances.userId, testUserId));
-  await db.delete(user).where(eq(user.id, testUserId));
+  await db.delete(schema.termsAcceptances).where(eq(schema.termsAcceptances.userId, testUserId));
+  await db.delete(schema.privacyAcceptances).where(eq(schema.privacyAcceptances.userId, testUserId));
+  await db.delete(schema.user).where(eq(schema.user.id, testUserId));
 });
 
 async function acceptTerms(version = CURRENT_TERMS_VERSION) {
-  await db.insert(termsAcceptances).values({ userId: testUserId, version });
+  await db.insert(schema.termsAcceptances).values({ userId: testUserId, version });
 }
 
 async function acceptPrivacy(version = CURRENT_PRIVACY_VERSION) {
-  await db.insert(privacyAcceptances).values({ userId: testUserId, version });
+  await db.insert(schema.privacyAcceptances).values({ userId: testUserId, version });
 }
 
 async function clearConsent() {
-  await db
-    .delete(termsAcceptances)
-    .where(eq(termsAcceptances.userId, testUserId));
-  await db
-    .delete(privacyAcceptances)
-    .where(eq(privacyAcceptances.userId, testUserId));
+  await db.delete(schema.termsAcceptances).where(eq(schema.termsAcceptances.userId, testUserId));
+  await db.delete(schema.privacyAcceptances).where(eq(schema.privacyAcceptances.userId, testUserId));
 }
 
 describe('userNeedsConsent', () => {

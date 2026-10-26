@@ -7,12 +7,7 @@ import logoSticker from '@/assets/mruhacks-2026-stickers-logo.png';
 import { HeroArtwork } from '@/components/hero-artwork';
 import { AuthNavButton } from '@/components/auth-nav-button';
 import { RegisterOrDashboardButton } from '@/components/register-or-dashboard-button';
-import {
-  EVENT_DATE_DISPLAY,
-  EVENT_LOCATION_DISPLAY,
-  LOGIN_ENABLED,
-  DISCORD_LINK,
-} from '@/content';
+import { EVENT_DATE_DISPLAY, EVENT_LOCATION_DISPLAY, LOGIN_ENABLED, DISCORD_LINK } from '@/content';
 import Link from 'next/link';
 
 type HeroSectionProps = {
@@ -25,13 +20,7 @@ export function HeroSection({ registerUrl }: HeroSectionProps) {
       <div className='mx-auto w-full max-w-screen-2xl px-4 pt-5 pb-10 sm:px-6 lg:px-16 lg:pt-7 lg:pb-12'>
         <div className='flex w-full items-center justify-between'>
           <div className='relative h-7 w-28 shrink-0 lg:h-12 lg:w-48'>
-            <Image
-              src={logoImage}
-              alt='MRUHacks Logo'
-              fill
-              className='object-contain object-left'
-              priority
-            />
+            <Image src={logoImage} alt='MRUHacks Logo' fill className='object-contain object-left' priority />
           </div>
           <div className='hidden items-center gap-6 lg:flex'>
             <RegisterOrDashboardButton
@@ -56,9 +45,7 @@ export function HeroSection({ registerUrl }: HeroSectionProps) {
                 <span className='inline-flex items-center justify-center whitespace-nowrap'>
                   Mount Royal University&apos;s
                 </span>
-                <span className='inline-flex items-center justify-center'>
-                  Premier Hackathon.
-                </span>
+                <span className='inline-flex items-center justify-center'>Premier Hackathon.</span>
                 <span className='relative inline-flex items-center justify-center'>
                   Now Three Days!
                   <svg
@@ -69,12 +56,7 @@ export function HeroSection({ registerUrl }: HeroSectionProps) {
                     preserveAspectRatio='none'
                     aria-hidden
                   >
-                    <path
-                      d='M2 5.2C17.8 2.7 55.7 0.7 102 4.9'
-                      stroke='#0C00FD'
-                      strokeWidth='4'
-                      strokeLinecap='round'
-                    />
+                    <path d='M2 5.2C17.8 2.7 55.7 0.7 102 4.9' stroke='#0C00FD' strokeWidth='4' strokeLinecap='round' />
                   </svg>
                 </span>
               </h1>
@@ -114,14 +96,8 @@ export function HeroSection({ registerUrl }: HeroSectionProps) {
             </div>
 
             <div className='text-description flex items-center justify-center gap-2 sm:gap-3'>
-              <p className='text-sm font-medium text-nowrap sm:text-base lg:text-xl'>
-                Powered by
-              </p>
-              <Image
-                className='h-3.5 w-auto sm:h-4 lg:h-5'
-                src={ArcurveLogo}
-                alt='Arcurve'
-              />
+              <p className='text-sm font-medium text-nowrap sm:text-base lg:text-xl'>Powered by</p>
+              <Image className='h-3.5 w-auto sm:h-4 lg:h-5' src={ArcurveLogo} alt='Arcurve' />
             </div>
           </div>
 

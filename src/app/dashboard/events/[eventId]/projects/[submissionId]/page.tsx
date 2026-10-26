@@ -1,15 +1,12 @@
 import * as React from 'react';
 import { notFound, redirect } from 'next/navigation';
 
-import {
-  canDeleteAnySubmission,
-  getEventSubmission,
-} from '@/app/dashboard/events/submission-actions';
+import { canDeleteAnySubmission, getEventSubmission } from '@/app/dashboard/events/submission-actions';
 import { BreadcrumbSegment } from '@/components/breadcrumb-context';
 import { SubmissionView } from '@/components/submissions/submission-view';
 import { getAdminEventHeader } from '@/lib/admin-event';
 import { resolveEventId } from '@/lib/events';
-import { requirePermission } from '@/lib/rbac/authorization';
+import * as Rbac from '@/lib/rbac/server';
 import { getUser } from '@/utils/auth';
 import { sanitizeReturnPath } from '@/utils/return-path';
 
@@ -31,13 +28,8 @@ export const instant = false;
  */
 export default function SubmissionRoute({ params, searchParams }: Props) {
   return (
-    <React.Suspense
-      fallback={<div className='bg-muted h-96 animate-pulse rounded-xl' />}
-    >
-      <SubmissionContent
-        paramsPromise={params}
-        searchParamsPromise={searchParams}
-      />
+    <React.Suspense fallback={<div className='bg-muted h-96 animate-pulse rounded-xl' />}>
+      <SubmissionContent paramsPromise={params} searchParamsPromise={searchParams} />
     </React.Suspense>
   );
 }
@@ -49,15 +41,12 @@ async function SubmissionContent({
   paramsPromise: Props['params'];
   searchParamsPromise: Props['searchParams'];
 }) {
-  const [{ eventId: segment, submissionId }, { back }] = await Promise.all([
-    paramsPromise,
-    searchParamsPromise,
-  ]);
+  const [{ eventId: segment, submissionId }, { back }] = await Promise.all([paramsPromise, searchParamsPromise]);
   const eventId = await resolveEventId(segment);
   if (!eventId) notFound();
   const user = await getUser();
   if (!user) redirect('/signin');
-  await requirePermission(user.id, 'submission:read:all');
+  await Rbac.requirePermission(user.id, 'submission:read:all');
 
   const [result, canDelete, event] = await Promise.all([
     getEventSubmission(eventId, submissionId),
@@ -69,10 +58,7 @@ async function SubmissionContent({
 
   // Whoever links here says where "back" goes (`?back=`); without one, the
   // event page is the one place every viewer can reach.
-  const backHref = sanitizeReturnPath(
-    typeof back === 'string' ? back : null,
-    `/dashboard/events/${segment}`,
-  );
+  const backHref = sanitizeReturnPath(typeof back === 'string' ? back : null, `/dashboard/events/${segment}`);
 
   return (
     <div className='flex flex-col gap-3'>

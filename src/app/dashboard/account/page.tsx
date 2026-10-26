@@ -3,13 +3,7 @@ import { redirect } from 'next/navigation';
 import { BadgeCheck, MailWarning } from 'lucide-react';
 
 import { getUser } from '@/utils/auth';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { getAccountOverview, getConsent } from './actions';
 import { DataExportCard } from './data-export-card';
@@ -27,10 +21,7 @@ export default async function AccountPage() {
   const user = await getUser();
   if (!user) redirect('/signin');
 
-  const [overviewResult, consentResult] = await Promise.all([
-    getAccountOverview(),
-    getConsent(),
-  ]);
+  const [overviewResult, consentResult] = await Promise.all([getAccountOverview(), getConsent()]);
 
   const overview = overviewResult.success ? overviewResult.data : null;
   const consent =
@@ -48,27 +39,19 @@ export default async function AccountPage() {
   return (
     <div className='w-full max-w-2xl space-y-6'>
       <div className='space-y-1'>
-        <h1 className='text-2xl font-semibold tracking-tight'>
-          Account &amp; Privacy
-        </h1>
+        <h1 className='text-2xl font-semibold tracking-tight'>Account &amp; Privacy</h1>
         <p className='text-muted-foreground text-sm'>
-          Manage your account, control how your data is used, and exercise your
-          privacy rights.
+          Manage your account, control how your data is used, and exercise your privacy rights.
         </p>
       </div>
 
-      <ProfilePictureCard
-        image={user.image}
-        name={overview?.name ?? user.name ?? user.email}
-      />
+      <ProfilePictureCard image={user.image} name={overview?.name ?? user.name ?? user.email} />
 
       {/* Account overview */}
       <Card>
         <CardHeader>
           <CardTitle>Account details</CardTitle>
-          <CardDescription>
-            The account you use to sign in to MRUHacks.
-          </CardDescription>
+          <CardDescription>The account you use to sign in to MRUHacks.</CardDescription>
         </CardHeader>
         <CardContent className='space-y-3 text-sm'>
           <div className='flex items-center justify-between gap-4'>
@@ -109,10 +92,7 @@ export default async function AccountPage() {
               <div className='flex items-center justify-between gap-4'>
                 <span className='text-muted-foreground'>Member since</span>
                 <span className='font-medium'>
-                  <LocalDateTime
-                    value={overview.createdAt}
-                    dateStyle='medium'
-                  />
+                  <LocalDateTime value={overview.createdAt} dateStyle='medium' />
                 </span>
               </div>
             </>
@@ -129,10 +109,8 @@ export default async function AccountPage() {
         <CardHeader>
           <CardTitle>Your privacy rights</CardTitle>
           <CardDescription>
-            MRUHacks handles your personal information in line with Canadian
-            privacy law (PIPEDA and Alberta&apos;s PIPA). You have the right to
-            access, correct, and delete your data, and to withdraw consent at
-            any time.
+            MRUHacks handles your personal information in line with Canadian privacy law (PIPEDA and Alberta&apos;s
+            PIPA). You have the right to access, correct, and delete your data, and to withdraw consent at any time.
           </CardDescription>
         </CardHeader>
         <CardContent className='flex flex-wrap gap-4 text-sm'>
@@ -142,10 +120,7 @@ export default async function AccountPage() {
           <Link href='/terms' className='text-primary hover:underline'>
             Terms of Service
           </Link>
-          <Link
-            href='/dashboard/profile'
-            className='text-primary hover:underline'
-          >
+          <Link href='/dashboard/profile' className='text-primary hover:underline'>
             Edit your profile
           </Link>
         </CardContent>

@@ -1,20 +1,7 @@
 import { describe, test, expect, beforeAll, afterAll, vi } from 'vitest';
 import { eq, inArray } from 'drizzle-orm';
 
-import {
-  checkIns,
-  dietaryRestrictions,
-  eventParticipants,
-  events,
-  eventTypes,
-  genders,
-  participationStatuses,
-  permission,
-  user,
-  userDietaryRestrictions,
-  userPermission,
-  userProfiles,
-} from '@/db/schema';
+import * as schema from '@/db/schema';
 import { db } from '@/utils/db';
 
 vi.mock('@/utils/auth', () => ({ getUser: vi.fn() }));
@@ -45,20 +32,12 @@ let dietaryPermissionId: number;
 const userIds: string[] = [];
 
 async function lookupId(
-  table: typeof genders | typeof dietaryRestrictions,
+  table: typeof schema.genders | typeof schema.dietaryRestrictions,
   label: string,
 ): Promise<number> {
-  const [inserted] = await db
-    .insert(table)
-    .values({ label })
-    .onConflictDoNothing()
-    .returning({ id: table.id });
+  const [inserted] = await db.insert(table).values({ label }).onConflictDoNothing().returning({ id: table.id });
   if (inserted) return inserted.id;
-  const [existing] = await db
-    .select({ id: table.id })
-    .from(table)
-    .where(eq(table.label, label))
-    .limit(1);
+  const [existing] = await db.select({ id: table.id }).from(table).where(eq(table.label, label)).limit(1);
   return existing.id;
 }
 
@@ -70,35 +49,35 @@ async function loadReport(id: string) {
 
 async function newUser(name: string, email: string) {
   const [row] = await db
-    .insert(user)
+    .insert(schema.user)
     .values({ name, email, emailVerified: true })
-    .returning({ id: user.id });
+    .returning({ id: schema.user.id });
   userIds.push(row.id);
   return row.id;
 }
 
 beforeAll(async () => {
   const [mealType] = await db
-    .insert(eventTypes)
+    .insert(schema.eventTypes)
     .values({ label: MEAL_EVENT_TYPE })
     .onConflictDoNothing()
-    .returning({ id: eventTypes.id });
+    .returning({ id: schema.eventTypes.id });
   const mealTypeId =
     mealType?.id ??
     (
       await db
-        .select({ id: eventTypes.id })
-        .from(eventTypes)
-        .where(eq(eventTypes.label, MEAL_EVENT_TYPE))
+        .select({ id: schema.eventTypes.id })
+        .from(schema.eventTypes)
+        .where(eq(schema.eventTypes.label, MEAL_EVENT_TYPE))
         .limit(1)
     )[0].id;
 
-  const genderId = await lookupId(genders, 'Prefer not to say');
-  const veganId = await lookupId(dietaryRestrictions, 'Vegan');
-  const otherId = await lookupId(dietaryRestrictions, 'Other');
+  const genderId = await lookupId(schema.genders, 'Prefer not to say');
+  const veganId = await lookupId(schema.dietaryRestrictions, 'Vegan');
+  const otherId = await lookupId(schema.dietaryRestrictions, 'Other');
 
   const [acceptedStatus] = await db
-    .insert(participationStatuses)
+    .insert(schema.participationStatuses)
     .values({
       label: 'accepted',
       title: 'Confirmed',
@@ -106,9 +85,9 @@ beforeAll(async () => {
       variant: 'success',
     })
     .onConflictDoNothing()
-    .returning({ id: participationStatuses.id });
+    .returning({ id: schema.participationStatuses.id });
   const [invitedStatus] = await db
-    .insert(participationStatuses)
+    .insert(schema.participationStatuses)
     .values({
       label: 'invited',
       title: 'RSVP required',
@@ -116,15 +95,15 @@ beforeAll(async () => {
       variant: 'purple',
     })
     .onConflictDoNothing()
-    .returning({ id: participationStatuses.id });
+    .returning({ id: schema.participationStatuses.id });
 
   const statusId = async (label: string, inserted?: { id: number }) =>
     inserted?.id ??
     (
       await db
-        .select({ id: participationStatuses.id })
-        .from(participationStatuses)
-        .where(eq(participationStatuses.label, label))
+        .select({ id: schema.participationStatuses.id })
+        .from(schema.participationStatuses)
+        .where(eq(schema.participationStatuses.label, label))
         .limit(1)
     )[0].id;
 
@@ -132,7 +111,7 @@ beforeAll(async () => {
   const invitedId = await statusId('invited', invitedStatus);
 
   const [main] = await db
-    .insert(events)
+    .insert(schema.events)
     .values({
       name: 'Dietary Parent',
       hasApplication: false,
@@ -140,11 +119,11 @@ beforeAll(async () => {
       startsAt: hoursAgo(6),
       endsAt: hoursAhead(6),
     })
-    .returning({ id: events.id });
+    .returning({ id: schema.events.id });
   eventId = main.id;
 
   const children = await db
-    .insert(events)
+    .insert(schema.events)
     .values([
       {
         parentEventId: eventId,
@@ -162,7 +141,7 @@ beforeAll(async () => {
         applicationQuestions: [],
       },
     ])
-    .returning({ id: events.id, name: events.name });
+    .returning({ id: schema.events.id, name: schema.events.name });
   lunchId = children.find((row) => row.name === 'Lunch')!.id;
   talkId = children.find((row) => row.name === 'Keynote')!.id;
 
@@ -172,25 +151,25 @@ beforeAll(async () => {
   const unanswered = await newUser('Maybe Mia', 'dietary-maybe@test.dev');
 
   const [perm] = await db
-    .insert(permission)
+    .insert(schema.permission)
     .values({ slug: 'dietary:read:all' })
     .onConflictDoNothing()
-    .returning({ id: permission.id });
+    .returning({ id: schema.permission.id });
   dietaryPermissionId =
     perm?.id ??
     (
       await db
-        .select({ id: permission.id })
-        .from(permission)
-        .where(eq(permission.slug, 'dietary:read:all'))
+        .select({ id: schema.permission.id })
+        .from(schema.permission)
+        .where(eq(schema.permission.slug, 'dietary:read:all'))
         .limit(1)
     )[0].id;
   await db
-    .insert(userPermission)
+    .insert(schema.userPermission)
     .values({ userId: viewerId, permissionId: dietaryPermissionId })
     .onConflictDoNothing();
 
-  await db.insert(userProfiles).values([
+  await db.insert(schema.userProfiles).values([
     { userId: vegan, fullName: 'Vega Vegan', genderId },
     {
       userId: absent,
@@ -199,18 +178,18 @@ beforeAll(async () => {
       dietaryOtherText: 'No shellfish',
     },
   ]);
-  await db.insert(userDietaryRestrictions).values([
+  await db.insert(schema.userDietaryRestrictions).values([
     { userId: vegan, restrictionId: veganId },
     { userId: absent, restrictionId: otherId },
   ]);
 
-  await db.insert(eventParticipants).values([
+  await db.insert(schema.eventParticipants).values([
     { eventId, userId: vegan, statusId: acceptedId },
     { eventId, userId: absent, statusId: acceptedId },
     { eventId, userId: unanswered, statusId: invitedId },
   ]);
 
-  await db.insert(checkIns).values([
+  await db.insert(schema.checkIns).values([
     { eventId, userId: vegan, checkedInAt: doorAt },
     { eventId, userId: absent, checkedInAt: absentDoorAt },
     { eventId: talkId, userId: vegan, checkedInAt: keynoteAt },
@@ -226,13 +205,11 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await db.delete(events).where(eq(events.parentEventId, eventId));
-  await db.delete(events).where(eq(events.id, eventId));
-  await db
-    .delete(userPermission)
-    .where(eq(userPermission.permissionId, dietaryPermissionId));
-  await db.delete(permission).where(eq(permission.id, dietaryPermissionId));
-  await db.delete(user).where(inArray(user.id, userIds));
+  await db.delete(schema.events).where(eq(schema.events.parentEventId, eventId));
+  await db.delete(schema.events).where(eq(schema.events.id, eventId));
+  await db.delete(schema.userPermission).where(eq(schema.userPermission.permissionId, dietaryPermissionId));
+  await db.delete(schema.permission).where(eq(schema.permission.id, dietaryPermissionId));
+  await db.delete(schema.user).where(inArray(schema.user.id, userIds));
 });
 
 describe('getDietaryReport', () => {

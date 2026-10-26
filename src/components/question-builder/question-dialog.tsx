@@ -16,48 +16,19 @@ import {
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Plus, X, ChevronUp, ChevronDown, ArrowUpAZ } from 'lucide-react';
-import {
-  DndContext,
-  DragEndEvent,
-  closestCenter,
-  PointerSensor,
-  useSensor,
-  useSensors,
-} from '@dnd-kit/core';
-import {
-  SortableContext,
-  verticalListSortingStrategy,
-} from '@dnd-kit/sortable';
+import { DndContext, DragEndEvent, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import {
-  Field,
-  FieldGroup,
-  FieldLabel,
-  FieldError,
-  FieldDescription,
-} from '@/components/ui/field';
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Field, FieldGroup, FieldLabel, FieldError, FieldDescription } from '@/components/ui/field';
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   DEFAULT_QUESTION_MAX_LENGTH,
   QUESTION_MAX_LENGTH_LIMIT,
@@ -79,15 +50,7 @@ const QUESTION_TYPES = [
 const formSchema = z.object({
   label: z.string().trim().min(1, 'Label is required'),
   description: z.string().trim().optional(),
-  type: z.enum([
-    'short_text',
-    'long_text',
-    'single_select',
-    'multi_select',
-    'number',
-    'boolean',
-    'section_divider',
-  ]),
+  type: z.enum(['short_text', 'long_text', 'single_select', 'multi_select', 'number', 'boolean', 'section_divider']),
   required: z.boolean().default(false),
   // Empty input means "use the type default", which the action stores as null.
   maxLength: z
@@ -97,10 +60,7 @@ const formSchema = z.object({
         .number()
         .int()
         .min(1, 'Max length must be at least 1')
-        .max(
-          QUESTION_MAX_LENGTH_LIMIT,
-          `Max length cannot exceed ${QUESTION_MAX_LENGTH_LIMIT}`,
-        ),
+        .max(QUESTION_MAX_LENGTH_LIMIT, `Max length cannot exceed ${QUESTION_MAX_LENGTH_LIMIT}`),
     ])
     .optional(),
   showInApplicationReview: z.boolean().default(false),
@@ -118,9 +78,7 @@ export type QuestionFormValues = z.infer<typeof formSchema>;
 type FormValues = QuestionFormValues;
 
 /** Blank input → `null`, meaning "fall back to the per-type default". */
-export function normalizeMaxLength(
-  value: QuestionFormValues['maxLength'],
-): number | null {
+export function normalizeMaxLength(value: QuestionFormValues['maxLength']): number | null {
   return value === '' || value === undefined ? null : value;
 }
 
@@ -163,8 +121,7 @@ function OptionItem({
   control,
   errors,
 }: OptionItemProps) {
-  const { attributes, listeners, setNodeRef, transform, transition } =
-    useSortable({ id: fieldId });
+  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: fieldId });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -181,31 +138,17 @@ function OptionItem({
         aria-label='Drag to reorder'
         type='button'
       >
-        <div className='text-muted-foreground flex size-4 items-center justify-center text-xs'>
-          ⋮⋮
-        </div>
+        <div className='text-muted-foreground flex size-4 items-center justify-center text-xs'>⋮⋮</div>
       </button>
-      <Input
-        {...register(`options.${index}.label`)}
-        placeholder={`Option ${index + 1}`}
-        className='flex-1'
-      />
+      <Input {...register(`options.${index}.label`)} placeholder={`Option ${index + 1}`} className='flex-1' />
       {hasResponses && (
         <Controller
           name={`options.${index}.active`}
           control={control}
           render={({ field: f }) => (
             <div className='flex items-center gap-1.5'>
-              <Switch
-                id={`opt-active-${index}`}
-                checked={f.value}
-                onCheckedChange={f.onChange}
-                className='scale-75'
-              />
-              <Label
-                htmlFor={`opt-active-${index}`}
-                className='text-muted-foreground text-xs whitespace-nowrap'
-              >
+              <Switch id={`opt-active-${index}`} checked={f.value} onCheckedChange={f.onChange} className='scale-75' />
+              <Label htmlFor={`opt-active-${index}`} className='text-muted-foreground text-xs whitespace-nowrap'>
                 {f.value ? 'Active' : 'Hidden'}
               </Label>
             </div>
@@ -234,13 +177,7 @@ function OptionItem({
           >
             <ChevronDown className='size-4' />
           </Button>
-          <Button
-            type='button'
-            variant='ghost'
-            size='icon'
-            className='size-8 shrink-0'
-            onClick={onRemove}
-          >
+          <Button type='button' variant='ghost' size='icon' className='size-8 shrink-0' onClick={onRemove}>
             <X className='size-4' />
           </Button>
         </div>
@@ -313,8 +250,7 @@ export function QuestionDialog({
     control,
     name: ['type', 'options'],
   });
-  const showOptions =
-    questionType === 'single_select' || questionType === 'multi_select';
+  const showOptions = questionType === 'single_select' || questionType === 'multi_select';
   const showMaxLength = isStringQuestion(questionType);
   const showInReportsSwitch = isSummarizableQuestion(questionType);
 
@@ -350,9 +286,7 @@ export function QuestionDialog({
     const currentFields = [...fields];
     for (let targetIdx = 0; targetIdx < indexed.length; targetIdx++) {
       const itemToMove = indexed[targetIdx];
-      const currentIdx = currentFields.findIndex(
-        (f) => f.id === fields[itemToMove.currentIndex].id,
-      );
+      const currentIdx = currentFields.findIndex((f) => f.id === fields[itemToMove.currentIndex].id);
 
       if (currentIdx !== targetIdx) {
         move(currentIdx, targetIdx);
@@ -374,8 +308,7 @@ export function QuestionDialog({
               type: question.type,
               required: question.required,
               maxLength: question.maxLength ?? '',
-              showInApplicationReview:
-                question.showInApplicationReview ?? false,
+              showInApplicationReview: question.showInApplicationReview ?? false,
               showInReports: question.showInReports ?? false,
               options:
                 question.options?.map((o) => ({
@@ -420,37 +353,22 @@ export function QuestionDialog({
           <DialogTitle>{isEdit ? 'Edit Question' : 'Add Question'}</DialogTitle>
         </DialogHeader>
 
-        <form
-          onSubmit={handleSubmit(submitHandler)}
-          onChangeCapture={() => setSubmitError(null)}
-          className='space-y-0'
-        >
+        <form onSubmit={handleSubmit(submitHandler)} onChangeCapture={() => setSubmitError(null)} className='space-y-0'>
           <FieldGroup className='gap-4'>
             {/* Label */}
             <Field>
               <FieldLabel htmlFor='q-label'>
                 Label <span className='text-destructive'>*</span>
               </FieldLabel>
-              <Input
-                id='q-label'
-                {...register('label')}
-                placeholder='e.g. Why do you want to attend?'
-              />
+              <Input id='q-label' {...register('label')} placeholder='e.g. Why do you want to attend?' />
               {errors.label && <FieldError errors={[errors.label]} />}
             </Field>
 
             {/* Description */}
             <Field>
               <FieldLabel htmlFor='q-description'>Description</FieldLabel>
-              <FieldDescription>
-                Optional helper text shown below the label.
-              </FieldDescription>
-              <Textarea
-                id='q-description'
-                {...register('description')}
-                placeholder='Optional helper text'
-                rows={2}
-              />
+              <FieldDescription>Optional helper text shown below the label.</FieldDescription>
+              <Textarea id='q-description' {...register('description')} placeholder='Optional helper text' rows={2} />
             </Field>
 
             {/* Type */}
@@ -459,9 +377,7 @@ export function QuestionDialog({
                 Type <span className='text-destructive'>*</span>
               </FieldLabel>
               {isEdit && hasApplications && (
-                <FieldDescription>
-                  Type cannot be changed because applications already exist.
-                </FieldDescription>
+                <FieldDescription>Type cannot be changed because applications already exist.</FieldDescription>
               )}
               <Controller
                 name='type'
@@ -531,9 +447,7 @@ export function QuestionDialog({
                     />
                   )}
                 />
-                <Label htmlFor='q-show-in-review'>
-                  Show in Application Review
-                </Label>
+                <Label htmlFor='q-show-in-review'>Show in Application Review</Label>
               </div>
             )}
 
@@ -563,9 +477,8 @@ export function QuestionDialog({
               <Field>
                 <FieldLabel htmlFor='q-max-length'>Max characters</FieldLabel>
                 <FieldDescription>
-                  Leave blank to use the default of{' '}
-                  {DEFAULT_QUESTION_MAX_LENGTH[questionType]} characters.
-                  Applicants cannot type past this limit.
+                  Leave blank to use the default of {DEFAULT_QUESTION_MAX_LENGTH[questionType]} characters. Applicants
+                  cannot type past this limit.
                 </FieldDescription>
                 <Input
                   id='q-max-length'
@@ -573,9 +486,7 @@ export function QuestionDialog({
                   min={1}
                   max={QUESTION_MAX_LENGTH_LIMIT}
                   {...register('maxLength')}
-                  placeholder={String(
-                    DEFAULT_QUESTION_MAX_LENGTH[questionType],
-                  )}
+                  placeholder={String(DEFAULT_QUESTION_MAX_LENGTH[questionType])}
                 />
                 {errors.maxLength && <FieldError errors={[errors.maxLength]} />}
               </Field>
@@ -587,12 +498,7 @@ export function QuestionDialog({
                 <div className='flex items-center justify-between'>
                   <FieldLabel>Options</FieldLabel>
                   {fields.length > 1 && (
-                    <Button
-                      type='button'
-                      variant='outline'
-                      size='sm'
-                      onClick={handleSortAlphabetically}
-                    >
+                    <Button type='button' variant='outline' size='sm' onClick={handleSortAlphabetically}>
                       <ArrowUpAZ className='mr-1 size-3' /> Sort A-Z
                     </Button>
                   )}
@@ -601,16 +507,11 @@ export function QuestionDialog({
                   <DndContext
                     sensors={sensors}
                     collisionDetection={closestCenter}
-                    onDragStart={(event) =>
-                      setActiveDragId(event.active.id as string)
-                    }
+                    onDragStart={(event) => setActiveDragId(event.active.id as string)}
                     onDragEnd={handleDragEnd}
                     onDragCancel={() => setActiveDragId(null)}
                   >
-                    <SortableContext
-                      items={fields.map((f) => f.id)}
-                      strategy={verticalListSortingStrategy}
-                    >
+                    <SortableContext items={fields.map((f) => f.id)} strategy={verticalListSortingStrategy}>
                       <div className='space-y-2'>
                         {fields.map((field, index) => {
                           const hasResponses = isEdit && hasApplications;
@@ -657,12 +558,7 @@ export function QuestionDialog({
                     ))}
                   </div>
                 )}
-                <Button
-                  type='button'
-                  variant='outline'
-                  size='sm'
-                  onClick={() => append({ label: '', active: true })}
-                >
+                <Button type='button' variant='outline' size='sm' onClick={() => append({ label: '', active: true })}>
                   <Plus className='mr-1 size-3' /> Add Option
                 </Button>
               </Field>
@@ -675,19 +571,11 @@ export function QuestionDialog({
             </FieldError>
           )}
           <DialogFooter className='mt-6'>
-            <Button
-              type='button'
-              variant='outline'
-              onClick={() => onOpenChange(false)}
-            >
+            <Button type='button' variant='outline' onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
             <Button type='submit' disabled={isSubmitting}>
-              {isSubmitting
-                ? 'Saving…'
-                : isEdit
-                  ? 'Save Changes'
-                  : 'Add Question'}
+              {isSubmitting ? 'Saving…' : isEdit ? 'Save Changes' : 'Add Question'}
             </Button>
           </DialogFooter>
         </form>

@@ -1,36 +1,30 @@
 import { describe, expect, it } from 'vitest';
 
-import { JUDGE_PRIOR, PROJECT_PRIOR, update } from '@/lib/judging/crowd-bt';
-import {
-  overallScore,
-  reliabilityMean,
-  replayVotes,
-  type ReplayVote,
-} from '@/lib/judging/results';
+import * as Judging from '@/lib/judging';
 
-const vote = (
-  judgeId: string,
-  criterionId: string,
-  winnerId: string,
-  loserId: string,
-): ReplayVote => ({ judgeId, criterionId, winnerId, loserId });
+const vote = (judgeId: string, criterionId: string, winnerId: string, loserId: string): Judging.ReplayVote => ({
+  judgeId,
+  criterionId,
+  winnerId,
+  loserId,
+});
 
 describe('replayVotes', () => {
   it('starts every pool project at the prior', () => {
-    const { byCriterion } = replayVotes([], new Set(['a', 'b']), ['c1']);
+    const { byCriterion } = Judging.replayVotes([], new Set(['a', 'b']), ['c1']);
     expect(byCriterion.get('c1')!.get('a')).toEqual({
-      ...PROJECT_PRIOR,
+      ...Judging.PROJECT_PRIOR,
       comparisons: 0,
     });
   });
 
   it('applies a vote exactly as one Crowd-BT update', () => {
-    const { byCriterion, reliability, votesByJudge } = replayVotes(
+    const { byCriterion, reliability, votesByJudge } = Judging.replayVotes(
       [vote('j', 'c1', 'a', 'b')],
       new Set(['a', 'b']),
       ['c1'],
     );
-    const expected = update(JUDGE_PRIOR, PROJECT_PRIOR, PROJECT_PRIOR);
+    const expected = Judging.update(Judging.JUDGE_PRIOR, Judging.PROJECT_PRIOR, Judging.PROJECT_PRIOR);
     expect(byCriterion.get('c1')!.get('a')).toEqual({
       ...expected.winner,
       comparisons: 1,
@@ -44,7 +38,7 @@ describe('replayVotes', () => {
   });
 
   it('keeps criteria independent', () => {
-    const { byCriterion } = replayVotes(
+    const { byCriterion } = Judging.replayVotes(
       [vote('j', 'c1', 'a', 'b'), vote('j', 'c2', 'b', 'a')],
       new Set(['a', 'b']),
       ['c1', 'c2'],
@@ -54,31 +48,21 @@ describe('replayVotes', () => {
   });
 
   it('ignores votes involving projects outside the pool, as if never cast', () => {
-    const withExcluded = replayVotes(
-      [
-        vote('j', 'c1', 'x', 'a'),
-        vote('j', 'c1', 'a', 'b'),
-        vote('k', 'c1', 'b', 'x'),
-      ],
+    const withExcluded = Judging.replayVotes(
+      [vote('j', 'c1', 'x', 'a'), vote('j', 'c1', 'a', 'b'), vote('k', 'c1', 'b', 'x')],
       new Set(['a', 'b']),
       ['c1'],
     );
-    const clean = replayVotes(
-      [vote('j', 'c1', 'a', 'b')],
-      new Set(['a', 'b']),
-      ['c1'],
-    );
+    const clean = Judging.replayVotes([vote('j', 'c1', 'a', 'b')], new Set(['a', 'b']), ['c1']);
     expect(withExcluded.byCriterion).toEqual(clean.byCriterion);
     expect(withExcluded.reliability).toEqual(clean.reliability);
     expect(withExcluded.votesByJudge.get('k')).toBeUndefined();
   });
 
   it('ignores votes on criteria it was not asked about', () => {
-    const { byCriterion, votesByJudge } = replayVotes(
-      [vote('j', 'gone', 'a', 'b')],
-      new Set(['a', 'b']),
-      ['c1'],
-    );
+    const { byCriterion, votesByJudge } = Judging.replayVotes([vote('j', 'gone', 'a', 'b')], new Set(['a', 'b']), [
+      'c1',
+    ]);
     expect(byCriterion.get('c1')!.get('a')!.comparisons).toBe(0);
     expect(votesByJudge.size).toBe(0);
   });
@@ -92,7 +76,7 @@ describe('overallScore', () => {
 
   it('is the weighted mean of per-criterion μ', () => {
     expect(
-      overallScore(
+      Judging.overallScore(
         byCriterion,
         [
           { id: 'design', weight: 3 },
@@ -105,7 +89,7 @@ describe('overallScore', () => {
 
   it('falls back to an unweighted mean when every weight is zero', () => {
     expect(
-      overallScore(
+      Judging.overallScore(
         byCriterion,
         [
           { id: 'design', weight: 0 },
@@ -119,6 +103,6 @@ describe('overallScore', () => {
 
 describe('reliabilityMean', () => {
   it('is the Beta mean', () => {
-    expect(reliabilityMean({ alpha: 3, beta: 1 })).toBe(0.75);
+    expect(Judging.reliabilityMean({ alpha: 3, beta: 1 })).toBe(0.75);
   });
 });

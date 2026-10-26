@@ -3,7 +3,7 @@ import 'server-only';
 import { eq, lt, sql } from 'drizzle-orm';
 import { after } from 'next/server';
 
-import { magicLinkCooldown } from '@/db/schema';
+import * as schema from '@/db/schema';
 import { db } from '@/utils/db';
 
 /**
@@ -14,15 +14,12 @@ import { db } from '@/utils/db';
  */
 export async function claimMagicLinkCooldown(email: string): Promise<boolean> {
   const [allowed] = await db
-    .insert(magicLinkCooldown)
+    .insert(schema.magicLinkCooldown)
     .values({ email })
     .onConflictDoUpdate({
-      target: magicLinkCooldown.email,
+      target: schema.magicLinkCooldown.email,
       set: { lastSentAt: new Date() },
-      where: lt(
-        magicLinkCooldown.lastSentAt,
-        sql`now() - interval '60 seconds'`,
-      ),
+      where: lt(schema.magicLinkCooldown.lastSentAt, sql`now() - interval '60 seconds'`),
     })
     .returning();
 
@@ -35,13 +32,8 @@ export async function claimMagicLinkCooldown(email: string): Promise<boolean> {
     try {
       after(async () => {
         await db
-          .delete(magicLinkCooldown)
-          .where(
-            lt(
-              magicLinkCooldown.lastSentAt,
-              sql`now() - interval '60 seconds'`,
-            ),
-          );
+          .delete(schema.magicLinkCooldown)
+          .where(lt(schema.magicLinkCooldown.lastSentAt, sql`now() - interval '60 seconds'`));
       });
     } catch {}
   }
@@ -50,5 +42,5 @@ export async function claimMagicLinkCooldown(email: string): Promise<boolean> {
 
 /** Gives a claimed cooldown back after the send failed, so a retry isn't blocked. */
 export async function releaseMagicLinkCooldown(email: string): Promise<void> {
-  await db.delete(magicLinkCooldown).where(eq(magicLinkCooldown.email, email));
+  await db.delete(schema.magicLinkCooldown).where(eq(schema.magicLinkCooldown.email, email));
 }

@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm';
 
 import { BreadcrumbSegment } from '@/components/breadcrumb-context';
 import { Card, CardContent } from '@/components/ui/card';
-import { events } from '@/db/schema';
+import * as schema from '@/db/schema';
 import { resolveEventId } from '@/lib/events';
 import { cn } from '@/lib/utils';
 import { db } from '@/utils/db';
@@ -13,9 +13,9 @@ export async function loadJudgeEvent(segment: string) {
   const eventId = await resolveEventId(segment);
   if (!eventId) notFound();
   const [event] = await db
-    .select({ name: events.name })
-    .from(events)
-    .where(eq(events.id, eventId))
+    .select({ name: schema.events.name })
+    .from(schema.events)
+    .where(eq(schema.events.id, eventId))
     .limit(1);
   if (!event) notFound();
   return { id: eventId, name: event.name };
@@ -57,12 +57,8 @@ export function JudgeCard({
 }) {
   return (
     <Card className='gap-0 py-4'>
-      <CardContent
-        className={cn('relative flex flex-col gap-3 px-4 sm:px-5', className)}
-      >
-        {help && (
-          <div className='absolute -top-1 left-2 z-10 sm:left-3'>{help}</div>
-        )}
+      <CardContent className={cn('relative flex flex-col gap-3 px-4 sm:px-5', className)}>
+        {help && <div className='absolute -top-1 left-2 z-10 sm:left-3'>{help}</div>}
         {children}
       </CardContent>
     </Card>

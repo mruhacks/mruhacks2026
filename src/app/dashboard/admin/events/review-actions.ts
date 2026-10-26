@@ -3,17 +3,9 @@
 import { updateTag } from 'next/cache';
 import { z } from 'zod';
 
-import {
-  eventApplicationsCacheTag,
-  getEventQuestions,
-} from '@/lib/admin-event';
-import {
-  castApplicationVote,
-  getReviewQueue,
-  retractApplicationVote,
-  type ReviewCard,
-} from '@/lib/application-votes';
-import { hasPermission } from '@/lib/rbac/authorization';
+import { eventApplicationsCacheTag, getEventQuestions } from '@/lib/admin-event';
+import { castApplicationVote, getReviewQueue, retractApplicationVote, type ReviewCard } from '@/lib/application-votes';
+import * as Rbac from '@/lib/rbac/server';
 import type { ParticipationStatus } from '@/types/lookups';
 import { ok, fail, type ActionResult } from '@/utils/action-result';
 import { writeAuditLog } from '@/utils/audit-log';
@@ -33,7 +25,7 @@ const retractSchema = voteSchema.omit({ approve: true });
 async function getVoter() {
   const user = await getUser();
   if (!user) return null;
-  if (!(await hasPermission(user.id, 'application:vote:all'))) return null;
+  if (!(await Rbac.hasPermission(user.id, 'application:vote:all'))) return null;
   return user;
 }
 
@@ -66,9 +58,7 @@ export async function getApplicationReviewQueue(input: {
   });
   return ok({
     ...queue,
-    cards: queue.cards
-      .filter((card) => !skip.has(card.participantId))
-      .slice(0, QUEUE_BATCH),
+    cards: queue.cards.filter((card) => !skip.has(card.participantId)).slice(0, QUEUE_BATCH),
   });
 }
 

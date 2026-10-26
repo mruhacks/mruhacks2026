@@ -4,15 +4,9 @@ import { notFound, redirect } from 'next/navigation';
 import { getEventWithQuestions } from '@/app/dashboard/admin/events/actions';
 import { resolveEventId } from '@/lib/events';
 import { QuestionBuilder } from '@/components/question-builder';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { requirePermission } from '@/lib/rbac/authorization';
+import * as Rbac from '@/lib/rbac/server';
 import { getUser } from '@/utils/auth';
 
 type Props = { params: Promise<{ eventId: string }> };
@@ -31,7 +25,7 @@ async function ApplicationQuestionsContent({ params }: Props) {
   if (!eventId) notFound();
   const user = await getUser();
   if (!user) redirect('/signin');
-  await requirePermission(user.id, 'event:manage');
+  await Rbac.requirePermission(user.id, 'event:manage');
 
   const result = await getEventWithQuestions(eventId);
 

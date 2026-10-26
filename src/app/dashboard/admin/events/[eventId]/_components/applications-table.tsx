@@ -9,12 +9,7 @@ import { LocalDateTime } from '@/components/local-date-time';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { DataTable } from '@/components/data-table/data-table';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-} from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
 import { updateParticipantStatus } from '@/app/dashboard/admin/events/actions';
 import { getEventDisplayStatus } from '@/app/dashboard/events/event-display-status';
 import type { AdminApplicationRow } from '@/lib/admin-event';
@@ -22,23 +17,15 @@ import { EMPTY_FILTER_VALUE } from '@/components/data-table/data-table-column-fi
 import { getAnswerDisplayValue } from '@/lib/application-answer-display';
 import { otherTextKey } from '@/lib/other-option';
 import type { ApplicationQuestion } from '@/types/application';
-import {
-  participationStatusesList,
-  type ParticipationStatus,
-  type StatusBadgeVariant,
-} from '@/types/lookups';
-import {
-  STATIC_STATUS_DISPLAY,
-  type AttendanceState,
-} from '@/lib/participation/status';
-import { adminStatusOptions } from '@/lib/participation/transitions';
-import type { CorePermissionSlug } from '@/lib/rbac/permissions';
+import { participationStatusesList, type ParticipationStatus, type StatusBadgeVariant } from '@/types/lookups';
+import * as Participation from '@/lib/participation';
+import type * as Rbac from '@/lib/rbac';
 
 export type ApplicationsTableRow = AdminApplicationRow & {
   /** Effective participation status (an expired invitation reads as timed out). */
   status: ParticipationStatus;
   /** Checked in / no-show, derived for participants holding a spot. */
-  attendance: AttendanceState | null;
+  attendance: Participation.AttendanceState | null;
 };
 
 type Props = {
@@ -63,15 +50,13 @@ function getStatusDisplay(row: ApplicationsTableRow): {
   return { label: display.label, variant: display.badgeVariant };
 }
 
-const ATTENDANCE_LABELS: Record<AttendanceState, string> = {
+const ATTENDANCE_LABELS: Record<Participation.AttendanceState, string> = {
   checked_in: 'Checked in',
   no_show: 'No show',
 };
 
 /** Single-select, multi-select and yes/no answers filter by choice. */
-function getAnswerFilterMeta(
-  question: ApplicationQuestion,
-): ColumnDef<ApplicationsTableRow>['meta'] {
+function getAnswerFilterMeta(question: ApplicationQuestion): ColumnDef<ApplicationsTableRow>['meta'] {
   if (question.type === 'boolean') {
     return {
       filterVariant: 'select',
@@ -108,31 +93,22 @@ function StatusCell({
   onChange,
 }: {
   row: ApplicationsTableRow;
-  permissions: ReadonlySet<CorePermissionSlug>;
+  permissions: ReadonlySet<Rbac.CorePermissionSlug>;
   onChange: (status: ParticipationStatus) => void;
 }) {
   const display = getStatusDisplay(row);
   const badges = (
     <span className='flex items-center gap-1'>
       <Badge variant={display.variant}>{display.label}</Badge>
-      {row.attendance && (
-        <Badge variant='outline'>{ATTENDANCE_LABELS[row.attendance]}</Badge>
-      )}
+      {row.attendance && <Badge variant='outline'>{ATTENDANCE_LABELS[row.attendance]}</Badge>}
     </span>
   );
 
-  const options = adminStatusOptions(
-    row.status,
-    permissions,
-    participationStatusesList,
-  );
+  const options = Participation.adminStatusOptions(row.status, permissions, participationStatusesList);
   if (options.length === 0) return badges;
 
   return (
-    <Select
-      value={row.status}
-      onValueChange={(next) => onChange(next as ParticipationStatus)}
-    >
+    <Select value={row.status} onValueChange={(next) => onChange(next as ParticipationStatus)}>
       <SelectTrigger
         size='sm'
         className='h-7 gap-1 border-none px-1 shadow-none'
@@ -144,13 +120,9 @@ function StatusCell({
         {participationStatusesList
           .filter((status) => status === row.status || options.includes(status))
           .map((status) => (
-            <SelectItem
-              key={status}
-              value={status}
-              disabled={status === row.status}
-            >
-              <Badge variant={STATIC_STATUS_DISPLAY[status].variant}>
-                {STATIC_STATUS_DISPLAY[status].title}
+            <SelectItem key={status} value={status} disabled={status === row.status}>
+              <Badge variant={Participation.STATIC_STATUS_DISPLAY[status].variant}>
+                {Participation.STATIC_STATUS_DISPLAY[status].title}
               </Badge>
             </SelectItem>
           ))}
@@ -181,15 +153,9 @@ function toCsv(rows: string[][]): string {
     .join('\n');
 }
 
-export function ApplicationsTable({
-  eventId,
-  rows: serverRows,
-  questions,
-  canReview,
-  canManageRsvp,
-}: Props) {
+export function ApplicationsTable({ eventId, rows: serverRows, questions, canReview, canManageRsvp }: Props) {
   const permissions = React.useMemo(() => {
-    const set = new Set<CorePermissionSlug>();
+    const set = new Set<Rbac.CorePermissionSlug>();
     if (canReview) set.add('application:review:all');
     if (canManageRsvp) set.add('rsvp:write:all');
     return set;
@@ -198,9 +164,7 @@ export function ApplicationsTable({
   // Optimistic status edits, keyed by participant. The server action's
   // cache invalidation refreshes `serverRows` with the same value, so an
   // entry only matters for the moment between the click and that refresh.
-  const [statusOverrides, setStatusOverrides] = React.useState<
-    ReadonlyMap<string, ParticipationStatus>
-  >(new Map());
+  const [statusOverrides, setStatusOverrides] = React.useState<ReadonlyMap<string, ParticipationStatus>>(new Map());
 
   const rows = React.useMemo(
     () =>
@@ -266,9 +230,7 @@ export function ApplicationsTable({
             cell: ({ row }) => (
               <div className='min-w-0'>
                 <div className='font-medium'>{row.original.fullName}</div>
-                <div className='text-muted-foreground text-xs'>
-                  {row.original.email}
-                </div>
+                <div className='text-muted-foreground text-xs'>{row.original.email}</div>
               </div>
             ),
           },
@@ -341,21 +303,14 @@ export function ApplicationsTable({
             accessorKey: 'submittedAt',
             header: 'Submitted',
             meta: { filterVariant: 'date' },
-            cell: ({ row }) => (
-              <LocalDateTime
-                value={row.original.submittedAt}
-                dateStyle='medium'
-              />
-            ),
+            cell: ({ row }) => <LocalDateTime value={row.original.submittedAt} dateStyle='medium' />,
           },
           {
             accessorKey: 'teamCode',
             header: 'Team',
             cell: ({ row }) =>
               row.original.teamCode ? (
-                <span className='font-mono text-xs'>
-                  {row.original.teamCode}
-                </span>
+                <span className='font-mono text-xs'>{row.original.teamCode}</span>
               ) : (
                 <span className='text-muted-foreground'>Unassigned</span>
               ),
@@ -371,35 +326,33 @@ export function ApplicationsTable({
             {
               id: 'answers',
               header: 'Application form answers',
-              columns: answerQuestions.map(
-                (question): ColumnDef<ApplicationsTableRow> => {
-                  const meta = getAnswerFilterMeta(question);
-                  return {
-                    id: question.id,
-                    header: question.label,
-                    // Choice questions keep the raw option value(s) so the
-                    // filter can match on option ids; free-text answers use
-                    // the rendered string, so filtering matches what's shown.
-                    accessorFn: (row) =>
-                      meta?.filterVariant === 'select'
-                        ? row.responses[question.id]
-                        : getAnswerDisplayValue(
-                            row.responses[question.id],
-                            question.type,
-                            question.options,
-                            row.responses[otherTextKey(question.id)],
-                          ),
-                    meta,
-                    cell: ({ row }) =>
-                      getAnswerDisplayValue(
-                        row.original.responses[question.id],
-                        question.type,
-                        question.options,
-                        row.original.responses[otherTextKey(question.id)],
-                      ),
-                  };
-                },
-              ),
+              columns: answerQuestions.map((question): ColumnDef<ApplicationsTableRow> => {
+                const meta = getAnswerFilterMeta(question);
+                return {
+                  id: question.id,
+                  header: question.label,
+                  // Choice questions keep the raw option value(s) so the
+                  // filter can match on option ids; free-text answers use
+                  // the rendered string, so filtering matches what's shown.
+                  accessorFn: (row) =>
+                    meta?.filterVariant === 'select'
+                      ? row.responses[question.id]
+                      : getAnswerDisplayValue(
+                          row.responses[question.id],
+                          question.type,
+                          question.options,
+                          row.responses[otherTextKey(question.id)],
+                        ),
+                  meta,
+                  cell: ({ row }) =>
+                    getAnswerDisplayValue(
+                      row.original.responses[question.id],
+                      question.type,
+                      question.options,
+                      row.original.responses[otherTextKey(question.id)],
+                    ),
+                };
+              }),
             } satisfies ColumnDef<ApplicationsTableRow>,
           ]
         : []),
@@ -446,12 +399,7 @@ export function ApplicationsTable({
       row.teamCode ?? '',
       row.hasResume ? 'yes' : 'no',
       ...answerQuestions.map((q) =>
-        getAnswerDisplayValue(
-          row.responses[q.id],
-          q.type,
-          q.options,
-          row.responses[otherTextKey(q.id)],
-        ),
+        getAnswerDisplayValue(row.responses[q.id], q.type, q.options, row.responses[otherTextKey(q.id)]),
       ),
     ]);
 

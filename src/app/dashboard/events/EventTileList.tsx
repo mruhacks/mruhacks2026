@@ -1,22 +1,13 @@
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
-import type { EventWithUserStatus } from '@/app/dashboard/events/actions';
-import {
-  getEventDisplayStatus,
-  type EventDisplayPill,
-} from '@/app/dashboard/events/event-display-status';
+import type { EventWithUserStatus } from './actions';
+import { getEventDisplayStatus, type EventDisplayPill } from './event-display-status';
 import { LocalDateRange } from '@/components/local-date-time';
 import { eventPath } from '@/lib/event-slug';
 
 // ── Design tokens ──────────────────────────────────────────────────────────────
 
-export function SectionEyebrow({
-  color,
-  children,
-}: {
-  color: string;
-  children: React.ReactNode;
-}) {
+export function SectionEyebrow({ color, children }: { color: string; children: React.ReactNode }) {
   return (
     <span
       style={{
@@ -33,17 +24,7 @@ export function SectionEyebrow({
   );
 }
 
-function StatusPill({
-  bg,
-  fg,
-  label,
-  className,
-}: {
-  bg?: string;
-  fg: string;
-  label: string;
-  className?: string;
-}) {
+function StatusPill({ bg, fg, label, className }: { bg?: string; fg: string; label: string; className?: string }) {
   return (
     <span
       className={className}
@@ -134,9 +115,7 @@ export function EventTileList({ events }: { events: EventWithUserStatus[] }) {
         >
           No upcoming events
         </p>
-        <p style={{ fontSize: '14px', color: 'var(--ink-500)', margin: 0 }}>
-          Check back later.
-        </p>
+        <p style={{ fontSize: '14px', color: 'var(--ink-500)', margin: 0 }}>Check back later.</p>
       </div>
     );
   }
@@ -205,10 +184,7 @@ export function EventTileList({ events }: { events: EventWithUserStatus[] }) {
               }}
             >
               <EventStatusPill e={event} />
-              <ArrowRight
-                className='text-muted-foreground size-4'
-                style={{ flexShrink: 0 }}
-              />
+              <ArrowRight className='text-muted-foreground size-4' style={{ flexShrink: 0 }} />
             </div>
           </Link>
         </li>

@@ -1,15 +1,7 @@
 import { cacheTag, cacheLife } from 'next/cache';
 import { eq, isNull, sql } from 'drizzle-orm';
 import { db } from '@/utils/db';
-import {
-  user,
-  role,
-  permission,
-  userRole,
-  events,
-  eventParticipants,
-  campaigns,
-} from '@/db/schema';
+import * as schema from '@/db/schema';
 import { EVENTS_CACHE_TAG } from '@/lib/events';
 
 export const ADMIN_COUNTS_CACHE_TAG = 'admin-counts';
@@ -47,41 +39,33 @@ export async function getAdminCounts(): Promise<AdminCounts> {
   // Shell-prefetchable) self-heals fast.
   cacheLife('minutes');
 
-  const [
-    userCount,
-    roleCount,
-    permCount,
-    assignmentCount,
-    eventCount,
-    featuredRows,
-    campaignCount,
-  ] = await Promise.all([
-    db.select({ c: sql<number>`COUNT(*)`.mapWith(Number) }).from(user),
-    db.select({ c: sql<number>`COUNT(*)`.mapWith(Number) }).from(role),
-    db.select({ c: sql<number>`COUNT(*)`.mapWith(Number) }).from(permission),
-    db.select({ c: sql<number>`COUNT(*)`.mapWith(Number) }).from(userRole),
-    // Top-level only: sub-events would inflate a number an admin reads as
-    // "how many events are there".
-    db
-      .select({ c: sql<number>`COUNT(*)`.mapWith(Number) })
-      .from(events)
-      .where(isNull(events.parentEventId)),
-    db
-      .select({
-        id: events.id,
-        slug: events.slug,
-        name: events.name,
-        applications: sql<number>`COUNT(${eventParticipants.id})`.mapWith(
-          Number,
-        ),
-      })
-      .from(events)
-      .leftJoin(eventParticipants, eq(eventParticipants.eventId, events.id))
-      .where(eq(events.isFeatured, true))
-      .groupBy(events.id, events.slug, events.name)
-      .limit(1),
-    db.select({ c: sql<number>`COUNT(*)`.mapWith(Number) }).from(campaigns),
-  ]);
+  const [userCount, roleCount, permCount, assignmentCount, eventCount, featuredRows, campaignCount] = await Promise.all(
+    [
+      db.select({ c: sql<number>`COUNT(*)`.mapWith(Number) }).from(schema.user),
+      db.select({ c: sql<number>`COUNT(*)`.mapWith(Number) }).from(schema.role),
+      db.select({ c: sql<number>`COUNT(*)`.mapWith(Number) }).from(schema.permission),
+      db.select({ c: sql<number>`COUNT(*)`.mapWith(Number) }).from(schema.userRole),
+      // Top-level only: sub-events would inflate a number an admin reads as
+      // "how many events are there".
+      db
+        .select({ c: sql<number>`COUNT(*)`.mapWith(Number) })
+        .from(schema.events)
+        .where(isNull(schema.events.parentEventId)),
+      db
+        .select({
+          id: schema.events.id,
+          slug: schema.events.slug,
+          name: schema.events.name,
+          applications: sql<number>`COUNT(${schema.eventParticipants.id})`.mapWith(Number),
+        })
+        .from(schema.events)
+        .leftJoin(schema.eventParticipants, eq(schema.eventParticipants.eventId, schema.events.id))
+        .where(eq(schema.events.isFeatured, true))
+        .groupBy(schema.events.id, schema.events.slug, schema.events.name)
+        .limit(1),
+      db.select({ c: sql<number>`COUNT(*)`.mapWith(Number) }).from(schema.campaigns),
+    ],
+  );
 
   const featured = featuredRows[0];
 

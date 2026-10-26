@@ -4,11 +4,8 @@ import { notFound } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 import { z } from 'zod';
 
-import { getAudienceOptions, getCampaign } from '@/lib/campaigns/queries';
-import { listSavedAudiences } from '@/lib/campaigns/saved-audiences';
-import { requireAuthWithPermission } from '@/lib/rbac/guards';
-import { loadUserPermissions } from '@/lib/rbac/authorization';
-import { anyPermissionMatches } from '@/lib/rbac/permissions';
+import * as Campaigns from '@/lib/campaigns/server';
+import * as Rbac from '@/lib/rbac/server';
 import { BreadcrumbSegment } from '@/components/breadcrumb-context';
 import { CampaignEditor } from '../_components/campaign-editor';
 
@@ -35,20 +32,16 @@ function CampaignSkeleton() {
   return <div className='bg-muted h-96 animate-pulse rounded-xl' />;
 }
 
-async function CampaignContent({
-  paramsPromise,
-}: {
-  paramsPromise: Promise<{ campaignId: string }>;
-}) {
+async function CampaignContent({ paramsPromise }: { paramsPromise: Promise<{ campaignId: string }> }) {
   const { campaignId } = await paramsPromise;
-  const user = await requireAuthWithPermission('campaign:read:all');
+  const user = await Rbac.requireAuthWithPermission('campaign:read:all');
   if (!z.uuid().safeParse(campaignId).success) notFound();
 
   const [campaign, options, savedAudiences, permissions] = await Promise.all([
-    getCampaign(campaignId),
-    getAudienceOptions(),
-    listSavedAudiences(),
-    loadUserPermissions(user.id),
+    Campaigns.getCampaign(campaignId),
+    Campaigns.getAudienceOptions(),
+    Campaigns.listSavedAudiences(),
+    Rbac.loadUserPermissions(user.id),
   ]);
   if (!campaign) notFound();
 
@@ -65,15 +58,11 @@ async function CampaignContent({
           rules,
         }))}
         permissions={{
-          canWrite: anyPermissionMatches(permissions, 'campaign:write:all'),
-          canPreviewRecipients: anyPermissionMatches(
-            permissions,
-            'participant:read:all',
-          ),
+          canWrite: Rbac.anyPermissionMatches(permissions, 'campaign:write:all'),
+          canPreviewRecipients: Rbac.anyPermissionMatches(permissions, 'participant:read:all'),
           canSend:
-            anyPermissionMatches(permissions, 'campaign:send:all') &&
-            (campaign.type !== 'operational' ||
-              anyPermissionMatches(permissions, 'campaign:operational:all')),
+            Rbac.anyPermissionMatches(permissions, 'campaign:send:all') &&
+            (campaign.type !== 'operational' || Rbac.anyPermissionMatches(permissions, 'campaign:operational:all')),
         }}
       />
     </>

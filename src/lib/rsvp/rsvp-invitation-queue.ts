@@ -3,10 +3,10 @@ import 'server-only';
 import { send } from '@vercel/queue';
 
 /** Vercel Queue topic for RSVP invitation emails, one message per response row. */
-export const RSVP_INVITATION_QUEUE_TOPIC = 'rsvp-invitations';
+export const INVITATION_QUEUE_TOPIC = 'rsvp-invitations';
 
-/** Message payload published to {@link RSVP_INVITATION_QUEUE_TOPIC}. */
-export type RsvpInvitationMessage = {
+/** Message payload published to {@link INVITATION_QUEUE_TOPIC}. */
+export type InvitationMessage = {
   responseId: string;
 };
 
@@ -29,18 +29,12 @@ function wait(ms: number): Promise<void> {
  * after a publish that actually succeeded server-side (but whose response
  * this call didn't receive) does not create a duplicate message.
  */
-export async function publishRsvpInvitation(
-  responseId: string,
-): Promise<{ messageId: string | null }> {
+export async function publishRsvpInvitation(responseId: string): Promise<{ messageId: string | null }> {
   let lastError: unknown;
 
   for (let attempt = 1; attempt <= MAX_PUBLISH_ATTEMPTS; attempt += 1) {
     try {
-      return await send<RsvpInvitationMessage>(
-        RSVP_INVITATION_QUEUE_TOPIC,
-        { responseId },
-        { idempotencyKey: responseId },
-      );
+      return await send<InvitationMessage>(INVITATION_QUEUE_TOPIC, { responseId }, { idempotencyKey: responseId });
     } catch (error) {
       lastError = error;
       const delayMs = PUBLISH_RETRY_DELAYS_MS[attempt - 1];

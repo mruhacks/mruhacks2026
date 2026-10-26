@@ -2,13 +2,7 @@ import 'server-only';
 
 import { and, eq, sql } from 'drizzle-orm';
 
-import {
-  campaignDeliveries,
-  campaigns,
-  events,
-  marketingConsents,
-  user,
-} from '@/db/schema';
+import * as schema from '@/db/schema';
 import { db } from '@/utils/db';
 import { sendMail } from '@/utils/mail';
 import { hasWalletBlock } from './email-markdown';
@@ -27,30 +21,20 @@ export const SKIP_REASONS = {
   noWallet: 'Sent without the wallet block: no confirmed spot',
 } as const;
 
-export type ProcessDeliveryOutcome =
-  | 'sent'
-  | 'skipped'
-  | 'already_done'
-  | 'not_found'
-  | 'failed';
+export type ProcessDeliveryOutcome = 'sent' | 'skipped' | 'already_done' | 'not_found' | 'failed';
 
 /**
  * Seconds before a failed delivery is retried: exponential backoff with
  * jitter, so a burst of throttled deliveries (SES "Maximum sending rate
  * exceeded") spreads back out instead of retrying in lockstep.
  */
-export function campaignDeliveryRetryDelay(
-  deliveryCount: number,
-  random: () => number = Math.random,
-): number {
+export function deliveryRetryDelay(deliveryCount: number, random: () => number = Math.random): number {
   const ceiling = Math.min(300, 2 ** deliveryCount * 5);
   return Math.max(1, Math.round(ceiling / 2 + random() * (ceiling / 2)));
 }
 
 /** How a send error should be handled. */
-export function classifySendError(
-  error: unknown,
-): 'throttled' | 'suppressed' | 'permanent' | 'transient' {
+export function classifySendError(error: unknown): 'throttled' | 'suppressed' | 'permanent' | 'transient' {
   const err = error as {
     responseCode?: number;
     response?: string;
@@ -60,11 +44,7 @@ export function classifySendError(
   if (text.includes('suppression list') || text.includes('suppressed')) {
     return 'suppressed';
   }
-  if (
-    text.includes('throttl') ||
-    text.includes('maximum sending rate') ||
-    text.includes('rate exceeded')
-  ) {
+  if (text.includes('throttl') || text.includes('maximum sending rate') || text.includes('rate exceeded')) {
     return 'throttled';
   }
   if (typeof err?.responseCode === 'number' && err.responseCode >= 500) {
@@ -78,35 +58,29 @@ function errorText(error: unknown): string {
   return (err?.response || err?.message || 'Unknown send error').slice(0, 500);
 }
 
-function deliveryQuery(
-  deliveryId: string,
-  query: Pick<typeof db, 'select'> = db,
-) {
+function deliveryQuery(deliveryId: string, query: Pick<typeof db, 'select'> = db) {
   return query
     .select({
-      delivery: campaignDeliveries,
+      delivery: schema.campaignDeliveries,
       campaign: {
-        id: campaigns.id,
-        type: campaigns.type,
-        status: campaigns.status,
-        eventId: campaigns.eventId,
-        subject: campaigns.subject,
-        previewText: campaigns.previewText,
-        bodyMarkdown: campaigns.bodyMarkdown,
+        id: schema.campaigns.id,
+        type: schema.campaigns.type,
+        status: schema.campaigns.status,
+        eventId: schema.campaigns.eventId,
+        subject: schema.campaigns.subject,
+        previewText: schema.campaigns.previewText,
+        bodyMarkdown: schema.campaigns.bodyMarkdown,
       },
-      eventName: events.name,
-      userName: user.name,
-      optedIn: marketingConsents.optedIn,
+      eventName: schema.events.name,
+      userName: schema.user.name,
+      optedIn: schema.marketingConsents.optedIn,
     })
-    .from(campaignDeliveries)
-    .innerJoin(campaigns, eq(campaignDeliveries.campaignId, campaigns.id))
-    .innerJoin(user, eq(campaignDeliveries.userId, user.id))
-    .leftJoin(events, eq(campaigns.eventId, events.id))
-    .leftJoin(
-      marketingConsents,
-      eq(marketingConsents.userId, campaignDeliveries.userId),
-    )
-    .where(eq(campaignDeliveries.id, deliveryId))
+    .from(schema.campaignDeliveries)
+    .innerJoin(schema.campaigns, eq(schema.campaignDeliveries.campaignId, schema.campaigns.id))
+    .innerJoin(schema.user, eq(schema.campaignDeliveries.userId, schema.user.id))
+    .leftJoin(schema.events, eq(schema.campaigns.eventId, schema.events.id))
+    .leftJoin(schema.marketingConsents, eq(schema.marketingConsents.userId, schema.campaignDeliveries.userId))
+    .where(eq(schema.campaignDeliveries.id, deliveryId))
     .limit(1);
 }
 
@@ -121,9 +95,7 @@ function deliveryQuery(
  * SMTP acceptance and the DB commit are not atomic; a crash between them
  * still has the usual at-least-once delivery ambiguity.
  */
-export async function processCampaignDelivery(
-  deliveryId: string,
-): Promise<ProcessDeliveryOutcome> {
+export async function processCampaignDelivery(deliveryId: string): Promise<ProcessDeliveryOutcome> {
   const [initial] = await deliveryQuery(deliveryId);
   if (!initial) return 'not_found';
   if (initial.delivery.status !== 'queued') return 'already_done';
@@ -138,11 +110,7 @@ export async function processCampaignDelivery(
     const baseUrl = getAppBaseUrl();
     let walletLinks = null;
     if (campaign.eventId && hasWalletBlock(campaign.bodyMarkdown)) {
-      walletLinks = await walletLinksFor(
-        delivery.userId,
-        campaign.eventId,
-        baseUrl,
-      );
+      walletLinks = await walletLinksFor(delivery.userId, campaign.eventId, baseUrl);
       if (!walletLinks) note = SKIP_REASONS.noWallet;
     }
     message = await buildCampaignMessage(
@@ -162,33 +130,24 @@ export async function processCampaignDelivery(
 
   const result = await db.transaction(async (tx) => {
     let campaignId: string | undefined;
-    async function finish(
-      deliveryId: string,
-      id: string,
-      set: Partial<typeof campaignDeliveries.$inferInsert>,
-    ) {
+    async function finish(deliveryId: string, id: string, set: Partial<typeof schema.campaignDeliveries.$inferInsert>) {
       campaignId = id;
-      await tx
-        .update(campaignDeliveries)
-        .set(set)
-        .where(eq(campaignDeliveries.id, deliveryId));
+      await tx.update(schema.campaignDeliveries).set(set).where(eq(schema.campaignDeliveries.id, deliveryId));
     }
     const outcome = await attempt();
     return { outcome, campaignId };
 
-    async function attempt(): Promise<
-      ProcessDeliveryOutcome | { retry: unknown }
-    > {
+    async function attempt(): Promise<ProcessDeliveryOutcome | { retry: unknown }> {
       const [row] = await deliveryQuery(deliveryId, tx).for('update', {
-        of: campaignDeliveries,
+        of: schema.campaignDeliveries,
         skipLocked: true,
       });
 
       if (!row) {
         const [existing] = await tx
-          .select({ id: campaignDeliveries.id })
-          .from(campaignDeliveries)
-          .where(eq(campaignDeliveries.id, deliveryId));
+          .select({ id: schema.campaignDeliveries.id })
+          .from(schema.campaignDeliveries)
+          .where(eq(schema.campaignDeliveries.id, deliveryId));
         return existing ? 'already_done' : 'not_found';
       }
       const { delivery, campaign } = row;
@@ -212,16 +171,16 @@ export async function processCampaignDelivery(
       }
 
       const [claimed] = await tx
-        .update(campaignDeliveries)
-        .set({ attempts: sql`${campaignDeliveries.attempts} + 1` })
+        .update(schema.campaignDeliveries)
+        .set({ attempts: sql`${schema.campaignDeliveries.attempts} + 1` })
         .where(
           and(
-            eq(campaignDeliveries.id, delivery.id),
-            eq(campaignDeliveries.status, 'queued'),
-            eq(campaignDeliveries.attempts, delivery.attempts),
+            eq(schema.campaignDeliveries.id, delivery.id),
+            eq(schema.campaignDeliveries.status, 'queued'),
+            eq(schema.campaignDeliveries.attempts, delivery.attempts),
           ),
         )
-        .returning({ attempts: campaignDeliveries.attempts });
+        .returning({ attempts: schema.campaignDeliveries.attempts });
       if (!claimed) return 'already_done';
 
       try {
@@ -231,16 +190,11 @@ export async function processCampaignDelivery(
         const kind = classifySendError(error);
         const lastError = errorText(error);
         const giveUp =
-          kind === 'suppressed' ||
-          kind === 'permanent' ||
-          claimed.attempts >= MAX_CAMPAIGN_DELIVERY_ATTEMPTS;
+          kind === 'suppressed' || kind === 'permanent' || claimed.attempts >= MAX_CAMPAIGN_DELIVERY_ATTEMPTS;
         if (giveUp) {
           await finish(delivery.id, campaign.id, {
             status: 'failed',
-            lastError:
-              kind === 'suppressed'
-                ? `Address is on the SES suppression list: ${lastError}`
-                : lastError,
+            lastError: kind === 'suppressed' ? `Address is on the SES suppression list: ${lastError}` : lastError,
           });
           console.error('[campaigns/delivery] giving up', {
             deliveryId,
@@ -250,9 +204,9 @@ export async function processCampaignDelivery(
           return 'failed';
         }
         await tx
-          .update(campaignDeliveries)
+          .update(schema.campaignDeliveries)
           .set({ lastError })
-          .where(eq(campaignDeliveries.id, delivery.id));
+          .where(eq(schema.campaignDeliveries.id, delivery.id));
         return { retry: error };
       }
 

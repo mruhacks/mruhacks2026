@@ -6,8 +6,7 @@ import type { ColumnDef } from '@tanstack/react-table';
 import type { JudgingResults } from '@/app/dashboard/admin/events/judging-actions';
 import { DataTable } from '@/components/data-table/data-table';
 import { Badge } from '@/components/ui/badge';
-import { JUDGE_PRIOR } from '@/lib/judging/crowd-bt';
-import { reliabilityMean } from '@/lib/judging/results';
+import * as Judging from '@/lib/judging';
 
 import { formatPercent } from './format';
 import { useResults } from './results-context';
@@ -27,9 +26,7 @@ export function JudgesTable() {
         cell: ({ row }) => (
           <span className='whitespace-normal'>
             <span className='font-medium'>{row.original.label}</span>{' '}
-            {row.original.disabled && (
-              <Badge variant='destructive'>Disabled</Badge>
-            )}
+            {row.original.disabled && <Badge variant='destructive'>Disabled</Badge>}
           </span>
         ),
       },
@@ -63,9 +60,8 @@ export function JudgesTable() {
         compact
       />
       <p className='text-muted-foreground text-xs'>
-        Reliability is how likely the model thinks each judge is to vote with
-        the consensus on that criterion — α / (α + β). Every judge starts at{' '}
-        {formatPercent(reliabilityMean(JUDGE_PRIOR))}.
+        Reliability is how likely the model thinks each judge is to vote with the consensus on that criterion — α / (α +
+        β). Every judge starts at {formatPercent(Judging.reliabilityMean(Judging.JUDGE_PRIOR))}.
       </p>
     </div>
   );

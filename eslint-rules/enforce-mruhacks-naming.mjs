@@ -14,12 +14,10 @@ const rule = {
   meta: {
     type: 'problem',
     docs: {
-      description:
-        'Enforce "MRUHacks" spelling (not "MRU Hacks" or other variations)',
+      description: 'Enforce "MRUHacks" spelling (not "MRU Hacks" or other variations)',
     },
     messages: {
-      incorrectSpelling:
-        'Event name should be "MRUHacks" (no space). Found: "{{ actual }}"',
+      incorrectSpelling: 'Event name should be "MRUHacks" (no space). Found: "{{ actual }}"',
       useCorrectFormat: 'Use "MRUHacks" instead of "{{ actual }}"',
     },
     fixable: 'code',
@@ -58,10 +56,7 @@ const rule = {
         }
 
         // Check for "mru hacks" (all lowercase with space)
-        if (
-          value.toLowerCase().includes('mru hacks') &&
-          !value.includes('MRU Hacks')
-        ) {
+        if (value.toLowerCase().includes('mru hacks') && !value.includes('MRU Hacks')) {
           context.report({
             node,
             messageId: 'useCorrectFormat',
@@ -99,10 +94,7 @@ const rule = {
         }
 
         // Check for "mru hacks" (all lowercase with space)
-        if (
-          value.toLowerCase().includes('mru hacks') &&
-          !value.includes('MRU Hacks')
-        ) {
+        if (value.toLowerCase().includes('mru hacks') && !value.includes('MRU Hacks')) {
           const matched = value.match(/mru\s+hacks/i);
           context.report({
             node,

@@ -5,13 +5,7 @@ import { sanitizeReturnPath } from '@/utils/return-path';
 import { oauthPrefillName } from '@/lib/oauth-name';
 import { getOptions } from '@/app/dashboard/events/actions';
 import { getUserProfile } from '@/app/dashboard/profile/actions';
-import {
-  canReviewStep,
-  getOnboardingProgress,
-  getNextStep,
-  reviewStepUrl,
-  stepUrl,
-} from '../onboarding-progress';
+import { canReviewStep, getOnboardingProgress, getNextStep, reviewStepUrl, stepUrl } from '../onboarding-progress';
 import { WelcomePersonalPage } from '../welcome-personal-page';
 import { WelcomePersonalSkeleton } from '../welcome-step-loading';
 
@@ -46,8 +40,7 @@ async function PersonalStepContent({
     getOptions(),
     reviewing ? getUserProfile() : Promise.resolve(null),
   ]);
-  const savedProfile =
-    profileResult?.success && profileResult.data ? profileResult.data : null;
+  const savedProfile = profileResult?.success && profileResult.data ? profileResult.data : null;
   const prefillName = oauthPrefillName(progress.user.oauthName);
 
   const next = getNextStep(progress, 'personal');

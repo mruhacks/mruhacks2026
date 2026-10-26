@@ -2,9 +2,8 @@ import { describe, test, expect, beforeAll, afterAll } from 'vitest';
 import { inArray } from 'drizzle-orm';
 
 import { db } from '@/utils/db';
-import { events, user } from '@/db/schema';
-import { getEligibleRsvpApplicants } from '@/lib/rsvp/eligible-rsvp-applicants';
-import { selectRsvpWaveInvitees } from '@/lib/rsvp/select-rsvp-wave-invitees';
+import * as schema from '@/db/schema';
+import * as Rsvp from '@/lib/rsvp/server';
 import type { ParticipationStatus } from '@/types/lookups';
 import { insertParticipant, setStatus } from '@/tests/participation-fixtures';
 
@@ -25,22 +24,22 @@ const ALL_STATUSES: ParticipationStatus[] = [
 
 async function createUser(label: string): Promise<string> {
   const [row] = await db
-    .insert(user)
+    .insert(schema.user)
     .values({
       name: label,
       email: `eligible-${label}-${createdUserIds.length}@example.com`,
       emailVerified: true,
     })
-    .returning({ id: user.id });
+    .returning({ id: schema.user.id });
   createdUserIds.push(row.id);
   return row.id;
 }
 
 async function createEvent(capacity: number | null): Promise<string> {
   const [row] = await db
-    .insert(events)
+    .insert(schema.events)
     .values({ name: 'Eligibility Test Event', hasApplication: true, capacity })
-    .returning({ id: events.id });
+    .returning({ id: schema.events.id });
   createdEventIds.push(row.id);
   return row.id;
 }
@@ -55,25 +54,21 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await db.delete(events).where(inArray(events.id, createdEventIds));
-  await db.delete(user).where(inArray(user.id, createdUserIds));
+  await db.delete(schema.events).where(inArray(schema.events.id, createdEventIds));
+  await db.delete(schema.user).where(inArray(schema.user.id, createdUserIds));
 });
 
 describe('getEligibleRsvpApplicants', () => {
   test('returns null for a missing event', async () => {
-    expect(
-      await getEligibleRsvpApplicants('00000000-0000-0000-0000-000000000000'),
-    ).toBeNull();
+    expect(await Rsvp.getEligibleRsvpApplicants('00000000-0000-0000-0000-000000000000')).toBeNull();
   });
 
   test('includes only waitlisted participants', async () => {
-    const result = await getEligibleRsvpApplicants(testEventId);
+    const result = await Rsvp.getEligibleRsvpApplicants(testEventId);
     expect(result).not.toBeNull();
     if (!result) return;
 
-    expect(result.applicants.map((a) => a.userId)).toEqual([
-      userIdByStatus.get('waitlisted'),
-    ]);
+    expect(result.applicants.map((a) => a.userId)).toEqual([userIdByStatus.get('waitlisted')]);
 
     // Capacity is measured against accepted participants only.
     expect(result.capacity).toBe(10);
@@ -85,7 +80,7 @@ describe('getEligibleRsvpApplicants', () => {
     const userId = userIdByStatus.get('waitlisted')!;
     await setStatus(testEventId, userId, 'timed_out');
     try {
-      const result = await getEligibleRsvpApplicants(testEventId);
+      const result = await Rsvp.getEligibleRsvpApplicants(testEventId);
       expect(result?.applicants.map((a) => a.userId)).not.toContain(userId);
     } finally {
       await setStatus(testEventId, userId, 'waitlisted');
@@ -105,7 +100,7 @@ describe('getEligibleRsvpApplicants', () => {
       status: 'waitlisted',
     });
 
-    const result = await getEligibleRsvpApplicants(fullEventId);
+    const result = await Rsvp.getEligibleRsvpApplicants(fullEventId);
     expect(result).toMatchObject({
       capacity: 1,
       attendeeCount: 1,
@@ -115,7 +110,7 @@ describe('getEligibleRsvpApplicants', () => {
 
   test('treats null capacity as unlimited', async () => {
     const openEventId = await createEvent(null);
-    const result = await getEligibleRsvpApplicants(openEventId);
+    const result = await Rsvp.getEligibleRsvpApplicants(openEventId);
     expect(result?.capacity).toBeNull();
     expect(result?.availableSpots).toBeNull();
   });
@@ -157,14 +152,13 @@ describe('selectRsvpWaveInvitees', () => {
       },
     ];
 
-    expect(
-      selectRsvpWaveInvitees(applicants, null).map((a) => a.userId),
-    ).toEqual(['w-1', 'w-2', 'unranked-early', 'unranked-late']);
-    expect(selectRsvpWaveInvitees(applicants, 3).map((a) => a.userId)).toEqual([
+    expect(Rsvp.selectRsvpWaveInvitees(applicants, null).map((a) => a.userId)).toEqual([
       'w-1',
       'w-2',
       'unranked-early',
+      'unranked-late',
     ]);
-    expect(selectRsvpWaveInvitees(applicants, 0)).toEqual([]);
+    expect(Rsvp.selectRsvpWaveInvitees(applicants, 3).map((a) => a.userId)).toEqual(['w-1', 'w-2', 'unranked-early']);
+    expect(Rsvp.selectRsvpWaveInvitees(applicants, 0)).toEqual([]);
   });
 });

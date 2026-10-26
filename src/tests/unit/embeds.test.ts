@@ -41,14 +41,8 @@ describe('getAllowedEmbedSrc', () => {
 
 describe('toEmbedUrl', () => {
   test.each([
-    [
-      'https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=1',
-      'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ',
-    ],
-    [
-      'https://youtu.be/dQw4w9WgXcQ',
-      'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ',
-    ],
+    ['https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=1', 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ'],
+    ['https://youtu.be/dQw4w9WgXcQ', 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ'],
     ['https://vimeo.com/76979871', 'https://player.vimeo.com/video/76979871'],
     ['https://www.loom.com/share/abc123', 'https://www.loom.com/embed/abc123'],
     [
@@ -74,9 +68,7 @@ test('serializeEmbedHtml writes a paired, escaped tag', () => {
       title: 'Say "hi"',
       width: 400,
     }),
-  ).toBe(
-    '<iframe src="https://docs.google.com/a?b=1&amp;c=2" title="Say &quot;hi&quot;" width="400"></iframe>',
-  );
+  ).toBe('<iframe src="https://docs.google.com/a?b=1&amp;c=2" title="Say &quot;hi&quot;" width="400"></iframe>');
 });
 
 test('every CSP frame source is https and matches the allow-list shape', () => {

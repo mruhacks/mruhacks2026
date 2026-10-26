@@ -3,31 +3,14 @@
 import * as React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Users } from 'lucide-react';
-import {
-  QueryBuilder,
-  type Classnames,
-  type FullField,
-  type RuleGroupType,
-} from 'react-querybuilder';
+import { QueryBuilder, type Classnames, type FullField, type RuleGroupType } from 'react-querybuilder';
 
-import {
-  countAudienceForBuilder,
-  previewAudienceForBuilder,
-} from '@/app/dashboard/admin/campaigns/actions';
-import type { AudienceOptions } from '@/lib/campaigns/audience-options';
-import {
-  audienceRulesSchema,
-  type AudienceRuleGroup,
-} from '@/lib/campaigns/audience-rules';
-import type { CampaignType } from '@/lib/campaigns/constants';
+import { countAudienceForBuilder, previewAudienceForBuilder } from '../actions';
+import * as Campaigns from '@/lib/campaigns';
 import { Button } from '@/components/ui/button';
 import { FieldError } from '@/components/ui/field';
 import { Spinner } from '@/components/ui/spinner';
-import {
-  AUDIENCE_CONTROL_ELEMENTS,
-  AUDIENCE_FIELD_OPTIONS,
-  type BuilderContext,
-} from './query-builder-controls';
+import { AUDIENCE_CONTROL_ELEMENTS, AUDIENCE_FIELD_OPTIONS, type BuilderContext } from './query-builder-controls';
 
 const COUNT_DEBOUNCE_MS = 400;
 
@@ -57,8 +40,7 @@ function defaultValueFor(field: string): Record<string, unknown> {
 /** Tailwind in place of RQB's own stylesheet, so it follows our theme (light and dark). */
 const CLASSNAMES: Partial<Classnames> = {
   queryBuilder: 'text-sm',
-  ruleGroup:
-    'bg-muted/40 flex flex-col gap-2 rounded-lg border p-2 sm:p-3 [&_.ruleGroup]:bg-background',
+  ruleGroup: 'bg-muted/40 flex flex-col gap-2 rounded-lg border p-2 sm:p-3 [&_.ruleGroup]:bg-background',
   header: 'flex flex-wrap items-center gap-2',
   body: 'flex flex-col gap-2 empty:hidden',
   rule: 'bg-background flex flex-wrap items-center gap-2 rounded-md border p-2',
@@ -80,11 +62,11 @@ function useDebounced<T>(value: T, delayMs: number): T {
 
 export type AudienceBuilderProps = {
   /** Read once on mount; remount (`key`) to load a different tree. */
-  initialValue: AudienceRuleGroup;
-  onChange?: (rules: AudienceRuleGroup) => void;
-  options: AudienceOptions;
+  initialValue: Campaigns.AudienceRuleGroup;
+  onChange?: (rules: Campaigns.AudienceRuleGroup) => void;
+  options: Campaigns.AudienceOptions;
   /** The campaign the audience is evaluated for — its forced conditions apply to the count. */
-  type: CampaignType;
+  type: Campaigns.Type;
   eventId: string | null;
   /** `participant:read:all`: shows the recipient preview. */
   canPreview: boolean;
@@ -100,12 +82,12 @@ export function AudienceBuilder({
   canPreview,
   disabled,
 }: AudienceBuilderProps) {
-  const [tree, setTree] = React.useState<AudienceRuleGroup>(initialValue);
+  const [tree, setTree] = React.useState<Campaigns.AudienceRuleGroup>(initialValue);
   const context = React.useMemo<BuilderContext>(() => ({ options }), [options]);
 
   const handleQueryChange = React.useCallback(
     (query: RuleGroupType) => {
-      const next = query as unknown as AudienceRuleGroup;
+      const next = query as unknown as Campaigns.AudienceRuleGroup;
       setTree(next);
       onChange?.(next);
     },
@@ -135,12 +117,7 @@ export function AudienceBuilder({
           addGroup: { label: 'Group', title: 'Add group' },
         }}
       />
-      <AudienceSummary
-        tree={tree}
-        type={type}
-        eventId={eventId}
-        canPreview={canPreview}
-      />
+      <AudienceSummary tree={tree} type={type} eventId={eventId} canPreview={canPreview} />
     </div>
   );
 }
@@ -151,21 +128,15 @@ function AudienceSummary({
   eventId,
   canPreview,
 }: {
-  tree: AudienceRuleGroup;
-  type: CampaignType;
+  tree: Campaigns.AudienceRuleGroup;
+  type: Campaigns.Type;
   eventId: string | null;
   canPreview: boolean;
 }) {
   const debouncedTree = useDebounced(tree, COUNT_DEBOUNCE_MS);
-  const parsed = React.useMemo(
-    () => audienceRulesSchema.safeParse(debouncedTree),
-    [debouncedTree],
-  );
+  const parsed = React.useMemo(() => Campaigns.audienceRulesSchema.safeParse(debouncedTree), [debouncedTree]);
   const rules = parsed.success ? parsed.data : null;
-  const input = React.useMemo(
-    () => (rules ? { context: { type, eventId }, rules } : null),
-    [rules, type, eventId],
-  );
+  const input = React.useMemo(() => (rules ? { context: { type, eventId }, rules } : null), [rules, type, eventId]);
 
   const count = useQuery({
     queryKey: ['campaign-audience-count', input],
@@ -195,17 +166,14 @@ function AudienceSummary({
         <p className='flex items-center gap-2 text-sm' aria-live='polite'>
           <Users className='text-muted-foreground size-4' />
           {!rules ? (
-            <span className='text-muted-foreground'>
-              Finish every rule to see who this reaches.
-            </span>
+            <span className='text-muted-foreground'>Finish every rule to see who this reaches.</span>
           ) : count.isPending ? (
             <Spinner />
           ) : count.isError ? (
             <span className='text-destructive'>{count.error.message}</span>
           ) : (
             <span>
-              <strong>{count.data.toLocaleString()}</strong>{' '}
-              {count.data === 1 ? 'recipient' : 'recipients'}
+              <strong>{count.data.toLocaleString()}</strong> {count.data === 1 ? 'recipient' : 'recipients'}
               {count.isFetching && <Spinner className='ml-2 inline size-3' />}
             </span>
           )}
@@ -241,25 +209,18 @@ function AudienceSummary({
           ) : (
             <ul className='divide-y text-sm'>
               {preview.data.map((member) => (
-                <li
-                  key={member.id}
-                  className='flex flex-col px-3 py-2 sm:flex-row sm:justify-between sm:gap-4'
-                >
+                <li key={member.id} className='flex flex-col px-3 py-2 sm:flex-row sm:justify-between sm:gap-4'>
                   <span className='truncate font-medium'>{member.name}</span>
-                  <span className='text-muted-foreground truncate'>
-                    {member.email}
-                  </span>
+                  <span className='text-muted-foreground truncate'>{member.email}</span>
                 </li>
               ))}
             </ul>
           )}
-          {preview.data &&
-            count.data !== undefined &&
-            count.data > preview.data.length && (
-              <p className='text-muted-foreground border-t px-3 py-2 text-xs'>
-                Showing {preview.data.length} of {count.data.toLocaleString()}.
-              </p>
-            )}
+          {preview.data && count.data !== undefined && count.data > preview.data.length && (
+            <p className='text-muted-foreground border-t px-3 py-2 text-xs'>
+              Showing {preview.data.length} of {count.data.toLocaleString()}.
+            </p>
+          )}
         </div>
       )}
     </div>

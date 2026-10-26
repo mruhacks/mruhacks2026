@@ -7,14 +7,7 @@ import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 import type { MultiValue, SingleValue } from 'react-select';
 
-import {
-  Field,
-  FieldGroup,
-  FieldLabel,
-  FieldError,
-  FieldDescription,
-  RequiredAsterisk,
-} from '@/components/ui/field';
+import { Field, FieldGroup, FieldLabel, FieldError, FieldDescription, RequiredAsterisk } from '@/components/ui/field';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -23,14 +16,8 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { type ActionResult } from '@/utils/action-result';
 
-import {
-  createApplicationFormSchema,
-  type EventOnlyFormValues,
-} from './schema';
-import {
-  resolveMaxLength,
-  type ApplicationQuestion,
-} from '@/types/application';
+import { createApplicationFormSchema, type EventOnlyFormValues } from './schema';
+import { resolveMaxLength, type ApplicationQuestion } from '@/types/application';
 import { isOtherOption, otherTextKey } from '@/lib/other-option';
 import { useRouter } from 'next/navigation';
 import type { Control } from 'react-hook-form';
@@ -54,22 +41,15 @@ function CharacterCount({ value, max }: { value: unknown; max: number }) {
   );
 }
 
-function ApplicationQuestionField({
-  question: q,
-  control,
-}: ApplicationQuestionFieldProps): React.JSX.Element {
+function ApplicationQuestionField({ question: q, control }: ApplicationQuestionFieldProps): React.JSX.Element {
   const fieldName = `applicationResponses.${q.id}` as const;
-  const activeOptions = (q.options ?? [])
-    .filter((o) => o.active)
-    .map((o) => ({ value: o.value, label: o.label }));
+  const activeOptions = (q.options ?? []).filter((o) => o.active).map((o) => ({ value: o.value, label: o.label }));
 
   if (q.type === 'section_divider') {
     return (
       <div className='mt-6 mb-4 border-t pt-4'>
         <h3 className='text-lg font-semibold'>{q.label}</h3>
-        {q.description && (
-          <p className='text-muted-foreground mt-1 text-sm'>{q.description}</p>
-        )}
+        {q.description && <p className='text-muted-foreground mt-1 text-sm'>{q.description}</p>}
       </div>
     );
   }
@@ -94,11 +74,7 @@ function ApplicationQuestionField({
                   {q.label}
                   {q.required && <RequiredAsterisk />}
                 </Label>
-                {q.description && (
-                  <p className='text-muted-foreground text-sm'>
-                    {q.description}
-                  </p>
-                )}
+                {q.description && <p className='text-muted-foreground text-sm'>{q.description}</p>}
                 {fieldState.error && <FieldError errors={[fieldState.error]} />}
               </div>
             </div>
@@ -109,8 +85,7 @@ function ApplicationQuestionField({
   }
 
   if (q.type === 'single_select') {
-    const otherFieldName =
-      `applicationResponses.${otherTextKey(q.id)}` as const;
+    const otherFieldName = `applicationResponses.${otherTextKey(q.id)}` as const;
     return (
       <Controller
         name={fieldName}
@@ -123,9 +98,7 @@ function ApplicationQuestionField({
                 {q.label}
                 {q.required && <RequiredAsterisk />}
               </FieldLabel>
-              {q.description && (
-                <FieldDescription>{q.description}</FieldDescription>
-              )}
+              {q.description && <FieldDescription>{q.description}</FieldDescription>}
               <Select
                 id={q.id}
                 instanceId={`app-q-${q.id}`}
@@ -133,10 +106,7 @@ function ApplicationQuestionField({
                 aria-invalid={fieldState.invalid}
                 value={selected ?? null}
                 onChange={(opt) =>
-                  field.onChange(
-                    (opt as SingleValue<{ value: string; label: string }>)
-                      ?.value ?? null,
-                  )
+                  field.onChange((opt as SingleValue<{ value: string; label: string }>)?.value ?? null)
                 }
               />
               {fieldState.error && <FieldError errors={[fieldState.error]} />}
@@ -162,28 +132,21 @@ function ApplicationQuestionField({
   }
 
   if (q.type === 'multi_select') {
-    const otherFieldName =
-      `applicationResponses.${otherTextKey(q.id)}` as const;
+    const otherFieldName = `applicationResponses.${otherTextKey(q.id)}` as const;
     return (
       <Controller
         name={fieldName}
         control={control}
         render={({ field, fieldState }) => {
-          const selectedValues = Array.isArray(field.value)
-            ? (field.value as string[])
-            : [];
-          const selected = activeOptions.filter((o) =>
-            selectedValues.includes(o.value),
-          );
+          const selectedValues = Array.isArray(field.value) ? (field.value as string[]) : [];
+          const selected = activeOptions.filter((o) => selectedValues.includes(o.value));
           return (
             <Field data-invalid={fieldState.invalid}>
               <FieldLabel>
                 {q.label}
                 {q.required && <RequiredAsterisk />}
               </FieldLabel>
-              {q.description && (
-                <FieldDescription>{q.description}</FieldDescription>
-              )}
+              {q.description && <FieldDescription>{q.description}</FieldDescription>}
               <Select
                 id={q.id}
                 instanceId={`app-q-${q.id}`}
@@ -192,11 +155,7 @@ function ApplicationQuestionField({
                 aria-invalid={fieldState.invalid}
                 value={selected}
                 onChange={(opts) =>
-                  field.onChange(
-                    (opts as MultiValue<{ value: string; label: string }>).map(
-                      (o) => o.value,
-                    ),
-                  )
+                  field.onChange((opts as MultiValue<{ value: string; label: string }>).map((o) => o.value))
                 }
               />
               {fieldState.error && <FieldError errors={[fieldState.error]} />}
@@ -232,18 +191,12 @@ function ApplicationQuestionField({
               {q.label}
               {q.required && <RequiredAsterisk />}
             </FieldLabel>
-            {q.description && (
-              <FieldDescription>{q.description}</FieldDescription>
-            )}
+            {q.description && <FieldDescription>{q.description}</FieldDescription>}
             <Input
               id={q.id}
               type='number'
               value={(field.value as number | '') ?? ''}
-              onChange={(e) =>
-                field.onChange(
-                  e.target.value === '' ? null : Number(e.target.value),
-                )
-              }
+              onChange={(e) => field.onChange(e.target.value === '' ? null : Number(e.target.value))}
               aria-invalid={fieldState.invalid}
             />
             {fieldState.error && <FieldError errors={[fieldState.error]} />}
@@ -265,9 +218,7 @@ function ApplicationQuestionField({
               {q.label}
               {q.required && <RequiredAsterisk />}
             </FieldLabel>
-            {q.description && (
-              <FieldDescription>{q.description}</FieldDescription>
-            )}
+            {q.description && <FieldDescription>{q.description}</FieldDescription>}
             <Input
               id={q.id}
               {...field}
@@ -297,9 +248,7 @@ function ApplicationQuestionField({
             {q.label}
             {q.required && <RequiredAsterisk />}
           </FieldLabel>
-          {q.description && (
-            <FieldDescription>{q.description}</FieldDescription>
-          )}
+          {q.description && <FieldDescription>{q.description}</FieldDescription>}
           <Textarea
             id={q.id}
             {...field}
@@ -321,10 +270,7 @@ type ApplicationFormProps = {
   initial?: Partial<EventOnlyFormValues>;
   applicationQuestions?: ApplicationQuestion[] | null;
   /** Server action (event data, eventId). Use submitEventApplication (fetches profile server-side). */
-  submitAction: (
-    data: EventOnlyFormValues,
-    eventId: string,
-  ) => Promise<ActionResult | void>;
+  submitAction: (data: EventOnlyFormValues, eventId: string) => Promise<ActionResult | void>;
   eventId: string;
   submitLabel?: string;
   successMessage?: string;
@@ -353,9 +299,7 @@ function ApplicationFormFields({
   isSubmitting?: boolean;
   submitLabel?: string;
 }) {
-  const activeQuestions = (applicationQuestions ?? [])
-    .filter((q) => q.active)
-    .sort((a, b) => a.order - b.order);
+  const activeQuestions = (applicationQuestions ?? []).filter((q) => q.active).sort((a, b) => a.order - b.order);
 
   // Group consecutive checkbox (boolean) questions so they render close
   // together instead of each taking a full field-sized gap.
@@ -376,19 +320,11 @@ function ApplicationFormFields({
           group.length > 1 ? (
             <div key={group[0]!.id} className='space-y-2'>
               {group.map((q) => (
-                <ApplicationQuestionField
-                  key={q.id}
-                  question={q}
-                  control={control}
-                />
+                <ApplicationQuestionField key={q.id} question={q} control={control} />
               ))}
             </div>
           ) : (
-            <ApplicationQuestionField
-              key={group[0]!.id}
-              question={group[0]!}
-              control={control}
-            />
+            <ApplicationQuestionField key={group[0]!.id} question={group[0]!} control={control} />
           ),
         )}
       </FieldGroup>
@@ -421,10 +357,7 @@ export default function ApplicationForm({
   onSuccess,
 }: ApplicationFormProps) {
   const router = useRouter();
-  const formSchema = React.useMemo(
-    () => createApplicationFormSchema(applicationQuestions),
-    [applicationQuestions],
-  );
+  const formSchema = React.useMemo(() => createApplicationFormSchema(applicationQuestions), [applicationQuestions]);
 
   const {
     control,

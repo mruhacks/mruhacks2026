@@ -6,10 +6,7 @@ import type { ColumnDef } from '@tanstack/react-table';
 import { toast } from 'sonner';
 import { Ban, Eye, MoreHorizontal, RotateCcw, UserMinus } from 'lucide-react';
 
-import {
-  canModerateTeams,
-  getFormedTeamsForEvent,
-} from '@/app/dashboard/admin/events/actions';
+import { canModerateTeams, getFormedTeamsForEvent } from '@/app/dashboard/admin/events/actions';
 import type { FormedTeamRow } from '@/app/dashboard/admin/events/actions';
 import {
   getJudgingProjects,
@@ -24,13 +21,7 @@ import { LocalDateTime } from '@/components/local-date-time';
 import { SubmissionStatusBadge } from '@/components/submissions/submission-view';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -65,10 +56,7 @@ type ProjectInfo = {
   deactivated: boolean;
 };
 
-function mergeProjects(
-  submissions: AdminSubmissionRow[] | null,
-  judging: JudgingProjectRow[] | null,
-): ProjectInfo[] {
+function mergeProjects(submissions: AdminSubmissionRow[] | null, judging: JudgingProjectRow[] | null): ProjectInfo[] {
   const judgingById = new Map((judging ?? []).map((j) => [j.id, j]));
   if (submissions) {
     return submissions.map((sub) => {
@@ -113,10 +101,7 @@ type TeamProjectRow = {
 
 const NOT_CHECKED_IN_CLASS = 'decoration-destructive underline';
 
-function buildRows(
-  teams: FormedTeamRow[],
-  projects: ProjectInfo[],
-): TeamProjectRow[] {
+function buildRows(teams: FormedTeamRow[], projects: ProjectInfo[]): TeamProjectRow[] {
   const projectByTeamId = new Map(projects.map((p) => [p.teamId, p]));
   const rows: TeamProjectRow[] = teams.map((team) => {
     const project = projectByTeamId.get(team.teamId) ?? null;
@@ -175,13 +160,9 @@ export function TeamsPage({
   const [loadError, setLoadError] = React.useState<string | null>(null);
   const [canModerate, setCanModerate] = React.useState(false);
   const [reloadToken, setReloadToken] = React.useState(0);
-  const [selectedTeam, setSelectedTeam] = React.useState<FormedTeamRow | null>(
-    null,
-  );
+  const [selectedTeam, setSelectedTeam] = React.useState<FormedTeamRow | null>(null);
   const [showDetails, setShowDetails] = React.useState(false);
-  const [removingUserId, setRemovingUserId] = React.useState<string | null>(
-    null,
-  );
+  const [removingUserId, setRemovingUserId] = React.useState<string | null>(null);
   const [togglingId, setTogglingId] = React.useState<string | null>(null);
   const showProjectColumns = showProjects || showJudging;
 
@@ -214,10 +195,7 @@ export function TeamsPage({
     return {
       ok: true as const,
       teams: teamsResult?.data ?? [],
-      projects: mergeProjects(
-        projectsResult?.data ?? null,
-        judgingResult?.data ?? null,
-      ),
+      projects: mergeProjects(projectsResult?.data ?? null, judgingResult?.data ?? null),
     };
   }, [eventId, showTeams, showProjects, showJudging]);
 
@@ -226,10 +204,7 @@ export function TeamsPage({
 
     async function fetchData() {
       try {
-        const [data, moderate] = await Promise.all([
-          loadData(),
-          showTeams ? canModerateTeams() : false,
-        ]);
+        const [data, moderate] = await Promise.all([loadData(), showTeams ? canModerateTeams() : false]);
         if (cancelled) return;
 
         setCanModerate(moderate);
@@ -265,9 +240,7 @@ export function TeamsPage({
       toast.error(result.error);
       return;
     }
-    toast.success(
-      typeof result.data === 'string' ? result.data : 'Member removed.',
-    );
+    toast.success(typeof result.data === 'string' ? result.data : 'Member removed.');
 
     // Refetch both: a team shrunk to one member drops out of the formed
     // teams, and its project's roster changes with it.
@@ -293,11 +266,7 @@ export function TeamsPage({
     async (project: ProjectInfo) => {
       setTogglingId(project.id);
       try {
-        const result = await setSubmissionDeactivated(
-          eventId,
-          project.id,
-          !project.deactivated,
-        );
+        const result = await setSubmissionDeactivated(eventId, project.id, !project.deactivated);
         // A button-only action: nothing to anchor an inline error to.
         if (!result.success) {
           toast.error(result.error);
@@ -317,10 +286,7 @@ export function TeamsPage({
     [eventId, loadData],
   );
 
-  const rows = React.useMemo(
-    () => buildRows(teamRows, projectRows),
-    [teamRows, projectRows],
-  );
+  const rows = React.useMemo(() => buildRows(teamRows, projectRows), [teamRows, projectRows]);
 
   const columns = React.useMemo<ColumnDef<TeamProjectRow>[]>(() => {
     const backHref = `/dashboard/admin/events/${segment}/teams`;
@@ -339,10 +305,7 @@ export function TeamsPage({
                       <React.Fragment key={i}>
                         {i > 0 && ', '}
                         {member.checkedIn === false ? (
-                          <span
-                            className={NOT_CHECKED_IN_CLASS}
-                            title='Not checked in'
-                          >
+                          <span className={NOT_CHECKED_IN_CLASS} title='Not checked in'>
                             {member.name}
                           </span>
                         ) : (
@@ -366,9 +329,7 @@ export function TeamsPage({
         id: 'memberCount',
         header: 'Members',
         accessorFn: (row) => row.team?.memberCount ?? row.members.length,
-        cell: ({ getValue }) => (
-          <Badge variant='outline'>{getValue<number>()}</Badge>
-        ),
+        cell: ({ getValue }) => <Badge variant='outline'>{getValue<number>()}</Badge>,
       },
     ];
     const tableColumn: ColumnDef<TeamProjectRow> = {
@@ -410,13 +371,7 @@ export function TeamsPage({
         id: 'status',
         header: 'Status',
         accessorFn: (row) =>
-          row.project
-            ? row.project.deactivated
-              ? 'Deactivated'
-              : row.project.published
-                ? 'Published'
-                : 'Draft'
-            : '',
+          row.project ? (row.project.deactivated ? 'Deactivated' : row.project.published ? 'Published' : 'Draft') : '',
         cell: ({ row }) => {
           const { project } = row.original;
           if (!project) return null;
@@ -435,11 +390,7 @@ export function TeamsPage({
         cell: ({ row }) =>
           row.original.project?.updatedAt ? (
             <span className='text-muted-foreground'>
-              <LocalDateTime
-                value={row.original.project.updatedAt}
-                dateStyle='medium'
-                timeStyle='short'
-              />
+              <LocalDateTime value={row.original.project.updatedAt} dateStyle='medium' timeStyle='short' />
             </span>
           ) : null,
       },
@@ -464,11 +415,7 @@ export function TeamsPage({
                 aria-label={`Actions for ${project?.title ?? `team led by ${team?.organizerName ?? 'unknown'}`}`}
                 disabled={togglingId !== null}
               >
-                {project && togglingId === project.id ? (
-                  <Spinner />
-                ) : (
-                  <MoreHorizontal className='size-4' />
-                )}
+                {project && togglingId === project.id ? <Spinner /> : <MoreHorizontal className='size-4' />}
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align='end'>
@@ -519,28 +466,16 @@ export function TeamsPage({
       ...(showProjects ? projectColumns.slice(2) : []),
       ...(showTeams || showJudging ? [actionColumn] : []),
     ];
-  }, [
-    segment,
-    showTeams,
-    showProjects,
-    showJudging,
-    showProjectColumns,
-    togglingId,
-    handleToggleDeactivated,
-  ]);
+  }, [segment, showTeams, showProjects, showJudging, showProjectColumns, togglingId, handleToggleDeactivated]);
 
   if (!showTeams && !showProjectColumns) {
     return (
-      <div className='text-muted-foreground py-8 text-center'>
-        Teams and projects are not enabled for this event.
-      </div>
+      <div className='text-muted-foreground py-8 text-center'>Teams and projects are not enabled for this event.</div>
     );
   }
 
   if (loading) {
-    return (
-      <div className='text-muted-foreground py-8 text-center'>Loading...</div>
-    );
+    return <div className='text-muted-foreground py-8 text-center'>Loading...</div>;
   }
 
   if (loadError) {
@@ -567,19 +502,14 @@ export function TeamsPage({
     <Card className='space-y-4 p-6'>
       <div>
         <h2 className='text-lg font-semibold'>
-          {showTeams && showProjectColumns
-            ? 'Teams & projects'
-            : showTeams
-              ? 'Teams'
-              : 'Projects'}
+          {showTeams && showProjectColumns ? 'Teams & projects' : showTeams ? 'Teams' : 'Projects'}
         </h2>
         {showTeams && (
           <p className='text-muted-foreground mt-1 text-sm'>
             {teamRows.length} formed team{teamRows.length !== 1 ? 's' : ''}
             {maxTeamSize != null ? ` · max size ${maxTeamSize}` : ''}
             {' · '}
-            <span className={NOT_CHECKED_IN_CLASS}>Underlined</span> members
-            haven&apos;t checked in
+            <span className={NOT_CHECKED_IN_CLASS}>Underlined</span> members haven&apos;t checked in
           </p>
         )}
       </div>
@@ -587,58 +517,35 @@ export function TeamsPage({
       <DataTable
         columns={columns}
         data={rows}
-        searchPlaceholder={
-          showProjectColumns
-            ? 'Search teams and projects...'
-            : 'Search teams...'
-        }
-        emptyMessage={
-          showTeams
-            ? 'No formed teams yet.'
-            : 'No team has started a project yet.'
-        }
-        initialSorting={
-          showJudging
-            ? [{ id: 'table', desc: false }]
-            : [{ id: 'memberCount', desc: true }]
-        }
+        searchPlaceholder={showProjectColumns ? 'Search teams and projects...' : 'Search teams...'}
+        emptyMessage={showTeams ? 'No formed teams yet.' : 'No team has started a project yet.'}
+        initialSorting={showJudging ? [{ id: 'table', desc: false }] : [{ id: 'memberCount', desc: true }]}
       />
 
       <Dialog open={showDetails} onOpenChange={setShowDetails}>
         <DialogContent className='max-h-[90vh] max-w-lg overflow-y-auto'>
           <DialogHeader>
             <DialogTitle>Team roster</DialogTitle>
-            <DialogDescription>
-              Led by {selectedTeam?.organizerName}
-            </DialogDescription>
+            <DialogDescription>Led by {selectedTeam?.organizerName}</DialogDescription>
           </DialogHeader>
 
           {selectedTeam && (
             <ul className='space-y-2'>
               {selectedTeam.members.map((member) => (
-                <li
-                  key={member.userId}
-                  className='flex items-center justify-between gap-2 rounded-md border p-2'
-                >
+                <li key={member.userId} className='flex items-center justify-between gap-2 rounded-md border p-2'>
                   <div className='min-w-0'>
                     <p className='truncate text-sm font-medium'>
                       <span
-                        className={
-                          member.checkedIn ? undefined : NOT_CHECKED_IN_CLASS
-                        }
+                        className={member.checkedIn ? undefined : NOT_CHECKED_IN_CLASS}
                         title={member.checkedIn ? undefined : 'Not checked in'}
                       >
                         {member.name}
                       </span>
                     </p>
-                    <p className='text-muted-foreground truncate text-xs'>
-                      {member.email}
-                    </p>
+                    <p className='text-muted-foreground truncate text-xs'>{member.email}</p>
                   </div>
                   <div className='flex shrink-0 items-center gap-2'>
-                    {member.isOrganizer && (
-                      <Badge variant='outline'>Organizer</Badge>
-                    )}
+                    {member.isOrganizer && <Badge variant='outline'>Organizer</Badge>}
                     {canModerate && (
                       <Button
                         type='button'
@@ -646,9 +553,7 @@ export function TeamsPage({
                         size='icon'
                         aria-label={`Remove ${member.name}`}
                         disabled={removingUserId === member.userId}
-                        onClick={() =>
-                          handleRemove(selectedTeam.teamId, member.userId)
-                        }
+                        onClick={() => handleRemove(selectedTeam.teamId, member.userId)}
                       >
                         <UserMinus className='size-4' />
                       </Button>

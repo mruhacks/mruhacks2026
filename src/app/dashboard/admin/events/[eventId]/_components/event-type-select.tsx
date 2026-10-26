@@ -1,12 +1,6 @@
 'use client';
 
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { EventTypeOption } from '@/lib/event-types';
 
 const NONE = 'none';
@@ -35,11 +29,7 @@ export function EventTypeSelect({
       <SelectContent>
         <SelectItem value={NONE}>None</SelectItem>
         {options.map((type) => (
-          <SelectItem
-            key={type.id}
-            value={String(type.id)}
-            className='capitalize'
-          >
+          <SelectItem key={type.id} value={String(type.id)} className='capitalize'>
             {type.label}
           </SelectItem>
         ))}

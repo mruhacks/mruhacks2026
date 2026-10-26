@@ -1,27 +1,16 @@
 import * as React from 'react';
 import { redirect } from 'next/navigation';
-import {
-  CalendarCheck,
-  CircleCheckBig,
-  Gavel,
-  ThumbsUp,
-  Trophy,
-  Users,
-  Utensils,
-} from 'lucide-react';
+import { CalendarCheck, CircleCheckBig, Gavel, ThumbsUp, Trophy, Users, Utensils } from 'lucide-react';
 
 import { getAdminEventHeader, getEventSummaryCounts } from '@/lib/admin-event';
-import { getDietaryExpectedCount } from '@/lib/dietary/load';
+import * as Dietary from '@/lib/dietary/server';
 import { resolveEventId } from '@/lib/events';
-import { getJudgingTileCounts } from '@/lib/judging/server';
-import {
-  isSubmissionsEnabled,
-  type SubmissionEventFields,
-} from '@/lib/submissions';
-import { hasPermission } from '@/lib/rbac/authorization';
+import * as Judging from '@/lib/judging/server';
+import { isSubmissionsEnabled, type SubmissionEventFields } from '@/lib/submissions';
+import * as Rbac from '@/lib/rbac/server';
 import { getUser } from '@/utils/auth';
 
-import { StatTile, StatTileSkeleton } from '../../_components/stat-tile';
+import { StatTile, StatTileSkeleton } from '@/app/dashboard/admin/events/[eventId]/_components/stat-tile';
 
 type Props = { params: Promise<{ eventId: string }> };
 
@@ -38,11 +27,7 @@ export default function SummaryCell({ params }: Props) {
 }
 
 function TileGrid({ children }: { children: React.ReactNode }) {
-  return (
-    <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5'>
-      {children}
-    </div>
-  );
+  return <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5'>{children}</div>;
 }
 
 function SummaryTilesSkeleton() {
@@ -75,11 +60,7 @@ function judgingTileVisibility(
   };
 }
 
-async function SummaryTiles({
-  paramsPromise,
-}: {
-  paramsPromise: Promise<{ eventId: string }>;
-}) {
+async function SummaryTiles({ paramsPromise }: { paramsPromise: Promise<{ eventId: string }> }) {
   const { eventId: segment } = await paramsPromise;
   const eventId = await resolveEventId(segment);
   if (!eventId) return null;
@@ -90,9 +71,9 @@ async function SummaryTiles({
   // never a shared "is this an admin" bundle, so a check-in volunteer with
   // no team access still sees their own tile. See AGENTS.md.
   const eventPromise = getAdminEventHeader(eventId);
-  const canManageJudgingPromise = hasPermission(user.id, 'judging:manage:all');
-  const canViewResultsPromise = hasPermission(user.id, 'judging:results:all');
-  const canAwardPromise = hasPermission(user.id, 'judging:award:all');
+  const canManageJudgingPromise = Rbac.hasPermission(user.id, 'judging:manage:all');
+  const canViewResultsPromise = Rbac.hasPermission(user.id, 'judging:results:all');
+  const canAwardPromise = Rbac.hasPermission(user.id, 'judging:award:all');
   // The judging counts only feed the Judges and results tiles, so they're
   // fetched only once those tiles are known to be visible — chained off the
   // same checks rather than awaited after them, so a viewer who does see
@@ -109,9 +90,7 @@ async function SummaryTiles({
       canViewResults,
       canAward,
     });
-    return visible.showJudging || visible.showResults
-      ? getJudgingTileCounts(eventId)
-      : null;
+    return visible.showJudging || visible.showResults ? Judging.getJudgingTileCounts(eventId) : null;
   });
 
   const [
@@ -131,13 +110,13 @@ async function SummaryTiles({
   ] = await Promise.all([
     eventPromise,
     getEventSummaryCounts(eventId),
-    getDietaryExpectedCount(eventId),
-    hasPermission(user.id, 'application:read:all'),
-    hasPermission(user.id, 'checkin:write:all'),
-    hasPermission(user.id, 'team:read:all'),
-    hasPermission(user.id, 'rsvp:read:all'),
-    hasPermission(user.id, 'dietary:read:all'),
-    hasPermission(user.id, 'submission:read:all'),
+    Dietary.getDietaryExpectedCount(eventId),
+    Rbac.hasPermission(user.id, 'application:read:all'),
+    Rbac.hasPermission(user.id, 'checkin:write:all'),
+    Rbac.hasPermission(user.id, 'team:read:all'),
+    Rbac.hasPermission(user.id, 'rsvp:read:all'),
+    Rbac.hasPermission(user.id, 'dietary:read:all'),
+    Rbac.hasPermission(user.id, 'submission:read:all'),
     canManageJudgingPromise,
     canViewResultsPromise,
     canAwardPromise,
@@ -184,10 +163,7 @@ async function SummaryTiles({
         <StatTile
           icon={<ThumbsUp className='size-4' />}
           label={event.hasApplication ? 'Applications' : 'Registered'}
-          value={(event.hasApplication
-            ? counts.applications
-            : counts.attendees
-          ).toLocaleString()}
+          value={(event.hasApplication ? counts.applications : counts.attendees).toLocaleString()}
           href={`${base}/applications`}
         />
       )}
@@ -215,24 +191,16 @@ async function SummaryTiles({
         <StatTile
           icon={<Users className='size-4' />}
           label={showTeams ? 'Teams' : 'Projects'}
-          value={(showTeams
-            ? counts.teams
-            : counts.submissions.published
-          ).toLocaleString()}
+          value={(showTeams ? counts.teams : counts.submissions.published).toLocaleString()}
           footnote={
             showProjects ? (
               <>
                 {showTeams && (
                   <>
-                    <strong className='text-foreground'>
-                      {counts.submissions.published}
-                    </strong>{' '}
-                    projects ·{' '}
+                    <strong className='text-foreground'>{counts.submissions.published}</strong> projects ·{' '}
                   </>
                 )}
-                <strong className='text-foreground'>
-                  {counts.submissions.total - counts.submissions.published}
-                </strong>{' '}
+                <strong className='text-foreground'>{counts.submissions.total - counts.submissions.published}</strong>{' '}
                 still drafts
               </>
             ) : undefined
@@ -248,12 +216,8 @@ async function SummaryTiles({
           value={counts.rsvp.accepted.toLocaleString()}
           footnote={
             <>
-              <strong className='text-foreground'>{counts.rsvp.pending}</strong>{' '}
-              pending ·{' '}
-              <strong className='text-foreground'>
-                {counts.rsvp.declined}
-              </strong>{' '}
-              declined
+              <strong className='text-foreground'>{counts.rsvp.pending}</strong> pending ·{' '}
+              <strong className='text-foreground'>{counts.rsvp.declined}</strong> declined
             </>
           }
           href={`${base}/rsvp`}

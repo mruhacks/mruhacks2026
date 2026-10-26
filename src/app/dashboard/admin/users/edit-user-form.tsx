@@ -30,25 +30,15 @@ interface EditUserFormProps {
   /** Null when the viewer can't read roles: the Roles tab is hidden. */
   allRoles: { id: number; slug: string | null }[] | null;
   /** Null when the viewer can't read permissions: that tab is hidden. */
-  allPermissions:
-    | { id: number; slug: string; description: string | null }[]
-    | null;
+  allPermissions: { id: number; slug: string; description: string | null }[] | null;
   onSaved: () => void;
   footer?: React.ReactNode;
 }
 
-export function EditUserForm({
-  user,
-  allRoles,
-  allPermissions,
-  onSaved,
-  footer,
-}: EditUserFormProps) {
+export function EditUserForm({ user, allRoles, allPermissions, onSaved, footer }: EditUserFormProps) {
   const [name, setName] = React.useState(user.name);
   const [emailVerified, setEmailVerified] = React.useState(user.emailVerified);
-  const [selectedRoleIds, setSelectedRoleIds] = React.useState<Set<number>>(
-    new Set(user.roles.map((r) => r.id)),
-  );
+  const [selectedRoleIds, setSelectedRoleIds] = React.useState<Set<number>>(new Set(user.roles.map((r) => r.id)));
   const [selectedPermIds, setSelectedPermIds] = React.useState<Set<number>>(
     new Set(user.directPermissions.map((p) => p.id)),
   );
@@ -56,16 +46,14 @@ export function EditUserForm({
   const [settingPassword, setSettingPassword] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
 
-  const toggle =
-    (setter: React.Dispatch<React.SetStateAction<Set<number>>>) =>
-    (id: number, checked: boolean) => {
-      setter((prev) => {
-        const next = new Set(prev);
-        if (checked) next.add(id);
-        else next.delete(id);
-        return next;
-      });
-    };
+  const toggle = (setter: React.Dispatch<React.SetStateAction<Set<number>>>) => (id: number, checked: boolean) => {
+    setter((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -80,10 +68,7 @@ export function EditUserForm({
     }
     // A tab the viewer can't see has nothing to save.
     if (allRoles) {
-      const rolesRes = await updateUserRoles(
-        user.id,
-        Array.from(selectedRoleIds),
-      );
+      const rolesRes = await updateUserRoles(user.id, Array.from(selectedRoleIds));
       if (!rolesRes.success) {
         setSaving(false);
         toast.error(rolesRes.error);
@@ -91,10 +76,7 @@ export function EditUserForm({
       }
     }
     if (allPermissions) {
-      const permsRes = await updateUserDirectPermissions(
-        user.id,
-        Array.from(selectedPermIds),
-      );
+      const permsRes = await updateUserDirectPermissions(user.id, Array.from(selectedPermIds));
       if (!permsRes.success) {
         setSaving(false);
         toast.error(permsRes.error);
@@ -128,59 +110,39 @@ export function EditUserForm({
         <TabsList className='flex w-full'>
           <TabsTrigger value='profile'>Profile</TabsTrigger>
           {allRoles && <TabsTrigger value='roles'>Roles</TabsTrigger>}
-          {allPermissions && (
-            <TabsTrigger value='permissions'>Direct perms</TabsTrigger>
-          )}
+          {allPermissions && <TabsTrigger value='permissions'>Direct perms</TabsTrigger>}
           <TabsTrigger value='password'>Password</TabsTrigger>
         </TabsList>
 
         <TabsContent value='profile' className='space-y-4 pt-4'>
           <div className='space-y-2'>
             <Label htmlFor='edit-user-name'>Name</Label>
-            <Input
-              id='edit-user-name'
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
+            <Input id='edit-user-name' value={name} onChange={(e) => setName(e.target.value)} />
           </div>
           <div className='space-y-2'>
             <Label>Email</Label>
             <Input value={user.email} disabled />
           </div>
           <label className='flex items-center gap-2 text-sm'>
-            <Checkbox
-              checked={emailVerified}
-              onCheckedChange={(v) => setEmailVerified(Boolean(v))}
-            />
+            <Checkbox checked={emailVerified} onCheckedChange={(v) => setEmailVerified(Boolean(v))} />
             Email verified
           </label>
         </TabsContent>
 
         {allRoles && (
           <TabsContent value='roles' className='space-y-3 pt-4'>
-            <p className='text-muted-foreground text-xs'>
-              A user inherits every permission of the roles they hold.
-            </p>
+            <p className='text-muted-foreground text-xs'>A user inherits every permission of the roles they hold.</p>
             <div className='max-h-72 space-y-2 overflow-y-auto rounded-md border p-3'>
               {allRoles.map((r) => (
-                <label
-                  key={r.id}
-                  className='hover:bg-muted/50 flex items-center gap-2 rounded-md p-1 text-sm'
-                >
+                <label key={r.id} className='hover:bg-muted/50 flex items-center gap-2 rounded-md p-1 text-sm'>
                   <Checkbox
                     checked={selectedRoleIds.has(r.id)}
-                    onCheckedChange={(v) =>
-                      toggle(setSelectedRoleIds)(r.id, Boolean(v))
-                    }
+                    onCheckedChange={(v) => toggle(setSelectedRoleIds)(r.id, Boolean(v))}
                   />
                   <span className='font-medium'>{r.slug ?? 'unnamed'}</span>
                 </label>
               ))}
-              {allRoles.length === 0 && (
-                <div className='text-muted-foreground text-xs'>
-                  No roles defined.
-                </div>
-              )}
+              {allRoles.length === 0 && <div className='text-muted-foreground text-xs'>No roles defined.</div>}
             </div>
           </TabsContent>
         )}
@@ -188,36 +150,24 @@ export function EditUserForm({
         {allPermissions && (
           <TabsContent value='permissions' className='space-y-3 pt-4'>
             <p className='text-muted-foreground text-xs'>
-              Grant ad-hoc permissions beyond what the user&apos;s roles
-              provide. Prefer role-based grants.
+              Grant ad-hoc permissions beyond what the user&apos;s roles provide. Prefer role-based grants.
             </p>
             <div className='max-h-72 space-y-2 overflow-y-auto rounded-md border p-3'>
               {allPermissions.map((p) => (
-                <label
-                  key={p.id}
-                  className='hover:bg-muted/50 flex items-start gap-2 rounded-md p-1 text-sm'
-                >
+                <label key={p.id} className='hover:bg-muted/50 flex items-start gap-2 rounded-md p-1 text-sm'>
                   <Checkbox
                     checked={selectedPermIds.has(p.id)}
-                    onCheckedChange={(v) =>
-                      toggle(setSelectedPermIds)(p.id, Boolean(v))
-                    }
+                    onCheckedChange={(v) => toggle(setSelectedPermIds)(p.id, Boolean(v))}
                     className='mt-0.5'
                   />
                   <span>
                     <span className='font-mono font-medium'>{p.slug}</span>
-                    {p.description && (
-                      <span className='text-muted-foreground block text-xs'>
-                        {p.description}
-                      </span>
-                    )}
+                    {p.description && <span className='text-muted-foreground block text-xs'>{p.description}</span>}
                   </span>
                 </label>
               ))}
               {allPermissions.length === 0 && (
-                <div className='text-muted-foreground text-xs'>
-                  No permissions defined.
-                </div>
+                <div className='text-muted-foreground text-xs'>No permissions defined.</div>
               )}
             </div>
           </TabsContent>
@@ -225,8 +175,7 @@ export function EditUserForm({
 
         <TabsContent value='password' className='space-y-4 pt-4'>
           <p className='text-muted-foreground text-xs'>
-            Set a new password directly for this user. The change takes effect
-            immediately.
+            Set a new password directly for this user. The change takes effect immediately.
           </p>
           <div className='space-y-2'>
             <Label htmlFor='edit-user-password'>New password</Label>
@@ -238,11 +187,7 @@ export function EditUserForm({
               placeholder='Min. 8 characters'
             />
           </div>
-          <Button
-            onClick={handleSetPassword}
-            disabled={settingPassword || newPassword.length === 0}
-            size='sm'
-          >
+          <Button onClick={handleSetPassword} disabled={settingPassword || newPassword.length === 0} size='sm'>
             {settingPassword ? 'Saving…' : 'Set password'}
           </Button>
         </TabsContent>
