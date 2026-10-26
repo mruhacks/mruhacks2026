@@ -2,6 +2,7 @@
  * Tests for the homepage project showcase: src/lib/project-showcase.ts.
  * The podium shows 1st–3rd; everything else must come back alphabetically,
  * never in placement order — and published projects' images are public.
+ * None of it is public until all three podium places are awarded.
  */
 import { afterAll, describe, expect, test, vi } from 'vitest';
 import { inArray } from 'drizzle-orm';
@@ -84,6 +85,13 @@ async function makeProject(
   return s.id;
 }
 
+/** Awards 1st–3rd in `eventId`, which is what makes its projects public. */
+async function makePodium(eventId: string): Promise<void> {
+  for (const placement of [1, 2, 3]) {
+    await makeProject(eventId, `Podium ${placement}`, { placement });
+  }
+}
+
 describe('loadProjectShowcase', () => {
   test('podium in place order; the full list alphabetical, not by placement', async () => {
     const eventId = await makeEvent();
@@ -101,9 +109,9 @@ describe('loadProjectShowcase', () => {
 
     const showcase = await loadProjectShowcase(eventId);
 
-    expect(showcase.podium?.map((p) => p.id)).toEqual([first, second, third]);
-    expect(showcase.podium?.[0].members).toEqual(['Ada', 'Grace']);
-    expect(showcase.projects.map((p) => p.title)).toEqual([
+    expect(showcase?.podium.map((p) => p.id)).toEqual([first, second, third]);
+    expect(showcase?.podium[0].members).toEqual(['Ada', 'Grace']);
+    expect(showcase?.projects.map((p) => p.title)).toEqual([
       'Alpha',
       'Bravo',
       'Charlie',
@@ -112,22 +120,19 @@ describe('loadProjectShowcase', () => {
       'Gamma',
       'Zeta',
     ]);
-    for (const project of [...showcase.podium!, ...showcase.projects]) {
+    for (const project of [...showcase!.podium, ...showcase!.projects]) {
       expect(project).not.toHaveProperty('placement');
       expect(project).not.toHaveProperty('teamId');
     }
   });
 
-  test('no podium until all three places are awarded', async () => {
+  test('nothing until all three places are awarded', async () => {
     const eventId = await makeEvent();
     await makeProject(eventId, 'Beta', { placement: 1 });
     await makeProject(eventId, 'Alpha', { placement: 2 });
     await makeProject(eventId, 'Gamma');
 
-    const showcase = await loadProjectShowcase(eventId);
-
-    expect(showcase.podium).toBeNull();
-    expect(showcase.projects.map((p) => p.title)).toEqual(['Alpha', 'Beta', 'Gamma']);
+    expect(await loadProjectShowcase(eventId)).toBeNull();
   });
 
   test('leaves out drafts and deactivated projects', async () => {
@@ -135,10 +140,11 @@ describe('loadProjectShowcase', () => {
     await makeProject(eventId, 'Draft', { published: false });
     await makeProject(eventId, 'Disqualified', { deactivated: true });
     await makeProject(eventId, 'Shipped');
+    await makePodium(eventId);
 
     const showcase = await loadProjectShowcase(eventId);
 
-    expect(showcase.projects.map((p) => p.title)).toEqual(['Shipped']);
+    expect(showcase?.projects.map((p) => p.title)).toEqual(['Podium 1', 'Podium 2', 'Podium 3', 'Shipped']);
   });
 });
 
@@ -152,11 +158,20 @@ describe('isPublicSubmissionImage', () => {
     const disqualified = await makeProject(eventId, 'Disqualified', {
       deactivated: true,
     });
+    await makePodium(eventId);
 
     expect(await isPublicSubmissionImage(imageKey(shipped))).toBe(true);
     expect(await isPublicSubmissionImage(imageKey(draft))).toBe(false);
     expect(await isPublicSubmissionImage(imageKey(disqualified))).toBe(false);
     expect(await isPublicSubmissionImage(imageKey(crypto.randomUUID()))).toBe(false);
+  });
+
+  test('not until the podium is complete', async () => {
+    const eventId = await makeEvent();
+    const shipped = await makeProject(eventId, 'Shipped', { placement: 1 });
+    await makeProject(eventId, 'Runner-up', { placement: 2 });
+
+    expect(await isPublicSubmissionImage(imageKey(shipped))).toBe(false);
   });
 });
 
@@ -171,6 +186,7 @@ describe('getPublicProject', () => {
     const disqualified = await makeProject(eventId, 'Disqualified', {
       deactivated: true,
     });
+    await makePodium(eventId);
 
     const project = await getPublicProject(shipped);
     expect(project).toMatchObject({
@@ -185,5 +201,16 @@ describe('getPublicProject', () => {
     expect(await getPublicProject(draft)).toBeNull();
     expect(await getPublicProject(disqualified)).toBeNull();
     expect(await getPublicProject('not-a-uuid')).toBeNull();
+  });
+
+  test('null until the podium is complete', async () => {
+    const eventId = await makeEvent();
+    const first = await makeProject(eventId, 'First', { placement: 1 });
+    await makeProject(eventId, 'Second', { placement: 2 });
+
+    expect(await getPublicProject(first)).toBeNull();
+
+    await makeProject(eventId, 'Third', { placement: 3 });
+    expect(await getPublicProject(first)).toMatchObject({ id: first });
   });
 });

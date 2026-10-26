@@ -10,15 +10,15 @@ import { ProjectBackLink, ProjectBackLinkFallback } from './back-link';
 
 /**
  * Every gallery project is prerendered; one published later gets its static
- * page on first visit. Cache Components needs at least one param, so with
- * nothing published yet the route is validated against a 404.
+ * page on first visit. Cache Components needs at least one param, so until
+ * the podium is complete the route is validated against a 404.
  */
 export async function generateStaticParams() {
-  const { projects } = await getProjectShowcase();
-  if (projects.length === 0) {
+  const showcase = await getProjectShowcase();
+  if (!showcase) {
     return [{ projectId: '00000000-0000-0000-0000-000000000000' }];
   }
-  return projects.map((project) => ({ projectId: project.id }));
+  return showcase.projects.map((project) => ({ projectId: project.id }));
 }
 
 export async function generateMetadata({ params }: PageProps<'/projects/[projectId]'>): Promise<Metadata> {
@@ -32,8 +32,8 @@ export async function generateMetadata({ params }: PageProps<'/projects/[project
 }
 
 /**
- * A published project's public page: its banner and full write-up. Never
- * shows placement. `params` is awaited outside any Suspense boundary so each
+ * A published project's public page: its banner and full write-up. A 404
+ * until its event's podium is complete. Never shows placement. `params` is awaited outside any Suspense boundary so each
  * project gets its own static page.
  */
 export default async function ProjectPage({ params }: PageProps<'/projects/[projectId]'>) {

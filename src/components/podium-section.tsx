@@ -33,8 +33,8 @@ const PLACES = [
  *
  * Project showcase for the homepage: the top three projects arranged as a
  * podium (2nd, 1st, 3rd) on desktop and stacked in placement order on
- * mobile, linking to `/projects` for the rest. Hidden until the featured
- * event has a public project.
+ * mobile, linking to `/projects` for the rest. Hidden until all three of
+ * the featured event's podium places are awarded.
  *
  * Data comes from `getProjectShowcase` (`'use cache'`), so the section is
  * part of the homepage's prerendered static shell.
@@ -42,23 +42,19 @@ const PLACES = [
  * @returns section for the project showcase
  */
 export async function Podium() {
-  const { podium, projects } = await getProjectShowcase();
-  if (projects.length === 0) return null;
+  const showcase = await getProjectShowcase();
+  if (!showcase) return null;
 
   return (
     <div className='flex w-full flex-col items-center'>
-      {podium && (
-        <>
-          <h2 className='text-pre-title-purple mb-6 text-sm font-semibold sm:mb-10 sm:text-base'>Meet the Winners</h2>
-          <ol className='grid w-full max-w-sm grid-cols-1 gap-4 md:max-w-4xl md:grid-cols-3 md:items-end'>
-            {podium.map((project, i) => (
-              <PodiumCard key={project.id} project={project} place={PLACES[i]} />
-            ))}
-          </ol>
-        </>
-      )}
+      <h2 className='text-pre-title-purple mb-6 text-sm font-semibold sm:mb-10 sm:text-base'>Meet the Winners</h2>
+      <ol className='grid w-full max-w-sm grid-cols-1 gap-4 md:max-w-4xl md:grid-cols-3 md:items-end'>
+        {showcase.podium.map((project, i) => (
+          <PodiumCard key={project.id} project={project} place={PLACES[i]} />
+        ))}
+      </ol>
 
-      <Button asChild variant='ghost' size='lg' className={cn('ring-1 ring-(--ink-200) ring-inset', podium && 'mt-10')}>
+      <Button asChild variant='ghost' size='lg' className='mt-10 ring-1 ring-(--ink-200) ring-inset'>
         <Link href='/projects'>
           View all projects
           <ArrowRightIcon aria-hidden />
