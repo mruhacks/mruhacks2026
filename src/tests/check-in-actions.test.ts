@@ -11,6 +11,7 @@ import { and, eq } from 'drizzle-orm';
 
 import * as schema from '@/db/schema';
 import { insertAttendees, insertParticipant } from '@/tests/participation-fixtures';
+import { MEAL_EVENT_TYPE } from '@/types/lookups';
 import { db } from '@/utils/db';
 
 vi.mock('@/utils/auth', () => ({ getUser: vi.fn() }));
@@ -717,6 +718,77 @@ describe('sub-event check-in', () => {
         .where(and(eq(schema.userPermission.userId, scanner.id), eq(schema.userPermission.permissionId, overrideId)));
       if (created) {
         await db.delete(schema.permission).where(eq(schema.permission.id, overrideId));
+      }
+    }
+  });
+
+  test('a meal check-in carries dietary restrictions only with dietary:read:all', async () => {
+    async function upsertId(
+      table: typeof schema.eventTypes | typeof schema.dietaryRestrictions,
+      label: string,
+    ): Promise<number> {
+      const [inserted] = await db.insert(table).values({ label }).onConflictDoNothing().returning({ id: table.id });
+      if (inserted) return inserted.id;
+      const [existing] = await db.select({ id: table.id }).from(table).where(eq(table.label, label)).limit(1);
+      return existing!.id;
+    }
+
+    const mealTypeId = await upsertId(schema.eventTypes, MEAL_EVENT_TYPE);
+    const veganId = await upsertId(schema.dietaryRestrictions, 'Vegan');
+    const [createdPerm] = await db
+      .insert(schema.permission)
+      .values({ slug: 'dietary:read:all' })
+      .onConflictDoNothing()
+      .returning({ id: schema.permission.id });
+    const dietaryPermId =
+      createdPerm?.id ??
+      (
+        await db
+          .select({ id: schema.permission.id })
+          .from(schema.permission)
+          .where(eq(schema.permission.slug, 'dietary:read:all'))
+          .limit(1)
+      )[0]!.id;
+
+    await db.update(schema.events).set({ eventTypeId: mealTypeId }).where(eq(schema.events.id, childEventId));
+    await db
+      .insert(schema.userDietaryRestrictions)
+      .values({ userId: participantId, restrictionId: veganId })
+      .onConflictDoNothing();
+
+    try {
+      await clearAll();
+      await atDoor();
+
+      // Without the permission the scan still works, it just says nothing
+      // about what they eat.
+      const hidden = await scanCheckIn(eventId, passFor(eventId, participantId), childEventId);
+      expect(hidden).toMatchObject({ success: true, data: { dietary: null } });
+
+      await db
+        .insert(schema.userPermission)
+        .values({ userId: scanner.id, permissionId: dietaryPermId })
+        .onConflictDoNothing();
+
+      const shown = await scanCheckIn(eventId, passFor(eventId, participantId), childEventId);
+      expect(shown).toMatchObject({
+        success: true,
+        data: { dietary: { restrictions: ['Vegan'], otherText: null } },
+      });
+
+      // The door isn't a meal, so it stays quiet even with the permission.
+      const door = await scanCheckIn(eventId, passFor(eventId, participantId));
+      expect(door).toMatchObject({ success: true, data: { dietary: null } });
+    } finally {
+      await db.update(schema.events).set({ eventTypeId: null }).where(eq(schema.events.id, childEventId));
+      await db.delete(schema.userDietaryRestrictions).where(eq(schema.userDietaryRestrictions.userId, participantId));
+      await db
+        .delete(schema.userPermission)
+        .where(
+          and(eq(schema.userPermission.userId, scanner.id), eq(schema.userPermission.permissionId, dietaryPermId)),
+        );
+      if (createdPerm) {
+        await db.delete(schema.permission).where(eq(schema.permission.id, dietaryPermId));
       }
     }
   });

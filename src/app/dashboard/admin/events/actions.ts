@@ -1040,6 +1040,7 @@ type FormedTeamMember = {
   name: string;
   email: string;
   isOrganizer: boolean;
+  checkedIn: boolean;
 };
 
 export type FormedTeamRow = {
@@ -1093,7 +1094,7 @@ async function listFormedTeams(eventId: string): Promise<ActionResult<FormedTeam
   const teamIds = formedTeams.map((t) => t.teamId);
   const countByTeamId = new Map(formedTeams.map((t) => [t.teamId, t.memberCount]));
 
-  const [teamRows, memberRows] = await Promise.all([
+  const [teamRows, memberRows, checkInRows] = await Promise.all([
     db
       .select({ id: schema.teams.id, organizerId: schema.teams.organizerId })
       .from(schema.teams)
@@ -1108,8 +1109,14 @@ async function listFormedTeams(eventId: string): Promise<ActionResult<FormedTeam
       .from(schema.teamMembers)
       .innerJoin(schema.user, eq(schema.teamMembers.userId, schema.user.id))
       .where(inArray(schema.teamMembers.teamId, teamIds)),
+    db
+      .select({ userId: schema.checkIns.userId })
+      .from(schema.checkIns)
+      .innerJoin(schema.teamMembers, eq(schema.teamMembers.userId, schema.checkIns.userId))
+      .where(and(eq(schema.checkIns.eventId, eventId), inArray(schema.teamMembers.teamId, teamIds))),
   ]);
 
+  const checkedInUserIds = new Set(checkInRows.map((r) => r.userId));
   const membersByTeamId = new Map<string, FormedTeamMember[]>();
   for (const row of memberRows) {
     const list = membersByTeamId.get(row.teamId) ?? [];
@@ -1118,6 +1125,7 @@ async function listFormedTeams(eventId: string): Promise<ActionResult<FormedTeam
       name: row.name,
       email: row.email,
       isOrganizer: false,
+      checkedIn: checkedInUserIds.has(row.userId),
     });
     membersByTeamId.set(row.teamId, list);
   }

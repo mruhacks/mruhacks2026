@@ -4,8 +4,9 @@
  * coverage report as "thin wrappers" but still worth testing directly since
  * each one makes its own access-control decision:
  *
- *  - /api/assets/[...key]: public for profile pictures, session-gated for
- *    event/wiki attachments, 404 for anything else.
+ *  - /api/assets/[...key]: public for profile pictures and published
+ *    projects' images, session-gated for event/wiki attachments and drafts'
+ *    images, 404 for anything else.
  *  - /api/profile/resume: session-gated, and always scoped to the caller's
  *    own profile row (no user id is ever accepted as input).
  *  - /api/health: unauthenticated/under-permissioned callers get only
@@ -45,6 +46,13 @@ vi.mock('@/utils/object-storage', async (importOriginal) => ({
 // is covered separately in wallet-pass.test.ts — here we only care whether
 // the route decides to call this at all.
 const generateParticipantPass = vi.fn();
+// Whether a submission is published is covered in project-showcase.test.ts;
+// here we only care what the route does with the answer.
+const isPublicSubmissionImage = vi.fn<(key: string) => Promise<boolean>>();
+vi.mock('@/lib/project-showcase', () => ({
+  isPublicSubmissionImage: (key: string) => isPublicSubmissionImage(key),
+}));
+
 vi.mock('@/lib/wallet/generate-pass', () => ({
   generateParticipantPass: (...args: unknown[]) => generateParticipantPass(...args),
 }));
@@ -73,6 +81,7 @@ import { GET as getWalletGoogle } from '@/app/api/wallet/google/[eventId]/route'
 
 const NIL_UUID = '00000000-0000-0000-0000-000000000000';
 const ATTACHMENT_KEY = `event-content/${NIL_UUID}/${NIL_UUID}.png`;
+const SUBMISSION_KEY = `submission-content/${NIL_UUID}/${NIL_UUID}.png`;
 
 // ─── /api/assets/[...key] ───────────────────────────────────────────────────
 
@@ -81,6 +90,7 @@ describe('/api/assets/[...key] GET', () => {
     vi.mocked(getUser).mockReset();
     eventAttachmentRedirect.mockReset();
     profilePictureRedirect.mockReset();
+    isPublicSubmissionImage.mockReset();
   });
 
   test('serves profile pictures without a session', async () => {
@@ -110,6 +120,48 @@ describe('/api/assets/[...key] GET', () => {
     });
     expect(res.status).toBe(302);
     expect(eventAttachmentRedirect).toHaveBeenCalledWith(ATTACHMENT_KEY);
+  });
+
+  test("serves a published project's image without a session", async () => {
+    vi.mocked(getUser).mockResolvedValue(null as never);
+    isPublicSubmissionImage.mockResolvedValue(true);
+    eventAttachmentRedirect.mockResolvedValue(new Response(null, { status: 302 }));
+    const res = await getAsset(new Request('http://x'), {
+      params: Promise.resolve({ key: SUBMISSION_KEY.split('/') }),
+    });
+    expect(res.status).toBe(302);
+    expect(isPublicSubmissionImage).toHaveBeenCalledWith(SUBMISSION_KEY);
+    expect(eventAttachmentRedirect).toHaveBeenCalledWith(SUBMISSION_KEY);
+  });
+
+  test("rejects a draft's image when unauthenticated", async () => {
+    vi.mocked(getUser).mockResolvedValue(null as never);
+    isPublicSubmissionImage.mockResolvedValue(false);
+    const res = await getAsset(new Request('http://x'), {
+      params: Promise.resolve({ key: SUBMISSION_KEY.split('/') }),
+    });
+    expect(res.status).toBe(404);
+    expect(eventAttachmentRedirect).not.toHaveBeenCalled();
+  });
+
+  test("serves a draft's image when authenticated", async () => {
+    vi.mocked(getUser).mockResolvedValue({ id: 'u1' } as never);
+    isPublicSubmissionImage.mockResolvedValue(false);
+    eventAttachmentRedirect.mockResolvedValue(new Response(null, { status: 302 }));
+    const res = await getAsset(new Request('http://x'), {
+      params: Promise.resolve({ key: SUBMISSION_KEY.split('/') }),
+    });
+    expect(res.status).toBe(302);
+  });
+
+  test('never treats an event attachment as public', async () => {
+    vi.mocked(getUser).mockResolvedValue(null as never);
+    isPublicSubmissionImage.mockResolvedValue(true);
+    const res = await getAsset(new Request('http://x'), {
+      params: Promise.resolve({ key: ATTACHMENT_KEY.split('/') }),
+    });
+    expect(res.status).toBe(404);
+    expect(isPublicSubmissionImage).not.toHaveBeenCalled();
   });
 
   test('rejects a key that is neither a profile picture nor an event attachment, authenticated or not', async () => {

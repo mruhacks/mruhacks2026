@@ -1,13 +1,15 @@
 import type * as React from 'react';
-import { AlertTriangle, Code2, Eye, EyeOff, Globe, PlayCircle } from 'lucide-react';
+import { AlertTriangle, Eye, EyeOff } from 'lucide-react';
 
 import { LocalDateTime } from '@/components/local-date-time';
+import { projectLinks } from '@/components/project-links';
 import { MarkdownContent } from '@/components/markdown/markdown-content';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { PROJECT_STAGE_COPY, PROJECT_VISIBILITY_COPY, type ProjectStage } from '@/lib/submission-copy';
 import { cn } from '@/lib/utils';
+import { ProjectCover } from './project-cover';
 
 /** Shown wherever a submission's last editor has since deleted their account. */
 export const DELETED_USER_LABEL = '[deleted user]';
@@ -19,10 +21,16 @@ export type SubmissionDisplay = {
   repoUrl: string | null;
   demoUrl: string | null;
   videoUrl: string | null;
-  published: boolean;
-  updatedAt: Date | string;
-  lastEditedByName: string | null;
-};
+  /** Shown as the Private/Public badge; left out on the public project page. */
+  published?: boolean;
+} & (
+  | {
+      /** With `lastEditedByName`, the "Last edited by" line. */
+      updatedAt: Date | string;
+      lastEditedByName: string | null;
+    }
+  | { updatedAt?: undefined; lastEditedByName?: undefined }
+);
 
 /**
  * "Private" / "Public", the same everywhere a submission's state shows. Only
@@ -138,23 +146,11 @@ export function SubmissionBanner({
         coverImageUrl && 'min-h-56 justify-end',
       )}
     >
-      {coverImageUrl ? (
-        <>
-          {/* Served from `/api/assets`, which needs the session cookie — see
-              MarkdownContent for why the Next image optimizer can't be used. */}
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={coverImageUrl} alt='' className='absolute inset-0 -z-10 size-full object-cover' />
-          <div
-            aria-hidden
-            className='from-background via-background/80 to-background/20 absolute inset-0 -z-10 bg-linear-to-t'
-          />
-        </>
-      ) : (
-        // The default avatar's brand gradient, washed right out.
+      <ProjectCover coverImageUrl={coverImageUrl} className='-z-10' />
+      {coverImageUrl && (
         <div
           aria-hidden
-          className='absolute inset-0 -z-10 opacity-10 dark:opacity-15'
-          style={{ background: 'var(--gradient-brand)' }}
+          className='from-background via-background/80 to-background/20 absolute inset-0 -z-10 bg-linear-to-t'
         />
       )}
       {action && <div className='absolute top-3 right-3'>{action}</div>}
@@ -168,7 +164,8 @@ export function SubmissionBanner({
 
 /**
  * A project submission, read-only: the team's view once the deadline has
- * frozen it, and the organizer view of any team's project. Rendered without
+ * frozen it, the organizer view of any team's project, and the public
+ * project page (which leaves out the status badge and edit history). Rendered without
  * embeds or raw HTML — participants, not organizers, write these.
  */
 export function SubmissionView({
@@ -185,17 +182,13 @@ export function SubmissionView({
   /** A line under the banner's links, e.g. "this is final". */
   notice?: React.ReactNode;
 }) {
-  const links = [
-    { href: submission.repoUrl, label: 'Repository', icon: Code2 },
-    { href: submission.demoUrl, label: 'Live demo', icon: Globe },
-    { href: submission.videoUrl, label: 'Video', icon: PlayCircle },
-  ].filter((link): link is typeof link & { href: string } => !!link.href);
+  const links = projectLinks(submission);
 
   return (
     <article className='flex flex-col gap-6'>
       <SubmissionBanner title={submission.title} coverImageUrl={submission.coverImageUrl} action={action}>
         <div className='flex flex-wrap items-center gap-2'>
-          <SubmissionStatusBadge published={submission.published} />
+          {submission.published !== undefined && <SubmissionStatusBadge published={submission.published} />}
           {links.map(({ href, label, icon: Icon }) => (
             <Button key={label} asChild variant='outline' size='icon-sm' className='bg-background/80 backdrop-blur-sm'>
               <a href={href} target='_blank' rel='noreferrer' aria-label={label} title={label}>
@@ -215,10 +208,12 @@ export function SubmissionView({
           <p className='text-muted-foreground text-sm'>No write-up yet.</p>
         )}
 
-        <p className='text-muted-foreground text-xs'>
-          Last edited by {submission.lastEditedByName ?? DELETED_USER_LABEL} on{' '}
-          <LocalDateTime value={submission.updatedAt} dateStyle='medium' timeStyle='short' />
-        </p>
+        {submission.updatedAt !== undefined && (
+          <p className='text-muted-foreground text-xs'>
+            Last edited by {submission.lastEditedByName ?? DELETED_USER_LABEL} on{' '}
+            <LocalDateTime value={submission.updatedAt} dateStyle='medium' timeStyle='short' />
+          </p>
+        )}
       </Card>
     </article>
   );

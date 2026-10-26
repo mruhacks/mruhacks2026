@@ -2,6 +2,7 @@ import { cacheLife, cacheTag } from 'next/cache';
 import { and, asc, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 
 import * as schema from '@/db/schema';
+import { MEAL_EVENT_TYPE } from '@/types/lookups';
 import { db } from '@/utils/db';
 
 export { isSubeventRunning } from '@/lib/subevent-running';
@@ -97,6 +98,8 @@ export type CheckInTarget = {
   /** The sub-event's schedule slot; null for the main event. */
   startsAt: Date | null;
   endsAt: Date | null;
+  /** Whether the target is a meal, so the desk can surface dietary needs. */
+  isMeal: boolean;
 };
 
 /**
@@ -126,6 +129,7 @@ export async function resolveCheckInTarget(
       name: null,
       startsAt: null,
       endsAt: null,
+      isMeal: false,
     };
   }
 
@@ -135,8 +139,10 @@ export async function resolveCheckInTarget(
       name: schema.events.name,
       startsAt: schema.events.startsAt,
       endsAt: schema.events.endsAt,
+      eventTypeLabel: schema.eventTypes.label,
     })
     .from(schema.events)
+    .leftJoin(schema.eventTypes, eq(schema.eventTypes.id, schema.events.eventTypeId))
     .where(and(eq(schema.events.id, targetEventId), eq(schema.events.parentEventId, mainEventId)))
     .limit(1);
 
@@ -148,6 +154,7 @@ export async function resolveCheckInTarget(
     name: row.name,
     startsAt: row.startsAt,
     endsAt: row.endsAt,
+    isMeal: row.eventTypeLabel === MEAL_EVENT_TYPE,
   };
 }
 

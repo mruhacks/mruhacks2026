@@ -414,6 +414,21 @@ describe('getFormedTeamsForEvent payload', () => {
       expect(Object.keys(row)).not.toContain('code');
     }
   });
+
+  test('flags which members have checked in', async () => {
+    await db.insert(schema.checkIns).values({ eventId, userId: userA.id }).onConflictDoNothing();
+
+    loginAs(adminUser);
+    const result = await getFormedTeamsForEvent(eventId);
+    if (!result.success || !result.data) throw new Error('expected data');
+    const members = result.data.flatMap((row) => row.members);
+    expect(members.find((m) => m.userId === userA.id)?.checkedIn).toBe(true);
+    expect(members.find((m) => m.userId === userB.id)?.checkedIn).toBe(false);
+
+    await db
+      .delete(schema.checkIns)
+      .where(and(eq(schema.checkIns.eventId, eventId), eq(schema.checkIns.userId, userA.id)));
+  });
 });
 
 describe('team actions on an elapsed event', () => {

@@ -2,6 +2,7 @@ import { HeroSection } from '@/components/hero';
 import { About } from '@/components/about-section';
 import { FAQ } from '@/components/faq-section';
 import { Stats } from '@/components/stats-section';
+import { Podium } from '@/components/podium-section';
 import { SponsorCTA } from '@/components/sponsor-cta';
 import MeetTheTeam from '@/components/meet-the-team';
 import Footer from '@/components/footer';
@@ -72,6 +73,7 @@ export default async function Home() {
       <div className='bg-white'>
         <HeroSection registerUrl={registerUrl} />
         <main className='mx-auto flex w-full max-w-7xl flex-col items-center gap-12 px-4 py-10 sm:gap-16 sm:py-14 lg:gap-20 lg:p-16'>
+          <Podium />
           <About registerUrl={registerUrl} />
           <Stats />
           <SponsorCTA />

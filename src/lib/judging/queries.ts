@@ -623,28 +623,20 @@ export async function replayEventVotes(
 export async function getJudgingTileCounts(eventId: string): Promise<{
   judges: number;
   votes: number;
-  /** Published and not deactivated — the projects judges are sent to. */
-  judgedProjects: number;
 }> {
   const [row] = await db.execute<{
     judges: number;
     votes: number;
-    judged_projects: number;
   }>(sql`
     SELECT
       (SELECT count(*)::int FROM ${schema.eventJudges} WHERE event_id = ${eventId}) AS judges,
       (SELECT count(*)::int
          FROM ${schema.judgingVotes} v
          JOIN ${schema.judgingCriteria} c ON c.id = v.criterion_id
-        WHERE c.event_id = ${eventId}) AS votes,
-      (SELECT count(*)::int FROM ${schema.submissions}
-        WHERE event_id = ${eventId}
-          AND published
-          AND deactivated_at IS NULL) AS judged_projects
+        WHERE c.event_id = ${eventId}) AS votes
   `);
   return {
     judges: Number(row?.judges ?? 0),
     votes: Number(row?.votes ?? 0),
-    judgedProjects: Number(row?.judged_projects ?? 0),
   };
 }
