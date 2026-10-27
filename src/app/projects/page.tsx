@@ -58,6 +58,7 @@ export default async function ProjectsPage() {
                 <div className='relative isolate mb-2.5 aspect-16/10 overflow-hidden rounded-lg border-2 border-black bg-white transition-transform duration-150 group-hover:-rotate-[1.5deg]'>
                   <ProjectCover
                     coverImageUrl={project.coverImageUrl}
+                    title={project.title}
                     sizes='(min-width: 640px) 320px, calc(100vw - 48px)'
                     lazy
                   />
