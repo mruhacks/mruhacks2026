@@ -13,6 +13,9 @@ export default {
     const svg = new Avatar(style, {
       seed,
       backgroundColor: ['#FADF4B', '#F07B31', '#EC624D', '#D841A1', '#6943EC', '#4D75EE', '#93FFFF'],
+      shape1Color: ['#6943EC', '#4D75EE', '#93FFFF'],
+      shape2Color: ['#FADF4B', '#F07B31', '#EC624D'],
+      shape3Color: ['#D841A1'],
     }).toString();
     return new Response(svg, {
       headers: {
