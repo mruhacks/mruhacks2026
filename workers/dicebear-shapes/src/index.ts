@@ -9,7 +9,15 @@ export default {
 
 		const style = new Style(definition);
 		const avatar = new Avatar(style, {
-			backgroundColor: ['#FADF4B', '#F07B31', '#EC624D', '#D841A1', '#6943EC', '#4D75EE', '#93FFFF'],
+			backgroundColor: [
+				'#FADF4B',
+				'#F07B31',
+				'#EC624D',
+				'#D841A1',
+				'#6943EC',
+				'#4D75EE',
+				'#93FFFF',
+			],
 			seed,
 		});
 		const svg = avatar.toString();

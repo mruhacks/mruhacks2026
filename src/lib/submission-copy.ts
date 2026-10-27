@@ -12,7 +12,13 @@ import type { SubmissionWindow } from '@/lib/submissions';
  * the team has a project, and whether it's public.
  */
 export type ProjectStage =
-  'not_open' | 'not_started' | 'private' | 'public' | 'closed_missing' | 'closed_private' | 'closed_public';
+  | 'not_open'
+  | 'not_started'
+  | 'private'
+  | 'public'
+  | 'closed_missing'
+  | 'closed_private'
+  | 'closed_public';
 
 export function getProjectStage(
   submissionWindow: Exclude<SubmissionWindow, 'disabled'>,

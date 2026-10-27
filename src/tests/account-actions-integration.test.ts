@@ -209,7 +209,10 @@ describe('completeWelcomeOnboarding', () => {
   beforeAll(async () => {
     // Seed lookup rows needed for the profile FK constraints.
     type LookupTable =
-      typeof schema.genders | typeof schema.universities | typeof schema.majors | typeof schema.yearsOfStudy;
+      | typeof schema.genders
+      | typeof schema.universities
+      | typeof schema.majors
+      | typeof schema.yearsOfStudy;
     const upsertLookup = async (tbl: LookupTable, label: string): Promise<number> => {
       const [existing] = await db.select({ id: tbl.id }).from(tbl).where(eq(tbl.label, label)).limit(1);
       if (existing) return existing.id;

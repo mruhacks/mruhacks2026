@@ -294,7 +294,9 @@ function EventPageLayout({
   team: React.ReactNode;
   hasEnded: boolean;
   mobileAction:
-    { label: string; href: string; control?: never } | { label: string; control: React.ReactNode; href?: never } | null;
+    | { label: string; href: string; control?: never }
+    | { label: string; control: React.ReactNode; href?: never }
+    | null;
 }) {
   return (
     <div className='pb-24 lg:pb-0'>

@@ -8,7 +8,12 @@ import * as Participation from '@/lib/participation';
  */
 
 export type EventDisplayPill =
-  ParticipationStatus | 'registered' | 'open_to_apply' | 'registration_open' | 'ended' | 'judging';
+  | ParticipationStatus
+  | 'registered'
+  | 'open_to_apply'
+  | 'registration_open'
+  | 'ended'
+  | 'judging';
 
 export type EventDisplayStatus = {
   label: string;

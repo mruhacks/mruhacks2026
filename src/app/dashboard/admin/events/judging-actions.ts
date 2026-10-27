@@ -310,7 +310,7 @@ function firstIssue(error: z.ZodError): string {
 
 /** A Postgres error with this SQLSTATE, wherever the driver nests it. */
 function hasPostgresCode(error: unknown, code: string): boolean {
-  for (let e = error; e instanceof Error || (e && typeof e === 'object');) {
+  for (let e = error; e instanceof Error || (e && typeof e === 'object'); ) {
     if ((e as { code?: unknown }).code === code) return true;
     e = (e as { cause?: unknown }).cause;
   }

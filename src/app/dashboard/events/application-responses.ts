@@ -8,7 +8,8 @@ import { isOtherOption, otherTextKey } from '@/lib/other-option';
 import { applicationOtherTextSchema, createApplicationQuestionSchema } from '@/components/application-form/schema';
 
 export type BuildApplicationResponsesResult =
-  { ok: true; responses: Record<string, unknown> } | { ok: false; error: string };
+  | { ok: true; responses: Record<string, unknown> }
+  | { ok: false; error: string };
 
 /**
  * Builds and validates the responses object for event_applications.responses.
