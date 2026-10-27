@@ -27,7 +27,7 @@ async function getVerificationExpiresAt(token: string): Promise<Date> {
   const [row] = await db
     .select({ expiresAt: schema.verification.expiresAt })
     .from(schema.verification)
-    .where(eq(schema.verification.identifier, token))
+    .where(eq(schema.verification.identifier, `magic-link:${token}`))
     .limit(1);
   if (!row) {
     throw new Error('verification row missing');
@@ -36,7 +36,7 @@ async function getVerificationExpiresAt(token: string): Promise<Date> {
 }
 
 async function deleteVerification(token: string): Promise<void> {
-  await db.delete(schema.verification).where(eq(schema.verification.identifier, token));
+  await db.delete(schema.verification).where(eq(schema.verification.identifier, `magic-link:${token}`));
 }
 
 let testEventId: string;

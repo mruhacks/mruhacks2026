@@ -90,16 +90,19 @@ async function clearEmailKeyedRows(tx: Tx, userId: string, email: string): Promi
   await tx.delete(schema.invite).where(sameEmail(schema.invite.email));
   await tx.delete(schema.magicLinkCooldown).where(sameEmail(schema.magicLinkCooldown.email));
 
-  // Better Auth stores a magic link as `{"email":…,"name":…}` and the
-  // delete-account / password-reset tokens as the bare user id.
-  const magicLinkValue = JSON.stringify({ email: lowered });
+  // Better Auth stores a magic link as `{"type":"magic-link","email":…,"name":…}`
+  // (`{"email":…,"name":…}` before 1.7, still live until those links expire)
+  // and the delete-account / password-reset tokens as the bare user id.
+  const magicLinkValues = [{ type: 'magic-link', email: lowered }, { email: lowered }].map((v) => JSON.stringify(v));
   await tx
     .delete(schema.verification)
     .where(
       or(
         eq(schema.verification.value, userId),
-        sql`lower(${schema.verification.value}) = ${magicLinkValue}`,
-        sql`starts_with(lower(${schema.verification.value}), ${magicLinkValue.slice(0, -1) + ','})`,
+        ...magicLinkValues.flatMap((value) => [
+          sql`lower(${schema.verification.value}) = ${value}`,
+          sql`starts_with(lower(${schema.verification.value}), ${value.slice(0, -1) + ','})`,
+        ]),
       ),
     );
 }
