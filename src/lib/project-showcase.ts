@@ -41,13 +41,14 @@ const byTitle = (a: ShowcaseProject, b: ShowcaseProject) =>
 /**
  * The featured event's public projects, for the homepage podium and the
  * `/projects` gallery. Cached until a submission or placement change calls
- * updateTag(PROJECT_SHOWCASE_CACHE_TAG); the hourly expiry is only a backstop
- * for member renames and account deletions, which don't touch the tag.
+ * updateTag(PROJECT_SHOWCASE_CACHE_TAG). Published projects aren't edited, so
+ * the lifetime is `max`: member renames and account deletions, which don't
+ * touch the tag, only show up after a redeploy or the 30-day revalidate.
  */
 export async function getProjectShowcase(): Promise<ProjectShowcase> {
   'use cache';
   cacheTag(PROJECT_SHOWCASE_CACHE_TAG, FEATURED_EVENT_CACHE_TAG);
-  cacheLife('hours');
+  cacheLife('max');
 
   const [featured] = await db
     .select({ id: schema.events.id })
@@ -151,7 +152,7 @@ export async function loadProjectShowcase(eventId: string): Promise<ProjectShowc
 export async function getPublicProject(projectId: string): Promise<PublicProject | null> {
   'use cache';
   cacheTag(PROJECT_SHOWCASE_CACHE_TAG);
-  cacheLife('hours');
+  cacheLife('max');
 
   if (!UUID_PATTERN.test(projectId)) return null;
   const [row] = await db
