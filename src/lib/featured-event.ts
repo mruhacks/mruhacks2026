@@ -40,12 +40,14 @@ export type FeaturedEventSchedule = {
 
 /**
  * Name and schedule of the featured event, for the homepage's structured
- * data. Null if no event is featured.
+ * data and the `/projects` heading. Null if no event is featured. Lives as
+ * long as the showcase (`max`), since admin edits already call
+ * updateTag(FEATURED_EVENT_CACHE_TAG).
  */
 export async function getFeaturedEventSchedule(): Promise<FeaturedEventSchedule | null> {
   'use cache';
   cacheTag(FEATURED_EVENT_CACHE_TAG);
-  cacheLife('hours');
+  cacheLife('max');
 
   const [featured] = await db
     .select({
