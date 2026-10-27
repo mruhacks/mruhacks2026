@@ -146,7 +146,7 @@ export function SubmissionBanner({
         coverImageUrl && 'min-h-56 justify-end',
       )}
     >
-      <ProjectCover coverImageUrl={coverImageUrl} className='-z-10' />
+      <ProjectCover coverImageUrl={coverImageUrl} sizes='(min-width: 56rem) 52rem, 100vw' className='-z-10' />
       {coverImageUrl && (
         <div
           aria-hidden

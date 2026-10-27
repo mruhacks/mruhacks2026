@@ -73,7 +73,14 @@ function PodiumCard({ project, place }: { project: ShowcaseProject; place: (type
       )}
     >
       <div className={cn('relative isolate bg-linear-to-br p-3', place.banner)}>
-        {project.coverImageUrl && <ProjectCover coverImageUrl={project.coverImageUrl} className='-z-10' />}
+        {project.coverImageUrl && (
+          <ProjectCover
+            coverImageUrl={project.coverImageUrl}
+            sizes='(min-width: 768px) 300px, 384px'
+            lazy
+            className='-z-10'
+          />
+        )}
         <span
           className={cn(
             'text-card-text inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-semibold',

@@ -7,6 +7,7 @@
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
 import { and, eq } from 'drizzle-orm';
+import sharp from 'sharp';
 
 import { db } from '@/utils/db';
 import * as schema from '@/db/schema';
@@ -45,6 +46,7 @@ import { getMyTeam, joinTeamByCode, leaveTeam, removeMember } from '@/app/dashbo
 import { updateEventSettings } from '@/app/dashboard/admin/events/actions';
 import { purgeUser } from '@/app/actions/users';
 import { prepareUserDeletion } from '@/lib/account-deletion';
+import { SUBMISSION_IMAGE_WIDTHS, submissionImageVariantKey } from '@/lib/submission-images';
 import { submissionAttachmentPrefix } from '@/utils/object-storage';
 import { unwrap } from '@/tests/unwrap';
 
@@ -135,9 +137,12 @@ async function setDeadlinePassed(eventId: string, passed: boolean) {
     .where(eq(schema.events.id, eventId));
 }
 
-function pngForm(): FormData {
+async function pngForm(): Promise<FormData> {
+  const png = await sharp({ create: { width: 2000, height: 1000, channels: 3, background: '#336699' } })
+    .png()
+    .toBuffer();
   const formData = new FormData();
-  formData.append('file', new File([new Uint8Array([1, 2, 3])], 'a.png', { type: 'image/png' }));
+  formData.append('file', new File([new Uint8Array(png)], 'a.png', { type: 'image/png' }));
   return formData;
 }
 
@@ -347,9 +352,25 @@ describe('creating and saving', () => {
   test('uploads images under the submission prefix', async () => {
     loginAs(userA);
     const submission = await currentSubmission(eventId);
-    const { url } = unwrap(await uploadSubmissionAttachment(eventId, pngForm()));
+    const { url } = unwrap(await uploadSubmissionAttachment(eventId, await pngForm()));
     expect(url).toContain(submissionAttachmentPrefix(submission.id));
-    expect(putObject).toHaveBeenCalledOnce();
+    const key = url.slice('/api/assets/'.length);
+    const stored = putObject.mock.calls.map(([args]) => args);
+    // The private original, plus one public WebP per width.
+    expect(stored.map(({ key }) => key).sort()).toEqual(
+      [key, ...SUBMISSION_IMAGE_WIDTHS.map((width) => submissionImageVariantKey(key, width))].sort(),
+    );
+    expect(stored.filter(({ contentType }) => contentType === 'image/webp')).toHaveLength(
+      SUBMISSION_IMAGE_WIDTHS.length,
+    );
+  });
+
+  test('refuses a file that only claims to be an image', async () => {
+    loginAs(userA);
+    const formData = new FormData();
+    formData.append('file', new File([new Uint8Array([1, 2, 3])], 'a.png', { type: 'image/png' }));
+    expect((await uploadSubmissionAttachment(eventId, formData)).success).toBe(false);
+    expect(putObject).not.toHaveBeenCalled();
   });
 });
 
@@ -571,7 +592,11 @@ describe('deletion', () => {
     );
 
     unwrap(await deleteSubmission(solo));
-    expect(deleteObject.mock.calls.map(([key]) => key).sort()).toEqual([own, cover].sort());
+    expect(deleteObject.mock.calls.map(([key]) => key).sort()).toEqual(
+      [own, cover]
+        .flatMap((key) => [key, ...SUBMISSION_IMAGE_WIDTHS.map((width) => submissionImageVariantKey(key, width))])
+        .sort(),
+    );
     expect(unwrap(await getMySubmission(solo)).submission).toBeNull();
   });
 

@@ -2,9 +2,12 @@ import type { NextConfig } from 'next';
 import { execSync } from 'child_process';
 
 import { embedFrameSources } from './src/lib/embeds';
-import { readObjectStorageConfig } from './src/lib/object-storage-endpoint';
+import { readObjectStorageConfig, readPublicAssetsBaseUrl } from './src/lib/object-storage-endpoint';
 
 const isDev = process.env.NODE_ENV !== 'production';
+
+/** Resized submission images load from here unsigned — see `src/lib/submission-images.ts`. */
+const publicAssetsBaseUrl = readPublicAssetsBaseUrl();
 
 /**
  * Captured at build time (not runtime) since deployed environments typically
@@ -30,6 +33,10 @@ const nextConfig: NextConfig = {
     // CSP has to allow it. On AWS it's our bucket's own host — see
     // `object-storage-endpoint.ts`.
     const s3Origin = readObjectStorageConfig()?.origin;
+    // Differs from the bucket's own origin only when `S3_PUBLIC_BASE_URL`
+    // puts a CDN in front of it.
+    const publicAssetsOrigin = publicAssetsBaseUrl ? new URL(publicAssetsBaseUrl).origin : null;
+    const imageOrigins = [...new Set([s3Origin, publicAssetsOrigin].filter(Boolean))];
     return [
       {
         source: '/:path*',
@@ -50,7 +57,7 @@ const nextConfig: NextConfig = {
               // Cloudflare with that feature on) — not something this app loads itself.
               `script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://challenges.cloudflare.com https://static.cloudflareinsights.com${isDev ? " 'unsafe-eval'" : ''}`,
               "style-src 'self' 'unsafe-inline'",
-              `img-src 'self' data: https://avatars.githubusercontent.com https://cdn.jsdelivr.net https://lh3.googleusercontent.com${s3Origin ? ` ${s3Origin}` : ''}`,
+              `img-src 'self' data: https://avatars.githubusercontent.com https://cdn.jsdelivr.net https://lh3.googleusercontent.com${imageOrigins.map((origin) => ` ${origin}`).join('')}`,
               "font-src 'self' data:",
               // fastly.jsdelivr.net: the check-in scanner's QR decoder
               // (@yudiel/react-qr-scanner, via barcode-detector/zxing-wasm)
@@ -132,6 +139,9 @@ const nextConfig: NextConfig = {
   partialPrefetching: true,
   env: {
     BUILD_INFO: getBuildInfo(),
+    // Inlined so client components (the submission editor's cover) can
+    // build the same public image URLs as the server.
+    PUBLIC_ASSETS_BASE_URL: publicAssetsBaseUrl ?? '',
   },
   allowedDevOrigins: ['thomas-desktop.local'],
 };

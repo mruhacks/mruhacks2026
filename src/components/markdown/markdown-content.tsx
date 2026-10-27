@@ -11,6 +11,7 @@ import {
   getAllowedEmbedSrc,
   parseEmbedDimension,
 } from '@/lib/embeds';
+import { submissionImageSources } from '@/lib/submission-images';
 import { cn } from '@/lib/utils';
 import { MARKDOWN_EMBED_SANITIZE_SCHEMA, MARKDOWN_SANITIZE_SCHEMA } from './sanitize-schema';
 
@@ -127,13 +128,27 @@ export function MarkdownContent({
             </a>
           ),
           // eslint-disable-next-line @typescript-eslint/no-unused-vars
-          img: ({ node: _node, src, alt, ...props }) => (
-            // Attachments are served from `/api/assets`, which requires the
-            // viewer's session cookie — the Next image optimizer fetches
-            // server-side without one, so it can't be used here.
-            // eslint-disable-next-line @next/next/no-img-element
-            <img {...props} src={typeof src === 'string' ? src : undefined} alt={alt ?? ''} loading='lazy' />
-          ),
+          img: ({ node: _node, src, alt, ...props }) => {
+            const url = typeof src === 'string' ? src : undefined;
+            // A project image has public resized copies; let the browser
+            // pick one rather than load the original.
+            const sources = submissionImageSources(url);
+            return (
+              // Attachments are served from `/api/assets`, which requires the
+              // viewer's session cookie — the Next image optimizer fetches
+              // server-side without one, so it can't be used here.
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                {...props}
+                src={sources?.src ?? url}
+                srcSet={sources?.srcSet}
+                sizes={sources ? '(min-width: 56rem) 52rem, 100vw' : undefined}
+                alt={alt ?? ''}
+                loading='lazy'
+                decoding='async'
+              />
+            );
+          },
           // Only reachable when `allowEmbeds` let the tag past the sanitizer.
           // Nothing is spread from the source: every attribute is rebuilt here
           // from the validated src/size, so author markup cannot widen the

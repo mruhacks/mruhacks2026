@@ -6,6 +6,8 @@ import * as Rbac from '@/lib/rbac/server';
 import { verifyMailConnection } from '@/utils/mail';
 import { checkObjectStorageConnection } from '@/utils/object-storage';
 import { MRUHACKS_LOGO_URL } from '@/content';
+import { readPublicAssetsBaseUrl } from '@/lib/object-storage-endpoint';
+import { PUBLIC_IMAGE_PROBE_KEY } from '@/lib/submission-images';
 import * as Campaigns from '@/lib/campaigns';
 import * as Signing from '@/lib/signing/server';
 
@@ -71,6 +73,35 @@ function checkMail(): Promise<CheckResult> {
 
 function checkObjectStorage(): Promise<CheckResult> {
   return timed(checkObjectStorageConnection);
+}
+
+/**
+ * Project images load straight from the bucket, unsigned, so they all break
+ * at once if its public-read policy is missing or `S3_PUBLIC_BASE_URL`
+ * points somewhere wrong — and nothing else would notice, since the app's
+ * own (signed) storage calls keep working. Fetches the probe object
+ * `pnpm images:backfill` writes, with no credentials, like a visitor would.
+ */
+async function checkPublicImages(): Promise<CheckResult> {
+  const start = Date.now();
+  const base = readPublicAssetsBaseUrl();
+  if (!base) return { ok: false, latencyMs: 0, detail: 'not configured' };
+  try {
+    const res = await fetch(`${base}/${PUBLIC_IMAGE_PROBE_KEY}`, {
+      method: 'HEAD',
+      signal: AbortSignal.timeout(CHECK_TIMEOUT_MS),
+    });
+    if (res.ok) return { ok: true, latencyMs: Date.now() - start };
+    // S3 answers 403 rather than 404 for a missing key when anonymous
+    // callers can't list the bucket, so the two causes look the same.
+    return {
+      ok: false,
+      latencyMs: Date.now() - start,
+      detail: `probe returned ${res.status}: bucket policy missing, or run pnpm images:backfill`,
+    };
+  } catch {
+    return { ok: false, latencyMs: Date.now() - start, detail: 'unreachable' };
+  }
 }
 
 /**
@@ -253,6 +284,7 @@ type HealthReport = {
     database: CheckResult;
     mail: CheckResult;
     objectStorage: CheckResult;
+    publicImages: CheckResult;
     turnstile: CheckResult;
     googleWallet: CheckResult;
     appleWallet: CheckResult;
@@ -277,6 +309,7 @@ async function buildReport(): Promise<HealthReport> {
     database,
     mail,
     objectStorage,
+    publicImages,
     turnstile,
     googleWallet,
     appleWallet,
@@ -287,6 +320,7 @@ async function buildReport(): Promise<HealthReport> {
     checkDatabase(),
     checkMail(),
     checkObjectStorage(),
+    checkPublicImages(),
     checkTurnstile(),
     checkGoogleWallet(),
     checkAppleWallet(),
@@ -300,6 +334,7 @@ async function buildReport(): Promise<HealthReport> {
     ? 'down'
     : mail.ok &&
         objectStorage.ok &&
+        publicImages.ok &&
         turnstile.ok &&
         googleWallet.ok &&
         appleWallet.ok &&
@@ -316,6 +351,7 @@ async function buildReport(): Promise<HealthReport> {
       database,
       mail,
       objectStorage,
+      publicImages,
       turnstile,
       googleWallet,
       appleWallet,

@@ -6,7 +6,7 @@
  * makes the sanitizer load-bearing rather than belt-and-braces, so the unsafe
  * cases below are the point of this file, not an afterthought.
  */
-import { describe, test, expect } from 'vitest';
+import { describe, test, expect, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MarkdownContent } from '@/components/markdown/markdown-content';
 
@@ -163,6 +163,17 @@ describe('without raw HTML (project submissions)', () => {
     expect(html).toContain(`src="${ATTACHMENT_SRC}"`);
     expect(html).toContain('width="206"');
     expect(html).toContain('alt="a &gt; b"');
+  });
+
+  test('loads a project image from its public resized copies', () => {
+    vi.stubEnv('PUBLIC_ASSETS_BASE_URL', 'https://cdn.example.com');
+    const src = ATTACHMENT_SRC.replace('event-content', 'submission-content');
+    const stem = src.slice('/api/assets/'.length, -'.png'.length);
+    const html = renderNoHtml(`<img width="206" src="${src}" />`);
+    vi.unstubAllEnvs();
+    expect(html).toContain(`src="https://cdn.example.com/${stem}-w960.webp"`);
+    expect(html).toContain(`https://cdn.example.com/${stem}-w1600.webp 1600w`);
+    expect(html).toContain('width="206"');
   });
 
   test('still strips unsafe attributes from an image', () => {

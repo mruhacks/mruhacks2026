@@ -71,3 +71,17 @@ export function readObjectStorageConfig(): ObjectStorageConfig | null {
     origin: url.origin,
   };
 }
+
+/**
+ * Where the bucket's publicly readable objects (resized submission images —
+ * see `@/lib/submission-images`) are fetched from without a signature:
+ * `S3_PUBLIC_BASE_URL` when a CDN fronts the bucket, otherwise the bucket's
+ * own URL. No trailing slash. Null when storage isn't configured.
+ */
+export function readPublicAssetsBaseUrl(): string | null {
+  const override = process.env.S3_PUBLIC_BASE_URL?.trim().replace(/\/+$/, '');
+  if (override) return override;
+  const config = readObjectStorageConfig();
+  if (!config) return null;
+  return config.forcePathStyle ? `${config.origin}/${config.bucket}` : config.origin;
+}

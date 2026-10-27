@@ -4,12 +4,14 @@ import {
   GetObjectCommand,
   HeadBucketCommand,
   HeadObjectCommand,
+  PutBucketPolicyCommand,
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 import { readObjectStorageConfig } from '@/lib/object-storage-endpoint';
+import { SUBMISSION_ATTACHMENT_KEY_PATTERN } from '@/lib/submission-images';
 
 /**
  * The client and bucket for every storage call. Throws when the S3 env is
@@ -31,7 +33,27 @@ function getStorage() {
     // instance role).
     ...(accessKeyId && secretAccessKey ? { credentials: { accessKeyId, secretAccessKey } } : {}),
   });
-  return { client, bucket: config.bucket };
+  return { client, bucket: config.bucket, forcePathStyle: config.forcePathStyle };
+}
+
+/**
+ * The one statement that makes anything in the bucket public: the resized
+ * submission images (`…/<uuid>-w<width>.webp`, see `@/lib/submission-images`).
+ * Originals, resumes and every other prefix stay private.
+ */
+export function publicReadPolicy(bucket: string): string {
+  return JSON.stringify({
+    Version: '2012-10-17',
+    Statement: [
+      {
+        Sid: 'PublicSubmissionImageVariants',
+        Effect: 'Allow',
+        Principal: '*',
+        Action: ['s3:GetObject'],
+        Resource: [`arn:aws:s3:::${bucket}/submission-content/*-w*.webp`],
+      },
+    ],
+  });
 }
 
 let bucketReady: Promise<void> | undefined;
@@ -39,7 +61,7 @@ let bucketReady: Promise<void> | undefined;
 async function ensureBucket() {
   if (!bucketReady) {
     bucketReady = (async () => {
-      const { client, bucket } = getStorage();
+      const { client, bucket, forcePathStyle } = getStorage();
       try {
         await client.send(new HeadBucketCommand({ Bucket: bucket }));
       } catch {
@@ -49,6 +71,16 @@ async function ensureBucket() {
           // A concurrent request or the MinIO initializer may have created it.
           await client.send(new HeadBucketCommand({ Bucket: bucket }));
           console.debug('[storage] bucket creation raced with another process', error);
+        }
+      }
+      // Local MinIO only (the one path-style host we run): production's
+      // policy is set once on the bucket by hand, since the app's own
+      // credentials shouldn't be able to change who can read the bucket.
+      if (forcePathStyle) {
+        try {
+          await client.send(new PutBucketPolicyCommand({ Bucket: bucket, Policy: publicReadPolicy(bucket) }));
+        } catch (error) {
+          console.warn('[storage] could not set the public-read policy on the dev bucket', error);
         }
       }
     })();
@@ -86,8 +118,10 @@ export function isObjectStorageKey(value: string | null | undefined): value is s
 }
 
 /**
- * The bucket is private — nothing in it is fetchable without a signature.
- * Every stored URL (`authUser.image`, markdown attachment links) is a stable
+ * The bucket is private — nothing in it is fetchable without a signature,
+ * except the resized submission images `publicReadPolicy` names, which are
+ * never stored as URLs (they're derived at render time, see
+ * `@/lib/submission-images`). Every stored URL (`authUser.image`, markdown attachment links) is a stable
  * `/api/assets/<key>` (or, for resumes, `/api/profile/resume`) path that never
  * expires and never changes for a given upload. That route resolves the key
  * to a short-lived presigned S3/R2 URL and 302s to it, so the actual bytes
@@ -147,13 +181,6 @@ const EVENT_ATTACHMENT_KEY_PATTERN = /^event-content\/[0-9a-f-]{36}\/[0-9a-f-]{3
 export function isEventAttachmentKey(value: string | null | undefined): value is string {
   return Boolean(value && EVENT_ATTACHMENT_KEY_PATTERN.test(value));
 }
-
-/**
- * Submission images are always `submission-content/<submissionId>/<uuid><ext>`
- * — the same shape as event attachments, keyed by the submission so deleting
- * a project can tell exactly which objects were its own.
- */
-const SUBMISSION_ATTACHMENT_KEY_PATTERN = /^submission-content\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.[a-z0-9]{1,10}$/;
 
 export function isSubmissionAttachmentKey(value: string | null | undefined): value is string {
   return Boolean(value && SUBMISSION_ATTACHMENT_KEY_PATTERN.test(value));
@@ -219,7 +246,18 @@ export function campaignImageUrl(key: string) {
   return `/api/assets/${key}`;
 }
 
-export async function putObject({ key, body, contentType }: { key: string; body: Uint8Array; contentType: string }) {
+export async function putObject({
+  key,
+  body,
+  contentType,
+  cacheControl,
+}: {
+  key: string;
+  body: Uint8Array;
+  contentType: string;
+  /** Sent back on every GET of the object; only matters for publicly readable keys. */
+  cacheControl?: string;
+}) {
   await ensureBucket();
   const { client, bucket } = getStorage();
   await client.send(
@@ -228,8 +266,34 @@ export async function putObject({ key, body, contentType }: { key: string; body:
       Key: key,
       Body: body,
       ContentType: contentType,
+      ...(cacheControl ? { CacheControl: cacheControl } : {}),
     }),
   );
+}
+
+/** The object's bytes, or null if there is no such object. */
+export async function getObjectBytes(key: string): Promise<Uint8Array | null> {
+  await ensureBucket();
+  const { client, bucket } = getStorage();
+  try {
+    const response = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+    return response.Body ? await response.Body.transformToByteArray() : null;
+  } catch (error) {
+    if (error instanceof Error && error.name === 'NoSuchKey') return null;
+    throw error;
+  }
+}
+
+export async function objectExists(key: string): Promise<boolean> {
+  await ensureBucket();
+  const { client, bucket } = getStorage();
+  try {
+    await client.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
+    return true;
+  } catch (error) {
+    if (error instanceof Error && error.name === 'NotFound') return false;
+    throw error;
+  }
 }
 
 export async function deleteObject(key: string) {

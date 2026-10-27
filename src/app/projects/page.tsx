@@ -56,7 +56,11 @@ export default async function ProjectsPage() {
                 className='group flex flex-col gap-1'
               >
                 <div className='relative isolate mb-2.5 aspect-16/10 overflow-hidden rounded-lg border-2 border-black bg-white transition-transform duration-150 group-hover:-rotate-[1.5deg]'>
-                  <ProjectCover coverImageUrl={project.coverImageUrl} />
+                  <ProjectCover
+                    coverImageUrl={project.coverImageUrl}
+                    sizes='(min-width: 640px) 320px, calc(100vw - 48px)'
+                    lazy
+                  />
                 </div>
                 <h2 className='text-xl leading-[1.1] font-semibold tracking-[-0.04em] wrap-break-word'>
                   {project.title}

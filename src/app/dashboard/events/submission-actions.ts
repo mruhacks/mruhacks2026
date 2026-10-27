@@ -24,10 +24,16 @@ import { eventApplicationsCacheTag } from '@/lib/admin-event';
 import { eventUrlSegments } from '@/lib/events';
 import * as Judging from '@/lib/judging/server';
 import { PROJECT_SHOWCASE_CACHE_TAG } from '@/lib/project-showcase';
-import { collectAttachmentKeys } from '@/lib/markdown-attachments';
 import { readImageUpload } from '@/lib/image-attachments';
 import * as Rbac from '@/lib/rbac/server';
 import { loadSubmissionAccess, type SubmissionAccess, type SubmissionRow } from '@/lib/submission-access';
+import {
+  createSubmissionImageVariants,
+  deleteSubmissionImage,
+  putSubmissionImageVariants,
+  submissionImageKeys,
+  type SubmissionImageVariant,
+} from '@/lib/submission-image-variants';
 import {
   NEW_SUBMISSION_TITLE,
   SUBMISSION_MAX_IMAGES,
@@ -40,7 +46,6 @@ import { getUser } from '@/utils/auth';
 import { writeAuditLog } from '@/utils/audit-log';
 import { db } from '@/utils/db';
 import {
-  deleteObject,
   eventAttachmentUrl,
   parseSubmissionAttachmentKey,
   putObject,
@@ -129,24 +134,12 @@ async function revalidateSubmissionPaths(eventId: string): Promise<void> {
   }
 }
 
-/**
- * The submission's own image keys: everything under its storage prefix that
- * its markdown or cover points at. Anything else a URL might name (another
- * project's image, a wiki attachment) is never this submission's to count
- * or delete.
- */
-function ownImageKeys(submissionId: string, markdown: string, coverImageUrl: string | null): Set<string> {
-  const prefix = submissionAttachmentPrefix(submissionId);
-  const keys = new Set([...collectAttachmentKeys(markdown)].filter((key) => key.startsWith(prefix)));
-  const coverKey = parseSubmissionAttachmentKey(coverImageUrl);
-  if (coverKey?.startsWith(prefix)) keys.add(coverKey);
-  return keys;
-}
-
 /** Best effort: the row is already gone, so a storage hiccup only leaves orphans. */
 async function deleteSubmissionImages(row: SubmissionRow): Promise<void> {
   try {
-    await Promise.all([...ownImageKeys(row.id, row.markdown, row.coverImageUrl)].map((key) => deleteObject(key)));
+    await Promise.all(
+      [...submissionImageKeys(row.id, row.markdown, row.coverImageUrl)].map((key) => deleteSubmissionImage(key)),
+    );
   } catch (error) {
     console.error('[submissions] failed to delete submission images', {
       submissionId: row.id,
@@ -301,7 +294,7 @@ export async function saveSubmission(
       if (data.coverImageUrl && !coverKey?.startsWith(prefix)) {
         return fail('Upload the cover image here rather than linking one.');
       }
-      if (ownImageKeys(row.id, data.markdown, data.coverImageUrl).size > SUBMISSION_MAX_IMAGES) {
+      if (submissionImageKeys(row.id, data.markdown, data.coverImageUrl).size > SUBMISSION_MAX_IMAGES) {
         return fail(`A project can have at most ${SUBMISSION_MAX_IMAGES} images, including the cover.`);
       }
       if (row.published && !data.repoUrl) {
@@ -438,13 +431,26 @@ export async function uploadSubmissionAttachment(
   if ('error' in read) return fail(read.error);
   const { upload } = read;
 
+  let variants: SubmissionImageVariant[];
+  try {
+    variants = await createSubmissionImageVariants(upload.bytes);
+  } catch (error) {
+    console.warn('[team/submission] could not process submission image', error);
+    return fail('That image could not be read. Try a different file.');
+  }
+
   try {
     const key = `${submissionAttachmentPrefix(access.submission.id)}${randomUUID()}${upload.extension}`;
-    await putObject({
-      key,
-      body: upload.bytes,
-      contentType: upload.contentType,
-    });
+    // The original stays private (it may carry EXIF/GPS); pages show the
+    // public resized copies — see `@/lib/submission-images`.
+    await Promise.all([
+      putObject({
+        key,
+        body: upload.bytes,
+        contentType: upload.contentType,
+      }),
+      putSubmissionImageVariants(key, variants),
+    ]);
     return ok({ url: eventAttachmentUrl(key) });
   } catch (error) {
     console.error('[team/submission] Submission attachment upload error:', error);
