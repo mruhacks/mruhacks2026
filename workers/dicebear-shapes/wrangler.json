@@ -1,0 +1,13 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "mruhacks-dicebear",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-23",
+  "route": {
+    "pattern": "mruhacks.ca/__dicebear/*",
+    "zone_name": "mruhacks.ca"
+  },
+  "observability": {
+    "enabled": true
+  }
+}
