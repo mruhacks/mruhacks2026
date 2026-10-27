@@ -12,10 +12,10 @@ export default {
     const seed = new URL(request.url).searchParams.get('seed') ?? 'MRUHACKS';
     const svg = new Avatar(style, {
       seed,
-      backgroundColor: ['#FADF4B', '#F07B31', '#EC624D', '#D841A1', '#6943EC', '#4D75EE', '#93FFFF'],
-      shape1Color: ['#6943EC', '#4D75EE', '#93FFFF'],
-      shape2Color: ['#FADF4B', '#F07B31', '#EC624D'],
-      shape3Color: ['#D841A1'],
+      backgroundColor: ['#FEF7D2', '#FBDECC', '#FAD8D3', '#F5D0E8', '#DAD0FA', '#D3DDFB', '#E4FFFF'],
+      shape1Color: ['#DAD0FA', '#D3DDFB', '#E4FFFF'],
+      shape2Color: ['#FEF7D2', '#FBDECC', '#FAD8D3'],
+      shape3Color: ['#F5D0E8'],
     }).toString();
     return new Response(svg, {
       headers: {
