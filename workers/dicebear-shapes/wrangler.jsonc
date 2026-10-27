@@ -12,7 +12,7 @@
 	},
 	"route": {
 		"pattern": "mruhacks.ca/__dicebear/*",
-		"zone_name": "mruhacks.ca"
+		"zone_name": "mruhacks.ca",
 	},
 	"upload_source_maps": true,
 	/**

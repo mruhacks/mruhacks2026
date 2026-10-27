@@ -35,15 +35,13 @@ export function JudgesTable() {
         header: 'Comparisons',
         meta: { className: 'text-right tabular-nums' },
       },
-      ...results.criteria.map(
-        (criterion): ColumnDef<Row> => ({
-          id: `reliability:${criterion.id}`,
-          accessorFn: (row) => row.reliability[criterion.id] ?? 0,
-          header: criterion.name,
-          cell: ({ getValue }) => formatPercent(getValue<number>()),
-          meta: { className: 'text-right tabular-nums' },
-        }),
-      ),
+      ...results.criteria.map((criterion): ColumnDef<Row> => ({
+        id: `reliability:${criterion.id}`,
+        accessorFn: (row) => row.reliability[criterion.id] ?? 0,
+        header: criterion.name,
+        cell: ({ getValue }) => formatPercent(getValue<number>()),
+        meta: { className: 'text-right tabular-nums' },
+      })),
     ],
     [results.criteria],
   );

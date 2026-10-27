@@ -4,13 +4,7 @@
  */
 
 export type ApplicationQuestionType =
-  | 'short_text'
-  | 'long_text'
-  | 'single_select'
-  | 'multi_select'
-  | 'number'
-  | 'boolean'
-  | 'section_divider';
+  'short_text' | 'long_text' | 'single_select' | 'multi_select' | 'number' | 'boolean' | 'section_divider';
 
 export type ApplicationQuestionOption = {
   value: string;

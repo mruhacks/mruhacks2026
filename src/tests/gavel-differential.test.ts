@@ -217,9 +217,7 @@ async function compareCrowdBt(seed: number, n: number) {
 // ── Judge flow ─────────────────────────────────────────────────────────────
 
 type Screen =
-  | { kind: 'waiting' }
-  | { kind: 'begin'; current: number }
-  | { kind: 'compare'; previous: number; current: number };
+  { kind: 'waiting' } | { kind: 'begin'; current: number } | { kind: 'compare'; previous: number; current: number };
 
 type Action = 'begin' | 'skip' | 'previous' | 'current';
 
