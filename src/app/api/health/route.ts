@@ -5,7 +5,7 @@ import { getUser } from '@/utils/auth';
 import * as Rbac from '@/lib/rbac/server';
 import { verifyMailConnection } from '@/utils/mail';
 import { checkObjectStorageConnection } from '@/utils/object-storage';
-import { MRUHACKS_LOGO_URL } from '@/content';
+import { MRUHACKS_LOGO_URL, projectCoverFallbackUrl } from '@/content';
 import { readPublicAssetsBaseUrl } from '@/lib/object-storage-endpoint';
 import { PUBLIC_IMAGE_PROBE_KEY } from '@/lib/submission-images';
 import * as Campaigns from '@/lib/campaigns';
@@ -235,6 +235,30 @@ async function checkQrScannerWasm(): Promise<CheckResult> {
 }
 
 /**
+ * Projects without a cover show placeholder art from the dicebear Cloudflare
+ * Worker (`workers/dicebear-shapes`), which isn't deployed with the app — an
+ * undeployed or misrouted worker would leave every such cover broken.
+ */
+async function checkProjectCoverFallback(): Promise<CheckResult> {
+  const start = Date.now();
+  try {
+    const res = await fetch(projectCoverFallbackUrl('health'), {
+      signal: AbortSignal.timeout(CHECK_TIMEOUT_MS),
+    });
+    if (!res.ok || !res.headers.get('content-type')?.startsWith('image/svg+xml')) {
+      return {
+        ok: false,
+        latencyMs: Date.now() - start,
+        detail: `unreachable (${res.status} ${res.headers.get('content-type') ?? 'no content-type'})`,
+      };
+    }
+    return { ok: true, latencyMs: Date.now() - start };
+  } catch {
+    return { ok: false, latencyMs: Date.now() - start, detail: 'unreachable' };
+  }
+}
+
+/**
  * Campaign emails embed the Add to Apple / Google Wallet badges by absolute
  * URL on our own origin, and mail clients fetch them from there long after
  * sending — a missing file or a wrong BETTER_AUTH_URL breaks every wallet
@@ -291,6 +315,7 @@ type HealthReport = {
     checkInSigning: CheckResult;
     qrScannerWasm: CheckResult;
     walletBadges: CheckResult;
+    projectCoverFallback: CheckResult;
   };
   missingEnv: string[];
   checkedAt: string;
@@ -316,6 +341,7 @@ async function buildReport(): Promise<HealthReport> {
     checkInSigning,
     qrScannerWasm,
     walletBadges,
+    projectCoverFallback,
   ] = await Promise.all([
     checkDatabase(),
     checkMail(),
@@ -327,6 +353,7 @@ async function buildReport(): Promise<HealthReport> {
     checkCheckInSigning(),
     checkQrScannerWasm(),
     checkWalletBadges(),
+    checkProjectCoverFallback(),
   ]);
   const missingEnv = missingEnvVars();
 
@@ -341,6 +368,7 @@ async function buildReport(): Promise<HealthReport> {
         checkInSigning.ok &&
         qrScannerWasm.ok &&
         walletBadges.ok &&
+        projectCoverFallback.ok &&
         missingEnv.length === 0
       ? 'ok'
       : 'degraded';
@@ -358,6 +386,7 @@ async function buildReport(): Promise<HealthReport> {
       checkInSigning,
       qrScannerWasm,
       walletBadges,
+      projectCoverFallback,
     },
     missingEnv,
     checkedAt: new Date().toISOString(),

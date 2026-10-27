@@ -76,6 +76,7 @@ function PodiumCard({ project, place }: { project: ShowcaseProject; place: (type
         {project.coverImageUrl && (
           <ProjectCover
             coverImageUrl={project.coverImageUrl}
+            title={project.title}
             sizes='(min-width: 768px) 300px, 384px'
             lazy
             className='-z-10'

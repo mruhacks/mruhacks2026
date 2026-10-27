@@ -123,8 +123,8 @@ export function ProjectStageWarning({ stage }: { stage: ProjectStage }) {
 }
 
 /**
- * The project's title banner: the cover image washed into the background
- * (or the brand gradient when there is none). Shared by the editor and the
+ * The project's title banner: the cover image (or its generated placeholder)
+ * washed into the background. Shared by the editor and the
  * read-only view so a project looks the same while and after it's written.
  */
 export function SubmissionBanner({
@@ -140,19 +140,17 @@ export function SubmissionBanner({
   children?: React.ReactNode;
 }) {
   return (
-    <header
-      className={cn(
-        'relative isolate flex flex-col gap-3 overflow-hidden rounded-xl border p-6',
-        coverImageUrl && 'min-h-56 justify-end',
-      )}
-    >
-      <ProjectCover coverImageUrl={coverImageUrl} sizes='(min-width: 56rem) 52rem, 100vw' className='-z-10' />
-      {coverImageUrl && (
-        <div
-          aria-hidden
-          className='from-background via-background/80 to-background/20 absolute inset-0 -z-10 bg-linear-to-t'
-        />
-      )}
+    <header className='relative isolate flex min-h-56 flex-col justify-end gap-3 overflow-hidden rounded-xl border p-6'>
+      <ProjectCover
+        coverImageUrl={coverImageUrl}
+        title={title}
+        sizes='(min-width: 56rem) 52rem, 100vw'
+        className='-z-10'
+      />
+      <div
+        aria-hidden
+        className='from-background via-background/80 to-background/20 absolute inset-0 -z-10 bg-linear-to-t'
+      />
       {action && <div className='absolute top-3 right-3'>{action}</div>}
       <div className={cn('flex min-w-0 flex-col gap-2', action && 'pr-12')}>
         <h1 className='text-3xl font-semibold tracking-tight wrap-break-word'>{title || "Your team's project"}</h1>

@@ -28,6 +28,17 @@ export const LOGIN_ENABLED = true;
 /** Publicly hosted (not build-bundled) so external services like Google Wallet can fetch it directly. */
 export const MRUHACKS_LOGO_URL = 'https://static.mruhacks.ca/color_chevron.png';
 
+/**
+ * Generated placeholder art for projects without a cover image, seeded by
+ * the project's name. Rendered at Cloudflare's edge by `workers/dicebear-shapes`
+ * so it costs the app server nothing.
+ */
+export const PROJECT_COVER_FALLBACK_URL = 'https://mruhacks.ca/__dicebear/';
+
+export function projectCoverFallbackUrl(seed: string): string {
+  return `${PROJECT_COVER_FALLBACK_URL}?${new URLSearchParams({ seed })}`;
+}
+
 export const INTRO_BLURB: string = `
 MRUHacks is Mount Royal University’s largest hackathon and one of
 Calgary’s biggest student coding events, bringing students together for

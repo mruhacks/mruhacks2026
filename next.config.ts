@@ -3,6 +3,7 @@ import { execSync } from 'child_process';
 
 import { embedFrameSources } from './src/lib/embeds';
 import { readObjectStorageConfig, readPublicAssetsBaseUrl } from './src/lib/object-storage-endpoint';
+import { PROJECT_COVER_FALLBACK_URL } from './src/content';
 
 const isDev = process.env.NODE_ENV !== 'production';
 
@@ -57,7 +58,7 @@ const nextConfig: NextConfig = {
               // Cloudflare with that feature on) — not something this app loads itself.
               `script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://challenges.cloudflare.com https://static.cloudflareinsights.com${isDev ? " 'unsafe-eval'" : ''}`,
               "style-src 'self' 'unsafe-inline'",
-              `img-src 'self' data: https://avatars.githubusercontent.com https://cdn.jsdelivr.net https://lh3.googleusercontent.com${imageOrigins.map((origin) => ` ${origin}`).join('')}`,
+              `img-src 'self' data: https://avatars.githubusercontent.com https://cdn.jsdelivr.net https://lh3.googleusercontent.com ${new URL(PROJECT_COVER_FALLBACK_URL).origin}${imageOrigins.map((origin) => ` ${origin}`).join('')}`,
               "font-src 'self' data:",
               // fastly.jsdelivr.net: the check-in scanner's QR decoder
               // (@yudiel/react-qr-scanner, via barcode-detector/zxing-wasm)
