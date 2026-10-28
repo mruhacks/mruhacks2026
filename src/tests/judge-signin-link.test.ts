@@ -24,7 +24,7 @@ async function expiresInSeconds(token: string): Promise<number> {
   const [row] = await db
     .select({ expiresAt: schema.verification.expiresAt })
     .from(schema.verification)
-    .where(eq(schema.verification.identifier, token))
+    .where(eq(schema.verification.identifier, `magic-link:${token}`))
     .limit(1);
   if (!row) throw new Error('verification row missing');
   return (row.expiresAt.getTime() - Date.now()) / 1000;
@@ -40,7 +40,7 @@ beforeEach(() => {
 
 afterAll(async () => {
   for (const token of tokens) {
-    await db.delete(schema.verification).where(eq(schema.verification.identifier, token));
+    await db.delete(schema.verification).where(eq(schema.verification.identifier, `magic-link:${token}`));
   }
 });
 

@@ -1855,7 +1855,17 @@ describe('account deletion', () => {
     const tokens = await db
       .insert(schema.verification)
       .values([
-        // Better Auth's magic-link and delete-account token shapes.
+        // Better Auth's magic-link (current and pre-1.7) and delete-account token shapes.
+        {
+          identifier: 'f',
+          value: JSON.stringify({ type: 'magic-link', email: shouted, name: 'x' }),
+          expiresAt: later,
+        },
+        {
+          identifier: 'g',
+          value: JSON.stringify({ type: 'magic-link', email: leaver.email }),
+          expiresAt: later,
+        },
         {
           identifier: 'a',
           value: JSON.stringify({ email: shouted, name: 'x' }),
@@ -1876,6 +1886,11 @@ describe('account deletion', () => {
         {
           identifier: 'e',
           value: JSON.stringify({ email: bystander.email }),
+          expiresAt: later,
+        },
+        {
+          identifier: 'h',
+          value: JSON.stringify({ type: 'magic-link', email: `${leaver.email}.au` }),
           expiresAt: later,
         },
       ])
@@ -1899,8 +1914,8 @@ describe('account deletion', () => {
           tokens.map((t) => t.identifier),
         ),
       );
-    expect(left.map((t) => t.identifier).sort()).toEqual(['d', 'e']);
-    await db.delete(schema.verification).where(inArray(schema.verification.identifier, ['d', 'e']));
+    expect(left.map((t) => t.identifier).sort()).toEqual(['d', 'e', 'h']);
+    await db.delete(schema.verification).where(inArray(schema.verification.identifier, ['d', 'e', 'h']));
   });
 
   test('deleting the event removes its judging data', async () => {

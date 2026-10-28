@@ -13,6 +13,7 @@ overrides:
   smol-toml@<1.8.1: ^1.9.0
   ajv@>=7 <8.18.0: ^8.18.0
   '@tootallnate/once@<2.0.1': ^2.0.1
+  zod@<4.6.6: ^4.6.7
 
 onlyBuiltDependencies:
   - '@tailwindcss/oxide'
@@ -22,6 +23,10 @@ onlyBuiltDependencies:
 
 # 72-hour cooldown: ignore package versions published less than 3 days ago
 minimumReleaseAge: 4320
+minimumReleaseAgeExclude:
+  # Fixes GHSA-86w9-cpqp-85rv (RSA signature verification bypass), published
+  # inside the cooldown. Pinned to this exact version; drop once it ages out.
+  - node-forge@1.4.2
 
 resolutionMode: highest
 
@@ -32,15 +37,3 @@ allowBuilds:
   sharp: true
   ssh2: true
   unrs-resolver: true
-
-auditConfig:
-  ignoreGhsas:
-    # node-forge RSA PKCS#1 v1.5 signature *verification* bypass. No patched
-    # release is published yet (latest is 1.4.0). Only reached via
-    # passkit-generator, which uses node-forge to sign passes, never to verify.
-    - GHSA-86w9-cpqp-85rv
-    # braces stack-exhaustion DoS on deeply nested patterns. No patched release
-    # is published yet (latest is 3.0.3). Dev-only (vercel CLI, eslint), so it
-    # never reaches the --prod gate; ignored so the weekly full audit only goes
-    # red for new findings. Drop this once braces 3.0.4 ships.
-    - GHSA-vfj7-8cjw-p6xm
