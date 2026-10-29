@@ -30,6 +30,15 @@ vi.mock('next/server', async (importOriginal) => ({
   after: vi.fn(),
 }));
 
+// Actions are tested on *what* they invalidate (`invalidateEvent`'s change
+// argument); which tags and paths that busts is covered once, by
+// event-cache.test.ts. The spy also keeps each file's own `next/cache` mock
+// from having to stub every cache function.
+vi.mock('@/lib/event-cache', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/event-cache')>()),
+  invalidateEvent: vi.fn(),
+}));
+
 // ─────────────────────────────────────────────
 // Run migrations once before all tests
 // ─────────────────────────────────────────────

@@ -1,51 +1,40 @@
 import 'server-only';
 
+import type * as Ticket from '@/lib/ticket';
 import { buildCheckInPayload } from './check-in-token';
+import { resolveParticipantName } from './format';
 import { generateParticipantPass } from './generate-pass';
 import { buildGoogleWalletSaveUrl } from './google/event-ticket';
-import { getEventParticipation, resolveParticipantName, type EventParticipation } from './participation';
 
 /**
  * The wallet endpoints' shared work once the caller is known — the signed-in
  * user for `/api/wallet/{pass,google}/[eventId]`, or the signed user in a
- * campaign email's wallet link — so the two entry points can't drift on who
- * gets a pass or what's in it.
+ * campaign email's wallet link — and found eligible by
+ * `Ticket.passEligibility`, so the two entry points can't drift on what's in
+ * a pass.
  */
-
-/**
- * The participation, or null when this user shouldn't get a pass: unknown or
- * sub-event, no held spot, or check-in off. Callers answer null with the
- * same 404 either way, so the endpoint can't be used to probe applications.
- */
-export async function participation(eventId: string, userId: string): Promise<EventParticipation | null> {
-  const participation = await getEventParticipation(eventId, userId);
-  if (!participation || !participation.isParticipant || !participation.checkInEnabled) {
-    return null;
-  }
-  return participation;
-}
 
 export async function applePassResponse(input: {
   eventId: string;
   userId: string;
   accountName: string;
-  participation: EventParticipation;
+  holder: Ticket.Holder;
 }): Promise<Response> {
-  const { eventId, userId, participation } = input;
+  const { eventId, userId, holder } = input;
   try {
     const pass = await generateParticipantPass({
       eventId,
       userId,
-      name: resolveParticipantName(participation.fullName, input.accountName),
+      name: resolveParticipantName(holder.fullName, input.accountName),
       role: 'Participant',
-      eventName: participation.eventName,
-      startsAt: participation.startsAt,
-      endsAt: participation.endsAt,
-      location: participation.location,
-      latitude: participation.latitude,
-      longitude: participation.longitude,
-      radiusMeters: participation.radiusMeters,
-      expiresAt: participation.endsAt,
+      eventName: holder.eventName,
+      startsAt: holder.startsAt,
+      endsAt: holder.endsAt,
+      location: holder.location,
+      latitude: holder.latitude,
+      longitude: holder.longitude,
+      radiusMeters: holder.radiusMeters,
+      expiresAt: holder.endsAt,
     });
 
     return new Response(new Uint8Array(pass), {
@@ -66,18 +55,18 @@ export async function googleWalletResponse(input: {
   eventId: string;
   userId: string;
   accountName: string;
-  participation: EventParticipation;
+  holder: Ticket.Holder;
 }): Promise<Response> {
-  const { eventId, userId, participation } = input;
+  const { eventId, userId, holder } = input;
   try {
     const saveUrl = await buildGoogleWalletSaveUrl({
       eventId,
       userId,
-      name: resolveParticipantName(participation.fullName, input.accountName),
-      eventName: participation.eventName,
-      startsAt: participation.startsAt,
-      endsAt: participation.endsAt,
-      location: participation.location,
+      name: resolveParticipantName(holder.fullName, input.accountName),
+      eventName: holder.eventName,
+      startsAt: holder.startsAt,
+      endsAt: holder.endsAt,
+      location: holder.location,
       checkInPayload: buildCheckInPayload(eventId, userId),
     });
     return Response.redirect(saveUrl, 302);

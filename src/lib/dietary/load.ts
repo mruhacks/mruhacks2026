@@ -39,7 +39,7 @@ export async function loadDietaryReport(eventId: string): Promise<Report | null>
         and(
           eq(schema.eventParticipants.eventId, root.id),
           eq(schema.eventParticipants.userId, schema.user.id),
-          Participation.hasStatus('accepted'),
+          Participation.attending(),
         ),
       )
       .leftJoin(schema.userProfiles, eq(schema.userProfiles.userId, schema.user.id)),
@@ -106,7 +106,7 @@ export async function getDietaryExpectedCount(eventId: string): Promise<number> 
   const [row] = await db
     .select({ c: sql<number>`COUNT(*)`.mapWith(Number) })
     .from(schema.eventParticipants)
-    .where(and(eq(schema.eventParticipants.eventId, root.id), Participation.hasStatus('accepted')));
+    .where(and(eq(schema.eventParticipants.eventId, root.id), Participation.attending()));
 
   return row?.c ?? 0;
 }

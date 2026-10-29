@@ -14,11 +14,10 @@ describe('publishRsvpInvitation', () => {
   test('publishes to the rsvp-invitations topic with the response id as both payload and idempotency key', async () => {
     send.mockResolvedValue({ messageId: 'msg-123' });
 
-    const { publishRsvpInvitation, INVITATION_QUEUE_TOPIC } = await import('@/lib/rsvp/rsvp-invitation-queue');
+    const { publishRsvpInvitation } = await import('@/lib/rsvp/rsvp-invitation-queue');
 
     const result = await publishRsvpInvitation('response-1');
 
-    expect(INVITATION_QUEUE_TOPIC).toBe('rsvp-invitations');
     expect(send).toHaveBeenCalledTimes(1);
     expect(send).toHaveBeenCalledWith(
       'rsvp-invitations',

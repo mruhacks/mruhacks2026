@@ -4,7 +4,6 @@ import {
   eventAttachmentUrl,
   isEventAttachmentKey,
   isSubmissionAttachmentKey,
-  parseEventAttachmentKey,
   parseSubmissionAttachmentKey,
   submissionAttachmentPrefix,
 } from '@/utils/object-storage';
@@ -28,18 +27,6 @@ describe('isEventAttachmentKey', () => {
     [`event-content/${EVENT_ID}/${FILE_ID}.webp/extra`, 'trailing segment'],
   ])('rejects %s (%s)', (value) => {
     expect(isEventAttachmentKey(value)).toBe(false);
-  });
-});
-
-describe('eventAttachmentUrl / parseEventAttachmentKey', () => {
-  test('round-trips a key through its URL', () => {
-    expect(parseEventAttachmentKey(eventAttachmentUrl(KEY))).toBe(KEY);
-  });
-
-  test('ignores URLs that are not attachment assets', () => {
-    expect(parseEventAttachmentKey('/api/assets/profile-pictures/a/b.webp')).toBe(null);
-    expect(parseEventAttachmentKey('https://example.com/image.png')).toBe(null);
-    expect(parseEventAttachmentKey(null)).toBe(null);
   });
 });
 

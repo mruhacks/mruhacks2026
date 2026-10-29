@@ -28,10 +28,13 @@ describe('merge fields', () => {
     );
   });
 
-  test('finds unknown and half-typed fields', () => {
-    expect(Campaigns.findUnknownMergeFields('Hi {{lastName}} {{firstName}}')).toEqual(['{{lastName}}']);
-    expect(Campaigns.findUnknownMergeFields('Hi {{firs')).toEqual(['{{']);
-    expect(Campaigns.findUnknownMergeFields('Hi {{firstName|pal}}')).toEqual([]);
+  test('flags unknown and half-typed fields', () => {
+    expect(Campaigns.mergeFieldError('Hi {{lastName}} {{firstName}}')).toMatch(/^Unknown merge field {{lastName}}\./);
+    expect(Campaigns.mergeFieldError('Hi {{lastName}} {{surname}}')).toMatch(
+      /^Unknown merge fields {{lastName}}, {{surname}}\./,
+    );
+    expect(Campaigns.mergeFieldError('Hi {{firs')).toMatch(/^Unknown merge field {{\./);
+    expect(Campaigns.mergeFieldError('Hi {{firstName|pal}}')).toBeNull();
   });
 
   test('firstNameOf takes the first word', () => {

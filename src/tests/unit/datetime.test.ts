@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 
-import { EVENT_TIME_ZONE, formatEventDateTime, parseInstant, toZonedOffsetString } from '@/lib/datetime';
+import { EVENT_TIME_ZONE, parseInstant, toZonedOffsetString } from '@/lib/datetime';
 
 describe('parseInstant', () => {
   test('treats a naive ISO datetime as UTC', () => {
@@ -48,13 +48,6 @@ describe('parseInstant', () => {
     expect(parseInstant('')).toBeNull();
     expect(parseInstant('not a date')).toBeNull();
     expect(parseInstant(new Date('invalid'))).toBeNull();
-  });
-});
-
-describe('formatEventDateTime', () => {
-  test('prints America/Edmonton wall clock with a zone abbreviation', () => {
-    const date = parseInstant('2026-09-14T22:31:00.000Z')!;
-    expect(formatEventDateTime(date)).toMatch(/Sep 14, 2026, 4:31\sPM MDT/);
   });
 });
 

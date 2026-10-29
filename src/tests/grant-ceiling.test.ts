@@ -19,15 +19,7 @@ vi.mock('next/navigation', () => ({
 }));
 
 import { getUser } from '@/utils/auth';
-import {
-  assignRoleToUser,
-  grantPermissionToRole,
-  grantPermissionToUser,
-  setRolePermissions,
-  setUserDirectPermissions,
-  setUserRoles,
-  updatePermission,
-} from '@/app/actions/roles';
+import { setRolePermissions, updatePermission } from '@/app/actions/roles';
 import { inviteUser, updateUserDirectPermissions, updateUserRoles } from '@/app/actions/users';
 
 const DELEGATED = ['role:write:all', 'permission:write:all', 'user:write:all'];
@@ -122,13 +114,10 @@ afterAll(async () => {
 
 describe('refuses grants of permissions the caller lacks', () => {
   test.each([
-    ['assignRoleToUser (self)', () => assignRoleToUser(managerId, powerfulRoleId)],
-    ['setUserRoles (self)', () => setUserRoles(managerId, [powerfulRoleId])],
+    ['updateUserRoles (self)', () => updateUserRoles(managerId, [powerfulRoleId])],
     ['updateUserRoles (other)', () => updateUserRoles(targetId, [powerfulRoleId])],
-    ['grantPermissionToUser (self)', () => grantPermissionToUser(managerId, unheldPermId)],
-    ['setUserDirectPermissions (other)', () => setUserDirectPermissions(targetId, [unheldPermId])],
     ['updateUserDirectPermissions (self)', () => updateUserDirectPermissions(managerId, [unheldPermId])],
-    ['grantPermissionToRole', () => grantPermissionToRole(modestRoleId, unheldPermId)],
+    ['updateUserDirectPermissions (other)', () => updateUserDirectPermissions(targetId, [unheldPermId])],
     ['setRolePermissions', () => setRolePermissions(modestRoleId, [heldPermId, unheldPermId])],
     ['inviteUser', () => inviteUser('grant-ceiling@example.com', [powerfulRoleId])],
     ['updatePermission rename to a wildcard', () => updatePermission(heldPermId, { slug: 'all:all:all' })],

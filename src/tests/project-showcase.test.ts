@@ -4,15 +4,15 @@
  * never in placement order — and published projects' images are public.
  * None of it is public until all three podium places are awarded.
  */
-import { afterAll, describe, expect, test, vi } from 'vitest';
-import { inArray } from 'drizzle-orm';
+import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest';
+import { eq, inArray } from 'drizzle-orm';
 
 import { db } from '@/utils/db';
 import * as schema from '@/db/schema';
 
 vi.mock('next/cache', () => ({ cacheTag: vi.fn(), cacheLife: vi.fn() }));
 
-import { getPublicProject, isPublicSubmissionImage, loadProjectShowcase } from '@/lib/project-showcase';
+import { getProjectShowcase, getPublicProject, isPublicSubmissionImage } from '@/lib/project-showcase';
 import { submissionAttachmentPrefix } from '@/utils/object-storage';
 
 const created: { users: string[]; events: string[] } = {
@@ -20,6 +20,14 @@ const created: { users: string[]; events: string[] } = {
   events: [],
 };
 let counter = 0;
+// Whatever was featured before this file ran, restored afterwards.
+let previouslyFeatured: string[] = [];
+
+beforeAll(async () => {
+  previouslyFeatured = (
+    await db.select({ id: schema.events.id }).from(schema.events).where(eq(schema.events.isFeatured, true))
+  ).map((e) => e.id);
+});
 
 afterAll(async () => {
   if (created.events.length > 0) {
@@ -28,7 +36,18 @@ afterAll(async () => {
   if (created.users.length > 0) {
     await db.delete(schema.user).where(inArray(schema.user.id, created.users));
   }
+  await db.update(schema.events).set({ isFeatured: false }).where(eq(schema.events.isFeatured, true));
+  if (previouslyFeatured.length > 0) {
+    await db.update(schema.events).set({ isFeatured: true }).where(inArray(schema.events.id, previouslyFeatured));
+  }
 });
+
+/** The homepage showcase with `eventId` as the featured event. */
+async function showcaseFor(eventId: string) {
+  await db.update(schema.events).set({ isFeatured: false }).where(eq(schema.events.isFeatured, true));
+  await db.update(schema.events).set({ isFeatured: true }).where(eq(schema.events.id, eventId));
+  return getProjectShowcase();
+}
 
 async function makeEvent(): Promise<string> {
   const [e] = await db
@@ -92,7 +111,7 @@ async function makePodium(eventId: string): Promise<void> {
   }
 }
 
-describe('loadProjectShowcase', () => {
+describe('getProjectShowcase', () => {
   test('podium in place order; the full list alphabetical, not by placement', async () => {
     const eventId = await makeEvent();
     const first = await makeProject(eventId, 'Gamma', {
@@ -107,7 +126,7 @@ describe('loadProjectShowcase', () => {
     await makeProject(eventId, 'Bravo', { placement: 6 });
     await makeProject(eventId, 'Echo');
 
-    const showcase = await loadProjectShowcase(eventId);
+    const showcase = await showcaseFor(eventId);
 
     expect(showcase?.podium.map((p) => p.id)).toEqual([first, second, third]);
     expect(showcase?.podium[0].members).toEqual(['Ada', 'Grace']);
@@ -132,7 +151,7 @@ describe('loadProjectShowcase', () => {
     await makeProject(eventId, 'Alpha', { placement: 2 });
     await makeProject(eventId, 'Gamma');
 
-    expect(await loadProjectShowcase(eventId)).toBeNull();
+    expect(await showcaseFor(eventId)).toBeNull();
   });
 
   test('leaves out drafts and deactivated projects', async () => {
@@ -142,7 +161,7 @@ describe('loadProjectShowcase', () => {
     await makeProject(eventId, 'Shipped');
     await makePodium(eventId);
 
-    const showcase = await loadProjectShowcase(eventId);
+    const showcase = await showcaseFor(eventId);
 
     expect(showcase?.projects.map((p) => p.title)).toEqual(['Podium 1', 'Podium 2', 'Podium 3', 'Shipped']);
   });

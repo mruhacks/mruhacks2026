@@ -89,15 +89,6 @@ export async function hasAnyPermission(userId: string, permissionStrings: string
   return permissionStrings.some((required) => anyPermissionMatches(permissions, required));
 }
 
-export async function hasAllPermissions(userId: string, permissionStrings: string[]): Promise<boolean> {
-  const permissions = await loadUserPermissions(userId);
-  return permissionStrings.every((required) => anyPermissionMatches(permissions, required));
-}
-
-export async function hasRole(userId: string, roleSlug: string): Promise<boolean> {
-  return (await loadUserRoles(userId)).some((role) => role.slug === roleSlug);
-}
-
 export async function requirePermission(userId: string, permissionString: string): Promise<void> {
   if (!(await hasPermission(userId, permissionString))) {
     redirect(`/forbidden?reason=missing_permission&permission=${permissionString}`);

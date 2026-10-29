@@ -404,18 +404,31 @@ describe('delivery', () => {
     const id = await newCampaign();
     await processCampaignDispatch(id);
     const [d] = await deliveriesOf(id);
-    await db
-      .update(schema.campaignDeliveries)
-      .set({ attempts: Campaigns.MAX_CAMPAIGN_DELIVERY_ATTEMPTS - 1 })
-      .where(eq(schema.campaignDeliveries.id, d.id));
+    // One attempt short of the limit of 8.
+    await db.update(schema.campaignDeliveries).set({ attempts: 7 }).where(eq(schema.campaignDeliveries.id, d.id));
     vi.mocked(sendMail).mockRejectedValueOnce(new Error('connection reset'));
     expect(await Campaigns.processCampaignDelivery(d.id)).toBe('failed');
   });
 
-  test('error classification and retry delay', () => {
-    expect(Campaigns.classifySendError({ responseCode: 454, response: 'Throttling' })).toBe('throttled');
-    expect(Campaigns.classifySendError({ responseCode: 550, response: 'mailbox unavailable' })).toBe('permanent');
-    expect(Campaigns.classifySendError(new Error('ECONNRESET'))).toBe('transient');
+  test('a 5xx bounce fails at once; a connection error is retried', async () => {
+    const id = await newCampaign();
+    await processCampaignDispatch(id);
+    const [d] = await deliveriesOf(id);
+
+    vi.mocked(sendMail).mockRejectedValueOnce(new Error('ECONNRESET'));
+    await expect(Campaigns.processCampaignDelivery(d.id)).rejects.toThrow('ECONNRESET');
+    let [row] = await db.select().from(schema.campaignDeliveries).where(eq(schema.campaignDeliveries.id, d.id));
+    expect(row).toMatchObject({ status: 'queued', attempts: 1 });
+
+    vi.mocked(sendMail).mockRejectedValueOnce(
+      Object.assign(new Error('Message rejected'), { responseCode: 550, response: '550 mailbox unavailable' }),
+    );
+    expect(await Campaigns.processCampaignDelivery(d.id)).toBe('failed');
+    [row] = await db.select().from(schema.campaignDeliveries).where(eq(schema.campaignDeliveries.id, d.id));
+    expect(row).toMatchObject({ status: 'failed', attempts: 2 });
+  });
+
+  test('retry delay', () => {
     for (const n of [1, 3, 10]) {
       const ceiling = Math.min(300, 2 ** n * 5);
       expect(Campaigns.deliveryRetryDelay(n, () => 0)).toBe(Math.max(1, Math.round(ceiling / 2)));

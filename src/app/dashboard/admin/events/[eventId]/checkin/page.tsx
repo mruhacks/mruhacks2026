@@ -2,10 +2,11 @@ import * as React from 'react';
 import { notFound, redirect } from 'next/navigation';
 
 import * as Rbac from '@/lib/rbac/server';
+import * as Ticket from '@/lib/ticket/server';
 import { getUser } from '@/utils/auth';
 import { hasEventElapsed, resolveEventId } from '@/lib/events';
 import { getAdminEventHeader } from '@/lib/admin-event';
-import { getParentEventId, isSubeventRunning, listSubevents } from '@/lib/subevents';
+import { getParentEventId, listSubevents } from '@/lib/subevents';
 import { serializeInstant } from '@/lib/datetime';
 
 import { CheckInPage } from './check-in-page';
@@ -72,7 +73,7 @@ async function CheckInContent({
   const [event, subeventRows, canPickAnyTarget] = await Promise.all([
     getAdminEventHeader(eventId),
     listSubevents(eventId),
-    Rbac.hasPermission(user.id, 'checkin:override:all'),
+    Ticket.canOverrideTarget(user.id),
   ]);
   if (!event) notFound();
   if (!event.checkInEnabled) return <p>Check-in is disabled for this event.</p>;
@@ -81,9 +82,8 @@ async function CheckInContent({
   // at the meal table has no business arming anything else, and a shorter
   // list is one less way to arm the wrong entry. The actions enforce the
   // same rule, so this is about the picker, not about security.
-  const enabledRows = subeventRows.filter((row) => row.checkInEnabled);
-  const subevents: CheckInTargetOption[] = enabledRows
-    .filter((row) => canPickAnyTarget || isSubeventRunning(row))
+  const subevents: CheckInTargetOption[] = subeventRows
+    .filter((row) => Ticket.isArmable(row, canPickAnyTarget))
     .map((row) => ({
       id: row.id,
       name: row.name,
@@ -104,7 +104,8 @@ async function CheckInContent({
   const unknownTarget = Boolean(requestedTarget && requestedTarget !== eventId && !armed);
   // A real entry that just isn't on right now (a stale link, or a tab left
   // open past the slot) gets its own message rather than "doesn't belong".
-  const targetNotRunning = unknownTarget && enabledRows.some((row) => row.id === requestedTarget);
+  const targetNotRunning =
+    unknownTarget && subeventRows.some((row) => row.checkInEnabled && row.id === requestedTarget);
 
   return (
     <CheckInPage

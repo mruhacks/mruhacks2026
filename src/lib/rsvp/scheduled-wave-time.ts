@@ -12,7 +12,7 @@
 const RSVP_CRON_INTERVAL_MS = 60 * 60 * 1000;
 
 /** First scheduler run at or after `instant` (top of an hour, UTC). */
-export function nextRsvpCronRunAt(instant: Date): Date {
+function nextRsvpCronRunAt(instant: Date): Date {
   const ms = instant.getTime();
   return new Date(Math.ceil(ms / RSVP_CRON_INTERVAL_MS) * RSVP_CRON_INTERVAL_MS);
 }

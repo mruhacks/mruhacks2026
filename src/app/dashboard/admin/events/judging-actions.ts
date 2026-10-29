@@ -13,14 +13,12 @@
 'use server';
 
 import { and, asc, count, eq, inArray, max, isNotNull, isNull, sql } from 'drizzle-orm';
-import { revalidatePath, updateTag } from 'next/cache';
 import { z } from 'zod';
 
 import * as schema from '@/db/schema';
 import * as Auth from '@/lib/auth/server';
-import { eventUrlSegments } from '@/lib/events';
+import { invalidateEvent } from '@/lib/event-cache';
 import * as Judging from '@/lib/judging/server';
-import { PROJECT_SHOWCASE_CACHE_TAG } from '@/lib/project-showcase';
 import { isPastSubmissionDeadline } from '@/lib/submissions';
 import * as Rbac from '@/lib/rbac/server';
 import { ActionResult, fail, ok } from '@/utils/action-result';
@@ -38,15 +36,6 @@ async function authorize(permission: JudgingPermission): Promise<{ userId: strin
     return { error: fail('You do not have permission to do that.') };
   }
   return { userId: user.id };
-}
-
-async function revalidateJudging(eventId: string): Promise<void> {
-  for (const segment of await eventUrlSegments(eventId)) {
-    // 'layout' reaches every page under judging — each results table — not
-    // just the setup page itself. The Teams page fetches on the client and
-    // refetches after its own changes.
-    revalidatePath(`/dashboard/admin/events/${segment}/judging`, 'layout');
-  }
 }
 
 const STRUCTURE_LOCKED =
@@ -412,7 +401,7 @@ export async function saveJudgingCriteria(eventId: string, input: CriteriaInput)
       removed: result.data!.removed,
     },
   });
-  await revalidateJudging(eventId);
+  await invalidateEvent(eventId, 'judging');
   return ok();
 }
 
@@ -549,7 +538,7 @@ export async function addEventJudge(
     targetId: judgeId,
     metadata: { eventId, email: normalized, invite },
   });
-  await revalidateJudging(eventId);
+  await invalidateEvent(eventId, 'judging');
   return ok({ invite });
 }
 
@@ -592,7 +581,7 @@ export async function resendJudgeInvite(eventId: string, judgeId: string): Promi
     targetId: judgeId,
     metadata: { eventId },
   });
-  await revalidateJudging(eventId);
+  await invalidateEvent(eventId, 'judging');
   return ok();
 }
 
@@ -663,7 +652,7 @@ export async function sendOutstandingJudgeInvites(
       targetId: eventId,
       metadata: { judgeIds: sentIds, failed, skipped },
     });
-    await revalidateJudging(eventId);
+    await invalidateEvent(eventId, 'judging');
   }
   return ok({ sent: sentIds.length, failed, skipped });
 }
@@ -694,7 +683,7 @@ export async function setEventJudgeDisabled(
     targetId: judgeId,
     metadata: { eventId },
   });
-  await revalidateJudging(eventId);
+  await invalidateEvent(eventId, 'judging');
   return ok();
 }
 
@@ -730,7 +719,7 @@ export async function removeEventJudge(eventId: string, judgeId: string): Promis
       targetId: judgeId,
       metadata: { eventId },
     });
-    await revalidateJudging(eventId);
+    await invalidateEvent(eventId, 'judging');
   }
   return result;
 }
@@ -790,7 +779,7 @@ export async function updateJudgingTableLayout(eventId: string, input: Judging.T
     targetId: eventId,
     metadata: parsed.data,
   });
-  await revalidateJudging(eventId);
+  await invalidateEvent(eventId, 'judging');
   return ok();
 }
 
@@ -823,8 +812,7 @@ export async function setSubmissionDeactivated(
     targetId: submissionId,
     metadata: { eventId },
   });
-  updateTag(PROJECT_SHOWCASE_CACHE_TAG);
-  await revalidateJudging(eventId);
+  await invalidateEvent(eventId, 'projects');
   return ok();
 }
 
@@ -1069,7 +1057,6 @@ export async function setSubmissionPlacement(
     targetId: submissionId,
     metadata: { eventId, placement: parsed.data },
   });
-  updateTag(PROJECT_SHOWCASE_CACHE_TAG);
-  await revalidateJudging(eventId);
+  await invalidateEvent(eventId, 'projects');
   return ok();
 }

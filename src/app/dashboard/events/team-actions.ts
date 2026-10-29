@@ -11,8 +11,7 @@
 'use server';
 
 import { and, asc, count, eq } from 'drizzle-orm';
-import { revalidatePath, updateTag } from 'next/cache';
-import { eventApplicationsCacheTag } from '@/lib/admin-event';
+import { invalidateEvent } from '@/lib/event-cache';
 
 import { db } from '@/utils/db';
 import { getUser } from '@/utils/auth';
@@ -310,8 +309,7 @@ export async function joinTeamByCode(eventId: string, code: string): Promise<Act
 
     if (result.success) {
       await resyncWaitlist(eventId);
-      updateTag(eventApplicationsCacheTag(eventId));
-      revalidatePath(`/dashboard/events/${eventId}`);
+      await invalidateEvent(eventId, 'participation');
     }
     return result;
   } catch (error) {
@@ -370,8 +368,7 @@ export async function leaveTeam(eventId: string): Promise<ActionResult> {
 
     if (result.success) {
       await resyncWaitlist(eventId);
-      updateTag(eventApplicationsCacheTag(eventId));
-      revalidatePath(`/dashboard/events/${eventId}`);
+      await invalidateEvent(eventId, 'participation');
     }
     return result;
   } catch (error) {
@@ -476,8 +473,7 @@ export async function removeMember(eventId: string, targetUserId: string): Promi
 
     if (result.success) {
       await resyncWaitlist(eventId);
-      updateTag(eventApplicationsCacheTag(eventId));
-      revalidatePath(`/dashboard/events/${eventId}`);
+      await invalidateEvent(eventId, 'participation');
       if (isAdminOverride) {
         await writeAuditLog({
           actorId: currentUser.id,

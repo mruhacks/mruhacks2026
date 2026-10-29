@@ -106,16 +106,6 @@ beforeEach(() => {
   vi.mocked(sendMail).mockClear();
 });
 
-// ─── getRsvpMagicLinkCallbackURL / resolveMagicLinkMailOptions ───────────────
-
-describe('getRsvpMagicLinkCallbackURL', () => {
-  const eventId = '123e4567-e89b-12d3-a456-426614174000';
-
-  test('returns the event dashboard path with source=rsvp', () => {
-    expect(Rsvp.getRsvpMagicLinkCallbackURL(eventId)).toBe(`/dashboard/events/${eventId}?source=rsvp`);
-  });
-});
-
 describe('resolveMagicLinkMailOptions', () => {
   test('uses generic sign-in copy for normal and invite callbacks', async () => {
     const signIn = await Auth.resolveMagicLinkMailOptions({

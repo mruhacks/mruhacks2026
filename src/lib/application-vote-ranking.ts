@@ -30,7 +30,7 @@ const Z = 1.96;
  * approval rate we're 95% sure the applicant clears, which rewards a strong
  * ratio but discounts one backed by very few votes.
  */
-export function wilsonLowerBound({ yes, no }: VoteTally): number {
+function wilsonLowerBound({ yes, no }: VoteTally): number {
   const n = yes + no;
   if (n === 0) return 0;
   const p = yes / n;

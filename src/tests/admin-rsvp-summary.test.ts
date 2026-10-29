@@ -1,5 +1,5 @@
 import { describe, test, expect, afterAll, vi } from 'vitest';
-import { inArray } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 
 import { db } from '@/utils/db';
 import * as schema from '@/db/schema';
@@ -211,6 +211,45 @@ describe('getAdminRsvpSummary', () => {
       capacity: 1,
       availableSpots: 0,
       lifecycle: 'event_full',
+    });
+  });
+
+  describe('once the latest wave has closed', () => {
+    const now = new Date('2026-09-18T18:00:00.000Z');
+
+    /** An event with capacity to spare whose only wave closed before `now`. */
+    async function eventAfterClosedWave(name: string) {
+      const eventId = await createEvent(name, 10);
+      await createWave(eventId, 1, new Date('2026-09-16T14:00:00.000Z'), new Date('2026-09-16T16:00:00.000Z'));
+      return eventId;
+    }
+
+    async function waitlist(eventId: string) {
+      await insertParticipant({ eventId, userId: await createUser('Waitlisted'), status: 'waitlisted' });
+    }
+
+    test('waits for the next scheduled wave while someone can still be invited', async () => {
+      const eventId = await eventAfterClosedWave('RSVP Summary Awaiting');
+      await waitlist(eventId);
+      const summary = await Rsvp.getAdminRsvpSummary(eventId, now);
+      expect(summary).toMatchObject({ eligibleApplicantCount: 1, lifecycle: 'awaiting_scheduled_wave' });
+    });
+
+    test('reports nobody left to invite when spots remain but the waitlist is empty', async () => {
+      const eventId = await eventAfterClosedWave('RSVP Summary No Eligible');
+      const summary = await Rsvp.getAdminRsvpSummary(eventId, now);
+      expect(summary).toMatchObject({ availableSpots: 10, lifecycle: 'no_eligible_applicants' });
+    });
+
+    test('reports the event as started once it has begun', async () => {
+      const eventId = await eventAfterClosedWave('RSVP Summary Started');
+      await waitlist(eventId);
+      await db
+        .update(schema.events)
+        .set({ startsAt: new Date('2026-09-18T17:00:00.000Z') })
+        .where(eq(schema.events.id, eventId));
+      const summary = await Rsvp.getAdminRsvpSummary(eventId, now);
+      expect(summary).toMatchObject({ eventHasStarted: true, lifecycle: 'event_started' });
     });
   });
 });

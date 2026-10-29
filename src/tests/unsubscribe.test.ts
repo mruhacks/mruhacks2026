@@ -59,6 +59,12 @@ function tokenOf(url: string): string {
   return new URL(url).searchParams.get('t')!;
 }
 
+/** The one-click List-Unsubscribe URL a marketing email to `email` carries. */
+async function oneClickUrlFor(email: string): Promise<string> {
+  const message = await Campaigns.buildCampaignMessage(content('marketing'), { email, firstName: null });
+  return message.listUnsubscribeUrl!;
+}
+
 beforeAll(async () => {
   const { privateKey } = generateKeyPairSync('ed25519', {
     privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
@@ -125,7 +131,7 @@ describe('campaign email unsubscribe headers (MailHog)', () => {
 describe('unsubscribing', () => {
   test('opening the link (GET) changes nothing; the one-click POST unsubscribes', async () => {
     await db.update(schema.marketingConsents).set({ optedIn: true }).where(eq(schema.marketingConsents.userId, userId));
-    const { oneClick } = await Campaigns.unsubscribeUrls(EMAIL);
+    const oneClick = await oneClickUrlFor(EMAIL);
 
     const get = GET(new Request(oneClick));
     expect(get.status).toBe(303);
@@ -149,8 +155,7 @@ describe('unsubscribing', () => {
 
   test('the page button unsubscribes; a tampered token does not', async () => {
     await db.update(schema.marketingConsents).set({ optedIn: true }).where(eq(schema.marketingConsents.userId, userId));
-    const { page } = await Campaigns.unsubscribeUrls(EMAIL);
-    const token = tokenOf(page);
+    const token = tokenOf(await oneClickUrlFor(EMAIL));
 
     expect(await Campaigns.unsubscribeByToken(`${token.slice(0, -2)}AA`)).toBe('invalid');
     expect(await optedIn()).toBe(true);
@@ -160,14 +165,14 @@ describe('unsubscribing', () => {
   });
 
   test('an address with no account gets a friendly outcome', async () => {
-    const { page } = await Campaigns.unsubscribeUrls(`nobody-${ts}@example.com`);
-    expect(await Campaigns.unsubscribeByToken(tokenOf(page))).toBe('no_account');
+    const url = await oneClickUrlFor(`nobody-${ts}@example.com`);
+    expect(await Campaigns.unsubscribeByToken(tokenOf(url))).toBe('no_account');
   });
 
   test('a user with no consent row ends up opted out', async () => {
     await db.delete(schema.marketingConsents).where(eq(schema.marketingConsents.userId, userId));
-    const { page } = await Campaigns.unsubscribeUrls(EMAIL.toUpperCase());
-    expect(await Campaigns.unsubscribeByToken(tokenOf(page))).toBe('unsubscribed');
+    const url = await oneClickUrlFor(EMAIL.toUpperCase());
+    expect(await Campaigns.unsubscribeByToken(tokenOf(url))).toBe('unsubscribed');
     expect(await optedIn()).toBe(false);
   });
 

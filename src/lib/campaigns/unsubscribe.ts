@@ -20,7 +20,7 @@ import { getAppBaseUrl, renderCampaignEmail, type BlockRenderers, type Content }
  *                          redirects to the page above
  */
 
-export async function unsubscribeUrls(
+async function unsubscribeUrls(
   email: string,
   baseUrl: string = getAppBaseUrl(),
 ): Promise<{ page: string; oneClick: string }> {

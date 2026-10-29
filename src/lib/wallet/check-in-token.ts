@@ -80,7 +80,7 @@ function bytesToUuid(bytes: Buffer): string {
  * make it hard to scan, for data the scanner already had a source of truth
  * for.
  */
-export function buildCheckInToken(eventId: string, userId: string): Buffer {
+function buildCheckInToken(eventId: string, userId: string): Buffer {
   const body = Buffer.concat([Buffer.from([TOKEN_VERSION]), uuidToBytes(eventId), uuidToBytes(userId)]);
   const signature = sign(null, body, Signing.getAppSigningPrivateKey());
   return Buffer.concat([body, signature]);
@@ -107,7 +107,7 @@ export function buildCheckInPayload(eventId: string, userId: string): string {
  * they expire. Either way, only `eventId`/`userId` come back: nothing reads
  * v1's expiry or name back out.
  */
-export function verifyCheckInToken(token: Buffer): CheckInClaims | null {
+function verifyCheckInToken(token: Buffer): CheckInClaims | null {
   if (token.length < 1) return null;
 
   const version = token.readUInt8(VERSION_OFFSET);

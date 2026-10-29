@@ -58,7 +58,7 @@ describe('optimizeCampaignImage', () => {
 
     expect(image.contentType).toBe('image/jpeg');
     expect(meta.format).toBe('jpeg');
-    expect(meta.width).toBeLessThanOrEqual(Campaigns.IMAGE_MAX_WIDTH);
+    expect(meta.width).toBeLessThanOrEqual(1200);
     // Orientation 6 is a 90° turn: the landscape source comes out portrait.
     expect(meta.height!).toBeGreaterThan(meta.width!);
     expect(meta.exif).toBeUndefined();

@@ -6,7 +6,7 @@
  * is safe to call from a server action after it has done its own querying
  * and permission checks.
  *
- * `buildQuestionStats` is the first (and, as of writing, only) caller of
+ * `buildQuestionStatsByStatus` is the first (and, as of writing, only) caller of
  * `resolveShowInReports` (`src/types/application.ts`) — the predicate that
  * decides whether a question's answers are ever aggregated. Do not
  * reimplement that rule here.
@@ -66,7 +66,7 @@ export type StatsBucket = {
   inactive?: boolean;
 };
 
-export type QuestionStats = {
+type QuestionStats = {
   questionId: string;
   label: string;
   type: ApplicationQuestionType;
@@ -79,7 +79,6 @@ export type QuestionStats = {
 };
 
 const UNKNOWN_KEY = 'unknown';
-const UNKNOWN_LABEL = 'Unknown';
 
 /** `count / denominator` as a 0–100 percentage, guarded against 0/0 -> NaN. */
 function percentOf(count: number, denominator: number): number {
@@ -336,19 +335,6 @@ function buildOneQuestionStats(
 }
 
 /**
- * Aggregates responses for every question flagged `showInReports` (via
- * `resolveShowInReports`, which already excludes free-text/section-divider
- * questions and defaults an unset flag to `false`). Questions not flagged
- * are simply absent from the result — never rendered as an empty chart.
- */
-export function buildQuestionStats(questions: ApplicationQuestion[], rows: ApplicationStatsRow[]): QuestionStats[] {
-  const total = rows.length;
-  return questions
-    .filter((question) => resolveShowInReports(question))
-    .map((question) => buildOneQuestionStats(question, rows, total));
-}
-
-/**
  * Participation-status counts. Seeded from every known `ParticipationStatus`
  * (`src/types/lookups.ts`) so a status with zero applications still renders
  * as an explicit 0 rather than vanishing from the breakdown — the same
@@ -373,46 +359,6 @@ export function buildStatusBreakdown(rows: ApplicationStatsRow[]): StatsBucket[]
   }
 
   return finalizeBuckets(bucketMap, rows.length);
-}
-
-type DemographicField = 'university' | 'major' | 'yearOfStudy' | 'gender';
-
-function buildFieldBreakdown(rows: ApplicationStatsRow[], field: DemographicField): StatsBucket[] {
-  const bucketMap = new Map<string, StatsBucket>();
-
-  for (const row of rows) {
-    const raw = row[field];
-    const hasValue = typeof raw === 'string' && raw.trim().length > 0;
-    const key = hasValue ? raw : UNKNOWN_KEY;
-    let bucket = bucketMap.get(key);
-    if (!bucket) {
-      bucket = {
-        key,
-        label: hasValue ? raw : UNKNOWN_LABEL,
-        count: 0,
-        percent: 0,
-      };
-      bucketMap.set(key, bucket);
-    }
-    bucket.count++;
-  }
-
-  return finalizeBuckets(bucketMap, rows.length);
-}
-
-/**
- * Applicant demographic breakdowns (university / major / year of study /
- * gender), one bucket set per field. A missing value is bucketed under
- * `"unknown"` rather than dropped, so counts still sum to `rows.length` per
- * field.
- */
-export function buildDemographicStats(rows: ApplicationStatsRow[]): Record<DemographicField, StatsBucket[]> {
-  return {
-    university: buildFieldBreakdown(rows, 'university'),
-    major: buildFieldBreakdown(rows, 'major'),
-    yearOfStudy: buildFieldBreakdown(rows, 'yearOfStudy'),
-    gender: buildFieldBreakdown(rows, 'gender'),
-  };
 }
 
 /**
@@ -488,9 +434,10 @@ function splitByStatus(
 }
 
 /**
- * `buildQuestionStats`, split by participation status. Same question set
- * (only `resolveShowInReports` questions), same buckets and order; number
- * questions keep the cohort's histogram bins in every status.
+ * Per-question breakdowns, split by participation status. Only
+ * `resolveShowInReports` questions are included; buckets keep the cohort's
+ * order, and number questions keep the cohort's histogram bins in every
+ * status.
  */
 export function buildQuestionStatsByStatus(
   questions: ApplicationQuestion[],

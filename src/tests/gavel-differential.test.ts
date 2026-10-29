@@ -5,7 +5,7 @@
  * oracle's image; vendor/gavel-oracle runs it (Flask app, SQLAlchemy models,
  * numpy/scipy `crowd_bt`) as a child process. Two layers are compared:
  *
- * - `crowd_bt`: `update`, `expected_information_gain`, `betaln` and `psi` on
+ * - `crowd_bt`: `update` and `expected_information_gain` on
  *   thousands of random inputs, including the corners (tiny σ², lopsided
  *   reliabilities) that the hand-picked cases in unit/crowd-bt.test.ts skip.
  * - The whole judge flow, end to end: simulated judges walk both systems in
@@ -543,30 +543,6 @@ describe.runIf(RUN)('Gavel differential', () => {
 
   test('crowd_bt update and expected information gain match on random inputs', async () => {
     await compareCrowdBt(FIXED_SEED ? Number(FIXED_SEED) : 42, 5000);
-  });
-
-  test('betaln and psi match scipy across their range', async () => {
-    const rand = prng(7);
-    const pairs = Array.from({ length: 2000 }, () => [logUniform(rand, 1e-3, 1e4), logUniform(rand, 1e-3, 1e4)]);
-    const xs = Array.from({ length: 2000 }, () => [logUniform(rand, 1e-3, 1e5)]);
-    const gavelBetaln = await oracle.call<number[]>({
-      op: 'crowd_bt',
-      fn: 'betaln',
-      calls: pairs,
-    });
-    const gavelPsi = await oracle.call<number[]>({
-      op: 'crowd_bt',
-      fn: 'psi',
-      calls: xs,
-    });
-    pairs.forEach(([a, b], i) =>
-      expectClose([Judging.betaln(a, b)], [gavelBetaln.result[i]], {
-        fn: 'betaln',
-        a,
-        b,
-      }),
-    );
-    xs.forEach(([x], i) => expectClose([Judging.psi(x)], [gavelPsi.result[i]], { fn: 'psi', x }));
   });
 
   describe('judge flow, step for step', () => {

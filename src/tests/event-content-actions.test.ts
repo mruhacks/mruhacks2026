@@ -9,7 +9,7 @@
  * real bucket round-trip belongs in the storage layer's own coverage.
  */
 import { describe, test, expect, beforeAll, afterAll, vi } from 'vitest';
-import { and, eq } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 import { db } from '@/utils/db';
 import * as schema from '@/db/schema';
 
@@ -30,14 +30,13 @@ vi.mock('@/utils/object-storage', async (importOriginal) => ({
 }));
 
 import { getUser } from '@/utils/auth';
-import { revalidatePath, updateTag } from 'next/cache';
-import { getPublishedArticleList } from '@/lib/event-wiki';
+import { invalidateEvent } from '@/lib/event-cache';
+import { getWikiSidebarArticles } from '@/lib/event-wiki';
 import {
   canWriteArticles,
   createEventArticle,
   deleteEventArticle,
   getEventArticle,
-  listEventArticles,
   reorderEventArticles,
   updateEventArticle,
   updateEventDescription,
@@ -71,6 +70,15 @@ async function grant(userId: string, slug: string) {
         .limit(1)
     )[0].id;
   await db.insert(schema.userPermission).values({ userId, permissionId }).onConflictDoNothing();
+}
+
+/** Every article for the event, drafts included, in the admin wiki's order. */
+function listArticles(eventId: string) {
+  return db
+    .select()
+    .from(schema.eventArticles)
+    .where(eq(schema.eventArticles.eventId, eventId))
+    .orderBy(asc(schema.eventArticles.sortOrder), asc(schema.eventArticles.title));
 }
 
 async function makeUser(email: string): Promise<MockUser> {
@@ -126,9 +134,6 @@ describe('authorization', () => {
       success: false,
     });
     await expect(uploadEventDescriptionAttachment(eventId, new FormData())).resolves.toMatchObject({ success: false });
-    await expect(listEventArticles(eventId)).resolves.toMatchObject({
-      success: false,
-    });
     await expect(getEventArticle(eventId, NIL_UUID)).resolves.toMatchObject({
       success: false,
     });
@@ -154,7 +159,6 @@ describe('authorization', () => {
 
   test('reading the wiki requires article:read:all', async () => {
     actAs(outsider);
-    await expect(listEventArticles(eventId)).rejects.toThrow(forbidden('article:read:all'));
     await expect(getEventArticle(eventId, NIL_UUID)).rejects.toThrow(forbidden('article:read:all'));
     actAs(editor);
   });
@@ -305,25 +309,15 @@ describe('wiki articles', () => {
     await db.delete(schema.events).where(eq(schema.events.id, other.id));
   });
 
-  test('lists drafts alongside published articles', async () => {
-    const list = await listEventArticles(eventId);
-    expect(list.success).toBe(true);
-    const slugs = unwrap(list).map((a) => a.slug);
-    expect(slugs).toContain('getting-started');
-    expect(slugs).toContain('schedule');
-    expect(unwrap(list).some((a) => !a.published)).toBe(true);
-  });
-
   test('persists a complete order including drafts and refreshes both wiki views', async () => {
-    const before = unwrap(await listEventArticles(eventId));
+    const before = await listArticles(eventId);
     const orderedIds = before.map((article) => article.id).reverse();
-    vi.mocked(updateTag).mockClear();
-    vi.mocked(revalidatePath).mockClear();
+    vi.mocked(invalidateEvent).mockClear();
 
     expect(await reorderEventArticles(eventId, orderedIds)).toMatchObject({
       success: true,
     });
-    const after = unwrap(await listEventArticles(eventId));
+    const after = await listArticles(eventId);
     expect(after.map((article) => article.id)).toEqual(orderedIds);
     expect(after.map((article) => article.sortOrder)).toEqual(orderedIds.map((_, index) => index));
     expect(after.filter((article) => article.published).map((article) => article.id)).toEqual(
@@ -332,15 +326,13 @@ describe('wiki articles', () => {
         .filter((article) => article.published)
         .map((article) => article.id),
     );
-    expect(updateTag).toHaveBeenCalledWith(`event-wiki:${eventId}`);
-    expect((await getPublishedArticleList(eventId)).map((article) => article.slug)).toEqual(
-      after.filter((article) => article.published).map((article) => article.slug),
-    );
-    expect(revalidatePath).toHaveBeenCalledWith(`/dashboard/admin/events/${eventId}`);
-    expect(revalidatePath).toHaveBeenCalledWith(`/dashboard/events/${eventId}/wiki`);
+    expect(invalidateEvent).toHaveBeenCalledWith(eventId, 'wiki');
+    expect(
+      (await getWikiSidebarArticles(eventId, { canSeeDrafts: false, hasTerms: false })).map((article) => article.slug),
+    ).toEqual(after.filter((article) => article.published).map((article) => article.slug));
 
     const created = unwrap(await createEventArticle(eventId, { title: 'A new last article' }));
-    expect(unwrap(await listEventArticles(eventId)).map((article) => article.id)).toEqual([...orderedIds, created.id]);
+    expect((await listArticles(eventId)).map((article) => article.id)).toEqual([...orderedIds, created.id]);
   });
 
   test('reorders seeded article IDs alongside generated UUIDs', async () => {
@@ -359,18 +351,16 @@ describe('wiki articles', () => {
         title: `Seeded article ${index}`,
       })),
     );
-    const ids = unwrap(await listEventArticles(eventId))
-      .map((article) => article.id)
-      .reverse();
+    const ids = (await listArticles(eventId)).map((article) => article.id).reverse();
 
     expect(await reorderEventArticles(eventId, ids)).toMatchObject({
       success: true,
     });
-    expect(unwrap(await listEventArticles(eventId)).map((article) => article.id)).toEqual(ids);
+    expect((await listArticles(eventId)).map((article) => article.id)).toEqual(ids);
   });
 
   test('rejects duplicate, incomplete, foreign and malformed orders without changing articles', async () => {
-    const before = unwrap(await listEventArticles(eventId));
+    const before = await listArticles(eventId);
     const ids = before.map((article) => article.id);
     const [other] = await db.insert(schema.events).values({ name: 'Foreign wiki' }).returning({ id: schema.events.id });
     try {
@@ -385,7 +375,7 @@ describe('wiki articles', () => {
         expect(await reorderEventArticles(eventId, invalid)).toMatchObject({
           success: false,
         });
-        expect(unwrap(await listEventArticles(eventId))).toEqual(before);
+        expect(await listArticles(eventId)).toEqual(before);
       }
       expect(unwrap(await getEventArticle(other.id, foreign.id)).sortOrder).toBe(0);
     } finally {
@@ -505,7 +495,7 @@ describe('Event Terms copy-on-write', () => {
     const [cleared] = await db.select().from(schema.events).where(eq(schema.events.id, eventId));
     expect(cleared.termsId).toBeNull();
     expect(await db.select().from(schema.eventTerms).where(eq(schema.eventTerms.eventId, eventId))).toHaveLength(2);
-    expect(updateTag).toHaveBeenCalledWith(`admin-event:${eventId}`);
+    expect(invalidateEvent).toHaveBeenCalledWith(eventId, 'content');
     expect((await updateEventTerms(eventId, 'x'.repeat(20_001))).success).toBe(false);
   });
 });

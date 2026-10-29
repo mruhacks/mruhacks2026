@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { Undo2, UserCheck } from 'lucide-react';
 
-import type { CheckInRosterRow } from '@/app/dashboard/admin/events/check-in-actions';
+import type * as Ticket from '@/lib/ticket';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,7 +13,7 @@ type RosterFilter = 'all' | 'waiting' | 'arrived' | 'not-here';
 const PAGE_SIZE = 40;
 
 type CheckInRosterProps = {
-  rows: CheckInRosterRow[];
+  rows: Ticket.CheckInRosterRow[];
   pendingUserId: string | null;
   /**
    * A sub-event is armed, so `atMainEvent` decides who can be checked in and
@@ -22,8 +22,8 @@ type CheckInRosterProps = {
   requiresDoorCheckIn?: boolean;
   /** The event is over and check-in is frozen: rows are read-only. */
   frozen?: boolean;
-  onCheckIn: (row: CheckInRosterRow) => void;
-  onUndo: (row: CheckInRosterRow) => void;
+  onCheckIn: (row: Ticket.CheckInRosterRow) => void;
+  onUndo: (row: Ticket.CheckInRosterRow) => void;
 };
 
 export function CheckInRoster({
@@ -139,12 +139,12 @@ export function CheckInRoster({
 }
 
 type RosterRowProps = {
-  row: CheckInRosterRow;
+  row: Ticket.CheckInRosterRow;
   pending: boolean;
   requiresDoorCheckIn: boolean;
   frozen: boolean;
-  onCheckIn: (row: CheckInRosterRow) => void;
-  onUndo: (row: CheckInRosterRow) => void;
+  onCheckIn: (row: Ticket.CheckInRosterRow) => void;
+  onUndo: (row: Ticket.CheckInRosterRow) => void;
 };
 
 function RosterRow({ row, pending, requiresDoorCheckIn, frozen, onCheckIn, onUndo }: RosterRowProps) {

@@ -13,7 +13,7 @@ import { buildCampaignMessage } from './unsubscribe';
 import { walletBlockRenderers, walletLinksFor } from './wallet-block';
 
 /** Attempts after which a still-failing delivery is marked `failed` instead of retried. */
-export const MAX_CAMPAIGN_DELIVERY_ATTEMPTS = 8;
+const MAX_CAMPAIGN_DELIVERY_ATTEMPTS = 8;
 
 export const SKIP_REASONS = {
   stopped: 'Campaign stopped before this was sent',
@@ -34,7 +34,7 @@ export function deliveryRetryDelay(deliveryCount: number, random: () => number =
 }
 
 /** How a send error should be handled. */
-export function classifySendError(error: unknown): 'throttled' | 'suppressed' | 'permanent' | 'transient' {
+function classifySendError(error: unknown): 'throttled' | 'suppressed' | 'permanent' | 'transient' {
   const err = error as {
     responseCode?: number;
     response?: string;

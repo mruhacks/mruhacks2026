@@ -57,7 +57,7 @@ const ROMAN: [number, string][] = [
 ];
 
 /** `n` (1-based) in the given alphabet: 28 → "AB", "28", "XXVIII". */
-export function formatOrdinal(n: number, alphabet: TableAlphabet): string {
+function formatOrdinal(n: number, alphabet: TableAlphabet): string {
   if (!Number.isInteger(n) || n < 1) {
     throw new RangeError(`Ordinal must be a positive integer, got ${n}`);
   }

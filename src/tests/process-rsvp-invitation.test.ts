@@ -262,9 +262,8 @@ describe('processRsvpInvitation', () => {
     });
 
     try {
-      await expect(Rsvp.processRsvpInvitation(responseId, Rsvp.MAX_INVITATION_DELIVERY_ATTEMPTS - 1)).rejects.toThrow(
-        'magic link unavailable',
-      );
+      // One attempt short of the limit of 8.
+      await expect(Rsvp.processRsvpInvitation(responseId, 7)).rejects.toThrow('magic link unavailable');
 
       const row = await getResponse(responseId);
       expect(row.invitationEmailAttempts).toBe(1);
@@ -287,7 +286,8 @@ describe('processRsvpInvitation', () => {
     });
 
     try {
-      const outcome = await Rsvp.processRsvpInvitation(responseId, Rsvp.MAX_INVITATION_DELIVERY_ATTEMPTS);
+      // The limit of 8 attempts.
+      const outcome = await Rsvp.processRsvpInvitation(responseId, 8);
       expect(outcome).toBe('given_up');
 
       const row = await getResponse(responseId);

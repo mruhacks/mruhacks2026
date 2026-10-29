@@ -11,7 +11,7 @@ import {
   scanCheckIn,
   undoCheckIn,
 } from '@/app/dashboard/admin/events/check-in-actions';
-import type { CheckInDietary, CheckInOutcome, CheckInRosterRow } from '@/app/dashboard/admin/events/check-in-actions';
+import type * as Ticket from '@/lib/ticket';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { CheckInRoster } from './check-in-roster';
@@ -28,8 +28,8 @@ import {
 import { playScanCue } from './scan-cue';
 
 type ScanFeedback =
-  | { kind: 'accepted'; outcome: CheckInOutcome }
-  | { kind: 'duplicate'; outcome: CheckInOutcome }
+  | { kind: 'accepted'; outcome: Ticket.CheckInOutcome }
+  | { kind: 'duplicate'; outcome: Ticket.CheckInOutcome }
   | { kind: 'rejected'; message: string };
 
 const FEEDBACK_STYLES = {
@@ -50,7 +50,7 @@ const FEEDBACK_STYLES = {
   },
 };
 
-function DietaryBadges({ dietary }: { dietary: CheckInDietary }) {
+function DietaryBadges({ dietary }: { dietary: Ticket.CheckInDietary }) {
   if (dietary.restrictions.length === 0) {
     return <p className='text-muted-foreground mt-2 text-sm'>No dietary restrictions.</p>;
   }
@@ -146,7 +146,7 @@ export function CheckInPage({
   targetNotRunning = false,
   hasEnded = false,
 }: CheckInPageProps) {
-  const [roster, setRoster] = React.useState<CheckInRosterRow[]>([]);
+  const [roster, setRoster] = React.useState<Ticket.CheckInRosterRow[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [loadError, setLoadError] = React.useState<string | null>(null);
   const [reloadToken, setReloadToken] = React.useState(0);
@@ -154,7 +154,7 @@ export function CheckInPage({
   const [pendingUserId, setPendingUserId] = React.useState<string | null>(null);
 
   const scanBusyRef = React.useRef(false);
-  const rosterRef = React.useRef<CheckInRosterRow[]>(roster);
+  const rosterRef = React.useRef<Ticket.CheckInRosterRow[]>(roster);
   /** Bumped by every check-in or undo, so a poll that was already in flight
    *  when one landed discards its now-stale answer instead of replaying it. */
   const mutationSeqRef = React.useRef(0);
@@ -239,7 +239,7 @@ export function CheckInPage({
 
   /** Writes a mutation's own result straight into the roster. Falls back to a
    *  full reload only when the roster has no row to patch. */
-  const applyLocalPatch = React.useCallback((patched: CheckInRosterRow[] | null) => {
+  const applyLocalPatch = React.useCallback((patched: Ticket.CheckInRosterRow[] | null) => {
     mutationSeqRef.current += 1;
     if (!patched) {
       setReloadToken((token) => token + 1);
@@ -278,7 +278,7 @@ export function CheckInPage({
   );
 
   const handleManualCheckIn = React.useCallback(
-    async (row: CheckInRosterRow) => {
+    async (row: Ticket.CheckInRosterRow) => {
       setPendingUserId(row.userId);
       try {
         const result = await checkInParticipant(eventId, row.userId, targetId);
@@ -300,7 +300,7 @@ export function CheckInPage({
   );
 
   const handleUndo = React.useCallback(
-    async (row: CheckInRosterRow) => {
+    async (row: Ticket.CheckInRosterRow) => {
       setPendingUserId(row.userId);
       try {
         const result = await undoCheckIn(eventId, row.userId, targetId);

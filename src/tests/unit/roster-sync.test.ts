@@ -8,7 +8,7 @@
  */
 import { describe, test, expect, vi, afterEach } from 'vitest';
 
-import type { CheckInOutcome, CheckInRosterRow } from '@/app/dashboard/admin/events/check-in-actions';
+import type * as Ticket from '@/lib/ticket';
 import {
   applyCheckIn,
   clearCheckIn,
@@ -18,7 +18,11 @@ import {
   type PollingHost,
 } from '@/app/dashboard/admin/events/[eventId]/checkin/roster-sync';
 
-function row(userId: string, checkedInAt: string | null = null, atMainEvent = checkedInAt !== null): CheckInRosterRow {
+function row(
+  userId: string,
+  checkedInAt: string | null = null,
+  atMainEvent = checkedInAt !== null,
+): Ticket.CheckInRosterRow {
   return {
     userId,
     name: `User ${userId}`,
@@ -115,7 +119,7 @@ describe('mergeCheckInUpdates', () => {
 });
 
 describe('applyCheckIn / clearCheckIn', () => {
-  const outcome: CheckInOutcome = {
+  const outcome: Ticket.CheckInOutcome = {
     userId: 'b',
     name: 'User b',
     alreadyCheckedIn: false,

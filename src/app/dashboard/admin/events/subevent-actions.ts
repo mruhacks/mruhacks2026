@@ -12,14 +12,11 @@
 'use server';
 
 import { and, eq, isNotNull, isNull } from 'drizzle-orm';
-import { revalidatePath, updateTag } from 'next/cache';
 
 import * as schema from '@/db/schema';
 import { eventTypeExists } from '@/lib/event-types';
-import { adminEventCacheTag, eventApplicationsCacheTag } from '@/lib/admin-event';
-import { EVENTS_CACHE_TAG, eventUrlSegments } from '@/lib/events';
+import { invalidateEvent } from '@/lib/event-cache';
 import * as Rbac from '@/lib/rbac/server';
-import { subeventsCacheTag } from '@/lib/subevents';
 import { ok, fail, type ActionResult } from '@/utils/action-result';
 import { writeAuditLog } from '@/utils/audit-log';
 import { getUser } from '@/utils/auth';
@@ -32,21 +29,6 @@ async function getAuthorizedUser() {
   if (!user) return null;
   await Rbac.requirePermission(user.id, 'event:manage');
   return user;
-}
-
-/** Everything a sub-event's write has to invalidate, all keyed on the parent. */
-async function revalidateSubevents(parentEventId: string) {
-  updateTag(subeventsCacheTag(parentEventId));
-  // The parent's own listing entries and overview tiles.
-  updateTag(EVENTS_CACHE_TAG);
-  updateTag(adminEventCacheTag(parentEventId));
-  updateTag(eventApplicationsCacheTag(parentEventId));
-
-  for (const segment of await eventUrlSegments(parentEventId)) {
-    revalidatePath(`/dashboard/admin/events/${segment}`);
-    revalidatePath(`/dashboard/admin/events/${segment}/subevents`);
-    revalidatePath(`/dashboard/events/${segment}`);
-  }
 }
 
 /**
@@ -102,7 +84,7 @@ export async function createSubevent(
     })
     .returning({ id: schema.events.id });
 
-  await revalidateSubevents(parentEventId);
+  await invalidateEvent(parentEventId, 'schedule');
 
   await writeAuditLog({
     actorId: user.id,
@@ -174,7 +156,7 @@ export async function deleteSubevent(parentEventId: string, subeventId: string):
       );
   });
 
-  await revalidateSubevents(parentEventId);
+  await invalidateEvent(parentEventId, 'schedule');
 
   await writeAuditLog({
     actorId: user.id,

@@ -3,7 +3,6 @@ import { count, eq } from 'drizzle-orm';
 
 import { db } from '@/utils/db';
 import * as schema from '@/db/schema';
-import { MAGIC_LINK_EXPIRES_IN_SECONDS } from '@/utils/auth';
 import * as Rsvp from '@/lib/rsvp/server';
 import { getStatus, insertInvitation } from '@/tests/participation-fixtures';
 
@@ -88,10 +87,6 @@ afterAll(async () => {
 });
 
 describe('RSVP magic-link expiration / resend', () => {
-  test('keeps the default sign-in magic-link lifetime at 24h', () => {
-    expect(MAGIC_LINK_EXPIRES_IN_SECONDS).toBe(86400);
-  });
-
   test('sign-in magic links still expire after 24h when no RSVP context is set', async () => {
     vi.mocked(sendMail).mockClear();
     const email = `login-lifetime-${Date.now()}@example.com`;
@@ -108,7 +103,7 @@ describe('RSVP magic-link expiration / resend', () => {
 
       token = magicLinkTokenFromLastMail();
       const expiresAt = await getVerificationExpiresAt(token);
-      const expected = Date.now() + MAGIC_LINK_EXPIRES_IN_SECONDS * 1000;
+      const expected = Date.now() + 24 * 60 * 60 * 1000;
       expect(Math.abs(expiresAt.getTime() - expected)).toBeLessThan(5000);
       expect(vi.mocked(sendMail).mock.calls[0]?.[0]?.subject).toBe('Sign in to MRUHacks');
     } finally {
@@ -142,8 +137,7 @@ describe('RSVP magic-link expiration / resend', () => {
       expect(result.waveId).toBe(testWaveId);
       expect(result.email).toBe('resend-rsvp@example.com');
 
-      const callbackURL = Rsvp.getRsvpMagicLinkCallbackURL(testEventId);
-      expect(callbackURL).toBe(`/dashboard/events/${testEventId}?source=rsvp`);
+      const callbackURL = `/dashboard/events/${testEventId}?source=rsvp`;
       expect(signInSpy).toHaveBeenCalledWith(
         expect.objectContaining({
           body: {

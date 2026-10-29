@@ -1,9 +1,9 @@
 'use server';
 
-import { updateTag } from 'next/cache';
 import { z } from 'zod';
 
-import { eventApplicationsCacheTag, getEventQuestions } from '@/lib/admin-event';
+import { getEventQuestions } from '@/lib/admin-event';
+import { invalidateEvent } from '@/lib/event-cache';
 import { castApplicationVote, getReviewQueue, retractApplicationVote, type ReviewCard } from '@/lib/application-votes';
 import * as Rbac from '@/lib/rbac/server';
 import type { ParticipationStatus } from '@/types/lookups';
@@ -80,7 +80,7 @@ export async function voteOnApplication(
   }
   if (!result.success) return fail(result.error);
 
-  updateTag(eventApplicationsCacheTag(parsed.data.eventId));
+  await invalidateEvent(parsed.data.eventId, 'participation');
   await writeAuditLog({
     actorId: voter.id,
     action: 'event.application_voted',
@@ -116,7 +116,7 @@ export async function undoApplicationVote(
   }
   if (!result.success) return fail(result.error);
 
-  updateTag(eventApplicationsCacheTag(parsed.data.eventId));
+  await invalidateEvent(parsed.data.eventId, 'participation');
   await writeAuditLog({
     actorId: voter.id,
     action: 'event.application_vote_retracted',

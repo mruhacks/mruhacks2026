@@ -14,8 +14,7 @@
  */
 
 import { isValidSlug } from '@/lib/slug';
-
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+import { isUuid } from '@/lib/uuid';
 
 /**
  * Static route segments that sit alongside `[eventId]` under
@@ -25,16 +24,12 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
 export const RESERVED_EVENT_SLUGS = ['team'] as const;
 
 /**
- * Whether a `[eventId]` route segment is an event's uuid rather than a slug.
  * A lowercase uuid is also a *format*-valid slug, which is why slugs that
- * look like one are rejected: the route could no longer tell them apart.
+ * look like one are rejected: a `[eventId]` route segment could no longer
+ * tell them apart.
  */
-export function isEventUuid(value: string): boolean {
-  return UUID_PATTERN.test(value);
-}
-
 export function isValidEventSlug(slug: string): boolean {
-  return isValidSlug(slug) && !isEventUuid(slug) && !(RESERVED_EVENT_SLUGS as readonly string[]).includes(slug);
+  return isValidSlug(slug) && !isUuid(slug) && !(RESERVED_EVENT_SLUGS as readonly string[]).includes(slug);
 }
 
 /**

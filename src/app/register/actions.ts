@@ -11,8 +11,7 @@ import { getUser } from '@/utils/auth';
 import { ActionResult, fail, ok } from '@/utils/action-result';
 import { db } from '@/utils/db';
 import { and, eq, isNull } from 'drizzle-orm';
-import { revalidatePath, updateTag } from 'next/cache';
-import { eventApplicationsCacheTag } from '@/lib/admin-event';
+import { invalidateEvent } from '@/lib/event-cache';
 import { hasEventElapsed } from '@/lib/events';
 import * as Judging from '@/lib/judging/server';
 import * as Participation from '@/lib/participation/server';
@@ -104,26 +103,13 @@ export async function registerForEvent(eventId: string): Promise<ActionResult> {
     });
 
     if (result.success) {
-      revalidatePath('/dashboard/events');
-      revalidatePath('/dashboard');
-      revalidatePath(`/dashboard/events/${eventId}`);
-      revalidatePath('/welcome', 'layout');
-      updateTag(eventApplicationsCacheTag(eventId));
+      await invalidateEvent(eventId, 'participation');
     }
     return result;
   } catch (error) {
     console.error('[register] failed to register for event', error);
     return fail('Failed to register for event.');
   }
-}
-
-/**
- * Form action wrapper for registerForEvent (used by dashboard/events page).
- */
-export async function registerForEventFormAction(formData: FormData): Promise<ActionResult> {
-  const eventId = formData.get('eventId');
-  if (typeof eventId !== 'string') return fail('Missing event ID');
-  return registerForEvent(eventId);
 }
 
 /**
@@ -151,13 +137,10 @@ export async function unregisterFromEvent(eventId: string): Promise<ActionResult
         and(
           eq(schema.eventParticipants.eventId, eventId),
           eq(schema.eventParticipants.userId, user.id),
-          Participation.hasStatus('accepted'),
+          Participation.attending(),
         ),
       );
-    revalidatePath('/dashboard/events');
-    revalidatePath('/dashboard');
-    revalidatePath(`/dashboard/events/${eventId}`);
-    updateTag(eventApplicationsCacheTag(eventId));
+    await invalidateEvent(eventId, 'participation');
     return ok('Unregistered from event.');
   } catch (error) {
     console.error('[register] failed to unregister from event', error);

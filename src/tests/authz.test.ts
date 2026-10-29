@@ -1,33 +1,18 @@
 /**
  * Authorization module test suite
  *
- * Tests both CRUD actions (role/permission management) and
- * runtime checks (hasPermission / requirePermission).
- *
- * Uses an ephemeral Postgres database. You can swap this with
- * a test container or a dedicated test schema.
+ * Tests runtime permission resolution (loadUserPermissions / hasPermission /
+ * requirePermission). Role and permission rows are written directly; the
+ * admin actions that manage them have their own suites.
  */
 
 import { db } from '@/utils/db';
-import {
-  createRole,
-  assignRoleToUser,
-  addPermission,
-  grantPermissionToRole,
-  grantPermissionToUser,
-  revokePermissionFromUser,
-  revokePermissionFromRole,
-} from '@/app/actions/roles';
-import { getUserPermissions } from '@/app/actions/authz';
 import * as Rbac from '@/lib/rbac/server';
 import * as schema from '@/db/schema';
-// Note: rolePermissions is used, others are imported but not directly used in this file
 import { eq } from 'drizzle-orm';
 
 import { describe, vi, beforeAll, afterAll, test, expect } from 'vitest';
 vi.mock('server-only', () => ({}));
-vi.mock('@/utils/auth', () => ({ getUser: vi.fn() }));
-import { getUser } from '@/utils/auth';
 
 // Mock redirect to capture redirects instead of terminating test
 vi.mock('next/navigation', () => ({
@@ -35,19 +20,13 @@ vi.mock('next/navigation', () => ({
     throw new Error(`REDIRECT:${path}`);
   }),
 }));
-vi.mock('next/cache', () => ({ updateTag: vi.fn() }));
 
 describe('Authorization system', () => {
   let userId: string;
-  // Separate from `userId`: granting a permission requires already holding
-  // it, so the user under test can't be the one handing out its permissions.
-  let actorId: string;
   let roleId: number;
-  let permIdEditSelf: number;
   let permIdAllAll: number;
 
   beforeAll(async () => {
-    // Create fake user
     const [u] = await db
       .insert(schema.user)
       .values({
@@ -57,109 +36,40 @@ describe('Authorization system', () => {
       })
       .returning({ id: schema.user.id });
     userId = u.id;
-    const [actor] = await db
-      .insert(schema.user)
-      .values({
-        name: 'Test Actor',
-        email: 'actor@test.com',
-        emailVerified: true,
-      })
-      .returning({ id: schema.user.id });
-    actorId = actor.id;
     // Clear any pre-existing roles / perms
-    await db.delete(schema.userRole);
-    await db.delete(schema.userPermission);
     await db.delete(schema.userRole);
     await db.delete(schema.userPermission);
     await db.delete(schema.rolePermissions);
     await db.delete(schema.role);
     await db.delete(schema.permission);
-    const privilegeSlugs = ['role:all:all', 'permission:all:all', 'user:all:all'];
-    for (const slug of privilegeSlugs) {
-      const [created] = await db.insert(schema.permission).values({ slug }).returning({ id: schema.permission.id });
-      await db.insert(schema.userPermission).values({ userId, permissionId: created.id });
-    }
-    const [superPerm] = await db
+
+    const [role] = await db.insert(schema.role).values({ slug: 'admin' }).returning({ id: schema.role.id });
+    roleId = role.id;
+    const [editSelf] = await db
       .insert(schema.permission)
-      .values({ slug: 'all:all:all' })
+      .values({ slug: 'submission:edit:self' })
       .returning({ id: schema.permission.id });
-    await db.insert(schema.userPermission).values({ userId: actorId, permissionId: superPerm.id });
-    vi.mocked(getUser).mockResolvedValue({ id: actorId } as never);
-    await db.delete(schema.role);
+    const [allAll] = await db
+      .insert(schema.permission)
+      .values({ slug: 'submission:all:all' })
+      .returning({ id: schema.permission.id });
+    permIdAllAll = allAll.id;
+    await db.insert(schema.rolePermissions).values({ roleId, permissionId: editSelf.id });
+    await db.insert(schema.userRole).values({ userId, roleId });
   });
 
   afterAll(async () => {
     await db.delete(schema.userRole);
     await db.delete(schema.userPermission);
-    await db.delete(schema.userRole);
-    await db.delete(schema.userPermission);
     await db.delete(schema.rolePermissions);
     await db.delete(schema.role);
     await db.delete(schema.permission);
-    await db.delete(schema.role);
-    await db.delete(schema.permission);
-    await db.delete(schema.user).where(eq(schema.user.id, actorId));
+    await db.delete(schema.user).where(eq(schema.user.id, userId));
   });
-
-  // ─────────────────────────────────────────────
-
-  test('should create roles and permissions', async () => {
-    const role = await createRole('admin', 'Administrator');
-    expect(role.success).toBe(true);
-    if (!role.success) throw new Error(role.error);
-    expect(role.data).toBeDefined();
-    roleId = role.data!;
-
-    const permSelf = await addPermission('submission:edit:self');
-    const permAllAll = await addPermission('submission:all:all');
-    expect(permSelf.success).toBe(true);
-    expect(permAllAll.success).toBe(true);
-    if (!permSelf.success) throw new Error(permSelf.error);
-    if (!permAllAll.success) throw new Error(permAllAll.error);
-
-    permIdEditSelf = permSelf.data!;
-    permIdAllAll = permAllAll.data!;
-  });
-
-  test('should assign a role to user', async () => {
-    const result = await assignRoleToUser(userId, roleId);
-    expect(result.success).toBe(true);
-
-    const assigned = await db.select().from(schema.userRole).where(eq(schema.userRole.userId, userId));
-    expect(assigned.length).toBe(1);
-  });
-
-  test('should grant permission to role', async () => {
-    const result = await grantPermissionToRole(roleId, permIdEditSelf);
-    expect(result.success).toBe(true);
-
-    const assigned = await db.select().from(schema.rolePermissions).where(eq(schema.rolePermissions.roleId, roleId));
-    expect(assigned.length).toBe(1);
-  });
-
-  test('should grant and revoke direct user permission', async () => {
-    const grant = await grantPermissionToUser(userId, permIdAllAll);
-    expect(grant.success).toBe(true);
-
-    let perms = await db.select().from(schema.userPermission).where(eq(schema.userPermission.userId, userId));
-    expect(perms.length).toBe(4);
-
-    const revoke = await revokePermissionFromUser(userId, permIdAllAll);
-    expect(revoke.success).toBe(true);
-
-    perms = await db.select().from(schema.userPermission).where(eq(schema.userPermission.userId, userId));
-    expect(perms.length).toBe(3);
-  });
-
-  // ─────────────────────────────────────────────
-  // Runtime permission resolution
-  // ─────────────────────────────────────────────
 
   test('should resolve permissions through roles', async () => {
-    const res = await getUserPermissions(userId);
-    expect(res.success).toBe(true);
-    if (!res.success) throw new Error(res.error);
-    expect(res.data!.has('submission:edit:self')).toBe(true);
+    const perms = await Rbac.loadUserPermissions(userId);
+    expect(perms.has('submission:edit:self')).toBe(true);
   });
 
   test('hasPermission should match exact and hierarchical permissions', async () => {
@@ -168,7 +78,7 @@ describe('Authorization system', () => {
     expect(exact).toBe(true);
 
     // Add a broader permission
-    await grantPermissionToUser(userId, permIdAllAll);
+    await db.insert(schema.userPermission).values({ userId, permissionId: permIdAllAll });
 
     // hierarchical: entity:all:all covers everything
     const broad = await Rbac.hasPermission(userId, 'submission:delete:self');
@@ -177,7 +87,6 @@ describe('Authorization system', () => {
 
   test('requirePermission should redirect when unauthorized', async () => {
     // Remove all permissions
-    await db.delete(schema.userPermission);
     await db.delete(schema.userPermission);
     await db.delete(schema.rolePermissions);
 
@@ -189,38 +98,12 @@ describe('Authorization system', () => {
     }
     expect(thrown).toContain('/forbidden');
     expect(thrown).toContain('reason=');
-
-    for (const slug of ['role:all:all', 'permission:all:all', 'user:all:all']) {
-      const [row] = await db
-        .select({ id: schema.permission.id })
-        .from(schema.permission)
-        .where(eq(schema.permission.slug, slug));
-      await db.insert(schema.userPermission).values({ userId, permissionId: row.id });
-    }
-    const [superPerm] = await db
-      .select({ id: schema.permission.id })
-      .from(schema.permission)
-      .where(eq(schema.permission.slug, 'all:all:all'));
-    await db.insert(schema.userPermission).values({ userId: actorId, permissionId: superPerm.id });
   });
 
   test('requirePermission should allow authorized user', async () => {
     // Regrant broad permission
-    await grantPermissionToUser(userId, permIdAllAll);
-    let passed = false;
-    try {
-      await Rbac.requirePermission(userId, 'submission:delete:all');
-      passed = true;
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    } catch (e) {
-      passed = false;
-    }
-    expect(passed).toBe(true);
-  });
-
-  test('revokePermissionFromRole removes role permission', async () => {
-    await revokePermissionFromRole(roleId, permIdEditSelf);
-    const remaining = await db.select().from(schema.rolePermissions).where(eq(schema.rolePermissions.roleId, roleId));
-    expect(remaining.length).toBe(0);
+    await db.insert(schema.userPermission).values({ userId, permissionId: permIdAllAll });
+    // Throws the forbidden redirect if the check fails.
+    await Rbac.requirePermission(userId, 'submission:delete:all');
   });
 });

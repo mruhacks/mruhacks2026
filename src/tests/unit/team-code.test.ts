@@ -1,58 +1,46 @@
-import { describe, test, expect } from 'vitest';
-import {
-  normalizeLeetspeak,
-  isCodeDenylisted,
-  generateRawTeamCode,
-  TEAM_CODE_LENGTH,
-  TEAM_CODE_CHARSET,
-} from '@/lib/team-code';
+import { afterEach, describe, test, expect, vi } from 'vitest';
 
-describe('normalizeLeetspeak', () => {
-  test('lowercases input', () => {
-    expect(normalizeLeetspeak('ABC')).toBe('abc');
-  });
-
-  test('substitutes common leetspeak characters', () => {
-    expect(normalizeLeetspeak('4$$')).toBe('ass');
-    expect(normalizeLeetspeak('5H1T')).toBe('shit');
-    expect(normalizeLeetspeak('3')).toBe('e');
-  });
-
-  test('leaves already-clean text unchanged aside from case', () => {
-    expect(normalizeLeetspeak('HELLO')).toBe('hello');
-  });
+// randomInt picks each character's charset index; tests can queue up codes
+// for it to roll before it falls back to real randomness.
+const queuedIndices = vi.hoisted(() => [] as number[]);
+vi.mock('node:crypto', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:crypto')>();
+  return {
+    ...actual,
+    randomInt: (min: number, max: number) => queuedIndices.shift() ?? actual.randomInt(min, max),
+  };
 });
 
-describe('isCodeDenylisted', () => {
-  test('flags a code containing an English bad word', () => {
-    expect(isCodeDenylisted('XFUCKYZ')).toBe(true);
-  });
+import { generateTeamCode } from '@/lib/team-code';
+import { TEAM_CODE_CHARSET, TEAM_CODE_LENGTH } from '@/lib/team-code-constants';
 
-  test('flags a code containing a French bad word', () => {
-    expect(isCodeDenylisted('XMERDEY')).toBe(true);
-  });
+type Queryable = Parameters<typeof generateTeamCode>[1];
 
-  test('flags leetspeak-obfuscated bad words', () => {
-    expect(isCodeDenylisted('X4SSYZW')).toBe(true);
-  });
+/** A db handle on which no team holds any code, so every clean roll is accepted. */
+const noTeams = {
+  select: () => ({ from: () => ({ where: () => ({ limit: async () => [] }) }) }),
+} as unknown as Queryable;
 
-  test('is case-insensitive', () => {
-    expect(isCodeDenylisted('xfuckyz')).toBe(true);
-  });
+/** Makes the generator roll `codes`, in order, before anything random. */
+function roll(...codes: string[]) {
+  for (const code of codes) {
+    for (const char of code) queuedIndices.push(TEAM_CODE_CHARSET.indexOf(char));
+  }
+}
 
-  test('does not flag a clean code', () => {
-    expect(isCodeDenylisted('7GH3KM9P')).toBe(false);
-  });
+const generate = () => generateTeamCode('event-id', noTeams);
+
+afterEach(() => {
+  queuedIndices.length = 0;
 });
 
-describe('generateRawTeamCode', () => {
-  test('generates a code of the configured length', () => {
-    expect(generateRawTeamCode()).toHaveLength(TEAM_CODE_LENGTH);
+describe('generateTeamCode', () => {
+  test('generates a code of the configured length', async () => {
+    expect(await generate()).toHaveLength(TEAM_CODE_LENGTH);
   });
 
-  test('only uses characters from the restricted charset', () => {
-    const code = generateRawTeamCode();
-    for (const char of code) {
+  test('only uses characters from the restricted charset', async () => {
+    for (const char of await generate()) {
       expect(TEAM_CODE_CHARSET).toContain(char);
     }
   });
@@ -63,8 +51,33 @@ describe('generateRawTeamCode', () => {
     }
   });
 
-  test('produces varied output across calls', () => {
-    const codes = new Set(Array.from({ length: 20 }, generateRawTeamCode));
+  test('produces varied output across calls', async () => {
+    const codes = new Set(await Promise.all(Array.from({ length: 20 }, generate)));
     expect(codes.size).toBeGreaterThan(1);
+  });
+
+  test('keeps a clean code', async () => {
+    roll('7GH3KM9P');
+    expect(await generate()).toBe('7GH3KM9P');
+  });
+
+  test.each([
+    ['an English bad word', 'XFUCKYZW'],
+    ['a French bad word', 'XMERDEYW'],
+    ['a leetspeak-obfuscated bad word', 'X4SSYZWQ'],
+  ])('re-rolls a code containing %s', async (_name, profane) => {
+    roll(profane, '7GH3KM9P');
+    expect(await generate()).toBe('7GH3KM9P');
+  });
+
+  test('re-rolls a code already taken in the event', async () => {
+    roll('7GH3KM9P', 'ABCDEFGH');
+    let lookups = 0;
+    const takenOnce = {
+      select: () => ({
+        from: () => ({ where: () => ({ limit: async () => (lookups++ === 0 ? [{ id: 't' }] : []) }) }),
+      }),
+    } as unknown as Queryable;
+    expect(await generateTeamCode('event-id', takenOnce)).toBe('ABCDEFGH');
   });
 });

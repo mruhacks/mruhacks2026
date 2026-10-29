@@ -4,7 +4,7 @@
  * Permissions follow the hierarchical format `entity:action:scope`, e.g.
  *   - `user:read:all`
  *   - `application:review:all`
- *   - `registration:approve:<uuid>`
+ *   - `onboarding:skip:event`
  *
  * A permission with `all` in a segment acts as a wildcard that covers any
  * value in that segment. This lets us grant broad powers (e.g. `user:all:all`)
@@ -15,7 +15,7 @@
  * Split a permission string into its entity/action/scope parts.
  * Tolerates short strings like `entity:action` (treated as scope `all`).
  */
-export function parsePermission(permissionString: string): {
+function parsePermission(permissionString: string): {
   entity: string;
   action: string;
   scope: string;
@@ -32,7 +32,7 @@ export function parsePermission(permissionString: string): {
  *  - `all` in any segment of the granted permission acts as a wildcard.
  *  - `entity` must match exactly (or be `all`).
  */
-export function permissionMatches(granted: string, required: string): boolean {
+function permissionMatches(granted: string, required: string): boolean {
   if (granted === required) return true;
 
   const g = parsePermission(granted);

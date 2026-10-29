@@ -5,7 +5,7 @@ import { cacheLife } from 'next/cache';
 
 import * as schema from '@/db/schema';
 import { db } from '@/utils/db';
-import { resolveStoredStatus, type StatusDisplay } from './status';
+import { ATTENDING_STATUS, resolveStoredStatus, type StatusDisplay } from './status';
 import type { ParticipationStatus, StatusBadgeVariant } from '@/types/lookups';
 
 /**
@@ -33,6 +33,11 @@ export function hasAnyStatus(labels: readonly ParticipationStatus[]): SQL {
   );
 }
 
+/** `event_participants` holds a spot: `isAttending`, for where and join clauses. */
+export function attending(): SQL {
+  return hasStatus(ATTENDING_STATUS);
+}
+
 /**
  * Number of participants holding a spot (`accepted`) for one event.
  *
@@ -46,7 +51,7 @@ export async function countAttending(eventId: string, executor: Pick<typeof db, 
   const [row] = await executor
     .select({ c: sql<number>`count(*)`.mapWith(Number) })
     .from(schema.eventParticipants)
-    .where(and(eq(schema.eventParticipants.eventId, eventId), hasStatus('accepted')));
+    .where(and(eq(schema.eventParticipants.eventId, eventId), attending()));
   return row?.c ?? 0;
 }
 

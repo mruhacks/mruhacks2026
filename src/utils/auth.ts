@@ -32,7 +32,7 @@ const EMAIL_VERIFICATION_EXPIRES_IN = 86400;
  * Default magic-link token lifetime (seconds) for sign-in and admin invites.
  * RSVP invitations override this per send via remaining time until `respondBy`.
  */
-export const MAGIC_LINK_EXPIRES_IN_SECONDS = 86400;
+const MAGIC_LINK_EXPIRES_IN_SECONDS = 86400;
 
 function resolveMagicLinkExpiresInSeconds(): number {
   if (Judging.getJudgeSignInLinkCapture()) return Judging.JUDGE_SIGNIN_LINK_EXPIRES_IN_SECONDS;

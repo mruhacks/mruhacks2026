@@ -12,8 +12,8 @@ import { db } from '@/utils/db';
 import { profileFormSchema, type ProfileFormValues } from '@/components/profile-form/schema';
 import { eventOnlySchema, type EventOnlyFormValues } from '@/components/application-form/schema';
 import type { ApplicationQuestion } from '@/types/application';
-import { cacheLife, revalidatePath, updateTag } from 'next/cache';
-import { eventApplicationsCacheTag } from '@/lib/admin-event';
+import { cacheLife } from 'next/cache';
+import { invalidateEvent } from '@/lib/event-cache';
 import { and, eq } from 'drizzle-orm';
 import { getUserProfile } from '../profile/actions';
 import * as Rsvp from '@/lib/rsvp';
@@ -169,8 +169,7 @@ async function registerParticipant(
     // A new/updated application moves every number on the admin event
     // dashboard — the totals tile, the status list, the over-time chart and
     // the roster all read through this tag.
-    updateTag(eventApplicationsCacheTag(eventId));
-    revalidatePath('/welcome', 'layout');
+    await invalidateEvent(eventId, 'participation');
     return ok('Application saved successfully.');
   } catch (error) {
     console.error('[events] failed to save application', error);
@@ -346,14 +345,6 @@ class ParticipationError extends Error {
   }
 }
 
-/** Revalidates every page a participant's own status change shows up on. */
-function revalidateParticipation(eventId: string) {
-  // Moves the admin roster, RSVP tile and capacity numbers too.
-  updateTag(eventApplicationsCacheTag(eventId));
-  revalidatePath(`/dashboard/events/${eventId}`);
-  revalidatePath('/dashboard');
-}
-
 /**
  * Accept or decline an RSVP invitation (`invited` → `accepted` / `declined`).
  *
@@ -462,7 +453,7 @@ export async function submitRsvpResponse(
         .where(eq(schema.eventInvitations.id, row.invitationId));
     });
 
-    revalidateParticipation(eventId);
+    await invalidateEvent(eventId, 'participation');
     return ok(decision === 'accepted' ? 'RSVP accepted.' : 'RSVP declined.');
   } catch (error) {
     if (error instanceof ParticipationError) {
@@ -545,7 +536,7 @@ export async function withdrawParticipation(eventId: string): Promise<ActionResu
       return current === 'accepted';
     });
 
-    revalidateParticipation(eventId);
+    await invalidateEvent(eventId, 'participation');
     return ok(wasAttending ? 'You gave up your spot.' : 'You left the waitlist.');
   } catch (error) {
     if (error instanceof ParticipationError) {

@@ -1,3 +1,4 @@
+import * as Ticket from '@/lib/ticket/server';
 import * as Wallet from '@/lib/wallet/server';
 import { getUser } from '@/utils/auth';
 
@@ -13,13 +14,13 @@ export async function GET(_request: Request, { params }: { params: Promise<{ eve
   }
 
   const { eventId } = await params;
-  const participation = await Wallet.participation(eventId, user.id);
-  if (!participation) return new Response('Not found', { status: 404 });
+  const holder = await Ticket.passEligibility(eventId, user.id);
+  if (!holder) return new Response('Not found', { status: 404 });
 
   return Wallet.googleWalletResponse({
     eventId,
     userId: user.id,
     accountName: user.name,
-    participation,
+    holder,
   });
 }

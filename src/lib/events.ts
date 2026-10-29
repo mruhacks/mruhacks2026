@@ -2,7 +2,7 @@ import { cacheTag, cacheLife } from 'next/cache';
 import { desc, eq, isNull, sql } from 'drizzle-orm';
 import { db } from '@/utils/db';
 import * as schema from '@/db/schema';
-import { isEventUuid } from '@/lib/event-slug';
+import { isUuid } from '@/lib/uuid';
 import * as Participation from '@/lib/participation/server';
 
 /** Invalidated by updateTag() whenever an event is created or its settings change. */
@@ -49,7 +49,7 @@ export async function getAllEvents() {
  * left for the caller's own query to 404 on.
  */
 export async function resolveEventId(segment: string): Promise<string | null> {
-  if (isEventUuid(segment)) return segment;
+  if (isUuid(segment)) return segment;
   return getEventIdBySlug(segment);
 }
 
@@ -75,29 +75,13 @@ async function getEventIdBySlug(slug: string): Promise<string | null> {
 }
 
 /**
- * Every `[eventId]` segment an event is reachable at: its uuid, plus its
- * custom slug when it has one. Mutations loop over this to revalidate each
- * live URL — a page cached under the slug form is a different router-cache
- * entry from the same page under the uuid.
- */
-export async function eventUrlSegments(eventId: string): Promise<string[]> {
-  const [row] = await db
-    .select({ slug: schema.events.slug })
-    .from(schema.events)
-    .where(eq(schema.events.id, eventId))
-    .limit(1);
-
-  return row?.slug ? [eventId, row.slug] : [eventId];
-}
-
-/**
  * True once an event's end instant is in the past. Null `endsAt` (no end
  * date configured) never elapses — used to freeze participant- and
  * admin-facing mutations (unregister, check-in, team changes) once an event
- * is over.
+ * is over. Also what stops wallet passes going out in emails.
  */
-export function hasEventElapsed(endsAt: Date | null): boolean {
-  return endsAt != null && endsAt.getTime() < Date.now();
+export function hasEventElapsed(endsAt: Date | null, now: Date = new Date()): boolean {
+  return endsAt != null && endsAt.getTime() < now.getTime();
 }
 
 export type EventParticipationCount = {

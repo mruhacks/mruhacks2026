@@ -24,7 +24,7 @@ import {
 } from './crowd-bt';
 
 /** Gavel's MIN_VIEWS: judges see every project this many times before gain decides. */
-export const MIN_VIEWS = 2;
+const MIN_VIEWS = 2;
 /** Gavel's TIMEOUT: how long an assignment keeps a project off other judges' lists. */
 export const BUSY_WINDOW_MS = 5 * 60 * 1000;
 /** Relative difference below which two information gains are a tie. */
@@ -59,7 +59,7 @@ export type DispatchInput = {
  * those, projects below the minimum view count. Each filter is skipped when
  * it would leave nothing.
  */
-export function preferredCandidates(candidates: readonly DispatchCandidate[]): DispatchCandidate[] {
+function preferredCandidates(candidates: readonly DispatchCandidate[]): DispatchCandidate[] {
   const nonBusy = candidates.filter((c) => !c.busy);
   const preferred = nonBusy.length > 0 ? nonBusy : [...candidates];
   const lessSeen = preferred.filter((c) => c.views < MIN_VIEWS);
@@ -67,7 +67,7 @@ export function preferredCandidates(candidates: readonly DispatchCandidate[]): D
 }
 
 /** Information gain of comparing `previous` with `candidate`, summed across criteria. */
-export function summedInformationGain(
+function summedInformationGain(
   criterionIds: readonly string[],
   reliability: ReadonlyMap<string, JudgeReliability>,
   previous: ReadonlyMap<string, ProjectEstimate>,

@@ -2,9 +2,22 @@ import { describe, expect, test } from 'vitest';
 
 import * as Judging from '@/lib/judging';
 
-describe('formatOrdinal', () => {
+/** Labels for 1-based table numbers in a single row, where the column alphabet is all there is. */
+const singleRow = (alphabet: 'latin' | 'arabic' | 'roman', numbers: number[]) =>
+  numbers.map((n) => Judging.formatTableLabel(n - 1, { rows: 1, rowAlphabet: 'arabic', columnAlphabet: alphabet }));
+
+describe('formatTableLabel', () => {
+  test('one row is a plain 1-based number by default', () => {
+    expect([0, 1, 9, 99].map((slot) => Judging.formatTableLabel(slot, Judging.DEFAULT_TABLE_LAYOUT))).toEqual([
+      '1',
+      '2',
+      '10',
+      '100',
+    ]);
+  });
+
   test('latin letters continue past Z as AA, AB…', () => {
-    expect([1, 2, 26, 27, 28, 52, 53, 702, 703].map((n) => Judging.formatOrdinal(n, 'latin'))).toEqual([
+    expect(singleRow('latin', [1, 2, 26, 27, 28, 52, 53, 702, 703])).toEqual([
       'A',
       'B',
       'Z',
@@ -18,7 +31,7 @@ describe('formatOrdinal', () => {
   });
 
   test('roman numerals use subtractive forms', () => {
-    expect([1, 4, 9, 14, 40, 90, 400, 1994, 3999].map((n) => Judging.formatOrdinal(n, 'roman'))).toEqual([
+    expect(singleRow('roman', [1, 4, 9, 14, 40, 90, 400, 1994, 3999])).toEqual([
       'I',
       'IV',
       'IX',
@@ -28,26 +41,6 @@ describe('formatOrdinal', () => {
       'CD',
       'MCMXCIV',
       'MMMCMXCIX',
-    ]);
-  });
-
-  test('arabic numerals are plain numbers', () => {
-    expect(Judging.formatOrdinal(42, 'arabic')).toBe('42');
-  });
-
-  test('rejects non-positive input', () => {
-    expect(() => Judging.formatOrdinal(0, 'arabic')).toThrow(RangeError);
-    expect(() => Judging.formatOrdinal(1.5, 'latin')).toThrow(RangeError);
-  });
-});
-
-describe('formatTableLabel', () => {
-  test('one row is a plain 1-based number by default', () => {
-    expect([0, 1, 9, 99].map((slot) => Judging.formatTableLabel(slot, Judging.DEFAULT_TABLE_LAYOUT))).toEqual([
-      '1',
-      '2',
-      '10',
-      '100',
     ]);
   });
 
@@ -89,7 +82,8 @@ describe('formatTableLabel', () => {
     expect(label('roman', 'roman')).toBe('I-III');
   });
 
-  test('rejects negative slots', () => {
+  test('rejects negative and fractional slots', () => {
     expect(() => Judging.formatTableLabel(-1, Judging.DEFAULT_TABLE_LAYOUT)).toThrow(RangeError);
+    expect(() => Judging.formatTableLabel(1.5, Judging.DEFAULT_TABLE_LAYOUT)).toThrow(RangeError);
   });
 });

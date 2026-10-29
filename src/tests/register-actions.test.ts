@@ -3,12 +3,13 @@ import { db } from '@/utils/db';
 import { eq, and } from 'drizzle-orm';
 import * as schema from '@/db/schema';
 import { insertAttendees } from '@/tests/participation-fixtures';
-import { registerForEvent, registerForEventFormAction, unregisterFromEvent } from '@/app/register/actions';
+import { registerForEvent, unregisterFromEvent } from '@/app/register/actions';
 
 vi.mock('@/utils/auth', () => ({ getUser: vi.fn() }));
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn(), updateTag: vi.fn() }));
 
 import { getUser } from '@/utils/auth';
+import { invalidateEvent } from '@/lib/event-cache';
 
 let testUserId: string;
 let testEventId: string;
@@ -65,8 +66,10 @@ describe('registerForEvent', () => {
   });
 
   test('registers the user for the event', async () => {
+    vi.mocked(invalidateEvent).mockClear();
     const result = await registerForEvent(testEventId);
     expect(result.success).toBe(true);
+    expect(invalidateEvent).toHaveBeenCalledWith(testEventId, 'participation');
 
     const rows = await db
       .select()
@@ -164,25 +167,6 @@ describe('registerForEvent capacity', () => {
   });
 });
 
-describe('registerForEventFormAction', () => {
-  test('returns error when eventId is missing from FormData', async () => {
-    const formData = new FormData();
-    const result = await registerForEventFormAction(formData);
-    expect(result.success).toBe(false);
-    expect((result as { error: string }).error).toContain('event ID');
-  });
-
-  test('registers when valid eventId is in FormData', async () => {
-    await db
-      .delete(schema.eventParticipants)
-      .where(and(eq(schema.eventParticipants.userId, testUserId), eq(schema.eventParticipants.eventId, testEventId)));
-    const formData = new FormData();
-    formData.set('eventId', testEventId);
-    const result = await registerForEventFormAction(formData);
-    expect(result.success).toBe(true);
-  });
-});
-
 describe('unregisterFromEvent', () => {
   test('returns error when not authenticated', async () => {
     vi.mocked(getUser).mockResolvedValueOnce(null as never);
@@ -193,8 +177,10 @@ describe('unregisterFromEvent', () => {
 
   test('removes the attendee row', async () => {
     await insertAttendees({ userId: testUserId, eventId: testEventId });
+    vi.mocked(invalidateEvent).mockClear();
     const result = await unregisterFromEvent(testEventId);
     expect(result.success).toBe(true);
+    expect(invalidateEvent).toHaveBeenCalledWith(testEventId, 'participation');
 
     const rows = await db
       .select()

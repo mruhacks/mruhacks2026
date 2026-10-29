@@ -18,7 +18,7 @@ export function getBackgroundAuthHeaders(): Headers {
 }
 
 /** Callback path used for RSVP invitation magic links. */
-export function getRsvpMagicLinkCallbackURL(eventId: string): string {
+function getRsvpMagicLinkCallbackURL(eventId: string): string {
   return `/dashboard/events/${eventId}?source=rsvp`;
 }
 

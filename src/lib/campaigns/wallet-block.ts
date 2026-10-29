@@ -5,8 +5,9 @@ import { Column, Img, Link, Row, Section } from 'react-email';
 import { and, eq, isNull } from 'drizzle-orm';
 
 import * as schema from '@/db/schema';
+import { hasEventElapsed } from '@/lib/events';
 import * as Signing from '@/lib/signing/server';
-import * as Wallet from '@/lib/wallet/server';
+import * as Ticket from '@/lib/ticket/server';
 import { db } from '@/utils/db';
 import { isWalletBlock } from './email-markdown';
 import type { BlockRenderers } from './render-campaign-email';
@@ -50,11 +51,8 @@ export async function walletLinksFor(
   baseUrl: string,
   now: Date = new Date(),
 ): Promise<WalletLinks | null> {
-  const participation = await Wallet.participation(eventId, userId);
-  if (!participation) return null;
-  if (participation.endsAt && participation.endsAt.getTime() < now.getTime()) {
-    return null;
-  }
+  const holder = await Ticket.passEligibility(eventId, userId);
+  if (!holder || hasEventElapsed(holder.endsAt, now)) return null;
   const token = await Signing.buildWalletLinkToken(userId, eventId);
   const url = `${baseUrl}/api/wallet/email/${token}`;
   return { apple: `${url}?platform=apple`, google: `${url}?platform=google` };

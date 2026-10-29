@@ -8,11 +8,10 @@ import { user as authUser } from '@/db/auth-schema';
 import * as schema from '@/db/schema';
 import { FEATURED_EVENT_CACHE_TAG } from '@/lib/featured-event';
 import * as Judging from '@/lib/judging/server';
+import { isUuid } from '@/lib/uuid';
 import { db } from '@/utils/db';
 
 export const PROJECT_SHOWCASE_CACHE_TAG = 'project-showcase';
-
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export type ShowcaseProject = {
   id: string;
@@ -128,7 +127,7 @@ function toProject(row: ShowcaseRow, members: Map<string, string[]>): ShowcasePr
  * The list is sorted by title alone, so nothing about 4th place onwards — or
  * about the podium before it's complete — can be inferred from the page.
  */
-export async function loadProjectShowcase(eventId: string): Promise<ProjectShowcase> {
+async function loadProjectShowcase(eventId: string): Promise<ProjectShowcase> {
   const rows = await db
     .select({ ...showcaseColumns, placement: schema.submissions.placement })
     .from(schema.submissions)
@@ -154,7 +153,7 @@ export async function getPublicProject(projectId: string): Promise<PublicProject
   cacheTag(PROJECT_SHOWCASE_CACHE_TAG);
   cacheLife('max');
 
-  if (!UUID_PATTERN.test(projectId)) return null;
+  if (!isUuid(projectId)) return null;
   const [row] = await db
     .select({ ...showcaseColumns, markdown: schema.submissions.markdown })
     .from(schema.submissions)

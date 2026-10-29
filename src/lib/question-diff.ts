@@ -18,7 +18,7 @@ export type QuestionEditResult = { ok: true; question: ApplicationQuestion } | {
  * Returns true if any response in the set references the given question ID
  * with the given option value (for single_select / multi_select).
  */
-export function hasResponsesForOption(
+function hasResponsesForOption(
   allResponses: Record<string, unknown>[],
   questionId: string,
   optionValue: string,
@@ -34,7 +34,7 @@ export function hasResponsesForOption(
 /**
  * Returns true if any response references the given question at all.
  */
-export function hasResponsesForQuestion(allResponses: Record<string, unknown>[], questionId: string): boolean {
+function hasResponsesForQuestion(allResponses: Record<string, unknown>[], questionId: string): boolean {
   return allResponses.some((r) => r[questionId] !== undefined && r[questionId] !== null);
 }
 

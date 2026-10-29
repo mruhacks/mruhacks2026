@@ -28,8 +28,8 @@ vi.mock('next/cache', () => ({
 
 import { getUser } from '@/utils/auth';
 import { createSubevent, deleteSubevent } from '@/app/dashboard/admin/events/subevent-actions';
-import { isScheduleVisible, listSubevents, subeventsCacheTag } from '@/lib/subevents';
-import { updateTag } from 'next/cache';
+import { isScheduleVisible, listSubevents } from '@/lib/subevents';
+import { invalidateEvent } from '@/lib/event-cache';
 import { updateEventDescription } from '@/app/dashboard/admin/events/content-actions';
 import { updateEventSettings } from '@/app/dashboard/admin/events/actions';
 
@@ -201,13 +201,14 @@ describe('createSubevent', () => {
     expect(isScheduleVisible(entry)).toBe(true);
     expect(isScheduleVisible({ startsAt: null })).toBe(false);
 
-    vi.mocked(updateTag).mockClear();
+    // Invalidating a sub-event's settings or content also refreshes its
+    // parent's schedule — see eventCacheTargets.
+    vi.mocked(invalidateEvent).mockClear();
     await updateEventSettings(entry.id, { endsAt: END, checkInEnabled: true });
-    expect(updateTag).toHaveBeenCalledWith(subeventsCacheTag(eventId));
+    expect(invalidateEvent).toHaveBeenCalledWith(entry.id, 'settings', expect.anything());
     await updateEventSettings(entry.id, { endsAt: null });
-    vi.mocked(updateTag).mockClear();
     await updateEventDescription(entry.id, '# Updated copy');
-    expect(updateTag).toHaveBeenCalledWith(subeventsCacheTag(eventId));
+    expect(invalidateEvent).toHaveBeenCalledWith(entry.id, 'content');
     const updated = (await listSubevents(eventId)).find((row) => row.id === entry.id)!;
     expect(updated.endsAt).toBeNull();
     expect(updated.checkInEnabled).toBe(true);

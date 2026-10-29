@@ -80,23 +80,6 @@ export function serializeInstant(value: Date | null): string | null {
   return value.toISOString();
 }
 
-/**
- * Venue wall-clock for display. Formatted here (UTC instant + explicit
- * America/Edmonton) so a client that revives the ISO string as local 22:00
- * cannot show 10pm for a 4pm check-in.
- */
-export function formatEventDateTime(value: Date): string {
-  const text = formatInstant(value, EVENT_TIME_ZONE, DEFAULT_LOCALE, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true,
-  });
-  return `${text} ${timeZoneAbbreviation(EVENT_TIME_ZONE, value)}`;
-}
-
 /** "MDT" | "EST" | "GMT+5:30" — evaluated *at* the given instant, so a
  *  December date correctly reads MST while an October one reads MDT. */
 export function timeZoneAbbreviation(timeZone: string, at: Date): string {

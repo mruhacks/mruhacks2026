@@ -48,9 +48,9 @@ describe('parseMissedThreshold', () => {
     expect(Dietary.parseMissedThreshold('5')).toBe(5);
   });
 
-  test('defaults on junk', () => {
+  test('defaults to 2 on junk', () => {
     for (const value of [undefined, '', '0', '6', 'two', '2.5']) {
-      expect(Dietary.parseMissedThreshold(value)).toBe(Dietary.DEFAULT_MISSED_MEAL_THRESHOLD);
+      expect(Dietary.parseMissedThreshold(value)).toBe(2);
     }
   });
 
@@ -243,7 +243,7 @@ describe('summarizeDietaryReport', () => {
     expect(rowFor('Gluten-free').expected).toBe(1);
     expect(rowFor('Halal').expected).toBe(1);
     expect(rowFor('Kosher').expected).toBe(0);
-    expect(rowFor(Dietary.NO_RESTRICTIONS_LABEL).expected).toBe(1);
+    expect(rowFor('No restrictions').expected).toBe(1);
   });
 
   test('total is people, not the sum of the rows', () => {
@@ -259,7 +259,7 @@ describe('summarizeDietaryReport', () => {
     expect(rowFor(Dietary.TOTAL_LABEL, 2).missed).toBe(2);
     expect(rowFor(Dietary.TOTAL_LABEL, 3).missed).toBe(2);
     expect(rowFor(Dietary.TOTAL_LABEL, 4).missed).toBe(0);
-    expect(rowFor(Dietary.NO_RESTRICTIONS_LABEL, 1).missed).toBe(0);
+    expect(rowFor('No restrictions', 1).missed).toBe(0);
   });
 
   test('expected never shrinks', () => {
