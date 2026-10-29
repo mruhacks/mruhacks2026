@@ -13,17 +13,13 @@
 
 import { randomUUID } from 'crypto';
 import { and, asc, eq, ne, sql } from 'drizzle-orm';
-import { revalidatePath, updateTag } from 'next/cache';
 
-import { getParentEventId, subeventsCacheTag } from '@/lib/subevents';
-import { adminEventCacheTag } from '@/lib/admin-event';
+import { invalidateEvent } from '@/lib/event-cache';
 import { db } from '@/utils/db';
 import * as schema from '@/db/schema';
 import { getUser } from '@/utils/auth';
 import { ok, fail, type ActionResult } from '@/utils/action-result';
 import * as Rbac from '@/lib/rbac/server';
-import { eventWikiCacheTag } from '@/lib/event-wiki';
-import { eventUrlSegments } from '@/lib/events';
 import { writeAuditLog } from '@/utils/audit-log';
 import { deleteObject, eventAttachmentUrl, putObject } from '@/utils/object-storage';
 import { collectAttachmentKeys } from '@/lib/markdown-attachments';
@@ -164,12 +160,7 @@ async function updateEventMarkdown(
   });
   if (!found) return fail('Event not found');
 
-  updateTag(adminEventCacheTag(eventId));
-  const parentEventId = await getParentEventId(eventId);
-  if (parentEventId) updateTag(subeventsCacheTag(parentEventId));
-  for (const segment of await eventUrlSegments(eventId)) {
-    revalidatePath(`/dashboard/events/${segment}`);
-  }
+  await invalidateEvent(eventId, 'content');
   await writeAuditLog({
     actorId: user.id,
     action: `event.${kind}.updated`,
@@ -181,11 +172,6 @@ async function updateEventMarkdown(
 }
 
 // ── Wiki articles ─────────────────────────────────────────────────────────
-//
-// Every mutation below revalidates `/dashboard/admin/events/<id>` as well as
-// the reader-facing routes: the admin wiki tab is a server-rendered parallel
-// slot on that page, so without it, navigating back to the list after an edit
-// shows the pre-edit rows from the router cache.
 
 type ArticleSummary = {
   id: string;
@@ -303,11 +289,7 @@ export async function createEventArticle(
     })
     .returning({ id: schema.eventArticles.id, slug: schema.eventArticles.slug });
 
-  for (const segment of await eventUrlSegments(eventId)) {
-    revalidatePath(`/dashboard/admin/events/${segment}`);
-    revalidatePath(`/dashboard/events/${segment}/wiki`);
-  }
-  updateTag(eventWikiCacheTag(eventId));
+  await invalidateEvent(eventId, 'wiki');
 
   await writeAuditLog({
     actorId: user.id,
@@ -355,11 +337,7 @@ export async function reorderEventArticles(eventId: string, orderedIds: string[]
   });
   if (!result.success) return result;
 
-  updateTag(eventWikiCacheTag(eventId));
-  for (const segment of await eventUrlSegments(eventId)) {
-    revalidatePath(`/dashboard/admin/events/${segment}`);
-    revalidatePath(`/dashboard/events/${segment}/wiki`);
-  }
+  await invalidateEvent(eventId, 'wiki');
   await writeAuditLog({
     actorId: user.id,
     action: 'event.articles.reordered',
@@ -416,16 +394,8 @@ export async function updateEventArticle(
     })
     .where(eq(schema.eventArticles.id, articleId));
 
-  for (const segment of await eventUrlSegments(eventId)) {
-    revalidatePath(`/dashboard/admin/events/${segment}`);
-    revalidatePath(`/dashboard/events/${segment}/wiki`);
-    revalidatePath(`/dashboard/events/${segment}/wiki/${input.slug ?? existing.slug}`);
-    // A rename leaves the old URL live in caches until it is dropped too.
-    if (input.slug && input.slug !== existing.slug) {
-      revalidatePath(`/dashboard/events/${segment}/wiki/${existing.slug}`);
-    }
-  }
-  updateTag(eventWikiCacheTag(eventId));
+  // Covers the article's old URL after a rename, too.
+  await invalidateEvent(eventId, 'wiki');
 
   await writeAuditLog({
     actorId: user.id,
@@ -461,12 +431,7 @@ export async function deleteEventArticle(eventId: string, articleId: string): Pr
 
   await deleteOrphanedAttachments(eventId, existing.bodyMarkdown);
 
-  for (const segment of await eventUrlSegments(eventId)) {
-    revalidatePath(`/dashboard/admin/events/${segment}`);
-    revalidatePath(`/dashboard/events/${segment}/wiki`);
-    revalidatePath(`/dashboard/events/${segment}/wiki/${existing.slug}`);
-  }
-  updateTag(eventWikiCacheTag(eventId));
+  await invalidateEvent(eventId, 'wiki');
 
   await writeAuditLog({
     actorId: user.id,

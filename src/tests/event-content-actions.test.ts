@@ -30,7 +30,7 @@ vi.mock('@/utils/object-storage', async (importOriginal) => ({
 }));
 
 import { getUser } from '@/utils/auth';
-import { revalidatePath, updateTag } from 'next/cache';
+import { invalidateEvent } from '@/lib/event-cache';
 import { getWikiSidebarArticles } from '@/lib/event-wiki';
 import {
   canWriteArticles,
@@ -312,8 +312,7 @@ describe('wiki articles', () => {
   test('persists a complete order including drafts and refreshes both wiki views', async () => {
     const before = await listArticles(eventId);
     const orderedIds = before.map((article) => article.id).reverse();
-    vi.mocked(updateTag).mockClear();
-    vi.mocked(revalidatePath).mockClear();
+    vi.mocked(invalidateEvent).mockClear();
 
     expect(await reorderEventArticles(eventId, orderedIds)).toMatchObject({
       success: true,
@@ -327,12 +326,10 @@ describe('wiki articles', () => {
         .filter((article) => article.published)
         .map((article) => article.id),
     );
-    expect(updateTag).toHaveBeenCalledWith(`event-wiki:${eventId}`);
+    expect(invalidateEvent).toHaveBeenCalledWith(eventId, 'wiki');
     expect(
       (await getWikiSidebarArticles(eventId, { canSeeDrafts: false, hasTerms: false })).map((article) => article.slug),
     ).toEqual(after.filter((article) => article.published).map((article) => article.slug));
-    expect(revalidatePath).toHaveBeenCalledWith(`/dashboard/admin/events/${eventId}`);
-    expect(revalidatePath).toHaveBeenCalledWith(`/dashboard/events/${eventId}/wiki`);
 
     const created = unwrap(await createEventArticle(eventId, { title: 'A new last article' }));
     expect((await listArticles(eventId)).map((article) => article.id)).toEqual([...orderedIds, created.id]);
@@ -498,7 +495,7 @@ describe('Event Terms copy-on-write', () => {
     const [cleared] = await db.select().from(schema.events).where(eq(schema.events.id, eventId));
     expect(cleared.termsId).toBeNull();
     expect(await db.select().from(schema.eventTerms).where(eq(schema.eventTerms.eventId, eventId))).toHaveLength(2);
-    expect(updateTag).toHaveBeenCalledWith(`admin-event:${eventId}`);
+    expect(invalidateEvent).toHaveBeenCalledWith(eventId, 'content');
     expect((await updateEventTerms(eventId, 'x'.repeat(20_001))).success).toBe(false);
   });
 });

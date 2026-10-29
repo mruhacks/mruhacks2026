@@ -1,12 +1,11 @@
 'use server';
 
-import { updateTag } from 'next/cache';
 import { and, eq, gt, isNull, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { z } from 'zod';
 
 import * as schema from '@/db/schema';
-import { eventApplicationsCacheTag } from '@/lib/admin-event';
+import { invalidateEvent } from '@/lib/event-cache';
 import { parseInstant } from '@/lib/datetime';
 import { isSubeventRunning, resolveCheckInTarget, type CheckInTarget } from '@/lib/subevents';
 import * as Rbac from '@/lib/rbac/server';
@@ -181,7 +180,7 @@ async function recordCheckIn(
   //
   // Always tagged against the main event, even for a sub-event check-in: the
   // tiles that count check-ins hang off the parent's dashboard.
-  if (inserted) updateTag(eventApplicationsCacheTag(mainEventId));
+  if (inserted) await invalidateEvent(mainEventId, 'participation');
 
   if (inserted) {
     return {
@@ -415,7 +414,7 @@ export async function undoCheckIn(
 
   if (!removed) return fail('They were not checked in.');
 
-  updateTag(eventApplicationsCacheTag(eventId));
+  await invalidateEvent(eventId, 'participation');
 
   await writeAuditLog({
     actorId: actor.id,

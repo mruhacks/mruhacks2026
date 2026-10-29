@@ -75,22 +75,6 @@ async function getEventIdBySlug(slug: string): Promise<string | null> {
 }
 
 /**
- * Every `[eventId]` segment an event is reachable at: its uuid, plus its
- * custom slug when it has one. Mutations loop over this to revalidate each
- * live URL — a page cached under the slug form is a different router-cache
- * entry from the same page under the uuid.
- */
-export async function eventUrlSegments(eventId: string): Promise<string[]> {
-  const [row] = await db
-    .select({ slug: schema.events.slug })
-    .from(schema.events)
-    .where(eq(schema.events.id, eventId))
-    .limit(1);
-
-  return row?.slug ? [eventId, row.slug] : [eventId];
-}
-
-/**
  * True once an event's end instant is in the past. Null `endsAt` (no end
  * date configured) never elapses — used to freeze participant- and
  * admin-facing mutations (unregister, check-in, team changes) once an event

@@ -12,8 +12,7 @@ vi.mock('next/cache', () => ({
 }));
 
 import { getUser } from '@/utils/auth';
-import { revalidatePath, updateTag } from 'next/cache';
-import { eventApplicationsCacheTag } from '@/lib/admin-event';
+import { invalidateEvent } from '@/lib/event-cache';
 import {
   getUserParticipation,
   getEventsWithUserStatus,
@@ -165,8 +164,7 @@ describe('getUserParticipation', () => {
 describe('submitRsvpResponse', () => {
   test('accepts an open invitation, sets responded_at, and takes a spot', async () => {
     restoreDefaultSession();
-    vi.mocked(revalidatePath).mockClear();
-    vi.mocked(updateTag).mockClear();
+    vi.mocked(invalidateEvent).mockClear();
     const { eventId, invitationId } = await setupInvited();
 
     const result = await submitRsvpResponse(eventId, 'accepted');
@@ -175,9 +173,7 @@ describe('submitRsvpResponse', () => {
     expect(await getStatus(eventId, testUserId)).toBe('accepted');
     expect((await getInvitation(invitationId)).respondedAt).toBeInstanceOf(Date);
     expect(await countAccepted(eventId)).toBe(1);
-    expect(revalidatePath).toHaveBeenCalledWith(`/dashboard/events/${eventId}`);
-    expect(revalidatePath).toHaveBeenCalledWith('/dashboard');
-    expect(updateTag).toHaveBeenCalledWith(eventApplicationsCacheTag(eventId));
+    expect(invalidateEvent).toHaveBeenCalledWith(eventId, 'participation');
   });
 
   test('rejects a second response without changing anything', async () => {

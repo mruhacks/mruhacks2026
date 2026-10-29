@@ -17,13 +17,10 @@
 
 import { randomUUID } from 'crypto';
 import { and, asc, desc, eq, gt, inArray, ne, sql } from 'drizzle-orm';
-import { revalidatePath, updateTag } from 'next/cache';
 
 import * as schema from '@/db/schema';
-import { eventApplicationsCacheTag } from '@/lib/admin-event';
-import { eventUrlSegments } from '@/lib/events';
+import { invalidateEvent } from '@/lib/event-cache';
 import * as Judging from '@/lib/judging/server';
-import { PROJECT_SHOWCASE_CACHE_TAG } from '@/lib/project-showcase';
 import { readImageUpload } from '@/lib/image-attachments';
 import * as Rbac from '@/lib/rbac/server';
 import { loadSubmissionAccess, type SubmissionAccess, type SubmissionRow } from '@/lib/submission-access';
@@ -124,16 +121,6 @@ function editBlockedReason(access: SubmissionAccess): string | null {
   }
 }
 
-async function revalidateSubmissionPaths(eventId: string): Promise<void> {
-  updateTag(eventApplicationsCacheTag(eventId));
-  updateTag(PROJECT_SHOWCASE_CACHE_TAG);
-  for (const segment of await eventUrlSegments(eventId)) {
-    revalidatePath(`/dashboard/events/${segment}`);
-    revalidatePath(`/dashboard/events/${segment}/project`);
-    revalidatePath(`/dashboard/admin/events/${segment}/teams`);
-  }
-}
-
 /** Best effort: the row is already gone, so a storage hiccup only leaves orphans. */
 async function deleteSubmissionImages(row: SubmissionRow): Promise<void> {
   try {
@@ -222,7 +209,7 @@ export async function createSubmission(eventId: string): Promise<ActionResult<{ 
         .limit(1);
       return existing!;
     });
-    await revalidateSubmissionPaths(eventId);
+    await invalidateEvent(eventId, 'projects');
     return ok({ id: created.id });
   } catch (error) {
     console.error('[team/submission] createSubmission error:', error);
@@ -319,7 +306,7 @@ export async function saveSubmission(
       return ok<SaveSubmissionResult>({ status: 'saved', updatedAt });
     });
     if (result.success && result.data?.status === 'saved') {
-      await revalidateSubmissionPaths(eventId);
+      await invalidateEvent(eventId, 'projects');
     }
     return result;
   } catch (error) {
@@ -380,7 +367,7 @@ export async function setSubmissionPublished(eventId: string, published: boolean
       if (published) await Judging.assignTableSlot(tx, eventId, row.id);
       return ok(published ? 'Project is now public.' : 'Project is now private.');
     });
-    if (result.success) await revalidateSubmissionPaths(eventId);
+    if (result.success) await invalidateEvent(eventId, 'projects');
     return result;
   } catch (error) {
     console.error('[team/submission] setSubmissionPublished error:', error);
@@ -405,7 +392,7 @@ export async function deleteSubmission(eventId: string): Promise<ActionResult> {
       .where(eq(schema.submissions.id, access.submission.id))
       .returning();
     if (deleted) await deleteSubmissionImages(deleted);
-    await revalidateSubmissionPaths(eventId);
+    await invalidateEvent(eventId, 'projects');
     return ok('Project deleted.');
   } catch (error) {
     console.error('[team/submission] deleteSubmission error:', error);
@@ -636,7 +623,7 @@ export async function adminDeleteSubmission(eventId: string, submissionId: strin
     if (!deleted) return fail('Submission not found.');
 
     await deleteSubmissionImages(deleted);
-    await revalidateSubmissionPaths(eventId);
+    await invalidateEvent(eventId, 'projects');
     await writeAuditLog({
       actorId: currentUser.id,
       action: 'submission.deleted',

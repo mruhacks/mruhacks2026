@@ -34,7 +34,7 @@ vi.mock('@/lib/rsvp/send-rsvp-wave', () => ({
 }));
 
 import { getUser } from '@/utils/auth';
-import { revalidatePath } from 'next/cache';
+import { invalidateEvent } from '@/lib/event-cache';
 import * as Rsvp from '@/lib/rsvp/server';
 
 let adminUserId: string;
@@ -621,10 +621,9 @@ describe('updateEventSettings', () => {
     expect(row.name).toBe('Renamed Event');
   });
 
-  test('sets, clears, and revalidates the paths of a custom slug', async () => {
+  test('sets, clears, and invalidates the URLs of a custom slug', async () => {
     const set = await updateEventSettings(testEventId, { slug: 'slug-one' });
     expect(set.success).toBe(true);
-    expect(revalidatePath).toHaveBeenCalledWith('/dashboard/events/slug-one');
 
     // A partial edit that never mentions the slug leaves it alone.
     const partial = await updateEventSettings(testEventId, { name: 'Kept' });
@@ -635,14 +634,13 @@ describe('updateEventSettings', () => {
       .where(eq(schema.events.id, testEventId));
     expect(kept.slug).toBe('slug-one');
 
-    // Renaming it has to drop the old path as well as the new one, or the
-    // orphaned URL keeps serving a cached render.
+    // Renaming it has to drop the old slug's URLs as well as the new one's,
+    // or the orphaned URL keeps serving a cached render.
     const renamed = await updateEventSettings(testEventId, {
       slug: 'slug-two',
     });
     expect(renamed.success).toBe(true);
-    expect(revalidatePath).toHaveBeenCalledWith('/dashboard/events/slug-one');
-    expect(revalidatePath).toHaveBeenCalledWith('/dashboard/events/slug-two');
+    expect(invalidateEvent).toHaveBeenCalledWith(testEventId, 'settings', { previousSlug: 'slug-one' });
 
     const cleared = await updateEventSettings(testEventId, { slug: '' });
     expect(cleared.success).toBe(true);
@@ -699,7 +697,7 @@ describe('updateEventSettings', () => {
     const [row] = await db.select().from(schema.events).where(eq(schema.events.id, testEventId));
     expect(row.name).toBe('Renamed again');
     expect(row.descriptionMarkdown).toBe('## Welcome\nJoin us for a weekend of building.');
-    expect(revalidatePath).toHaveBeenCalledWith(`/dashboard/events/${testEventId}`);
+    expect(invalidateEvent).toHaveBeenCalledWith(testEventId, 'settings', expect.anything());
 
     const cleared = await updateEventSettings(testEventId, {
       descriptionMarkdown: '   ',
@@ -819,7 +817,7 @@ describe('sendEventRsvpWave', () => {
     expect(result.success).toBe(false);
   });
 
-  test('forwards wave results and revalidates the admin event page', async () => {
+  test('forwards wave results and invalidates participation', async () => {
     vi.mocked(Rsvp.sendRsvpWave).mockResolvedValueOnce({
       success: true,
       wave: {
@@ -841,7 +839,7 @@ describe('sendEventRsvpWave', () => {
         },
       ],
     });
-    vi.mocked(revalidatePath).mockClear();
+    vi.mocked(invalidateEvent).mockClear();
 
     const result = await sendEventRsvpWave(testEventId);
     expect(result.success).toBe(true);
@@ -861,7 +859,7 @@ describe('sendEventRsvpWave', () => {
         },
       ],
     });
-    expect(revalidatePath).toHaveBeenCalledWith(`/dashboard/admin/events/${testEventId}`);
+    expect(invalidateEvent).toHaveBeenCalledWith(testEventId, 'participation');
     expect(Rsvp.sendRsvpWave).toHaveBeenCalledWith(testEventId, {
       closeActiveWave: false,
     });

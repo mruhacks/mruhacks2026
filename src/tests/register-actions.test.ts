@@ -9,6 +9,7 @@ vi.mock('@/utils/auth', () => ({ getUser: vi.fn() }));
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn(), updateTag: vi.fn() }));
 
 import { getUser } from '@/utils/auth';
+import { invalidateEvent } from '@/lib/event-cache';
 
 let testUserId: string;
 let testEventId: string;
@@ -65,8 +66,10 @@ describe('registerForEvent', () => {
   });
 
   test('registers the user for the event', async () => {
+    vi.mocked(invalidateEvent).mockClear();
     const result = await registerForEvent(testEventId);
     expect(result.success).toBe(true);
+    expect(invalidateEvent).toHaveBeenCalledWith(testEventId, 'participation');
 
     const rows = await db
       .select()
@@ -174,8 +177,10 @@ describe('unregisterFromEvent', () => {
 
   test('removes the attendee row', async () => {
     await insertAttendees({ userId: testUserId, eventId: testEventId });
+    vi.mocked(invalidateEvent).mockClear();
     const result = await unregisterFromEvent(testEventId);
     expect(result.success).toBe(true);
+    expect(invalidateEvent).toHaveBeenCalledWith(testEventId, 'participation');
 
     const rows = await db
       .select()
