@@ -1,9 +1,4 @@
-import type {
-  CheckInOutcome,
-  CheckInPatch,
-  CheckInRosterRow,
-  CheckInUpdates,
-} from '@/app/dashboard/admin/events/check-in-actions';
+import type * as Ticket from '@/lib/ticket';
 
 /**
  * Slow enough that a door desk running all weekend barely registers it,
@@ -17,7 +12,7 @@ const ROSTER_POLL_INTERVAL_MS = 15_000;
  * report *after*. Null when nobody has checked in yet, which asks for the
  * lot; that set is empty in exactly that case.
  */
-export function rosterWatermark(rows: CheckInRosterRow[]): string | null {
+export function rosterWatermark(rows: Ticket.CheckInRosterRow[]): string | null {
   let newest: string | null = null;
   for (const row of rows) {
     // ISO instants with a fixed `Z` suffix and fixed-width fields, so
@@ -33,11 +28,11 @@ export type RosterMerge =
   /** Nothing on screen needs to change. */
   | { kind: 'unchanged' }
   /** The patch applied cleanly; render these rows. */
-  | { kind: 'patched'; rows: CheckInRosterRow[] }
+  | { kind: 'patched'; rows: Ticket.CheckInRosterRow[] }
   /** The patch can't explain what the server reports — refetch in full. */
   | { kind: 'stale' };
 
-function samePatch(row: CheckInRosterRow, patch: CheckInPatch): boolean {
+function samePatch(row: Ticket.CheckInRosterRow, patch: Ticket.CheckInPatch): boolean {
   return (
     row.checkedInAt === patch.checkedInAt &&
     row.checkedInAtLabel === patch.checkedInAtLabel &&
@@ -54,7 +49,7 @@ function samePatch(row: CheckInRosterRow, patch: CheckInPatch): boolean {
  * Both show up as the merged check-in count disagreeing with the server's,
  * so the count is the authority and the patch is only the fast path.
  */
-export function mergeCheckInUpdates(rows: CheckInRosterRow[], updates: CheckInUpdates): RosterMerge {
+export function mergeCheckInUpdates(rows: Ticket.CheckInRosterRow[], updates: Ticket.CheckInUpdates): RosterMerge {
   const patches = new Map(updates.changed.map((patch) => [patch.userId, patch]));
 
   // The watermark is truncated to milliseconds while the column keeps
@@ -92,7 +87,10 @@ export function mergeCheckInUpdates(rows: CheckInRosterRow[], updates: CheckInUp
  * Returns null when nobody on the roster matches — a participant approved
  * after the page loaded — which only a full reload can add.
  */
-export function applyCheckIn(rows: CheckInRosterRow[], outcome: CheckInOutcome): CheckInRosterRow[] | null {
+export function applyCheckIn(
+  rows: Ticket.CheckInRosterRow[],
+  outcome: Ticket.CheckInOutcome,
+): Ticket.CheckInRosterRow[] | null {
   return patchRow(rows, outcome.userId, {
     checkedInAt: outcome.checkedInAt,
     checkedInAtLabel: outcome.checkedInAtLabel,
@@ -101,7 +99,7 @@ export function applyCheckIn(rows: CheckInRosterRow[], outcome: CheckInOutcome):
 }
 
 /** The undo counterpart: puts a row back to not-yet-arrived. */
-export function clearCheckIn(rows: CheckInRosterRow[], userId: string): CheckInRosterRow[] | null {
+export function clearCheckIn(rows: Ticket.CheckInRosterRow[], userId: string): Ticket.CheckInRosterRow[] | null {
   return patchRow(rows, userId, {
     checkedInAt: null,
     checkedInAtLabel: null,
@@ -110,10 +108,10 @@ export function clearCheckIn(rows: CheckInRosterRow[], userId: string): CheckInR
 }
 
 function patchRow(
-  rows: CheckInRosterRow[],
+  rows: Ticket.CheckInRosterRow[],
   userId: string,
-  fields: Pick<CheckInRosterRow, 'checkedInAt' | 'checkedInAtLabel' | 'checkedInByName'>,
-): CheckInRosterRow[] | null {
+  fields: Pick<Ticket.CheckInRosterRow, 'checkedInAt' | 'checkedInAtLabel' | 'checkedInByName'>,
+): Ticket.CheckInRosterRow[] | null {
   const index = rows.findIndex((row) => row.userId === userId);
   if (index === -1) return null;
 

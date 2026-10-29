@@ -2,7 +2,7 @@ import { cacheTag, cacheLife } from 'next/cache';
 import { desc, eq, isNull, sql } from 'drizzle-orm';
 import { db } from '@/utils/db';
 import * as schema from '@/db/schema';
-import { isEventUuid } from '@/lib/event-slug';
+import { isUuid } from '@/lib/uuid';
 import * as Participation from '@/lib/participation/server';
 
 /** Invalidated by updateTag() whenever an event is created or its settings change. */
@@ -49,7 +49,7 @@ export async function getAllEvents() {
  * left for the caller's own query to 404 on.
  */
 export async function resolveEventId(segment: string): Promise<string | null> {
-  if (isEventUuid(segment)) return segment;
+  if (isUuid(segment)) return segment;
   return getEventIdBySlug(segment);
 }
 

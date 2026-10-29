@@ -4,7 +4,7 @@ import { eq, inArray, or } from 'drizzle-orm';
 import { client, db } from '@/utils/db';
 import * as schema from '@/db/schema';
 import * as Participation from '@/lib/participation/server';
-import { isEventUuid } from '@/lib/event-slug';
+import { isUuid } from '@/lib/uuid';
 
 const USAGE = `
 Usage:
@@ -38,7 +38,7 @@ function assertNotProduction(): void {
 }
 
 async function resolveEventId(segment: string): Promise<string | null> {
-  if (isEventUuid(segment)) {
+  if (isUuid(segment)) {
     const [row] = await db
       .select({ id: schema.events.id })
       .from(schema.events)

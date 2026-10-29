@@ -66,9 +66,15 @@ export function resolveEffectiveStatus(
   return stored;
 }
 
-/** Holding a spot: counts against capacity, gets a pass, can be checked in. */
+/**
+ * The status that holds a spot: counts against capacity, gets a pass, can be
+ * checked in. `isAttending` and the SQL `attending()` both read it, so code
+ * and queries can't disagree on who's in.
+ */
+export const ATTENDING_STATUS = 'accepted' satisfies ParticipationStatus;
+
 export function isAttending(status: ParticipationStatus): boolean {
-  return status === 'accepted';
+  return status === ATTENDING_STATUS;
 }
 
 /**

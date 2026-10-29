@@ -16,7 +16,7 @@
  *    /api/wallet/google/[eventId]: session-gated, and only issue a
  *    pass/code/save-link to a caller who is an accepted applicant or a
  *    registered attendee of that specific (top-level) event — all three
- *    share the same authorization lookup (src/lib/wallet/participation.ts).
+ *    share the same authorization lookup (`Ticket.passEligibility`).
  */
 import { describe, test, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import { eq } from 'drizzle-orm';

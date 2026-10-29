@@ -2,6 +2,7 @@ import { eq } from 'drizzle-orm';
 
 import * as schema from '@/db/schema';
 import * as Signing from '@/lib/signing/server';
+import * as Ticket from '@/lib/ticket/server';
 import * as Wallet from '@/lib/wallet/server';
 import { db } from '@/utils/db';
 
@@ -24,8 +25,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ toke
     return new Response('Too Many Requests', { status: 429 });
   }
 
-  const participation = await Wallet.participation(claims.eventId, claims.userId);
-  if (!participation || (participation.endsAt && participation.endsAt.getTime() < Date.now())) {
+  const holder = await Ticket.passEligibility(claims.eventId, claims.userId);
+  if (!holder || Ticket.hasEnded(holder)) {
     return new Response('Not found', { status: 404 });
   }
 
@@ -40,7 +41,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ toke
     eventId: claims.eventId,
     userId: claims.userId,
     accountName: account.name,
-    participation,
+    holder,
   };
   return platform === 'apple' ? Wallet.applePassResponse(input) : Wallet.googleWalletResponse(input);
 }

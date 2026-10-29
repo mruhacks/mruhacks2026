@@ -224,7 +224,7 @@ export async function getEventSummaryCounts(eventId: string): Promise<EventSumma
     db
       .select({ c: countOf })
       .from(schema.eventParticipants)
-      .where(and(eq(schema.eventParticipants.eventId, eventId), Participation.hasStatus('accepted'))),
+      .where(and(eq(schema.eventParticipants.eventId, eventId), Participation.attending())),
     db.select({ c: countOf }).from(schema.checkIns).where(eq(schema.checkIns.eventId, eventId)),
     // Solo teams-of-one are excluded here for the same reason
     // `listFormedTeams` excludes them — an unjoined code isn't a team.
@@ -537,7 +537,7 @@ export async function getEventAttendeeRoster(eventId: string): Promise<AdminAtte
     .from(schema.eventParticipants)
     .innerJoin(schema.user, eq(schema.eventParticipants.userId, schema.user.id))
     .leftJoin(schema.userProfiles, eq(schema.eventParticipants.userId, schema.userProfiles.userId))
-    .where(and(eq(schema.eventParticipants.eventId, eventId), Participation.hasStatus('accepted')))
+    .where(and(eq(schema.eventParticipants.eventId, eventId), Participation.attending()))
     .orderBy(asc(schema.eventParticipants.createdAt));
 
   return rows.map((row) => ({

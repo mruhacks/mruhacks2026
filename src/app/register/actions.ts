@@ -137,7 +137,7 @@ export async function unregisterFromEvent(eventId: string): Promise<ActionResult
         and(
           eq(schema.eventParticipants.eventId, eventId),
           eq(schema.eventParticipants.userId, user.id),
-          Participation.hasStatus('accepted'),
+          Participation.attending(),
         ),
       );
     await invalidateEvent(eventId, 'participation');

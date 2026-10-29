@@ -1,5 +1,6 @@
 import QRCode from 'qrcode';
 
+import * as Ticket from '@/lib/ticket/server';
 import * as Wallet from '@/lib/wallet/server';
 import { getUser } from '@/utils/auth';
 
@@ -20,8 +21,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ eve
   }
 
   const { eventId } = await params;
-  const participation = await Wallet.getEventParticipation(eventId, user.id);
-  if (!participation || !participation.isParticipant || !participation.checkInEnabled) {
+  if (!(await Ticket.passEligibility(eventId, user.id))) {
     return new Response('Not found', { status: 404 });
   }
 

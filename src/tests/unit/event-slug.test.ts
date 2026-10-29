@@ -1,18 +1,19 @@
 import { describe, test, expect } from 'vitest';
-import { RESERVED_EVENT_SLUGS, adminEventPath, eventPath, isEventUuid, isValidEventSlug } from '@/lib/event-slug';
+import { RESERVED_EVENT_SLUGS, adminEventPath, eventPath, isValidEventSlug } from '@/lib/event-slug';
+import { isUuid } from '@/lib/uuid';
 import { SLUG_MAX_LENGTH } from '@/lib/slug';
 
 const UUID = '3f0c9b4e-1d2a-4c5b-8e7f-0a1b2c3d4e5f';
 
-describe('isEventUuid', () => {
+describe('isUuid', () => {
   test('recognizes a uuid in either case', () => {
-    expect(isEventUuid(UUID)).toBe(true);
-    expect(isEventUuid(UUID.toUpperCase())).toBe(true);
+    expect(isUuid(UUID)).toBe(true);
+    expect(isUuid(UUID.toUpperCase())).toBe(true);
   });
 
   test('rejects a slug, including one built only from hex words', () => {
-    expect(isEventUuid('mruhacks-2026')).toBe(false);
-    expect(isEventUuid('dead-beef')).toBe(false);
+    expect(isUuid('mruhacks-2026')).toBe(false);
+    expect(isUuid('dead-beef')).toBe(false);
   });
 });
 

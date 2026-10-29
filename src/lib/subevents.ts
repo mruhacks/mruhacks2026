@@ -2,7 +2,6 @@ import { cacheLife, cacheTag } from 'next/cache';
 import { and, asc, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 
 import * as schema from '@/db/schema';
-import { MEAL_EVENT_TYPE } from '@/types/lookups';
 import { db } from '@/utils/db';
 
 export { isSubeventRunning } from '@/lib/subevent-running';
@@ -87,75 +86,6 @@ export async function getSubeventCheckInCounts(subeventIds: string[]): Promise<R
     .groupBy(schema.checkIns.eventId);
 
   return Object.fromEntries(rows.map((row) => [row.eventId, row.count]));
-}
-
-export type CheckInTarget = {
-  /** The event id a check-in row should actually be written against. */
-  targetId: string;
-  isSubevent: boolean;
-  /** The sub-event's name, or null when the target is the main event. */
-  name: string | null;
-  /** The sub-event's schedule slot; null for the main event. */
-  startsAt: Date | null;
-  endsAt: Date | null;
-  /** Whether the target is a meal, so the desk can surface dietary needs. */
-  isMeal: boolean;
-};
-
-/**
- * Resolves a scanner's check-in target to a concrete event id.
- *
- * An attendee's pass only ever carries the *main* event's id — sub-events issue
- * no passes of their own — so the sub-event being scanned for arrives as a
- * separate argument, chosen in the check-in UI. That makes this the one place
- * that has to prove the target is legitimate, and it does so by pinning
- * `parent_event_id` to the main event in the lookup itself: an arbitrary event
- * id simply doesn't come back, so it can never reach a write.
- *
- * The no-target case deliberately validates nothing and does no query. Each
- * caller already has its own guard rejecting a sub-event id in the *main*
- * position — `getEventParticipation` for the writes, the `isNull` lookup in
- * `getCheckInRoster` — and those produce the more useful "only available for
- * main events" message. Duplicating the check here would only shadow it.
- */
-export async function resolveCheckInTarget(
-  mainEventId: string,
-  targetEventId: string | null | undefined,
-): Promise<CheckInTarget | null> {
-  if (!targetEventId || targetEventId.toLowerCase() === mainEventId.toLowerCase()) {
-    return {
-      targetId: mainEventId,
-      isSubevent: false,
-      name: null,
-      startsAt: null,
-      endsAt: null,
-      isMeal: false,
-    };
-  }
-
-  const [row] = await db
-    .select({
-      id: schema.events.id,
-      name: schema.events.name,
-      startsAt: schema.events.startsAt,
-      endsAt: schema.events.endsAt,
-      eventTypeLabel: schema.eventTypes.label,
-    })
-    .from(schema.events)
-    .leftJoin(schema.eventTypes, eq(schema.eventTypes.id, schema.events.eventTypeId))
-    .where(and(eq(schema.events.id, targetEventId), eq(schema.events.parentEventId, mainEventId)))
-    .limit(1);
-
-  if (!row) return null;
-
-  return {
-    targetId: row.id,
-    isSubevent: true,
-    name: row.name,
-    startsAt: row.startsAt,
-    endsAt: row.endsAt,
-    isMeal: row.eventTypeLabel === MEAL_EVENT_TYPE,
-  };
 }
 
 /**

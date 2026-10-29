@@ -4,6 +4,11 @@ const PASS_TIME_ZONE = 'America/Edmonton';
  *  "9:00 a.m." where every other time in the app reads "9:00 AM". The pass follows the app. */
 const TIME_LOCALE = 'en-US';
 
+/** The wallet routes' shared name fallback: profile name, then account name, then a generic label — never undefined. */
+export function resolveParticipantName(fullName: string | null, accountName: string): string {
+  return fullName || accountName || 'Participant';
+}
+
 /** Shared by the Apple pass, the Google Wallet class, and the in-app ticket page. */
 export function formatDateRange(startsAt: Date | null, endsAt: Date | null): string | null {
   if (!startsAt && !endsAt) return null;
