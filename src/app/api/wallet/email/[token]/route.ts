@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm';
 
 import * as schema from '@/db/schema';
+import { hasEventElapsed } from '@/lib/events';
 import * as Signing from '@/lib/signing/server';
 import * as Ticket from '@/lib/ticket/server';
 import * as Wallet from '@/lib/wallet/server';
@@ -26,7 +27,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ toke
   }
 
   const holder = await Ticket.passEligibility(claims.eventId, claims.userId);
-  if (!holder || Ticket.hasEnded(holder)) {
+  if (!holder || hasEventElapsed(holder.endsAt)) {
     return new Response('Not found', { status: 404 });
   }
 

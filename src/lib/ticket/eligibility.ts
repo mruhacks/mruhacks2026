@@ -71,10 +71,10 @@ export async function lookupHolder(eventId: string, userId: string): Promise<Hol
  */
 export async function passEligibility(eventId: string, userId: string): Promise<Holder | null> {
   const holder = await lookupHolder(eventId, userId);
-  return holder?.isParticipant && holder.checkInEnabled ? holder : null;
+  return holder && isEligible(holder) ? holder : null;
 }
 
-/** Whether the event is over, after which check-in is frozen and emailed passes stop. */
-export function hasEnded(event: { endsAt: Date | null }, now: Date = new Date()): boolean {
-  return event.endsAt !== null && event.endsAt.getTime() < now.getTime();
+/** `passEligibility`'s rule, for a caller that already has the holder. */
+export function isEligible(holder: Holder): boolean {
+  return holder.isParticipant && holder.checkInEnabled;
 }

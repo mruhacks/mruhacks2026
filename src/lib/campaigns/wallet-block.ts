@@ -5,6 +5,7 @@ import { Column, Img, Link, Row, Section } from 'react-email';
 import { and, eq, isNull } from 'drizzle-orm';
 
 import * as schema from '@/db/schema';
+import { hasEventElapsed } from '@/lib/events';
 import * as Signing from '@/lib/signing/server';
 import * as Ticket from '@/lib/ticket/server';
 import { db } from '@/utils/db';
@@ -51,7 +52,7 @@ export async function walletLinksFor(
   now: Date = new Date(),
 ): Promise<WalletLinks | null> {
   const holder = await Ticket.passEligibility(eventId, userId);
-  if (!holder || Ticket.hasEnded(holder, now)) return null;
+  if (!holder || hasEventElapsed(holder.endsAt, now)) return null;
   const token = await Signing.buildWalletLinkToken(userId, eventId);
   const url = `${baseUrl}/api/wallet/email/${token}`;
   return { apple: `${url}?platform=apple`, google: `${url}?platform=google` };

@@ -73,6 +73,12 @@ describe('invalidateEvent', () => {
     );
   });
 
+  test('a check-in only moves the counts, refreshing no pages', async () => {
+    await invalidateEvent(sluggedId, 'checkin');
+    expect(tags()).toEqual([`event-applications:${sluggedId}`]);
+    expect(paths()).toEqual([]);
+  });
+
   test('other changes leave the dashboard alone', async () => {
     await invalidateEvent(plainId, 'wiki');
     expect(paths().map(([path]) => path)).not.toContain('/dashboard');

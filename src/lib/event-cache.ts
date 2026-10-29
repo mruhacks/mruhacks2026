@@ -16,7 +16,8 @@ import { subeventsCacheTag } from '@/lib/subevents';
  * The one place that knows which caches depend on an event. Actions say what
  * changed; this works out every cache tag and page to bust for it.
  *
- * - `participation`: an application, review, RSVP, check-in, withdrawal or team change
+ * - `participation`: an application, review, RSVP, withdrawal or team change
+ * - `checkin`: a check-in recorded or undone, which only moves the dashboard's counts
  * - `projects`: a project submitted, edited, deactivated or placed
  * - `judging`: judging setup, judges and their votes
  * - `questions`: the application form
@@ -27,6 +28,7 @@ import { subeventsCacheTag } from '@/lib/subevents';
  */
 export type EventChange =
   | 'participation'
+  | 'checkin'
   | 'projects'
   | 'judging'
   | 'questions'
@@ -54,6 +56,7 @@ function eventCacheTargets(
   const parentTags = event.parentEventId ? [subeventsCacheTag(event.parentEventId)] : [];
   const tags = {
     participation: [eventApplicationsCacheTag(event.id)],
+    checkin: [eventApplicationsCacheTag(event.id)],
     projects: [eventApplicationsCacheTag(event.id), PROJECT_SHOWCASE_CACHE_TAG],
     judging: [],
     questions: [adminEventCacheTag(event.id)],
@@ -70,6 +73,11 @@ function eventCacheTargets(
 
   // An event is reachable by uuid and by slug, and each is its own cached
   // URL; 'layout' reaches every page under it (wiki, project, judging, …).
+  if (change === 'checkin') {
+    // The desk polls for itself, so a scan only has to move the cached
+    // counts; refreshing every page of the event on each one is wasted work.
+    return { tags, paths: [] };
+  }
   const segments = [...new Set([event.id, event.slug, previousSlug].filter((s): s is string => Boolean(s)))];
   const paths: EventCacheTargets['paths'] = segments.flatMap((segment) => [
     [`/dashboard/events/${segment}`, 'layout'],
@@ -84,17 +92,20 @@ function eventCacheTargets(
   return { tags, paths };
 }
 
-/** Busts every cache that shows `change` for this event. */
+/**
+ * Busts every cache that shows `change` for this event.
+ *
+ * Callers run this after their write has committed, so it never throws: a
+ * failed slug lookup must not turn a saved write into a reported failure (or
+ * skip the audit log after it). Without the lookup it still busts the tags
+ * and the uuid URLs, missing only the slug URLs and the parent's schedule.
+ */
 export async function invalidateEvent(
   eventId: string,
   change: EventChange,
   options: { previousSlug?: string | null } = {},
 ): Promise<void> {
-  const [row] = await db
-    .select({ slug: schema.events.slug, parentEventId: schema.events.parentEventId })
-    .from(schema.events)
-    .where(eq(schema.events.id, eventId))
-    .limit(1);
+  const row = change === 'checkin' ? undefined : await lookupEvent(eventId);
   const targets = eventCacheTargets(
     { id: eventId, slug: row?.slug ?? null, parentEventId: row?.parentEventId ?? null },
     change,
@@ -102,4 +113,18 @@ export async function invalidateEvent(
   );
   for (const tag of targets.tags) updateTag(tag);
   for (const [path, type] of targets.paths) revalidatePath(path, type);
+}
+
+async function lookupEvent(eventId: string) {
+  try {
+    const [row] = await db
+      .select({ slug: schema.events.slug, parentEventId: schema.events.parentEventId })
+      .from(schema.events)
+      .where(eq(schema.events.id, eventId))
+      .limit(1);
+    return row;
+  } catch (error) {
+    console.error('[event-cache] Event lookup failed; invalidating by uuid only:', error);
+    return undefined;
+  }
 }

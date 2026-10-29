@@ -78,10 +78,10 @@ async function getEventIdBySlug(slug: string): Promise<string | null> {
  * True once an event's end instant is in the past. Null `endsAt` (no end
  * date configured) never elapses — used to freeze participant- and
  * admin-facing mutations (unregister, check-in, team changes) once an event
- * is over.
+ * is over. Also what stops wallet passes going out in emails.
  */
-export function hasEventElapsed(endsAt: Date | null): boolean {
-  return endsAt != null && endsAt.getTime() < Date.now();
+export function hasEventElapsed(endsAt: Date | null, now: Date = new Date()): boolean {
+  return endsAt != null && endsAt.getTime() < now.getTime();
 }
 
 export type EventParticipationCount = {

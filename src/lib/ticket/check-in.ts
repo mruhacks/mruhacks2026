@@ -6,6 +6,7 @@ import { z } from 'zod';
 
 import * as schema from '@/db/schema';
 import { invalidateEvent } from '@/lib/event-cache';
+import { hasEventElapsed } from '@/lib/events';
 import { parseInstant } from '@/lib/datetime';
 import { isSubeventRunning } from '@/lib/subevents';
 import { isUuid } from '@/lib/uuid';
@@ -16,7 +17,6 @@ import { ok, fail, type ActionResult } from '@/utils/action-result';
 import { writeAuditLog } from '@/utils/audit-log';
 import { dietaryRestrictionsList, MEAL_EVENT_TYPE } from '@/types/lookups';
 import { db } from '@/utils/db';
-import { hasEnded, lookupHolder } from './eligibility';
 
 /**
  * The check-in desk's rules: who can be checked in where and when, and what
@@ -203,6 +203,24 @@ async function openDesk(eventId: string, targetEventId: string | null | undefine
   return ok({ eventId: main.id, endsAt: main.endsAt, target });
 }
 
+/** Whether this actor may arm a schedule entry that isn't running right now. */
+export function canOverrideTarget(actorId: string): Promise<boolean> {
+  return Rbac.hasPermission(actorId, 'checkin:override:all');
+}
+
+/**
+ * Whether a schedule entry can take check-ins: check-in is on for it, and
+ * it's running now unless the actor can override that. The desk's picker
+ * offers exactly these, and `openDeskForWrites` enforces the same rule.
+ */
+export function isArmable(
+  target: { checkInEnabled: boolean; startsAt: Date | null; endsAt: Date | null },
+  canOverride: boolean,
+  now: Date = new Date(),
+): boolean {
+  return target.checkInEnabled && (canOverride || isSubeventRunning(target, now.getTime()));
+}
+
 /**
  * `openDesk`, plus the rules for changing what's recorded. The door is open
  * until the event ends; a schedule entry only while it's running, unless the
@@ -227,14 +245,11 @@ async function openDeskForWrites(
   if (!desk.success) return desk;
   const { target } = desk.data!;
 
-  if (
-    target.isSubevent &&
-    !isSubeventRunning(target, now.getTime()) &&
-    !(await Rbac.hasPermission(actorId, 'checkin:override:all'))
-  ) {
+  // `isArmable`, with the permission only looked up when the entry isn't running.
+  if (target.isSubevent && !isArmable(target, false, now) && !(await canOverrideTarget(actorId))) {
     return fail(TARGET_NOT_RUNNING);
   }
-  if (hasEnded(desk.data!, now)) return fail(FROZEN);
+  if (hasEventElapsed(desk.data!.endsAt, now)) return fail(FROZEN);
 
   return desk;
 }
@@ -265,13 +280,26 @@ async function loadDietary(userId: string): Promise<CheckInDietary> {
   };
 }
 
-async function loadAccountName(userId: string): Promise<string> {
+/**
+ * The name to show for someone holding a spot in `eventId`, or null if they
+ * don't hold one. `eventId` is the desk's main event, already validated by
+ * `openDesk`, so this reads only the participant and their names.
+ */
+async function lookupAttendeeName(eventId: string, userId: string): Promise<string | null> {
   const [row] = await db
-    .select({ name: schema.user.name })
-    .from(schema.user)
-    .where(eq(schema.user.id, userId))
+    .select({ fullName: schema.userProfiles.fullName, accountName: schema.user.name })
+    .from(schema.eventParticipants)
+    .innerJoin(schema.user, eq(schema.user.id, schema.eventParticipants.userId))
+    .leftJoin(schema.userProfiles, eq(schema.userProfiles.userId, schema.eventParticipants.userId))
+    .where(
+      and(
+        eq(schema.eventParticipants.eventId, eventId),
+        eq(schema.eventParticipants.userId, userId),
+        Participation.attending(),
+      ),
+    )
     .limit(1);
-  return row?.name ?? '';
+  return row ? Wallet.resolveParticipantName(row.fullName, row.accountName) : null;
 }
 
 /**
@@ -304,7 +332,7 @@ async function recordCheckIn(
   //
   // Always tagged against the main event, even for a sub-event check-in: the
   // tiles that count check-ins hang off the parent's dashboard.
-  if (inserted) await invalidateEvent(mainEventId, 'participation');
+  if (inserted) await invalidateEvent(mainEventId, 'checkin');
 
   if (inserted) {
     return {
@@ -381,12 +409,10 @@ export async function checkIn(input: {
   if (!opened.success) return opened;
   const { eventId, target } = opened.data!;
 
-  const holder = await lookupHolder(eventId, userId);
-  if (!holder?.isParticipant) {
+  const name = await lookupAttendeeName(eventId, userId);
+  if (name === null) {
     return fail('This person is not registered for this event.');
   }
-
-  const name = Wallet.resolveParticipantName(holder.fullName, await loadAccountName(userId));
 
   // A sub-event is for people who are actually here, so the door comes first.
   // Read-then-write rather than an atomic insert-where-exists: the atomic form
@@ -447,7 +473,7 @@ export async function undoCheckIn(input: {
 
   if (!removed) return fail('They were not checked in.');
 
-  await invalidateEvent(eventId, 'participation');
+  await invalidateEvent(eventId, 'checkin');
 
   await writeAuditLog({
     actorId,
