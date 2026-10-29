@@ -41,7 +41,7 @@ function getStorage() {
  * submission images (`…/<uuid>-w<width>.webp`, see `@/lib/submission-images`).
  * Originals, resumes and every other prefix stay private.
  */
-export function publicReadPolicy(bucket: string): string {
+function publicReadPolicy(bucket: string): string {
   return JSON.stringify({
     Version: '2012-10-17',
     Statement: [
@@ -196,21 +196,7 @@ export function eventAttachmentUrl(key: string) {
   return `/api/assets/${key}`;
 }
 
-/** Inverse of `eventAttachmentUrl`; null when the URL isn't one of ours. */
-export function parseEventAttachmentKey(url: string | null | undefined): string | null {
-  if (!url) return null;
-  const prefix = '/api/assets/';
-  if (!url.startsWith(prefix)) return null;
-  let key: string;
-  try {
-    key = decodeURIComponent(url.slice(prefix.length));
-  } catch {
-    return null;
-  }
-  return isEventAttachmentKey(key) ? key : null;
-}
-
-/** Like `parseEventAttachmentKey`, for a submission image URL. */
+/** The submission image key behind an `/api/assets` URL; null when the URL isn't one. */
 export function parseSubmissionAttachmentKey(url: string | null | undefined): string | null {
   const key = parseProfilePictureKey(url);
   return isSubmissionAttachmentKey(key) ? key : null;

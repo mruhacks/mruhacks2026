@@ -1,94 +1,70 @@
 import { describe, test, expect } from 'vitest';
 import * as Rbac from '@/lib/rbac';
 
-describe('parsePermission', () => {
-  test('parses a full 3-part permission string', () => {
-    expect(Rbac.parsePermission('user:read:all')).toEqual({
-      entity: 'user',
-      action: 'read',
-      scope: 'all',
-    });
+describe('short permission strings', () => {
+  test('a missing scope is treated as "all"', () => {
+    expect(Rbac.anyPermissionMatches(['user:read'], 'user:read:self')).toBe(true);
+    expect(Rbac.anyPermissionMatches(['user:read'], 'user:write:self')).toBe(false);
   });
 
-  test('defaults scope to "all" when only entity:action given', () => {
-    expect(Rbac.parsePermission('user:read')).toEqual({
-      entity: 'user',
-      action: 'read',
-      scope: 'all',
-    });
-  });
-
-  test('handles single-segment strings', () => {
-    expect(Rbac.parsePermission('user')).toEqual({
-      entity: 'user',
-      action: '',
-      scope: 'all',
-    });
-  });
-
-  test('preserves UUID scope values', () => {
-    const uuid = '123e4567-e89b-12d3-a456-426614174000';
-    expect(Rbac.parsePermission(`registration:approve:${uuid}`)).toEqual({
-      entity: 'registration',
-      action: 'approve',
-      scope: uuid,
-    });
+  test('an entity alone grants no action', () => {
+    expect(Rbac.anyPermissionMatches(['user'], 'user:read:all')).toBe(false);
   });
 });
 
-describe('permissionMatches', () => {
+describe('a single grant', () => {
   test('exact match returns true', () => {
-    expect(Rbac.permissionMatches('user:read:all', 'user:read:all')).toBe(true);
+    expect(Rbac.anyPermissionMatches(['user:read:all'], 'user:read:all')).toBe(true);
   });
 
   test('different entity returns false', () => {
-    expect(Rbac.permissionMatches('role:read:all', 'user:read:all')).toBe(false);
+    expect(Rbac.anyPermissionMatches(['role:read:all'], 'user:read:all')).toBe(false);
   });
 
   test('different action returns false', () => {
-    expect(Rbac.permissionMatches('user:write:all', 'user:read:all')).toBe(false);
+    expect(Rbac.anyPermissionMatches(['user:write:all'], 'user:read:all')).toBe(false);
   });
 
   test('different scope returns false', () => {
-    expect(Rbac.permissionMatches('user:read:self', 'user:read:all')).toBe(false);
+    expect(Rbac.anyPermissionMatches(['user:read:self'], 'user:read:all')).toBe(false);
   });
 
   test('granted action=all covers any required action', () => {
-    expect(Rbac.permissionMatches('user:all:self', 'user:read:self')).toBe(true);
-    expect(Rbac.permissionMatches('user:all:self', 'user:write:self')).toBe(true);
-    expect(Rbac.permissionMatches('user:all:self', 'user:delete:self')).toBe(true);
+    expect(Rbac.anyPermissionMatches(['user:all:self'], 'user:read:self')).toBe(true);
+    expect(Rbac.anyPermissionMatches(['user:all:self'], 'user:write:self')).toBe(true);
+    expect(Rbac.anyPermissionMatches(['user:all:self'], 'user:delete:self')).toBe(true);
   });
 
   test('granted action=all does not override entity mismatch', () => {
-    expect(Rbac.permissionMatches('role:all:all', 'user:read:all')).toBe(false);
+    expect(Rbac.anyPermissionMatches(['role:all:all'], 'user:read:all')).toBe(false);
   });
 
   test('granted scope=all covers self scope', () => {
-    expect(Rbac.permissionMatches('user:read:all', 'user:read:self')).toBe(true);
+    expect(Rbac.anyPermissionMatches(['user:read:all'], 'user:read:self')).toBe(true);
   });
 
   test('granted scope=self does NOT cover scope=all', () => {
-    expect(Rbac.permissionMatches('user:read:self', 'user:read:all')).toBe(false);
+    expect(Rbac.anyPermissionMatches(['user:read:self'], 'user:read:all')).toBe(false);
   });
 
   test('user:all:all covers any user permission', () => {
-    expect(Rbac.permissionMatches('user:all:all', 'user:read:all')).toBe(true);
-    expect(Rbac.permissionMatches('user:all:all', 'user:write:self')).toBe(true);
-    expect(Rbac.permissionMatches('user:all:all', 'user:delete:self')).toBe(true);
+    expect(Rbac.anyPermissionMatches(['user:all:all'], 'user:read:all')).toBe(true);
+    expect(Rbac.anyPermissionMatches(['user:all:all'], 'user:write:self')).toBe(true);
+    expect(Rbac.anyPermissionMatches(['user:all:all'], 'user:delete:self')).toBe(true);
   });
 
   test('entity=all covers any entity', () => {
-    expect(Rbac.permissionMatches('all:all:all', 'user:read:all')).toBe(true);
-    expect(Rbac.permissionMatches('all:all:all', 'submission:edit:self')).toBe(true);
+    expect(Rbac.anyPermissionMatches(['all:all:all'], 'user:read:all')).toBe(true);
+    expect(Rbac.anyPermissionMatches(['all:all:all'], 'submission:edit:self')).toBe(true);
   });
 
   test('entity=all with specific action only covers matching action', () => {
-    expect(Rbac.permissionMatches('all:read:all', 'user:read:all')).toBe(true);
-    expect(Rbac.permissionMatches('all:read:all', 'user:write:all')).toBe(false);
+    expect(Rbac.anyPermissionMatches(['all:read:all'], 'user:read:all')).toBe(true);
+    expect(Rbac.anyPermissionMatches(['all:read:all'], 'user:write:all')).toBe(false);
   });
 
   test('granted scope=all with different entity returns false', () => {
-    expect(Rbac.permissionMatches('role:read:all', 'user:read:self')).toBe(false);
+    expect(Rbac.anyPermissionMatches(['role:read:all'], 'user:read:self')).toBe(false);
   });
 });
 

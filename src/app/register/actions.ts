@@ -118,15 +118,6 @@ export async function registerForEvent(eventId: string): Promise<ActionResult> {
 }
 
 /**
- * Form action wrapper for registerForEvent (used by dashboard/events page).
- */
-export async function registerForEventFormAction(formData: FormData): Promise<ActionResult> {
-  const eventId = formData.get('eventId');
-  if (typeof eventId !== 'string') return fail('Missing event ID');
-  return registerForEvent(eventId);
-}
-
-/**
  * Unregisters the current user from an event that has no application (simple
  * signup) by removing their participant row. An event with an application
  * keeps its row — see `withdrawParticipation`.

@@ -41,9 +41,6 @@ async function EventList() {
   // The same check as the event dashboard each card links to.
   await Rbac.requireAnyPermission(user.id, [...Rbac.EVENT_DASHBOARD_PERMISSIONS]);
 
-  // TODO: implement event-level scoping (e.g., event:manage:{eventId}) for
-  // organizers who manage specific events only.
-
   const [allEvents, counts, canSeeCounts, ...toolAccess] = await Promise.all([
     getAllEvents(),
     getEventParticipationCounts(),

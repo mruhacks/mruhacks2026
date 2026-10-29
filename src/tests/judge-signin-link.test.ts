@@ -15,7 +15,6 @@ vi.mock('@/utils/mail', () => ({
 import { sendMail } from '@/utils/mail';
 import * as Judging from '@/lib/judging/server';
 import * as Auth from '@/lib/auth';
-import { MAGIC_LINK_EXPIRES_IN_SECONDS } from '@/utils/auth';
 
 const email = `judge-signin-link-${Date.now()}@example.com`;
 const tokens: string[] = [];
@@ -67,6 +66,7 @@ describe('createJudgeSignInLink', () => {
     const token = vi.mocked(sendMail).mock.calls[0][0].text?.match(/token=([A-Za-z]+)/)?.[1];
     expect(token).toBeTruthy();
     tokens.push(token!);
-    expect(await expiresInSeconds(token!)).toBeGreaterThan(MAGIC_LINK_EXPIRES_IN_SECONDS - 60);
+    // The ordinary 24h magic-link lifetime.
+    expect(await expiresInSeconds(token!)).toBeGreaterThan(24 * 60 * 60 - 60);
   });
 });

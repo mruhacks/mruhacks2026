@@ -32,8 +32,8 @@ const GAMMA = 0.1;
 const KAPPA = 0.0001;
 const MU_PRIOR = 0;
 const SIGMA_SQ_PRIOR = 1;
-export const ALPHA_PRIOR = 10;
-export const BETA_PRIOR = 1;
+const ALPHA_PRIOR = 10;
+const BETA_PRIOR = 1;
 /** Epsilon-greedy: how often dispatch explores instead of maximizing gain. */
 export const EPSILON = 0.25;
 
@@ -74,12 +74,12 @@ function lnGamma(x: number): number {
 }
 
 /** ln |B(a, b)|, as `scipy.special.betaln`. */
-export function betaln(a: number, b: number): number {
+function betaln(a: number, b: number): number {
   return lnGamma(a) + lnGamma(b) - lnGamma(a + b);
 }
 
 /** The digamma function ψ(x) for x > 0, as `scipy.special.psi`. */
-export function psi(x: number): number {
+function psi(x: number): number {
   let result = 0;
   // Recurrence ψ(x) = ψ(x+1) − 1/x until the asymptotic series is accurate.
   while (x < 6) {

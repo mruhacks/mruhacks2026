@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest';
-import { hasResponsesForOption, hasResponsesForQuestion, validateQuestionEdit } from '@/lib/question-diff';
+import { validateQuestionEdit } from '@/lib/question-diff';
 import type { ApplicationQuestion } from '@/types/application';
 
 function makeQuestion(overrides: Partial<ApplicationQuestion> = {}): ApplicationQuestion {
@@ -18,80 +18,108 @@ function makeQuestion(overrides: Partial<ApplicationQuestion> = {}): Application
   };
 }
 
-describe('hasResponsesForOption', () => {
+/** Whether `responses` answer opt-a: only then is deactivating it refused. */
+function optionAnswered(responses: Record<string, unknown>[]): boolean {
+  const result = validateQuestionEdit(
+    makeQuestion(),
+    {
+      options: [
+        { value: 'opt-a', label: 'Option A', active: false },
+        { value: 'opt-b', label: 'Option B', active: true },
+      ],
+    },
+    responses,
+  );
+  return !result.ok;
+}
+
+/**
+ * Whether `responses` answer the question at all: only then are edited
+ * options checked against the existing ones, so an unknown value is refused.
+ */
+function questionAnswered(responses: Record<string, unknown>[]): boolean {
+  const result = validateQuestionEdit(
+    makeQuestion(),
+    { options: [{ value: 'not-an-option', label: 'X', active: true }] },
+    responses,
+  );
+  return !result.ok;
+}
+
+describe('which answers lock an option', () => {
   test('returns false for empty responses', () => {
-    expect(hasResponsesForOption([], 'q1', 'opt-a')).toBe(false);
+    expect(optionAnswered([])).toBe(false);
   });
 
   test('returns false when question has no answer', () => {
     const responses = [{ q2: 'opt-a' }];
-    expect(hasResponsesForOption(responses, 'q1', 'opt-a')).toBe(false);
+    expect(optionAnswered(responses)).toBe(false);
   });
 
   test('returns true for exact string match', () => {
     const responses = [{ q1: 'opt-a' }];
-    expect(hasResponsesForOption(responses, 'q1', 'opt-a')).toBe(true);
+    expect(optionAnswered(responses)).toBe(true);
   });
 
   test('returns false for different string value', () => {
     const responses = [{ q1: 'opt-b' }];
-    expect(hasResponsesForOption(responses, 'q1', 'opt-a')).toBe(false);
+    expect(optionAnswered(responses)).toBe(false);
   });
 
   test('returns true when value is in an array answer', () => {
     const responses = [{ q1: ['opt-a', 'opt-b'] }];
-    expect(hasResponsesForOption(responses, 'q1', 'opt-a')).toBe(true);
+    expect(optionAnswered(responses)).toBe(true);
   });
 
   test('returns false when value is not in an array answer', () => {
     const responses = [{ q1: ['opt-b', 'opt-c'] }];
-    expect(hasResponsesForOption(responses, 'q1', 'opt-a')).toBe(false);
+    expect(optionAnswered(responses)).toBe(false);
   });
 
   test('returns true if any response in the set matches', () => {
     const responses = [{ q1: 'opt-b' }, { q1: 'opt-a' }];
-    expect(hasResponsesForOption(responses, 'q1', 'opt-a')).toBe(true);
+    expect(optionAnswered(responses)).toBe(true);
   });
 });
 
-describe('hasResponsesForQuestion', () => {
+describe('which answers count as responding to the question', () => {
   test('returns false for empty responses', () => {
-    expect(hasResponsesForQuestion([], 'q1')).toBe(false);
+    expect(questionAnswered([])).toBe(false);
   });
 
   test('returns false when question is not present in any response', () => {
     const responses = [{ q2: 'value' }];
-    expect(hasResponsesForQuestion(responses, 'q1')).toBe(false);
+    expect(questionAnswered(responses)).toBe(false);
   });
 
   test('returns false when question value is null', () => {
     const responses = [{ q1: null }];
-    expect(hasResponsesForQuestion(responses, 'q1')).toBe(false);
+    expect(questionAnswered(responses)).toBe(false);
   });
 
   test('returns false when question value is undefined', () => {
     const responses = [{ q1: undefined }];
-    expect(hasResponsesForQuestion(responses, 'q1')).toBe(false);
+    expect(questionAnswered(responses)).toBe(false);
   });
 
   test('returns true when question has a string value', () => {
     const responses = [{ q1: 'answer' }];
-    expect(hasResponsesForQuestion(responses, 'q1')).toBe(true);
+    expect(questionAnswered(responses)).toBe(true);
   });
 
   test('returns true when question has an array value', () => {
     const responses = [{ q1: ['a', 'b'] }];
-    expect(hasResponsesForQuestion(responses, 'q1')).toBe(true);
+    expect(questionAnswered(responses)).toBe(true);
   });
 
   test('returns true when question has a boolean value of false', () => {
     const responses = [{ q1: false }];
-    expect(hasResponsesForQuestion(responses, 'q1')).toBe(true);
+    expect(questionAnswered(responses)).toBe(true);
   });
 
   test('returns true if any response in the set has the question answered', () => {
     const responses = [{ q2: 'value' }, { q1: 'answer' }];
-    expect(hasResponsesForQuestion(responses, 'q1')).toBe(true);
+    expect(questionAnswered(responses)).toBe(true);
   });
 });
 

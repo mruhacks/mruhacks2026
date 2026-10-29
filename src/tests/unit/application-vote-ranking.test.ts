@@ -3,7 +3,6 @@ import { describe, expect, test } from 'vitest';
 import {
   orderWaitlist,
   planReviewTransitions,
-  wilsonLowerBound,
   type VoteTally,
   type WaitlistCandidate,
 } from '@/lib/application-vote-ranking';
@@ -34,17 +33,6 @@ function plan(
   return { promote, demote, queue: orderWaitlist(after, map) };
 }
 
-describe('wilsonLowerBound', () => {
-  test('is 0 with no votes and rises with evidence at the same ratio', () => {
-    expect(wilsonLowerBound({ yes: 0, no: 0 })).toBe(0);
-    expect(wilsonLowerBound({ yes: 10, no: 0 })).toBeGreaterThan(wilsonLowerBound({ yes: 1, no: 0 }));
-  });
-
-  test('ranks 9 of 10 above a lone 1 of 1', () => {
-    expect(wilsonLowerBound({ yes: 9, no: 1 })).toBeGreaterThan(wilsonLowerBound({ yes: 1, no: 0 }));
-  });
-});
-
 describe('planWaitlist', () => {
   test('orders the queue by Wilson score', () => {
     expect(
@@ -54,6 +42,15 @@ describe('planWaitlist', () => {
         weak: { yes: 1, no: 3 },
       }).queue,
     ).toEqual(['many', 'lone', 'weak']);
+  });
+
+  test('ranks more votes at the same ratio higher', () => {
+    expect(
+      plan([p('one'), p('ten')], {
+        one: { yes: 1, no: 0 },
+        ten: { yes: 10, no: 0 },
+      }).queue,
+    ).toEqual(['ten', 'one']);
   });
 
   test('promotes pending applicants with a yes, not those with only noes', () => {

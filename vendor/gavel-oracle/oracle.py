@@ -130,8 +130,6 @@ def _float(x):
 CROWD_BT = {
     'update': lambda args: [_float(x) for x in crowd_bt.update(*args)],
     'expected_information_gain': lambda args: _float(crowd_bt.expected_information_gain(*args)),
-    'betaln': lambda args: _float(crowd_bt.betaln(*args)),
-    'psi': lambda args: _float(crowd_bt.psi(*args)),
 }
 
 

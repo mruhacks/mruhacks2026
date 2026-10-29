@@ -7,8 +7,6 @@ import { PKPass } from 'passkit-generator';
 import { buildCheckInPayload, DEFAULT_QR_TTL_MS } from './check-in-token';
 import { formatDateRange } from './format';
 
-export { formatDateRange } from './format';
-
 /** How long before an event's start the pass should become relevant (lock-screen surfacing, geofence). */
 const RELEVANCE_LEAD_MS = 15 * 60 * 1000;
 
@@ -49,7 +47,7 @@ function getCertificates() {
 }
 
 /** Overwrites a field's value by key, or removes it if `value` is null. */
-export function setFieldByKey<T extends { key: string; value: unknown }>(
+function setFieldByKey<T extends { key: string; value: unknown }>(
   fields: T[],
   key: string,
   value: string | null,

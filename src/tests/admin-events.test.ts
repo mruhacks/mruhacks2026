@@ -11,10 +11,8 @@ import {
   reorderQuestions,
   reactivateQuestion,
   getEventWithQuestions,
-  getEventDetails,
   getEventRsvpSummary,
   updateEventSettings,
-  getApplicationResponses,
   sendEventRsvpWave,
 } from '@/app/dashboard/admin/events/actions';
 
@@ -279,23 +277,6 @@ describe('getEventWithQuestions', () => {
     expect(result.data?.name).toBe('Test Event');
     expect(result.data?.questions).toEqual([]);
     expect(result.data?.hasApplications).toBe(false);
-  });
-});
-
-describe('getEventDetails', () => {
-  test('returns error for nonexistent event', async () => {
-    const result = await getEventDetails('00000000-0000-0000-0000-000000000000');
-    expect(result.success).toBe(false);
-    expect((result as { error: string }).error).toContain('not found');
-  });
-
-  test('returns event details with zero stats', async () => {
-    const result = await getEventDetails(testEventId);
-    expect(result.success).toBe(true);
-    if (!result.success) throw new Error((result as { error: string }).error);
-    expect(result.data?.applicationsCount).toBe(0);
-    expect(result.data?.questionsCount).toBe(0);
-    expect(result.data?.attendeeCount).toBe(0);
   });
 });
 
@@ -700,10 +681,8 @@ describe('updateEventSettings', () => {
     });
     expect(result.success).toBe(true);
 
-    const details = await getEventDetails(testEventId);
-    expect(details.success).toBe(true);
-    if (!details.success || !details.data) return;
-    expect(details.data.rsvpResponseWindowHours).toBe(24);
+    const [row] = await db.select().from(schema.events).where(eq(schema.events.id, testEventId));
+    expect(row.rsvpResponseWindowHours).toBe(24);
   });
 
   test('saves description with event details, preserves it on partial edits, and allows clearing it', async () => {
@@ -830,27 +809,6 @@ describe('updateEventSettings', () => {
       .from(schema.events)
       .where(eq(schema.events.id, testEventId));
     expect(row.capacity).toBeNull();
-  });
-});
-
-describe('getApplicationResponses', () => {
-  test('returns empty array when no applications', async () => {
-    const e = await db
-      .insert(schema.events)
-      .values({
-        name: 'Empty Responses Event',
-        hasApplication: true,
-        applicationQuestions: [],
-      })
-      .returning({ id: schema.events.id });
-    const eventId = e[0].id;
-
-    const result = await getApplicationResponses(eventId);
-    expect(result.success).toBe(true);
-    if (!result.success) throw new Error((result as { error: string }).error);
-    expect(result.data).toEqual([]);
-
-    await db.delete(schema.events).where(eq(schema.events.id, eventId));
   });
 });
 

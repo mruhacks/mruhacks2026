@@ -131,10 +131,7 @@ function buildRows(teams: FormedTeamRow[], projects: ProjectInfo[]): TeamProject
  * Takes the event's uuid rather than the route's `params`: the `[eventId]`
  * segment may be the event's custom slug, and `page.tsx` resolves it on the
  * server so the team and project actions are keyed by the stored id. The
- * event's settings and which parts the viewer may see come from there too,
- * rather than from `getEventDetails`, which needs event:manage — more than
- * this page's own `team:read:all` / `submission:read:all` /
- * `judging:manage:all`.
+ * event's settings and which parts the viewer may see come from there too.
  */
 export function TeamsPage({
   eventId,

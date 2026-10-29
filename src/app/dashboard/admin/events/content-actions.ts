@@ -187,7 +187,7 @@ async function updateEventMarkdown(
 // slot on that page, so without it, navigating back to the list after an edit
 // shows the pre-edit rows from the router cache.
 
-export type ArticleSummary = {
+type ArticleSummary = {
   id: string;
   slug: string;
   title: string;
@@ -200,31 +200,6 @@ export type ArticleDetail = ArticleSummary & {
   eventId: string;
   bodyMarkdown: string;
 };
-
-/**
- * Lists every article for an event, drafts included.
- * Requires article:read:all permission.
- */
-export async function listEventArticles(eventId: string): Promise<ActionResult<ArticleSummary[]>> {
-  const user = await getUser();
-  if (!user) return fail('Not authenticated');
-  await Rbac.requirePermission(user.id, 'article:read:all');
-
-  const rows = await db
-    .select({
-      id: schema.eventArticles.id,
-      slug: schema.eventArticles.slug,
-      title: schema.eventArticles.title,
-      published: schema.eventArticles.published,
-      sortOrder: schema.eventArticles.sortOrder,
-      updatedAt: schema.eventArticles.updatedAt,
-    })
-    .from(schema.eventArticles)
-    .where(eq(schema.eventArticles.eventId, eventId))
-    .orderBy(asc(schema.eventArticles.sortOrder), asc(schema.eventArticles.title));
-
-  return ok(rows);
-}
 
 /**
  * Loads one article for editing, draft or not.

@@ -45,9 +45,6 @@ import {
   adminSendPasswordReset,
   inviteUser,
   revokeInvite,
-  currentUserHasPassword,
-  setOwnName,
-  setInitialPassword,
   adminBanUser,
   adminUnbanUser,
   adminRevokeUserSessions,
@@ -77,7 +74,6 @@ type MockUser = {
 let adminUser: MockUser;
 let noPermUser: MockUser;
 let superAdminUser: MockUser;
-let targetUser: MockUser;
 
 beforeAll(async () => {
   const [admin] = await db
@@ -127,12 +123,6 @@ beforeAll(async () => {
     id: noPermUserId,
     email: 'users-noperm@test.com',
     name: 'No Perm',
-    emailVerified: true,
-  };
-  targetUser = {
-    id: targetUserId,
-    email: 'users-target@test.com',
-    name: 'Target User',
     emailVerified: true,
   };
   superAdminUser = {
@@ -530,136 +520,6 @@ describe('deleteUser', () => {
     expect(result.success).toBe(true);
     const rows = await db.select().from(schema.user).where(eq(schema.user.id, deletable.id));
     expect(rows).toHaveLength(0);
-  });
-});
-
-// ─── currentUserHasPassword ───────────────────────────────────────────────────
-
-describe('currentUserHasPassword', () => {
-  test('fails when not authenticated', async () => {
-    vi.mocked(getUser).mockResolvedValueOnce(null as never);
-    const result = await currentUserHasPassword();
-    expect(result.success).toBe(false);
-  });
-
-  test('returns hasPassword: false when no accounts exist', async () => {
-    vi.mocked(getUser).mockResolvedValueOnce(targetUser as never);
-    const result = await currentUserHasPassword();
-    expect(result.success).toBe(true);
-    if (!result.success) throw new Error((result as { error: string }).error);
-    expect(result.data?.hasPassword).toBe(false);
-  });
-
-  test('returns hasPassword: true when credential account with password exists', async () => {
-    vi.mocked(getUser).mockResolvedValueOnce(targetUser as never);
-    await db.insert(schema.account).values({
-      userId: targetUserId,
-      accountId: targetUserId,
-      providerId: 'credential',
-      password: 'hashed_pw',
-    });
-    const result = await currentUserHasPassword();
-    expect(result.success).toBe(true);
-    if (!result.success) throw new Error((result as { error: string }).error);
-    expect(result.data?.hasPassword).toBe(true);
-    await db
-      .delete(schema.account)
-      .where(and(eq(schema.account.userId, targetUserId), eq(schema.account.providerId, 'credential')));
-  });
-
-  test('returns hasPassword: false when credential account has null password', async () => {
-    vi.mocked(getUser).mockResolvedValueOnce(targetUser as never);
-    await db.insert(schema.account).values({
-      userId: targetUserId,
-      accountId: targetUserId,
-      providerId: 'credential',
-      password: null,
-    });
-    const result = await currentUserHasPassword();
-    expect(result.success).toBe(true);
-    if (!result.success) throw new Error((result as { error: string }).error);
-    expect(result.data?.hasPassword).toBe(false);
-    await db
-      .delete(schema.account)
-      .where(and(eq(schema.account.userId, targetUserId), eq(schema.account.providerId, 'credential')));
-  });
-});
-
-// ─── setOwnName ───────────────────────────────────────────────────────────────
-
-describe('setOwnName', () => {
-  test('fails when not authenticated', async () => {
-    vi.mocked(getUser).mockResolvedValueOnce(null as never);
-    const result = await setOwnName('Alice');
-    expect(result.success).toBe(false);
-  });
-
-  test('fails when name is empty after trimming', async () => {
-    const result = await setOwnName('   ');
-    expect(result.success).toBe(false);
-    expect((result as { error: string }).error).toContain('name');
-  });
-
-  test('fails when name exceeds 200 characters', async () => {
-    const result = await setOwnName('A'.repeat(201));
-    expect(result.success).toBe(false);
-    expect((result as { error: string }).error).toContain('long');
-  });
-
-  test('updates the user display name', async () => {
-    const result = await setOwnName('Alice Renamed');
-    expect(result.success).toBe(true);
-    const [row] = await db.select({ name: schema.user.name }).from(schema.user).where(eq(schema.user.id, adminUserId));
-    expect(row.name).toBe('Alice Renamed');
-    await db.update(schema.user).set({ name: 'Admin User' }).where(eq(schema.user.id, adminUserId));
-  });
-
-  test('trims leading and trailing whitespace from name', async () => {
-    const result = await setOwnName('  Trimmed  ');
-    expect(result.success).toBe(true);
-    const [row] = await db.select({ name: schema.user.name }).from(schema.user).where(eq(schema.user.id, adminUserId));
-    expect(row.name).toBe('Trimmed');
-    await db.update(schema.user).set({ name: 'Admin User' }).where(eq(schema.user.id, adminUserId));
-  });
-});
-
-// ─── setInitialPassword ───────────────────────────────────────────────────────
-
-describe('setInitialPassword', () => {
-  test('fails when not authenticated', async () => {
-    vi.mocked(getUser).mockResolvedValueOnce(null as never);
-    const result = await setInitialPassword('password123');
-    expect(result.success).toBe(false);
-  });
-
-  test('fails when password is shorter than 12 characters', async () => {
-    const result = await setInitialPassword('short');
-    expect(result.success).toBe(false);
-    expect((result as { error: string }).error).toContain('12');
-  });
-
-  test('fails when user already has a credential account', async () => {
-    await db.insert(schema.account).values({
-      userId: adminUserId,
-      accountId: adminUserId,
-      providerId: 'credential',
-      password: 'existing_hash',
-    });
-    const result = await setInitialPassword('newpassword123');
-    expect(result.success).toBe(false);
-    expect((result as { error: string }).error).toContain('already');
-    await db
-      .delete(schema.account)
-      .where(and(eq(schema.account.userId, adminUserId), eq(schema.account.providerId, 'credential')));
-  });
-
-  test('succeeds when no credential account exists', async () => {
-    vi.mocked(getUser).mockResolvedValueOnce(targetUser as never);
-    const result = await setInitialPassword('newpassword123');
-    expect(result.success).toBe(true);
-    await db
-      .delete(schema.account)
-      .where(and(eq(schema.account.userId, targetUserId), eq(schema.account.providerId, 'credential')));
   });
 });
 

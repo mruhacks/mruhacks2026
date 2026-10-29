@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 import * as Judging from '@/lib/judging';
 
 const CRITERIA = ['design', 'tech'];
+/** Views every project gets before information gain decides (Gavel's MIN_VIEWS). */
+const MIN_VIEWS = 2;
 
 function candidate(
   id: string,
@@ -12,7 +14,7 @@ function candidate(
 ): Judging.DispatchCandidate {
   return {
     id,
-    views: overrides.views ?? Judging.MIN_VIEWS,
+    views: overrides.views ?? MIN_VIEWS,
     busy: overrides.busy ?? false,
     estimates: new Map(Object.entries(overrides.estimates ?? {})),
   };
@@ -24,34 +26,45 @@ function sequence(...values: number[]): () => number {
   return () => values[i++ % values.length];
 }
 
-describe('preferredCandidates', () => {
+/** Every project a first assignment could land on, across a spread of random rolls. */
+function reachable(candidates: Judging.DispatchCandidate[]): string[] {
+  const ids = new Set<string>();
+  for (const roll of [0, 0.2, 0.4, 0.6, 0.8, 0.99]) {
+    const next = Judging.chooseNext({
+      candidates,
+      criterionIds: CRITERIA,
+      previous: null,
+      reliability: new Map(),
+      random: sequence(roll),
+    });
+    if (next) ids.add(next);
+  }
+  return [...ids].sort();
+}
+
+describe('which projects a judge can be sent to', () => {
   it('drops projects another judge is at', () => {
-    const ids = Judging.preferredCandidates([candidate('a', { busy: true }), candidate('b')]).map((c) => c.id);
-    expect(ids).toEqual(['b']);
+    expect(reachable([candidate('a', { busy: true }), candidate('b')])).toEqual(['b']);
   });
 
   it('falls back to busy projects when every project is busy', () => {
-    const ids = Judging.preferredCandidates([candidate('a', { busy: true }), candidate('b', { busy: true })]).map(
-      (c) => c.id,
-    );
-    expect(ids).toEqual(['a', 'b']);
+    expect(reachable([candidate('a', { busy: true }), candidate('b', { busy: true })])).toEqual(['a', 'b']);
   });
 
   it('prefers projects below the minimum view count', () => {
-    const ids = Judging.preferredCandidates([
-      candidate('a', { views: Judging.MIN_VIEWS }),
-      candidate('b', { views: 0 }),
-      candidate('c', { views: Judging.MIN_VIEWS - 1 }),
-    ]).map((c) => c.id);
-    expect(ids).toEqual(['b', 'c']);
+    expect(
+      reachable([
+        candidate('a', { views: MIN_VIEWS }),
+        candidate('b', { views: 0 }),
+        candidate('c', { views: MIN_VIEWS - 1 }),
+      ]),
+    ).toEqual(['b', 'c']);
   });
 
   it('applies the busy filter before the view-count filter', () => {
-    const ids = Judging.preferredCandidates([
-      candidate('under-seen-but-busy', { views: 0, busy: true }),
-      candidate('free', { views: Judging.MIN_VIEWS }),
-    ]).map((c) => c.id);
-    expect(ids).toEqual(['free']);
+    expect(
+      reachable([candidate('under-seen-but-busy', { views: 0, busy: true }), candidate('free', { views: MIN_VIEWS })]),
+    ).toEqual(['free']);
   });
 });
 
@@ -118,6 +131,24 @@ describe('chooseNext', () => {
     expect(pick(above, below)).toBe('first');
   });
 
+  it('sums information gain across every criterion', () => {
+    const settled = { mu: 6, sigmaSq: 0.01 };
+    const next = Judging.chooseNext({
+      // Equal on design; only counting tech separates them, and a tie would
+      // go to the shuffled head, `both-settled`.
+      candidates: [
+        candidate('both-settled', { estimates: { design: settled, tech: settled } }),
+        candidate('design-settled', { estimates: { design: settled } }),
+      ],
+      criterionIds: CRITERIA,
+      previous: { estimates: new Map() },
+      reliability: new Map(),
+      // The shuffle keeps the order; 0.99 ≥ EPSILON: exploit.
+      random: sequence(0.99),
+    });
+    expect(next).toBe('design-settled');
+  });
+
   it('explores with probability epsilon', () => {
     const previous = { estimates: new Map<string, Judging.ProjectEstimate>() };
     const settled = { mu: 6, sigmaSq: 0.01 };
@@ -136,13 +167,5 @@ describe('chooseNext', () => {
       random: sequence(0),
     });
     expect(next).toBe('settled');
-  });
-});
-
-describe('summedInformationGain', () => {
-  it('adds one term per criterion', () => {
-    const one = Judging.summedInformationGain(['a'], new Map(), new Map(), new Map());
-    const two = Judging.summedInformationGain(['a', 'b'], new Map(), new Map(), new Map());
-    expect(two).toBeCloseTo(2 * one, 12);
   });
 });

@@ -3,7 +3,7 @@ import 'server-only';
 import { send } from '@vercel/queue';
 
 /** Vercel Queue topic for RSVP invitation emails, one message per response row. */
-export const INVITATION_QUEUE_TOPIC = 'rsvp-invitations';
+const INVITATION_QUEUE_TOPIC = 'rsvp-invitations';
 
 /** Message payload published to {@link INVITATION_QUEUE_TOPIC}. */
 export type InvitationMessage = {

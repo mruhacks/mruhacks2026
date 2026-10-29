@@ -42,9 +42,6 @@ async function getAuthorizedUser() {
   const user = await getUser();
   if (!user) return null;
   await Rbac.requirePermission(user.id, 'event:manage');
-  // TODO: Extend to support event-scoped permissions:
-  //   - requirePermission(user.id, `event:manage:{eventId}`) for org-specific access
-  //   - or check if user has role 'organizer' for this specific event
   return user;
 }
 
@@ -399,80 +396,6 @@ export async function createEvent(data: CreateEventInput): Promise<ActionResult<
   return ok({ id: newEvent.id });
 }
 
-export type EventDetails = {
-  id: string;
-  slug: string | null;
-  name: string;
-  descriptionMarkdown: string;
-  hasApplication: boolean;
-  capacity: number | null;
-  capacityVisible: boolean;
-  rsvpResponseWindowHours: number;
-  startsAt: Date | null;
-  endsAt: Date | null;
-  location: string | null;
-  latitude: number | null;
-  longitude: number | null;
-  radiusMeters: number | null;
-  isFeatured: boolean;
-  teamsEnabled: boolean;
-  maxTeamSize: number | null;
-  createdAt: Date;
-  updatedAt: Date;
-  questionsCount: number;
-  applicationsCount: number;
-  attendeeCount: number;
-};
-
-/**
- * Fetches full event details with stats.
- * Requires event:manage permission.
- */
-export async function getEventDetails(eventId: string): Promise<ActionResult<EventDetails>> {
-  const user = await getUser();
-  if (!user) return fail('Not authenticated');
-  await Rbac.requirePermission(user.id, 'event:manage');
-
-  const [eventRow] = await db.select().from(schema.events).where(eq(schema.events.id, eventId)).limit(1);
-
-  if (!eventRow) return fail('Event not found');
-
-  const [{ total: applicationsCount }] = await db
-    .select({ total: count() })
-    .from(schema.eventParticipants)
-    .where(eq(schema.eventParticipants.eventId, eventId));
-
-  const attendeeCount = await Participation.countAttending(eventId);
-
-  const questions = await fetchQuestions(eventId);
-  const questionsCount = (questions ?? []).filter((q) => q.active).length;
-
-  return ok({
-    id: eventRow.id,
-    slug: eventRow.slug ?? null,
-    name: eventRow.name,
-    descriptionMarkdown: eventRow.descriptionMarkdown ?? '',
-    hasApplication: eventRow.hasApplication,
-    capacity: eventRow.capacity ?? null,
-    capacityVisible: eventRow.capacityVisible,
-    rsvpResponseWindowHours: eventRow.rsvpResponseWindowHours,
-    startsAt: eventRow.startsAt ?? null,
-    endsAt: eventRow.endsAt ?? null,
-    location: eventRow.location ?? null,
-    latitude: eventRow.latitude ?? null,
-    longitude: eventRow.longitude ?? null,
-    radiusMeters: eventRow.radiusMeters ?? null,
-    isFeatured: eventRow.isFeatured,
-    teamsEnabled: eventRow.teamsEnabled,
-    maxTeamSize: eventRow.maxTeamSize ?? null,
-    createdAt: eventRow.createdAt,
-    updatedAt: eventRow.updatedAt,
-    questionsCount,
-    applicationsCount,
-    attendeeCount,
-  });
-}
-
 /**
  * Updates event settings.
  * Requires event:manage permission.
@@ -634,48 +557,6 @@ export async function updateEventSettings(eventId: string, data: UpdateEventSett
     metadata: { fields: Object.keys(input) },
   });
   return ok('Event updated.');
-}
-
-export type ApplicationResponseRow = {
-  userId: string;
-  email: string;
-  fullName: string;
-  responses: Record<string, unknown>;
-  createdAt: Date;
-};
-
-/**
- * Fetches all application responses for an event.
- * Requires event:manage permission.
- */
-export async function getApplicationResponses(eventId: string): Promise<ActionResult<ApplicationResponseRow[]>> {
-  const authUser = await getUser();
-  if (!authUser) return fail('Not authenticated');
-  await Rbac.requirePermission(authUser.id, 'event:manage');
-
-  const rows = await db
-    .select({
-      userId: schema.eventParticipants.userId,
-      email: schema.user.email,
-      fullName: schema.userProfiles.fullName,
-      responses: schema.eventParticipants.responses,
-      createdAt: schema.eventParticipants.createdAt,
-    })
-    .from(schema.eventParticipants)
-    .innerJoin(schema.user, eq(schema.eventParticipants.userId, schema.user.id))
-    .leftJoin(schema.userProfiles, eq(schema.eventParticipants.userId, schema.userProfiles.userId))
-    .where(eq(schema.eventParticipants.eventId, eventId))
-    .orderBy(schema.eventParticipants.createdAt);
-
-  return ok(
-    rows.map((row) => ({
-      userId: row.userId,
-      email: row.email,
-      fullName: row.fullName || 'Unknown',
-      responses: (row.responses as Record<string, unknown>) ?? {},
-      createdAt: row.createdAt,
-    })),
-  );
 }
 
 class StatusChangeError extends Error {}

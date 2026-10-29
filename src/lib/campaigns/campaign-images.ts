@@ -8,7 +8,7 @@ import { campaignImageKey } from '@/utils/object-storage';
 /** Largest upload accepted, before optimization. */
 export const MAX_CAMPAIGN_IMAGE_BYTES = 5 * 1024 * 1024;
 /** Stored images are never wider than this: 2× the email body column, for retina. */
-export const IMAGE_MAX_WIDTH = 1200;
+const IMAGE_MAX_WIDTH = 1200;
 
 /** Same decompression-bomb guard and time limit as profile pictures. */
 const MAX_INPUT_PIXELS = 50_000_000;

@@ -3,9 +3,9 @@ import { isSubeventRunning } from '@/lib/subevent-running';
 import { dietaryRestrictionsList, type DietaryRestriction } from '@/types/lookups';
 
 export const MISSED_MEAL_THRESHOLDS = [1, 2, 3, 4, 5] as const;
-export const DEFAULT_MISSED_MEAL_THRESHOLD = 2;
+const DEFAULT_MISSED_MEAL_THRESHOLD = 2;
 
-export const NO_RESTRICTIONS_LABEL = 'No restrictions';
+const NO_RESTRICTIONS_LABEL = 'No restrictions';
 export const TOTAL_LABEL = 'Total';
 
 type Meal = {

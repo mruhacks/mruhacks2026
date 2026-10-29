@@ -66,7 +66,7 @@ const STATUS_SORT_ORDER: Record<Participation.InvitationStatus, number> = {
   timed_out: 3,
 };
 
-export function deriveAdminRsvpLifecycle(input: {
+function deriveAdminRsvpLifecycle(input: {
   hasApplication: boolean;
   latestWave: { respondBy: Date } | null;
   isFull: boolean;

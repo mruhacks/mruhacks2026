@@ -1,7 +1,7 @@
 'use server';
 
 import { db } from '@/utils/db';
-import { eq, and, asc, sql } from 'drizzle-orm';
+import { eq, asc, sql } from 'drizzle-orm';
 import * as schema from '@/db/schema';
 import { ok, fail, type ActionResult } from '@/utils/action-result';
 import { getUser } from '@/utils/auth';
@@ -180,66 +180,6 @@ export async function updateRole(
 }
 
 /**
- * Assigns an existing role to a user.
- *
- * @param userId - ID of the user
- * @param roleId - ID of the role to assign
- */
-export async function assignRoleToUser(userId: string, roleId: RoleId): Promise<ActionResult> {
-  if (!(await authorize('role:write:all'))) return fail('Not authenticated');
-  try {
-    const denied = await grantDenied({ roleIds: [roleId] });
-    if (denied) return fail(denied);
-    await db.insert(schema.userRole).values({ userId, roleId }).onConflictDoNothing();
-    await audit('role.assigned', 'user', userId, { roleId });
-    updateTag(ADMIN_COUNTS_CACHE_TAG);
-    return ok();
-  } catch (e) {
-    return serverActionError('assign role', e);
-  }
-}
-
-/**
- * Removes a previously assigned role from a user.
- */
-export async function revokeRoleFromUser(userId: string, roleId: RoleId): Promise<ActionResult> {
-  if (!(await authorize('role:write:all'))) return fail('Not authenticated');
-  try {
-    await db.delete(schema.userRole).where(and(eq(schema.userRole.userId, userId), eq(schema.userRole.roleId, roleId)));
-    await audit('role.revoked', 'user', userId, { roleId });
-    updateTag(ADMIN_COUNTS_CACHE_TAG);
-    return ok();
-  } catch (e) {
-    return serverActionError('revoke role', e);
-  }
-}
-
-// ─────────────────────────────────────────────
-// PERMISSION MANAGEMENT
-// ─────────────────────────────────────────────
-
-/**
- * Registers a new permission key in the system.
- *
- * Example: `"submission:edit:self"`
- */
-export async function addPermission(key: string, description?: string): Promise<ActionResult<PermissionId>> {
-  if (!(await authorize('permission:write:all'))) return fail('Not authenticated');
-  try {
-    const [perm] = await db
-      .insert(schema.permission)
-      .values({ slug: key, description })
-      .onConflictDoNothing()
-      .returning({ id: schema.permission.id });
-    await audit('permission.created', 'permission', perm?.id, { slug: key });
-    updateTag(ADMIN_COUNTS_CACHE_TAG);
-    return ok(perm?.id);
-  } catch (e) {
-    return serverActionError('add permission', e);
-  }
-}
-
-/**
  * Deletes an existing permission by its ID.
  */
 export async function deletePermission(permissionId: PermissionId): Promise<ActionResult> {
@@ -280,114 +220,6 @@ export async function updatePermission(
     return ok();
   } catch (e) {
     return serverActionError('update permission', e);
-  }
-}
-
-/**
- * Grants a permission to a role.
- */
-export async function grantPermissionToRole(roleId: RoleId, permissionId: PermissionId): Promise<ActionResult> {
-  if (!(await authorize('role:write:all'))) return fail('Not authenticated');
-  try {
-    const denied = await grantDenied({ permissionIds: [permissionId] });
-    if (denied) return fail(denied);
-    await db.insert(schema.rolePermissions).values({ roleId, permissionId }).onConflictDoNothing();
-    await audit('role.permission.granted', 'role', roleId, { permissionId });
-    return ok();
-  } catch (e) {
-    return serverActionError('grant role permission', e);
-  }
-}
-
-/**
- * Revokes a permission previously granted to a role.
- */
-export async function revokePermissionFromRole(roleId: RoleId, permissionId: PermissionId): Promise<ActionResult> {
-  if (!(await authorize('role:write:all'))) return fail('Not authenticated');
-  try {
-    await db
-      .delete(schema.rolePermissions)
-      .where(and(eq(schema.rolePermissions.roleId, roleId), eq(schema.rolePermissions.permissionId, permissionId)));
-    await audit('role.permission.revoked', 'role', roleId, { permissionId });
-    return ok();
-  } catch (e) {
-    return serverActionError('revoke role permission', e);
-  }
-}
-
-/**
- * Grants a specific permission directly to a user.
- * (Bypasses role membership.)
- */
-export async function grantPermissionToUser(userId: string, permissionId: PermissionId): Promise<ActionResult> {
-  if (!(await authorize('permission:write:all'))) return fail('Not authenticated');
-  try {
-    const denied = await grantDenied({ permissionIds: [permissionId] });
-    if (denied) return fail(denied);
-    await db.insert(schema.userPermission).values({ userId, permissionId }).onConflictDoNothing();
-    await audit('user.permission.granted', 'user', userId, { permissionId });
-    return ok();
-  } catch (e) {
-    return serverActionError('grant user permission', e);
-  }
-}
-
-/**
- * Revokes a direct user permission.
- */
-export async function revokePermissionFromUser(userId: string, permissionId: PermissionId): Promise<ActionResult> {
-  if (!(await authorize('permission:write:all'))) return fail('Not authenticated');
-  try {
-    await db
-      .delete(schema.userPermission)
-      .where(and(eq(schema.userPermission.userId, userId), eq(schema.userPermission.permissionId, permissionId)));
-    await audit('user.permission.revoked', 'user', userId, { permissionId });
-    return ok();
-  } catch (e) {
-    return serverActionError('revoke user permission', e);
-  }
-}
-
-// ─────────────────────────────────────────────
-// BULK SETTERS (replace-all semantics)
-// ─────────────────────────────────────────────
-
-/**
- * Replaces the full set of role assignments for a user with the given IDs.
- */
-export async function setUserRoles(userId: string, roleIds: RoleId[]): Promise<ActionResult> {
-  if (!(await authorize('role:write:all'))) return fail('Not authenticated');
-  try {
-    const current = new Set((await Rbac.loadUserRoles(userId)).map((r) => r.id));
-    const denied = await grantDenied({
-      roleIds: roleIds.filter((id) => !current.has(id)),
-    });
-    if (denied) return fail(denied);
-    await Rbac.replaceUserRoles(userId, roleIds);
-    await audit('user.roles.replaced', 'user', userId, { roleIds });
-    updateTag(ADMIN_COUNTS_CACHE_TAG);
-    return ok();
-  } catch (e) {
-    return serverActionError('set user roles', e);
-  }
-}
-
-/**
- * Replaces the full set of direct user permissions with the given IDs.
- */
-export async function setUserDirectPermissions(userId: string, permissionIds: PermissionId[]): Promise<ActionResult> {
-  if (!(await authorize('permission:write:all'))) return fail('Not authenticated');
-  try {
-    const current = new Set((await Rbac.loadDirectUserPermissions(userId)).map((p) => p.id));
-    const denied = await grantDenied({
-      permissionIds: permissionIds.filter((id) => !current.has(id)),
-    });
-    if (denied) return fail(denied);
-    await Rbac.replaceUserDirectPermissions(userId, permissionIds);
-    await audit('user.permissions.replaced', 'user', userId, { permissionIds });
-    return ok();
-  } catch (e) {
-    return serverActionError('set user permissions', e);
   }
 }
 

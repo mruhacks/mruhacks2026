@@ -128,7 +128,7 @@ function toProject(row: ShowcaseRow, members: Map<string, string[]>): ShowcasePr
  * The list is sorted by title alone, so nothing about 4th place onwards — or
  * about the podium before it's complete — can be inferred from the page.
  */
-export async function loadProjectShowcase(eventId: string): Promise<ProjectShowcase> {
+async function loadProjectShowcase(eventId: string): Promise<ProjectShowcase> {
   const rows = await db
     .select({ ...showcaseColumns, placement: schema.submissions.placement })
     .from(schema.submissions)

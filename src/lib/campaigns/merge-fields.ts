@@ -15,7 +15,7 @@ const DEFAULT_FIRST_NAME_FALLBACK = 'there';
 const KNOWN_FIELDS = new Set(['firstName']);
 
 /** Every distinct `{{…}}` in `text` that isn't a supported merge field, as written. */
-export function findUnknownMergeFields(text: string): string[] {
+function findUnknownMergeFields(text: string): string[] {
   const unknown = new Set<string>();
   for (const match of text.matchAll(MERGE_FIELD_PATTERN)) {
     if (!KNOWN_FIELDS.has(match[1] ?? '')) unknown.add(match[0]);

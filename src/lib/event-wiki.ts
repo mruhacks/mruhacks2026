@@ -14,7 +14,7 @@ export function eventWikiCacheTag(eventId: string): string {
  * visit. Invalidated by updateTag(eventWikiCacheTag(eventId)) on article
  * create/update/delete/reorder.
  */
-export async function getPublishedArticleList(eventId: string) {
+async function getPublishedArticleList(eventId: string) {
   'use cache';
   cacheTag(eventWikiCacheTag(eventId));
   // updateTag() covers article create/update/delete, but 'minutes' (still

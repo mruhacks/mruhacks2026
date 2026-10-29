@@ -3,7 +3,7 @@ import { db } from '@/utils/db';
 import { eq, and } from 'drizzle-orm';
 import * as schema from '@/db/schema';
 import { insertAttendees } from '@/tests/participation-fixtures';
-import { registerForEvent, registerForEventFormAction, unregisterFromEvent } from '@/app/register/actions';
+import { registerForEvent, unregisterFromEvent } from '@/app/register/actions';
 
 vi.mock('@/utils/auth', () => ({ getUser: vi.fn() }));
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn(), updateTag: vi.fn() }));
@@ -160,25 +160,6 @@ describe('registerForEvent capacity', () => {
       emailVerified: true,
     } as never);
     const result = await registerForEvent(cappedEventId);
-    expect(result.success).toBe(true);
-  });
-});
-
-describe('registerForEventFormAction', () => {
-  test('returns error when eventId is missing from FormData', async () => {
-    const formData = new FormData();
-    const result = await registerForEventFormAction(formData);
-    expect(result.success).toBe(false);
-    expect((result as { error: string }).error).toContain('event ID');
-  });
-
-  test('registers when valid eventId is in FormData', async () => {
-    await db
-      .delete(schema.eventParticipants)
-      .where(and(eq(schema.eventParticipants.userId, testUserId), eq(schema.eventParticipants.eventId, testEventId)));
-    const formData = new FormData();
-    formData.set('eventId', testEventId);
-    const result = await registerForEventFormAction(formData);
     expect(result.success).toBe(true);
   });
 });

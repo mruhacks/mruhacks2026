@@ -12,8 +12,7 @@ import { RsvpWavesCard } from '@/app/dashboard/admin/events/RsvpWavesCard';
  * Takes the event's uuid rather than the route's `params`: the `[eventId]`
  * segment may be the event's custom slug, and `page.tsx` resolves it on the
  * server so the RSVP actions are keyed by the stored id. The event's RSVP
- * settings come from there too, rather than from `getEventDetails`, which
- * needs event:manage — more than this page's own `rsvp:read:all`.
+ * settings come from there too.
  *
  * No breadcrumb registration here — the event layout above already maps this
  * segment to the event's name.

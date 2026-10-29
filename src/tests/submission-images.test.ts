@@ -1,9 +1,25 @@
 import sharp from 'sharp';
 import { afterEach, describe, expect, test, vi } from 'vitest';
+import { PutBucketPolicyCommand } from '@aws-sdk/client-s3';
+
+// Every command the storage client sends, so the bucket policy it sets up can be read back.
+const sentCommands = vi.hoisted(() => [] as unknown[]);
+vi.mock('@aws-sdk/client-s3', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@aws-sdk/client-s3')>();
+  return {
+    ...actual,
+    S3Client: class {
+      async send(command: unknown) {
+        sentCommands.push(command);
+        return {};
+      }
+    },
+  };
+});
 
 import { createSubmissionImageVariants } from '@/lib/submission-image-variants';
 import { SUBMISSION_IMAGE_WIDTHS, submissionImageSources, submissionImageVariantKey } from '@/lib/submission-images';
-import { publicReadPolicy } from '@/utils/object-storage';
+import { putObject } from '@/utils/object-storage';
 
 const SUBMISSION_ID = '3f0d5b4e-1c2a-4f6b-8d9e-0a1b2c3d4e5f';
 const FILE_ID = 'aa11bb22-cc33-4d44-8e55-ff6677889900';
@@ -24,8 +40,17 @@ describe('submissionImageVariantKey', () => {
     expect(submissionImageVariantKey(KEY, 960)).toBe(`submission-content/${SUBMISSION_ID}/${FILE_ID}-w960.webp`);
   });
 
-  test('every copy is covered by the public-read policy, and the original is not', () => {
-    const [resource] = JSON.parse(publicReadPolicy('bucket')).Statement[0].Resource as string[];
+  test('every copy is covered by the public-read policy, and the original is not', async () => {
+    // A MinIO-style endpoint is the one setup where the app applies the policy itself.
+    vi.stubEnv('S3_BUCKET', 'bucket');
+    vi.stubEnv('S3_REGION', 'us-east-1');
+    vi.stubEnv('S3_ENDPOINT', 'http://localhost:9000');
+    await putObject({ key: KEY, body: new Uint8Array(), contentType: 'image/png' });
+    vi.unstubAllEnvs();
+    const policy = sentCommands.find(
+      (command): command is PutBucketPolicyCommand => command instanceof PutBucketPolicyCommand,
+    );
+    const [resource] = JSON.parse(policy!.input.Policy!).Statement[0].Resource as string[];
     const pattern = new RegExp(`^${resource.replace('arn:aws:s3:::bucket/', '').replaceAll('*', '.*')}$`);
     for (const width of SUBMISSION_IMAGE_WIDTHS) {
       expect(submissionImageVariantKey(KEY, width)).toMatch(pattern);

@@ -24,9 +24,7 @@ import {
   reorderQuestions,
   reactivateQuestion,
   createEvent,
-  getEventDetails,
   updateEventSettings,
-  getApplicationResponses,
   getEventRsvpSummary,
   getEventWaitlist,
 } from '@/app/dashboard/admin/events/actions';
@@ -108,21 +106,6 @@ describe('getEventWithQuestions', () => {
   });
 });
 
-// ─── getEventDetails ──────────────────────────────────────────────────────────
-
-describe('getEventDetails', () => {
-  test('fails when unauthenticated', async () => {
-    vi.mocked(getUser).mockResolvedValueOnce(null as never);
-    await expect(getEventDetails(testEventId)).resolves.toMatchObject({
-      success: false,
-    });
-  });
-
-  test('redirects to /forbidden without event:manage', async () => {
-    await expect(getEventDetails(testEventId)).rejects.toThrow(FORBIDDEN);
-  });
-});
-
 // ─── getEventRsvpSummary ─────────────────────────────────────────────────────
 
 describe('getEventRsvpSummary', () => {
@@ -150,21 +133,6 @@ describe('getEventWaitlist', () => {
 
   test('redirects to /forbidden without rsvp:read:all', async () => {
     await expect(getEventWaitlist(testEventId)).rejects.toThrow(RSVP_READ_FORBIDDEN);
-  });
-});
-
-// ─── getApplicationResponses ──────────────────────────────────────────────────
-
-describe('getApplicationResponses', () => {
-  test('fails when unauthenticated', async () => {
-    vi.mocked(getUser).mockResolvedValueOnce(null as never);
-    await expect(getApplicationResponses(testEventId)).resolves.toMatchObject({
-      success: false,
-    });
-  });
-
-  test('redirects to /forbidden without event:manage', async () => {
-    await expect(getApplicationResponses(testEventId)).rejects.toThrow(FORBIDDEN);
   });
 });
 

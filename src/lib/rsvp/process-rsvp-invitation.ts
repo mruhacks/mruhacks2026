@@ -9,7 +9,7 @@ import { sendRsvpMagicLink } from './send-rsvp-magic-link';
 import { db } from '@/utils/db';
 
 /** Delivery attempts after which a failing invitation is marked 'failed' instead of retried. */
-export const MAX_INVITATION_DELIVERY_ATTEMPTS = 8;
+const MAX_INVITATION_DELIVERY_ATTEMPTS = 8;
 
 export type ProcessRsvpInvitationOutcome = 'sent' | 'already_sent' | 'not_found' | 'not_pending' | 'given_up';
 

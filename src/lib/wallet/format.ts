@@ -1,8 +1,7 @@
 const PASS_TIME_ZONE = 'America/Edmonton';
 
 /** Dates read the same in en-CA and en-US, but times don't: en-CA renders
- *  "9:00 a.m." where every other time in the app (`formatEventDateTime`)
- *  reads "9:00 AM". The pass follows the app. */
+ *  "9:00 a.m." where every other time in the app reads "9:00 AM". The pass follows the app. */
 const TIME_LOCALE = 'en-US';
 
 /** Shared by the Apple pass, the Google Wallet class, and the in-app ticket page. */

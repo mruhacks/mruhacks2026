@@ -30,13 +30,10 @@ export const MRUHACKS_LOGO_URL = 'https://static.mruhacks.ca/color_chevron.png';
 
 /**
  * Generated placeholder art for projects without a cover image, seeded by
- * the project's name. Rendered at Cloudflare's edge by `workers/dicebear-shapes`
- * so it costs the app server nothing.
+ * the project's name. Served by `src/app/api/project-cover/route.ts`.
  */
-export const PROJECT_COVER_FALLBACK_URL = 'https://mruhacks.ca/__dicebear/';
-
 export function projectCoverFallbackUrl(seed: string): string {
-  return `${PROJECT_COVER_FALLBACK_URL}?${new URLSearchParams({ seed })}`;
+  return `/api/project-cover?${new URLSearchParams({ seed })}`;
 }
 
 export const INTRO_BLURB: string = `

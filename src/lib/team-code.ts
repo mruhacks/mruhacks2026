@@ -16,8 +16,6 @@ import { EN_BAD_WORDS } from '@/lib/profanity-wordlists/en';
 import { FR_BAD_WORDS } from '@/lib/profanity-wordlists/fr';
 import { TEAM_CODE_CHARSET, TEAM_CODE_LENGTH } from '@/lib/team-code-constants';
 
-export { TEAM_CODE_LENGTH, TEAM_CODE_CHARSET } from '@/lib/team-code-constants';
-
 const TEAM_CODE_MAX_ATTEMPTS = 25;
 
 const DENYLIST = new Set([...EN_BAD_WORDS, ...FR_BAD_WORDS]);
@@ -40,7 +38,7 @@ const LEETSPEAK_SUBSTITUTIONS: Record<string, string> = {
 };
 
 /** Lowercases and reverses common leetspeak substitutions, e.g. "4$$" -> "ass". */
-export function normalizeLeetspeak(input: string): string {
+function normalizeLeetspeak(input: string): string {
   return input
     .toLowerCase()
     .split('')
@@ -53,7 +51,7 @@ export function normalizeLeetspeak(input: string): string {
  * word once leetspeak substitutions are normalized away. A hit should
  * trigger regenerating a new candidate, not modifying this one.
  */
-export function isCodeDenylisted(code: string): boolean {
+function isCodeDenylisted(code: string): boolean {
   const normalized = normalizeLeetspeak(code);
   const maxLength = Math.min(DENYLIST_MAX_LENGTH, normalized.length);
   for (let start = 0; start < normalized.length; start++) {
@@ -65,7 +63,7 @@ export function isCodeDenylisted(code: string): boolean {
 }
 
 /** Generates a random 8-char code from the restricted charset, no checks applied. */
-export function generateRawTeamCode(): string {
+function generateRawTeamCode(): string {
   let code = '';
   for (let i = 0; i < TEAM_CODE_LENGTH; i++) {
     code += TEAM_CODE_CHARSET[randomInt(0, TEAM_CODE_CHARSET.length)];
