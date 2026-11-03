@@ -187,7 +187,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       className='flex min-h-screen flex-col'
       style={{ background: 'var(--ink-050)', fontFamily: 'var(--font-body)' }}
     >
-      <ImpersonationBanner />
+      <Suspense fallback={null}>
+        <ImpersonationBanner />
+      </Suspense>
       <BreadcrumbProvider>
         <Suspense fallback={<HeaderSkeleton />}>
           <DashboardHeaderLoader />

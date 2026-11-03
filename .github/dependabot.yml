@@ -4,6 +4,11 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    ignore:
+      # Must match the lexical version @mdxeditor/editor depends on, or two
+      # copies of LexicalNode get loaded and the editor plugins stop typing.
+      # Bump together with @mdxeditor/editor instead.
+      - dependency-name: lexical
   - package-ecosystem: github-actions
     directory: /
     schedule:

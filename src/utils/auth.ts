@@ -21,7 +21,7 @@ import { ResetPasswordEmail } from '@/emails/ResetPasswordEmail';
 import { DeleteAccountEmail } from '@/emails/DeleteAccountEmail';
 import React from 'react';
 import { headers } from 'next/headers';
-import { cacheLife, revalidateTag } from 'next/cache';
+import { revalidateTag } from 'next/cache';
 import { writeAuditLog } from '@/utils/audit-log';
 import { prepareUserDeletion } from '@/lib/account-deletion';
 
@@ -119,9 +119,20 @@ export const auth = betterAuth({
     schema,
   }),
   session: {
+    /**
+     * Session checks are answered from this signed cookie for `maxAge`
+     * seconds before going back to the database, so it's also how long a
+     * revoked or banned session keeps working on another device (signing out
+     * in the same browser clears it immediately). The cookie never outlives
+     * the session's own `expiresAt`.
+     *
+     * Don't enable `refreshCache`: it re-signs the cookie without checking the
+     * database, so a revoked session would never end. Better Auth ignores it
+     * when a database is configured anyway.
+     */
     cookieCache: {
       enabled: true,
-      maxAge: 60,
+      maxAge: 300,
       strategy: 'jwe',
     },
   },
@@ -353,21 +364,13 @@ export const auth = betterAuth({
 /**
  * Retrieves the current session from the request headers
  *
- * The private cache is scoped to the browser session and is never stored in
- * the shared server cache. Besides deduplicating reads, this gives Next a
- * request-aware cache boundary it can include in the authenticated App Shell.
+ * Not wrapped in a function cache: Better Auth's signed session cookie cache
+ * (`session.cookieCache`) already answers this without hitting the database.
  *
  * @returns Promise resolving to the current session or null if not authenticated
  */
 async function getSession() {
-  'use cache: private';
-  // Session data is browser-private. Giving it a known lifetime lets Next
-  // include the authenticated App Shell in client navigations without ever
-  // placing the result in the shared server cache.
-  cacheLife('minutes');
-
-  const session = await auth.api.getSession({ headers: await headers() });
-  return session;
+  return auth.api.getSession({ headers: await headers() });
 }
 
 /**
@@ -377,4 +380,13 @@ async function getSession() {
  */
 export async function getUser() {
   return (await getSession())?.user || null;
+}
+
+/**
+ * The user an admin is currently impersonating, or null when the session is
+ * the signed-in user's own.
+ */
+export async function getImpersonatedUser() {
+  const session = await getSession();
+  return session?.session.impersonatedBy ? session.user : null;
 }
