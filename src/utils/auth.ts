@@ -119,9 +119,20 @@ export const auth = betterAuth({
     schema,
   }),
   session: {
+    /**
+     * Session checks are answered from this signed cookie for `maxAge`
+     * seconds before going back to the database, so it's also how long a
+     * revoked or banned session keeps working on another device (signing out
+     * in the same browser clears it immediately). The cookie never outlives
+     * the session's own `expiresAt`.
+     *
+     * Don't enable `refreshCache`: it re-signs the cookie without checking the
+     * database, so a revoked session would never end. Better Auth ignores it
+     * when a database is configured anyway.
+     */
     cookieCache: {
       enabled: true,
-      maxAge: 60,
+      maxAge: 300,
       strategy: 'jwe',
     },
   },
@@ -377,4 +388,13 @@ async function getSession() {
  */
 export async function getUser() {
   return (await getSession())?.user || null;
+}
+
+/**
+ * The user an admin is currently impersonating, or null when the session is
+ * the signed-in user's own.
+ */
+export async function getImpersonatedUser() {
+  const session = await getSession();
+  return session?.session.impersonatedBy ? session.user : null;
 }
