@@ -92,6 +92,11 @@ jobs:
       - name: Build
         run: pnpm build
 
+      # Keeps the offline fallback deployable (docs/STATIC_EXPORT.md): fails
+      # if a public page starts needing the app server.
+      - name: Build static export
+        run: pnpm build:static
+
   test:
     name: Test
     runs-on: ubuntu-24.04

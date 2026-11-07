@@ -3,7 +3,9 @@
   "tags": ["-lintignore"],
   "ignoreBinaries": ["printf"],
   "workspaces": {
-    ".": {},
+    ".": {
+      "entry": ["src/lib/static-image-loader.ts"]
+    },
     "workers/rsvp-cron": {
       "ignoreBinaries": ["wrangler"],
       "ignoreDependencies": ["wrangler"]

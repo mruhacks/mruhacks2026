@@ -66,3 +66,11 @@ Two lint rules (`eslint-rules/namespace-imports.mjs`, `eslint-rules/nearby-relat
 - **Nearby files are relative, everything else uses `@/`:** a file imports relatively anything inside its parent directory (or its own directory, when the parent is `src/` or a top-level area like `src/app`/`src/lib`), so a relative path never climbs more than one `../`. E.g. in `src/app/dashboard/events/[eventId]/page.tsx`, `'../team/TeamPanel'`, not `'@/app/dashboard/events/team/TeamPanel'`.
 
 Why: long named-import lists from the schema, UI and domain folders were wrapping into multi-line blocks across hundreds of files. A namespace keeps it to one line per module however much of it is used, and the PascalCase alias can't collide with the local variables that tend to share a domain's name (`const participation = …`).
+
+# Public pages must also work in the static export
+
+`pnpm build:static` exports the homepage, the project gallery and pages, and the legal pages to plain HTML, so mruhacks.ca can stay up on Cloudflare with the Node app switched off (`docs/STATIC_EXPORT.md`). CI builds it on every PR. In that build only `*.static.tsx` / `*.static.ts` files under `src/app` are routes, there is no server, and `scripts/static-export/postbuild.ts` fails if an exported page links to or loads a same-origin path that isn't in `out/`.
+
+So on a public page, don't link or load anything that needs the app at request time (an `/api/` URL, a session, a server action) unless it's hidden when `STATIC_EXPORT` (`src/content.ts`) is true, the way `LOGIN_ENABLED` hides the Dashboard button. Build-time database reads through `'use cache'` functions are fine. To put a new public page in the export, add a `page.static.tsx` next to its `page.tsx` that re-exports it.
+
+Why: the export is the fallback for when the server can't run safely. If it only gets built on the day it's needed, it'll be broken that day.

@@ -27,6 +27,9 @@ function getBuildInfo(): string {
 }
 
 const nextConfig: NextConfig = {
+  // Next's default, spelled out so knip (which reads every `pageExtensions` in
+  // this file) also sees these alongside `staticExportConfig`'s.
+  pageExtensions: ['tsx', 'ts', 'jsx', 'js'],
   async headers() {
     // `/api/assets` and `/api/profile/resume` 302 straight to a presigned
     // URL on object storage, so the browser loads that origin directly and
@@ -146,4 +149,39 @@ const nextConfig: NextConfig = {
   allowedDevOrigins: ['thomas-desktop.local'],
 };
 
-export default nextConfig;
+/**
+ * `pnpm build:static` (`STATIC_EXPORT=1`): plain HTML/CSS/JS for the public
+ * pages only, written to `out/` for a static host while the Node app is
+ * offline. See `docs/STATIC_EXPORT.md`.
+ */
+const staticExportConfig: NextConfig = {
+  output: 'export',
+  // Only `*.static.tsx` / `*.static.ts` files under `src/app` are routes in
+  // this build, so the API routes, server actions, `proxy.ts` and everything
+  // behind sign-in aren't part of it at all (the `.page.tsx` pattern from
+  // Next's own pageExtensions docs).
+  pageExtensions: ['static.tsx', 'static.ts'],
+  // There's no image optimizer without a server. This loader points at
+  // resized copies that `scripts/static-export/postbuild.ts` writes after the build.
+  images: {
+    loader: 'custom',
+    loaderFile: './src/lib/static-image-loader.ts',
+  },
+  // Export mode can't do Cache Components (it turns on PPR), but the data
+  // layer's `'use cache'` functions still need the directive. This deprecated
+  // flag enables just that.
+  cacheComponents: false,
+  experimental: { useCache: true },
+  // `pnpm build` and CI type-check the app. This build's generated route
+  // types only know the `*.static.*` routes, so `PageProps<'/dashboard/…'>`
+  // anywhere else would fail to check here.
+  typescript: { ignoreBuildErrors: true },
+  env: {
+    // Inlined into client bundles too, so `STATIC_EXPORT` in `src/content.ts`
+    // reads the same on both sides.
+    STATIC_EXPORT: '1',
+    PUBLIC_ASSETS_BASE_URL: publicAssetsBaseUrl ?? '',
+  },
+};
+
+export default process.env.STATIC_EXPORT === '1' ? staticExportConfig : nextConfig;

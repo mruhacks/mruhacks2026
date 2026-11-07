@@ -3,7 +3,7 @@ import { DM_Sans, DM_Mono, Inter, Geist_Mono } from 'next/font/google';
 import { Toaster } from '@/components/ui/sonner';
 import { QueryProvider } from '@/components/providers/query-provider';
 import { Telemetry } from '@/components/providers/telemetry';
-import { SITE_URL } from '@/content';
+import { SITE_URL, STATIC_EXPORT } from '@/content';
 import './globals.css';
 
 const dmSans = DM_Sans({
@@ -43,7 +43,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           {children}
           <Toaster />
         </QueryProvider>
-        <Telemetry />
+        {/* Vercel's analytics scripts only exist on Vercel. */}
+        {!STATIC_EXPORT && <Telemetry />}
       </body>
     </html>
   );

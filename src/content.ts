@@ -22,18 +22,37 @@ export const EVENT_VENUE = {
   },
 };
 
-export const REGISTRATION_OPEN = true;
-export const LOGIN_ENABLED = true;
+/**
+ * True in the static export (`pnpm build:static`, see docs/STATIC_EXPORT.md):
+ * plain HTML on a CDN with the app server switched off, so nothing on the
+ * public pages may link into registration or the dashboard.
+ */
+export const STATIC_EXPORT = process.env.STATIC_EXPORT === '1';
+
+export const REGISTRATION_OPEN = !STATIC_EXPORT;
+export const LOGIN_ENABLED = !STATIC_EXPORT;
 
 /** Publicly hosted (not build-bundled) so external services like Google Wallet can fetch it directly. */
 export const MRUHACKS_LOGO_URL = 'https://static.mruhacks.ca/color_chevron.png';
 
 /**
  * Generated placeholder art for projects without a cover image, seeded by
- * the project's name. Served by `src/app/api/project-cover/route.ts`.
+ * the project's name. Served by `src/app/api/project-cover/route.ts`, or in
+ * the static export (no API) by a file per showcase project that
+ * `src/app/project-covers/[file]/route.static.ts` writes at build time.
  */
 export function projectCoverFallbackUrl(seed: string): string {
+  if (STATIC_EXPORT) return `/project-covers/${staticProjectCoverFile(seed)}`;
   return `/api/project-cover?${new URLSearchParams({ seed })}`;
+}
+
+/** `<hash>.svg`: a filename any static host can serve, whatever the project is called (FNV-1a). */
+export function staticProjectCoverFile(seed: string): string {
+  let hash = 0x811c9dc5;
+  for (const byte of new TextEncoder().encode(seed)) {
+    hash = Math.imul(hash ^ byte, 0x01000193) >>> 0;
+  }
+  return `${hash.toString(16).padStart(8, '0')}.svg`;
 }
 
 export const INTRO_BLURB: string = `

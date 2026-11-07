@@ -116,8 +116,14 @@ is real. Wrap the data access in `<Suspense>`, following the pattern in
 
 ## Known failures that aren't yours
 
-- `src/tests/mail.integration.test.ts` (7 tests) needs MailHog, which can't
-  run here. Everything else in `pnpm test` should pass.
+- `src/tests/mail.integration.test.ts` (7 tests) and the two MailHog tests
+  in `src/tests/unsubscribe.test.ts` need MailHog, which can't run here
+  (`ECONNREFUSED 127.0.0.1:1025`). Everything else in `pnpm test` should pass.
+- `npx wrangler@4 dev` (e.g. previewing the static export, see
+  [STATIC_EXPORT.md](./STATIC_EXPORT.md)) logs `Unable to fetch the
+  Request.cf object` with a `Request was cancelled` stack. That's harmless:
+  the sandbox can't reach Cloudflare's metadata endpoint, and it falls back
+  to a placeholder.
 - `tsc` reports `Cannot find module '*.png'` until `next-env.d.ts` exists.
   It's gitignored and generated the first time `pnpm dev` or `pnpm build`
   runs. `src/tests/dietary-actions.test.ts` also has pre-existing type

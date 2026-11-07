@@ -1,0 +1,16 @@
+// The static export of the public site (`pnpm build:static` → `out/`), served
+// by Cloudflare while the Node app is offline. See docs/STATIC_EXPORT.md.
+{
+  "name": "mruhacks-static-site",
+  "compatibility_date": "2026-10-01",
+  // Assets only: there's no Worker script, Cloudflare serves the files
+  // straight from its edge. `_headers` in `out/` sets the response headers.
+  "assets": {
+    "directory": "../../out",
+    // `/projects` → `projects.html`, as Next's export names them.
+    "html_handling": "auto-trailing-slash",
+    // Unknown paths (including all of `/dashboard`) get `404.html`, which
+    // says the app is offline.
+    "not_found_handling": "404-page",
+  },
+}
