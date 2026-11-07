@@ -21,7 +21,7 @@ vi.mock('next/navigation', () => ({
 }));
 vi.mock('server-only', () => ({}));
 
-// `after()` throws outside a Next request scope. `sendMagicLink` schedules
+// `after()` throws outside a Next request scope. `claimMagicLinkCooldown` schedules
 // its cooldown cleanup through it on a random ~10% of sends, which made any
 // test sending a magic link fail intermittently. Its work is best-effort
 // cleanup, so dropping it in tests is fine.

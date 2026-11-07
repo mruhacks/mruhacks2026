@@ -5,15 +5,15 @@ export const BASE_PATH = '/api/auth';
 export const EMAIL_LINK_CONFIRM_PATH = '/signin/verify';
 
 /**
- * Emailed Better Auth links whose GET has a side effect: a magic link spends
- * its single-use token, and a verify-email link signs in whoever opens it
- * first (`autoSignInAfterVerification`). `params` are the query params the
- * confirm page forwards to `endpoint`.
+ * Emailed auth links whose GET has a side effect: a magic link spends its
+ * single-use token, and a verify-email link signs in whoever opens it first
+ * (`autoSignInAfterVerification`). `params` are the query params the confirm
+ * page forwards to `endpoint`.
  */
 export const EMAIL_LINKS = {
   'magic-link': {
     endpoint: `${BASE_PATH}/magic-link/verify`,
-    params: ['token', 'callbackURL', 'newUserCallbackURL'],
+    params: ['token', 'callbackURL'],
   },
   'verify-email': {
     endpoint: `${BASE_PATH}/verify-email`,
@@ -26,7 +26,7 @@ export type EmailLinkKind = keyof typeof EMAIL_LINKS;
 /** Confirm-page param naming which `EMAIL_LINKS` entry the link is for. */
 export const EMAIL_LINK_KIND_PARAM = 'link';
 
-/** Set on the confirm page when Better Auth bounced back a failed magic link. */
+/** Set on the confirm page when the verify endpoint bounced back a failed magic link. */
 export const EMAIL_LINK_FAILED_PARAM = 'failed';
 
 export function isEmailLinkKind(value: unknown): value is EmailLinkKind {
@@ -34,8 +34,9 @@ export function isEmailLinkKind(value: unknown): value is EmailLinkKind {
 }
 
 /**
- * Rewrites a Better Auth link to point at the confirm page instead, keeping
- * the query string. Corporate link scanners (Safe Links, Proofpoint, Mimecast)
+ * Rewrites a Better Auth verify-email link to point at the confirm page
+ * instead, keeping the query string. (`createMagicLink` builds its links
+ * pointing there already.) Corporate link scanners (Safe Links, Proofpoint, Mimecast)
  * GET every URL in an email before the recipient sees it; pointed straight at
  * the endpoint, that GET burns the token or hands the scanner a session. The
  * confirm page only follows the link on a form submit, which scanners don't do.
@@ -57,8 +58,8 @@ export function toEmailLinkConfirmUrl(kind: EmailLinkKind, authUrl: string): str
 }
 
 /**
- * Where Better Auth sends a failed magic link, overriding the sender's own
- * target: those are protected pages that would bounce a signed-out user to a
+ * Where the verify endpoint sends a failed magic link, instead of the link's
+ * own `callbackURL`: those are protected pages that would bounce a signed-out user to a
  * bare sign-in screen. A signed-in user never sees it; the proxy sends them on.
  */
 export const MAGIC_LINK_ERROR_CALLBACK_URL = `${EMAIL_LINK_CONFIRM_PATH}?${EMAIL_LINK_FAILED_PARAM}=1`;

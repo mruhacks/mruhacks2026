@@ -15,6 +15,7 @@ import * as schema from '@/db/schema';
 import { ok, fail, type ActionResult } from '@/utils/action-result';
 import { auth, getUser } from '@/utils/auth';
 import { headers } from 'next/headers';
+import * as Auth from '@/lib/auth/server';
 import * as Rbac from '@/lib/rbac/server';
 import { type RoleId, type PermissionId } from './roles';
 import { revalidatePath, updateTag } from 'next/cache';
@@ -537,8 +538,8 @@ export async function adminSendPasswordReset(email: string): Promise<ActionResul
 
 /**
  * Admin: invite a user by email with a preselected set of roles. Stores a
- * pending invite row keyed on the email, then triggers a magic-link sign-in
- * so Better Auth emails them a link. Signing in applies the roles and deletes
+ * pending invite row keyed on the email, then emails them a sign-in link.
+ * Signing in applies the roles and deletes
  * the invite (`applyPendingInvite`, run from the session-create hook).
  */
 export async function inviteUser(email: string, roleIds: number[]): Promise<ActionResult> {
@@ -585,13 +586,7 @@ export async function inviteUser(email: string, roleIds: number[]): Promise<Acti
         },
       });
 
-    await auth.api.signInMagicLink({
-      body: {
-        email: normalized,
-        callbackURL: '/welcome',
-      },
-      headers: await headers(),
-    });
+    await Auth.sendSignInLink({ email: normalized, callbackURL: '/welcome' });
     await writeAuditLog({
       actorId: caller.id,
       action: 'user.invited',

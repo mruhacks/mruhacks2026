@@ -1,6 +1,5 @@
 /**
- * `createJudgeSignInLink` against the real Better Auth magic-link plugin: the
- * link comes back to the caller instead of being emailed, and is short-lived.
+ * `createJudgeSignInLink` against the real database: the link comes back to the caller instead of being emailed, and is short-lived.
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
 import { eq } from 'drizzle-orm';

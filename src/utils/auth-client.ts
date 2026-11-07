@@ -17,8 +17,9 @@
  */
 
 import { createAuthClient } from 'better-auth/react';
-import { adminClient, magicLinkClient } from 'better-auth/client/plugins';
+import { adminClient } from 'better-auth/client/plugins';
+import * as Auth from '@/lib/auth';
 
 export const authClient = createAuthClient({
-  plugins: [adminClient(), magicLinkClient()],
+  plugins: [adminClient(), Auth.magicLinkClient()],
 });
