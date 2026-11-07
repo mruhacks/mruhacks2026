@@ -90,9 +90,10 @@ async function clearEmailKeyedRows(tx: Tx, userId: string, email: string): Promi
   await tx.delete(schema.invite).where(sameEmail(schema.invite.email));
   await tx.delete(schema.magicLinkCooldown).where(sameEmail(schema.magicLinkCooldown.email));
 
-  // Better Auth stores a magic link as `{"type":"magic-link","email":…,"name":…}`
-  // (`{"email":…,"name":…}` before 1.7, still live until those links expire)
-  // and the delete-account / password-reset tokens as the bare user id.
+  // A magic link is stored as `{"type":"magic-link","email":…}` (see
+  // `createMagicLink`; Better Auth's plugin, which minted them before, wrote
+  // `{"email":…,"name":…}` before 1.7) and Better Auth's delete-account /
+  // password-reset tokens as the bare user id.
   const magicLinkValues = [{ type: 'magic-link', email: lowered }, { email: lowered }].map((v) => JSON.stringify(v));
   await tx
     .delete(schema.verification)

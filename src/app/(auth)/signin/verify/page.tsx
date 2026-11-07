@@ -28,13 +28,11 @@ const COPY: Record<Auth.EmailLinkKind, { title: string; description: string; lab
   },
 };
 
-/** Better Auth's magic-link `error` codes, as shown to the user. */
+/** The magic-link verify endpoint's `error` codes, as shown to the user. */
 function failureMessage(error: SearchParams[string]): string {
   switch (error) {
     case 'INVALID_TOKEN':
       return 'This sign-in link has expired or has already been used.';
-    case 'new_user_signup_disabled':
-      return 'There’s no MRUHacks account for this email address.';
     default:
       return 'Something went wrong signing you in. Please request a new link.';
   }
@@ -42,7 +40,7 @@ function failureMessage(error: SearchParams[string]): string {
 
 /**
  * Landing page for emailed auth links (see `toEmailLinkConfirmUrl`). Loading
- * it spends nothing; only submitting the form hands the token to Better Auth.
+ * it spends nothing; only submitting the form hands the token to the auth endpoint.
  * Rendered outside any Suspense boundary so the form is in the initial HTML
  * and works without JavaScript. A failed magic link redirects back here with
  * `failed=1`. Signed-in users never reach this page (see `src/proxy.ts`), so a
@@ -71,12 +69,6 @@ export default async function EmailLinkConfirmPage({ searchParams }: { searchPar
     const value = params[name];
     return typeof value === 'string' && value ? [{ name, value }] : [];
   });
-  if (kind === 'magic-link') {
-    fields.push({
-      name: 'errorCallbackURL',
-      value: Auth.MAGIC_LINK_ERROR_CALLBACK_URL,
-    });
-  }
 
   const copy = COPY[kind];
   return (

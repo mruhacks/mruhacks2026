@@ -8,7 +8,6 @@ export * from './process-rsvp-invitation';
 export * from './requeue-pending-rsvp-invitations';
 export * from './resend-rsvp-magic-link';
 export * from './rsvp-invitation-queue';
-export * from './rsvp-magic-link-context';
 export * from './run-rsvp-cron';
 export * from './run-scheduled-rsvp-waves';
 export * from './send-rsvp-magic-link';

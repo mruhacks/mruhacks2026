@@ -87,7 +87,7 @@ afterAll(async () => {
 });
 
 describe('RSVP magic-link expiration / resend', () => {
-  test('sign-in magic links still expire after 24h when no RSVP context is set', async () => {
+  test('sign-in magic links from the public endpoint expire after 24h', async () => {
     vi.mocked(sendMail).mockClear();
     const email = `login-lifetime-${Date.now()}@example.com`;
 
@@ -113,7 +113,6 @@ describe('RSVP magic-link expiration / resend', () => {
 
   test('resends a fresh magic link without creating a wave or response', async () => {
     vi.mocked(sendMail).mockClear();
-    const signInSpy = vi.spyOn(auth.api, 'signInMagicLink');
 
     const [{ value: wavesBefore }] = await db
       .select({ value: count() })
@@ -124,58 +123,45 @@ describe('RSVP magic-link expiration / resend', () => {
       .from(schema.eventInvitations)
       .where(eq(schema.eventInvitations.rsvpWaveId, testWaveId));
 
-    try {
-      const result = await Rsvp.resendRsvpMagicLink({
-        eventId: testEventId,
-        userId: testUserId,
-      });
+    const result = await Rsvp.resendRsvpMagicLink({
+      eventId: testEventId,
+      userId: testUserId,
+    });
 
-      expect(result.success).toBe(true);
-      if (!result.success) return;
+    expect(result.success).toBe(true);
+    if (!result.success) return;
 
-      expect(result.responseId).toBe(testResponseId);
-      expect(result.waveId).toBe(testWaveId);
-      expect(result.email).toBe('resend-rsvp@example.com');
+    expect(result.responseId).toBe(testResponseId);
+    expect(result.waveId).toBe(testWaveId);
+    expect(result.email).toBe('resend-rsvp@example.com');
 
-      const callbackURL = `/dashboard/events/${testEventId}?source=rsvp`;
-      expect(signInSpy).toHaveBeenCalledWith(
-        expect.objectContaining({
-          body: {
-            email: 'resend-rsvp@example.com',
-            callbackURL,
-          },
-          headers: expect.any(Headers),
-        }),
-      );
+    expect(sendMail).toHaveBeenCalledTimes(1);
+    const mailCall = vi.mocked(sendMail).mock.calls[0]?.[0];
+    const link = new URL(mailCall?.text?.match(/https?:\/\/\S+/)?.[0] ?? '');
+    expect(link.searchParams.get('callbackURL')).toBe(`/dashboard/events/${testEventId}?source=rsvp`);
+    expect(mailCall?.to).toBe('resend-rsvp@example.com');
+    expect(mailCall?.subject).toBe("[Action Required] You're invited to Resend Magic Link Event!");
+    expect(mailCall?.subject).not.toBe('Sign in to MRUHacks');
+    expect(mailCall?.html).toContain('RSVP Now');
 
-      expect(sendMail).toHaveBeenCalledTimes(1);
-      const mailCall = vi.mocked(sendMail).mock.calls[0]?.[0];
-      expect(mailCall?.to).toBe('resend-rsvp@example.com');
-      expect(mailCall?.subject).toBe("[Action Required] You're invited to Resend Magic Link Event!");
-      expect(mailCall?.subject).not.toBe('Sign in to MRUHacks');
-      expect(mailCall?.html).toContain('RSVP Now');
+    const token = magicLinkTokenFromLastMail();
+    const expiresAt = await getVerificationExpiresAt(token);
+    expect(Math.abs(expiresAt.getTime() - new Date('2099-12-01T00:00:00.000Z').getTime())).toBeLessThan(5000);
+    await deleteVerification(token);
 
-      const token = magicLinkTokenFromLastMail();
-      const expiresAt = await getVerificationExpiresAt(token);
-      expect(Math.abs(expiresAt.getTime() - new Date('2099-12-01T00:00:00.000Z').getTime())).toBeLessThan(5000);
-      await deleteVerification(token);
+    const [{ value: wavesAfter }] = await db
+      .select({ value: count() })
+      .from(schema.eventRsvpWaves)
+      .where(eq(schema.eventRsvpWaves.eventId, testEventId));
+    const [{ value: responsesAfter }] = await db
+      .select({ value: count() })
+      .from(schema.eventInvitations)
+      .where(eq(schema.eventInvitations.rsvpWaveId, testWaveId));
 
-      const [{ value: wavesAfter }] = await db
-        .select({ value: count() })
-        .from(schema.eventRsvpWaves)
-        .where(eq(schema.eventRsvpWaves.eventId, testEventId));
-      const [{ value: responsesAfter }] = await db
-        .select({ value: count() })
-        .from(schema.eventInvitations)
-        .where(eq(schema.eventInvitations.rsvpWaveId, testWaveId));
+    expect(Number(wavesAfter)).toBe(Number(wavesBefore));
+    expect(Number(responsesAfter)).toBe(Number(responsesBefore));
 
-      expect(Number(wavesAfter)).toBe(Number(wavesBefore));
-      expect(Number(responsesAfter)).toBe(Number(responsesBefore));
-
-      expect(await getStatus(testEventId, testUserId)).toBe('invited');
-    } finally {
-      signInSpy.mockRestore();
-    }
+    expect(await getStatus(testEventId, testUserId)).toBe('invited');
   });
 
   test('can resend by email for the same pending RSVP', async () => {

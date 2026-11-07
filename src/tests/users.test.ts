@@ -9,7 +9,6 @@ vi.mock('@/utils/auth', () => ({
     api: {
       setUserPassword: vi.fn().mockResolvedValue({ status: true }),
       requestPasswordReset: vi.fn().mockResolvedValue(undefined),
-      signInMagicLink: vi.fn().mockResolvedValue(undefined),
       banUser: vi.fn().mockResolvedValue(undefined),
       unbanUser: vi.fn().mockResolvedValue(undefined),
       revokeUserSessions: vi.fn().mockResolvedValue(undefined),
@@ -20,6 +19,7 @@ vi.mock('@/utils/auth', () => ({
     }),
   },
 }));
+vi.mock('@/utils/mail', () => ({ sendMail: vi.fn().mockResolvedValue(undefined) }));
 vi.mock('next/headers', () => ({ headers: vi.fn().mockResolvedValue({}) }));
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn(), updateTag: vi.fn() }));
 vi.mock('next/navigation', () => ({
@@ -51,6 +51,7 @@ import {
   updateUserProfile,
 } from '@/app/actions/users';
 import * as Auth from '@/lib/auth/server';
+import { sendMail } from '@/utils/mail';
 
 let adminUserId: string;
 let noPermUserId: string;
@@ -674,14 +675,14 @@ describe('inviteUser', () => {
   });
 
   test('refuses an email that already has an account', async () => {
-    vi.mocked(auth.api.signInMagicLink).mockClear();
+    vi.mocked(sendMail).mockClear();
     const result = await inviteUser('Users-Target@test.com', [adminRoleId]);
     expect(result.success).toBe(false);
     expect((result as { error: string }).error).toContain('already exists');
 
     const rows = await db.select().from(schema.invite).where(eq(schema.invite.email, 'users-target@test.com'));
     expect(rows).toHaveLength(0);
-    expect(vi.mocked(auth.api.signInMagicLink)).not.toHaveBeenCalled();
+    expect(vi.mocked(sendMail)).not.toHaveBeenCalled();
   });
 
   test('creates invite row and triggers magic link', async () => {
@@ -691,7 +692,7 @@ describe('inviteUser', () => {
     const rows = await db.select().from(schema.invite).where(eq(schema.invite.email, 'invited@example.com'));
     expect(rows).toHaveLength(1);
     expect(rows[0].roleIds).toContain(adminRoleId);
-    expect(vi.mocked(auth.api.signInMagicLink)).toHaveBeenCalled();
+    expect(vi.mocked(sendMail)).toHaveBeenCalled();
 
     await db.delete(schema.invite).where(eq(schema.invite.email, 'invited@example.com'));
   });

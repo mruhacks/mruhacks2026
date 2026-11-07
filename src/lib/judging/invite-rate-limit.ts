@@ -6,8 +6,7 @@ import { RateLimiterMemory } from 'rate-limiter-flexible';
  * Bounds how often one organizer can trigger judge invite emails by hand
  * (adding a judge with an invite, Resend, Send outstanding invites). The
  * public sign-in form gets Better Auth's per-IP limit, but that only runs on
- * HTTP requests to its router, never on the server-side `signInMagicLink`
- * call these go through.
+ * HTTP requests to its router, and these call `sendJudgeInvite` directly.
  *
  * Each address is separately held to the shared 60s sign-in-link cooldown
  * (`claimMagicLinkCooldown`); this is the per-sender cap on top. Adding

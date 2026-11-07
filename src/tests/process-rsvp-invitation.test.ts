@@ -11,7 +11,6 @@ vi.mock('@/utils/mail', () => ({
 }));
 
 import { sendMail } from '@/utils/mail';
-import { auth } from '@/utils/auth';
 
 let testEventId: string;
 let testUserId: string;
@@ -120,7 +119,6 @@ afterAll(async () => {
 describe('processRsvpInvitation', () => {
   test('sends the invitation and marks the response sent', async () => {
     vi.mocked(sendMail).mockClear();
-    const signInSpy = vi.spyOn(auth.api, 'signInMagicLink');
     const respondBy = new Date(Date.now() + 48 * 60 * 60 * 1000);
 
     const { responseId, waveId } = await createResponse({
@@ -131,7 +129,6 @@ describe('processRsvpInvitation', () => {
     try {
       const outcome = await Rsvp.processRsvpInvitation(responseId, 1);
       expect(outcome).toBe('sent');
-      expect(signInSpy).toHaveBeenCalledTimes(1);
       expect(sendMail).toHaveBeenCalledTimes(1);
 
       const row = await getResponse(responseId);
@@ -143,7 +140,6 @@ describe('processRsvpInvitation', () => {
       const expiresAt = await getVerificationExpiresAt(token);
       expect(Math.abs(expiresAt.getTime() - respondBy.getTime())).toBeLessThan(5000);
     } finally {
-      signInSpy.mockRestore();
       if (token) await deleteVerification(token);
       await deleteResponse(waveId);
     }
@@ -172,7 +168,6 @@ describe('processRsvpInvitation', () => {
 
   test('does not resend when the response is already sent', async () => {
     vi.mocked(sendMail).mockClear();
-    const signInSpy = vi.spyOn(auth.api, 'signInMagicLink');
 
     const { responseId, waveId } = await createResponse({
       respondBy: new Date('2099-08-01T23:59:59.000Z'),
@@ -182,10 +177,8 @@ describe('processRsvpInvitation', () => {
     try {
       const outcome = await Rsvp.processRsvpInvitation(responseId, 1);
       expect(outcome).toBe('already_sent');
-      expect(signInSpy).not.toHaveBeenCalled();
       expect(sendMail).not.toHaveBeenCalled();
     } finally {
-      signInSpy.mockRestore();
       await deleteResponse(waveId);
     }
   });
@@ -253,9 +246,7 @@ describe('processRsvpInvitation', () => {
 
   test('records the error and rethrows when a delivery attempt fails and retries remain', async () => {
     vi.mocked(sendMail).mockClear();
-    const signInSpy = vi.spyOn(auth.api, 'signInMagicLink').mockImplementationOnce(async () => {
-      throw new Error('magic link unavailable');
-    });
+    vi.mocked(sendMail).mockRejectedValueOnce(new Error('magic link unavailable'));
 
     const { responseId, waveId } = await createResponse({
       respondBy: new Date('2099-08-01T23:59:59.000Z'),
@@ -270,16 +261,13 @@ describe('processRsvpInvitation', () => {
       expect(row.invitationEmailLastError).toContain('magic link unavailable');
       expect(row.invitationEmailStatus).toBe('queued');
     } finally {
-      signInSpy.mockRestore();
       await deleteResponse(waveId);
     }
   });
 
   test('gives up and marks the response failed after the max delivery attempts', async () => {
     vi.mocked(sendMail).mockClear();
-    const signInSpy = vi.spyOn(auth.api, 'signInMagicLink').mockImplementationOnce(async () => {
-      throw new Error('magic link unavailable');
-    });
+    vi.mocked(sendMail).mockRejectedValueOnce(new Error('magic link unavailable'));
 
     const { responseId, waveId } = await createResponse({
       respondBy: new Date('2099-08-01T23:59:59.000Z'),
@@ -295,7 +283,6 @@ describe('processRsvpInvitation', () => {
       expect(row.invitationEmailAttempts).toBe(1);
       expect(row.invitationEmailLastError).toContain('magic link unavailable');
     } finally {
-      signInSpy.mockRestore();
       await deleteResponse(waveId);
     }
   });

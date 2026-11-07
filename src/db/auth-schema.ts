@@ -107,7 +107,7 @@ export const verification = pgTable('verification', {
 /**
  * Tracks the last time a magic-link sign-in email was sent to an address, so
  * a burst of requests (double submit, multiple tabs, retries) doesn't flood
- * the same inbox — see the 60s cooldown check in `auth.ts`. This table is
+ * the same inbox — see `claimMagicLinkCooldown`. This table is
  * UNLOGGED (see its migration): losing a row on crash just lets one extra
  * email through, which isn't worth paying WAL overhead to prevent.
  */

@@ -1,22 +1,8 @@
-import { AsyncLocalStorage } from 'node:async_hooks';
 import React from 'react';
 import { render } from 'react-email';
 
 import { JudgeInvitationEmail } from '@/emails/JudgeInvitationEmail';
 import type { SendMailOptions } from '@/utils/mail';
-
-type JudgeInviteMailContext = { eventName: string };
-
-export const judgeInviteMailContext = new AsyncLocalStorage<JudgeInviteMailContext>();
-
-/**
- * Request-scoped judge-invite intent, read by the magic-link mail hook. Set
- * only by `sendJudgeInvite` — never inferred from the caller-controlled
- * `callbackURL`, same as the RSVP context.
- */
-export function getJudgeInviteMailContext(): JudgeInviteMailContext | undefined {
-  return judgeInviteMailContext.getStore();
-}
 
 export async function buildJudgeInviteEmail(options: {
   eventName: string;
@@ -41,16 +27,4 @@ export async function buildJudgeInviteEmail(options: {
       }),
     ),
   };
-}
-
-type JudgeSignInLinkCapture = { url?: string };
-
-export const judgeSignInLinkCapture = new AsyncLocalStorage<JudgeSignInLinkCapture>();
-
-/**
- * Set only by `createJudgeSignInLink`: the magic-link hook hands the link
- * back here instead of emailing it.
- */
-export function getJudgeSignInLinkCapture(): JudgeSignInLinkCapture | undefined {
-  return judgeSignInLinkCapture.getStore();
 }

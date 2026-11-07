@@ -1,7 +1,6 @@
 import 'server-only';
 
 import { and, eq, ne, sql } from 'drizzle-orm';
-import { APIError } from 'better-auth';
 
 import * as schema from '@/db/schema';
 import * as Participation from '@/lib/participation';
@@ -63,7 +62,7 @@ export async function processRsvpInvitation(
       respondBy: row.respondBy,
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown magic-link error';
+    const message = error instanceof Error ? error.message : 'Unknown invitation email error';
 
     await db
       .update(schema.eventInvitations)
@@ -73,12 +72,7 @@ export async function processRsvpInvitation(
       })
       .where(eq(schema.eventInvitations.id, responseId));
 
-    // A validation error (e.g. malformed email) is never going to succeed on
-    // redelivery — the request body doesn't change between attempts — so
-    // give up immediately instead of burning through retries.
-    const isPermanentFailure = error instanceof APIError && error.body?.code === 'VALIDATION_ERROR';
-
-    if (isPermanentFailure || deliveryCount >= MAX_INVITATION_DELIVERY_ATTEMPTS) {
+    if (deliveryCount >= MAX_INVITATION_DELIVERY_ATTEMPTS) {
       // Guard against a stale write if a concurrent delivery already sent it.
       await db
         .update(schema.eventInvitations)
@@ -86,12 +80,11 @@ export async function processRsvpInvitation(
         .where(
           and(eq(schema.eventInvitations.id, responseId), ne(schema.eventInvitations.invitationEmailStatus, 'sent')),
         );
-      console.error(
-        isPermanentFailure
-          ? '[rsvp/process-invitation] giving up after non-retryable error'
-          : '[rsvp/process-invitation] giving up after max delivery attempts',
-        { responseId, deliveryCount, error },
-      );
+      console.error('[rsvp/process-invitation] giving up after max delivery attempts', {
+        responseId,
+        deliveryCount,
+        error,
+      });
       return 'given_up';
     }
 

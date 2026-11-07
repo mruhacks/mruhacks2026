@@ -5,11 +5,10 @@
  * and provides helpers for retrieving session and user information.
  */
 
-import { betterAuth, APIError } from 'better-auth';
-import { admin, captcha, magicLink } from 'better-auth/plugins';
+import { betterAuth } from 'better-auth';
+import { admin, captcha } from 'better-auth/plugins';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import * as Auth from '@/lib/auth/server';
-import * as Rsvp from '@/lib/rsvp/server';
 import * as Judging from '@/lib/judging/server';
 import { ADMIN_COUNTS_CACHE_TAG } from '@/lib/admin-counts';
 import { db } from '@/utils/db';
@@ -27,32 +26,6 @@ import { prepareUserDeletion } from '@/lib/account-deletion';
 
 /** Verification links expire after this many seconds (24 hours). */
 const EMAIL_VERIFICATION_EXPIRES_IN = 86400;
-
-/**
- * Default magic-link token lifetime (seconds) for sign-in and admin invites.
- * RSVP invitations override this per send via remaining time until `respondBy`.
- */
-const MAGIC_LINK_EXPIRES_IN_SECONDS = 86400;
-
-function resolveMagicLinkExpiresInSeconds(): number {
-  if (Judging.getJudgeSignInLinkCapture()) return Judging.JUDGE_SIGNIN_LINK_EXPIRES_IN_SECONDS;
-  const rsvp = Rsvp.getRsvpMagicLinkMailContext();
-  if (!rsvp) {
-    return MAGIC_LINK_EXPIRES_IN_SECONDS;
-  }
-  return Rsvp.remainingMagicLinkExpiresInSeconds(rsvp.respondBy);
-}
-
-/**
- * Better Auth copies `expiresIn` once at plugin init and only reads it as a
- * duration (`Date.now() + expiresIn * 1000`). A boxed number is coerced on
- * each `signInMagicLink` call so RSVP sends can use remaining time until
- * `respondBy` without changing the 24h lifetime of unrelated magic links.
- */
-const MAGIC_LINK_EXPIRES_IN = {
-  valueOf: resolveMagicLinkExpiresInSeconds,
-  [Symbol.toPrimitive]: resolveMagicLinkExpiresInSeconds,
-} as unknown as number;
 
 function getAuthBaseUrl(): string {
   const v = process.env.BETTER_AUTH_URL?.trim();
@@ -297,54 +270,7 @@ export const auth = betterAuth({
   },
   plugins: [
     admin(),
-    magicLink({
-      /**
-       * Leave sign-up enabled: admin `inviteUser` creates accounts via magic
-       * link. RSVP waves only email existing waitlisted applicants.
-       */
-      expiresIn: MAGIC_LINK_EXPIRES_IN,
-      sendMagicLink: async ({ email, url }) => {
-        // A judge sign-in QR code: hand the link back to the organizer who
-        // asked for it instead of emailing it.
-        const capture = Judging.getJudgeSignInLinkCapture();
-        if (capture) {
-          capture.url = Auth.toEmailLinkConfirmUrl('magic-link', url);
-          return;
-        }
-
-        const mail = await Auth.resolveMagicLinkMailOptions({
-          email,
-          magicLinkUrl: Auth.toEmailLinkConfirmUrl('magic-link', url),
-          baseUrl: getAuthBaseUrl(),
-          expiresInSeconds: resolveMagicLinkExpiresInSeconds(),
-        });
-
-        // An RSVP invitation is system-initiated — one per waitlisted applicant,
-        // already deduplicated by `invitation_email_status` — so the sign-in
-        // cooldown below, which exists to absorb a human double-submitting the
-        // public form, must not reject it. A user who signed in moments before
-        // a wave goes out would otherwise silently never get invited. A judge
-        // invite is the same: sent by an organizer, never by the public form.
-        if (Rsvp.getRsvpMagicLinkMailContext() || Judging.getJudgeInviteMailContext()) {
-          await sendMail(mail);
-          return;
-        }
-
-        // De-dup: skip sending if we already emailed this address within the
-        // last 60s (double submit, multiple tabs, retries). Better Auth has
-        // already minted the verification token by this point, so the
-        // caller still sees a normal success response either way.
-        if (!(await Auth.claimMagicLinkCooldown(email))) {
-          throw new APIError('TOO_MANY_REQUESTS', {
-            message: 'A sign-in link was already sent to this address. Check your inbox, or try again in a minute.',
-          });
-        }
-
-        await sendMail(mail).catch((err) => {
-          console.error('[auth] sendMagicLink failed', err);
-        });
-      },
-    }),
+    Auth.magicLink(),
     // Bot protection on the endpoints a public form can trigger. The client
     // sends the widget token via the `x-captcha-response` header (see
     // src/components/turnstile.tsx).
