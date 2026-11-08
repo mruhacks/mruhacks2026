@@ -17,6 +17,7 @@ import {
   SITE_TITLE,
   SITE_URL,
 } from '@/content';
+import { cacheLife } from 'next/cache';
 
 export const metadata: Metadata = {
   title: SITE_TITLE,
@@ -31,6 +32,9 @@ export const metadata: Metadata = {
 };
 
 export default async function Home() {
+  'use cache';
+  cacheLife('max');
+
   const [registerUrl, schedule] = await Promise.all([getFeaturedEventRegisterUrl(), getFeaturedEventSchedule()]);
 
   // Lets Google surface the hackathon in event search ("hackathons in
