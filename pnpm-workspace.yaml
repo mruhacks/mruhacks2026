@@ -3,16 +3,7 @@ overrides:
   '@hookform/resolvers': ^5.2.2
   esbuild: ^0.28.2
   js-yaml: ^4.3.2
-  sharp: ^0.35.5
-  joi: ^17.13.8
-  undici@<6.28.1: ^6.28.1
-  tar@<7.5.21: ^7.5.21
-  path-to-regexp@>=4 <6.3.0: ^6.3.0
-  path-to-regexp@>=8 <8.4.0: ^8.4.0
-  minimatch@>=10 <10.2.3: ^10.2.3
-  smol-toml@<1.8.1: ^1.9.0
-  ajv@>=7 <8.18.0: ^8.18.0
-  '@tootallnate/once@<2.0.1': ^2.0.1
+  joi: ^17.13.9
   zod@<4.6.6: ^4.6.7
 
 onlyBuiltDependencies:
@@ -23,10 +14,6 @@ onlyBuiltDependencies:
 
 # 72-hour cooldown: ignore package versions published less than 3 days ago
 minimumReleaseAge: 4320
-minimumReleaseAgeExclude:
-  # Fixes GHSA-86w9-cpqp-85rv (RSA signature verification bypass), published
-  # inside the cooldown. Pinned to this exact version; drop once it ages out.
-  - node-forge@1.4.2
 
 resolutionMode: highest
 
