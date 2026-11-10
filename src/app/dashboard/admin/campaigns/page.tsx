@@ -20,11 +20,12 @@ const STATUS_BADGE: Record<
     variant: 'outline' | 'info' | 'warning' | 'success' | 'destructive';
   }
 > = {
-  draft: { label: 'Draft', variant: 'outline' },
-  scheduled: { label: 'Scheduled', variant: 'info' },
-  sending: { label: 'Sending', variant: 'warning' },
-  sent: { label: 'Sent', variant: 'success' },
-  cancelled: { label: 'Stopped', variant: 'destructive' },
+  draft: { label: Campaigns.STATUS_LABELS.draft, variant: 'outline' },
+  pending_approval: { label: Campaigns.STATUS_LABELS.pending_approval, variant: 'warning' },
+  scheduled: { label: Campaigns.STATUS_LABELS.scheduled, variant: 'info' },
+  sending: { label: Campaigns.STATUS_LABELS.sending, variant: 'warning' },
+  sent: { label: Campaigns.STATUS_LABELS.sent, variant: 'success' },
+  cancelled: { label: Campaigns.STATUS_LABELS.cancelled, variant: 'destructive' },
 };
 
 function CampaignListSkeleton() {

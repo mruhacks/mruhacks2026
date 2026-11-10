@@ -7,7 +7,7 @@ import { insertAttendees } from '@/tests/participation-fixtures';
 
 const { send } = vi.hoisted(() => ({ send: vi.fn() }));
 vi.mock('@vercel/queue', () => ({ send }));
-vi.mock('@/utils/auth', () => ({ getUser: vi.fn() }));
+vi.mock('@/utils/auth', () => ({ getUser: vi.fn(), getImpersonatedUser: vi.fn() }));
 vi.mock('next/cache', async (importOriginal) => ({
   ...(await importOriginal<typeof import('next/cache')>()),
   refresh: vi.fn(),
@@ -15,9 +15,10 @@ vi.mock('next/cache', async (importOriginal) => ({
 
 import { getUser } from '@/utils/auth';
 import * as Campaigns from '@/lib/campaigns/server';
-import { scheduleCampaign, unscheduleCampaign } from '@/app/dashboard/admin/campaigns/send-actions';
+import { approveCampaign, requestSchedule, unscheduleCampaign } from '@/app/dashboard/admin/campaigns/send-actions';
 
 let senderId: string;
+let approverId: string;
 let memberId: string;
 let eventId: string;
 const campaignIds: string[] = [];
@@ -29,6 +30,26 @@ function wholeHour(offsetHours: number): Date {
   return d;
 }
 
+const everyoneInEvent = () => ({
+  combinator: 'and' as const,
+  rules: [{ field: 'participatedIn' as const, operator: '=' as const, value: { eventId } }],
+});
+
+/** Asks for a send at `at` as the sender, then approves it as the approver. */
+async function scheduleApproved(id: string, at: Date) {
+  asSender();
+  const requested = await requestSchedule(id, at.toISOString());
+  if (!requested.success) return requested;
+  asApprover();
+  const approved = await approveCampaign(id);
+  asSender();
+  return approved;
+}
+
+const asSender = () => vi.mocked(getUser).mockResolvedValue({ id: senderId } as Awaited<ReturnType<typeof getUser>>);
+const asApprover = () =>
+  vi.mocked(getUser).mockResolvedValue({ id: approverId } as Awaited<ReturnType<typeof getUser>>);
+
 async function newCampaign(overrides: Partial<typeof schema.campaigns.$inferInsert> = {}): Promise<string> {
   const [row] = await db
     .insert(schema.campaigns)
@@ -37,10 +58,18 @@ async function newCampaign(overrides: Partial<typeof schema.campaigns.$inferInse
       type: 'marketing',
       subject: 'Hello',
       bodyMarkdown: 'Body',
-      audienceRules: {
-        combinator: 'and',
-        rules: [{ field: 'participatedIn', operator: '=', value: { eventId } }],
-      },
+      audienceRules: everyoneInEvent(),
+      // Inserted straight into `scheduled` or `sending`: as if it had been
+      // asked for by one person and approved by another.
+      ...(overrides.status === 'scheduled' || overrides.status === 'sending'
+        ? {
+            audienceSnapshot: everyoneInEvent(),
+            approvalRequestedBy: senderId,
+            approvalRequestedAt: new Date(),
+            approvedBy: approverId,
+            approvedAt: new Date(),
+          }
+        : {}),
       ...overrides,
     })
     .returning({ id: schema.campaigns.id });
@@ -80,66 +109,103 @@ beforeAll(async () => {
     })
     .returning({ id: schema.user.id });
   senderId = sender.id;
-  const [p] = await db
-    .insert(schema.permission)
-    .values({ slug: 'campaign:send:all' })
-    .onConflictDoUpdate({
-      target: schema.permission.slug,
-      set: { slug: 'campaign:send:all' },
+  const [approver] = await db
+    .insert(schema.user)
+    .values({
+      name: 'Schedule approver',
+      email: 'scheduling-approver@example.com',
+      emailVerified: true,
     })
-    .returning({ id: schema.permission.id });
-  await db.insert(schema.userPermission).values({ userId: senderId, permissionId: p.id });
+    .returning({ id: schema.user.id });
+  approverId = approver.id;
+  for (const [userId, slug] of [
+    [senderId, 'campaign:send:all'],
+    [approverId, 'campaign:approve:all'],
+  ]) {
+    const [p] = await db
+      .insert(schema.permission)
+      .values({ slug })
+      .onConflictDoUpdate({ target: schema.permission.slug, set: { slug } })
+      .returning({ id: schema.permission.id });
+    await db.insert(schema.userPermission).values({ userId, permissionId: p.id });
+  }
 });
 
 beforeEach(() => {
   send.mockReset();
   send.mockResolvedValue({ messageId: 'm' });
-  vi.mocked(getUser).mockResolvedValue({
-    id: senderId,
-  } as Awaited<ReturnType<typeof getUser>>);
+  asSender();
 });
 
 afterAll(async () => {
   await db.delete(schema.campaigns).where(inArray(schema.campaigns.id, campaignIds));
   await db.delete(schema.events).where(eq(schema.events.id, eventId));
-  await db.delete(schema.user).where(inArray(schema.user.id, [senderId, memberId]));
+  await db.delete(schema.user).where(inArray(schema.user.id, [senderId, approverId, memberId]));
 });
 
 describe('scheduling', () => {
   test('only whole hours in the future', async () => {
     const id = await newCampaign();
     const halfPast = new Date(wholeHour(2).getTime() + 30 * 60_000);
-    expect(await scheduleCampaign(id, halfPast.toISOString())).toEqual({
+    expect(await requestSchedule(id, halfPast.toISOString())).toEqual({
       success: false,
       error: 'Campaigns can only be scheduled on the hour.',
     });
-    expect(await scheduleCampaign(id, wholeHour(-1).toISOString())).toEqual({
+    expect(await requestSchedule(id, wholeHour(-1).toISOString())).toEqual({
       success: false,
       error: 'Choose an hour in the future.',
     });
-    expect(await scheduleCampaign(id, 'tomorrow at 9')).toMatchObject({
+    expect(await requestSchedule(id, 'tomorrow at 9')).toMatchObject({
       success: false,
     });
 
     const at = wholeHour(3);
-    expect(await scheduleCampaign(id, at.toISOString())).toEqual({
+    expect(await requestSchedule(id, at.toISOString())).toEqual({
       success: true,
       data: undefined,
     });
+    const [pending] = await db.select().from(schema.campaigns).where(eq(schema.campaigns.id, id));
+    expect(pending.status).toBe('pending_approval');
+    expect(pending.scheduledFor?.toISOString()).toBe(at.toISOString());
+    // Asking alone schedules nothing: the cron ignores it even once it's due.
+    await db
+      .update(schema.campaigns)
+      .set({ scheduledFor: wholeHour(-1) })
+      .where(eq(schema.campaigns.id, id));
+    await Campaigns.dispatchDueCampaigns();
+    expect(dispatchesFor(id)).toHaveLength(0);
+    expect(await Campaigns.processCampaignDispatch(id, wholeHour(-1).toISOString())).toEqual({
+      kind: 'not_scheduled',
+      status: 'pending_approval',
+    });
+    await db.update(schema.campaigns).set({ scheduledFor: at }).where(eq(schema.campaigns.id, id));
+
+    asApprover();
+    expect(await approveCampaign(id)).toEqual({ success: true, data: undefined });
     const [row] = await db.select().from(schema.campaigns).where(eq(schema.campaigns.id, id));
     expect(row.status).toBe('scheduled');
     expect(row.scheduledFor?.toISOString()).toBe(at.toISOString());
+    // Approving a send for a later hour queues nothing itself.
+    expect(send).not.toHaveBeenCalled();
   });
 
   test('a scheduled campaign can be unscheduled back to draft', async () => {
     const id = await newCampaign();
-    await scheduleCampaign(id, wholeHour(5).toISOString());
+    expect((await scheduleApproved(id, wholeHour(5))).success).toBe(true);
     expect(await unscheduleCampaign(id)).toEqual({
       success: true,
       data: undefined,
     });
     const [row] = await db.select().from(schema.campaigns).where(eq(schema.campaigns.id, id));
-    expect(row).toMatchObject({ status: 'draft', scheduledFor: null });
+    // Its approval goes with it: sending again means asking again.
+    expect(row).toMatchObject({
+      status: 'draft',
+      scheduledFor: null,
+      audienceSnapshot: null,
+      approvalRequestedBy: null,
+      approvedBy: null,
+      approvedAt: null,
+    });
   });
 });
 
@@ -194,7 +260,7 @@ describe('hourly dispatch', () => {
     });
     await unscheduleCampaign(id);
     const future = wholeHour(3);
-    expect((await scheduleCampaign(id, future.toISOString())).success).toBe(true);
+    expect((await scheduleApproved(id, future)).success).toBe(true);
     expect(await Campaigns.processCampaignDispatch(id, oldTime.toISOString())).toEqual({
       kind: 'stale_schedule',
     });

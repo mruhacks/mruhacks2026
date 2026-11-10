@@ -58,6 +58,15 @@ curl -b "better-auth.session_token=$COOKIE" http://localhost:3000/dashboard
 The seeded admin (`admin@example.com` / `adminpassword123`) holds the `admin`
 role, which has every permission.
 
+**A second user needs more than a `user` row.** Anything that takes two
+people (approving a campaign send, for one) needs another account, and one
+inserted with `psql` is bounced from `/dashboard` to `/welcome` until it has
+accepted the current terms and privacy versions (`terms_acceptances`,
+`privacy_acceptances`; versions in `src/lib/consent.ts`) and has a
+`user_profiles` row (`gender_id` is required) plus either a
+`user_profile_about` or a `user_profile_professional` row. Give it a role
+through `authz.user_role`.
+
 **The seed only gets partway.** `scripts/seed.ts` creates static data (roles,
 permissions, lookups), the admin user and events. Then it fails on demo
 resumes because there's no object storage (S3/MinIO). That's expected, and
@@ -116,8 +125,9 @@ is real. Wrap the data access in `<Suspense>`, following the pattern in
 
 ## Known failures that aren't yours
 
-- `src/tests/mail.integration.test.ts` (7 tests) needs MailHog, which can't
-  run here. Everything else in `pnpm test` should pass.
+- `src/tests/mail.integration.test.ts` (7 tests) and the two "(MailHog)"
+  tests in `src/tests/unsubscribe.test.ts` need MailHog, which can't run
+  here. Everything else in `pnpm test` should pass.
 - `tsc` reports `Cannot find module '*.png'` until `next-env.d.ts` exists.
   It's gitignored and generated the first time `pnpm dev` or `pnpm build`
   runs. `src/tests/dietary-actions.test.ts` also has pre-existing type

@@ -3,7 +3,7 @@
  * it is `campaign:write:all`: a saved audience is a campaign drafting tool.
  *
  * A campaign has either inline rules or a linked saved audience, never both
- * (enforced by a check constraint too). Linked means it always uses the
+ * (enforced by a check constraint too). Linked means a draft uses the
  * audience's current rules; "Detach" copies them into the campaign, and
  * "Save as audience" goes the other way. The linking actions refresh the
  * client router, since the campaign page renders from server data.
@@ -80,9 +80,10 @@ export async function createSavedAudience(input: {
 }
 
 /**
- * Renames and/or replaces a saved audience's rules. Every campaign linking to
- * it picks the change up — including scheduled ones, which is why the editor
- * shows how many there are.
+ * Renames and/or replaces a saved audience's rules. Every linked draft picks
+ * the change up. A campaign that's awaiting approval or scheduled doesn't: it
+ * sends with the rules that were frozen when its send was requested, so what
+ * was approved can't be retargeted from here.
  */
 export async function updateSavedAudience(
   audienceId: string,
@@ -163,7 +164,10 @@ async function loadDraft(campaignId: string) {
   return row ?? null;
 }
 
-const NOT_DRAFT = 'Only drafts can be edited. Unschedule it first.';
+const NOT_DRAFT = 'Only drafts can be edited. Send it back to draft first.';
+
+/** Rolls back "Save as audience" when the campaign stopped being a draft mid-way. */
+class NotDraftError extends Error {}
 
 /** Points a draft at a saved audience, dropping its inline rules. */
 export async function linkCampaignAudience(campaignId: string, audienceId: string): Promise<ActionResult> {
@@ -250,14 +254,17 @@ export async function saveCampaignAudienceAs(campaignId: string, name: string): 
           updatedBy: user.id,
         })
         .returning({ id: schema.savedAudiences.id });
-      await tx
+      const linked = await tx
         .update(schema.campaigns)
         .set({
           savedAudienceId: audience.id,
           audienceRules: null,
           updatedBy: user.id,
         })
-        .where(eq(schema.campaigns.id, campaignId));
+        .where(and(eq(schema.campaigns.id, campaignId), eq(schema.campaigns.status, 'draft')))
+        .returning({ id: schema.campaigns.id });
+      // Sent for approval in between: it keeps the rules it was sent with.
+      if (linked.length === 0) throw new NotDraftError();
       return audience.id;
     });
     await writeAuditLog({
@@ -270,6 +277,7 @@ export async function saveCampaignAudienceAs(campaignId: string, name: string): 
     refresh();
     return ok({ id });
   } catch (error) {
+    if (error instanceof NotDraftError) return fail(NOT_DRAFT);
     return serverActionError('save audience', error);
   }
 }

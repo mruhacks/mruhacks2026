@@ -32,10 +32,11 @@ beforeAll(async () => {
 }, 30_000);
 
 describe('marketing role', () => {
-  test('holds exactly campaign read/write/send plus aggregate stats', async () => {
+  test('holds exactly campaign read/write/send/approve plus aggregate stats', async () => {
     const permissions = await Rbac.loadUserPermissions(marketingUserId);
     expect([...permissions].sort()).toEqual([
       'application:stats:all',
+      'campaign:approve:all',
       'campaign:read:all',
       'campaign:send:all',
       'campaign:write:all',
@@ -68,6 +69,7 @@ describe('admin and organizer roles', () => {
       'campaign:read:all',
       'campaign:write:all',
       'campaign:send:all',
+      'campaign:approve:all',
       'campaign:operational:all',
     ]) {
       expect(await Rbac.hasPermission(id, permission)).toBe(true);

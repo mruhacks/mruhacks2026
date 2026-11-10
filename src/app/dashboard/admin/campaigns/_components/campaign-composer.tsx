@@ -196,7 +196,9 @@ export function CampaignComposer({
               />
             ) : (
               <p className='text-muted-foreground text-sm'>
-                This campaign can no longer be edited. The preview shows what was sent.
+                {campaign.status === 'pending_approval' || campaign.status === 'scheduled'
+                  ? 'This campaign is locked while it waits to send. The preview shows what will go out.'
+                  : 'This campaign can no longer be edited. The preview shows what was sent.'}
               </p>
             )}
             {fieldErrors.bodyMarkdown && <FieldError>{fieldErrors.bodyMarkdown}</FieldError>}

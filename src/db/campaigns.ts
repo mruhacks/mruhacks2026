@@ -9,8 +9,9 @@
  *   email through the delivery queue
  *
  * Audiences are resolved at send time, never stored as a recipient list ahead
- * of it: the rules actually used are copied to `campaigns.audience_snapshot`
- * when a send starts.
+ * of it. The *rules* are frozen earlier: they're copied to
+ * `campaigns.audience_snapshot` when a send is requested, so what a second
+ * person approves is what goes out.
  */
 
 import { pgTable, uuid, text, smallint, timestamp, jsonb, index, uniqueIndex, check } from 'drizzle-orm/pg-core';
@@ -82,10 +83,31 @@ export const campaigns = pgTable(
      * Deleting an audience a campaign still links to is refused (restrict).
      */
     savedAudienceId: uuid('saved_audience_id').references(() => savedAudiences.id, { onDelete: 'restrict' }),
-    /** The rules actually used, copied when the send starts. */
+    /**
+     * The rules a send uses, copied when it's requested and cleared if the
+     * campaign goes back to draft. Editing a linked saved audience afterwards
+     * doesn't reach a campaign that's awaiting approval or scheduled.
+     */
     audienceSnapshot: jsonb('audience_snapshot').$type<AudienceRuleGroup>(),
     status: text('status').$type<Campaigns.Status>().notNull().default('draft'),
+    /**
+     * When it sends. While `pending_approval`, the hour that was asked for, or
+     * null for "as soon as it's approved".
+     */
     scheduledFor: timestamp('scheduled_for', { withTimezone: true }),
+    /**
+     * Two-person approval: whoever asked for the send, and the different
+     * person who approved it. Dispatch refuses a campaign with no
+     * `approvedAt`. All four are cleared when it goes back to draft.
+     */
+    approvalRequestedBy: uuid('approval_requested_by').references(() => user.id, {
+      onDelete: 'set null',
+    }),
+    approvalRequestedAt: timestamp('approval_requested_at', { withTimezone: true }),
+    approvedBy: uuid('approved_by').references(() => user.id, {
+      onDelete: 'set null',
+    }),
+    approvedAt: timestamp('approved_at', { withTimezone: true }),
     createdBy: uuid('created_by').references(() => user.id, {
       onDelete: 'set null',
     }),

@@ -20,6 +20,8 @@ export type ListRow = {
 };
 
 const editor = alias(schema.user, 'campaign_editor');
+const requester = alias(schema.user, 'campaign_requester');
+const approver = alias(schema.user, 'campaign_approver');
 
 /** Every campaign, most recently edited first. Ownership is shared, so there's no per-user filter. */
 export async function listCampaigns(): Promise<ListRow[]> {
@@ -46,6 +48,9 @@ export type Detail = typeof schema.campaigns.$inferSelect & {
   /** The event allows a wallet block: top-level (always, for a campaign event) with check-in on. */
   walletAllowed: boolean;
   updatedByName: string | null;
+  /** Who asked for the send and who approved it, when those accounts still exist. */
+  approvalRequestedByName: string | null;
+  approvedByName: string | null;
 };
 
 export async function getCampaign(id: string): Promise<Detail | null> {
@@ -56,10 +61,14 @@ export async function getCampaign(id: string): Promise<Detail | null> {
       eventCheckInEnabled: schema.events.checkInEnabled,
       eventParentId: schema.events.parentEventId,
       updatedByName: editor.name,
+      approvalRequestedByName: requester.name,
+      approvedByName: approver.name,
     })
     .from(schema.campaigns)
     .leftJoin(schema.events, eq(schema.campaigns.eventId, schema.events.id))
     .leftJoin(editor, eq(schema.campaigns.updatedBy, editor.id))
+    .leftJoin(requester, eq(schema.campaigns.approvalRequestedBy, requester.id))
+    .leftJoin(approver, eq(schema.campaigns.approvedBy, approver.id))
     .where(eq(schema.campaigns.id, id))
     .limit(1);
   if (!row) return null;
@@ -68,6 +77,8 @@ export async function getCampaign(id: string): Promise<Detail | null> {
     eventName: row.eventName,
     walletAllowed: Boolean(row.campaign.eventId && row.eventCheckInEnabled && !row.eventParentId),
     updatedByName: row.updatedByName,
+    approvalRequestedByName: row.approvalRequestedByName,
+    approvedByName: row.approvedByName,
   };
 }
 

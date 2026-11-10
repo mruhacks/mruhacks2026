@@ -15,7 +15,7 @@ export type SavedAudienceRow = {
   updatedByName: string | null;
   /** Campaigns that link to it, in any status. */
   usedBy: number;
-  /** Of those, how many are scheduled — editing changes who they'll reach. */
+  /** Of those, how many are scheduled. They keep the rules they were approved with. */
   scheduled: number;
 };
 
@@ -68,9 +68,10 @@ export async function getSavedAudience(id: string): Promise<SavedAudienceRow | n
 }
 
 /**
- * The rules a campaign uses right now: its linked saved audience's current
+ * The rules a draft uses right now: its linked saved audience's current
  * rules, or its own inline ones. This is what gets copied to
- * `audience_snapshot` when a send starts.
+ * `audience_snapshot` when a send is requested; from then on the campaign
+ * uses that copy, whatever happens to the saved audience.
  */
 export async function currentCampaignRules(campaign: {
   audienceRules: AudienceRuleGroup | null;

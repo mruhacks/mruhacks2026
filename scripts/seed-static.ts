@@ -229,7 +229,11 @@ async function seedRolesAndPermissions() {
     },
     {
       slug: 'campaign:send:all',
-      description: 'Send or schedule email campaigns',
+      description: 'Request that an email campaign be sent or scheduled, and stop or retry one',
+    },
+    {
+      slug: 'campaign:approve:all',
+      description: "Approve another person's request to send or schedule an email campaign",
     },
     {
       slug: 'campaign:operational:all',
@@ -341,13 +345,27 @@ async function seedRolesAndPermissions() {
         roleId: findRole('organizer').id,
         permissionId: findPerm('article:write:all').id,
       },
-      ...['campaign:read:all', 'campaign:write:all', 'campaign:send:all', 'campaign:operational:all'].map((slug) => ({
+      // Whoever can ask for a send can also approve someone else's: a send
+      // always takes two people, never one person twice.
+      ...[
+        'campaign:read:all',
+        'campaign:write:all',
+        'campaign:send:all',
+        'campaign:approve:all',
+        'campaign:operational:all',
+      ].map((slug) => ({
         roleId: findRole('organizer').id,
         permissionId: findPerm(slug).id,
       })),
       // Marketing writes and sends campaigns and reads aggregate stats only:
       // no event settings, applicant answers or operational email.
-      ...['campaign:read:all', 'campaign:write:all', 'campaign:send:all', 'application:stats:all'].map((slug) => ({
+      ...[
+        'campaign:read:all',
+        'campaign:write:all',
+        'campaign:send:all',
+        'campaign:approve:all',
+        'application:stats:all',
+      ].map((slug) => ({
         roleId: findRole('marketing').id,
         permissionId: findPerm(slug).id,
       })),

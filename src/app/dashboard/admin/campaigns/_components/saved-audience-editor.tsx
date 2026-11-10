@@ -87,8 +87,8 @@ export function SavedAudienceEditor({ audience, options, canWrite, canPreview }:
             <strong>
               {audience.usedBy} {audience.usedBy === 1 ? 'campaign' : 'campaigns'}
             </strong>
-            {audience.scheduled > 0 && <> ({audience.scheduled} scheduled)</>}. Changes apply to every linked campaign
-            that hasn&apos;t been sent yet.
+            {audience.scheduled > 0 && <> ({audience.scheduled} scheduled)</>}. Changes apply to linked drafts. A
+            campaign that&apos;s awaiting approval or scheduled keeps the rules it had when its send was asked for.
           </p>
         </div>
       )}
