@@ -9,7 +9,6 @@ import { updateCampaignAudience } from '../actions';
 import { detachCampaignAudience, linkCampaignAudience, saveCampaignAudienceAs } from '../audience-actions';
 import * as Campaigns from '@/lib/campaigns';
 import { LocalDateTime } from '@/components/local-date-time';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { FieldError } from '@/components/ui/field';
@@ -26,6 +25,7 @@ import {
 import { AudienceBuilder } from './audience-builder';
 import { CampaignComposer } from './campaign-composer';
 import { SendPanel } from './send-panel';
+import { CampaignStatusBadge } from './status-badge';
 
 type CampaignEditorPermissions = {
   /** `campaign:write:all` */
@@ -100,7 +100,7 @@ export function CampaignEditor({ campaign, options, savedAudiences, permissions,
             {campaign.updatedByName && <> by {campaign.updatedByName}</>}
           </p>
         </div>
-        <Badge variant='outline'>{Campaigns.STATUS_LABELS[campaign.status]}</Badge>
+        <CampaignStatusBadge status={campaign.status} />
       </div>
 
       <SendPanel
@@ -108,6 +108,7 @@ export function CampaignEditor({ campaign, options, savedAudiences, permissions,
         status={campaign.status}
         scheduledFor={campaign.scheduledFor}
         approval={{
+          subject: campaign.subject,
           requestedByViewer: campaign.approvalRequestedBy === viewerId,
           requestedByName: campaign.approvalRequestedByName,
           requestedAt: campaign.approvalRequestedAt,

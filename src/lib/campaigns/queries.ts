@@ -17,6 +17,8 @@ export type ListRow = {
   sentAt: Date | null;
   updatedAt: Date;
   updatedByName: string | null;
+  /** Who asked for the send, while it waits for approval. */
+  approvalRequestedByName: string | null;
 };
 
 const editor = alias(schema.user, 'campaign_editor');
@@ -36,10 +38,12 @@ export async function listCampaigns(): Promise<ListRow[]> {
       sentAt: schema.campaigns.sentAt,
       updatedAt: schema.campaigns.updatedAt,
       updatedByName: editor.name,
+      approvalRequestedByName: requester.name,
     })
     .from(schema.campaigns)
     .leftJoin(schema.events, eq(schema.campaigns.eventId, schema.events.id))
     .leftJoin(editor, eq(schema.campaigns.updatedBy, editor.id))
+    .leftJoin(requester, eq(schema.campaigns.approvalRequestedBy, requester.id))
     .orderBy(desc(schema.campaigns.updatedAt));
 }
 

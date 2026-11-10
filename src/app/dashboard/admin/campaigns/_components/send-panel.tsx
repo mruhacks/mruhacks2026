@@ -39,6 +39,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 
 /** Who asked for the send and who approved it. Names are null once an account is gone. */
 type Approval = {
+  /** The subject line, repeated in the approve dialog. */
+  subject: string;
   /** The signed-in user asked for it, so they can't be the one to approve it. */
   requestedByViewer: boolean;
   requestedByName: string | null;
@@ -101,14 +103,7 @@ export function SendPanel({
     );
   }
   if (status === 'scheduled') {
-    return (
-      <ScheduledCard
-        campaignId={campaignId}
-        scheduledFor={scheduledFor}
-        approvedByName={approval.approvedByName}
-        canSend={canSend}
-      />
-    );
+    return <ScheduledCard campaignId={campaignId} scheduledFor={scheduledFor} approval={approval} canSend={canSend} />;
   }
   return <ResultsCard campaignId={campaignId} status={status} canSend={canSend} />;
 }
@@ -124,15 +119,14 @@ function SendNowCard({
   const [scheduling, setScheduling] = React.useState(false);
   return (
     <Card>
-      <CardHeader className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
-        <div>
+      <CardHeader className='flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between'>
+        <div className='space-y-1.5'>
           <CardTitle>Send</CardTitle>
           <CardDescription>
-            Someone else has to approve a send before anything goes out. Who matches the audience is worked out the
-            moment it&apos;s sent, and emails go out at about 10 a second.
+            Pick when it should go out, then a second person approves it. Nothing is sent until they do.
           </CardDescription>
         </div>
-        <div className='flex flex-wrap gap-2'>
+        <div className='flex shrink-0 gap-2'>
           <Button
             variant='outline'
             disabled={preparing}
@@ -392,6 +386,30 @@ function ScheduleDialog({
   );
 }
 
+/** A row of labelled facts about a send: who asked, when it goes, who approved. */
+function Facts({ children }: { children: React.ReactNode }) {
+  return <dl className='grid gap-x-8 gap-y-4 text-sm sm:grid-cols-3'>{children}</dl>;
+}
+
+function Fact({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className='min-w-0'>
+      <dt className='text-muted-foreground text-xs'>{label}</dt>
+      <dd className='mt-1 font-medium'>{children}</dd>
+    </div>
+  );
+}
+
+function requesterLabel(approval: Approval): string {
+  if (approval.requestedByViewer) return 'You';
+  return approval.requestedByName ?? 'A deleted account';
+}
+
+function SendTime({ scheduledFor }: { scheduledFor: Date | string | null }) {
+  if (!scheduledFor) return <>As soon as it&apos;s approved</>;
+  return <LocalDateTime value={scheduledFor} dateStyle='medium' timeStyle='short' timeZoneName='short' />;
+}
+
 /**
  * A send someone asked for, waiting on a second person. Whoever asked can
  * withdraw it; anyone else who can approve can approve it or turn it down.
@@ -430,32 +448,19 @@ function PendingApprovalCard({
 
   return (
     <Card>
-      <CardHeader className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
-        <div>
-          <CardTitle>Waiting for approval</CardTitle>
+      <CardHeader className='flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between'>
+        <div className='space-y-1.5'>
+          <CardTitle>{mayApprove ? 'Needs your approval' : 'Waiting for approval'}</CardTitle>
           <CardDescription>
-            {approval.requestedByViewer ? 'You' : (approval.requestedByName ?? 'Someone')} asked
-            {approval.requestedAt && (
-              <>
-                {' '}
-                on <LocalDateTime value={approval.requestedAt} dateStyle='medium' timeStyle='short' />
-              </>
-            )}{' '}
-            for this to be sent{' '}
-            {scheduledFor ? (
-              <LocalDateTime value={scheduledFor} dateStyle='full' timeStyle='short' timeZoneName='short' />
-            ) : (
-              'as soon as it’s approved'
-            )}
-            .{' '}
             {approval.requestedByViewer
-              ? 'Someone else has to approve it first'
-              : 'Anyone else with approval access can approve it'}
-            , and it&apos;s locked until then.
+              ? 'You asked for this send, so someone else has to approve it. It’s locked until they do.'
+              : mayApprove
+                ? 'Read the email and its audience below. Nothing goes out until you or another approver says so.'
+                : 'It’s locked, and nothing goes out, until someone with approval access approves it.'}
           </CardDescription>
         </div>
         {(mayApprove || mayCancel) && (
-          <div className='flex flex-wrap gap-2'>
+          <div className='flex shrink-0 gap-2'>
             {mayCancel && (
               <Button
                 variant='outline'
@@ -469,7 +474,7 @@ function PendingApprovalCard({
                   else toast.success('Back to draft');
                 }}
               >
-                <Undo2 /> {approval.requestedByViewer ? 'Withdraw' : 'Send back to draft'}
+                <Undo2 /> {approval.requestedByViewer ? 'Withdraw' : 'Back to draft'}
               </Button>
             )}
             {mayApprove && (
@@ -480,12 +485,35 @@ function PendingApprovalCard({
           </div>
         )}
       </CardHeader>
-      {reviewing && <ApproveDialog campaignId={campaignId} onClose={() => setReviewing(false)} />}
+      <CardContent>
+        <Facts>
+          <Fact label='Asked by'>{requesterLabel(approval)}</Fact>
+          <Fact label='Asked'>
+            {approval.requestedAt ? (
+              <LocalDateTime value={approval.requestedAt} dateStyle='medium' timeStyle='short' />
+            ) : (
+              '—'
+            )}
+          </Fact>
+          <Fact label='Sends'>
+            <SendTime scheduledFor={scheduledFor} />
+          </Fact>
+        </Facts>
+      </CardContent>
+      {reviewing && <ApproveDialog campaignId={campaignId} approval={approval} onClose={() => setReviewing(false)} />}
     </Card>
   );
 }
 
-function ApproveDialog({ campaignId, onClose }: { campaignId: string; onClose: () => void }) {
+function ApproveDialog({
+  campaignId,
+  approval,
+  onClose,
+}: {
+  campaignId: string;
+  approval: Approval;
+  onClose: () => void;
+}) {
   const summary = useQuery({
     queryKey: ['campaign-approval-summary', campaignId],
     queryFn: async () => {
@@ -502,6 +530,7 @@ function ApproveDialog({ campaignId, onClose }: { campaignId: string; onClose: (
   const data = summary.data;
   const typedOk = !data?.requiresTypedConfirmation || Number(typed.replace(/[,\s]/g, '')) === data.recipients;
   const canConfirm = !summary.isFetching && data && data.problems.length === 0 && typedOk;
+  const sendsNow = data ? data.scheduledFor === null : false;
 
   async function confirm() {
     if (!data || !canConfirm || isApproving) return;
@@ -513,7 +542,7 @@ function ApproveDialog({ campaignId, onClose }: { campaignId: string; onClose: (
         setError(result.error);
         return;
       }
-      toast.success(data.scheduledFor ? 'Approved and scheduled' : 'Approved: the campaign is sending');
+      toast.success(sendsNow ? 'Approved: the campaign is sending' : 'Approved and scheduled');
       onClose();
     } catch {
       setError('Could not approve the campaign. Please try again.');
@@ -526,27 +555,9 @@ function ApproveDialog({ campaignId, onClose }: { campaignId: string; onClose: (
     <Dialog open onOpenChange={(next) => !next && !isApproving && onClose()}>
       <DialogContent className='sm:max-w-md'>
         <DialogHeader>
-          <DialogTitle>
-            {data ? (
-              <>
-                Approve sending to <strong>{data.recipients.toLocaleString()}</strong>{' '}
-                {data.recipients === 1 ? 'person' : 'people'}?
-              </>
-            ) : (
-              'Approve this send?'
-            )}
-          </DialogTitle>
+          <DialogTitle>Approve this send?</DialogTitle>
           <DialogDescription>
-            {data?.scheduledFor ? (
-              <>
-                It will send{' '}
-                <LocalDateTime value={data.scheduledFor} dateStyle='full' timeStyle='short' timeZoneName='short' />.
-              </>
-            ) : (
-              'It will start sending straight away.'
-            )}{' '}
-            You&apos;re the second check, so read the email and its audience on this page first. Emails already sent
-            can&apos;t be taken back.
+            You&apos;re the second check. Once it starts, emails already sent can&apos;t be taken back.
           </DialogDescription>
         </DialogHeader>
 
@@ -554,27 +565,46 @@ function ApproveDialog({ campaignId, onClose }: { campaignId: string; onClose: (
           <Spinner />
         ) : summary.isError ? (
           <FieldError>{summary.error.message}</FieldError>
-        ) : data!.problems.length > 0 ? (
-          <ul className='text-destructive list-disc space-y-1 pl-5 text-sm'>
-            {data!.problems.map((problem) => (
-              <li key={problem}>{problem}</li>
-            ))}
-          </ul>
-        ) : data!.requiresTypedConfirmation ? (
-          <Field>
-            <FieldLabel htmlFor='approve-confirm'>Type {data!.recipients.toLocaleString()} to confirm</FieldLabel>
-            <Input
-              id='approve-confirm'
-              inputMode='numeric'
-              autoComplete='off'
-              value={typed}
-              onChange={(e) => {
-                setTyped(e.target.value);
-                setError(null);
-              }}
-            />
-          </Field>
-        ) : null}
+        ) : (
+          <>
+            <dl className='bg-muted/50 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 rounded-lg border p-3 text-sm'>
+              <dt className='text-muted-foreground'>Subject</dt>
+              <dd className='min-w-0 font-medium wrap-break-word'>{approval.subject}</dd>
+              <dt className='text-muted-foreground'>Asked by</dt>
+              <dd className='font-medium'>{requesterLabel(approval)}</dd>
+              <dt className='text-muted-foreground'>Sends</dt>
+              <dd className='font-medium'>
+                {sendsNow ? 'Straight away' : <SendTime scheduledFor={data!.scheduledFor} />}
+              </dd>
+              <dt className='text-muted-foreground'>Reaches</dt>
+              <dd className='font-medium'>
+                {data!.recipients.toLocaleString()} {data!.recipients === 1 ? 'person' : 'people'}
+              </dd>
+            </dl>
+
+            {data!.problems.length > 0 ? (
+              <ul className='text-destructive list-disc space-y-1 pl-5 text-sm'>
+                {data!.problems.map((problem) => (
+                  <li key={problem}>{problem}</li>
+                ))}
+              </ul>
+            ) : data!.requiresTypedConfirmation ? (
+              <Field>
+                <FieldLabel htmlFor='approve-confirm'>Type {data!.recipients.toLocaleString()} to confirm</FieldLabel>
+                <Input
+                  id='approve-confirm'
+                  inputMode='numeric'
+                  autoComplete='off'
+                  value={typed}
+                  onChange={(e) => {
+                    setTyped(e.target.value);
+                    setError(null);
+                  }}
+                />
+              </Field>
+            ) : null}
+          </>
+        )}
 
         {error && <FieldError>{error}</FieldError>}
 
@@ -583,7 +613,7 @@ function ApproveDialog({ campaignId, onClose }: { campaignId: string; onClose: (
             Cancel
           </Button>
           <Button onClick={confirm} disabled={!canConfirm || isApproving}>
-            {isApproving ? 'Approving…' : 'Approve'}
+            {isApproving ? 'Approving…' : sendsNow ? 'Approve and send' : 'Approve and schedule'}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -594,14 +624,9 @@ function ApproveDialog({ campaignId, onClose }: { campaignId: string; onClose: (
 function ScheduledCard({
   campaignId,
   scheduledFor,
-  approvedByName,
+  approval,
   canSend,
-}: {
-  campaignId: string;
-  scheduledFor: Date | null;
-  approvedByName: string | null;
-  canSend: boolean;
-}) {
+}: Pick<Props, 'campaignId' | 'scheduledFor' | 'approval' | 'canSend'>) {
   const [busy, setBusy] = React.useState(false);
   const router = useRouter();
   const status = useQuery({
@@ -626,18 +651,17 @@ function ScheduledCard({
   }
   return (
     <Card>
-      <CardHeader className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
-        <div>
+      <CardHeader className='flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between'>
+        <div className='space-y-1.5'>
           <CardTitle>Scheduled</CardTitle>
           <CardDescription>
-            Sends <LocalDateTime value={scheduledFor} dateStyle='full' timeStyle='short' timeZoneName='short' />
-            {approvedByName && <>, approved by {approvedByName}</>}. Unschedule it to make changes; it will need
-            approving again.
+            Approved and locked until it sends. Unschedule it to make changes; it will need approving again.
           </CardDescription>
         </div>
         {canSend && (
           <Button
             variant='outline'
+            className='shrink-0'
             disabled={busy}
             onClick={async () => {
               setBusy(true);
@@ -652,6 +676,15 @@ function ScheduledCard({
           </Button>
         )}
       </CardHeader>
+      <CardContent>
+        <Facts>
+          <Fact label='Sends'>
+            <SendTime scheduledFor={scheduledFor} />
+          </Fact>
+          <Fact label='Asked by'>{requesterLabel(approval)}</Fact>
+          <Fact label='Approved by'>{approval.approvedByName ?? 'A deleted account'}</Fact>
+        </Facts>
+      </CardContent>
     </Card>
   );
 }
@@ -712,8 +745,8 @@ function ResultsCard({
       <CardHeader className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between'>
         <div>
           <CardTitle>Results</CardTitle>
-          <CardDescription className='capitalize'>
-            {currentStatus === 'cancelled' ? 'Stopped' : currentStatus}
+          <CardDescription>
+            {Campaigns.STATUS_LABELS[currentStatus as Campaigns.Status] ?? currentStatus}
           </CardDescription>
         </div>
         {canSend && (
