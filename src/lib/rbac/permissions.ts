@@ -170,7 +170,11 @@ const CORE_PERMISSIONS = [
   },
   {
     slug: 'campaign:send:all',
-    description: 'Send or schedule email campaigns',
+    description: 'Request that an email campaign be sent or scheduled, and stop or retry one',
+  },
+  {
+    slug: 'campaign:approve:all',
+    description: "Approve another person's request to send or schedule an email campaign",
   },
   {
     slug: 'campaign:operational:all',

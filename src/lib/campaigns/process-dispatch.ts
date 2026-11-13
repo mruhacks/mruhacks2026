@@ -7,13 +7,13 @@ import { writeAuditLog } from '@/utils/audit-log';
 import { db } from '@/utils/db';
 import { resolveAudience } from './audience';
 import { deliveryDelaySeconds, publishCampaignDelivery } from './campaign-queue';
-import { currentCampaignRules } from './saved-audiences';
 
 export type ProcessDispatchOutcome =
   | { kind: 'dispatched'; recipients: number; published: number }
   | { kind: 'resumed'; published: number }
   | { kind: 'not_found' }
   | { kind: 'stale_schedule' }
+  | { kind: 'not_approved' }
   | { kind: 'not_scheduled'; status: string };
 
 /** Delivery rows are written this many at a time. */
@@ -24,12 +24,18 @@ const PUBLISH_CONCURRENCY = 20;
 /**
  * Consumer logic for one `campaign-dispatch` message.
  *
- * Claims the campaign by moving it `scheduled` → `sending` (Send now marks a
- * draft `scheduled` and publishes immediately, so both paths claim the same
- * way and only one dispatch can ever win). In the same transaction it works
- * out the audience *now*, copies the rules it used to `audience_snapshot`,
- * and writes one `queued` delivery row per recipient. Then it publishes a
- * delivery message per row, `floor(i / 10)` seconds apart.
+ * Claims the campaign by moving it `scheduled` → `sending` (approving a
+ * send-now request marks it `scheduled` and publishes immediately, so both
+ * paths claim the same way and only one dispatch can ever win). In the same
+ * transaction it works out *now* who matches the rules frozen in
+ * `audience_snapshot` when the send was requested, and writes one `queued`
+ * delivery row per recipient. Then it publishes a delivery message per row,
+ * `floor(i / 10)` seconds apart.
+ *
+ * This is the last check before email goes out, so it doesn't take the
+ * `scheduled` status on trust: a campaign with no recorded approval, or one
+ * whose requester and approver are the same person, is put back to draft
+ * instead of sent, whichever code path scheduled it.
  *
  * A redelivered message for a campaign that's already `sending` (the first
  * attempt crashed after claiming) re-publishes its still-queued rows; the
@@ -60,8 +66,27 @@ export async function processCampaignDispatch(
     }
     if (campaign.status === 'sending') return { kind: 'resume' } as const;
 
-    const rules = await currentCampaignRules(campaign);
-    if (!rules) throw new Error(`Campaign ${campaignId} has no audience`);
+    const rules = campaign.audienceSnapshot;
+    const samePerson =
+      campaign.approvedBy !== null &&
+      campaign.approvalRequestedBy !== null &&
+      campaign.approvedBy === campaign.approvalRequestedBy;
+    if (!campaign.approvedAt || !rules || samePerson) {
+      await tx
+        .update(schema.campaigns)
+        .set({
+          status: 'draft',
+          scheduledFor: null,
+          audienceSnapshot: null,
+          approvalRequestedBy: null,
+          approvalRequestedAt: null,
+          approvedBy: null,
+          approvedAt: null,
+        })
+        .where(eq(schema.campaigns.id, campaignId));
+      return { kind: 'not_approved', actorId: campaign.updatedBy } as const;
+    }
+
     const recipients = await resolveAudience(rules, {
       type: campaign.type,
       eventId: campaign.eventId,
@@ -71,7 +96,6 @@ export async function processCampaignDispatch(
       .update(schema.campaigns)
       .set({
         status: 'sending',
-        audienceSnapshot: rules,
         // A send with nobody to send to is done the moment it starts.
         ...(recipients.length === 0 && { status: 'sent', sentAt: new Date() }),
       })
@@ -95,12 +119,26 @@ export async function processCampaignDispatch(
       rules,
       recipients: recipients.length,
       savedAudienceId: campaign.savedAudienceId,
+      requestedBy: campaign.approvalRequestedBy,
+      approvedBy: campaign.approvedBy,
       actorId: campaign.updatedBy,
     } as const;
   });
 
   if (claimed.kind === 'not_found' || claimed.kind === 'not_scheduled' || claimed.kind === 'stale_schedule') {
     return claimed;
+  }
+
+  if (claimed.kind === 'not_approved') {
+    console.error('[campaigns/dispatch] refused a scheduled campaign with no valid approval', { campaignId });
+    await writeAuditLog({
+      actorId: claimed.actorId,
+      action: 'campaign.dispatch_refused',
+      targetType: 'campaign',
+      targetId: campaignId,
+      metadata: { reason: 'not approved by a second person' },
+    });
+    return { kind: 'not_approved' };
   }
 
   if (claimed.kind === 'claimed') {
@@ -113,6 +151,8 @@ export async function processCampaignDispatch(
         recipients: claimed.recipients,
         audienceRules: claimed.rules,
         savedAudienceId: claimed.savedAudienceId,
+        requestedBy: claimed.requestedBy,
+        approvedBy: claimed.approvedBy,
       },
     });
   }

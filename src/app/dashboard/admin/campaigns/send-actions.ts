@@ -1,9 +1,18 @@
 /**
- * Sending a campaign: Send now, Stop, Retry failed, and the results view.
- * Sending, stopping and retrying are `campaign:send:all` (operational
- * campaigns also need `campaign:operational:all`); results are
- * `campaign:read:all`, with the per-recipient list on `participant:read:all`.
- * Every send, stop and retry is audit-logged.
+ * Sending a campaign: asking for a send, approving one, Stop, Retry failed,
+ * and the results view.
+ *
+ * A send always takes two people. Someone with `campaign:send:all` asks for
+ * it (now, or at a chosen hour), which locks the campaign and freezes its
+ * audience rules as `pending_approval`. A *different* person with
+ * `campaign:approve:all` then approves it, and only that queues anything.
+ * Operational campaigns also need `campaign:operational:all` on both sides.
+ * Neither step can be taken from an impersonated session: each of the two
+ * has to be a person signed in as themselves.
+ *
+ * Results are `campaign:read:all`, with the per-recipient list on
+ * `participant:read:all`. Every request, approval, rejection, stop and retry
+ * is audit-logged.
  */
 
 'use server';
@@ -17,12 +26,25 @@ import * as Campaigns from '@/lib/campaigns/server';
 import * as Rbac from '@/lib/rbac/server';
 import { fail, ok, type ActionResult } from '@/utils/action-result';
 import { writeAuditLog } from '@/utils/audit-log';
-import { getUser } from '@/utils/auth';
+import { getImpersonatedUser, getUser } from '@/utils/auth';
 import { db } from '@/utils/db';
 import { serverActionError } from '@/utils/server-action-error';
 
-/** Above this many recipients, Send now asks for the count to be typed back. */
+/** Above this many recipients, asking for or approving a send needs the count typed back. */
 const TYPE_TO_CONFIRM_ABOVE = 100;
+
+/** What a campaign that leaves the approval flow (back to draft) is reset to. */
+const NO_APPROVAL = {
+  scheduledFor: null,
+  audienceSnapshot: null,
+  approvalRequestedBy: null,
+  approvalRequestedAt: null,
+  approvedBy: null,
+  approvedAt: null,
+} as const;
+
+const OWN_SESSION_ONLY =
+  'You’re signed in as someone else. Stop impersonating to ask for or approve a send as yourself.';
 
 async function loadCampaign(campaignId: string) {
   if (!z.uuid().safeParse(campaignId).success) return null;
@@ -35,8 +57,10 @@ async function loadCampaign(campaignId: string) {
   return row ?? null;
 }
 
+type CampaignType = 'marketing' | 'operational' | null;
+
 /** Signed in, `campaign:send:all`, and `campaign:operational:all` for operational ones. */
-async function requireSender(type: 'marketing' | 'operational' | null) {
+async function requireSender(type: CampaignType) {
   const user = await getUser();
   if (!user) return null;
   await Rbac.requirePermission(user.id, 'campaign:send:all');
@@ -44,6 +68,23 @@ async function requireSender(type: 'marketing' | 'operational' | null) {
     await Rbac.requirePermission(user.id, 'campaign:operational:all');
   }
   return user;
+}
+
+/** Signed in, `campaign:approve:all`, and `campaign:operational:all` for operational ones. */
+async function requireApprover(type: CampaignType) {
+  const user = await getUser();
+  if (!user) return null;
+  await Rbac.requirePermission(user.id, 'campaign:approve:all');
+  if (type === 'operational') {
+    await Rbac.requirePermission(user.id, 'campaign:operational:all');
+  }
+  return user;
+}
+
+/** Whether `userId` may ask for a send of this type of campaign right now. */
+async function maySend(userId: string, type: CampaignType): Promise<boolean> {
+  if (!(await Rbac.hasPermission(userId, 'campaign:send:all'))) return false;
+  return type !== 'operational' || Rbac.hasPermission(userId, 'campaign:operational:all');
 }
 
 export type SendSummary = {
@@ -54,47 +95,102 @@ export type SendSummary = {
   problems: string[];
 };
 
+/** Who `rules` reaches right now, and what's wrong with the content. */
+async function summarize(
+  row: NonNullable<Awaited<ReturnType<typeof loadCampaign>>>,
+  rules: Campaigns.AudienceRuleGroup | null,
+): Promise<SendSummary> {
+  const { campaign } = row;
+  const problems = await Campaigns.contentErrors({ ...campaign, eventName: row.eventName }, campaign.eventId, 'send');
+  const recipients = rules
+    ? await Campaigns.countAudience(rules, {
+        type: campaign.type,
+        eventId: campaign.eventId,
+      })
+    : 0;
+  if (recipients === 0) problems.push('Nobody matches this audience yet.');
+  return {
+    recipients,
+    requiresTypedConfirmation: recipients > TYPE_TO_CONFIRM_ABOVE,
+    problems,
+  };
+}
+
 /** What the Send now dialog shows: who it reaches right now, and what's blocking it. */
 export async function getSendSummary(campaignId: string): Promise<ActionResult<SendSummary>> {
   const row = await loadCampaign(campaignId);
   const user = await requireSender(row?.campaign.type ?? null);
   if (!user) return fail('Not authenticated');
   if (!row) return fail('Campaign not found');
-  const { campaign } = row;
 
   try {
-    const problems = await Campaigns.contentErrors({ ...campaign, eventName: row.eventName }, campaign.eventId, 'send');
-    if (campaign.status !== 'draft') {
-      problems.unshift('Only drafts can be sent.');
+    const summary = await summarize(row, await Campaigns.currentCampaignRules(row.campaign));
+    if (row.campaign.status !== 'draft') {
+      summary.problems.unshift('Only drafts can be sent.');
     }
-    const rules = await Campaigns.currentCampaignRules(campaign);
-    const recipients = rules
-      ? await Campaigns.countAudience(rules, {
-          type: campaign.type,
-          eventId: campaign.eventId,
-        })
-      : 0;
-    if (recipients === 0) problems.push('Nobody matches this audience yet.');
-    return ok({
-      recipients,
-      requiresTypedConfirmation: recipients > TYPE_TO_CONFIRM_ABOVE,
-      problems,
-    });
+    return ok(summary);
   } catch (error) {
     return serverActionError('check the campaign', error);
   }
 }
 
 /**
- * Sends a draft now: marks it `scheduled` for this moment and publishes the
- * dispatch, which claims it the same way the hourly scheduler does. Over
- * 100 recipients, `confirmRecipients` must equal the current count.
+ * Moves a draft to `pending_approval`: locks it, freezes the audience rules
+ * it has right now, and records who asked and for when (`scheduledFor` null
+ * means as soon as it's approved). Nothing is queued.
  */
-export async function sendCampaignNow(campaignId: string, confirmRecipients?: number): Promise<ActionResult> {
+async function requestApproval(
+  row: NonNullable<Awaited<ReturnType<typeof loadCampaign>>>,
+  userId: string,
+  scheduledFor: Date | null,
+  recipientsAtRequest: number | null,
+): Promise<ActionResult> {
+  const { campaign } = row;
+  const rules = await Campaigns.currentCampaignRules(campaign);
+  if (!rules) return fail('This campaign has no audience.');
+
+  const [pending] = await db
+    .update(schema.campaigns)
+    .set({
+      status: 'pending_approval',
+      scheduledFor,
+      audienceSnapshot: rules,
+      approvalRequestedBy: userId,
+      approvalRequestedAt: new Date(),
+      approvedBy: null,
+      approvedAt: null,
+      updatedBy: userId,
+    })
+    .where(and(eq(schema.campaigns.id, campaign.id), eq(schema.campaigns.status, 'draft')))
+    .returning({ id: schema.campaigns.id });
+  if (!pending) return fail('Only drafts can be sent.');
+
+  await writeAuditLog({
+    actorId: userId,
+    action: 'campaign.approval_requested',
+    targetType: 'campaign',
+    targetId: campaign.id,
+    metadata: {
+      sendAt: scheduledFor?.toISOString() ?? 'on approval',
+      recipientsAtRequest,
+      audienceRules: rules,
+      savedAudienceId: campaign.savedAudienceId,
+    },
+  });
+  refresh();
+  return ok();
+}
+
+/**
+ * Asks for a draft to be sent as soon as someone else approves it. Over 100
+ * recipients, `confirmRecipients` must equal the current count.
+ */
+export async function requestSendNow(campaignId: string, confirmRecipients?: number): Promise<ActionResult> {
   const row = await loadCampaign(campaignId);
   const user = await requireSender(row?.campaign.type ?? null);
   if (!user) return fail('Not authenticated');
   if (!row) return fail('Campaign not found');
+  if (await getImpersonatedUser()) return fail(OWN_SESSION_ONLY);
 
   const summary = await getSendSummary(campaignId);
   if (!summary.success) return summary;
@@ -104,51 +200,24 @@ export async function sendCampaignNow(campaignId: string, confirmRecipients?: nu
     return fail(`Type ${recipients.toLocaleString('en-US')} to confirm sending to that many people.`);
   }
 
-  const scheduledFor = new Date();
-  const [scheduled] = await db
-    .update(schema.campaigns)
-    .set({ status: 'scheduled', scheduledFor, updatedBy: user.id })
-    .where(and(eq(schema.campaigns.id, campaignId), eq(schema.campaigns.status, 'draft')))
-    .returning({ id: schema.campaigns.id });
-  if (!scheduled) return fail('Only drafts can be sent.');
-
   try {
-    await Campaigns.publishCampaignDispatch(campaignId, scheduledFor);
+    return await requestApproval(row, user.id, null, recipients);
   } catch (error) {
-    // Nothing was queued; put it back so it can be sent again.
-    await db
-      .update(schema.campaigns)
-      .set({ status: 'draft', scheduledFor: null })
-      .where(
-        and(
-          eq(schema.campaigns.id, campaignId),
-          eq(schema.campaigns.status, 'scheduled'),
-          eq(schema.campaigns.scheduledFor, scheduledFor),
-        ),
-      );
-    return serverActionError('queue the campaign', error);
+    return serverActionError('ask for approval', error);
   }
-
-  await writeAuditLog({
-    actorId: user.id,
-    action: 'campaign.send',
-    targetType: 'campaign',
-    targetId: campaignId,
-    metadata: { recipientsAtConfirm: recipients },
-  });
-  refresh();
-  return ok();
 }
 
 /**
- * Schedules a draft for a whole UTC hour selected from localized slots. The hourly cron dispatches it at or after that
- * hour; the audience is worked out then, not now.
+ * Asks for a draft to be sent at a whole UTC hour selected from localized
+ * slots, once someone else approves it. The hourly cron dispatches it at or
+ * after that hour; who matches the frozen rules is worked out then, not now.
  */
-export async function scheduleCampaign(campaignId: string, scheduledForIso: string): Promise<ActionResult> {
+export async function requestSchedule(campaignId: string, scheduledForIso: string): Promise<ActionResult> {
   const row = await loadCampaign(campaignId);
   const user = await requireSender(row?.campaign.type ?? null);
   if (!user) return fail('Not authenticated');
   if (!row) return fail('Campaign not found');
+  if (await getImpersonatedUser()) return fail(OWN_SESSION_ONLY);
 
   const parsed = z.iso.datetime({ offset: true }).safeParse(scheduledForIso);
   if (!parsed.success) return fail('Choose a date and hour.');
@@ -164,32 +233,175 @@ export async function scheduleCampaign(campaignId: string, scheduledForIso: stri
     return fail('Choose an hour in the future.');
   }
 
-  const problems = await Campaigns.contentErrors(
-    { ...row.campaign, eventName: row.eventName },
-    row.campaign.eventId,
-    'send',
-  );
-  if (problems.length > 0) return fail(problems[0]);
+  try {
+    const problems = await Campaigns.contentErrors(
+      { ...row.campaign, eventName: row.eventName },
+      row.campaign.eventId,
+      'send',
+    );
+    if (problems.length > 0) return fail(problems[0]);
+    return await requestApproval(row, user.id, scheduledFor, null);
+  } catch (error) {
+    return serverActionError('ask for approval', error);
+  }
+}
 
-  const [scheduled] = await db
+export type ApprovalSummary = SendSummary & {
+  /** The hour that was asked for; null means it goes out as soon as it's approved. */
+  scheduledFor: string | null;
+};
+
+/**
+ * Why `userId` can't approve this request, or null when they can. Kept apart
+ * from the permission check: these are the two-person rules themselves.
+ */
+async function approvalBlocker(campaign: typeof schema.campaigns.$inferSelect, userId: string): Promise<string | null> {
+  if (campaign.status !== 'pending_approval') return 'This campaign isn’t waiting for approval.';
+  if (!campaign.approvalRequestedBy) {
+    return 'Whoever asked for this send no longer has an account. Send it back to draft and ask again.';
+  }
+  if (campaign.approvalRequestedBy === userId) {
+    return 'You asked for this send, so someone else has to approve it.';
+  }
+  // Someone who has since lost access can't have a send go out in their name.
+  if (!(await maySend(campaign.approvalRequestedBy, campaign.type))) {
+    return 'Whoever asked for this send can no longer send campaigns. Send it back to draft and ask again.';
+  }
+  if (campaign.scheduledFor && campaign.scheduledFor.getTime() <= Date.now()) {
+    return 'The time this was meant to send has passed. Send it back to draft and pick a new one.';
+  }
+  return null;
+}
+
+/** What the Approve dialog shows: who the frozen rules reach right now, and what's blocking it. */
+export async function getApprovalSummary(campaignId: string): Promise<ActionResult<ApprovalSummary>> {
+  const row = await loadCampaign(campaignId);
+  const user = await requireApprover(row?.campaign.type ?? null);
+  if (!user) return fail('Not authenticated');
+  if (!row) return fail('Campaign not found');
+
+  try {
+    const summary = await summarize(row, row.campaign.audienceSnapshot);
+    const blocker = await approvalBlocker(row.campaign, user.id);
+    if (blocker) summary.problems.unshift(blocker);
+    return ok({ ...summary, scheduledFor: row.campaign.scheduledFor?.toISOString() ?? null });
+  } catch (error) {
+    return serverActionError('check the campaign', error);
+  }
+}
+
+/**
+ * Approves someone else's request. A request for a set hour becomes
+ * `scheduled` for it; one with no hour is marked `scheduled` for this moment
+ * and its dispatch published, which claims it the same way the hourly
+ * scheduler does. Over 100 recipients, `confirmRecipients` must equal the
+ * current count.
+ */
+export async function approveCampaign(campaignId: string, confirmRecipients?: number): Promise<ActionResult> {
+  const row = await loadCampaign(campaignId);
+  const user = await requireApprover(row?.campaign.type ?? null);
+  if (!user) return fail('Not authenticated');
+  if (!row) return fail('Campaign not found');
+  if (await getImpersonatedUser()) return fail(OWN_SESSION_ONLY);
+
+  const summary = await getApprovalSummary(campaignId);
+  if (!summary.success) return summary;
+  const { recipients, requiresTypedConfirmation, problems } = summary.data!;
+  if (problems.length > 0) return fail(problems[0]);
+  if (requiresTypedConfirmation && confirmRecipients !== recipients) {
+    return fail(`Type ${recipients.toLocaleString('en-US')} to confirm sending to that many people.`);
+  }
+
+  const { campaign } = row;
+  const requestedBy = campaign.approvalRequestedBy!;
+  const sendNow = campaign.scheduledFor === null;
+  const scheduledFor = campaign.scheduledFor ?? new Date();
+  const [approved] = await db
     .update(schema.campaigns)
-    .set({ status: 'scheduled', scheduledFor, updatedBy: user.id })
-    .where(and(eq(schema.campaigns.id, campaignId), eq(schema.campaigns.status, 'draft')))
+    .set({ status: 'scheduled', scheduledFor, approvedBy: user.id, approvedAt: new Date() })
+    .where(
+      and(
+        eq(schema.campaigns.id, campaignId),
+        eq(schema.campaigns.status, 'pending_approval'),
+        // The request that was checked above, not one made since.
+        eq(schema.campaigns.approvalRequestedBy, requestedBy),
+        eq(schema.campaigns.approvalRequestedAt, campaign.approvalRequestedAt!),
+      ),
+    )
     .returning({ id: schema.campaigns.id });
-  if (!scheduled) return fail('Only drafts can be scheduled.');
+  if (!approved) return fail('This campaign isn’t waiting for approval any more.');
+
+  if (sendNow) {
+    try {
+      await Campaigns.publishCampaignDispatch(campaignId, scheduledFor);
+    } catch (error) {
+      // Nothing was queued; put it back so it can be approved again.
+      await db
+        .update(schema.campaigns)
+        .set({ status: 'pending_approval', scheduledFor: null, approvedBy: null, approvedAt: null })
+        .where(
+          and(
+            eq(schema.campaigns.id, campaignId),
+            eq(schema.campaigns.status, 'scheduled'),
+            eq(schema.campaigns.scheduledFor, scheduledFor),
+          ),
+        );
+      return serverActionError('queue the campaign', error);
+    }
+  }
 
   await writeAuditLog({
     actorId: user.id,
-    action: 'campaign.schedule',
+    action: 'campaign.approved',
     targetType: 'campaign',
     targetId: campaignId,
-    metadata: { scheduledFor: scheduledFor.toISOString() },
+    metadata: {
+      requestedBy,
+      sendAt: sendNow ? 'now' : scheduledFor.toISOString(),
+      recipientsAtApproval: recipients,
+    },
   });
   refresh();
   return ok();
 }
 
-/** Puts a scheduled campaign back to draft, as long as its dispatch hasn't started. */
+/**
+ * Sends a request back to draft without sending anything: the person who
+ * asked withdrawing it, or anyone who could have approved it turning it down.
+ */
+export async function cancelApprovalRequest(campaignId: string): Promise<ActionResult> {
+  const row = await loadCampaign(campaignId);
+  const user = await getUser();
+  if (!user) return fail('Not authenticated');
+  await Rbac.requireAnyPermission(user.id, ['campaign:send:all', 'campaign:approve:all']);
+  if (row?.campaign.type === 'operational') {
+    await Rbac.requirePermission(user.id, 'campaign:operational:all');
+  }
+  if (!row) return fail('Campaign not found');
+
+  const [draft] = await db
+    .update(schema.campaigns)
+    .set({ status: 'draft', ...NO_APPROVAL, updatedBy: user.id })
+    .where(and(eq(schema.campaigns.id, campaignId), eq(schema.campaigns.status, 'pending_approval')))
+    .returning({ id: schema.campaigns.id });
+  if (!draft) return fail('This campaign isn’t waiting for approval any more.');
+
+  const requestedBy = row.campaign.approvalRequestedBy;
+  await writeAuditLog({
+    actorId: user.id,
+    action: requestedBy === user.id ? 'campaign.approval_withdrawn' : 'campaign.approval_rejected',
+    targetType: 'campaign',
+    targetId: campaignId,
+    metadata: { requestedBy },
+  });
+  refresh();
+  return ok();
+}
+
+/**
+ * Puts a scheduled campaign back to draft, as long as its dispatch hasn't
+ * started. Its approval goes with it: sending it again means asking again.
+ */
 export async function unscheduleCampaign(campaignId: string): Promise<ActionResult> {
   const row = await loadCampaign(campaignId);
   const user = await requireSender(row?.campaign.type ?? null);
@@ -198,7 +410,7 @@ export async function unscheduleCampaign(campaignId: string): Promise<ActionResu
 
   const [draft] = await db
     .update(schema.campaigns)
-    .set({ status: 'draft', scheduledFor: null, updatedBy: user.id })
+    .set({ status: 'draft', ...NO_APPROVAL, updatedBy: user.id })
     .where(and(eq(schema.campaigns.id, campaignId), eq(schema.campaigns.status, 'scheduled')))
     .returning({ id: schema.campaigns.id });
   if (!draft) {

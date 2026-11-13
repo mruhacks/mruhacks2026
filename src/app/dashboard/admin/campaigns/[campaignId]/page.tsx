@@ -45,6 +45,9 @@ async function CampaignContent({ paramsPromise }: { paramsPromise: Promise<{ cam
   ]);
   if (!campaign) notFound();
 
+  const operationalOk =
+    campaign.type !== 'operational' || Rbac.anyPermissionMatches(permissions, 'campaign:operational:all');
+
   return (
     <>
       <BreadcrumbSegment id={campaign.id} label={campaign.name} />
@@ -60,10 +63,10 @@ async function CampaignContent({ paramsPromise }: { paramsPromise: Promise<{ cam
         permissions={{
           canWrite: Rbac.anyPermissionMatches(permissions, 'campaign:write:all'),
           canPreviewRecipients: Rbac.anyPermissionMatches(permissions, 'participant:read:all'),
-          canSend:
-            Rbac.anyPermissionMatches(permissions, 'campaign:send:all') &&
-            (campaign.type !== 'operational' || Rbac.anyPermissionMatches(permissions, 'campaign:operational:all')),
+          canSend: Rbac.anyPermissionMatches(permissions, 'campaign:send:all') && operationalOk,
+          canApprove: Rbac.anyPermissionMatches(permissions, 'campaign:approve:all') && operationalOk,
         }}
+        viewerId={user.id}
       />
     </>
   );

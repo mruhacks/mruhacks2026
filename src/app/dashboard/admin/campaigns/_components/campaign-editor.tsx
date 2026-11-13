@@ -9,7 +9,6 @@ import { updateCampaignAudience } from '../actions';
 import { detachCampaignAudience, linkCampaignAudience, saveCampaignAudienceAs } from '../audience-actions';
 import * as Campaigns from '@/lib/campaigns';
 import { LocalDateTime } from '@/components/local-date-time';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { FieldError } from '@/components/ui/field';
@@ -26,6 +25,7 @@ import {
 import { AudienceBuilder } from './audience-builder';
 import { CampaignComposer } from './campaign-composer';
 import { SendPanel } from './send-panel';
+import { CampaignStatusBadge } from './status-badge';
 
 type CampaignEditorPermissions = {
   /** `campaign:write:all` */
@@ -34,6 +34,8 @@ type CampaignEditorPermissions = {
   canPreviewRecipients: boolean;
   /** `campaign:send:all`, plus `campaign:operational:all` for an operational campaign. */
   canSend: boolean;
+  /** `campaign:approve:all`, plus `campaign:operational:all` for an operational campaign. */
+  canApprove: boolean;
 };
 
 type SavedAudienceOption = {
@@ -49,9 +51,11 @@ type Props = {
   options: Campaigns.AudienceOptions;
   savedAudiences: SavedAudienceOption[];
   permissions: CampaignEditorPermissions;
+  /** The signed-in user: they can't approve a send they asked for themselves. */
+  viewerId: string;
 };
 
-export function CampaignEditor({ campaign, options, savedAudiences, permissions }: Props) {
+export function CampaignEditor({ campaign, options, savedAudiences, permissions, viewerId }: Props) {
   const editable = permissions.canWrite && campaign.status === 'draft';
   const [contentSaved, setContentSaved] = React.useState(true);
   const composer = React.useRef<Campaigns.DraftEditorHandle>(null);
@@ -96,16 +100,22 @@ export function CampaignEditor({ campaign, options, savedAudiences, permissions 
             {campaign.updatedByName && <> by {campaign.updatedByName}</>}
           </p>
         </div>
-        <Badge variant='outline' className='capitalize'>
-          {campaign.status}
-        </Badge>
+        <CampaignStatusBadge status={campaign.status} />
       </div>
 
       <SendPanel
         campaignId={campaign.id}
         status={campaign.status}
         scheduledFor={campaign.scheduledFor}
+        approval={{
+          subject: campaign.subject,
+          requestedByViewer: campaign.approvalRequestedBy === viewerId,
+          requestedByName: campaign.approvalRequestedByName,
+          requestedAt: campaign.approvalRequestedAt,
+          approvedByName: campaign.approvedByName,
+        }}
         canSend={permissions.canSend}
+        canApprove={permissions.canApprove}
         prepareSend={prepareSend}
         finishPreparing={finishPreparing}
         preparing={preparing}
@@ -204,15 +214,18 @@ function AudienceCard({
 
   const sourceValue = campaign.savedAudienceId ?? INLINE;
   const showSnapshot = Boolean(campaign.audienceSnapshot);
+  const awaitingSend = campaign.status === 'pending_approval' || campaign.status === 'scheduled';
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>Audience</CardTitle>
         <CardDescription>
-          {showSnapshot
-            ? 'The rules this campaign was sent with.'
-            : 'Worked out again when the campaign is sent, so it always reflects who matches at that moment.'}
+          {!showSnapshot
+            ? 'Worked out again when the campaign is sent, so it always reflects who matches at that moment.'
+            : awaitingSend
+              ? 'These rules were locked when the send was asked for. Who matches them is worked out when it sends.'
+              : 'The rules this campaign was sent with.'}
         </CardDescription>
       </CardHeader>
       <CardContent className='space-y-3'>
@@ -276,7 +289,8 @@ function AudienceCard({
         )}
         {linked && !showSnapshot && (
           <p className='text-muted-foreground text-xs'>
-            Linked: this campaign always uses the saved audience’s current rules. Detach to change them here only.
+            Linked: this campaign uses the saved audience’s current rules until a send is asked for. Detach to change
+            them here only.
           </p>
         )}
 

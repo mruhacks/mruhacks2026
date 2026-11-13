@@ -3,15 +3,18 @@
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { CalendarClock, RotateCcw, Send, Square, Undo2 } from 'lucide-react';
+import { CalendarClock, RotateCcw, Send, ShieldCheck, Square, Undo2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 import {
+  approveCampaign,
+  cancelApprovalRequest,
+  getApprovalSummary,
   getCampaignResults,
   getSendSummary,
+  requestSchedule,
+  requestSendNow,
   retryFailedDeliveries,
-  scheduleCampaign,
-  sendCampaignNow,
   stopCampaign,
   unscheduleCampaign,
 } from '../send-actions';
@@ -34,24 +37,44 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectVa
 import { Spinner } from '@/components/ui/spinner';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
+/** Who asked for the send and who approved it. Names are null once an account is gone. */
+type Approval = {
+  /** The subject line, repeated in the approve dialog. */
+  subject: string;
+  /** The signed-in user asked for it, so they can't be the one to approve it. */
+  requestedByViewer: boolean;
+  requestedByName: string | null;
+  requestedAt: Date | null;
+  approvedByName: string | null;
+};
+
 type Props = {
   campaignId: string;
   status: Campaigns.Status;
+  /** When it sends. While awaiting approval: the hour asked for, or null for "on approval". */
   scheduledFor: Date | null;
+  approval: Approval;
   /** `campaign:send:all` (plus `campaign:operational:all` for operational). */
   canSend: boolean;
+  /** `campaign:approve:all` (plus `campaign:operational:all` for operational). */
+  canApprove: boolean;
   prepareSend: () => Promise<boolean>;
   finishPreparing: () => void;
   preparing: boolean;
   draftSaved: boolean;
 };
 
-/** Send now / Stop controls and, once sending has started, the results. */
+/**
+ * Asking for a send, approving one, Stop and, once sending has started, the
+ * results. A send takes two people: one asks, a different one approves.
+ */
 export function SendPanel({
   campaignId,
   status,
   scheduledFor,
+  approval,
   canSend,
+  canApprove,
   prepareSend,
   finishPreparing,
   preparing,
@@ -68,8 +91,19 @@ export function SendPanel({
       />
     ) : null;
   }
+  if (status === 'pending_approval') {
+    return (
+      <PendingApprovalCard
+        campaignId={campaignId}
+        scheduledFor={scheduledFor}
+        approval={approval}
+        canSend={canSend}
+        canApprove={canApprove}
+      />
+    );
+  }
   if (status === 'scheduled') {
-    return <ScheduledCard campaignId={campaignId} scheduledFor={scheduledFor} canSend={canSend} />;
+    return <ScheduledCard campaignId={campaignId} scheduledFor={scheduledFor} approval={approval} canSend={canSend} />;
   }
   return <ResultsCard campaignId={campaignId} status={status} canSend={canSend} />;
 }
@@ -85,14 +119,14 @@ function SendNowCard({
   const [scheduling, setScheduling] = React.useState(false);
   return (
     <Card>
-      <CardHeader className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
-        <div>
+      <CardHeader className='flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between'>
+        <div className='space-y-1.5'>
           <CardTitle>Send</CardTitle>
           <CardDescription>
-            The audience is worked out the moment it&apos;s sent. Emails go out at about 10 a second.
+            Pick when it should go out, then a second person approves it. Nothing is sent until they do.
           </CardDescription>
         </div>
-        <div className='flex flex-wrap gap-2'>
+        <div className='flex shrink-0 gap-2'>
           <Button
             variant='outline'
             disabled={preparing}
@@ -168,15 +202,15 @@ function SendNowDialog({
     setIsSending(true);
     setError(null);
     try {
-      const result = await sendCampaignNow(campaignId, data.requiresTypedConfirmation ? data.recipients : undefined);
+      const result = await requestSendNow(campaignId, data.requiresTypedConfirmation ? data.recipients : undefined);
       if (!result.success) {
         setError(result.error);
         return;
       }
-      toast.success('Campaign is sending');
+      toast.success('Sent for approval');
       onClose();
     } catch {
-      setError('Could not send the campaign. Please try again.');
+      setError('Could not ask for approval. Please try again.');
     } finally {
       setIsSending(false);
     }
@@ -189,15 +223,16 @@ function SendNowDialog({
           <DialogTitle>
             {data ? (
               <>
-                Send to <strong>{data.recipients.toLocaleString()}</strong>{' '}
-                {data.recipients === 1 ? 'person' : 'people'} now?
+                Ask to send to <strong>{data.recipients.toLocaleString()}</strong>{' '}
+                {data.recipients === 1 ? 'person' : 'people'}?
               </>
             ) : (
-              'Send now?'
+              'Ask to send?'
             )}
           </DialogTitle>
           <DialogDescription>
-            This can be stopped while it&apos;s sending, but emails already sent can&apos;t be taken back.
+            It goes out as soon as someone else approves it. Until then the campaign and its audience rules are locked;
+            you can withdraw the request to keep editing.
           </DialogDescription>
         </DialogHeader>
 
@@ -235,7 +270,7 @@ function SendNowDialog({
             Cancel
           </Button>
           <Button onClick={confirm} disabled={!canConfirm || isSending}>
-            {isSending ? 'Sending…' : 'Send now'}
+            {isSending ? 'Asking…' : 'Ask for approval'}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -271,12 +306,12 @@ function ScheduleDialog({
     setIsSaving(true);
     setError(null);
     try {
-      const result = await scheduleCampaign(campaignId, slot);
+      const result = await requestSchedule(campaignId, slot);
       if (!result.success) {
         setError(result.error);
         return;
       }
-      toast.success('Campaign scheduled');
+      toast.success('Sent for approval');
       onClose();
     } catch {
       setError('Could not schedule the campaign. Please try again.');
@@ -292,8 +327,9 @@ function ScheduleDialog({
           <DialogHeader>
             <DialogTitle>Schedule</DialogTitle>
             <DialogDescription>
-              Choose an available hourly slot in your time zone. The audience is worked out then, and the campaign
-              can&apos;t be edited until it&apos;s unscheduled.
+              Choose an available hourly slot in your time zone. Someone else has to approve it before then. Who matches
+              the audience is worked out at that hour, and the campaign can&apos;t be edited unless it goes back to
+              draft.
             </DialogDescription>
           </DialogHeader>
           <div className='grid grid-cols-2 gap-3'>
@@ -341,7 +377,7 @@ function ScheduleDialog({
               Cancel
             </Button>
             <Button type='submit' disabled={isSaving || !slot || !draftSaved}>
-              {isSaving ? 'Scheduling…' : 'Schedule'}
+              {isSaving ? 'Asking…' : 'Ask for approval'}
             </Button>
           </DialogFooter>
         </form>
@@ -350,15 +386,247 @@ function ScheduleDialog({
   );
 }
 
+/** A row of labelled facts about a send: who asked, when it goes, who approved. */
+function Facts({ children }: { children: React.ReactNode }) {
+  return <dl className='grid gap-x-8 gap-y-4 text-sm sm:grid-cols-3'>{children}</dl>;
+}
+
+function Fact({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className='min-w-0'>
+      <dt className='text-muted-foreground text-xs'>{label}</dt>
+      <dd className='mt-1 font-medium'>{children}</dd>
+    </div>
+  );
+}
+
+function requesterLabel(approval: Approval): string {
+  if (approval.requestedByViewer) return 'You';
+  return approval.requestedByName ?? 'A deleted account';
+}
+
+function SendTime({ scheduledFor }: { scheduledFor: Date | string | null }) {
+  if (!scheduledFor) return <>As soon as it&apos;s approved</>;
+  return <LocalDateTime value={scheduledFor} dateStyle='medium' timeStyle='short' timeZoneName='short' />;
+}
+
+/**
+ * A send someone asked for, waiting on a second person. Whoever asked can
+ * withdraw it; anyone else who can approve can approve it or turn it down.
+ */
+function PendingApprovalCard({
+  campaignId,
+  scheduledFor,
+  approval,
+  canSend,
+  canApprove,
+}: Pick<Props, 'campaignId' | 'scheduledFor' | 'approval' | 'canSend' | 'canApprove'>) {
+  const [reviewing, setReviewing] = React.useState(false);
+  const [busy, setBusy] = React.useState(false);
+  const router = useRouter();
+  // Whoever asked is usually the one watching this page when the approval lands.
+  const status = useQuery({
+    queryKey: ['campaign-results', campaignId],
+    queryFn: async () => {
+      const result = await getCampaignResults(campaignId);
+      if (!result.success) throw new Error(result.error);
+      return result.data!;
+    },
+    refetchInterval: 15_000,
+  });
+  const currentStatus = status.data?.status;
+  React.useEffect(() => {
+    if (currentStatus && currentStatus !== 'pending_approval') {
+      // The editor's status and approval are Server Component props.
+      // eslint-disable-next-line custom/no-router-refresh
+      router.refresh();
+    }
+  }, [currentStatus, router]);
+
+  const mayApprove = canApprove && !approval.requestedByViewer;
+  const mayCancel = canSend || canApprove;
+
+  return (
+    <Card>
+      <CardHeader className='flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between'>
+        <div className='space-y-1.5'>
+          <CardTitle>{mayApprove ? 'Needs your approval' : 'Waiting for approval'}</CardTitle>
+          <CardDescription>
+            {approval.requestedByViewer
+              ? 'You asked for this send, so someone else has to approve it. It’s locked until they do.'
+              : mayApprove
+                ? 'Read the email and its audience below. Nothing goes out until you or another approver says so.'
+                : 'It’s locked, and nothing goes out, until someone with approval access approves it.'}
+          </CardDescription>
+        </div>
+        {(mayApprove || mayCancel) && (
+          <div className='flex shrink-0 gap-2'>
+            {mayCancel && (
+              <Button
+                variant='outline'
+                disabled={busy}
+                onClick={async () => {
+                  setBusy(true);
+                  const result = await cancelApprovalRequest(campaignId);
+                  setBusy(false);
+                  // A button-only action: nothing to attach an inline error to.
+                  if (!result.success) toast.error(result.error);
+                  else toast.success('Back to draft');
+                }}
+              >
+                <Undo2 /> {approval.requestedByViewer ? 'Withdraw' : 'Back to draft'}
+              </Button>
+            )}
+            {mayApprove && (
+              <Button disabled={busy} onClick={() => setReviewing(true)}>
+                <ShieldCheck /> Approve
+              </Button>
+            )}
+          </div>
+        )}
+      </CardHeader>
+      <CardContent>
+        <Facts>
+          <Fact label='Asked by'>{requesterLabel(approval)}</Fact>
+          <Fact label='Asked'>
+            {approval.requestedAt ? (
+              <LocalDateTime value={approval.requestedAt} dateStyle='medium' timeStyle='short' />
+            ) : (
+              '—'
+            )}
+          </Fact>
+          <Fact label='Sends'>
+            <SendTime scheduledFor={scheduledFor} />
+          </Fact>
+        </Facts>
+      </CardContent>
+      {reviewing && <ApproveDialog campaignId={campaignId} approval={approval} onClose={() => setReviewing(false)} />}
+    </Card>
+  );
+}
+
+function ApproveDialog({
+  campaignId,
+  approval,
+  onClose,
+}: {
+  campaignId: string;
+  approval: Approval;
+  onClose: () => void;
+}) {
+  const summary = useQuery({
+    queryKey: ['campaign-approval-summary', campaignId],
+    queryFn: async () => {
+      const result = await getApprovalSummary(campaignId);
+      if (!result.success) throw new Error(result.error);
+      return result.data!;
+    },
+    gcTime: 0,
+  });
+  const [typed, setTyped] = React.useState('');
+  const [error, setError] = React.useState<string | null>(null);
+  const [isApproving, setIsApproving] = React.useState(false);
+
+  const data = summary.data;
+  const typedOk = !data?.requiresTypedConfirmation || Number(typed.replace(/[,\s]/g, '')) === data.recipients;
+  const canConfirm = !summary.isFetching && data && data.problems.length === 0 && typedOk;
+  const sendsNow = data ? data.scheduledFor === null : false;
+
+  async function confirm() {
+    if (!data || !canConfirm || isApproving) return;
+    setIsApproving(true);
+    setError(null);
+    try {
+      const result = await approveCampaign(campaignId, data.requiresTypedConfirmation ? data.recipients : undefined);
+      if (!result.success) {
+        setError(result.error);
+        return;
+      }
+      toast.success(sendsNow ? 'Approved: the campaign is sending' : 'Approved and scheduled');
+      onClose();
+    } catch {
+      setError('Could not approve the campaign. Please try again.');
+    } finally {
+      setIsApproving(false);
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(next) => !next && !isApproving && onClose()}>
+      <DialogContent className='sm:max-w-md'>
+        <DialogHeader>
+          <DialogTitle>Approve this send?</DialogTitle>
+          <DialogDescription>
+            You&apos;re the second check. Once it starts, emails already sent can&apos;t be taken back.
+          </DialogDescription>
+        </DialogHeader>
+
+        {summary.isPending ? (
+          <Spinner />
+        ) : summary.isError ? (
+          <FieldError>{summary.error.message}</FieldError>
+        ) : (
+          <>
+            <dl className='bg-muted/50 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 rounded-lg border p-3 text-sm'>
+              <dt className='text-muted-foreground'>Subject</dt>
+              <dd className='min-w-0 font-medium wrap-break-word'>{approval.subject}</dd>
+              <dt className='text-muted-foreground'>Asked by</dt>
+              <dd className='font-medium'>{requesterLabel(approval)}</dd>
+              <dt className='text-muted-foreground'>Sends</dt>
+              <dd className='font-medium'>
+                {sendsNow ? 'Straight away' : <SendTime scheduledFor={data!.scheduledFor} />}
+              </dd>
+              <dt className='text-muted-foreground'>Reaches</dt>
+              <dd className='font-medium'>
+                {data!.recipients.toLocaleString()} {data!.recipients === 1 ? 'person' : 'people'}
+              </dd>
+            </dl>
+
+            {data!.problems.length > 0 ? (
+              <ul className='text-destructive list-disc space-y-1 pl-5 text-sm'>
+                {data!.problems.map((problem) => (
+                  <li key={problem}>{problem}</li>
+                ))}
+              </ul>
+            ) : data!.requiresTypedConfirmation ? (
+              <Field>
+                <FieldLabel htmlFor='approve-confirm'>Type {data!.recipients.toLocaleString()} to confirm</FieldLabel>
+                <Input
+                  id='approve-confirm'
+                  inputMode='numeric'
+                  autoComplete='off'
+                  value={typed}
+                  onChange={(e) => {
+                    setTyped(e.target.value);
+                    setError(null);
+                  }}
+                />
+              </Field>
+            ) : null}
+          </>
+        )}
+
+        {error && <FieldError>{error}</FieldError>}
+
+        <DialogFooter>
+          <Button variant='outline' disabled={isApproving} onClick={onClose}>
+            Cancel
+          </Button>
+          <Button onClick={confirm} disabled={!canConfirm || isApproving}>
+            {isApproving ? 'Approving…' : sendsNow ? 'Approve and send' : 'Approve and schedule'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function ScheduledCard({
   campaignId,
   scheduledFor,
+  approval,
   canSend,
-}: {
-  campaignId: string;
-  scheduledFor: Date | null;
-  canSend: boolean;
-}) {
+}: Pick<Props, 'campaignId' | 'scheduledFor' | 'approval' | 'canSend'>) {
   const [busy, setBusy] = React.useState(false);
   const router = useRouter();
   const status = useQuery({
@@ -383,17 +651,17 @@ function ScheduledCard({
   }
   return (
     <Card>
-      <CardHeader className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
-        <div>
+      <CardHeader className='flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between'>
+        <div className='space-y-1.5'>
           <CardTitle>Scheduled</CardTitle>
           <CardDescription>
-            Sends <LocalDateTime value={scheduledFor} dateStyle='full' timeStyle='short' timeZoneName='short' />.
-            Unschedule it to make changes.
+            Approved and locked until it sends. Unschedule it to make changes; it will need approving again.
           </CardDescription>
         </div>
         {canSend && (
           <Button
             variant='outline'
+            className='shrink-0'
             disabled={busy}
             onClick={async () => {
               setBusy(true);
@@ -408,6 +676,15 @@ function ScheduledCard({
           </Button>
         )}
       </CardHeader>
+      <CardContent>
+        <Facts>
+          <Fact label='Sends'>
+            <SendTime scheduledFor={scheduledFor} />
+          </Fact>
+          <Fact label='Asked by'>{requesterLabel(approval)}</Fact>
+          <Fact label='Approved by'>{approval.approvedByName ?? 'A deleted account'}</Fact>
+        </Facts>
+      </CardContent>
     </Card>
   );
 }
@@ -468,8 +745,8 @@ function ResultsCard({
       <CardHeader className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between'>
         <div>
           <CardTitle>Results</CardTitle>
-          <CardDescription className='capitalize'>
-            {currentStatus === 'cancelled' ? 'Stopped' : currentStatus}
+          <CardDescription>
+            {Campaigns.STATUS_LABELS[currentStatus as Campaigns.Status] ?? currentStatus}
           </CardDescription>
         </div>
         {canSend && (

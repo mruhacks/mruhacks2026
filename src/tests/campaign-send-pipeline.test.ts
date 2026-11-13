@@ -10,7 +10,7 @@ import { insertAttendees } from '@/tests/participation-fixtures';
 const { send } = vi.hoisted(() => ({ send: vi.fn() }));
 vi.mock('@vercel/queue', () => ({ send }));
 vi.mock('@/utils/mail', () => ({ sendMail: vi.fn() }));
-vi.mock('@/utils/auth', () => ({ getUser: vi.fn() }));
+vi.mock('@/utils/auth', () => ({ getUser: vi.fn(), getImpersonatedUser: vi.fn() }));
 vi.mock('next/cache', async (importOriginal) => ({
   ...(await importOriginal<typeof import('next/cache')>()),
   updateTag: vi.fn(),
@@ -20,15 +20,17 @@ vi.mock('next/cache', async (importOriginal) => ({
 import { sendMail } from '@/utils/mail';
 import { getUser } from '@/utils/auth';
 import {
+  approveCampaign,
   getCampaignResults,
   getSendSummary,
+  requestSendNow,
   retryFailedDeliveries,
-  sendCampaignNow,
   stopCampaign,
 } from '@/app/dashboard/admin/campaigns/send-actions';
 
 const memberIds: string[] = [];
 let senderId: string;
+let approverId: string;
 let eventId: string;
 const campaignIds: string[] = [];
 const savedKey = process.env.APP_SIGNING_PRIVATE_KEY;
@@ -50,6 +52,17 @@ async function newCampaign(overrides: Partial<typeof schema.campaigns.$inferInse
       status: 'scheduled',
       scheduledFor: new Date(),
       updatedBy: senderId,
+      // A scheduled campaign has been through approval: frozen rules, asked
+      // for by one person and approved by another.
+      ...(overrides.status === undefined || overrides.status === 'scheduled'
+        ? {
+            audienceSnapshot: overrides.audienceRules ?? everyoneInEvent(),
+            approvalRequestedBy: senderId,
+            approvalRequestedAt: new Date(),
+            approvedBy: approverId,
+            approvedAt: new Date(),
+          }
+        : {}),
       ...overrides,
     })
     .returning({ id: schema.campaigns.id });
@@ -104,38 +117,60 @@ beforeAll(async () => {
     })
     .returning({ id: schema.user.id });
   senderId = sender.id;
-  for (const slug of ['campaign:send:all', 'campaign:read:all', 'participant:read:all']) {
-    const [p] = await db
-      .insert(schema.permission)
-      .values({ slug })
-      .onConflictDoUpdate({ target: schema.permission.slug, set: { slug } })
-      .returning({ id: schema.permission.id });
-    await db.insert(schema.userPermission).values({ userId: senderId, permissionId: p.id });
-  }
+  const [approver] = await db
+    .insert(schema.user)
+    .values({
+      name: 'Pipeline approver',
+      email: 'pipeline-approver@example.com',
+      emailVerified: true,
+    })
+    .returning({ id: schema.user.id });
+  approverId = approver.id;
+  const grant = async (userId: string, slugs: string[]) => {
+    for (const slug of slugs) {
+      const [p] = await db
+        .insert(schema.permission)
+        .values({ slug })
+        .onConflictDoUpdate({ target: schema.permission.slug, set: { slug } })
+        .returning({ id: schema.permission.id });
+      await db.insert(schema.userPermission).values({ userId, permissionId: p.id });
+    }
+  };
+  await grant(senderId, ['campaign:send:all', 'campaign:read:all', 'participant:read:all']);
+  await grant(approverId, ['campaign:approve:all']);
 });
+
+const asSender = () =>
+  vi.mocked(getUser).mockResolvedValue({
+    id: senderId,
+    name: 'Pipeline sender',
+    email: 'pipeline-sender@example.com',
+  } as Awaited<ReturnType<typeof getUser>>);
+const asApprover = () =>
+  vi.mocked(getUser).mockResolvedValue({
+    id: approverId,
+    name: 'Pipeline approver',
+    email: 'pipeline-approver@example.com',
+  } as Awaited<ReturnType<typeof getUser>>);
 
 beforeEach(() => {
   send.mockReset();
   send.mockResolvedValue({ messageId: 'm' });
   vi.mocked(sendMail).mockReset();
   vi.mocked(sendMail).mockResolvedValue(undefined);
-  vi.mocked(getUser).mockResolvedValue({
-    id: senderId,
-    name: 'Pipeline sender',
-    email: 'pipeline-sender@example.com',
-  } as Awaited<ReturnType<typeof getUser>>);
+  asSender();
 });
 
 afterAll(async () => {
   await db.delete(schema.campaigns).where(inArray(schema.campaigns.id, campaignIds));
   await db.delete(schema.events).where(eq(schema.events.id, eventId));
-  await db.delete(schema.user).where(inArray(schema.user.id, [...memberIds, senderId]));
+  await db.delete(schema.user).where(inArray(schema.user.id, [...memberIds, senderId, approverId]));
   if (savedKey === undefined) delete process.env.APP_SIGNING_PRIVATE_KEY;
   else process.env.APP_SIGNING_PRIVATE_KEY = savedKey;
 });
 
 describe('dispatch', () => {
-  test('claims the campaign, snapshots the rules, writes deliveries and paces them ~10/s', async () => {
+  test('claims the campaign, uses the frozen rules, writes deliveries and paces them ~10/s', async () => {
     const id = await newCampaign();
     const outcome = await processCampaignDispatch(id);
     expect(outcome).toEqual({
@@ -163,7 +198,47 @@ describe('dispatch', () => {
     expect(audit.metadata).toMatchObject({
       recipients: 12,
       audienceRules: everyoneInEvent(),
+      requestedBy: senderId,
+      approvedBy: approverId,
     });
+  });
+
+  test('sends to the rules frozen at request, not whatever the campaign says now', async () => {
+    const nobody: Campaigns.AudienceRuleGroup = {
+      combinator: 'and',
+      rules: [
+        { field: 'participatedIn', operator: '!=', value: { eventId } },
+        { field: 'participatedIn', operator: '=', value: { eventId } },
+      ],
+    };
+    const id = await newCampaign({ audienceRules: everyoneInEvent(), audienceSnapshot: nobody });
+    expect(await processCampaignDispatch(id)).toMatchObject({ kind: 'dispatched', recipients: 0 });
+  });
+
+  test.each([
+    ['was never approved', () => ({ approvedBy: null, approvedAt: null })],
+    ['has no frozen rules', () => ({ audienceSnapshot: null })],
+    ['was approved by the person who asked for it', () => ({ approvedBy: senderId })],
+  ])('a scheduled campaign that %s goes back to draft instead of sending', async (_name, overrides) => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const id = await newCampaign(overrides());
+    expect(await processCampaignDispatch(id)).toEqual({ kind: 'not_approved' });
+    expect(await campaignRow(id)).toMatchObject({
+      status: 'draft',
+      scheduledFor: null,
+      audienceSnapshot: null,
+      approvalRequestedBy: null,
+      approvedBy: null,
+      approvedAt: null,
+    });
+    expect(await deliveriesOf(id)).toHaveLength(0);
+    expect(send).not.toHaveBeenCalled();
+    const audits = await db
+      .select()
+      .from(schema.auditLog)
+      .where(and(eq(schema.auditLog.action, 'campaign.dispatch_refused'), eq(schema.auditLog.targetId, id)));
+    expect(audits).toHaveLength(1);
+    vi.restoreAllMocks();
   });
 
   test('a duplicate dispatch never claims twice', async () => {
@@ -438,7 +513,7 @@ describe('delivery', () => {
 });
 
 describe('send actions', () => {
-  test('Send now queues the dispatch and leaves claiming to it', async () => {
+  test('asking to send queues nothing; approval queues the dispatch and leaves claiming to it', async () => {
     const id = await newCampaign({ status: 'draft', scheduledFor: null });
     const summary = await getSendSummary(id);
     expect(summary).toMatchObject({
@@ -446,41 +521,62 @@ describe('send actions', () => {
       data: { recipients: 12, requiresTypedConfirmation: false, problems: [] },
     });
 
-    expect(await sendCampaignNow(id)).toEqual({
+    expect(await requestSendNow(id)).toEqual({
       success: true,
       data: undefined,
     });
+    expect(await campaignRow(id)).toMatchObject({
+      status: 'pending_approval',
+      scheduledFor: null,
+      audienceSnapshot: everyoneInEvent(),
+      approvalRequestedBy: senderId,
+      approvedBy: null,
+      approvedAt: null,
+    });
+    expect(send).not.toHaveBeenCalled();
+    // Not a draft anymore.
+    expect((await requestSendNow(id)).success).toBe(false);
+
+    asApprover();
+    expect(await approveCampaign(id)).toEqual({ success: true, data: undefined });
     const row = await campaignRow(id);
-    expect(row.status).toBe('scheduled');
+    expect(row).toMatchObject({ status: 'scheduled', approvedBy: approverId });
+    expect(row.approvedAt).toBeInstanceOf(Date);
     expect(send).toHaveBeenCalledWith(
       'campaign-dispatch',
       { campaignId: id, scheduledFor: row.scheduledFor!.toISOString() },
       { idempotencyKey: `${id}:${row.scheduledFor!.toISOString()}` },
     );
-    // Not a draft anymore.
-    expect((await sendCampaignNow(id)).success).toBe(false);
+    expect(await processCampaignDispatch(id)).toMatchObject({ kind: 'dispatched', recipients: 12 });
   });
 
-  test('Send now refuses a campaign with problems', async () => {
+  test('asking to send refuses a campaign with problems', async () => {
     const id = await newCampaign({
       status: 'draft',
       subject: '',
       scheduledFor: null,
     });
-    expect(await sendCampaignNow(id)).toEqual({
+    expect(await requestSendNow(id)).toEqual({
       success: false,
       error: 'Add a subject line.',
     });
-    expect(send).not.toHaveBeenCalled();
+    expect((await campaignRow(id)).status).toBe('draft');
   });
 
-  test('a failed publish puts the campaign back to draft', async () => {
+  test('a failed publish leaves the campaign waiting for approval', async () => {
     const id = await newCampaign({ status: 'draft', scheduledFor: null });
+    expect((await requestSendNow(id)).success).toBe(true);
+    asApprover();
     send.mockRejectedValue(new Error('queue down'));
     vi.spyOn(console, 'error').mockImplementation(() => {});
     vi.spyOn(console, 'warn').mockImplementation(() => {});
-    expect((await sendCampaignNow(id)).success).toBe(false);
-    expect((await campaignRow(id)).status).toBe('draft');
+    expect((await approveCampaign(id)).success).toBe(false);
+    expect(await campaignRow(id)).toMatchObject({
+      status: 'pending_approval',
+      scheduledFor: null,
+      approvedBy: null,
+      approvedAt: null,
+    });
     vi.restoreAllMocks();
   });
 
@@ -536,7 +632,7 @@ describe('send actions', () => {
     expect((await campaignRow(id)).status).toBe('sent');
   });
 
-  test('over 100 recipients, Send now needs the count typed back', async () => {
+  test('over 100 recipients, asking and approving both need the count typed back', async () => {
     const extra = await db
       .insert(schema.user)
       .values(
@@ -556,15 +652,22 @@ describe('send actions', () => {
       expect(await getSendSummary(id)).toMatchObject({
         data: { recipients: 102, requiresTypedConfirmation: true },
       });
-      expect(await sendCampaignNow(id)).toEqual({
+      expect(await requestSendNow(id)).toEqual({
         success: false,
         error: 'Type 102 to confirm sending to that many people.',
       });
-      expect(await sendCampaignNow(id, 101)).toMatchObject({ success: false });
-      expect(await sendCampaignNow(id, 102)).toEqual({
+      expect(await requestSendNow(id, 101)).toMatchObject({ success: false });
+      expect(await requestSendNow(id, 102)).toEqual({
         success: true,
         data: undefined,
       });
+
+      asApprover();
+      expect(await approveCampaign(id)).toEqual({
+        success: false,
+        error: 'Type 102 to confirm sending to that many people.',
+      });
+      expect(await approveCampaign(id, 102)).toEqual({ success: true, data: undefined });
     } finally {
       await db.delete(schema.user).where(inArray(schema.user.id, extraIds));
     }

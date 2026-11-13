@@ -6,26 +6,11 @@ import * as Campaigns from '@/lib/campaigns/server';
 import * as Rbac from '@/lib/rbac/server';
 import { getUser } from '@/utils/auth';
 import { NewCampaignDialog } from './_components/new-campaign-dialog';
+import { CampaignStatusBadge } from './_components/status-badge';
 import { LocalDateTime } from '@/components/local-date-time';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import type * as schema from '@/db/schema';
-
-const STATUS_BADGE: Record<
-  schema.CampaignStatus,
-  {
-    label: string;
-    variant: 'outline' | 'info' | 'warning' | 'success' | 'destructive';
-  }
-> = {
-  draft: { label: 'Draft', variant: 'outline' },
-  scheduled: { label: 'Scheduled', variant: 'info' },
-  sending: { label: 'Sending', variant: 'warning' },
-  sent: { label: 'Sent', variant: 'success' },
-  cancelled: { label: 'Stopped', variant: 'destructive' },
-};
 
 function CampaignListSkeleton() {
   return <div className='bg-muted animate-pulse rounded-xl' style={{ height: 220 }} />;
@@ -60,7 +45,6 @@ async function CampaignList() {
         </TableHeader>
         <TableBody>
           {rows.map((row) => {
-            const status = STATUS_BADGE[row.status];
             return (
               <TableRow key={row.id}>
                 <TableCell className='max-w-56 truncate font-medium'>
@@ -73,10 +57,15 @@ async function CampaignList() {
                 </TableCell>
                 <TableCell className='capitalize'>{row.type}</TableCell>
                 <TableCell>
-                  <Badge variant={status.variant}>{status.label}</Badge>
+                  <CampaignStatusBadge status={row.status} />
                   {row.status === 'scheduled' && row.scheduledFor && (
                     <span className='text-muted-foreground mt-1 block text-xs'>
                       <LocalDateTime value={row.scheduledFor} dateStyle='medium' timeStyle='short' />
+                    </span>
+                  )}
+                  {row.status === 'pending_approval' && row.approvalRequestedByName && (
+                    <span className='text-muted-foreground mt-1 block text-xs'>
+                      Asked by {row.approvalRequestedByName}
                     </span>
                   )}
                 </TableCell>

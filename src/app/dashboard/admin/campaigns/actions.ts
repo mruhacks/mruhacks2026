@@ -97,8 +97,8 @@ export async function createCampaign(input: CreateCampaignInput): Promise<Action
 }
 
 /**
- * Loads a campaign for editing: it must exist and still be a draft — a
- * scheduled, sending or sent campaign is read-only.
+ * Loads a campaign for editing: it must exist and still be a draft — one
+ * that's awaiting approval, scheduled, sending or sent is read-only.
  */
 async function loadEditableCampaign(
   campaignId: string,
@@ -111,7 +111,7 @@ async function loadEditableCampaign(
   if (row.status !== 'draft') {
     return {
       ok: false,
-      error: 'Only drafts can be edited. Unschedule it first.',
+      error: 'Only drafts can be edited. Send it back to draft first.',
     };
   }
   return { ok: true, campaign: row };
@@ -136,10 +136,12 @@ export async function updateCampaignAudience(
   }
 
   try {
-    await db
+    const saved = await db
       .update(schema.campaigns)
       .set({ audienceRules: parsed.data, updatedBy: user.id })
-      .where(eq(schema.campaigns.id, campaignId));
+      .where(and(eq(schema.campaigns.id, campaignId), eq(schema.campaigns.status, 'draft')))
+      .returning({ id: schema.campaigns.id });
+    if (saved.length === 0) return fail('Only drafts can be edited. Send it back to draft first.');
     return ok();
   } catch (error) {
     return serverActionError('save audience', error);
@@ -237,7 +239,7 @@ export async function updateCampaignContent(
       .set({ ...parsed.data, updatedBy: user.id })
       .where(and(eq(schema.campaigns.id, campaignId), eq(schema.campaigns.status, 'draft')))
       .returning({ updatedAt: schema.campaigns.updatedAt });
-    if (!row) return fail('Only drafts can be edited. Unschedule it first.');
+    if (!row) return fail('Only drafts can be edited. Send it back to draft first.');
     return ok({ updatedAt: row.updatedAt.toISOString() });
   } catch (error) {
     return serverActionError('save campaign', error);
